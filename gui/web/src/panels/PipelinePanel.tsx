@@ -6,6 +6,7 @@ import {
   putPipelineConfig,
   startPipelineRun,
 } from "../api";
+import { useLatestRequest } from "../hooks/useLatestRequest";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import { useDaw } from "../state/useDaw";
 import type {
@@ -234,8 +235,8 @@ export function PipelinePanel() {
   const [starting, setStarting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const persistSeq = useRef(0);
-  const analyzeSeq = useRef(0);
+  const persistRequest = useLatestRequest();
+  const analyzeRequest = useLatestRequest();
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
@@ -251,8 +252,8 @@ export function PipelinePanel() {
 
   useEffect(() => {
     // A project switch drops in-flight writes and the previous project's Analyze results.
-    persistSeq.current += 1;
-    analyzeSeq.current += 1;
+    persistRequest.invalidate();
+    analyzeRequest.invalidate();
     setAnalyzing(false);
     setReasons([]);
     setTrackRows([]);
@@ -277,7 +278,7 @@ export function PipelinePanel() {
     return () => {
       cancelled = true;
     };
-  }, [projectPath]);
+  }, [projectPath, persistRequest, analyzeRequest]);
 
   const stepsUnique = useMemo(() => (cfg ? uniqueSteps(cfg.steps) : []), [cfg]);
 
@@ -312,8 +313,7 @@ export function PipelinePanel() {
     unattended?: boolean;
     reset?: boolean;
   }) => {
-    const seq = ++persistSeq.current;
-    return applyPersist(patch, seq);
+    return applyPersist(patch, persistRequest.begin());
   };
 
   const applyPersist = async (
@@ -323,13 +323,12 @@ export function PipelinePanel() {
       unattended?: boolean;
       reset?: boolean;
     },
-    seq: number,
+    token: number,
   ) => {
     const next = await putPipelineConfig(projectPath, patch);
-    if (seq !== persistSeq.current) {
-      return next;
+    if (persistRequest.isCurrent(token)) {
+      setCfg(next);
     }
-    setCfg(next);
     return next;
   };
 
@@ -370,11 +369,11 @@ export function PipelinePanel() {
     if (nextConfig !== cfg.config) {
       patch.config = nextConfig;
     }
-    const seq = ++persistSeq.current;
+    const token = persistRequest.begin();
     try {
-      await applyPersist(patch, seq);
+      await applyPersist(patch, token);
       // False when a later write (param edit, another toggle, Analyze) overtook this one.
-      return seq === persistSeq.current;
+      return persistRequest.isCurrent(token);
     } catch (e) {
       setError(errorMessage(e));
       return false;
@@ -396,10 +395,10 @@ export function PipelinePanel() {
     const snapshot = cfg;
     const nextConfig = setByPath(cfg.config, path, value);
     setCfg({ ...cfg, config: nextConfig });
-    const seq = ++persistSeq.current;
+    const token = persistRequest.begin();
     try {
-      await applyPersist({ config: nextConfig }, seq);
-      if (seq === persistSeq.current) {
+      await applyPersist({ config: nextConfig }, token);
+      if (persistRequest.isCurrent(token)) {
         setHighlightPaths((prev) => {
           const n = new Set(prev);
           n.delete(path);
@@ -407,7 +406,7 @@ export function PipelinePanel() {
         });
       }
     } catch (e) {
-      if (seq === persistSeq.current) {
+      if (persistRequest.isCurrent(token)) {
         setCfg(snapshot);
       }
       setError(errorMessage(e));
@@ -417,10 +416,10 @@ export function PipelinePanel() {
   const onAnalyze = async () => {
     setError(null);
     setAnalyzing(true);
-    const seq = ++analyzeSeq.current;
+    const token = analyzeRequest.begin();
     try {
       const result = await analyzePipeline(projectPath, { apply: true });
-      if (seq !== analyzeSeq.current) {
+      if (!analyzeRequest.isCurrent(token)) {
         return;
       }
       setReasons(result.reasons);
@@ -439,18 +438,18 @@ export function PipelinePanel() {
       walk(result.patches ?? {}, "");
       setHighlightPaths(paths);
       const next = result.config ?? (await loadPipelineConfig(projectPath));
-      if (seq !== analyzeSeq.current) {
+      if (!analyzeRequest.isCurrent(token)) {
         return;
       }
       // Analyze's config is the newest server state: older in-flight persists must not overwrite it.
-      persistSeq.current += 1;
+      persistRequest.invalidate();
       setCfg(next);
     } catch (e) {
-      if (seq === analyzeSeq.current) {
+      if (analyzeRequest.isCurrent(token)) {
         setError(errorMessage(e));
       }
     } finally {
-      if (seq === analyzeSeq.current) {
+      if (analyzeRequest.isCurrent(token)) {
         setAnalyzing(false);
       }
     }
