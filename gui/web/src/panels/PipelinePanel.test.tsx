@@ -977,6 +977,81 @@ describe("PipelinePanel", () => {
     expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
   });
 
+  it("keeps focus when a later write overtakes Uncheck Align tracks", async () => {
+    const user = userEvent.setup();
+    const withAlign = structuredClone(baseConfig);
+    withAlign.steps.push({
+      id: "align_tracks",
+      index: 4,
+      group: "transcript",
+      title: "Align tracks",
+      summary: "Align",
+      kind: "tooling",
+      depends_on: ["ingest_tracks"],
+      requires_components: ["ffmpeg"],
+      param_sections: [],
+      enabled_by_default: true,
+    });
+    withAlign.enabled_steps = [...withAlign.enabled_steps, "align_tracks"];
+    loadPipelineConfig.mockResolvedValue(withAlign);
+    analyzePipeline.mockResolvedValue({
+      proposed_config: {},
+      patches: {},
+      reasons: [
+        {
+          code: "pre_aligned",
+          message: "Dialogue tracks guest, host all run 10.00s",
+          evidence: { duration_sec: 10, tolerance_sec: 0.05 },
+          suggested_skip_steps: ["align_tracks"],
+        },
+      ],
+      report_summary: { track_count: 0, reason_count: 1, tracks: [] },
+      applied: true,
+      config: withAlign,
+    });
+    let resolveFirst!: (v: unknown) => void;
+    putPipelineConfig
+      .mockImplementationOnce(
+        (_path, body) =>
+          new Promise((r) => {
+            resolveFirst = () =>
+              r({
+                ...structuredClone(withAlign),
+                enabled_steps: body.enabled_steps,
+              });
+          }),
+      )
+      .mockImplementation(async (_path, body) => ({
+        ...structuredClone(withAlign),
+        config: body.config ?? withAlign.config,
+        enabled_steps: body.enabled_steps ?? withAlign.enabled_steps,
+      }));
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await screen.findByRole("button", { name: "Uncheck Align tracks" });
+    await user.click(
+      screen.getByRole("button", { name: "Uncheck Align tracks" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Enable Balance tracks" }),
+    );
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    await act(async () => {
+      resolveFirst(undefined);
+    });
+    expect(
+      screen.getByRole("checkbox", { name: "Enable Align tracks" }),
+    ).not.toHaveFocus();
+    expect(
+      screen.getByRole("checkbox", { name: "Enable Align tracks" }),
+    ).toBeChecked();
+  });
+
   it("formatAnalyzeFields skips nulls and a given key", () => {
     expect(
       formatAnalyzeFields({ a: 1, b: null, c: [1, 2], d: "x" }, ["d"]),
