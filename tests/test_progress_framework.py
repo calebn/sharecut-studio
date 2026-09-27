@@ -273,6 +273,41 @@ def test_install_cli_progress_wraps_callbacks():
     assert seen[1] == "grp.sub"
 
 
+def test_install_cli_progress_labels_wrap_with_command():
+    from podcast_mcp.util.progress import RecordingProgress, register_progress_sink
+
+    class Cmd:
+        def __init__(self, name, callback):
+            self.name = name
+            self.callback = callback
+
+    class Group:
+        def __init__(self, name, typer_instance):
+            self.name = name
+            self.typer_instance = typer_instance
+
+    class App:
+        def __init__(self):
+            self.registered_commands = []
+            self.registered_groups = []
+
+    def cb():
+        return "done"
+
+    app = App()
+    inner = App()
+    inner.registered_commands.append(Cmd("sub", cb))
+    app.registered_groups.append(Group("grp", inner))
+
+    rec = RecordingProgress()
+    register_progress_sink(lambda: rec)
+    install_cli_progress(app)
+    assert inner.registered_commands[0].callback() == "done"
+    start_events = [e for e in rec.events if e.kind == "start"]
+    assert start_events[0].task_id == "grp.sub"
+    assert start_events[0].label == "podcast grp sub"
+
+
 def test_install_guest_tool_progress_binds_reporter():
     seen: list[str] = []
 

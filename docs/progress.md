@@ -52,6 +52,20 @@ with resolve_progress_task("transcribe", "Transcribing tracks", total=n, prefer_
 
 `ProgressEvent` kinds: `start` \| `update` \| `message` \| `heartbeat` \| `end` \| `fail` \| `cancel`. Optional `phase` field for stable ids.
 
+### Update cadence
+
+`advance` / `advance_to` coalesce to **at most 4 updates/s per task**
+(`PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.25`), with the latest value and message
+winning over anything skipped in between. The first update, a `total` change,
+and reaching `total` always emit immediately. A pending coalesced update is
+flushed before `set_phase` / `message` / `child` / the terminal `end` / `fail`
+/ `cancel`, so those always see the final count. Direct `reporter.update(...)`
+calls (for example the pipeline runner's `Completed {step}` line, which drives
+the GUI step parser) are **not** throttled — only the `ProgressTask.advance*`
+path is. Domain loops may still gate by count (`if done % 50 == 0: ...`) to
+save the cost of computing progress, but must not rely on that gate alone for
+rate limiting; the per-task time coalesce is what caps the emitted events.
+
 ## Choke points (cannot skip)
 
 Wrap **before** registrars run — do not copy opt-in decorators like `notify_after_mutation`.
@@ -76,7 +90,7 @@ Skills do **not** get a second progress protocol — relay tool headlines; do no
 | ok | end | summary + next action when known |
 | error | fail | first non-traceback line (paths stripped), else the phase name; exception re-raised; chip/stderr show that headline |
 | cancelled | cancel | distinct from error |
-| stale | (soft, adapter) | **Shipped:** StatusBar / Pipeline tab / phone chip show “last update Ns ago” when `last_progress_at` is older than 15s. That stamp lives on the live `PipelineJob` and is written only by `_JobProgressReporter._emit` (domain `start` / `update` / `message` / `heartbeat`, including the 5s mixin heartbeat). `_SsePublishReporter` is publish-only and does not stamp, so `compose_progress` SSE fan-in of domain kinds does not clear stale on the job. The SSE 1s keepalive snapshot also does not bump it. Pulse and elapsed companion stay; no fake moving bar. Same-machine Studio compares `time.time()` to `Date.now()`; a remote client clock ahead by more than 15s can show false stale. |
+| stale | (soft, adapter) | **Shipped:** StatusBar / Pipeline tab / phone chip show “last update Ns ago” when `last_progress_at` is older than 15s. That stamp lives on the live `PipelineJob` and is written only by `_JobProgressReporter._emit` (domain `start` / `update` / `message` / `heartbeat`, including the mixin heartbeat: one per sink after 5 s with no events, on the innermost open task). `_SsePublishReporter` is publish-only and does not stamp, so `compose_progress` SSE fan-in of domain kinds does not clear stale on the job. The SSE 1s keepalive snapshot also does not bump it. Pulse and elapsed companion stay; no fake moving bar. Same-machine Studio compares `time.time()` to `Date.now()`; a remote client clock ahead by more than 15s can show false stale. |
 
 ## Consumer fan-out
 

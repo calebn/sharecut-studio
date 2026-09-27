@@ -35,6 +35,8 @@ Adapters compose sinks with `compose_progress` (CLI + optional in-process GUI SS
 
 Results and structured command output remain on **stdout**. Progress never writes to stdout.
 
+`update` lines are time-coalesced to at most 4/s per task (see [progress.md § Update cadence](progress.md#update-cadence)); `start`, a `total` change and reaching `total` always emit.
+
 ### Contract tests (do not golden Rich ANSI)
 
 - `--json-progress` lines include `kind`, `task_id`, `elapsed_sec`; optional `phase` / `message`
@@ -43,6 +45,16 @@ Results and structured command output remain on **stdout**. Progress never write
 - TTY Rich output is best-effort; tests assert JSON + stderr/stdout separation, not escape sequences
 
 ## Determinate vs indeterminate
+
+The Rich view renders on **stderr** (`Console(stderr=True)`), never stdout.
+Indeterminate tasks (`total=None`) pulse with a spinner and elapsed time and
+never show a stuck 0% bar. A phase/`message()` call replaces the row's own
+description text instead of printing a separate stderr line. The command-wrap
+row is labelled with the command as typed (`podcast pipeline run`); its
+`task_id` stays the dotted op id (`pipeline.run`). The 5s-of-silence
+heartbeat (one line per sink, for the innermost open task) is silent in Rich
+mode — the spinner and `TimeElapsedColumn` already show the run is alive; it
+still prints for the plain (non-Rich) stderr fallback.
 
 | Mode | When | UI |
 |------|------|-----|
@@ -55,6 +67,7 @@ For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summa
 
 | `task_id` | Parent operation | Nested? |
 |-----------|------------------|---------|
+| `pipeline.run` (and generally `<group>.<cmd>`) | CLI command wrap | wrap (label `podcast <group> <cmd>`) |
 | `pipeline` | Full or partial pipeline run | wrap |
 | `precorrect` | Orchestrator (3 sub-passes) | wrap / leaf (`prefer_parent=True`) |
 | `precorrect-glossary` | Glossary replacement scan | child |
@@ -62,7 +75,10 @@ For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summa
 | `speaker-enroll` | Profile enrollment | child under precorrect; leaf under CLI enroll |
 | `speaker-attribute` | Bleed window scoring | child |
 | `transcribe` | Per-track transcription | wrap / leaf |
+| `transcribe_audio` | Whisper decode of one track | child; audio seconds, `segment.end / duration` |
 | `audibility` / `low-audibility` / `gate-overreach` | Word-scale audit | child (not the wrap’s unit scale) |
+| `master_loudnorm` | Loudness measure + normalize | child; media seconds over measure + normalize, total = 2 × duration |
+| `master_qc_measure` | Post-master loudness re-measure | child; media seconds |
 
 Common ids in the table are **child** ids when nested. They collapse onto the wrap id only for wrap/leaf entrypoints that pass `prefer_parent=True`.
 

@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "description": "Operations that emit intra-op phases/units on the bound progress task. Keep in sync as richness lands.",
+  "description": "Operations that emit intra-op phases/units on the bound progress task. Keep in sync as richness lands. Units are time-coalesced (docs/progress.md § Update cadence).",
   "rich": [
     "align_tracks",
     "agent",

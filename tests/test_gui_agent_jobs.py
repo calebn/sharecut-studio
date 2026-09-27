@@ -14,7 +14,21 @@ from podcast_mcp.gui.jobs import (
     gui_agent_job_progress_sink,
     shared_job_manager,
 )
-from podcast_mcp.util.progress import bind_progress, progress_task
+from podcast_mcp.util import progress as progress_mod
+from podcast_mcp.util.progress import PROGRESS_UPDATE_MIN_INTERVAL_SEC, bind_progress, progress_task
+
+
+@pytest.fixture
+def stepping_clock(monkeypatch):
+    """Advance the progress update clock by the throttle interval on every read."""
+    t = [0.0]
+
+    def _tick() -> float:
+        t[0] += PROGRESS_UPDATE_MIN_INTERVAL_SEC
+        return t[0]
+
+    monkeypatch.setattr(progress_mod, "_update_clock", _tick)
+    return t
 
 
 def test_gui_agent_job_progress_sink_skips_without_studio_manager() -> None:
@@ -56,7 +70,7 @@ def test_instant_tool_does_not_create_agent_job() -> None:
     assert mgr._agent_live == {}
 
 
-def test_rich_mcp_wrap_creates_agent_job_and_sse_payload() -> None:
+def test_rich_mcp_wrap_creates_agent_job_and_sse_payload(stepping_clock) -> None:
     mgr = PipelineJobManager()
     sink = AgentJobFanInReporter(mgr)
     with bind_progress(sink), progress_task("align_tracks", "align_tracks", reporter=sink) as task:
