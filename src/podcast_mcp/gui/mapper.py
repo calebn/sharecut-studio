@@ -7,7 +7,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
-from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
+from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
@@ -286,6 +286,13 @@ def map_applied_edits_to_timeline(
     return {"count": len(records), "records": records}
 
 
+def _spans_overlap_clip(spans: list[tuple[Any, Any]], clip: Clip) -> bool:
+    """True when any mapped timeline span overlaps ``clip``'s timeline range."""
+    clip_start = float(clip.timeline_start)
+    clip_end = float(clip.timeline_end)
+    return any(float(s) < clip_end and float(e) > clip_start for s, e in spans)
+
+
 def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     """Derive edit boundaries from neighbouring clips + transcript words.
 
@@ -294,10 +301,16 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     marks each one. The row is keyed on the pair, not on the join tolerance.
     """
     rows: list[dict[str, Any]] = []
+    timeline = SessionTimeline(project)
     track_ids = sorted({c.track_id for c in project.clips})
     for track_id in track_ids:
         clips = clips_for_track(project, track_id)
         tr = project.transcript_for_track(track_id)
+        word_spans = (
+            timeline.map_word_spans(track_id, [(w.start, w.end) for w in tr.words])
+            if tr is not None and len(clips) > 1
+            else []
+        )
         for i, left in enumerate(clips):
             if i + 1 >= len(clips):
                 continue
@@ -312,8 +325,8 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     w_end = float(word_source_span(word.start, word.end)[1])
                     if w_end <= cutaway_start or float(word.start) >= cutaway_end:
                         continue
-                    if word.end <= word.start and float(word.start) <= cutaway_start + 1e-9:
-                        continue  # zero-length word at the left clip's end stays on it
+                    if word.end <= word.start and _spans_overlap_clip(word_spans[word_index], left):
+                        continue  # the timeline maps it onto the left clip (#621)
                     cutaway_word_ids.append(
                         {
                             "track_id": track_id,
