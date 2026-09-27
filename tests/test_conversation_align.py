@@ -1699,6 +1699,56 @@ def test_recorded_lead_in_clip_is_replaced_as_whole_file(tmp_path: Path) -> None
     assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 100.0, 0.0))
 
 
+def test_split_track_after_ripple_zero_offset_rebases_each_piece(tmp_path: Path) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "ripple_zero",
+        [
+            Clip(
+                id="host_a", track_id="host", source_start=0.0, source_end=50.0, timeline_start=0.0
+            ),
+            Clip(
+                id="host_b",
+                track_id="host",
+                source_start=60.0,
+                source_end=100.0,
+                timeline_start=50.0,
+            ),
+            Clip(
+                id="guest_a",
+                track_id="guest",
+                source_start=0.0,
+                source_end=50.0,
+                timeline_start=0.0,
+            ),
+            Clip(
+                id="guest_b",
+                track_id="guest",
+                source_start=55.0,
+                source_end=95.0,
+                timeline_start=50.0,
+            ),
+        ],
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a", "host_b"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=0.0, method="bleed"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_b", offset_sec=0.0, method="bleed"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
+    assert (guest["guest_a"].source_start, guest["guest_a"].timeline_start) == (0.0, 0.0)
+    assert (
+        guest["guest_b"].source_start,
+        guest["guest_b"].source_end,
+        guest["guest_b"].timeline_start,
+    ) == pytest.approx((60.0, 100.0, 50.0))
+    assert not any(p.skipped_reason for p in result.plans)
+
+
 def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
     apply_alignment_plans(proj, _plans(-35.6))

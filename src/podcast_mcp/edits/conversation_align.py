@@ -1628,10 +1628,10 @@ def _planned_geometry(
     plan: ClipAlignPlan,
     *,
     media_readers: collections.Counter[str],
-    ref_shift: float,
     ref_clips: list[Clip],
     media_dur: float,
 ) -> tuple[float, float, float] | None:
+    ref_shift = _reference_shift_at(clip, ref_clips)
     if (
         plan.method in (REFERENCE_METHOD, "manual")
         or (
@@ -1651,8 +1651,7 @@ def _planned_geometry(
         return clip.source_start, clip.source_end, clip.timeline_start
     if _is_whole_file_clip(project, track, clip, media_readers, media_dur):
         return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
-    target_shift = plan.offset_sec + _reference_shift_at(clip, ref_clips)
-    return slip_clip_to_shift(clip, target_shift, media_duration=media_dur)
+    return slip_clip_to_shift(clip, plan.offset_sec + ref_shift, media_duration=media_dur)
 
 
 def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
@@ -1671,9 +1670,8 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
     ref_clips = (
         clips_for_track(project, result.reference_track_id) if result.reference_track_id else []
     )
-    # Plans are file-time offsets against the reference file; rebase them onto the
-    # reference clip's placement (an ingest lead-in keeps reference file L at timeline 0).
-    ref_shift = _reference_shift(ref_clips)
+    # Plans are file-time offsets against the reference file; each clip is rebased onto
+    # the reference clip it overlaps most (an ingest lead-in keeps reference file L at 0).
     ref_clips = [c.model_copy() for c in ref_clips]
 
     for track in project.tracks:
@@ -1706,7 +1704,6 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 clip,
                 plan,
                 media_readers=media_readers,
-                ref_shift=ref_shift,
                 ref_clips=ref_clips,
                 media_dur=media_dur,
             )
