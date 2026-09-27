@@ -45,7 +45,8 @@ A whole-file clip (the only clip on its lane reading that media, starting at the
 at timeline 0 at the lead-in placement `meta.ingest_alignment` records) is re-placed from the
 offset, same as before; a head trimmed and rippled to timeline 0 takes the slip path below. A
 split, trimmed or rippled track instead keeps every clip's timeline window and slips its source
-range by the delta between its current and target shift — a head that would land before the file start trims the clip
+range by the delta between its current and target shift (the plan offset plus the shift of the
+reference clip it overlaps most) — a head that would land before the file start trims the clip
 (timeline start moves later, source start clamps to 0), and a tail past the file end
 clamps too. When the delta would leave a piece with no audio, or applying it would newly
 stack two same-source clips on the timeline (`same_source_timeline_overlaps`, #520), the
