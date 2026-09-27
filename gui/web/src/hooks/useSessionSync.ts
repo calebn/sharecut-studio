@@ -19,7 +19,7 @@ import {
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "../session/dedupe";
-import { bindWsSender } from "../session/wsSend";
+import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
@@ -28,6 +28,20 @@ import { useFileMetaPoll } from "./useFileMetaPoll";
 const FALLBACK_POLL_MS = 1500;
 const PLAYHEAD_HEARTBEAT_MS = 200;
 const DISCRETE_DEBOUNCE_MS = 50;
+
+/** No own-client `ViewerState` Echo within this window: republish over HTTP. */
+const VIEWER_STATE_ECHO_TIMEOUT_MS = 1500;
+
+/** `ViewerState` frames sent and not yet echoed, and the echo-wait timer. */
+type ViewerStateWait = { inFlight: number; timer: number | null };
+
+function stopViewerStateWait(wait: ViewerStateWait): void {
+  wait.inFlight = 0;
+  if (wait.timer != null) {
+    window.clearTimeout(wait.timer);
+    wait.timer = null;
+  }
+}
 
 function wsUrl(projectPath: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -48,7 +62,8 @@ function wsUrl(projectPath: string, clientId: string): string {
  * Session sync: WebSocket primary (Applied fanout), HTTP publish + mtime fallback.
  *
  * Presence and durable deltas (`ViewerState`) publish over WS while it is
- * open; POST /api/session/state is the socket-down fallback only.
+ * open. POST /api/session/state is the socket-down / rejected / unechoed
+ * fallback.
  * See docs/gui-integration.md § Shared session state.
  */
 export function useSessionSync(
@@ -63,9 +78,7 @@ export function useSessionSync(
   enabled = true,
 ): void {
   const clientIdRef = useRef(newClientId());
-  const sendRef = useRef<((frame: Record<string, unknown>) => boolean) | null>(
-    null,
-  );
+  const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const cursorRef = useRef<AppliedCursor>({
     serverSeq: lastAppliedRevision,
@@ -81,6 +94,10 @@ export function useSessionSync(
 
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
+  const viewerStateWaitRef = useRef<ViewerStateWait>({
+    inFlight: 0,
+    timer: null,
+  });
 
   useEffect(() => {
     if (!enabled) {
@@ -114,6 +131,26 @@ export function useSessionSync(
     [],
   );
 
+  const viewerSnapshot = (): ViewerSessionSnapshot => ({
+    ...buildViewerSnapshot(),
+    client_id: clientIdRef.current,
+    label: "Host",
+  });
+
+  /** HTTP publish: the socket-down path, and the recovery when a WS publish is rejected or never echoed. */
+  const publishOverHttp = useEffectEvent(async () => {
+    const written = await postSessionState(projectPath, viewerSnapshot());
+    cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
+  });
+
+  /** Stop waiting for the ViewerState echo and republish the latest snapshot over HTTP. */
+  const fallBackToHttp = useEffectEvent(() => {
+    stopViewerStateWait(viewerStateWaitRef.current);
+    void publishOverHttp().catch(() => {
+      // Transient: the next publishKey change or reconnect republishes.
+    });
+  });
+
   useEffect(() => {
     if (!enabled || !projectPath) {
       return;
@@ -138,6 +175,7 @@ export function useSessionSync(
         try {
           const msg = JSON.parse(ev.data as string) as {
             type: string;
+            code?: string;
             plane?: string;
             server_time_ns?: number;
             clients?: SessionState["clients"];
@@ -162,12 +200,31 @@ export function useSessionSync(
             return;
           }
           if (
+            msg.type === "Error" &&
+            (msg.code === "invalid_viewer_state" ||
+              msg.code === "viewer_state_failed")
+          ) {
+            fallBackToHttp();
+            return;
+          }
+          if (
             (msg.type === "Snapshot" ||
               msg.type === "Applied" ||
               msg.type === "Echo") &&
             msg.snapshot
           ) {
             const snap = msg.snapshot;
+            if (
+              msg.type === "Echo" &&
+              msg.command?.type === "ViewerState" &&
+              msg.command.client_id === clientIdRef.current
+            ) {
+              const wait = viewerStateWaitRef.current;
+              wait.inFlight = Math.max(0, wait.inFlight - 1);
+              if (wait.inFlight === 0) {
+                stopViewerStateWait(wait);
+              }
+            }
             if (Array.isArray(snap.clients)) {
               useDawStore.getState().setSessionClients(snap.clients);
             }
@@ -210,6 +267,7 @@ export function useSessionSync(
           return;
         }
         sendRef.current = null;
+        stopViewerStateWait(viewerStateWaitRef.current);
         bindRecordHostSend(null);
         setWsReady(false);
         useRecordHostStore.getState().setConnected(false);
@@ -239,6 +297,7 @@ export function useSessionSync(
         socket.close();
       }
       sendRef.current = null;
+      stopViewerStateWait(viewerStateWaitRef.current);
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
     };
@@ -261,19 +320,28 @@ export function useSessionSync(
     FALLBACK_POLL_MS,
   );
 
-  /** Durable viewer state: one WS `ViewerState` frame while live, else HTTP. */
+  /**
+   * Durable viewer state: one WS `ViewerState` frame while live, else HTTP.
+   * The server's own-client Echo advances the cursor (onmessage) and ends the
+   * wait; a rejection or no Echo in VIEWER_STATE_ECHO_TIMEOUT_MS (half-open
+   * socket) republishes over HTTP.
+   */
   const publish = useEffectEvent(async () => {
-    const snap = {
-      ...buildViewerSnapshot(),
-      client_id: clientIdRef.current,
-      label: "Host",
-    };
-    // The server's Echo (own client_id) advances the cursor via onmessage.
-    if (sendRef.current?.({ type: "ViewerState", snapshot: snap })) {
+    if (
+      sendRef.current?.({ type: "ViewerState", snapshot: viewerSnapshot() })
+    ) {
+      const wait = viewerStateWaitRef.current;
+      wait.inFlight += 1;
+      if (wait.timer != null) {
+        window.clearTimeout(wait.timer);
+      }
+      wait.timer = window.setTimeout(() => {
+        wait.timer = null;
+        fallBackToHttp();
+      }, VIEWER_STATE_ECHO_TIMEOUT_MS);
       return;
     }
-    const written = await postSessionState(projectPath, snap);
-    cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
+    await publishOverHttp();
   });
 
   useEffect(() => {
