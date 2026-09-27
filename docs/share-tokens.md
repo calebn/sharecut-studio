@@ -12,14 +12,21 @@ Local host and guest review media responses open the authorized file through
 no-follow directory descriptors before streaming. Byte ranges, HEAD, and cache
 headers use that pinned file, so a later symlink swap cannot redirect a read.
 Review MP3 retries give FFmpeg a private, separate-inode clone or copy from the pinned WAV descriptor;
-object-store uploads pass the pinned MP3 file object to the client. Platforms
-without descriptor-relative no-follow opens (Windows) use a portable fallback in
-`util/pinned_media.py`: the path must not traverse a symlink or junction, and after opening
-the descriptor's `fstat` must match the path's `lstat` (same device and inode, regular file).
-An open file cannot be deleted or renamed on Windows, so the checked file stays the one read;
-ranged responses read with a lock-guarded seek because `os.pread` is missing there.
-`PinnedFileResponse` overrides Starlette's private `FileResponse` hooks, so `starlette>=0.47.0`
-is required and a signature-drift test in `tests/test_pinned_media.py` fails on the next change.
+object-store uploads pass the pinned MP3 file object to the client. Windows has no
+descriptor-relative no-follow opens, so `util/pinned_media.py` uses a weaker path-based
+fallback there. The path must not traverse a symlink or junction. After opening, the
+descriptor's `fstat` must report a non-zero file ID and match the path's `lstat` (same
+device and inode, regular file), and the parent link check and a `realpath` comparison are
+repeated. An open file cannot be deleted or renamed on Windows. A parent swapped for a
+junction before the open and restored between those checks is not detected, and a
+filesystem that reports no file IDs (some FAT volumes and network shares) refuses these
+reads. The desktop sidecar ships Python 3.12. Every other platform without the descriptor
+operations fails closed. Ranged responses read with a lock-guarded seek because `os.pread`
+is missing on Windows. `PinnedFileResponse` overrides Starlette's private `FileResponse`
+hooks, so `starlette>=0.47.0` (and `fastapi>=0.116.1`, the first release that accepts it)
+is required. In `tests/test_pinned_media.py`, a signature-drift test and a test that forbids
+opening the path fail on the next incompatible change; the `pinned-media-windows` CI job
+runs that file on Windows.
 
 ## State diagram
 
