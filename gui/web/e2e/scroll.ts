@@ -1,4 +1,4 @@
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Slack for the end check. scrollWidth/clientWidth are rounded integers while
@@ -46,4 +46,19 @@ export async function scrollToEnd(
       END_SLACK_PX + measured.reserved,
     );
   }).toPass({ timeout });
+}
+
+/** A person's horizontal scroll of `px` on the timeline, away from the nearer end of the range. */
+export async function scrollTimelineBy(page: Page, px: number): Promise<void> {
+  const scroller = page.locator(".timeline-scroll");
+  await expect
+    .poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(2 * px);
+  await scroller.evaluate((el, delta) => {
+    const max = el.scrollWidth - el.clientWidth;
+    el.scrollLeft =
+      el.scrollLeft + delta <= max
+        ? el.scrollLeft + delta
+        : el.scrollLeft - delta;
+  }, px);
 }

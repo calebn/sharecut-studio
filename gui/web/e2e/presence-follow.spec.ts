@@ -8,8 +8,10 @@ import {
 import { expectPageAxeClean } from "./axe";
 import { clickHTMLElement } from "./domClick";
 import { followUntilBannerVisible, waitForFollowBanner } from "./followBanner";
+import { scrollTimelineBy } from "./scroll";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
+import { zoomTimelineIn } from "./timelineZoom";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const DESKTOP = { width: 1440, height: 900 };
@@ -167,37 +169,6 @@ async function followUntilLeaderPlayheadMirrors(
   throw new Error("no Follow peer mirrored the leader playhead");
 }
 
-/**
- * Zooms the timeline in past fit, so it has a real horizontal scroll range.
- * At fit zoom the scroller overflows by at most a few px (playhead, chips),
- * so a scroll there can clamp to the current value and fire no event.
- */
-async function zoomInPastFit(page: Page): Promise<void> {
-  const scroller = page.locator(".timeline-scroll");
-  await scroller.click();
-  for (let i = 0; i < 4; i++) {
-    await page.keyboard.press("=");
-  }
-  await expect
-    .poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth))
-    .toBeGreaterThan(200);
-}
-
-/** A person's horizontal scroll of `px`, away from the nearer end of the range. */
-async function scrollTimelineBy(page: Page, px: number): Promise<void> {
-  const scroller = page.locator(".timeline-scroll");
-  await expect
-    .poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth))
-    .toBeGreaterThan(2 * px);
-  await scroller.evaluate((el, delta) => {
-    const max = el.scrollWidth - el.clientWidth;
-    el.scrollLeft =
-      el.scrollLeft + delta <= max
-        ? el.scrollLeft + delta
-        : el.scrollLeft - delta;
-  }, px);
-}
-
 async function withTwoStudioPages<T>(
   browser: Pick<Browser, "newContext">,
   viewport: { width: number; height: number },
@@ -284,7 +255,7 @@ test.describe("presence follow desktop", () => {
     browser,
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
-      await zoomInPastFit(pageA);
+      await zoomTimelineIn(pageA, { maxSteps: 16, minRangePx: 200 });
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       await expect(
         pageB.locator(".timeline-area[data-following]"),

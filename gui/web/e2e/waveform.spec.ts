@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
-import { rulerWidthPx } from "./deepZoom";
 import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
+import { zoomTimelineIn } from "./timelineZoom";
 import {
   crashWaveformWorker,
   expectPaintedWaveformTile,
@@ -82,10 +82,7 @@ test.describe("pyramid waveforms", () => {
     await expectPaintedWaveformTile(page);
 
     // Deep zoom: tiles stay tile-sized and only the view (plus overscan) mounts.
-    await page.locator(".timeline-scroll").click();
-    for (let i = 0; i < 16; i++) {
-      await page.keyboard.press("=");
-    }
+    await zoomTimelineIn(page, { maxSteps: 16 });
     await expectPaintedWaveformTile(page);
     const layout = await page.evaluate(() => {
       const view =
@@ -131,10 +128,7 @@ test.describe("pyramid waveforms", () => {
     expect(await crashWaveformWorker(page)).toBe(restarts + 1);
     const rendered = await waveformTilesRendered(page);
     // Zoom in so the new worker has tiles to render.
-    await page.locator(".timeline-scroll").click();
-    for (let i = 0; i < 4; i++) {
-      await page.keyboard.press("=");
-    }
+    await zoomTimelineIn(page, { maxSteps: 4 });
     await expect
       .poll(() => waveformTilesRendered(page), { timeout: 30_000 })
       .toBeGreaterThan(rendered);
@@ -157,16 +151,11 @@ test.describe("pyramid waveforms", () => {
 
     // Zoom in until the session-aware ceiling stops it (48,000 px/s on the
     // 60 s fixture), at most 50 steps.
-    await page.locator(".timeline-scroll").click();
-    let width = await rulerWidthPx(page);
-    let stopped = false;
-    for (let i = 0; i < 50 && !stopped; i++) {
-      await page.keyboard.press("=");
-      const next = await rulerWidthPx(page);
-      stopped = next === width && i > 0;
-      width = next;
-    }
-    expect(stopped).toBe(true);
+    const { rulerWidthPx: width, atCeiling } = await zoomTimelineIn(page, {
+      maxSteps: 50,
+      untilCeiling: true,
+    });
+    expect(atCeiling).toBe(true);
     // The fixture's ceiling is the 48,000 px/s cap, not the content cap.
     expect(width).toBeGreaterThan(60 * 48000 * 0.99);
     expect(width).toBeLessThanOrEqual(15_000_000);
