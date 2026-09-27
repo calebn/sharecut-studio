@@ -369,6 +369,88 @@ def test_elapsed_mixin_heartbeat_drops_finished_task(monkeypatch) -> None:
     assert probe.emitted == ["t"]
 
 
+def test_mixin_heartbeats_only_the_innermost_task(monkeypatch) -> None:
+    import threading
+    import time
+
+    from podcast_mcp.util.progress import ElapsedProgressMixin
+
+    class Probe(ElapsedProgressMixin):
+        def __init__(self) -> None:
+            super().__init__()
+            self._heartbeat_sec = 0.01
+            self.emitted: list[str] = []
+
+        def _emit_heartbeat(self, task_id: str, state, elapsed_sec: float) -> None:
+            self.emitted.append(task_id)
+
+    probe = Probe()
+    for tid in ("pipeline.run", "pipeline", "align_tracks"):
+        probe._register_task(tid, tid, None)
+    with probe._lock:
+        for tid in ("pipeline.run", "pipeline", "align_tracks"):
+            probe._tasks[tid].last_emit = time.monotonic() - 10
+    probe._stop = threading.Event()
+    waits = iter([False, True])
+    monkeypatch.setattr(probe._stop, "wait", lambda _timeout: next(waits))
+    probe._heartbeat_loop()
+    assert probe.emitted == ["align_tracks"]
+
+
+def test_mixin_skips_heartbeat_while_any_task_is_active(monkeypatch) -> None:
+    import threading
+    import time
+
+    from podcast_mcp.util.progress import ElapsedProgressMixin
+
+    class Probe(ElapsedProgressMixin):
+        def __init__(self) -> None:
+            super().__init__()
+            self._heartbeat_sec = 0.01
+            self.emitted: list[str] = []
+
+        def _emit_heartbeat(self, task_id: str, state, elapsed_sec: float) -> None:
+            self.emitted.append(task_id)
+
+    probe = Probe()
+    for tid in ("pipeline.run", "pipeline", "align_tracks"):
+        probe._register_task(tid, tid, None)
+    with probe._lock:
+        probe._tasks["pipeline.run"].last_emit = time.monotonic() - 10
+        probe._tasks["pipeline"].last_emit = time.monotonic() - 10
+        probe._tasks["align_tracks"].last_emit = time.monotonic()
+    probe._stop = threading.Event()
+    waits = iter([False, True])
+    monkeypatch.setattr(probe._stop, "wait", lambda _timeout: next(waits))
+    probe._heartbeat_loop()
+    assert probe.emitted == []
+
+
+def test_register_task_moves_reregistered_id_innermost() -> None:
+    from podcast_mcp.util.progress import ElapsedProgressMixin
+
+    class Probe(ElapsedProgressMixin):
+        def _emit_heartbeat(self, task_id: str, state, elapsed_sec: float) -> None:
+            pass  # pragma: no cover
+
+    probe = Probe()
+    try:
+        probe._register_task("a", "A", None)
+        probe._register_task("b", "B", None)
+        probe._register_task("a", "A again", None)
+        assert list(probe._tasks.keys()) == ["b", "a"]
+        import time
+
+        with probe._lock:
+            probe._tasks["a"].last_emit = time.monotonic() - 10
+            probe._tasks["b"].last_emit = time.monotonic() - 10
+            target = probe._heartbeat_target_locked(time.monotonic())
+        assert target is not None
+        assert target[0] == "a"
+    finally:
+        probe.close()
+
+
 def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager
 

@@ -16,6 +16,9 @@ from typing import Any, Protocol, TextIO, TypeVar, runtime_checkable
 F = TypeVar("F", bound=Callable[..., Any])
 
 PROGRESS_LAZY_CHIP_SEC = 1.0
+PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.25
+"""Per-task cap on ``ProgressTask.advance`` updates (latest value wins; see docs/progress.md)."""
+_update_clock: Callable[[], float] = time.monotonic  # tests pin this
 _SHORT_FAIL_MAX = 200
 
 
@@ -689,6 +692,10 @@ class ProgressTask:
         self._bucket = _ComplianceBucket(task_id=task_id, label=label)
         self._closed = False
         self._lock_total = False
+        self._last_update_at: float | None = None
+        self._pending_update = False
+        self._pending_message: str | None = None
+        self._update_lock = threading.Lock()
 
     def __enter__(self) -> ProgressTask:
         mark_wrapped(self._mark_id)
@@ -714,10 +721,12 @@ class ProgressTask:
             return False
         if exc is None:
             if not self._closed:
+                self._flush_update()
                 reporter.end(self.task_id)
                 self._bucket.ended = True
         elif isinstance(exc, CancelledProgress):
             if not self._closed:
+                self._flush_update()
                 reporter.cancel(self.task_id, message=str(exc) or "cancelled")
                 self._bucket.cancelled = True
                 self._closed = True
@@ -726,6 +735,7 @@ class ProgressTask:
             return False
         else:
             if not self._closed:
+                self._flush_update()
                 phase = self.phase
                 msg = f"{self.label} failed"
                 if phase:
@@ -759,6 +769,7 @@ class ProgressTask:
         return self._reporter or current_progress()
 
     def set_phase(self, phase_id: str, headline: str) -> None:
+        self._flush_update()
         self.phase = phase_id
         self._bucket.had_phase = True
         self._bucket.had_message = True
@@ -772,18 +783,47 @@ class ProgressTask:
         total: int | None = None,
     ) -> None:
         self.current += amount
+        prev_total = self.total
         if total is not None and not self._lock_total:
             self.total = total
         self._bucket.had_update = True
         if message:
             self._bucket.had_message = True
+        now = _update_clock()
+        with self._update_lock:
+            if not self._update_due(now, total_changed=self.total != prev_total):
+                self._pending_update = True
+                if message is not None:
+                    self._pending_message = message
+                return
+            self._mark_update_sent(now)
+        self._send_update(message)
+
+    def _update_due(self, now: float, *, total_changed: bool) -> bool:
+        if self._last_update_at is None or total_changed:
+            return True
+        if self.total is not None and self.current >= self.total:
+            return True
+        return now - self._last_update_at >= PROGRESS_UPDATE_MIN_INTERVAL_SEC
+
+    def _mark_update_sent(self, now: float) -> None:  # caller holds _update_lock
+        self._last_update_at = now
+        self._pending_update = False
+        self._pending_message = None
+
+    def _send_update(self, message: str | None) -> None:
         self._reporter_now().update(
-            self.task_id,
-            self.current,
-            total=self.total,
-            message=message,
-            phase=self.phase,
+            self.task_id, self.current, total=self.total, message=message, phase=self.phase
         )
+
+    def _flush_update(self) -> None:
+        """Emit a coalesced update before phase / message / child / terminal events."""
+        with self._update_lock:
+            if not self._pending_update:
+                return
+            message = self._pending_message
+            self._mark_update_sent(_update_clock())
+        self._send_update(message)
 
     def advance_to(
         self,
@@ -799,6 +839,7 @@ class ProgressTask:
         self.advance(delta, message=message, total=total)
 
     def message(self, text: str) -> None:
+        self._flush_update()
         self._bucket.had_message = True
         self._reporter_now().message(self.task_id, text, phase=self.phase)
 
@@ -809,6 +850,7 @@ class ProgressTask:
         *,
         total: int | None = None,
     ) -> ProgressTask:
+        self._flush_update()
         return ProgressTask(
             task_id,
             label,
@@ -818,11 +860,13 @@ class ProgressTask:
         )
 
     def fail(self, message: str, *, phase: str | None = None) -> None:
+        self._flush_update()
         self._bucket.failed = True
         self._closed = True
         self._reporter_now().fail(self.task_id, message=message, phase=phase or self.phase)
 
     def cancel(self, message: str = "cancelled") -> None:
+        self._flush_update()
         self._bucket.cancelled = True
         self._closed = True
         self._reporter_now().cancel(self.task_id, message=message)
@@ -898,6 +942,7 @@ class ElapsedProgressMixin:
 
     def _register_task(self, task_id: str, label: str, total: int | None) -> None:
         with self._lock:
+            self._tasks.pop(task_id, None)
             self._tasks[task_id] = _TaskState(label, total)
 
     def _touch_task(
@@ -931,17 +976,23 @@ class ElapsedProgressMixin:
         while not self._stop.wait(1.0):
             now = time.monotonic()
             with self._lock:
-                stale = [
-                    (tid, st)
-                    for tid, st in self._tasks.items()
-                    if now - st.last_emit >= self._heartbeat_sec
-                ]
-            for tid, st in stale:
-                elapsed = now - st.started_at
-                self._emit_heartbeat(tid, st, elapsed)
-                with self._lock:
-                    if tid in self._tasks:
-                        self._tasks[tid].last_emit = now
+                target = self._heartbeat_target_locked(now)
+            if target is None:
+                continue
+            tid, st = target
+            self._emit_heartbeat(tid, st, now - st.started_at)
+            with self._lock:
+                if tid in self._tasks:
+                    self._tasks[tid].last_emit = now
+
+    def _heartbeat_target_locked(self, now: float) -> tuple[str, _TaskState] | None:
+        """Innermost open task when no task on this sink emitted for ``heartbeat_sec``."""
+        if not self._tasks:
+            return None
+        if now - max(st.last_emit for st in self._tasks.values()) < self._heartbeat_sec:
+            return None
+        tid = next(reversed(self._tasks))
+        return tid, self._tasks[tid]
 
     def _emit_heartbeat(self, task_id: str, state: _TaskState, elapsed_sec: float) -> None:
         pass  # pragma: no cover - base class; reporters override
@@ -998,8 +1049,9 @@ class JsonProgressReporter(ElapsedProgressMixin):
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
         with self._lock:
             state = self._tasks.get(task_id)
-            if state is not None and phase is not None:
-                state.phase = phase
+            if state is not None:
+                if phase is not None:
+                    state.phase = phase
                 state.last_emit = time.monotonic()
         if state is None:
             return
@@ -1107,6 +1159,7 @@ class CliProgressReporter(ElapsedProgressMixin):
         self._bars: dict[str, Any] = {}
         if enabled and sys.stderr.isatty():
             try:
+                from rich.console import Console
                 from rich.progress import (
                     BarColumn,
                     Progress,
@@ -1123,7 +1176,7 @@ class CliProgressReporter(ElapsedProgressMixin):
                     BarColumn(),
                     TaskProgressColumn(),
                     TimeElapsedColumn(),
-                    console=None,
+                    console=Console(stderr=True),
                     transient=False,
                 )
                 self._progress.start()
@@ -1135,7 +1188,7 @@ class CliProgressReporter(ElapsedProgressMixin):
         if not self._enabled:
             return
         if self._progress is not None:
-            bar = self._progress.add_task(label, total=total or 0)
+            bar = self._progress.add_task(label, total=total)
             self._bars[task_id] = bar
         else:
             sys.stderr.write(f"{label}…\n")
@@ -1164,12 +1217,17 @@ class CliProgressReporter(ElapsedProgressMixin):
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
         with self._lock:
             state = self._tasks.get(task_id)
-            if state is not None and phase is not None:
-                state.phase = phase
+            if state is not None:
+                if phase is not None:
+                    state.phase = phase
                 state.last_emit = time.monotonic()
-        if self._enabled:
-            sys.stderr.write(f"{text}\n")
-            sys.stderr.flush()
+        if not self._enabled:
+            return
+        if self._progress is not None and task_id in self._bars:
+            self._progress.update(self._bars[task_id], description=text)
+            return
+        sys.stderr.write(f"{text}\n")
+        sys.stderr.flush()
 
     def end(self, task_id: str, *, message: str | None = None) -> None:
         with self._lock:
@@ -1209,7 +1267,7 @@ class CliProgressReporter(ElapsedProgressMixin):
         self._finish_task(task_id)
 
     def _emit_heartbeat(self, task_id: str, state: _TaskState, elapsed_sec: float) -> None:
-        if not self._enabled:
+        if not self._enabled or self._progress is not None:
             return
         mins, secs = divmod(int(elapsed_sec), 60)
         line = f"{state.label}… ({mins}:{secs:02d})"
@@ -1290,6 +1348,11 @@ def install_mcp_progress(server: Any) -> None:
     server._podcast_progress_installed = True
 
 
+def cli_operation_label(op_id: str) -> str:
+    """Readable CLI wrap label: ``pipeline.run`` -> ``podcast pipeline run``."""
+    return "podcast " + op_id.replace(".", " ")
+
+
 def install_cli_progress(app: Any) -> None:
     """Wrap Typer command callbacks so every CLI command opens progress_task."""
 
@@ -1304,7 +1367,7 @@ def install_cli_progress(app: Any) -> None:
             reporter = compose_progress(get_progress(), *adapter_progress_sinks())
             with (
                 bind_progress(reporter),
-                progress_task(op_id, op_id, reporter=reporter, mark_id=op_id),
+                progress_task(op_id, cli_operation_label(op_id), reporter=reporter, mark_id=op_id),
             ):
                 return callback(*args, **kwargs)
 

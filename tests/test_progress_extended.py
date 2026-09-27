@@ -117,6 +117,48 @@ def test_json_progress_heartbeat_loop():
     reporter.close()
 
 
+class _RecordingFakeProgress:
+    """Fake rich Progress that records add_task/update calls and ctor kwargs."""
+
+    _bar_seq = 0
+
+    def __init__(self, *args, **kwargs):
+        self.ctor_kwargs = kwargs
+        self.add_task_calls: list[dict] = []
+        self.update_calls: list[tuple] = []
+        self._bars: dict = {}
+
+    def start(self):
+        return None
+
+    def stop(self):
+        return None
+
+    def add_task(self, label, total=0):
+        type(self)._bar_seq += 1
+        bar = type(self)._bar_seq
+        self.add_task_calls.append({"label": label, "total": total})
+        return bar
+
+    def update(self, bar, **kwargs):
+        self.update_calls.append((bar, kwargs))
+        return None
+
+    def remove_task(self, bar):
+        return None
+
+
+def _patched_rich_progress_module():
+    return MagicMock(
+        BarColumn=MagicMock(),
+        Progress=_RecordingFakeProgress,
+        SpinnerColumn=MagicMock(),
+        TaskProgressColumn=MagicMock(),
+        TextColumn=MagicMock(),
+        TimeElapsedColumn=MagicMock(),
+    )
+
+
 def test_cli_progress_reporter_rich_mode(monkeypatch):
     fake_bar = object()
     fake_progress = MagicMock()
@@ -161,6 +203,61 @@ def test_cli_progress_reporter_rich_mode(monkeypatch):
     reporter.message("rich", "status line")
     reporter._emit_heartbeat("rich", reporter._tasks["rich"], 65.0)  # type: ignore[attr-defined]
     reporter.end("rich")
+    reporter.close()
+
+
+def test_cli_rich_indeterminate_row_pulses(monkeypatch):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
+    reporter.start("w", "Wrap")
+    reporter.start("p", "Pipeline", total=4)
+    fake = reporter._progress
+    assert fake.add_task_calls[0] == {"label": "Wrap", "total": None}
+    assert fake.add_task_calls[1] == {"label": "Pipeline", "total": 4}
+    reporter.close()
+
+
+def test_cli_rich_message_updates_row_not_stderr(monkeypatch, capsys):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
+    reporter.start("p", "Pipeline", total=4)
+    fake = reporter._progress
+    bar = fake.add_task_calls  # noqa: F841 - keep for clarity
+    reporter.message("p", "Running align")
+    assert fake.update_calls[-1][1] == {"description": "Running align"}
+    assert capsys.readouterr().err == ""
+    reporter.close()
+
+
+def test_cli_rich_heartbeat_is_silent(monkeypatch, capsys):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
+    reporter.start("p", "Pipeline", total=4)
+    reporter._emit_heartbeat("p", reporter._tasks["p"], 30.0)  # type: ignore[attr-defined]
+    assert capsys.readouterr().err == ""
+    reporter.close()
+
+
+def test_cli_rich_renders_on_stderr(monkeypatch):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
+    console = reporter._progress.ctor_kwargs["console"]
+    assert console.stderr is True
+    reporter.close()
+
+
+def test_json_message_without_phase_counts_as_activity():
+    buf = StringIO()
+    reporter = JsonProgressReporter(stream=buf)
+    reporter.start("t", "T")
+    reporter._tasks["t"].last_emit = 0.0  # type: ignore[attr-defined]
+    reporter.message("t", "hi")
+    assert reporter._tasks["t"].last_emit > 0  # type: ignore[attr-defined]
+    reporter.end("t")
     reporter.close()
 
 
