@@ -183,6 +183,9 @@ export function usePipelineJob(
     const es = new EventSource(pipelineEventsUrl(jobId));
     esRef.current = es;
     es.onmessage = (ev) => {
+      if (esRef.current !== es) {
+        return;
+      }
       // Any frame proves the stream is live again: drop the socket-down poll.
       stopPoll();
       try {
@@ -230,6 +233,9 @@ export function usePipelineJob(
       }
     };
     es.onerror = () => {
+      if (esRef.current !== es) {
+        return;
+      }
       es.close();
       esRef.current = null;
       attachedJobId.current = null;
