@@ -236,34 +236,33 @@ export async function startRenderPreview(
 export async function followExportJob(
   jobId: string,
   failLabel: string,
-  opts?: { timeoutMs?: number; pollMs?: number; signal?: AbortSignal },
+  opts?: { timeoutMs?: number; signal?: AbortSignal },
 ): Promise<string[]> {
-  // Poll-only: the viewer already attaches SSE via usePipelineJob; a second
-  // EventSource on the same Queue can steal `done`.
-  const done = await waitForPipelineJob(jobId, {
-    ...opts,
-    pollOnly: true,
-  });
+  const done = await waitForPipelineJob(jobId, opts);
   if (done.status !== "ok") {
     throw new Error(done.error || done.message || failLabel);
   }
   return jobResultPaths(done);
 }
 
+/**
+ * Wait until a Studio job reaches ok|error|cancelled.
+ *
+ * Checks the current status once (a job can already be terminal), then
+ * follows that job's own SSE stream: each subscriber has its own queue, so
+ * any number of concurrent callers get the full stream. If the stream
+ * closes without a terminal job, a one-shot status re-check either finishes
+ * the wait or fails it with "Lost connection…".
+ */
 export async function waitForPipelineJob(
   jobId: string,
   opts?: {
     timeoutMs?: number;
-    pollMs?: number;
-    pollOnly?: boolean;
     signal?: AbortSignal;
   },
 ): Promise<PipelineJobSnapshot> {
   const timeoutMs = opts?.timeoutMs ?? 600_000;
-  const pollMs = opts?.pollMs ?? 250;
-  const pollOnly = opts?.pollOnly ?? false;
   const signal = opts?.signal;
-  const started = Date.now();
 
   const fromStatus = async (): Promise<PipelineJobSnapshot | null> => {
     const st = await loadPipelineStatus();
@@ -295,19 +294,15 @@ export async function waitForPipelineJob(
 
   return new Promise<PipelineJobSnapshot>((resolve, reject) => {
     let settled = false;
-    let pollTimer: number | null = null;
-    const es = pollOnly ? null : new EventSource(pipelineEventsUrl(jobId));
+    const es = new EventSource(pipelineEventsUrl(jobId));
 
     const finish = (job: PipelineJobSnapshot) => {
       if (settled) {
         return;
       }
       settled = true;
-      if (pollTimer != null) {
-        window.clearInterval(pollTimer);
-      }
       window.clearTimeout(timeout);
-      es?.close();
+      es.close();
       signal?.removeEventListener("abort", onAbort);
       resolve(job);
     };
@@ -317,11 +312,8 @@ export async function waitForPipelineJob(
         return;
       }
       settled = true;
-      if (pollTimer != null) {
-        window.clearInterval(pollTimer);
-      }
       window.clearTimeout(timeout);
-      es?.close();
+      es.close();
       signal?.removeEventListener("abort", onAbort);
       reject(err);
     };
@@ -339,44 +331,41 @@ export async function waitForPipelineJob(
       onAbort();
     }
 
-    if (es) {
-      es.onmessage = (ev) => {
-        try {
-          const data = JSON.parse(ev.data) as PipelineEvent;
-          const job = data.job;
-          if (
-            job?.id === jobId &&
-            (job.status === "ok" ||
-              job.status === "error" ||
-              job.status === "cancelled")
-          ) {
-            finish(job);
-          }
-        } catch {
-          /* ignore malformed */
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as PipelineEvent;
+        const job = data.job;
+        if (
+          job?.id === jobId &&
+          (job.status === "ok" ||
+            job.status === "error" ||
+            job.status === "cancelled")
+        ) {
+          finish(job);
         }
-      };
+      } catch {
+        /* ignore malformed */
+      }
+    };
 
-      es.onerror = () => {
-        // EventSource retries; poll as a safety net while open.
-      };
-    }
-
-    pollTimer = window.setInterval(() => {
-      if (Date.now() - started >= timeoutMs) {
-        fail(new Error("Timed out waiting for job"));
+    es.onerror = () => {
+      if (settled) {
         return;
       }
       void fromStatus()
         .then((job) => {
           if (job) {
             finish(job);
+            return;
+          }
+          if (es.readyState === EventSource.CLOSED) {
+            fail(new Error("Lost connection while waiting for job"));
           }
         })
         .catch(() => {
           /* ignore transient */
         });
-    }, pollMs);
+    };
   });
 }
 

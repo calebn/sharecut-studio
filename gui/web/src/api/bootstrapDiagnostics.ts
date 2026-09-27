@@ -167,26 +167,19 @@ export async function fetchBootstrapJob(
   return body.job ?? null;
 }
 
-/** Wait for a bootstrap job via SSE; poll status-job when EventSource errors. */
+/** Wait for a bootstrap job via SSE; re-check status-job once when EventSource errors. */
 export function waitForBootstrapJob(
   jobId: string,
   opts?: {
     onUpdate?: (job: BootstrapJobSnapshot) => void;
-    pollMs?: number;
   },
 ): Promise<BootstrapJobSnapshot> {
-  const pollMs = opts?.pollMs ?? 1500;
   return new Promise<BootstrapJobSnapshot>((resolve, reject) => {
     let settled = false;
-    let pollTimer: number | null = null;
     const es = new EventSource(bootstrapEventsUrl(jobId));
 
     const cleanup = () => {
       es.close();
-      if (pollTimer != null) {
-        window.clearInterval(pollTimer);
-        pollTimer = null;
-      }
     };
 
     const finishOk = (job: BootstrapJobSnapshot) => {
@@ -256,30 +249,16 @@ export function waitForBootstrapJob(
     es.onerror = () => {
       void fetchBootstrapJob(jobId)
         .then((job) => {
-          if (job) {
-            consider(job);
-            if (job.status === "queued" || job.status === "running") {
-              return;
-            }
-            return;
-          }
-          if (!settled) {
+          consider(job);
+          if (!settled && es.readyState === EventSource.CLOSED) {
             finishErr(
               new Error("Lost connection while waiting for bootstrap job"),
             );
           }
         })
         .catch(() => {
-          /* interval poll may recover */
-        });
-    };
-
-    pollTimer = window.setInterval(() => {
-      void fetchBootstrapJob(jobId)
-        .then((job) => consider(job))
-        .catch(() => {
           /* ignore transient */
         });
-    }, pollMs);
+    };
   });
 }
