@@ -531,7 +531,7 @@ def test_acoustic_clip_offset_source_shift(tmp_path: Path) -> None:
         return AlignmentResult(reference=ref, source=src, offset_sec=0.04, correlation_peak=0.9)
 
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=600.0),
         patch("podcast_mcp.engines.align.load_mono_window", side_effect=load),
         patch("podcast_mcp.engines.align.estimate_offset_from_arrays", side_effect=estimate),
     ):
@@ -831,7 +831,7 @@ def test_acoustic_clip_offset_early_stop_and_fail_hard(tmp_path: Path) -> None:
         return AlignmentResult(reference=ref, source=src, offset_sec=0.04, correlation_peak=0.9)
 
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=600.0),
         patch("podcast_mcp.engines.align.load_mono_window", side_effect=load_ok),
         patch("podcast_mcp.engines.align.estimate_offset_from_arrays", side_effect=estimate),
     ):
@@ -841,7 +841,7 @@ def test_acoustic_clip_offset_early_stop_and_fail_hard(tmp_path: Path) -> None:
     assert hits["n"] == 5
 
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=600.0),
         patch("podcast_mcp.engines.align.load_mono_window", side_effect=OSError("decode")),
     ):
         with pytest.raises(RuntimeError, match="could not decode"):
@@ -851,7 +851,7 @@ def test_acoustic_clip_offset_early_stop_and_fail_hard(tmp_path: Path) -> None:
         acoustic_clip_offset(ref, src, starts=[1.0], source_starts=[1.0, 2.0])
 
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=600.0),
         patch("podcast_mcp.engines.align.load_mono_window", return_value=audio),
     ):
         with pytest.raises(RuntimeError, match="cancelled"):
@@ -866,7 +866,7 @@ def test_acoustic_clip_offset_skips_quiet_and_low_peak(tmp_path: Path) -> None:
     quiet = np.zeros(8000, dtype=np.float32)
     loud = np.ones(8000, dtype=np.float32)
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=80.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=80.0),
         patch("podcast_mcp.engines.align.load_mono_window", return_value=quiet),
     ):
         assert acoustic_clip_offset(ref, src, starts=[15.0]) is None
@@ -875,7 +875,7 @@ def test_acoustic_clip_offset_skips_quiet_and_low_peak(tmp_path: Path) -> None:
         return AlignmentResult(reference=ref, source=src, offset_sec=0.2, correlation_peak=0.01)
 
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=80.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=80.0),
         patch("podcast_mcp.engines.align.load_mono_window", return_value=loud),
         patch("podcast_mcp.engines.align.estimate_offset_from_arrays", side_effect=estimate),
     ):
@@ -950,11 +950,12 @@ def test_identity_summary_and_fingerprint_meta(tmp_path: Path) -> None:
 
 
 def test_resolve_clip_wav_and_probe_missing(tmp_path: Path) -> None:
-    from podcast_mcp.edits.conversation_align import _probe_duration_sec, resolve_clip_wav
+    from podcast_mcp.edits.conversation_align import resolve_clip_wav
+    from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 
     proj = _project(tmp_path, [("host", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.2)])])
     assert resolve_clip_wav(proj, proj.tracks[0], proj.clips[0]) is None
-    assert _probe_duration_sec(tmp_path / "missing.wav") is None
+    assert probe_wav_duration_sec(tmp_path / "missing.wav") is None
 
 
 def test_acoustic_clip_offset_default_starts_and_estimate_error(tmp_path: Path) -> None:
@@ -962,7 +963,7 @@ def test_acoustic_clip_offset_default_starts_and_estimate_error(tmp_path: Path) 
     src = tmp_path / "src.wav"
     loud = np.ones(8000, dtype=np.float32)
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=20.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=20.0),
         patch("podcast_mcp.engines.align.load_mono_window", return_value=loud),
         patch(
             "podcast_mcp.engines.align.estimate_offset_from_arrays",
@@ -972,7 +973,7 @@ def test_acoustic_clip_offset_default_starts_and_estimate_error(tmp_path: Path) 
         with pytest.raises(RuntimeError, match="could not decode"):
             acoustic_clip_offset(ref, src)
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=600.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=600.0),
         patch("podcast_mcp.engines.align.load_mono_window", return_value=loud),
         patch(
             "podcast_mcp.engines.align.estimate_offset_from_arrays",
@@ -1063,7 +1064,7 @@ def test_acoustic_clip_offset_counts_called_process_error(tmp_path: Path) -> Non
     src.write_bytes(b"y")
     err = subprocess.CalledProcessError(1, "ffmpeg")
     with (
-        patch("podcast_mcp.edits.conversation_align._probe_duration_sec", return_value=80.0),
+        patch("podcast_mcp.edits.conversation_align.probe_wav_duration_sec", return_value=80.0),
         patch("podcast_mcp.engines.align.load_mono_window", side_effect=err),
     ):
         with pytest.raises(RuntimeError, match="could not decode"):
@@ -1671,7 +1672,7 @@ def test_confirm_large_move_sign_with_real_xcorr(tmp_path: Path, true_offset: fl
     durs = {ref_path: 90.0, src_path: 80.0}
     plan = ClipAlignPlan(track_id="g", clip_id="c", offset_sec=5.0, method="bleed", detail="bleed")
     with patch(
-        "podcast_mcp.edits.conversation_align._probe_duration_sec", side_effect=lambda p: durs[p]
+        "podcast_mcp.edits.conversation_align.probe_wav_duration_sec", side_effect=lambda p: durs[p]
     ):
         out = _confirm_large_move(
             plan,
