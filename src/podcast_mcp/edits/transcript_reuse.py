@@ -193,8 +193,8 @@ def refresh_reused_silence_flags(
     """Re-flag ``suspect_hallucination`` on ``plan.reused`` transcripts from ``options``.
 
     Reused transcripts skip ASR. Decode an envelope only when their stored flags do not
-    match the current media, settings and word spans. Legacy transcripts have no
-    fingerprint and are checked once. Returns labels whose audio could not be decoded.
+    match the current media, settings, word spans and flag state. Legacy transcripts
+    have no fingerprint and are checked once. Returns labels whose audio could not be decoded.
     """
     stored = {t.key: t for t in project.transcripts}
     skipped: list[str] = []
@@ -202,14 +202,16 @@ def refresh_reused_silence_flags(
         transcript = stored.get(job.key)
         if transcript is None:
             continue
-        fingerprint = silence_filter_fingerprint(
-            transcript.words, plan.audio_hashes[job.key], options
-        )
-        if transcript.silence_filter_fingerprint == fingerprint:
+        audio_hash = plan.audio_hashes[job.key]
+        if transcript.silence_filter_fingerprint == silence_filter_fingerprint(
+            transcript.words, audio_hash, options
+        ):
             continue
         if refresh_silence_flags(transcript.words, job.audio, options) is None:
             skipped.append(job.label)
             transcript.silence_filter_fingerprint = None
         else:
-            transcript.silence_filter_fingerprint = fingerprint
+            transcript.silence_filter_fingerprint = silence_filter_fingerprint(
+                transcript.words, audio_hash, options
+            )
     return skipped

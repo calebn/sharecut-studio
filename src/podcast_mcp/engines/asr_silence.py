@@ -31,13 +31,15 @@ MIN_SPAN_SEC = 0.05
 def silence_filter_fingerprint(
     words: Sequence[TranscriptWord], audio_sha256: str, options: AsrOptions
 ) -> str:
-    """Identify the media, filter policy and word spans used for stored flags."""
+    """Identify the media, filter policy, spans and stored flag state."""
     digest = sha256()
-    digest.update(f"v1:{audio_sha256}:{options.silence_filter_enabled}:".encode())
+    digest.update(f"v2:{audio_sha256}:{options.silence_filter_enabled}:".encode())
     if options.silence_filter_enabled:
         digest.update(f"{float(options.silence_peak_dbfs).hex()}:".encode())
     for word in words:
-        digest.update(f"{word.start.hex()}:{word.end.hex()};".encode())
+        digest.update(
+            f"{word.start.hex()}:{word.end.hex()}:{int(word.suspect_hallucination)};".encode()
+        )
     return digest.hexdigest()
 
 

@@ -19,6 +19,7 @@ import {
   type PlacementTurn,
   placeEditBoundaries,
 } from "../transcript/editBoundaryPlacement";
+import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
   TranscriptTurnView,
@@ -808,9 +809,7 @@ export function TranscriptPanel() {
                   const cutAwayTip = cutAwayChip
                     ? capabilityTooltip("daw.view.cutAwayWord")
                     : undefined;
-                  const suspectTip = suspectChip
-                    ? "Possible transcription over silence"
-                    : undefined;
+                  const suspectTip = suspectChip ? SILENCE_WARNING : undefined;
                   const interactionTip = wordInteractive
                     ? intent === "correct"
                       ? wordIndex != null

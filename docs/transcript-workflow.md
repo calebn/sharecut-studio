@@ -132,7 +132,7 @@ ASR, each word whose own-track peak (native sample rate, all channels) is below
 `transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets `suspect_hallucination: true`. ASR
 cache files store unflagged words; the flags are recomputed from the current
 `transcribe.silence_filter` settings after every ASR run or cache read, so the filter is not
-a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings or word spans differ from its stored `silence_filter_fingerprint` (only a peak envelope is decoded; Whisper does not re-run). Unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. A new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its flags stay cleared, a warning is logged,
+a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings, word spans or flag state differ from its stored `silence_filter_fingerprint` (only a peak envelope is decoded; Whisper does not re-run). This also rechecks a same-span phrase correction that clears a flag. The fingerprint is stored after reflagging, so unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. A new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its flags stay cleared, a warning is logged,
 and the step summary adds "silence filter skipped on N track(s)".
 
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
