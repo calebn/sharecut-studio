@@ -86,6 +86,8 @@ podcast edit search --project ... --query "coffee"
 podcast edit cut-text --project ... --query "coffee"
 podcast edit preview-cut --project ... --track host --start 32.4 --end 34.8
 podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
+podcast edit ripple-delete --project ... --start 0 --end 1289.5          # content cut: dead start
+podcast transcript refine-waive --project ... --reason "content cut: structural edit"
 podcast edit approve --project ... --ids cut_abc123
 podcast edit impact --project ...
 podcast render-preview --project ...
@@ -108,6 +110,16 @@ podcast edit low-audibility --project ...
 Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb.
 
 NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` / `filler_room_tone_replace` / `filler_pad_mode` (same as auto-tighten): default replace expands the cut across the inter-word hesitation and sets `replace_gap_sec` so approve inserts a paced beat (**silence** by default; `room_tone` opt-in). See [filler-cut-quality.md](filler-cut-quality.md). When another dialogue stem is speaking in the window (`tighten.speech_energy_guard`), the decision uses **`scope=track`** (punch silence on the cut track only) instead of cross-track ripple.
+
+## Long raw sessions: content cut before tighten
+
+On a long raw session, cut content before tightening:
+
+1. Content-cut the dead start, off-topic runs and meta talk with `ripple_delete_tool` (dead start: `start=0`). Mid-episode handoffs use `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`.
+2. Re-waive the refine gate after each ripple (`transcript_refine_waive_tool`), because dropped words make the waive stale.
+3. Only then run `propose_edits`. It sees only the kept words, so reject any tighten proposal made before the cut.
+
+`analyze_focus_cuts` writes an outline, not a cut list, and is skipped when `focus.enabled` is false. Full order, CLI commands and rationale: [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
 ## Edit reasons
 
