@@ -69,6 +69,11 @@ function uniqueSteps(steps: PipelineStepMeta[]): PipelineStepMeta[] {
   return out;
 }
 
+/** Analyze patch leaves are JSON scalars or arrays, so JSON text equality is exact. */
+function sameLeafValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 function ParamControl({
   field,
   value,
@@ -440,7 +445,8 @@ export function PipelinePanel() {
           }
         }
       };
-      walk(result.patches ?? {}, "");
+      const patches = result.patches ?? {};
+      walk(patches, "");
       setHighlightPaths(paths);
       const next = result.config ?? (await loadPipelineConfig(projectPath));
       if (!analyzeRequest.isCurrent(token)) {
@@ -471,6 +477,19 @@ export function PipelinePanel() {
       const fresh = await loadPipelineConfig(projectPath);
       if (analyzeRequest.isCurrent(token) && persistRequest.isCurrent(reload)) {
         setCfg(fresh);
+        // A write that landed after apply_patches can replace a patched value; only
+        // highlight fields that still hold Analyze's value.
+        setHighlightPaths(
+          (prev) =>
+            new Set(
+              [...prev].filter((p) =>
+                sameLeafValue(
+                  getByPath(fresh.config, p),
+                  getByPath(patches, p),
+                ),
+              ),
+            ),
+        );
       }
     } catch (e) {
       if (analyzeRequest.isCurrent(token)) {
