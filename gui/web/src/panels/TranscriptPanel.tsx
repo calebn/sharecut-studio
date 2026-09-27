@@ -19,6 +19,10 @@ import {
   type PlacementTurn,
   placeEditBoundaries,
 } from "../transcript/editBoundaryPlacement";
+import {
+  type TranscriptTurnSegment,
+  TranscriptTurnView,
+} from "../transcript/TranscriptTurnView";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -749,125 +753,90 @@ export function TranscriptPanel() {
             (u) => u.mappable === false,
           );
           let flatWordIndex = 0;
-          return (
-            <div
-              key={turnKey(turn)}
-              className={`utterance-turn${turnHasActive ? " active" : ""}${turnAllUnmapped ? " unmapped" : ""}`}
-              {...(virtualItem ? slotProps(virtualItem) : {})}
-              data-turn-index={turnIndex}
-              {...presenceAnchorProps(
-                presenceAnchor("transcript", "turn", turnIndex),
-              )}
-            >
-              {blockSeek != null ? (
-                <button
-                  type="button"
-                  className="utterance-seek"
-                  title={`Seek turn (${blockSeek.toFixed(1)}s)`}
-                  onClick={() => seekTurnSoon(blockSeek)}
-                >
-                  <strong className="utterance-speaker">{turn.speaker}</strong>{" "}
-                  <span className="utterance-time">
-                    [{labelSec.toFixed(1)}s]
-                  </span>
-                </button>
-              ) : (
-                <>
-                  <strong className="utterance-speaker">{turn.speaker}</strong>{" "}
-                  <span className="utterance-time">
-                    [{labelSec.toFixed(1)}s]
-                  </span>
-                </>
-              )}{" "}
-              {renderBoundaryMarks(turnIndex, -1, turn.trackId)}
-              {turn.utterances.map((u, j) => {
-                const flatIndex = turn.startIndex + j;
-                const unmapped = u.mappable === false;
-                const uttActive = !unmapped && active.utterances.has(flatIndex);
-                const words = wordsForUtterance(u);
-                const activeWord = words.find(
-                  (_w, wi) =>
-                    !unmapped && active.words.has(activeWordId(flatIndex, wi)),
-                );
-                return (
-                  <span
-                    key={`${u.track_id}-${u.start}-${flatIndex}`}
-                    ref={bindActiveRef(uttActive && !activeWord)}
-                    className={`utterance-seg${uttActive ? " active" : ""}${unmapped ? " unmapped" : ""}`}
-                  >
-                    {j > 0 ? " " : ""}
-                    {words.map((w, wi) => {
-                      const afterWordIndex = flatWordIndex;
-                      flatWordIndex += 1;
-                      const wSeek = wordSeekSec(w);
-                      const wActive =
-                        !unmapped &&
-                        active.words.has(activeWordId(flatIndex, wi));
-                      const sep = wi > 0 ? " " : "";
-                      const wordIndex = w.word_index;
-                      const selected = wordInRange(
-                        selection,
-                        u.track_id,
-                        wordIndex,
-                      );
-                      const lowConf =
-                        transcriptAnnotate &&
-                        w.confidence != null &&
-                        w.confidence < LOW_CONFIDENCE;
-                      const cutAwayChip =
-                        transcriptAnnotate &&
-                        showCutAwayUtterances &&
-                        w.mappable === false;
-                      const chipClass = [
-                        "utterance-word",
-                        wActive ? "active" : "",
-                        w.mappable === false ? "unmapped" : "",
-                        w.suppressed ? "suppressed" : "",
-                        lowConf ? "low-confidence" : "",
-                        selected ? "selected" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-                      const wordInteractive =
-                        ((intent === "correct" || intent === "select") &&
-                          wordIndex != null) ||
-                        wSeek != null;
-                      const wordAnchor = presenceAnchorProps(
-                        transcriptWordAnchor(
-                          turnIndex,
-                          u.track_id,
-                          wordIndex,
-                          afterWordIndex,
-                        ),
-                      );
-                      const cutAwayTip = cutAwayChip
-                        ? capabilityTooltip("daw.view.cutAwayWord")
-                        : undefined;
-                      const wordInner = wordInteractive ? (
-                        <button
-                          type="button"
-                          ref={bindActiveRef(wActive)}
-                          className={chipClass}
-                          data-transcript-word
-                          data-track-id={u.track_id}
-                          data-word-index={wordIndex}
-                          {...wordAnchor}
-                          title={
-                            cutAwayTip ??
-                            (intent === "correct"
-                              ? wordIndex != null
-                                ? "Click: select for Correct · Double-click: seek"
-                                : undefined
-                              : intent === "select"
-                                ? wordIndex != null
-                                  ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
-                                  : undefined
-                                : wSeek != null
-                                  ? `Double-click: ${wSeek.toFixed(1)}s`
-                                  : undefined)
-                          }
-                          aria-label={cutAwayTip}
-                          onMouseDown={(e) => {
+          const segments: TranscriptTurnSegment[] = turn.utterances.map(
+            (u, j) => {
+              const flatIndex = turn.startIndex + j;
+              const unmapped = u.mappable === false;
+              const uttActive = !unmapped && active.utterances.has(flatIndex);
+              const words = wordsForUtterance(u);
+              const activeWord = words.find(
+                (_w, wi) =>
+                  !unmapped && active.words.has(activeWordId(flatIndex, wi)),
+              );
+              return {
+                key: `${u.track_id}-${u.start}-${flatIndex}`,
+                active: uttActive,
+                unmapped,
+                activeRef: bindActiveRef(uttActive && !activeWord),
+                words: words.map((w, wi) => {
+                  const afterWordIndex = flatWordIndex;
+                  flatWordIndex += 1;
+                  const wSeek = wordSeekSec(w);
+                  const wActive =
+                    !unmapped && active.words.has(activeWordId(flatIndex, wi));
+                  const wordIndex = w.word_index;
+                  const selected = wordInRange(
+                    selection,
+                    u.track_id,
+                    wordIndex,
+                  );
+                  const lowConf =
+                    transcriptAnnotate &&
+                    w.confidence != null &&
+                    w.confidence < LOW_CONFIDENCE;
+                  const cutAwayChip =
+                    transcriptAnnotate &&
+                    showCutAwayUtterances &&
+                    w.mappable === false;
+                  const wordInteractive =
+                    ((intent === "correct" || intent === "select") &&
+                      wordIndex != null) ||
+                    wSeek != null;
+                  const wordAnchor = presenceAnchorProps(
+                    transcriptWordAnchor(
+                      turnIndex,
+                      u.track_id,
+                      wordIndex,
+                      afterWordIndex,
+                    ),
+                  );
+                  const cutAwayTip = cutAwayChip
+                    ? capabilityTooltip("daw.view.cutAwayWord")
+                    : undefined;
+                  return {
+                    word: w,
+                    trackId: u.track_id,
+                    active: wActive,
+                    unmapped: w.mappable === false,
+                    selected,
+                    lowConfidence: lowConf,
+                    interactive: wordInteractive,
+                    activeRef: bindActiveRef(wActive),
+                    anchorProps: wordAnchor,
+                    title:
+                      cutAwayTip ??
+                      (wordInteractive
+                        ? intent === "correct"
+                          ? wordIndex != null
+                            ? "Click: select for Correct · Double-click: seek"
+                            : undefined
+                          : intent === "select"
+                            ? wordIndex != null
+                              ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
+                              : undefined
+                            : wSeek != null
+                              ? `Double-click: ${wSeek.toFixed(1)}s`
+                              : undefined
+                        : undefined),
+                    ariaLabel: cutAwayTip,
+                    boundaryAfter: renderBoundaryMarks(
+                      turnIndex,
+                      afterWordIndex,
+                      turn.trackId,
+                    ),
+                    buttonProps: wordInteractive
+                      ? {
+                          onMouseDown: (e) => {
                             if (
                               intent !== "select" ||
                               wordIndex == null ||
@@ -884,8 +853,8 @@ export function TranscriptPanel() {
                             dragExtendedRef.current = false;
                             rangeAnchorRef.current = wordIndex;
                             setRange(u.track_id, wordIndex, wordIndex);
-                          }}
-                          onPointerUp={(e) => {
+                          },
+                          onPointerUp: (e) => {
                             // Single taps still act immediately via onClick;
                             // this only spots a second tap on the same word.
                             if (
@@ -914,8 +883,8 @@ export function TranscriptPanel() {
                                 wordIndex,
                               };
                             }
-                          }}
-                          onMouseEnter={() => {
+                          },
+                          onMouseEnter: () => {
                             if (
                               !draggingRef.current ||
                               intent !== "select" ||
@@ -932,8 +901,8 @@ export function TranscriptPanel() {
                               rangeAnchorRef.current,
                               wordIndex,
                             );
-                          }}
-                          onClick={(e) => {
+                          },
+                          onClick: (e) => {
                             e.stopPropagation();
                             e.preventDefault();
                             const pending = pendingCorrectionRef.current;
@@ -985,8 +954,8 @@ export function TranscriptPanel() {
                             if (wSeek != null) {
                               seekWordNow(wSeek);
                             }
-                          }}
-                          onDoubleClick={
+                          },
+                          onDoubleClick:
                             wSeek != null
                               ? (e) => {
                                   e.stopPropagation();
@@ -1000,37 +969,33 @@ export function TranscriptPanel() {
                                   }
                                   seekWordNow(wSeek);
                                 }
-                              : undefined
-                          }
-                        >
-                          {w.text}
-                        </button>
-                      ) : (
-                        <span
-                          ref={bindActiveRef(wActive)}
-                          className={chipClass}
-                          title={cutAwayTip}
-                          {...wordAnchor}
-                        >
-                          {w.text}
-                        </span>
-                      );
-                      return (
-                        <span key={`${w.start}-${wi}-${wordIndex ?? wi}`}>
-                          {sep}
-                          {wordInner}
-                          {renderBoundaryMarks(
-                            turnIndex,
-                            afterWordIndex,
-                            turn.trackId,
-                          )}
-                        </span>
-                      );
-                    })}
-                  </span>
-                );
-              })}
-            </div>
+                              : undefined,
+                        }
+                      : undefined,
+                  };
+                }),
+              };
+            },
+          );
+          return (
+            <TranscriptTurnView
+              key={turnKey(turn)}
+              speaker={turn.speaker}
+              labelSec={labelSec}
+              seekSec={blockSeek}
+              onSeek={
+                blockSeek != null ? () => seekTurnSoon(blockSeek) : undefined
+              }
+              active={turnHasActive}
+              unmapped={turnAllUnmapped}
+              turnIndex={turnIndex}
+              slotProps={virtualItem ? slotProps(virtualItem) : undefined}
+              anchorProps={presenceAnchorProps(
+                presenceAnchor("transcript", "turn", turnIndex),
+              )}
+              boundaryBefore={renderBoundaryMarks(turnIndex, -1, turn.trackId)}
+              segments={segments}
+            />
           );
         })}
       </div>

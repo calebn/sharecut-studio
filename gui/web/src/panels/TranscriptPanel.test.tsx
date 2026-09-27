@@ -128,6 +128,22 @@ describe("TranscriptPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("renders the shared turn view from live playhead and selection state", () => {
+    useDawStore.setState({
+      playheadSec: 0.5,
+      selection: null,
+    });
+    const { container } = render(<TranscriptPanel />);
+    const turn = container.querySelector(".utterance-turn.active");
+    expect(turn).toHaveAttribute("data-turn-index", "0");
+    expect(turn).toHaveAttribute("data-presence-anchor", "transcript:turn:0");
+    fireEvent.click(within(container).getByRole("button", { name: /Select/ }));
+    fireEvent.click(within(container).getByRole("button", { name: "hello" }));
+    expect(
+      within(container).getByRole("button", { name: "hello" }),
+    ).toHaveClass("utterance-word", "active", "selected");
+  });
+
   it("uses the loading string as Correct aria-label while words are not hydrated", () => {
     const base = project();
     useDawStore.setState({

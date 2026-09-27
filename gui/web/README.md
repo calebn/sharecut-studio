@@ -37,7 +37,11 @@ through a direct transform update during playback.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.
-They do not mount the live comment panel or transcript utterance rows.
+They do not mount the live comment panel.
+`Templates/TranscriptTurn` uses the production `TranscriptTurnView` shared with
+`TranscriptPanel` for mapped, selected, annotated, cut-away and 360px long-turn
+examples. The panel retains DAW state, gestures, presence, and virtualization;
+stories pass fixture props and local callbacks only.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
