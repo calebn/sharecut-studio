@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetDocumentSeqForTests } from "../document/cursor";
+import {
+  pollSnapshotAlreadyApplied,
+  resetDocumentSeqForTests,
+} from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
@@ -358,5 +361,61 @@ describe("useGuestSync", () => {
     expect(job?.status).toBe("running");
     expect(job?.message).toBe("Mixing stems");
     expect(job?.project_path).toBe("");
+  });
+
+  it("reports whether the guest socket is open", async () => {
+    const { result } = renderHook(() =>
+      useGuestSync(
+        "share:tok123",
+        vi.fn(),
+        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
+        vi.fn(),
+        vi.fn(),
+        true,
+      ),
+    );
+    expect(result.current).toBe(false);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(true);
+    await act(async () => {
+      FakeWebSocket.instances[0].close();
+    });
+    expect(result.current).toBe(false);
+  });
+
+  it("reports false when disabled or on a non-share path", () => {
+    const { result } = renderHook(() =>
+      useGuestSync("/local/path.json", vi.fn(), null, vi.fn(), vi.fn(), false),
+    );
+    expect(result.current).toBe(false);
+  });
+
+  it("notes a document-plane project snapshot's file for the poll skip", async () => {
+    renderHook(() =>
+      useGuestSync(
+        "share:tok123",
+        vi.fn(),
+        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
+        vi.fn(),
+        vi.fn(),
+        true,
+      ),
+    );
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Snapshot",
+        plane: "document",
+        snapshot: {
+          server_seq: 5,
+          project: minimalProject(),
+          file: { mtime_ns: 42, size: 9 },
+        },
+      });
+    });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 42, size: 9, server_seq: 5 }),
+    ).toBe(true);
   });
 });
