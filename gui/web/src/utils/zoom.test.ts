@@ -9,6 +9,7 @@ import {
   MAX_ZOOM_PX_PER_SEC,
   MIN_ZOOM_PX_PER_SEC,
   sessionSecOf,
+  visiblePlayheadClientX,
   wheelZoomFactor,
   ZOOM_STEP,
 } from "./zoom";
@@ -125,5 +126,29 @@ describe("sessionSecOf", () => {
   it("uses the project length, else the default", () => {
     expect(sessionSecOf({ project: { timeline_duration_sec: 12 } })).toBe(12);
     expect(sessionSecOf({ project: null })).toBe(DEFAULT_SESSION_SEC);
+  });
+});
+describe("visiblePlayheadClientX", () => {
+  const base = {
+    playheadSec: 20,
+    zoomPxPerSec: 10,
+    scrollLeft: 50,
+    rectLeft: 100,
+    viewportWidthPx: 400,
+  };
+
+  it("returns rectLeft + x inside the view, edges included", () => {
+    expect(visiblePlayheadClientX(base)).toBe(250);
+    expect(visiblePlayheadClientX({ ...base, playheadSec: 5 })).toBe(100);
+    expect(visiblePlayheadClientX({ ...base, playheadSec: 45 })).toBe(500);
+  });
+
+  it("is null off screen, at zero zoom and for a NaN playhead", () => {
+    expect(visiblePlayheadClientX({ ...base, playheadSec: 4 })).toBeNull();
+    expect(visiblePlayheadClientX({ ...base, playheadSec: 46 })).toBeNull();
+    expect(visiblePlayheadClientX({ ...base, zoomPxPerSec: 0 })).toBeNull();
+    expect(
+      visiblePlayheadClientX({ ...base, playheadSec: Number.NaN }),
+    ).toBeNull();
   });
 });

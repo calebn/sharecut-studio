@@ -17,6 +17,7 @@ import {
   MAX_WAVEFORM_AMP,
   MIN_WAVEFORM_AMP,
   sessionSecOf,
+  visiblePlayheadClientX,
 } from "../utils/zoom";
 import {
   noteZoomPointerClientX,
@@ -370,7 +371,18 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       return;
     }
     const center = rectLeft + viewportCenterOffsetPx(timeWidth);
-    const anchorX = clientX ?? peekZoomPointerClientX() ?? center;
+    // Command zoom keeps a visible playhead still (#533); pointer, then center.
+    const playheadX =
+      clientX == null
+        ? visiblePlayheadClientX({
+            playheadSec: get().playheadSec,
+            zoomPxPerSec: currentZoom,
+            scrollLeft: get().scrollLeft,
+            rectLeft,
+            viewportWidthPx: timeWidth,
+          })
+        : null;
+    const anchorX = clientX ?? playheadX ?? peekZoomPointerClientX() ?? center;
     // Use store scroll/zoom so rapid pinch ticks do not re-anchor from a stale
     // DOM scrollLeft before useLayoutEffect applies the pending value.
     const { zoom, scrollLeft } = anchoredZoomScroll({

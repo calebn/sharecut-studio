@@ -221,8 +221,10 @@ export interface DawState {
   buildViewerSnapshot: () => ViewerSessionSnapshot;
   markUserZoomed: () => void;
   /**
-   * Clamp zoom and keep time under clientX stable. Falls back to the last
-   * noted timeline pointer X (`noteZoomPointerClientX`), then viewport center.
+   * Clamp zoom and keep time under clientX stable. Without clientX (command
+   * zoom) it anchors on the playhead when it is inside the time viewport, else
+   * the last noted timeline pointer X (`noteZoomPointerClientX`), then viewport
+   * center.
    * On a fixed playhead (a lead is registered), command zoom with no clientX
    * centers on the playhead instead, and every zoom stays within the session.
    */
