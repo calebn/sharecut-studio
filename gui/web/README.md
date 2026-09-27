@@ -66,6 +66,18 @@ Standalone Canvas stories open their dialogs; autodocs examples start closed
 with launchers so each can be inspected independently. The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
 
+`Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
+screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and
+`BottomSheet` both use. `Molecules/UndoToast` shows the undo/dismiss toast
+with a launcher that replays it, including the disabled-Undo (paused timer)
+state and a 360px phone variant; `Molecules/FocusPull` shows its initial view
+and the exit/enter transition. `Templates/PipelineStatusChip`'s `Stalled`
+story previews the stall copy against a fixed `nowSec` so it renders
+deterministically instead of depending on a ticking clock — see
+[design-system.md § Catalog boundary](../../docs/design-system.md#domain-surfaces-templates)
+for which remaining components are store-bound and tracked as refactor
+follow-ups instead of stories.
+
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
 optional heading, body content, and any existing shell classes. Keep status or

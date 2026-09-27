@@ -27,10 +27,10 @@ organisms; domain screens are templates, colocated with their domain component
 
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
-| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference) |
-| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl |
-| **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero |
+| **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
+| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
+| **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, HostMcpDialog, GesturesSheet |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -156,6 +156,43 @@ and closable. They cover an open episode, the no-episode warning, the
 gesture sheet's callback handoff to keyboard shortcuts, and a 360px phone
 viewport without app or network context.
 
+### Catalog boundary (store-bound components)
+
+Per sync rule 6 (#172/#173), a component that cannot render from props alone
+gets a refactor issue, not a story. These remaining store-bound surfaces are
+tracked as grouped follow-up issues, one per cluster, each component its own
+checkbox so it can ship as its own PR:
+
+- **A** ([#608](https://github.com/calebn/sharecut-studio/issues/608)) — share
+  and bounce dialogs: `ShareDialog`, `BounceDialog`
+- **B** ([#609](https://github.com/calebn/sharecut-studio/issues/609)) —
+  follow and guest-attention banners: `FollowBanner`,
+  `GuestAttentionBanner`
+- **C** ([#610](https://github.com/calebn/sharecut-studio/issues/610)) —
+  status-bar chrome: `StatusBar`, `AvatarStack`, `OverlayLegend`
+- **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
+  rail, tool mode toggle and command palette: `EditingToolRail`,
+  `ToolModeToggle`, `CommandPalette`
+- **E** ([#612](https://github.com/calebn/sharecut-studio/issues/612)) —
+  inspector seek footer and tabs splitter: `InspectorSeekFooter`,
+  `BottomTabsSplitter`
+- **F** ([#614](https://github.com/calebn/sharecut-studio/issues/614)) —
+  timeline editing surfaces: `ClipBlock`, `MarkerLane`,
+  `PendingEditOverlay`, `EditBoundaryMark`
+- **G** ([#615](https://github.com/calebn/sharecut-studio/issues/615)) — live
+  timeline overlays: `EnvelopeOverlay`, `PresenceOverlay`,
+  `CommentPlaybackBubble`
+- **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
+  fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
+  desktop, blocked by C, D and the remaining `TransportBar` pieces
+
+`CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
+and `MenuItem`, which already have stories; they are not on this list and get
+no separate refactor issue. A component leaves this list only once its
+production view is extracted into a props-only `XView` rendered by the live
+adapter, the way `TrackHeaderView`, `TimeRulerView` and `TranscriptTurnView`
+already were.
+
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
 palette there and flip the theme toolbar before touching components.
@@ -274,6 +311,12 @@ that store or simulate command execution.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
+  the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
+  the `UndoToast` and `FocusPull` stories, and the Catalog boundary section
+  above tracking follow-up refactor issues A–H for the remaining store-bound
+  surfaces.
 
 - 2026-09-27 — Added `Templates/TimeRuler` with a prop-driven production
   ruler view, desktop and 360px fixtures, and comment-anchor mode.

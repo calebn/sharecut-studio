@@ -89,6 +89,8 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `Dialog` | Modal scrim + panel + header; uses `useDialogModal` |
 | `Menu` / `CommandMenuItem` | Popup menu + command items |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
+| `CloseButton` | Shared close affordance for `Dialog` and `BottomSheet`: named "Close" (Esc also dismisses) |
+| `UndoToast` | Polite `role="status"` toast with Undo / Dismiss; auto-dismiss pauses on hover, focus, or a disabled Undo |
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`) |
 | `Icon` | Compact stroke icons for transport / tools (`currentColor`); play, pause, and stop are filled |
 | `SegmentedControl` | Track of quiet `ToggleButton`s (audition Mix/FX/Raw); themed on panes, dark in the transport, radio rows in a `Menu` |

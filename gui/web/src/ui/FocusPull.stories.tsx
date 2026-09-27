@@ -33,7 +33,7 @@ export const Initial: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("First view")).toBeVisible();
-    expect(canvasElement.querySelector(".focus-pull-enter")).toBeNull();
+    await expect(canvasElement.querySelector(".focus-pull-enter")).toBeNull();
   },
 };
 
@@ -42,9 +42,9 @@ export const Transition: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Switch view" }));
     await waitFor(
-      () => {
-        expect(canvas.getByText("Second view")).toBeVisible();
-        expect(canvas.queryByText("First view")).toBeNull();
+      async () => {
+        await expect(canvas.getByText("Second view")).toBeVisible();
+        await expect(canvas.queryByText("First view")).toBeNull();
       },
       { timeout: 2000 },
     );
