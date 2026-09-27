@@ -5,6 +5,7 @@ import json
 import math
 import shutil
 import tempfile
+from bisect import bisect_left, bisect_right
 from pathlib import Path
 from typing import Any
 
@@ -169,7 +170,7 @@ def _apply_gate(
 
 def _gate_pcm_chunk(
     raw: bytes,
-    intervals: list[tuple[float, float]],
+    frame_intervals: list[tuple[int, int]],
     *,
     first_frame: int,
     sample_rate: int,
@@ -180,9 +181,7 @@ def _gate_pcm_chunk(
     env = np.zeros(samples.shape[0], dtype=np.float32)
     last_frame = first_frame + samples.shape[0]
     fade = int(GATE_FADE_SEC * sample_rate)
-    for start, end in intervals:
-        lo = math.ceil(start * sample_rate)
-        hi = math.ceil(end * sample_rate)
+    for lo, hi in frame_intervals:
         a, b = max(lo, first_frame), min(hi, last_frame)
         if b <= a:
             continue
@@ -348,6 +347,16 @@ def gate_stem_window(
 
     with stem_path.open("rb") as source:
         channels, rate, data_start, data_bytes = _pcm16_wave_info(source)
+        ordered_intervals = sorted(
+            (math.ceil(start * rate), math.ceil(end * rate), ordinal)
+            for ordinal, (start, end) in enumerate(intervals)
+        )
+        starts = [start for start, _end, _ordinal in ordered_intervals]
+        max_ends: list[int] = []
+        latest_end = -1
+        for _start, end, _ordinal in ordered_intervals:
+            latest_end = max(latest_end, end)
+            max_ends.append(latest_end)
         bytes_per_frame = channels * 2
         frames = data_bytes // bytes_per_frame
         if data_start + data_bytes > stem_path.stat().st_size:
@@ -369,10 +378,23 @@ def gate_stem_window(
                 left = max(0, first - frame)
                 right = min(count, last - frame)
                 if right > left:
+                    chunk_first = frame + left
+                    chunk_last = frame + right
+                    first_candidate = bisect_right(max_ends, chunk_first)
+                    last_candidate = bisect_left(starts, chunk_last)
+                    overlapping = sorted(
+                        (
+                            (ordinal, interval_start, interval_end)
+                            for interval_start, interval_end, ordinal in ordered_intervals[
+                                first_candidate:last_candidate
+                            ]
+                            if interval_end > chunk_first
+                        )
+                    )
                     gated_chunk = _gate_pcm_chunk(
                         raw[left * bytes_per_frame : right * bytes_per_frame],
-                        intervals,
-                        first_frame=frame + left,
+                        [(start, end) for _ordinal, start, end in overlapping],
+                        first_frame=chunk_first,
                         sample_rate=rate,
                         channels=channels,
                     )

@@ -122,6 +122,7 @@ MCP: `apply_transcript_gate_tool`. Transcript word flags are unchanged; this set
 in the requested window. Undo restores the flag; `play processed:*` re-applies the
 gate via segment/stem render when the flag is set.
 For PCM16 stems, windowed gating streams one second of WAV frames at a time,
+indexes word intervals once and checks only intervals overlapping each chunk,
 preserves all channels, and copies frames outside the window unchanged.
 Unsupported WAV formats raise an error. Rewriting a stem in place first writes a temporary WAV and
 replaces the original after the gate succeeds.

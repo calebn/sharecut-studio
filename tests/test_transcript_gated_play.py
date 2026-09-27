@@ -221,6 +221,55 @@ def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> No
     np.testing.assert_array_equal(actual, expected)
 
 
+def test_gate_stem_window_queries_only_intervals_near_each_chunk(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from podcast_mcp.engines import transcript_gated_play as tgp
+
+    source = tmp_path / "source.wav"
+    output = tmp_path / "gated.wav"
+    pcm = np.full(10_000, 1000, dtype=np.int16)
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((1, 2, 1000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+
+    checked: list[int] = []
+    original = tgp._gate_pcm_chunk
+
+    def record_chunk(raw, frame_intervals, **kwargs):
+        checked.append(len(frame_intervals))
+        return original(raw, frame_intervals, **kwargs)
+
+    monkeypatch.setattr(tgp, "_gate_pcm_chunk", record_chunk)
+    intervals = [(second + 0.1, second + 0.2) for second in range(10)]
+    gate_stem_window(source, intervals, output, duration_sec=10, win_start=0, win_end=10)
+    assert checked == [1] * 10
+
+
+def test_gate_stem_window_preserves_unsorted_overlapping_interval_order(tmp_path: Path) -> None:
+    from podcast_mcp.engines.transcript_gated_play import _gate_pcm_chunk
+
+    source = tmp_path / "source.wav"
+    output = tmp_path / "gated.wav"
+    pcm = np.full(2000, 1000, dtype=np.int16)
+    with wave.open(str(source), "wb") as wav:
+        wav.setparams((1, 2, 1000, 0, "NONE", "not compressed"))
+        wav.writeframes(pcm.tobytes())
+
+    # The last interval intentionally overwrites part of the earlier fade.
+    intervals = [(1.3, 1.8), (0.2, 0.5), (0.4, 1.4)]
+    gate_stem_window(source, intervals, output, duration_sec=2, win_start=0, win_end=2)
+    expected = _gate_pcm_chunk(
+        pcm.tobytes(),
+        [(1300, 1800), (200, 500), (400, 1400)],
+        first_frame=0,
+        sample_rate=1000,
+        channels=1,
+    )
+    with wave.open(str(output), "rb") as wav:
+        assert wav.readframes(wav.getnframes()) == expected
+
+
 def test_gate_stem_window_rejects_non_pcm16(tmp_path: Path) -> None:
     source = tmp_path / "pcm8.wav"
     output = tmp_path / "out.wav"
