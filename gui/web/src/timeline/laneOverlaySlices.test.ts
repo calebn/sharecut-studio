@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it } from "vitest";
 import type { AppliedEditRecord, AutomationEnvelope } from "../types/project";
 import {
@@ -90,5 +91,18 @@ describe("useByTrack", () => {
     expect(result.current.host).toBe(hostSlice);
     expect(result.current.guest).not.toBe(hostSlice);
     expect(result.current.guest).toEqual([guest2]);
+  });
+
+  it("keeps an unaffected track's slice under StrictMode double renders", () => {
+    const host = envelope("host");
+    const guest = envelope("guest");
+    const { result, rerender } = renderHook(
+      ({ items }: { items: AutomationEnvelope[] }) =>
+        useByTrack(items, envelopeTrackIds),
+      { initialProps: { items: [host, guest] }, wrapper: StrictMode },
+    );
+    const hostSlice = result.current.host;
+    rerender({ items: [host, envelope("guest")] });
+    expect(result.current.host).toBe(hostSlice);
   });
 });
