@@ -14,6 +14,7 @@ from podcast_mcp.project_merge import (
     ConflictAdvice,
     ProjectMergeConflict,
     merge_project_data,
+    merged_project,
     project_merge_data,
 )
 
@@ -283,3 +284,25 @@ def test_history_cursor_moved_both_ways_conflicts_as_undo_redo(tmp_path):
         merge_project_data(base, ours, theirs)
     assert "history.cursor" in exc.value.paths
     assert str(exc.value).startswith("an undo or redo changed the project")
+
+
+def test_merged_project_validates_disjoint_changes(tmp_path):
+    base = _base(tmp_path)
+    ours, theirs = copy.deepcopy(base), copy.deepcopy(base)
+    _track(theirs, "host")["fader_db"] = -6.0
+    _track(ours, "host")["gain_db"] = 2.0
+    project = merged_project(base, ours, theirs)
+    assert isinstance(project, EpisodeProject)
+    assert project.track_by_id("host").fader_db == -6.0
+    assert project.track_by_id("host").gain_db == 2.0
+
+
+def test_merged_project_rejects_an_invalid_merge(tmp_path, monkeypatch):
+    from podcast_mcp import project_merge
+
+    base = _base(tmp_path)
+    monkeypatch.setattr(
+        project_merge, "merge_project_data", lambda _b, _o, theirs, **_kw: {**theirs, "history": 5}
+    )
+    with pytest.raises(ProjectMergeConflict, match="merged project is invalid"):
+        merged_project(base, copy.deepcopy(base), copy.deepcopy(base))

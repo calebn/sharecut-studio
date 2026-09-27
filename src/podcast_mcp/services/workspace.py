@@ -6,8 +6,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import ValidationError
-
 from podcast_mcp.history import HistoryManager, run_mutation
 from podcast_mcp.history.manager import record_and_commit
 from podcast_mcp.models import EpisodeProject
@@ -19,7 +17,7 @@ from podcast_mcp.project_merge import (
     ConflictAdvice,
     ProjectMergeConflict,
     adopt_project_state,
-    merge_project_data,
+    merged_project,
     project_merge_data,
 )
 from podcast_mcp.project_store import (
@@ -276,16 +274,9 @@ class ProjectWorkspace:
             mgr.record(self.project, history_label)
         if saved == self._merge_base:
             return self.project
-        merged = merge_project_data(
-            self._merge_base,
-            project_merge_data(self.project),
-            saved,
-            advice=advice,
+        adopted = merged_project(
+            self._merge_base, project_merge_data(self.project), saved, advice=advice
         )
-        try:
-            adopted = EpisodeProject.model_validate(merged)
-        except ValidationError as exc:
-            raise ProjectMergeConflict(["(merged project is invalid)"], advice=advice) from exc
         mgr.record(adopted, MERGED_HISTORY_LABEL)
         return adopted
 

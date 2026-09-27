@@ -101,6 +101,25 @@ def merge_project_data(
     return merged
 
 
+def merged_project(
+    base: dict[str, Any],
+    ours: dict[str, Any],
+    theirs: dict[str, Any],
+    *,
+    advice: ConflictAdvice = RERUN_ADVICE,
+) -> EpisodeProject:
+    """Three-way merge ``ours`` and ``theirs`` onto ``base`` and validate the result.
+
+    Raises ``ProjectMergeConflict`` for a value both sides changed, or with
+    ``(merged project is invalid)`` when the merged data fails validation.
+    """
+    merged = merge_project_data(base, ours, theirs, advice=advice)
+    try:
+        return EpisodeProject.model_validate(merged)
+    except ValidationError as exc:
+        raise ProjectMergeConflict(["(merged project is invalid)"], advice=advice) from exc
+
+
 def _merge(base: Any, ours: Any, theirs: Any, path: str, conflicts: list[str]) -> Any:
     if ours == theirs or theirs == base:
         return ours
@@ -269,9 +288,5 @@ def publish_project_changes(
         if theirs == base:
             adopt_project_state(project, work)
             return
-        merged = merge_project_data(base, project_merge_data(work), theirs, advice=advice)
-        try:
-            adopted = EpisodeProject.model_validate(merged)
-        except ValidationError as exc:
-            raise ProjectMergeConflict(["(merged project is invalid)"], advice=advice) from exc
+        adopted = merged_project(base, project_merge_data(work), theirs, advice=advice)
         adopt_project_state(project, adopted)
