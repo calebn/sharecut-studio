@@ -12,7 +12,7 @@ import {
 } from "../document/cursor";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
-import { requestHostDrainLazy } from "../state/requestHostDrainLazy";
+import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 

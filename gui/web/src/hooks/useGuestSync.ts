@@ -20,6 +20,7 @@ import { bindWsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
+import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
 import { loadCommentAuthor } from "../utils/commentAuthor";
@@ -153,9 +154,7 @@ export function useGuestSync(
         sendRef.current = bindWsSender(sock);
         setWsReady(true);
         stopPoll();
-        void import("../state/drainOfflineQueue").then(
-          ({ drainOfflineQueue }) => drainOfflineQueue(token),
-        );
+        requestGuestDrainLazy(token);
       };
       ws.onmessage = (ev) => {
         try {
@@ -272,11 +271,7 @@ export function useGuestSync(
       };
     };
     connect();
-    const onOnline = () => {
-      void import("../state/drainOfflineQueue").then(({ drainOfflineQueue }) =>
-        drainOfflineQueue(token),
-      );
-    };
+    const onOnline = () => requestGuestDrainLazy(token);
     window.addEventListener("online", onOnline);
     return () => {
       closed = true;
