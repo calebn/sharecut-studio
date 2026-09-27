@@ -7,6 +7,7 @@ import {
   loadRecordParticipant,
   saveRecordParticipant,
 } from "../state/offlineStore";
+import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 import type { RecordSnapshot } from "./types";
 
@@ -269,7 +270,7 @@ export function useRecordSync(
           window.clearInterval(heartbeat);
           heartbeat = null;
         }
-        if (event.code === 4403 && !accessEnded) {
+        if (isTerminalWsClose(event.code) && !accessEnded) {
           endAccess(RECORD_ACCESS_REMOVED);
         }
         if (!cancelled && !accessEnded) {
