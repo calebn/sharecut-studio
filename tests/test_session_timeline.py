@@ -504,7 +504,8 @@ def test_same_source_overlaps_ignores_different_media(tmp_path) -> None:
         ),
     ]
     assert same_source_timeline_overlaps(p) == []
-    assert same_source_timeline_overlaps(p, track_ids={"host"}) == []
+    host_clips = [c for c in p.clips if c.track_id == "host"]
+    assert same_source_timeline_overlaps(p, clips=host_clips) == []
 
 
 def test_clip_media_key_source_and_primary(tmp_path) -> None:
