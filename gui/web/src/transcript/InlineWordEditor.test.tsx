@@ -317,6 +317,8 @@ describe("InlineWordEditor", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("network down");
     });
+    expect(input).toHaveFocus();
+    expect(input).not.toHaveAttribute("readonly");
     expect(onClose).not.toHaveBeenCalled();
   });
 
