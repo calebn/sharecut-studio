@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
+import jsonschema
 import pytest
 from fastapi.testclient import TestClient
 from filelock import Timeout
@@ -21,9 +24,12 @@ from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     MediaAsset,
+    ProjectStateSnapshot,
+    SavedDocumentCommand,
     Track,
     TrackRole,
     load_project,
+    save_project,
 )
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import ProjectWorkspace
@@ -1487,20 +1493,185 @@ def test_busy_journal_fails_the_command_before_the_project_changes(minimal_proje
     assert len(_journal(svc)) == 1
 
 
-def test_journal_insert_failure_after_apply_keeps_the_edit_unjournaled(minimal_project):
-    """Pins the documented residual: an I/O failure after the apply keeps the edit with no row."""
+def test_journal_insert_failure_after_apply_is_journaled_by_the_retry(minimal_project):
+    """An I/O failure after the apply saves the command; the next submit journals it (#575)."""
     svc = DocumentSyncService.open(minimal_project)
     store = svc.store
     real = store._conn
+    cmd = _comment("first")
     store._conn = FailingConnection(real, "INSERT INTO commands")  # type: ignore[assignment]
     try:
         with pytest.raises(sqlite3.OperationalError):
-            svc.submit(_comment("first"))
+            svc.submit(cmd)
     finally:
         store._conn = real
     assert [c.body for c in load_project(minimal_project).comments] == ["first"]
     assert _journal(svc) == []
     assert not real.in_transaction
+    saved = load_project(minimal_project).document_sync.last_command
+    assert saved is not None
+    assert saved.command_id == cmd.command_id
+
+    retry = DocumentSyncService.open(minimal_project)
+    result = retry.submit(cmd)
+    assert result["idempotent"] is True
+    assert [c.body for c in load_project(minimal_project).comments] == ["first"]
+    journal = _journal(retry)
+    assert len(journal) == 1
+    assert journal[0]["payload"]["result"] is None
+
+
+def test_the_next_command_journals_an_edit_saved_without_its_row_first(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    a = _comment("from-a", seq=1, client_id="a")
+    store._conn = FailingConnection(real, "INSERT INTO commands")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(a)
+    finally:
+        store._conn = real
+    assert _journal(svc) == []
+
+    svc2 = DocumentSyncService.open(minimal_project)
+    b = _comment("from-b", seq=1, client_id="b")
+    result = svc2.submit(b)
+    assert result["ok"]
+    assert result.get("idempotent") is not True
+
+    journal = _journal(svc2)
+    assert len(journal) == 2
+    assert journal[0]["command_id"] == a.command_id
+    assert journal[0]["payload"]["result"] is None
+    assert journal[1]["command_id"] == b.command_id
+
+    retry = DocumentSyncService.open(minimal_project)
+    again = retry.submit(a)
+    assert again["idempotent"] is True
+    assert len(_journal(retry)) == 2
+    assert [c.body for c in load_project(minimal_project).comments] == ["from-a", "from-b"]
+
+
+def test_a_failed_apply_does_not_leave_its_record_for_a_later_save(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    first = svc.submit(_comment("first"))
+    assert first["ok"]
+    cid = first["snapshot"]["comments"][0]["id"]
+
+    with pytest.raises(DocumentConflictError):
+        svc.submit(
+            DocumentCommand(
+                type="UpdateComment",
+                payload={"comment_id": "does-not-exist", "body": "nope"},
+                client_id="c1",
+                role="viewer",
+                client_seq=2,
+            )
+        )
+    svc.ws.save()
+
+    saved = load_project(minimal_project).document_sync.last_command
+    assert saved is not None
+    assert saved.type == "AddComment"
+    assert saved.payload.get("body") == "first"
+
+    second = svc.submit(
+        DocumentCommand(
+            type="UpdateComment",
+            payload={"comment_id": cid, "body": "updated"},
+            client_id="c1",
+            role="viewer",
+            client_seq=3,
+        )
+    )
+    assert second["ok"]
+    assert len(_journal(svc)) == 2
+
+
+def test_a_history_move_saved_before_its_render_failed_is_not_repeated_by_a_retry(minimal_project):
+    svc = _undoable_rejection(minimal_project)
+    cmd = DocumentCommand(
+        type="UndoHistory",
+        payload={"rerender": True},
+        client_id="c1",
+        role="viewer",
+        client_seq=3,
+    )
+
+    def failing_render(_project):
+        raise OSError("ffmpeg failed")
+
+    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+        with pytest.raises(DocumentConflictError):
+            svc.submit(cmd)
+
+    status_before = HistoryService(ProjectWorkspace.open(minimal_project)).status()
+    assert len(_journal(svc)) == 1
+
+    retry = DocumentSyncService.open(minimal_project)
+    result = retry.submit(cmd)
+    assert result["idempotent"] is True
+    status_after = HistoryService(ProjectWorkspace.open(minimal_project)).status()
+    assert status_after["cursor"] == status_before["cursor"]
+    assert len(_journal(retry)) == 2
+
+
+def test_a_reset_journal_never_journals_an_old_record(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("a", seq=1, client_id="a"))
+    svc.submit(_comment("b", seq=1, client_id="b"))
+    assert len(_journal(svc)) == 2
+
+    svc.store.reset({"server_seq": 0})
+
+    svc2 = DocumentSyncService.open(minimal_project)
+    svc2.submit(_comment("c", seq=1, client_id="c"))
+    journal = _journal(svc2)
+    assert len(journal) == 1
+    assert journal[0]["payload"]["body"] == "c"
+
+
+def test_the_saved_command_is_not_an_undo_layer(minimal_project):
+    assert "document_sync" not in ProjectStateSnapshot.model_fields
+
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    ws = ProjectWorkspace.open(minimal_project)
+    assert ws.project.document_sync.last_command is not None
+
+    HistoryService(ws).undo()
+
+    ws_after = ProjectWorkspace.open(minimal_project)
+    assert ws_after.project.document_sync.last_command is not None
+
+
+_SCHEMA = Path(__file__).resolve().parents[1] / "schemas" / "episode.project.schema.json"
+
+
+def test_a_project_saved_before_575_loads_without_a_saved_command(minimal_project):
+    data = json.loads(minimal_project.read_text(encoding="utf-8"))
+    data.pop("document_sync", None)
+    minimal_project.write_text(json.dumps(data), encoding="utf-8")
+
+    project = load_project(minimal_project)
+    assert project.document_sync.last_command is None
+
+    project.document_sync.last_command = SavedDocumentCommand(
+        command_id="cmd-1",
+        client_id="c1",
+        client_seq=1,
+        role="viewer",
+        type="AddComment",
+        payload={"body": "hi"},
+        base_server_seq=0,
+    )
+    save_project(project, minimal_project)
+
+    saved_raw = json.loads(minimal_project.read_text(encoding="utf-8"))
+    full_schema = json.loads(_SCHEMA.read_text(encoding="utf-8"))
+    document_sync_schema = {"$ref": "#/$defs/DocumentSyncSection", "$defs": full_schema["$defs"]}
+    jsonschema.validate(instance=saved_raw["document_sync"], schema=document_sync_schema)
 
 
 def test_command_id_retry_from_another_client_is_a_conflict(minimal_project):

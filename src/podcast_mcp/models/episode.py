@@ -466,6 +466,31 @@ class ReviewSection(BaseModel):
     active_version_id: str | None = None
 
 
+class SavedDocumentCommand(BaseModel):
+    """A document-sync command saved on the same commit that applied it.
+
+    The document-sync journal (``document.db``) is written outside the
+    project-file commit, so a crash between the two can leave an edit
+    applied to the project with no journal row to make a retry idempotent.
+    Recording the command here, inside the same atomic commit as the
+    project mutation it produced, lets the next ``submit`` reconcile the
+    journal before applying anything else. See #575.
+    """
+
+    command_id: str
+    client_id: str
+    client_seq: int | None = None
+    role: str
+    type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    causation_id: str | None = None
+    base_server_seq: int = Field(ge=0)
+
+
+class DocumentSyncSection(BaseModel):
+    last_command: SavedDocumentCommand | None = None
+
+
 class EpisodeProject(BaseModel):
     """Episode Project Format v2 - canonical on-disk representation."""
 
@@ -484,6 +509,7 @@ class EpisodeProject(BaseModel):
     social: SocialSection = Field(default_factory=SocialSection)
     review: ReviewSection = Field(default_factory=ReviewSection)
     history: ProjectHistory = Field(default_factory=ProjectHistory)
+    document_sync: DocumentSyncSection = Field(default_factory=DocumentSyncSection)
 
     @field_validator("history", mode="before")
     @classmethod

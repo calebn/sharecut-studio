@@ -15,7 +15,8 @@
     "render": { "$ref": "#/$defs/RenderSection" },
     "social": { "$ref": "#/$defs/SocialSection" },
     "review": { "$ref": "#/$defs/ReviewSection" },
-    "history": { "$ref": "#/$defs/ProjectHistory" }
+    "history": { "$ref": "#/$defs/ProjectHistory" },
+    "document_sync": { "$ref": "#/$defs/DocumentSyncSection" }
   },
   "$defs": {
     "ProjectMeta": {
@@ -482,6 +483,28 @@
       "properties": {
         "cursor": { "type": "integer" },
         "entries": { "type": "array" }
+      }
+    },
+    "DocumentSyncSection": {
+      "type": "object",
+      "properties": {
+        "last_command": {
+          "anyOf": [{ "$ref": "#/$defs/SavedDocumentCommand" }, { "type": "null" }]
+        }
+      }
+    },
+    "SavedDocumentCommand": {
+      "type": "object",
+      "required": ["command_id", "client_id", "role", "type", "base_server_seq"],
+      "properties": {
+        "command_id": { "type": "string" },
+        "client_id": { "type": "string" },
+        "client_seq": { "type": ["integer", "null"] },
+        "role": { "type": "string" },
+        "type": { "type": "string" },
+        "payload": { "type": "object" },
+        "causation_id": { "type": ["string", "null"] },
+        "base_server_seq": { "type": "integer", "minimum": 0 }
       }
     },
     "ProjectStateSnapshotV2": {

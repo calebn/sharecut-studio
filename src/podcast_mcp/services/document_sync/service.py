@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import copy
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.comments import comments_for_view
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
+from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
@@ -20,7 +23,9 @@ from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.project_state import project_state_lock
+from podcast_mcp.util.project_state import project_file_revision, project_state_lock
+
+log = logging.getLogger(__name__)
 
 _STORE_CACHE: dict[str, SyncStore] = {}
 _STORE_LOCK = threading.Lock()
@@ -123,6 +128,56 @@ def existing_document_command(store: SyncStore, command: DocumentCommand) -> dic
     return row
 
 
+def _journal_server_seq(store: SyncStore) -> int:
+    return int((store.get_snapshot() or {}).get("server_seq") or 0)
+
+
+def _journal_snapshot(_snap: dict[str, Any] | None, appended: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "server_seq": int(appended["server_seq"]),
+        "last_command_id": appended["command_id"],
+        "last_type": appended["type"],
+    }
+
+
+def _empty_journal_snapshot() -> dict[str, Any]:
+    return {"server_seq": 0}
+
+
+def journal_saved_command(store: SyncStore, project: EpisodeProject) -> dict[str, Any] | None:
+    """Reconcile a command a crash saved to the project without its journal row (#575).
+
+    Returns the recovered journal row, or ``None`` when there is nothing to
+    reconcile (no saved command, the journal has moved past its
+    ``base_server_seq``, or it is already journaled).
+    """
+    saved = project.document_sync.last_command
+    if saved is None:
+        return None
+    if _journal_server_seq(store) != saved.base_server_seq:
+        return None
+    if store.find_by_command_id(saved.command_id) is not None:
+        return None
+    row, _snap, claimed = store.append_and_apply(
+        command_id=saved.command_id,
+        client_id=saved.client_id,
+        client_seq=saved.client_seq,
+        role=saved.role,
+        type=saved.type,
+        payload={**saved.payload, "result": None},
+        causation_id=saved.causation_id,
+        apply_fn=_journal_snapshot,
+        empty_snap_fn=_empty_journal_snapshot,
+    )
+    if claimed:
+        return None
+    log.warning(
+        "Journaled a command saved without its journal row after a crash (#575): %s",
+        saved.command_id,
+    )
+    return row
+
+
 class DocumentSyncService:
     """Submit → handler registry → append document log → fanout Applied."""
 
@@ -196,14 +251,17 @@ class DocumentSyncService:
         # One cross-process step (#213, #377): the project lock, then the document.db write
         # lock (never the reverse), then retry check, apply, journal row + snapshot. The
         # write lock is taken before the apply, so a busy journal or a handler error fails
-        # the command before the project changes. Only an I/O failure of the journal INSERT
-        # or COMMIT after the apply can leave an unlogged edit (a retry then applies it
-        # again). Undo/redo with rerender holds both locks for its render. This is the only
-        # document.db writer and it takes the project lock first, so another writer waits on
-        # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a busy
-        # sqlite lock that escapes anyway maps to the same 503 / project_busy in the routes.
+        # the command before the project changes. The apply's commit also saves the command
+        # as ``document_sync.last_command``, so after a crash or an I/O failure of the
+        # journal INSERT or COMMIT after the apply, the next submit journals it first
+        # (``journal_saved_command``, #575). Undo/redo with rerender holds both locks for
+        # its render. This is the only document.db writer and it takes the project lock
+        # first, so another writer waits on the project lock (30 s, then filelock.Timeout),
+        # not on sqlite's busy timeout; a busy sqlite lock that escapes anyway maps to the
+        # same 503 / project_busy in the routes.
         with self.ws.transaction(), store.write_transaction():
             self.project = self.ws.project
+            journal_saved_command(store, self.project)
             existing = existing_document_command(store, command)
             if existing is not None:
                 return {
@@ -215,8 +273,9 @@ class DocumentSyncService:
                     "idempotent": True,
                 }
 
-            result_payload = self._apply(
+            result_payload = self._apply_saving_command(
                 command,
+                store,
                 capabilities=capabilities,
                 structural_mode=structural_mode,
             )
@@ -228,12 +287,8 @@ class DocumentSyncService:
                 type=command.type,
                 payload={**command.payload, "result": result_payload},
                 causation_id=command.causation_id,
-                apply_fn=lambda _snap, appended: {
-                    "server_seq": int(appended["server_seq"]),
-                    "last_command_id": appended["command_id"],
-                    "last_type": appended["type"],
-                },
-                empty_snap_fn=lambda: {"server_seq": 0},
+                apply_fn=_journal_snapshot,
+                empty_snap_fn=_empty_journal_snapshot,
             )
             if claimed:
                 # Unreachable while the write lock is held from the check; kept as a guard.
@@ -312,6 +367,46 @@ class DocumentSyncService:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
             raise DocumentConflictError(str(exc)) from exc
+
+    def _apply_saving_command(
+        self,
+        command: DocumentCommand,
+        store: SyncStore,
+        *,
+        capabilities: list[str] | None = None,
+        structural_mode: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply ``command``, saving it as ``document_sync.last_command`` on the same commit.
+
+        A crash between this commit and the journal INSERT/COMMIT leaves the saved
+        command for ``journal_saved_command`` to reconcile on the next submit (#575).
+        """
+        project = self.ws.project
+        previous = project.document_sync.last_command
+        revision = project_file_revision(project)
+        project.document_sync.last_command = SavedDocumentCommand(
+            command_id=command.command_id,
+            client_id=command.client_id,
+            client_seq=command.client_seq,
+            role=command.role,
+            type=command.type,
+            payload=copy.deepcopy(command.payload),
+            causation_id=command.causation_id,
+            base_server_seq=_journal_server_seq(store),
+        )
+        try:
+            return self._apply(
+                command,
+                capabilities=capabilities,
+                structural_mode=structural_mode,
+            )
+        except BaseException:
+            # A failed history render calls discard_changes; re-read the (possibly
+            # reverted) in-memory project before deciding whether the commit landed.
+            self.project = self.ws.project
+            if commit_landed(self.project, revision) is not True:
+                self.project.document_sync.last_command = previous
+            raise
 
 
 def notify_document_changed(project_path: str | Path) -> None:
