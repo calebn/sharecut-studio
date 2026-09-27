@@ -58,6 +58,7 @@ from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.play import PlayRequest, PlayService, _compose_gain_db
+from podcast_mcp.util import atomic_render
 from podcast_mcp.util.project_state import render_lock, render_lock_path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -320,6 +321,31 @@ def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None
         steps.mix_with_music(ws.project, load_defaults())
     assert premix_path(ws.project).read_bytes() == b"RIFF"
     assert read_premix_hash(ws.project) == mix_render_hash({"old": 0.0})
+
+
+def test_a_mix_drops_the_premix_hash_before_swapping_the_premix(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        assert premix_hash_path(ws.project).is_file()
+        real_replace = atomic_render.os.replace
+        hash_at_swap: list[bool] = []
+
+        def spy(src, dst):
+            if Path(dst) == premix_path(ws.project):
+                hash_at_swap.append(premix_hash_path(ws.project).exists())
+            real_replace(src, dst)
+
+        monkeypatch.setattr(atomic_render.os, "replace", spy)
+        steps.mix_with_music(ws.project, defaults)
+    assert hash_at_swap == [False]
+    assert premix_hash_path(ws.project).is_file()
+    assert list(ws.project.artifacts_dir().glob("*.partial.wav")) == []
 
 
 @pytest.mark.parametrize(
@@ -721,7 +747,7 @@ def test_a_failed_master_keeps_the_last_master_and_drops_its_qc(minimal_project:
             steps.master_loudness(ws.project, defaults)
     assert mastered_path(ws.project).read_bytes() == before
     assert not (art / "master_qc.json").exists()
-    assert not (art / ".mastered.mastering.wav").exists()
+    assert list(art.glob("*.partial.wav")) == []
     assert read_mastered_hash(ws.project) is None
 
 

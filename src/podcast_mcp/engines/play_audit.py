@@ -190,6 +190,7 @@ def publish_stem(
         stem_path(project, track_id),
         render,
         before_replace=lambda: clear_stem_hash(project, track_id),
+        reap_partials=True,
     )
     write_stem_hash(project, track_id, clear_invalidations=clear_invalidations)
     return stem_path(project, track_id)
@@ -308,6 +309,10 @@ def read_premix_hash(project: EpisodeProject) -> str | None:
 def write_premix_hash(project: EpisodeProject, gains: Mapping[str, float]) -> str:
     """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``)."""
     return _write_hash(premix_hash_path(project), mix_render_hash(gains))
+
+
+def clear_premix_hash(project: EpisodeProject) -> None:
+    premix_hash_path(project).unlink(missing_ok=True)
 
 
 def premix_stale_vs_mix(project: EpisodeProject) -> bool:

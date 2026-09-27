@@ -13,7 +13,7 @@ import pytest
 from podcast_mcp.edits.ranges import merge_intervals, merge_timeline_ranges
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.models import load_project
-from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.atomic_render import remove_partials, render_atomic
 from podcast_mcp.util.dsp import clamp01, linear_rms
 from podcast_mcp.util.tracks import existing_stem_path, stem_path
 
@@ -58,6 +58,20 @@ def test_source_span_bounds_uses_caller_fallback() -> None:
         1.0,
         3.0,
     )
+
+
+def test_render_atomic_reaps_only_its_targets_orphan_partials(tmp_path: Path) -> None:
+    dest = tmp_path / "host.wav"
+    orphan = tmp_path / f"host.123.{'a' * 32}.partial.wav"
+    other_track = tmp_path / f"host.1.123.{'b' * 32}.partial.wav"
+    unrelated = tmp_path / "host.notes.partial.wav"
+    for path in (orphan, other_track, unrelated):
+        path.write_bytes(b"x")
+    render_atomic(dest, lambda tmp: tmp.write_bytes(b"new"), reap_partials=True)
+    assert dest.read_bytes() == b"new"
+    assert not orphan.exists()
+    assert other_track.exists() and unrelated.exists()
+    assert remove_partials(tmp_path / "missing" / "x.wav") == 0
 
 
 def test_render_atomic_parallel_writers_and_cleanup(tmp_path: Path) -> None:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +23,7 @@ from podcast_mcp.pipeline.helpers import (
     ffmpeg,
     set_or_replace_chain,
 )
+from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import with_render_lock
@@ -481,6 +481,7 @@ def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> Step
 @with_render_lock
 def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
+        clear_premix_hash,
         mix_gains,
         premix_path,
         publish_stem,
@@ -543,12 +544,15 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             raise ValueError("no tracks to mix")
 
         prog.set_phase("mix", f"Mixing {len(mixed)} tracks…")
-        premix = premix_path(project)
-        # Mix beside it and swap in whole, so a failed or cancelled mix never
-        # leaves a half-written premix next to an old hash.
-        mixing = premix.with_name(".premix.mixing.wav")
-        eng.mix_tracks([(Path(rendered[tid]), gain) for tid, gain in mixed.items()], mixing)
-        os.replace(mixing, premix)
+        inputs = [(Path(rendered[tid]), gain) for tid, gain in mixed.items()]
+        # Mix beside it and swap in whole with the old hash dropped first (#356): a failed or
+        # cancelled mix keeps the old premix and hash, and no reader pairs old hash, new bytes.
+        render_atomic(
+            premix_path(project),
+            lambda tmp: eng.mix_tracks(inputs, tmp),
+            before_replace=functools.partial(clear_premix_hash, project),
+            reap_partials=True,
+        )
         write_premix_hash(project, mixed)
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
@@ -616,9 +620,6 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     source_hash = master_source_hash(project)
     eng = ffmpeg()
     mastered = mastered_path(project)
-    # Master beside it and swap in whole, like the premix, so a reader never
-    # sees a half-written master.
-    mastering = mastered.with_name(".mastered.mastering.wav")
     tame_path = artifact(project, "premix_premaster.wav")
     qc_path = artifact(project, "master_qc.json")
     # A failed or cancelled master must not leave a hash or QC report vouching for it.
@@ -658,51 +659,51 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             qc["within_tolerance"] = not issues
         return qc
 
+    measured: dict[str, float | None] | None = None
+    qc: dict[str, Any] = {}
     try:
         with resolve_progress_task(
             "master_loudness",
             "Mastering loudness",
             prefer_parent=True,
         ) as prog:
-            prog.set_phase("loudnorm", "Running loudnorm…")
-            eng.master_loudnorm(
-                premix,
-                mastering,
-                integrated_lufs=target_lufs,
-                true_peak_db=target_tp,
-                lra=target_lra,
-            )
-            prog.set_phase("measure", "Measuring loudness…")
-            measured = eng.measure_loudness_full(mastering)
-            qc = _qc(measured)
 
-            # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
-            # Tame crest, then remaster once before writing QC.
-            if (
-                crest_tame_af
-                and measured
-                and qc.get("within_tolerance") is False
-                and any("Integrated loudness" in i for i in (qc.get("issues") or []))
-            ):
-                prog.set_phase("crest_tame", "Taming crest then remastering…")
-                eng.filter_audio(premix, tame_path, crest_tame_af)
+            def _master_into(tmp: Path) -> None:
+                nonlocal measured, qc
+                prog.set_phase("loudnorm", "Running loudnorm…")
                 eng.master_loudnorm(
-                    tame_path,
-                    mastering,
-                    integrated_lufs=target_lufs,
-                    true_peak_db=target_tp,
-                    lra=target_lra,
+                    premix, tmp, integrated_lufs=target_lufs, true_peak_db=target_tp, lra=target_lra
                 )
-                measured = eng.measure_loudness_full(mastering)
+                prog.set_phase("measure", "Measuring loudness…")
+                measured = eng.measure_loudness_full(tmp)
                 qc = _qc(measured)
-                qc["crest_tame_af"] = crest_tame_af
+                # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
+                # Tame crest, then remaster once before writing QC.
+                if (
+                    crest_tame_af
+                    and measured
+                    and qc.get("within_tolerance") is False
+                    and any("Integrated loudness" in i for i in (qc.get("issues") or []))
+                ):
+                    prog.set_phase("crest_tame", "Taming crest then remastering…")
+                    eng.filter_audio(premix, tame_path, crest_tame_af)
+                    eng.master_loudnorm(
+                        tame_path,
+                        tmp,
+                        integrated_lufs=target_lufs,
+                        true_peak_db=target_tp,
+                        lra=target_lra,
+                    )
+                    measured = eng.measure_loudness_full(tmp)
+                    qc = _qc(measured)
+                    qc["crest_tame_af"] = crest_tame_af
 
-            os.replace(mastering, mastered)
+            # Master beside it and swap in whole; its hash was already dropped above.
+            render_atomic(mastered, _master_into, reap_partials=True)
             prog.set_phase("qc", "Writing master QC…")
             qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
             write_mastered_hash(project, source_hash)
     finally:
-        mastering.unlink(missing_ok=True)
         tame_path.unlink(missing_ok=True)
 
     if measured and measured.get("integrated_lufs") is not None:
