@@ -14,15 +14,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.config import bounded_float
+from podcast_mcp.util.dicts import get_by_path
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
 FASTER_WHISPER_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 
 
-def _section(defaults: Mapping[str, Any], *path: str) -> Mapping[str, Any]:
-    node: Any = defaults
-    for key in path:
-        node = node.get(key, {}) if isinstance(node, Mapping) else {}
+def _section(defaults: Mapping[str, Any], path: str) -> Mapping[str, Any]:
+    node = get_by_path(defaults, path)
     return node if isinstance(node, Mapping) else {}
 
 
@@ -56,9 +55,9 @@ class AsrOptions:
 
             defaults = load_defaults()
         base = cls()
-        vad = _section(defaults, "transcribe", "vad")
-        dec = _section(defaults, "transcribe", "decode")
-        sil = _section(defaults, "transcribe", "silence_filter")
+        vad = _section(defaults, "transcribe.vad")
+        dec = _section(defaults, "transcribe.decode")
+        sil = _section(defaults, "transcribe.silence_filter")
         hst = dec.get("hallucination_silence_threshold", base.hallucination_silence_threshold)
         return cls(
             vad_enabled=bool(vad.get("enabled", base.vad_enabled)),

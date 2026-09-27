@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -23,3 +24,13 @@ def deep_merge(
         else:
             out[key] = copy.deepcopy(val)
     return out
+
+
+def get_by_path(data: Mapping[str, Any], path: str) -> Any:
+    """Value at dotted ``path`` in nested mappings; ``None`` when any part is missing."""
+    cur: Any = data
+    for part in path.split("."):
+        if not isinstance(cur, Mapping) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
