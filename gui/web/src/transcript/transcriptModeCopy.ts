@@ -10,6 +10,10 @@ export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
     "Select (edits audio): pick words, then Mod+X cuts their audio from the timeline and Mod+V pastes it.",
 };
 
+/** Navigate hint on coarse pointers: double-tap opens the Correct sheet, not the inline editor. */
+export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
+  "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";
+
 /** Under Apply in the word editor. */
 export const TRANSCRIPT_CORRECT_TIMING_NOTE =
   "Apply changes the text only; the audio and word timing stay as recorded. With End index above the start, the new words share the original span evenly.";

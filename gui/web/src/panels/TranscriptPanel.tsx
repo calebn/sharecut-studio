@@ -27,6 +27,7 @@ import {
 } from "../transcript/TranscriptTurnView";
 import {
   TRANSCRIPT_MODE_HINT,
+  TRANSCRIPT_NAVIGATE_TOUCH_HINT,
   type TranscriptIntent,
 } from "../transcript/transcriptModeCopy";
 import type {
@@ -126,6 +127,7 @@ export function TranscriptPanel() {
     transcriptScrollRequest,
     setTranscriptScrollRequest,
     setTranscriptViewAnchor,
+    pointerKind,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -145,6 +147,7 @@ export function TranscriptPanel() {
     transcriptScrollRequest: s.transcriptScrollRequest,
     setTranscriptScrollRequest: s.setTranscriptScrollRequest,
     setTranscriptViewAnchor: s.setTranscriptViewAnchor,
+    pointerKind: s.pointerKind,
   }));
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLElement | null>(null);
@@ -739,7 +742,11 @@ export function TranscriptPanel() {
         </div>
       </div>
       {canCorrect ? (
-        <p className="transcript-mode-hint">{TRANSCRIPT_MODE_HINT[intent]}</p>
+        <p className="transcript-mode-hint">
+          {intent === "navigate" && pointerKind === "coarse"
+            ? TRANSCRIPT_NAVIGATE_TOUCH_HINT
+            : TRANSCRIPT_MODE_HINT[intent]}
+        </p>
       ) : null}
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
