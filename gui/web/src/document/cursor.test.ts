@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { documentClientId } from "../utils/documentClient";
 import {
   currentDocumentSeq,
+  noteDocumentFile,
   noteDocumentSeq,
+  notePolledDocumentFile,
+  pollSnapshotAlreadyApplied,
   resetDocumentSeqForTests,
   shouldApplyDocumentEvent,
   shouldApplyPollSnapshot,
@@ -70,5 +73,102 @@ describe("document cursor", () => {
     expect(shouldApplyPollSnapshot(5, 5)).toBe(true);
     expect(shouldApplyPollSnapshot(6, 5)).toBe(true);
     expect(shouldApplyPollSnapshot(5, 6)).toBe(false);
+  });
+});
+
+describe("document file signature", () => {
+  it("matches a project snapshot's file to a meta at the same or later seq", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(3);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 5, server_seq: 3 }),
+    ).toBe(true);
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 5, server_seq: 2 }),
+    ).toBe(true);
+  });
+
+  it("is false when meta seq is greater than the applied seq", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(3);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 5, server_seq: 4 }),
+    ).toBe(false);
+  });
+
+  it("is false on a different mtime, size, or an undefined size", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(3);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 101, size: 5, server_seq: 3 }),
+    ).toBe(false);
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 6, server_seq: 3 }),
+    ).toBe(false);
+    expect(pollSnapshotAlreadyApplied({ mtime_ns: 100, server_seq: 3 })).toBe(
+      false,
+    );
+  });
+
+  it("advances the file through a patch whose file_before chains", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(1);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    noteDocumentSeq(2);
+    noteDocumentFile({
+      file_before: { mtime_ns: 100, size: 5 },
+      file: { mtime_ns: 200, size: 6 },
+    });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
+    ).toBe(true);
+  });
+
+  it("marks the file unknown on a mismatched or missing file_before, or resync", () => {
+    resetDocumentSeqForTests();
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    noteDocumentFile({
+      file_before: { mtime_ns: 999, size: 9 },
+      file: { mtime_ns: 200, size: 6 },
+    });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 0 }),
+    ).toBe(false);
+
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    // comments-projection patch: no file_before at all.
+    noteDocumentFile({ file: { mtime_ns: 200, size: 6 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 0 }),
+    ).toBe(false);
+
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    noteDocumentFile({ resync: true, file: { mtime_ns: 200, size: 6 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 5, server_seq: 0 }),
+    ).toBe(false);
+  });
+
+  it("notePolledDocumentFile records the poll's own file, or clears it", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(5);
+    notePolledDocumentFile({ mtime_ns: 300, size: 7 });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 300, size: 7, server_seq: 5 }),
+    ).toBe(true);
+    notePolledDocumentFile({ mtime_ns: 400 });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 400, size: 8, server_seq: 5 }),
+    ).toBe(false);
+  });
+
+  it("reset clears the file", () => {
+    noteDocumentSeq(1);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 1, size: 1 } });
+    resetDocumentSeqForTests();
+    expect(pollSnapshotAlreadyApplied({ mtime_ns: 1, size: 1 })).toBe(false);
   });
 });
