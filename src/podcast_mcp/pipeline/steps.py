@@ -416,6 +416,8 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
         to_render.append(track)
 
     def render_one(track: Track) -> tuple[str, Path]:
+        # Runs on a run_parallel worker: never call anything that takes render_lock here (the
+        # file lock is thread-local, so it would wait on this step's own hold).
         # Publish WAV + hash from the snapshot; clear invalidations serially below.
         out = publish_stem(
             render_project,
