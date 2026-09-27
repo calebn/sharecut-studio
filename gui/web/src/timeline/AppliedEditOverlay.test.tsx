@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 
@@ -119,5 +120,27 @@ describe("AppliedEditOverlay", () => {
     const tick = container.querySelector<HTMLElement>(".applied-tick");
     expect(tick).not.toHaveAttribute("tabindex");
     expect(queryByRole("button")).toBeNull();
+  });
+
+  it("has no axe violations with a selected seam tick", async () => {
+    const { container } = render(
+      <AppliedEditOverlay
+        records={[
+          appliedEditRecord({
+            id: "ripple",
+            operation: "ripple_delete",
+            source_start: null,
+            source_end: null,
+            params: { per_track_source: { "mira-voice": [2, 3] } },
+          }),
+        ]}
+        clips={clips}
+        trackId="mira-voice"
+        zoomPxPerSec={20}
+        selectedId="ripple"
+      />,
+    );
+    expect(container.querySelector(".applied-tick")).not.toBeNull();
+    await expectNoA11yViolations(container);
   });
 });

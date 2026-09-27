@@ -17,7 +17,8 @@ interface AppliedEditOverlayProps {
  * Impact panel's Applied edits list. Dense cut stacks cannot meet WCAG 2.5.8 as
  * individual 24px buttons, so ticks are non-interactive and carry no hover title
  * (the layer is `pointer-events: none` and `aria-hidden`); labels and selection
- * live in Impact → Applied edits.
+ * live in Impact → Applied edits. This is deliberate: the tests pin it and
+ * include an axe check.
  */
 export function AppliedEditOverlay({
   records,
