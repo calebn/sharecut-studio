@@ -333,6 +333,7 @@ export function PipelinePanel() {
     return next;
   };
 
+  /** Resolves true only when this toggle's config is the one now shown in `cfg`. */
   const toggleStep = async (
     stepId: string,
     enabled: boolean,
@@ -369,9 +370,11 @@ export function PipelinePanel() {
     if (nextConfig !== cfg.config) {
       patch.config = nextConfig;
     }
+    const seq = ++persistSeq.current;
     try {
-      await persist(patch);
-      return true;
+      await applyPersist(patch, seq);
+      // False when a later write (param edit, another toggle, Analyze) overtook this one.
+      return seq === persistSeq.current;
     } catch (e) {
       setError(errorMessage(e));
       return false;
