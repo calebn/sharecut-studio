@@ -23,7 +23,7 @@ import {
 import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
 
 interface EnvelopeOverlayProps {
-  envelopes: AutomationEnvelope[];
+  envelopes: readonly AutomationEnvelope[];
   trackId: string;
   zoomPxPerSec: number;
   width: number;

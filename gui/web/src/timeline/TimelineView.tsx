@@ -36,6 +36,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { ClipRow } from "../types/project";
+import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
 import {
   COMPACT_LANE_HEIGHT,
@@ -71,6 +72,11 @@ import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { clippingFlags } from "./clippingFlags";
 import { selectFollowColorIndex } from "./followTarget";
+import {
+  appliedRecordTrackIds,
+  envelopeTrackIds,
+  useByTrack,
+} from "./laneOverlaySlices";
 import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
@@ -609,6 +615,22 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const onClipMoveCancel = useStableCallback(() => endMoveGesture());
 
+  // Per-track slices: a lane's own array keeps its identity across renders
+  // when nothing on that track changed, so TrackLane's memo bails out for
+  // untouched lanes even when another lane's envelope/edit list changed.
+  const envelopeSlices = useByTrack(
+    project?.envelopes ?? EMPTY_ARR,
+    envelopeTrackIds,
+  );
+  const pendingEditSlices = useByTrack(
+    project?.pending_edits ?? EMPTY_ARR,
+    pendingEditTrackIds,
+  );
+  const appliedRecordSlices = useByTrack(
+    project?.applied_edits.records ?? EMPTY_ARR,
+    appliedRecordTrackIds,
+  );
+
   const scrollLeaves = (
     <>
       <TimelineScrollSync
@@ -946,9 +968,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           selection={selection}
                           showLevels={layers.showLevels}
                           showEdits={layers.showEdits}
-                          envelopes={project.envelopes}
-                          appliedRecords={project.applied_edits.records}
-                          pendingEdits={project.pending_edits}
+                          envelopes={envelopeSlices[track.id] ?? EMPTY_ARR}
+                          appliedRecords={
+                            appliedRecordSlices[track.id] ?? EMPTY_ARR
+                          }
+                          pendingEdits={
+                            pendingEditSlices[track.id] ?? EMPTY_ARR
+                          }
                           onSeek={onSeek}
                           bladeMode={bladeMode}
                           canMoveClips={canMoveClips}
