@@ -26,6 +26,30 @@ def _read_words(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return payload, payload["words"]
 
 
+def native_prediction(audio_path: Path, model: str) -> dict[str, Any]:
+    """Native faster-whisper word timestamps as a valid ``--prediction`` payload body.
+
+    Returns ``{"words": [...], "provenance": {...}}``; ``provenance["runtime_sec"]``
+    is the transcribe time.
+    """
+    start = time.perf_counter()
+    transcript = TranscriptionEngine(model_size=model).transcribe_file(audio_path)
+    runtime_sec = time.perf_counter() - start
+    words = [{"text": word.text, "start": word.start, "end": word.end} for word in transcript.words]
+    provenance = {
+        "model": model,
+        "library": "faster-whisper",
+        "library_version": version("faster-whisper"),
+        "version": version("faster-whisper"),
+        "device": "cpu",
+        "compute_type": "int8",
+        "settings": {"device": "cpu", "compute_type": "int8", "word_timestamps": True},
+        "license": "MIT",
+        "runtime_sec": runtime_sec,
+    }
+    return {"words": words, "provenance": provenance}
+
+
 def benchmark(
     gold_path: Path, *, prediction_path: Path | None, native_model: str | None
 ) -> dict[str, Any]:
@@ -67,21 +91,11 @@ def benchmark(
         source = str(prediction_path)
     else:
         assert native_model is not None
-        start = time.perf_counter()
-        transcript = TranscriptionEngine(model_size=native_model).transcribe_file(audio_path)
-        runtime_sec = time.perf_counter() - start
-        prediction = [
-            {"text": word.text, "start": word.start, "end": word.end} for word in transcript.words
-        ]
+        native = native_prediction(audio_path, native_model)
+        prediction = native["words"]
+        provenance = native["provenance"]
+        runtime_sec = provenance["runtime_sec"]
         source = f"faster-whisper:{native_model}"
-        provenance = {
-            "model": native_model,
-            "library": "faster-whisper",
-            "library_version": version("faster-whisper"),
-            "device": "cpu",
-            "compute_type": "int8",
-            "runtime_sec": runtime_sec,
-        }
     metrics = measure_word_boundaries(reference, prediction)
     return {
         "fixture_id": gold.get("id"),
