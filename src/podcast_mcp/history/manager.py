@@ -8,17 +8,17 @@ from pathlib import Path
 from podcast_mcp.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
-from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
-from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
+from podcast_mcp.models.project_format import apply_editable_snapshot
+from podcast_mcp.project_store import (
+    ProjectStore,
+    history_index_path,
+    history_snapshot_path,
+    snapshot_from_project,
+)
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
-
-
-def snapshot_from_project(project: EpisodeProject) -> ProjectStateSnapshot:
-    raw = snapshot_editable_state(project)
-    return ProjectStateSnapshot.model_validate(raw)
 
 
 def apply_snapshot_to_project(

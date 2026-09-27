@@ -89,6 +89,9 @@ flight.
 `ReviewService.publish` checks the canonical project after a late persistence
 error: an uncommitted version has its new history entries and media removed,
 while a version already saved in the project retains both.
+An index left ahead of the saved project by a writer killed before its commit is not
+adopted by an empty saved history; the next commit rewrites it
+([history.md § Storage layout](history.md#storage-layout), #576).
 
 ## Public diagnostics reports (relay)
 

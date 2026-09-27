@@ -14,12 +14,20 @@ from podcast_mcp.models import (
     EpisodeProject,
     HistoryEntry,
     SocialClipCandidate,
+    TimelineComment,
     load_project,
     save_project,
 )
 from podcast_mcp.models.history import ProjectHistory
-from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_path
+from podcast_mcp.project_store import (
+    ProjectStore,
+    history_index_path,
+    history_snapshot_path,
+    read_history_index,
+)
+from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.util import atomic_json
+from podcast_mcp.util.atomic_json import write_json_atomic
 
 
 @pytest.mark.parametrize("writer", ["history_manager", "project_store"])
@@ -365,6 +373,70 @@ def test_store_load_prefers_index_over_empty_history(minimal_project):
     minimal_project.write_text(json.dumps(data), encoding="utf-8")
     loaded = ProjectStore(minimal_project).load()
     assert [e.label for e in loaded.history.entries] == ["indexed"]
+
+
+def _comment(body: str) -> TimelineComment:
+    return TimelineComment(
+        id=body, body=body, author="a", created_at="2026-01-01T00:00:00+00:00", timeline_start=1.0
+    )
+
+
+def _dead_first_commit(path: Path) -> None:
+    """What a first commit killed before ``save_project`` leaves on disk (#576).
+
+    ``history/index.json`` and both snapshots are written; episode.project.json still
+    holds the empty history and no comment.
+    """
+    project = load_project(path)
+    mgr = HistoryManager(path)
+    mgr.record(project, "before add comment")
+    project.comments = [*project.comments, _comment("crashed")]
+    mgr.record(project, "after add comment")
+
+
+def test_store_load_ignores_an_index_a_dead_commit_left_ahead(minimal_project, caplog):
+    _dead_first_commit(minimal_project)
+    with caplog.at_level("WARNING"):
+        loaded = ProjectStore(minimal_project).load()
+    assert loaded.history.is_empty()
+    assert "Not adopting" in caplog.text
+    assert HistoryManager(minimal_project).status(load_project(minimal_project)).total == 0
+    ProjectStore(minimal_project).commit(loaded)
+    assert read_history_index(history_index_path(loaded)) == ProjectHistory()  # repaired
+
+
+def test_retry_after_a_dead_first_commit_records_no_phantom_entry(minimal_project):
+    _dead_first_commit(minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+
+    def add(project):
+        project.comments = [*project.comments, _comment("retry")]
+
+    ws.mutate("before add comment", "after add comment", add)
+    saved = load_project(minimal_project)
+    assert [e.label for e in saved.history.entries] == ["before add comment", "after add comment"]
+    assert [c.body for c in saved.comments] == ["retry"]
+    assert read_history_index(history_index_path(saved)) == saved.history
+
+
+@pytest.mark.parametrize("damage", ["missing", "corrupt", "no_cursor"])
+def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
+    minimal_project, caplog, damage
+):
+    proj = load_project(minimal_project)
+    entry = HistoryManager(minimal_project).record(proj, "indexed", force=True)
+    index_path = history_index_path(proj)
+    snapshot = history_snapshot_path(index_path, entry.id)
+    if damage == "missing":
+        snapshot.unlink()
+    elif damage == "corrupt":
+        snapshot.write_text("{broken", encoding="utf-8")
+    else:
+        write_json_atomic(index_path, {**proj.history.model_dump(mode="json"), "cursor": -1})
+    with caplog.at_level("WARNING"):
+        loaded = ProjectStore(minimal_project).load()
+    assert loaded.history.is_empty()
+    assert "Not adopting" in caplog.text
 
 
 def test_snapshot_file_uses_the_shared_layout(minimal_project):
