@@ -12,6 +12,7 @@ from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from podcast_mcp.gui.audio import audio_file_response
+from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.pinned_media import open_pinned_media
@@ -389,3 +390,10 @@ def test_pinned_response_overrides_match_starlette_signatures(hook: str) -> None
     upstream = inspect.signature(getattr(FileResponse, hook)).parameters
     ours = inspect.signature(getattr(PinnedFileResponse, hook)).parameters
     assert list(ours) == list(upstream)
+
+
+def test_release_background_runs_a_task_and_ignores_none() -> None:
+    ran: list[str] = []
+    release_background(None)
+    release_background(BackgroundTask(ran.append, "slot"))
+    assert ran == ["slot"]

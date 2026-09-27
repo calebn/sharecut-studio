@@ -19,7 +19,8 @@ from starlette.background import BackgroundTask
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
-from podcast_mcp.gui.audio import pinned_audio_response, release_background
+from podcast_mcp.gui.audio import pinned_audio_response
+from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GUEST_SHARE_RECHECK_ON_FRAME_S,

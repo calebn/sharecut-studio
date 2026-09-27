@@ -14,6 +14,7 @@ from fastapi import Request
 from fastapi.responses import Response
 from starlette.background import BackgroundTask
 
+from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.play import PlayService, TransportPath
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -61,12 +62,6 @@ def audio_cache_headers(st: stat_result) -> dict[str, str]:
         "Cache-Control": "private, max-age=0, must-revalidate",
         "ETag": f'"{st.st_mtime_ns}-{st.st_size}"',
     }
-
-
-def release_background(background: BackgroundTask | None) -> None:
-    """Run a synchronous *background* now, when no response will run it."""
-    if background is not None:
-        background.func(*background.args, **background.kwargs)
 
 
 def pinned_audio_response(
