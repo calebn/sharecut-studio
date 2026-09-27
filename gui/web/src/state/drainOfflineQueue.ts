@@ -39,6 +39,9 @@ export async function drainOfflineQueue(token: string): Promise<void> {
   }
 }
 
+/** In-flight live sends a drain already waits on: repeated drains add no second wake-up. */
+const awaitedLiveSends = new Set<string>();
+
 /** Drain persisted host commands in insertion order after reconnect. */
 export async function drainHostOfflineQueue(
   projectPath: string,
@@ -53,7 +56,13 @@ export async function drainHostOfflineQueue(
     // Stop to keep order, and drain again once that send settles.
     const live = hostSendDone(projectPath, cmd.command_id);
     if (live) {
-      void live.then(() => requestHostDrain(projectPath));
+      if (!awaitedLiveSends.has(cmd.command_id)) {
+        awaitedLiveSends.add(cmd.command_id);
+        void live.then(() => {
+          awaitedLiveSends.delete(cmd.command_id);
+          return requestHostDrain(projectPath);
+        });
+      }
       break;
     }
     // A live send that finished since the last read may have dequeued this
