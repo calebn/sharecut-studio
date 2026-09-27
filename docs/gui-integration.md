@@ -375,7 +375,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `GET /api/health` | Smoke check |
 | `GET /api/project?path=` | Bootstrap JSON (`ProjectView`). Default `phase=shell`; `phase=detail` hydrates words+history; `phase=full` is the full dump. Loopback also pins `served_project` for host MCP |
 | `POST /api/project/close` | Loopback — unpin `served_project` (Studio New project) |
-| `GET /api/project/meta?path=` | `{ mtime_ns, size, server_seq }` for live reload; stat + `document.db` read, no project parse, never creates `document.db` |
+| `GET /api/project/meta?path=` | `{ mtime_ns, size, server_seq }` for live reload; stat + `document.db` read, no project parse, never creates `document.db`; an unreadable `document.db` reports `server_seq: 0` |
 | `GET /api/audio?path=&kind=&track_id=&rerender=` | Stream premix / stem / raw via `PlayService` (Range + ETag) |
 | `GET /api/waveform-snap?path=&track_id=&start=&end=` | Windowed inaudible-cut ticks + islands for the snap overlay |
 | `GET /api/history/diff?path=&from_index=&to_index=` | Snapshot delta |

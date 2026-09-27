@@ -153,13 +153,15 @@ def sync_store_cache_key(path: Path, table_prefix: str = "") -> str:
     return f"{path.resolve()}|{table_prefix}"
 
 
-def cached_sync_store(
-    path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
-) -> SyncStore:
+def _cached_sync_store(
+    path: Path, *, table_prefix: str, enforce_command_ids: bool, create: bool
+) -> SyncStore | None:
     key = sync_store_cache_key(path, table_prefix)
     with _STORE_LOCK:
         store = _STORE_CACHE.get(key)
         if store is None:
+            if not create and not path.is_file():
+                return None
             store = SyncStore(
                 path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids
             )
@@ -167,6 +169,31 @@ def cached_sync_store(
         elif store.enforce_command_ids != enforce_command_ids:
             raise ValueError("conflicting command ID policy for cached sync store")
         return store
+
+
+def cached_sync_store(
+    path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
+) -> SyncStore:
+    store = _cached_sync_store(
+        path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids, create=True
+    )
+    assert store is not None
+    return store
+
+
+def cached_sync_store_if_exists(
+    path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
+) -> SyncStore | None:
+    """Cached store for ``path``; else open it only if the file exists. Never creates it.
+
+    A cached store wins even when the file has since been removed, so read-only
+    callers (the meta polls) see the same store writers use. The existence check
+    and the open share ``_STORE_LOCK``; a file another process deletes between the
+    two can still be recreated (closing that needs a read-only connection).
+    """
+    return _cached_sync_store(
+        path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids, create=False
+    )
 
 
 def drop_cached_sync_stores(*, table_prefix: str | None = None) -> list[SyncStore]:

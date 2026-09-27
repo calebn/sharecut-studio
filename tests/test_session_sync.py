@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import subprocess
 import sys
 import time
@@ -12,6 +13,7 @@ import pytest
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.session_control import SessionControlService
+from podcast_mcp.services.session_sync import log as session_sync_log
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.session_sync.service import (
@@ -2009,6 +2011,7 @@ def test_session_meta_changes_on_every_durable_commit(minimal_project, monkeypat
     import itertools
 
     from podcast_mcp.services.session_sync import log as session_sync_log
+    from podcast_mcp.services.session_sync.service import _snapshot_size
 
     ticker = itertools.count(10**18, 1000)
     monkeypatch.setattr(session_sync_log.time, "time_ns", lambda: next(ticker))
@@ -2025,6 +2028,8 @@ def test_session_meta_changes_on_every_durable_commit(minimal_project, monkeypat
     assert meta2["server_seq"] == r2["server_seq"]
     assert meta1["server_seq"] == r1["server_seq"]
     assert meta2["mtime_ns"] == svc.store.get_snapshot()["updated_at_ns"]
+    assert meta2["size"] == _snapshot_size(svc.store.get_snapshot())
+    assert meta1["size"] > 0
 
 
 def test_session_meta_ignores_presence_writes(minimal_project) -> None:
@@ -2037,7 +2042,7 @@ def test_session_meta_ignores_presence_writes(minimal_project) -> None:
         SyncCommand(
             type="PresenceHeartbeat",
             payload={"label": "DAW", "playhead_sec": 1.0},
-            client_id="viewer-1",
+            client_id="viewer-new",
             role="viewer",
             client_seq=next_client_seq(),
         )
@@ -2047,15 +2052,65 @@ def test_session_meta_ignores_presence_writes(minimal_project) -> None:
         SyncCommand(
             type="Ack",
             payload={"acked_server_seq": seq, "label": "DAW"},
-            client_id="viewer-1",
+            client_id="viewer-new",
             role="viewer",
             client_seq=next_client_seq(),
         )
     )
+    svc.store._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     after = session_meta(minimal_project)
     assert after["mtime_ns"] == before["mtime_ns"]
     assert after["server_seq"] == before["server_seq"]
+    assert after["size"] == before["size"]
+
+
+def test_cached_sync_store_if_exists_never_creates(tmp_path) -> None:
+    path = tmp_path / "nested" / "sync.db"
+    assert session_sync_log.cached_sync_store_if_exists(path) is None
+    assert not path.parent.exists()
+
+
+def test_cached_sync_store_if_exists_prefers_the_cached_store(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "sync.db"
+    store = session_sync_log.cached_sync_store(path)
+    try:
+        assert session_sync_log.cached_sync_store_if_exists(path) is store
+        monkeypatch.setattr(type(path), "is_file", lambda self: False)
+        assert session_sync_log.cached_sync_store_if_exists(path) is store
+        with pytest.raises(ValueError):
+            session_sync_log.cached_sync_store_if_exists(path, enforce_command_ids=True)
+    finally:
+        monkeypatch.undo()
+        session_sync_log._STORE_CACHE.pop(session_sync_log.sync_store_cache_key(path), None)
+        store.close()
+
+
+@pytest.mark.parametrize("exc", [OSError("nope"), sqlite3.DatabaseError("malformed")])
+def test_session_meta_read_errors_report_missing(minimal_project, monkeypatch, exc) -> None:
+    from podcast_mcp.services.session_sync import service as session_service
+
+    proj = load_project(minimal_project)
+    SessionSyncService(proj).submit_control("SetPlayhead", {"playhead_sec": 1.0})
+
+    def _boom(*_a, **_k):
+        raise exc
+
+    monkeypatch.setattr(session_service, "_store_at", _boom)
+    meta = session_meta(minimal_project)
+    assert meta["exists"] is False
+    assert meta["mtime_ns"] == 0 and meta["size"] == 0 and meta["server_seq"] == 0
+
+
+def test_session_meta_path_resolution_error_reports_missing(monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import service as session_service
+
+    def _boom(_path):
+        raise OSError("symlink loop")
+
+    monkeypatch.setattr(session_service, "resolve_project_path", _boom)
+    meta = session_meta("/loop/episode.project.json")
+    assert meta["exists"] is False and meta["server_seq"] == 0
 
 
 def test_session_control_seek_stop_mode(minimal_project) -> None:

@@ -76,7 +76,7 @@ WebSocket reports such collisions as `Error` frames with
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/session/state` | Materialized snapshot (+ `clients[]`) |
-| `GET /api/session/meta` | `server_seq` / mtime for fallback poll. `mtime_ns` is the snapshot's `updated_at_ns`, not a WAL-aware file stat: the main `sync.db` file only moves at a WAL checkpoint, and presence heartbeats/Acks write the WAL without changing it. Stat + one row, no project parse, never creates `sync.db` |
+| `GET /api/session/meta` | `server_seq` / mtime for fallback poll. `mtime_ns` is the snapshot's `updated_at_ns`, not a WAL-aware file stat: the main `sync.db` file only moves at a WAL checkpoint, and presence heartbeats/Acks write the WAL without changing it. `size` is the byte length of the serialized snapshot row, not the file size, so a checkpoint of presence-only writes does not move it either. Stat + one row, no project parse, never creates `sync.db`. Store read errors (`OSError` / `sqlite3.DatabaseError`) report `exists: false`, the same policy as project meta's `server_seq` (0) |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
 | `POST /api/session/state` | Viewer blob → typed commands (bootstrap / non-command-log clients); socket-down fallback for `ViewerState` |
 | `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; client may send `Command` / `Ack` / `Presence` / `ViewerState` |
