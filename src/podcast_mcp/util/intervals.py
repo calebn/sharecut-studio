@@ -65,3 +65,21 @@ def merge_intervals(
         else:
             merged.append((start, end))
     return merged
+
+
+def intersect_intervals(
+    a: Iterable[tuple[float, float]], b: Iterable[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    """Overlap of two interval sets (each merged first); empty overlaps dropped."""
+    left, right = merge_intervals(a), merge_intervals(b)
+    out: list[tuple[float, float]] = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        start, end = max(left[i][0], right[j][0]), min(left[i][1], right[j][1])
+        if end > start:
+            out.append((start, end))
+        if left[i][1] < right[j][1]:
+            i += 1
+        else:
+            j += 1
+    return out

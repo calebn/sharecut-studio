@@ -1045,3 +1045,54 @@ def test_balance_reports_ungated_without_a_transcript(minimal_project, sample_wa
     with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=_blocks(-24.0)):
         summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
     assert "ungated" in summary
+
+
+def test_balance_keeps_gain_and_names_an_unmeasured_track(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.track_by_id("host").gain_db = 4.0
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=[]):
+        summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    assert proj.track_by_id("host").gain_db == 4.0
+    assert "not measured, gain kept: host" in summary
+
+
+def test_balance_cancel_midway_changes_no_gain(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.util.progress import CancelledProgress
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            speaker="Guest",
+            media=MediaAsset(path="raw/host.wav"),
+        )
+    )
+    with (
+        patch.object(
+            FFmpegEngine,
+            "measure_loudness_blocks",
+            side_effect=[_blocks(-26.0), CancelledProgress()],
+        ),
+        pytest.raises(CancelledProgress),
+    ):
+        steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    assert proj.track_by_id("host").gain_db == 0.0
+    assert proj.track_by_id("guest").gain_db == 0.0
+
+
+def test_balance_gates_to_words_the_clips_keep(minimal_project, sample_wav, tmp_workspace):
+    proj = _words_project(minimal_project, sample_wav, tmp_workspace)  # words 1.0-6.0
+    proj.clips = [
+        Clip(id="c_host", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0)
+    ]
+    blocks = [(1.5 + 0.1 * i, -20.0) for i in range(30)] + [
+        (5.5 + 0.1 * i, -30.0) for i in range(10)
+    ]
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=blocks):
+        summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    assert proj.track_by_id("host").gain_db == 0.0  # the cut -30 LUFS words don't count
+    assert "speech-gated" in summary

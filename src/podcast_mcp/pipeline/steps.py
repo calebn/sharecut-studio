@@ -304,13 +304,34 @@ def _track_media_path(project: EpisodeProject, track: Track) -> Path:
     return path if path.is_absolute() else project.workspace_path() / path
 
 
+def _kept_speech_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float, float]]:
+    """The track's non-suppressed word spans that its own-media clips keep on the timeline.
+
+    Words in material focus/tighten cut don't count. With no clips (or no overlap) every
+    word counts.
+    """
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.engines.transcript_gated_play import source_word_intervals
+    from podcast_mcp.util.intervals import intersect_intervals
+
+    speech = source_word_intervals(project, track_id, 0.0, math.inf)
+    kept = [
+        (c.source_start, c.source_end)
+        for c in clips_for_track(project, track_id)
+        if not c.source_id and c.source_end > c.source_start
+    ]
+    if not kept:
+        return speech
+    return intersect_intervals(speech, kept) or speech
+
+
 def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     """Stage each dialogue track's ``gain_db`` so its post-FX own-speech loudness hits the target.
 
     Measures the media through the track's processing chain (what the stem renders),
-    gated to the track's non-suppressed transcript words so bleed and silence don't count.
+    gated to the track's non-suppressed transcript words that its clips keep, so bleed,
+    silence and cut material don't count.
     """
-    from podcast_mcp.engines.transcript_gated_play import source_word_intervals
     from podcast_mcp.util.loudness import speech_gated_lufs
 
     eng = ffmpeg()
@@ -320,8 +341,8 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         for t in project.tracks
         if t.role == TrackRole.DIALOGUE and t.media
     ]
-    reports: list[str] = []
-    gated_all = True
+    staged: list[tuple[Track, float, float, bool]] = []  # track, gain, measured LUFS, gated
+    skipped: list[str] = []
     with resolve_progress_task(
         "balance_tracks", "Balancing track levels", total=max(1, len(jobs)), prefer_parent=True
     ) as prog:
@@ -330,22 +351,35 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
             # Envelope left out: its times are stem-clock mix automation, not level.
             blocks = eng.measure_loudness_blocks(path, eng.build_track_filter(chain, None))
-            speech = source_word_intervals(project, track.id, 0.0, math.inf)
-            measured = speech_gated_lufs(blocks, speech)
+            measured = speech_gated_lufs(blocks, _kept_speech_intervals(project, track.id))
             prog.advance(1, message=f"Measured {track.id} ({done}/{len(jobs)})")
             if measured.lufs is None:
+                skipped.append(track.id)
                 continue
-            track.gain_db = round(target - measured.lufs, 2)
-            achieved = round(measured.lufs + track.gain_db, 1)
-            gated_all = gated_all and measured.speech_gated
-            reports.append(
-                f"{track.id} {achieved:g} LUFS ({track.gain_db:+.1f} dB"
-                f"{'' if measured.speech_gated else ', ungated'})"
+            staged.append(
+                (track, round(target - measured.lufs, 2), measured.lufs, measured.speech_gated)
             )
-    if not reports:
-        return f"0 tracks gain-staged (no loudness measured; target {target:g} LUFS)"
-    how = "post-FX, speech-gated" if gated_all else "post-FX"
-    return f"{len(reports)} tracks gain-staged to {target:g} LUFS ({how}): " + ", ".join(reports)
+    # Apply only once every track is measured: a cancel or error mid-loop changes no gain.
+    for track, gain, _lufs, _gated in staged:
+        track.gain_db = gain
+    if skipped:
+        log.warning(
+            "balance_tracks: no loudness measured for %s; gain_db left unchanged",
+            ", ".join(skipped),
+        )
+    skip_note = f"; not measured, gain kept: {', '.join(skipped)}" if skipped else ""
+    if not staged:
+        return f"0 tracks gain-staged (no loudness measured; target {target:g} LUFS){skip_note}"
+    reports = [
+        f"{track.id} {round(lufs + gain, 1):g} LUFS ({gain:+.1f} dB{'' if gated else ', ungated'})"
+        for track, gain, lufs, gated in staged
+    ]
+    how = "post-FX, speech-gated" if all(g for *_x, g in staged) else "post-FX"
+    return (
+        f"{len(staged)} tracks gain-staged to {target:g} LUFS ({how}): "
+        + ", ".join(reports)
+        + skip_note
+    )
 
 
 def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
