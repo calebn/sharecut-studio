@@ -7,12 +7,12 @@ import math
 from podcast_mcp.config import join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.clips_ops import (
     abutting_pairs,
-    clip_index,
     clips_for_track,
     crossfade_block_reason,
     crossfade_ms_at_join,
     join_render_fields,
     neighbour_clips,
+    previous_clip,
 )
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
@@ -86,9 +86,7 @@ def set_clip_join_mode(
         raise ValueError(f"unknown clip_id: {clip_id!r}")
     join_mode = mode if isinstance(mode, ClipJoinMode) else ClipJoinMode(mode)
     clip.join_in_mode = join_mode
-    track_clips = clips_for_track(project, clip.track_id)
-    idx = clip_index(track_clips, clip.id)
-    prev = track_clips[idx - 1] if idx > 0 else None
+    prev = previous_clip(clips_for_track(project, clip.track_id), clip.id)
     summary = change_summary(
         project, operation="set_clip_join_mode", affected_tracks=[clip.track_id]
     )
@@ -118,7 +116,8 @@ def set_clip_join(
     """Set the join between two neighbouring clips: mode plus the fades render reads.
 
     ``crossfade`` sets ``left.fade_out_ms`` and ``right.fade_in_ms`` to ``length_ms``
-    (default ``tighten.crossfade_ms``; ``0`` is rejected). ``cut`` zeroes both fades (a later fade/crossfade reseeds defaults; undo restores them).
+    (default ``tighten.crossfade_ms``; ``0`` is rejected). ``cut`` zeroes both fades
+    (a later fade/crossfade reseeds defaults; undo restores them).
     ``fade`` sets both to ``length_ms``; without one it keeps the current fades, seeding
     ``inaudible_cuts.micro_fade_ms`` when both are 0. Fades go through ``clamp_clip_fades``
     like ``set_clip_fade``. Non-abutting neighbours are allowed; the result reports

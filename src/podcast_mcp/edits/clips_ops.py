@@ -282,7 +282,7 @@ def trim_clip_edge(
 
     track_clips = clips_for_track(project, clip.track_id)
     idx = clip_index(track_clips, clip_id)
-    prev = track_clips[idx - 1] if idx > 0 else None
+    prev = previous_clip(track_clips, clip_id)
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
 
     track = project.track_by_id(clip.track_id)
@@ -381,6 +381,12 @@ def clip_index(track_clips: Sequence[Clip], clip_id: str) -> int:
     if idx is None:
         raise ValueError(f"unknown clip_id: {clip_id!r}")
     return idx
+
+
+def previous_clip(track_clips: Sequence[Clip], clip_id: str) -> Clip | None:
+    """Clip before ``clip_id`` in ``track_clips`` (None for the first); ``ValueError`` if absent."""
+    idx = clip_index(track_clips, clip_id)
+    return track_clips[idx - 1] if idx > 0 else None
 
 
 def neighbour_clips(

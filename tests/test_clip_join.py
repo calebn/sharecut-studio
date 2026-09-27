@@ -10,6 +10,7 @@ from podcast_mcp.edits.clips_ops import (
     crossfade_ms_at_join,
     join_render_fields,
     neighbour_clips,
+    previous_clip,
     uses_crossfade_join,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
@@ -93,3 +94,11 @@ def test_clip_index_raises_value_error_for_missing_clip():
     assert clip_index(clips, "b") == 1
     with pytest.raises(ValueError, match="unknown clip_id"):
         clip_index(clips, "zz")
+
+
+def test_previous_clip_returns_neighbour_or_none():
+    clips = [_clip("a", 0, 1), _clip("b", 1, 2)]
+    assert previous_clip(clips, "a") is None
+    assert previous_clip(clips, "b") is clips[0]
+    with pytest.raises(ValueError, match="unknown clip_id"):
+        previous_clip(clips, "zz")
