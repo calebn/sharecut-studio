@@ -574,6 +574,41 @@ describe("TranscriptPanel", () => {
       expect(q.getByRole("button", { name: "hello" })).not.toHaveFocus();
     });
 
+    it("leaves focus on a field the user moved to while a commit ran", async () => {
+      const outside = document.createElement("input");
+      outside.setAttribute("aria-label", "outside");
+      document.body.append(outside);
+      try {
+        let resolve: () => void = () => {};
+        vi.mocked(correctTranscriptWord).mockImplementationOnce(
+          () =>
+            new Promise<void>((r) => {
+              resolve = r;
+            }),
+        );
+        const { container } = render(<TranscriptPanel />);
+        const q = within(container);
+        fireEvent.doubleClick(q.getByRole("button", { name: "hello" }));
+        const input = q.getByRole("textbox", { name: /Correct word/ });
+        fireEvent.change(input, { target: { value: "Hello" } });
+        fireEvent.keyDown(input, { key: "Enter" });
+        await vi.waitFor(() =>
+          expect(correctTranscriptWord).toHaveBeenCalled(),
+        );
+        act(() => outside.focus());
+        await act(async () => {
+          resolve();
+        });
+        await vi.waitFor(() =>
+          expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull(),
+        );
+        expect(outside).toHaveFocus();
+        expect(q.getByRole("button", { name: "hello" })).not.toHaveFocus();
+      } finally {
+        outside.remove();
+      }
+    });
+
     it("keeps a pending editor when another word is double-clicked", async () => {
       let resolve: () => void = () => {};
       vi.mocked(correctTranscriptWord).mockImplementationOnce(

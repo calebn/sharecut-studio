@@ -186,6 +186,83 @@ describe("InlineWordEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("leaves focus outside when the user moved away during a commit", async () => {
+    const outside = document.createElement("input");
+    outside.setAttribute("aria-label", "outside");
+    document.body.append(outside);
+    try {
+      let resolve: () => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((r) => {
+            resolve = r;
+          }),
+      );
+      const onClose = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <InlineWordEditor
+          trackId="host"
+          wordIndex={0}
+          initialText="hello"
+          onClose={onClose}
+        />,
+      );
+      const input = screen.getByRole("textbox", { name: /Correct word/ });
+      await user.clear(input);
+      await user.type(input, "Hello{Enter}");
+      await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      act(() => outside.focus());
+      await act(async () => {
+        resolve();
+      });
+      await waitFor(() => expect(onClose).toHaveBeenCalledWith(false));
+      expect(outside).toHaveFocus();
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("does not pull focus back when a commit fails after the user moved away", async () => {
+    const outside = document.createElement("input");
+    outside.setAttribute("aria-label", "outside");
+    document.body.append(outside);
+    try {
+      let reject: (e: Error) => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((_r, rej) => {
+            reject = rej;
+          }),
+      );
+      const onClose = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <InlineWordEditor
+          trackId="host"
+          wordIndex={0}
+          initialText="hello"
+          onClose={onClose}
+        />,
+      );
+      const input = screen.getByRole("textbox", { name: /Correct word/ });
+      await user.clear(input);
+      await user.type(input, "Hello{Enter}");
+      await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      act(() => outside.focus());
+      await act(async () => {
+        reject(new Error("network down"));
+      });
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent("network down");
+      });
+      expect(outside).toHaveFocus();
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      outside.remove();
+    }
+  });
+
   it("reports busy while a commit is in flight", async () => {
     const onBusyChange = vi.fn();
     const user = userEvent.setup();
