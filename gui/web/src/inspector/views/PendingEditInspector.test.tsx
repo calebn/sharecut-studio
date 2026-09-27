@@ -20,6 +20,15 @@ const approveEdits = vi.fn();
 const waiveTranscriptRefine = vi.fn();
 const updatePendingEdit = vi.fn();
 
+const { loadHostCommandCount } = vi.hoisted(() => ({
+  loadHostCommandCount: vi.fn(async () => 1),
+}));
+
+vi.mock("../../state/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../state/offlineStore")>()),
+  loadHostCommandCount,
+}));
+
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
   patchComment: (...args: unknown[]) => patchComment(...args),
@@ -53,6 +62,7 @@ const sessionCut: PendingEditView = {
 describe("PendingEditInspector", () => {
   beforeEach(() => {
     registerDawCommands();
+    loadHostCommandCount.mockReset().mockResolvedValue(1);
     createComment.mockReset();
     patchComment.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
@@ -78,6 +88,21 @@ describe("PendingEditInspector", () => {
     );
     expect(screen.queryByRole("alert")).toBeNull();
     await expectNoA11yViolations(container);
+  });
+
+  it("clears Still sending once the queued approval leaves the queue", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockResolvedValue({ queued: true });
+    render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Still sending/,
+    );
+    // Refused replay: same edit id, queue emptied.
+    loadHostCommandCount.mockResolvedValue(0);
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
+      timeout: 3000,
+    });
   });
 
   it("defaults to Suggested preview for a session remove", async () => {
