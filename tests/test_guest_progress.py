@@ -14,6 +14,8 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
 from podcast_mcp.services.guest_progress import (
+    GUEST_PROGRESS_COALESCE_SEC,
+    GUEST_PROGRESS_MAX_HZ,
     GuestWsProgressReporter,
     guest_progress_hub,
     guest_progress_payload,
@@ -27,12 +29,15 @@ from podcast_mcp.services.remote_mcp.progress import (
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.share import ShareService
+from podcast_mcp.util import progress as progress_mod
 from podcast_mcp.util.progress import (
+    PROGRESS_UPDATE_MIN_INTERVAL_SEC,
     ProgressEvent,
     clear_guest_progress_context,
     clear_guest_progress_sinks,
     current_progress,
     install_guest_tool_progress,
+    progress_task,
     register_guest_progress_sink,
     set_guest_progress_context,
 )
@@ -52,6 +57,35 @@ def _drain(q: asyncio.Queue) -> list[dict]:
     while not q.empty():
         items.append(q.get_nowait())
     return items
+
+
+def test_guest_coalesce_matches_source_cadence():
+    assert GUEST_PROGRESS_COALESCE_SEC == PROGRESS_UPDATE_MIN_INTERVAL_SEC
+    assert GUEST_PROGRESS_MAX_HZ == 4
+
+
+@pytest.mark.asyncio
+async def test_throttled_task_final_value_reaches_guest_ws_before_end(monkeypatch):
+    monkeypatch.setattr(progress_mod, "_update_clock", lambda: 0.0)  # source throttle frozen
+    reset_guest_progress_hub()
+    hub = guest_progress_hub()
+    q = hub.subscribe("tok", asyncio.get_running_loop())
+    reporter = GuestWsProgressReporter(hub, "tok")
+    try:
+        with progress_task("t", "Work", total=100, reporter=reporter) as p:
+            for _ in range(20):
+                p.advance(1, message="working")
+        await asyncio.sleep(0.05)
+        events = _drain(q)
+        kinds = [e.get("kind") for e in events]
+        assert kinds[-1] == "end"
+        updates = [e for e in events if e.get("kind") == "update"]
+        assert updates[-1]["current"] == 20
+        assert updates[-1]["total"] == 100
+        assert kinds.index("end") > max(i for i, k in enumerate(kinds) if k == "update")
+    finally:
+        reporter.close()
+        hub.unsubscribe("tok", q)
 
 
 @pytest.mark.asyncio

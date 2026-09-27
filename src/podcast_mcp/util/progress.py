@@ -17,7 +17,10 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 PROGRESS_LAZY_CHIP_SEC = 1.0
 PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.25
-"""Per-task cap on ``ProgressTask.advance`` updates (latest value wins; see docs/progress.md)."""
+"""Per-task cap on ``ProgressTask.advance`` updates (latest value wins; see docs/progress.md).
+
+The guest WS sink reuses it as ``GUEST_PROGRESS_COALESCE_SEC``.
+"""
 _update_clock: Callable[[], float] = time.monotonic  # tests pin this
 _SHORT_FAIL_MAX = 200
 
