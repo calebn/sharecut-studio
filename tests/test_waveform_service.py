@@ -468,6 +468,21 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
     assert gc_pyramids(project_path) == 0  # once per process per project
 
 
+def test_gc_pyramids_drops_legacy_json_once_the_track_has_a_pyramid(tmp_path):
+    project_path = waveform_project(tmp_path)
+    peaks = project_path.parent / "artifacts" / "peaks"
+    peaks.mkdir(parents=True)
+    (peaks / "track-host.0123456789abcdef0123.wfpk").write_bytes(b"x")
+    host_json = peaks / "host.json"  # fresh, but its track now has a live pyramid
+    host_json.write_text("{}", encoding="utf-8")
+    guest_json = peaks / "guest.json"  # fresh, and no track-guest pyramid
+    guest_json.write_text("{}", encoding="utf-8")
+    assert gc_pyramids(project_path) == 1
+    assert not host_json.exists()
+    assert guest_json.exists()
+    assert (peaks / "track-host.0123456789abcdef0123.wfpk").exists()
+
+
 def test_episode_service_hooks_schedule_waveforms(minimal_project, sample_wav, tmp_path):
     from podcast_mcp.services.episode import EpisodeService
     from podcast_mcp.services.workspace import ProjectWorkspace

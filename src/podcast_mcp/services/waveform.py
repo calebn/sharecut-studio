@@ -366,7 +366,9 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
     here. ``artifacts/peaks/*.json`` is the pre-pyramid overview format; nothing
     here reads it, but an older app build may still write it. Both sweeps keep
     the ``GC_MIN_AGE_SEC`` guard because a guest status poll can trigger this
-    pass. The project counts as done only after a pass succeeds.
+    pass, except legacy peaks JSON: at once when that track has a live
+    ``.wfpk``, otherwise once week-old. The project counts as done only after
+    a pass succeeds.
     """
     marker = str(project_path.resolve())
     with _GC_LOCK:
@@ -378,17 +380,24 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
         live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
         cutoff = time.time() - GC_MIN_AGE_SEC
         removed = 0
-        for path in (index.artifacts_dir / "peaks").glob("*.wfpk"):
+        peaks = index.artifacts_dir / "peaks"
+        live_pyramids: set[str] = set()
+        for path in peaks.glob("*.wfpk"):
             match = _PYRAMID_NAME_RE.fullmatch(path.name)
-            if match is None or match.group(1) in live:
+            if match is None:
+                continue
+            if match.group(1) in live:
+                live_pyramids.add(match.group(1))
                 continue
             with contextlib.suppress(OSError):
                 if path.stat().st_mtime < cutoff:
                     path.unlink()
                     removed += 1
-        for legacy in (index.artifacts_dir / "peaks").glob("*.json"):
+        for legacy in peaks.glob("*.json"):
+            # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530).
+            superseded = f"track-{legacy.stem}" in live_pyramids
             with contextlib.suppress(OSError):
-                if legacy.stat().st_mtime < cutoff:
+                if superseded or legacy.stat().st_mtime < cutoff:
                     legacy.unlink()
                     removed += 1
     except BaseException:
