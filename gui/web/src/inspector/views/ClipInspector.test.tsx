@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipFade } from "../../api";
+import { setClipFade, setClipJoin } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
@@ -10,7 +10,7 @@ import { ClipInspector } from "./ClipInspector";
 
 vi.mock("../../api", () => ({
   setClipFade: vi.fn(async () => undefined),
-  setJoinMode: vi.fn(async () => undefined),
+  setClipJoin: vi.fn(async () => undefined),
   applyFadeRecommendations: vi.fn(async () => undefined),
 }));
 
@@ -141,5 +141,92 @@ describe("ClipInspector fades", () => {
         name: /recommended fades|smooth all joins/i,
       }),
     ).toBeNull();
+  });
+});
+
+describe("ClipInspector join", () => {
+  const second: ClipRow = {
+    ...clip,
+    id: "c2",
+    timeline_start: 2,
+    timeline_end: 4,
+    join_left_clip_id: "c1",
+    join_render_mode: "fade",
+    join_crossfade_ms: 0,
+    join_crossfade_blocked: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(setClipJoin).mockClear();
+    useDawStore
+      .getState()
+      .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
+  });
+
+  it("hides the join control on a track's first clip", () => {
+    render(<ClipInspector clip={{ ...clip, join_left_clip_id: null }} />);
+    expect(screen.queryByLabelText("Join mode")).toBeNull();
+  });
+
+  it("sets mode and fades together with the typed length", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<ClipInspector clip={second} />);
+    await user.selectOptions(
+      screen.getByLabelText("Join mode"),
+      "Crossfade (overlap both clips)",
+    );
+    expect(setClipJoin).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "crossfade",
+      null,
+    );
+    await user.type(screen.getByLabelText("Join length ms"), "30");
+    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    expect(setClipJoin).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "fade",
+      30,
+    );
+    expect(
+      screen.getByRole("button", { name: "Seek join" }).className,
+    ).not.toMatch(/link/);
+    await expectNoA11yViolations(container);
+  });
+
+  it("says why a crossfade will not blend", () => {
+    render(
+      <ClipInspector
+        clip={{
+          ...second,
+          join_in_mode: "crossfade",
+          join_crossfade_blocked: "no_fade_in",
+        }}
+      />,
+    );
+    expect(screen.getByText(/no fade-in/)).toBeInTheDocument();
+  });
+
+  it("disables fades on a cut join", () => {
+    render(<ClipInspector clip={{ ...second, join_in_mode: "cut" }} />);
+    expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
+    expect(screen.getByLabelText("Fade out ms")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Apply fades" })).toBeDisabled();
+    expect(screen.queryByLabelText("Join length ms")).toBeNull();
+    expect(screen.getByText(/hard cut/)).toBeInTheDocument();
+  });
+
+  it("rejects a bad length without calling the server", async () => {
+    const user = userEvent.setup();
+    render(<ClipInspector clip={second} />);
+    await user.type(screen.getByLabelText("Join length ms"), "-5");
+    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "non-negative integer",
+    );
+    expect(setClipJoin).not.toHaveBeenCalled();
   });
 });

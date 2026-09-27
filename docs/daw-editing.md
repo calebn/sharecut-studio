@@ -128,7 +128,8 @@ Shipped:
 - Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut) (entries clamp to the same limit; the hint says when an entry was clamped, and Apply waits until the clip's track is known)
 - Document commands `SetClipFade`, `SetJoinMode` (mode only), `SetClipJoin` (mode plus both fades, one undo step; the inspector's Join control), `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
 - MCP `set_clip_join_tool` (also `podcast edit set-clip-join`) and `set_join_mode_tool`; `set_clip_fade` caps dialogue fades at `render.join_fade_max_ms`, bounds each fade to the clip length and limits fade-out to what fade-in leaves (`join_modes.clamp_clip_fades`); the project view exposes the track cap as `TrackView.fade_max_ms` (null = uncapped; same `track_fade_max_ms` resolver), and the GUI mirrors the rule (`edit/fadeLimits.ts` `clampClipFades` / `edgeFadeMaxMs`) so drags and inspector inputs clamp before sending
-- Seek join / Play across join audition footer
+- Seek join / Play across join audition footer (rendered as buttons)
+- Join control uses `SetClipJoin`: labelled modes (Cut / Fade / Crossfade), an optional length in ms (empty = server default), a note on what render will do (from the `list_clips` `join_*` fields, including why a crossfade is blocked), hidden on a track's first clip. On a cut join the fade inputs are disabled and `ClipBlock` hides that clip's fade regions and handles, since render ignores them
 
 **Done when:** changing fade ms or join mode from the inspector updates `timeline.clips` and is audible on next audition.
 
