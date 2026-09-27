@@ -9,6 +9,7 @@ import {
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import { useDaw } from "../state/useDaw";
 import type {
+  PipelineAnalyzeReason,
   PipelineConfigResponse,
   PipelineJobSnapshot,
   PipelineParamField,
@@ -31,6 +32,7 @@ import {
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
 import { formatTimeShort } from "../utils/time";
+import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
 import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 import {
   WhisperDownloadDialog,
@@ -224,7 +226,10 @@ export function PipelinePanel() {
   const [fromStep, setFromStep] = useState("");
   const [onlyStep, setOnlyStep] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [reasons, setReasons] = useState<string[]>([]);
+  const [reasons, setReasons] = useState<PipelineAnalyzeReason[]>([]);
+  const [trackRows, setTrackRows] = useState<Array<Record<string, unknown>>>(
+    [],
+  );
   const [highlightPaths, setHighlightPaths] = useState<Set<string>>(new Set());
   const [starting, setStarting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -390,7 +395,8 @@ export function PipelinePanel() {
     setAnalyzing(true);
     try {
       const result = await analyzePipeline(projectPath, { apply: true });
-      setReasons(result.reasons.map((r) => r.message));
+      setReasons(result.reasons);
+      setTrackRows(result.report_summary?.tracks ?? []);
       const paths = new Set<string>();
       const walk = (obj: Record<string, unknown>, prefix: string) => {
         for (const [k, v] of Object.entries(obj)) {
@@ -419,6 +425,7 @@ export function PipelinePanel() {
   const onReset = async () => {
     setError(null);
     setReasons([]);
+    setTrackRows([]);
     setHighlightPaths(new Set());
     try {
       await persist({ reset: true });
@@ -642,14 +649,64 @@ export function PipelinePanel() {
         </ul>
       )}
 
-      {reasons.length > 0 && (
+      {(reasons.length > 0 || trackRows.length > 0) && (
         <div className="pipeline-reasons">
-          <strong>Analyze suggestions applied</strong>
-          <ul>
-            {reasons.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
+          {reasons.length > 0 && (
+            <>
+              <strong>Analyze suggestions applied</strong>
+              <ul>
+                {reasons.map((r, i) => {
+                  const evidence = formatAnalyzeFields(r.evidence ?? {});
+                  const skips = (r.suggested_skip_steps ?? []).filter((s) =>
+                    cfg?.enabled_steps.includes(s),
+                  );
+                  return (
+                    <li key={`${r.code}-${r.track_id ?? ""}-${i}`}>
+                      {r.message}
+                      {evidence && (
+                        <div className="pipeline-reason-evidence">
+                          {evidence}
+                        </div>
+                      )}
+                      {skips.map((stepId) => (
+                        <button
+                          key={stepId}
+                          type="button"
+                          className="pipeline-reason-skip"
+                          disabled={running || starting || !cfg}
+                          onClick={() => void toggleStep(stepId, false)}
+                        >
+                          Uncheck{" "}
+                          {cfg?.steps.find((s) => s.id === stepId)?.title ??
+                            stepId}
+                        </button>
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+          {trackRows.length > 0 && (
+            <details className="pipeline-analyze-tracks">
+              <summary>Per-track measurements ({trackRows.length})</summary>
+              <ul>
+                {trackRows.map((row, i) => {
+                  const rawTid = row.track_id;
+                  const tid =
+                    typeof rawTid === "string" || typeof rawTid === "number"
+                      ? String(rawTid)
+                      : "?";
+                  return (
+                    <li key={`${tid}-${i}`}>
+                      <strong>{tid}</strong>:{" "}
+                      {formatAnalyzeFields(row, ["track_id"])}
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
         </div>
       )}
 

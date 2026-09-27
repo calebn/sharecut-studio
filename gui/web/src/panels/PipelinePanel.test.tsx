@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { PipelinePanel } from "./PipelinePanel";
+import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
 
 const loadPipelineConfig = vi.fn();
 const putPipelineConfig = vi.fn();
@@ -828,5 +829,85 @@ describe("PipelinePanel", () => {
     });
     expect(screen.getByText("last update 17s ago")).toBeInTheDocument();
     expect(live.textContent).not.toContain("last update");
+  });
+
+  it("renders Analyze evidence, a skip hint and per-track rows", async () => {
+    const user = userEvent.setup();
+    const withAlign = structuredClone(baseConfig);
+    withAlign.steps.push({
+      id: "align_tracks",
+      index: 4,
+      group: "transcript",
+      title: "Align tracks",
+      summary: "Align",
+      kind: "tooling",
+      depends_on: ["ingest_tracks"],
+      requires_components: ["ffmpeg"],
+      param_sections: [],
+      enabled_by_default: true,
+    });
+    withAlign.enabled_steps = [...withAlign.enabled_steps, "align_tracks"];
+    loadPipelineConfig.mockResolvedValue(withAlign);
+    analyzePipeline.mockResolvedValue({
+      proposed_config: {},
+      patches: {},
+      reasons: [
+        {
+          code: "pre_aligned",
+          message: "Dialogue tracks guest, host all run 10.00s",
+          evidence: { duration_sec: 10, tolerance_sec: 0.05 },
+          suggested_skip_steps: ["align_tracks"],
+        },
+        {
+          code: "digital_silence",
+          message: "host: 85% of the source audio is digital silence",
+          track_id: "host",
+          evidence: { silent_fraction: 0.85, threshold_fraction: 0.8 },
+        },
+      ],
+      report_summary: {
+        track_count: 1,
+        reason_count: 2,
+        tracks: [
+          {
+            track_id: "host",
+            noise_floor_db: -62.5,
+            digital_silence_fraction: 0.85,
+            bleed_ratio: null,
+          },
+        ],
+      },
+      applied: true,
+      config: withAlign,
+    });
+    const { container } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    expect(
+      await screen.findByText("silent_fraction=0.85, threshold_fraction=0.8"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Per-track measurements (1)")).toBeInTheDocument();
+    expect(
+      screen.getByText(/noise_floor_db=-62\.5, digital_silence_fraction=0\.85/),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+    await user.click(
+      screen.getByRole("button", { name: "Uncheck Align tracks" }),
+    );
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalled();
+    });
+    const body = putPipelineConfig.mock.calls.at(-1)![1] as {
+      enabled_steps: string[];
+    };
+    expect(body.enabled_steps).not.toContain("align_tracks");
+  });
+
+  it("formatAnalyzeFields skips nulls and a given key", () => {
+    expect(
+      formatAnalyzeFields({ a: 1, b: null, c: [1, 2], d: "x" }, ["d"]),
+    ).toBe("a=1, c=[1,2]");
   });
 });

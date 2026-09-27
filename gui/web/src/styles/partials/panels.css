@@ -812,6 +812,21 @@ button.history-row {
   padding: var(--space-3);
 }
 
+.pipeline-reason-evidence {
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
+}
+
+.pipeline-reason-skip {
+  margin-top: var(--space-1);
+}
+
+.pipeline-analyze-tracks {
+  margin-top: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
 .pipeline-master-detail {
   display: grid;
   grid-template-columns: minmax(12.5rem, 0.4fr) minmax(15rem, 0.6fr);
