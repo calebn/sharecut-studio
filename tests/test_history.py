@@ -400,12 +400,17 @@ def _not_adopting(caplog) -> list[str]:
 
 def test_store_load_ignores_an_index_a_dead_commit_left_ahead(minimal_project, caplog):
     _dead_first_commit(minimal_project)
+    store = ProjectStore(minimal_project)
     with caplog.at_level("WARNING"):
-        loaded = ProjectStore(minimal_project).load()
+        loaded = store.load()
     assert loaded.history.is_empty()
-    assert "Not adopting" in caplog.text
+    [message] = _not_adopting(caplog)
+    assert "a commit that never landed" in message
     assert HistoryManager(minimal_project).status(load_project(minimal_project)).total == 0
-    ProjectStore(minimal_project).commit(loaded)
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        store.commit(loaded)
+    assert len(_not_adopting(caplog)) == 1  # one check per commit
     assert read_history_index(history_index_path(loaded)) == ProjectHistory()  # repaired
 
 

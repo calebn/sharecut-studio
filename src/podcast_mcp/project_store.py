@@ -320,12 +320,11 @@ class ProjectStore:
         return True
 
     def _sync_history_index_to_project(self, project: EpisodeProject) -> None:
-        """Mirror history to ``history/index.json``; an empty one adopts the index instead."""
-        try:
-            if self.adopt_history_index(project):
-                return
-        except ValueError:
-            log.warning("Repairing invalid history index from canonical project history")
+        """Mirror ``project.history`` to ``history/index.json`` when they differ.
+
+        ``commit`` runs ``adopt_history_index`` first, so an empty history has already
+        adopted a matching index; this only writes.
+        """
         index_path = history_index_path(project)
         if index_path.parent.exists() or not project.history.is_empty():
             index_path.parent.mkdir(parents=True, exist_ok=True)
