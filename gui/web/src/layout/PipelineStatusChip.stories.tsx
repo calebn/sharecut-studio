@@ -68,6 +68,20 @@ export const MultipleActivities: Story = {
   },
 };
 
+export const Stalled: Story = {
+  args: {
+    job: pipelineJobSnapshot({ last_progress_at: 1_000 }),
+    nowSec: 1_042,
+    onClick: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const button = within(canvasElement).getByRole("button", {
+      name: /Pipeline: running/,
+    });
+    await expect(button).toHaveTextContent("last update 42s ago");
+  },
+};
+
 export const Completed: Story = {
   args: {
     job: pipelineJobSnapshot({ status: "ok", current: 3, elapsed_sec: 41 }),

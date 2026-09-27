@@ -10,6 +10,8 @@ type Props = {
   onClick?: MouseEventHandler<HTMLButtonElement>;
   headlineMax?: number;
   runningCount?: number;
+  /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
+  nowSec?: number;
 };
 
 /** Shared StatusBar / phone Listen pipeline chrome (headline, elapsed, pulse). */
@@ -18,6 +20,7 @@ export function PipelineStatusChip({
   onClick,
   headlineMax,
   runningCount = 1,
+  nowSec,
 }: Props) {
   const running = isPipelineRunning(job);
   const copy = (
@@ -30,6 +33,7 @@ export function PipelineStatusChip({
         lastProgressAt={job.last_progress_at}
         running={running}
         prefix=" · "
+        nowSec={nowSec}
       />
       {` · ${formatTimeShort(job.elapsed_sec)}`}
     </span>
