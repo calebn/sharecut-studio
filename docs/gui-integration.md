@@ -448,4 +448,6 @@ retains original transcript word order and indexes, including suppressed and
 zero-duration words; views that omit words skip this work. Word spans map
 through `SessionTimeline.map_word_spans`, the same helper export/doctor
 timebase QC uses, so a zero-length word at a kept clip's source end is
-mappable in both, and edit-boundary `cutaway_word_ids` leave it out.
+mappable in both. Edit-boundary `cutaway_word_ids` ask the same helper and
+leave out a zero-length word it maps onto the left clip, so they cannot drift
+from the word views.
