@@ -1553,6 +1553,44 @@ def test_the_next_command_journals_an_edit_saved_without_its_row_first(minimal_p
     assert [c.body for c in load_project(minimal_project).comments] == ["from-a", "from-b"]
 
 
+def test_a_failure_after_a_recovery_keeps_the_recovered_row(minimal_project):
+    """A's recovered row commits before B's apply, so B failing before COMMIT cannot drop it."""
+    svc = DocumentSyncService.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    a = _comment("from-a", seq=1, client_id="a")
+    store._conn = FailingConnection(real, "INSERT INTO commands")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(a)
+    finally:
+        store._conn = real
+    assert _journal(svc) == []
+
+    class _FailingHub:
+        def publish(self, _key, _event):
+            raise OSError("injected failure before the journal COMMIT")
+
+    b = _comment("from-b", seq=1, client_id="b")
+    svc2 = DocumentSyncService.open(minimal_project)
+    with patch("podcast_mcp.services.document_sync.service.get_hub", return_value=_FailingHub()):
+        with pytest.raises(OSError):
+            svc2.submit(b)
+    assert [row["command_id"] for row in _journal(svc2)] == [a.command_id]
+    saved = load_project(minimal_project).document_sync.last_command
+    assert saved is not None
+    assert saved.command_id == b.command_id
+    assert saved.base_server_seq == 1
+
+    retry = DocumentSyncService.open(minimal_project)
+    assert retry.submit(a)["idempotent"] is True
+    assert retry.submit(b)["idempotent"] is True
+    journal = _journal(retry)
+    assert [row["command_id"] for row in journal] == [a.command_id, b.command_id]
+    assert [row["payload"]["result"] for row in journal] == [None, None]
+    assert [c.body for c in load_project(minimal_project).comments] == ["from-a", "from-b"]
+
+
 def test_a_failed_apply_does_not_leave_its_record_for_a_later_save(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     first = svc.submit(_comment("first"))
