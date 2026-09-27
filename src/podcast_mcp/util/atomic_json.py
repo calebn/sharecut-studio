@@ -1,4 +1,4 @@
-"""Atomic JSON/text sidecar and file load/write (unique tmp + fsync + replace)."""
+"""Atomic JSON/text/bytes sidecar and file load/write (unique tmp + fsync + replace)."""
 
 from __future__ import annotations
 
@@ -49,6 +49,13 @@ def write_text_atomic(path: Path, text: str, *, mode: int | None = None) -> Path
         handle.write(text)
 
     return _replace_from_temp(path, fill, mode=mode, binary=False)
+
+
+def write_bytes_atomic(path: Path, data: bytes, *, mode: int | None = None) -> Path:
+    def fill(handle: Any) -> None:
+        handle.write(data)
+
+    return _replace_from_temp(path, fill, mode=mode, binary=True)
 
 
 def copy_file_atomic(src: Path, dest: Path) -> Path:
