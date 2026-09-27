@@ -326,6 +326,48 @@ def test_revert_track_scope_punch_refills_the_hole_in_place() -> None:
     assert p.editorial.edit_log == []
 
 
+def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
+    """A gap at a cut edge (late recorder) records a seam pair shorter than the hole.
+
+    ``[pre, post]`` cannot tell a leading gap from a trailing or inner one, so revert
+    refuses (History undo) instead of guessing an offset, and moves nothing on any track.
+    """
+    import pytest
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+
+    p = _project_with_two_clips()
+    p.timeline.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=20.0)
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=20.0),
+        )
+    )
+    p.timeline.clips = [
+        Clip(id="h", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        # Guest recorder joined 3 s late.
+        Clip(id="g", track_id="guest", source_start=0.0, source_end=8.0, timeline_start=3.0),
+    ]
+    ripple_delete(p, 1.0, 5.0, use_inaudible_opt=False)
+    record = list_applied_edits(p)[-1]
+    assert record.params["per_track_source"] == {
+        "host": [pytest.approx(1.0), pytest.approx(5.0)],
+        "guest": [pytest.approx(0.0), pytest.approx(2.0)],
+    }
+    record.source_start = 1.0
+    record.source_end = 5.0
+    before = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
+    with pytest.raises(ValueError, match=r"'guest'.*History undo"):
+        revert_applied_edit(p, record.id)
+    after = {tid: [c.model_dump() for c in clips_for_track(p, tid)] for tid in ("host", "guest")}
+    assert after == before
+    assert record in p.editorial.edit_log
+
+
 def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
     """Recorded clocks stay within the GUI's APPLIED_EDGE_EPS_SEC through ripple/split/trim/roll."""
     import re
