@@ -167,7 +167,168 @@ describe("usePipelineJob", () => {
     expect(FakeEventSource.instances.at(-1)?.url).toContain("pipe-1");
   });
 
-  it("keeps polling after agent done while another job is live", async () => {
+  it("does not poll status while the job stream is open", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(FakeEventSource.instances.length).toBeGreaterThan(0);
+      const es = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        es.emit({ type: "status", job: pipe });
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4900);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("polls status every second while the stream is down, and stops once a reconnected stream delivers a frame", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const firstEs = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        firstEs.onerror?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(2);
+      expect(firstEs.close).toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(3);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(FakeEventSource.instances.length).toBe(2);
+      const n = loadPipelineStatus.mock.calls.length;
+
+      const secondEs = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        secondEs.emit({ type: "status", job: pipe });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2900);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(n);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("a stream frame does not replace a different live primary activity job", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    const wrap = agent();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: wrap,
+      jobs: [pipe, wrap],
+      running_count: 2,
+    } satisfies PipelineStatusResponse);
+    const setPipelineJob = vi.fn();
+    const setActivityJob = vi.fn();
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, setPipelineJob, {
+        enabled: true,
+        activityJob: wrap,
+        setActivityJob,
+        setActivityRunningCount: vi.fn(),
+      }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const es = FakeEventSource.instances.at(-1)!;
+      setPipelineJob.mockClear();
+      setActivityJob.mockClear();
+      const updated = job({ message: "Rendering" });
+      act(() => {
+        es.emit({ type: "status", job: updated });
+      });
+      expect(setActivityJob).not.toHaveBeenCalled();
+      expect(setPipelineJob).toHaveBeenCalledWith(updated);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("a stream frame updates activity when it is the primary job", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const setActivityJob = vi.fn();
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), {
+        enabled: true,
+        activityJob: pipe,
+        setActivityJob,
+        setActivityRunningCount: vi.fn(),
+      }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const es = FakeEventSource.instances.at(-1)!;
+      setActivityJob.mockClear();
+      const updated = job({ message: "Rendering" });
+      act(() => {
+        es.emit({ type: "status", job: updated });
+      });
+      expect(setActivityJob).toHaveBeenCalledWith(updated);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("re-applies status after a stream done while another job is live", async () => {
     const pipe = job();
     const wrap = agent({ status: "ok" });
     loadPipelineStatus
