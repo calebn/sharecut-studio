@@ -15,9 +15,7 @@ import { getSessionToken } from "../sessionAuth";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
-
-/** Server close code for a grant revoked after accept (authz recheck). */
-const WS_CLOSE_FORBIDDEN = 4403;
+import { isTerminalWsClose } from "../utils/wsClose";
 
 function documentWsUrl(projectPath: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -110,7 +108,7 @@ export function useDocumentSync(
         }
       };
       ws.onclose = (event) => {
-        if (!closed && event.code !== WS_CLOSE_FORBIDDEN) {
+        if (!closed && !isTerminalWsClose(event.code)) {
           retry = setTimeout(connect, 2000);
         }
       };
