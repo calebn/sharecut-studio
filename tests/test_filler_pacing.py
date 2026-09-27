@@ -789,7 +789,8 @@ def test_audition_summary_with_comments_and_warnings():
         ["w"],
         [{"id": "c"}],
     )
-    assert "1 comments" in s and "1 warnings" in s
+    assert "1 comment" in s and "1 warning" in s
+    assert "1 comments" not in s and "1 warnings" not in s
 
 
 def test_play_cli_requires_project(monkeypatch):
