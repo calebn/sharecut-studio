@@ -26,6 +26,16 @@ describe("useLatestRequest", () => {
     expect(latest.isCurrent(token)).toBe(false);
   });
 
+  it("peeks the current token without retiring it", () => {
+    const { result } = renderHook(() => useLatestRequest());
+    const token = result.current.begin();
+    const mark = result.current.peek();
+    expect(mark).toBe(token);
+    expect(result.current.isCurrent(token)).toBe(true);
+    result.current.begin();
+    expect(result.current.isCurrent(mark)).toBe(false);
+  });
+
   it("returns the same object across renders", () => {
     const { result, rerender } = renderHook(() => useLatestRequest());
     const before = result.current;

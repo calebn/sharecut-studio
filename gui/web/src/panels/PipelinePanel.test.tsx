@@ -898,6 +898,7 @@ describe("PipelinePanel", () => {
     expect(
       screen.getByText(/noise_floor_db=-62\.5, digital_silence_fraction=0\.85/),
     ).toBeInTheDocument();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
     await expectNoA11yViolations(container);
     await user.click(
       screen.getByRole("button", { name: "Uncheck Align tracks" }),
@@ -1050,6 +1051,120 @@ describe("PipelinePanel", () => {
     expect(
       screen.getByRole("checkbox", { name: "Enable Align tracks" }),
     ).toBeChecked();
+  });
+
+  it("shows the server config when a param PUT resolves after the Analyze response", async () => {
+    const user = userEvent.setup();
+    const serverAfterPut = structuredClone(baseConfig);
+    serverAfterPut.config.balance.dialogue_lufs = -18;
+    const patched = structuredClone(baseConfig);
+    patched.config.master.integrated_lufs = -14;
+    loadPipelineConfig
+      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(structuredClone(serverAfterPut));
+    let resolveAnalyze!: (v: unknown) => void;
+    analyzePipeline.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAnalyze = r;
+        }),
+    );
+    let resolvePut!: () => void;
+    putPipelineConfig.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolvePut = () => r(structuredClone(serverAfterPut));
+        }),
+    );
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    fireEvent.change(screen.getByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      resolveAnalyze({
+        proposed_config: patched.config,
+        patches: { master: { integrated_lufs: -14 } },
+        reasons: [],
+        report_summary: { track_count: 0, reason_count: 0, tracks: [] },
+        applied: true,
+        config: patched,
+      });
+    });
+    await act(async () => {
+      resolvePut();
+    });
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+    });
+    await user.click(screen.getByRole("button", { name: "Run pipeline" }));
+    await waitFor(() => {
+      expect(startPipelineRun).toHaveBeenCalled();
+    });
+    expect(startPipelineRun.mock.calls[0][1].config).toEqual(
+      serverAfterPut.config,
+    );
+  });
+
+  it("re-reads the config when a param PUT resolves before the Analyze response", async () => {
+    const user = userEvent.setup();
+    const merged = structuredClone(baseConfig);
+    merged.config.balance.dialogue_lufs = -18;
+    merged.config.master.integrated_lufs = -14;
+    loadPipelineConfig
+      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(structuredClone(merged));
+    let resolveAnalyze!: (v: unknown) => void;
+    analyzePipeline.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAnalyze = r;
+        }),
+    );
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    fireEvent.change(screen.getByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      resolveAnalyze({
+        proposed_config: merged.config,
+        patches: { master: { integrated_lufs: -14 } },
+        reasons: [],
+        report_summary: { track_count: 0, reason_count: 0, tracks: [] },
+        applied: true,
+        config: merged,
+      });
+    });
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+    });
+    expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
+    await user.click(screen.getByRole("button", { name: "Run pipeline" }));
+    await waitFor(() => {
+      expect(startPipelineRun).toHaveBeenCalled();
+    });
+    expect(startPipelineRun.mock.calls[0][1].config).toEqual(merged.config);
   });
 
   it("formatAnalyzeFields skips nulls and a given key", () => {

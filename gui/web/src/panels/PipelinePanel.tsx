@@ -237,6 +237,8 @@ export function PipelinePanel() {
   const [detailOpen, setDetailOpen] = useState(false);
   const persistRequest = useLatestRequest();
   const analyzeRequest = useLatestRequest();
+  /** The newest config PUT, so Analyze can wait for a write that overlapped its scan. */
+  const lastPersist = useRef<Promise<unknown>>(Promise.resolve());
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
@@ -324,7 +326,9 @@ export function PipelinePanel() {
     },
     token: number,
   ) => {
-    const next = await putPipelineConfig(projectPath, patch);
+    const pending = putPipelineConfig(projectPath, patch);
+    lastPersist.current = pending;
+    const next = await pending;
     if (persistRequest.isCurrent(token)) {
       setCfg(next);
     }
@@ -416,6 +420,7 @@ export function PipelinePanel() {
     setError(null);
     setAnalyzing(true);
     const token = analyzeRequest.begin();
+    const persistMark = persistRequest.peek();
     try {
       const result = await analyzePipeline(projectPath, { apply: true });
       if (!analyzeRequest.isCurrent(token)) {
@@ -440,9 +445,28 @@ export function PipelinePanel() {
       if (!analyzeRequest.isCurrent(token)) {
         return;
       }
-      // Analyze's config is the newest server state: older in-flight persists must not overwrite it.
-      persistRequest.invalidate();
-      setCfg(next);
+      if (persistRequest.isCurrent(persistMark)) {
+        // No write began during the scan, so Analyze's config is the newest server state.
+        persistRequest.invalidate();
+        setCfg(next);
+        return;
+      }
+      // A full-config PUT sent during the scan may have landed after apply_patches and
+      // replaced the patched config, so re-read the server once that write settles.
+      const latest = persistRequest.peek();
+      await lastPersist.current.catch(() => undefined);
+      if (
+        !analyzeRequest.isCurrent(token) ||
+        !persistRequest.isCurrent(latest)
+      ) {
+        // A newer write's own response carries the server state.
+        return;
+      }
+      const reload = persistRequest.begin();
+      const fresh = await loadPipelineConfig(projectPath);
+      if (analyzeRequest.isCurrent(token) && persistRequest.isCurrent(reload)) {
+        setCfg(fresh);
+      }
     } catch (e) {
       if (analyzeRequest.isCurrent(token)) {
         setError(errorMessage(e));
