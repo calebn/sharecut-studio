@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
+
 from podcast_mcp.config import load_defaults
+from podcast_mcp.effects.presets import add_effect, apply_preset_to_chain
 from podcast_mcp.models import (
     MediaAsset,
     ProcessingChain,
@@ -130,6 +133,50 @@ def test_compress_tracks_heals_stacked_compressors(minimal_project, sample_wav, 
     steps.compress_tracks(proj, load_defaults())
     chain = next(c for c in proj.processing_chains if c.track_id == "host")
     assert [e.effect for e in chain.effects] == ["highpass", "acompressor", "agate"]
+
+
+def test_compress_tracks_overwrites_preset_compressor_and_warns(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    apply_preset_to_chain(proj, "host", "podcast_standard")
+    d = load_defaults()
+    d = {**d, "compression": {**d["compression"], "ratio": 5.0}}
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        summary = steps.compress_tracks(proj, d)
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    assert [e.effect for e in chain.effects] == ["highpass", "acompressor", "loudnorm"]
+    assert chain.effects[1].params["ratio"] == 5.0
+    assert "overwrote params on 1" in summary
+    assert "overwriting acompressor params on track host" in caplog.text
+
+
+def test_compress_tracks_collapses_user_serial_compressors(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    add_effect(proj, "host", "acompressor", {"ratio": 8})
+    add_effect(proj, "host", "acompressor", {"ratio": 8})
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        summary = steps.compress_tracks(proj, load_defaults())
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    compressors = [e for e in chain.effects if e.effect == "acompressor"]
+    assert len(compressors) == 1
+    assert compressors[0].params["ratio"] == load_defaults()["compression"]["ratio"]
+    assert "removed 1 extra" in summary
+    assert "removed 1 extra acompressor(s) on track host" in caplog.text
+
+
+def test_compress_tracks_rerun_same_params_is_quiet(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.compress_tracks(proj, defaults)
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.steps"):
+        summary = steps.compress_tracks(proj, defaults)
+    assert summary == "compressor on 1 dialogue tracks"
+    assert "compress_tracks:" not in caplog.text
 
 
 def test_analyze_and_tighten_steps(minimal_project):

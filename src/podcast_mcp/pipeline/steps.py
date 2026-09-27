@@ -420,9 +420,15 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 
 
 def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    """Set one acompressor per dialogue chain from ``compression.*``; a re-run replaces it in place (keeping bypass) instead of stacking another."""
+    """Own the single acompressor on each dialogue chain, set from ``compression.*``.
+
+    Any existing acompressor (from an earlier run, a preset such as ``podcast_standard``,
+    or ``add_effect``) is overwritten in place, keeping its position and ``bypass``;
+    extra acompressors are removed. Overwrites and removals are logged and counted in
+    the summary. ``--skip compress_tracks`` keeps a hand-tuned compressor.
+    """
     comp = defaults.get("compression", {})
-    touched = 0
+    touched = overwritten = removed = 0
     for track in project.tracks:
         if track.role != TrackRole.DIALOGUE:
             continue
@@ -441,9 +447,28 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             },
         )
         effects = list(existing.effects) if existing else []
+        prior = [e for e in effects if e.effect == compressor.effect]
+        if prior and prior[0].params != compressor.params:
+            overwritten += 1
+            log.warning(
+                "compress_tracks: overwriting acompressor params on track %s: %s -> %s",
+                track.id,
+                prior[0].params,
+                compressor.params,
+            )
+        if len(prior) > 1:
+            removed += len(prior) - 1
+            log.warning(
+                "compress_tracks: removed %d extra acompressor(s) on track %s",
+                len(prior) - 1,
+                track.id,
+            )
         set_or_replace_chain(project, track.id, replace_effect(effects, compressor))
         touched += 1
-    return f"compressor on {touched} dialogue tracks"
+    summary = f"compressor on {touched} dialogue tracks"
+    if overwritten or removed:
+        summary += f" (overwrote params on {overwritten}, removed {removed} extra)"
+    return summary
 
 
 def _stem_inputs_changed(
