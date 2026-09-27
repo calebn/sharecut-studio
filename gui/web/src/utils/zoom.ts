@@ -50,6 +50,12 @@ export function clampWaveformAmp(amp: number): number {
   return Math.min(MAX_WAVEFORM_AMP, Math.max(MIN_WAVEFORM_AMP, amp));
 }
 
+/** `1.25` → "1.25", `2` → "2": the amplitude readout and announcement. */
+export function formatWaveformAmp(amp: number): string {
+  const rounded = Math.round(amp * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
 export type AnchoredZoomInput = {
   currentZoom: number;
   nextZoom: number;
