@@ -144,6 +144,14 @@ export function usePipelineJob(
     attachedJobId.current = null;
   };
 
+  /**
+   * True while any job stream is attached. The status fetches and the
+   * reconnect timer are only fallbacks for a down stream, so a result that
+   * lands while a stream is attached (even one back on the same job id) is
+   * stale and must be dropped.
+   */
+  const streamOwnsChrome = () => esRef.current != null;
+
   const apply = (st: StatusPayload, opts?: { skipUnchanged?: boolean }) => {
     const count =
       st.running_count ?? statusJobs(st).filter(isPipelineRunning).length;
@@ -168,7 +176,7 @@ export function usePipelineJob(
         // the job now, whether it (re)attached before or after this fetch
         // started — the poll is only a down-time fallback, so any live
         // stream, even one back on the same job id, wins over a stale result.
-        if (!mountedRef.current || esRef.current != null) {
+        if (!mountedRef.current || streamOwnsChrome()) {
           return;
         }
         apply(st);
@@ -213,7 +221,7 @@ export function usePipelineJob(
           // re-check was in flight (discover tick, or a new running job) owns
           // the chrome now, so a stale result must not overwrite it or
           // schedule a reconnect that would close it.
-          if (!mountedRef.current || esRef.current != null) {
+          if (!mountedRef.current || streamOwnsChrome()) {
             return;
           }
           apply(st);
@@ -232,7 +240,7 @@ export function usePipelineJob(
             if (
               !enabledRef.current ||
               !mountedRef.current ||
-              esRef.current != null
+              streamOwnsChrome()
             ) {
               return;
             }
