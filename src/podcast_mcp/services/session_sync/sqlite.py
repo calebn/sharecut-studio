@@ -7,10 +7,10 @@ import threading
 import time
 from pathlib import Path
 
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
-_WAL_INIT_LOCKS: dict[str, threading.Lock] = {}
-_WAL_INIT_LOCKS_GUARD = threading.Lock()
+_WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 _WAL_INIT_TIMEOUT_SEC = 10.0
 _WAL_INIT_RETRY_SEC = 0.05
 # sqlite3.connect's default busy timeout (5 s). The WAL switch runs with the busy
@@ -19,15 +19,17 @@ _WAL_INIT_RETRY_SEC = 0.05
 _BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"
 
 
+def _wal_init_key(db_path: Path) -> str:
+    return str(db_path.resolve())
+
+
 def _wal_init_lock(db_path: Path) -> threading.Lock:
     """Return the in-process lock that serializes the WAL switch for *db_path*.
 
     Keyed by resolved path so a retry on one busy database never blocks
     connections to another session database in this process.
     """
-    key = str(db_path.resolve())
-    with _WAL_INIT_LOCKS_GUARD:
-        return _WAL_INIT_LOCKS.setdefault(key, threading.Lock())
+    return _WAL_INIT_LOCKS.get(_wal_init_key(db_path))
 
 
 def _ensure_wal(connection: sqlite3.Connection) -> None:

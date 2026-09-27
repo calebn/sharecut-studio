@@ -9,17 +9,17 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from threading import Lock, RLock
+from threading import RLock
 from typing import Concatenate, ParamSpec, TypeVar
 
 from filelock import Timeout
 
 from podcast_mcp.models import EpisodeProject, project_file_path
 from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
 
-_registry_lock = Lock()
-_locks: dict[str, RLock] = {}
+_locks: KeyedLocks[str, RLock] = KeyedLocks(RLock)
 
 FileRevision = tuple[int, int, int, int]
 
@@ -72,13 +72,7 @@ def render_lock_path(project: EpisodeProject) -> Path:
 
 def project_state_lock(project: EpisodeProject) -> RLock:
     """Return the in-process lock shared by this workspace's mutations and reads."""
-    key = _workspace_key(project)
-    with _registry_lock:
-        lock = _locks.get(key)
-        if lock is None:
-            lock = RLock()
-            _locks[key] = lock
-        return lock
+    return _locks.get(_workspace_key(project))
 
 
 def snapshot_project(project: EpisodeProject) -> EpisodeProject:

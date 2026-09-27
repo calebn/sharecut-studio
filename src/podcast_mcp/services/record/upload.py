@@ -17,6 +17,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.wav import pcm_wav_header
 
@@ -104,18 +105,11 @@ _FILE_COLUMN_MIGRATIONS: dict[str, str] = {
 
 _STORE_CACHE: dict[str, RecordUploadStore] = {}
 _STORE_LOCK = threading.Lock()
-_INGEST_LOCKS_GUARD = threading.Lock()
-_INGEST_LOCKS: dict[tuple[str, str, str], threading.Lock] = {}
+_INGEST_LOCKS: KeyedLocks[tuple[str, str, str], threading.Lock] = KeyedLocks(threading.Lock)
 
 
 def _ingest_lock(session_id: str, kind: str, participant_id: str) -> threading.Lock:
-    key = (session_id, kind, participant_id)
-    with _INGEST_LOCKS_GUARD:
-        lock = _INGEST_LOCKS.get(key)
-        if lock is None:
-            lock = threading.Lock()
-            _INGEST_LOCKS[key] = lock
-        return lock
+    return _INGEST_LOCKS.get((session_id, kind, participant_id))
 
 
 class RecordUploadError(ValueError):
