@@ -83,6 +83,8 @@ export const PhoneManyConflicts: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
-    await expect(canvas.getByText("+2 more")).toBeInTheDocument();
+    await expect(canvas.getByText("+2 more")).toHaveClass(
+      "guest-attention-more",
+    );
   },
 };

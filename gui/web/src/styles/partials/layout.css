@@ -105,6 +105,11 @@
   font-size: var(--font-size-caption);
 }
 
+.guest-attention-more {
+  list-style: none;
+  font-style: italic;
+}
+
 .daw-main {
   display: grid;
   grid-template-columns: var(--header-width) 1fr var(--inspector-width);
