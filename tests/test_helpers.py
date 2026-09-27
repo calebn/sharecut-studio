@@ -52,7 +52,9 @@ def test_replace_effect_appends_when_absent():
     effects = [ProcessingEffect(effect="highpass", params={"frequency": 90})]
     new = ProcessingEffect(effect="acompressor", params={"ratio": 3})
     result = replace_effect(effects, new)
-    assert [e.effect for e in result] == ["highpass", "acompressor"]
+    assert [e.effect for e in result.effects] == ["highpass", "acompressor"]
+    assert result.replaced is None
+    assert result.dropped == 0
     assert len(effects) == 1
 
 
@@ -64,9 +66,11 @@ def test_replace_effect_replaces_in_place_and_keeps_bypass():
     ]
     new = ProcessingEffect(effect="acompressor", params={"ratio": 4})
     result = replace_effect(effects, new)
-    assert [e.effect for e in result] == ["highpass", "acompressor", "agate"]
-    assert result[1].params["ratio"] == 4
-    assert result[1].bypass is True
+    assert [e.effect for e in result.effects] == ["highpass", "acompressor", "agate"]
+    assert result.effects[1].params["ratio"] == 4
+    assert result.effects[1].bypass is True
+    assert result.replaced is effects[1]
+    assert result.dropped == 0
     assert new.bypass is False
 
 
@@ -78,8 +82,10 @@ def test_replace_effect_collapses_duplicates():
     ]
     new = ProcessingEffect(effect="acompressor", params={"ratio": 5})
     result = replace_effect(effects, new)
-    assert [e.effect for e in result] == ["acompressor", "highpass"]
-    assert result[0].params["ratio"] == 5
+    assert [e.effect for e in result.effects] == ["acompressor", "highpass"]
+    assert result.effects[0].params["ratio"] == 5
+    assert result.replaced is effects[0]
+    assert result.dropped == 1
 
 
 def test_replace_effect_leaves_other_types_untouched():
@@ -89,7 +95,8 @@ def test_replace_effect_leaves_other_types_untouched():
         ProcessingEffect(effect="equalizer", params={"f": 4000}),
     ]
     result = replace_effect(effects, ProcessingEffect(effect="acompressor", params={"ratio": 4}))
-    assert [e.effect for e in result] == ["equalizer", "acompressor", "equalizer"]
-    assert result[0].params == {"f": 250}
-    assert result[2].params == {"f": 4000}
+    assert [e.effect for e in result.effects] == ["equalizer", "acompressor", "equalizer"]
+    assert result.effects[0].params == {"f": 250}
+    assert result.effects[2].params == {"f": 4000}
+    assert result.dropped == 0
     assert effects[1].params == {"ratio": 2}
