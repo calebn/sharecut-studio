@@ -517,7 +517,7 @@ def test_transcribe_job_decode_failure_clears_flags_and_records_skip(minimal_pro
     proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
     with (
         patcher as asr_call,
-        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=None),
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", return_value=None),
     ):
         asr_call.return_value.words[0].suspect_hallucination = True
         tr = engine.transcribe_job(proj, job, language="en")

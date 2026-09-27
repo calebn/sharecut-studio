@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
 
@@ -93,3 +94,18 @@ def flag_silent_words_in_file(
         log.warning("silence filter skipped for %s: %s", path, exc)
         return None
     return flag_words_over_silence(words, peaks, rate, peak_dbfs=peak_dbfs)
+
+
+def refresh_silence_flags(
+    words: Sequence[TranscriptWord], path: Path, options: AsrOptions
+) -> int | None:
+    """Recompute ``suspect_hallucination`` on ``words`` from ``options``' silence filter.
+
+    Every flag is cleared first. Returns the flagged count (0 when the filter is off), or
+    ``None`` when ``path`` cannot be decoded (flags stay cleared, a warning is logged).
+    """
+    for w in words:
+        w.suspect_hallucination = False
+    if not options.silence_filter_enabled:
+        return 0
+    return flag_silent_words_in_file(words, path, peak_dbfs=options.silence_peak_dbfs)
