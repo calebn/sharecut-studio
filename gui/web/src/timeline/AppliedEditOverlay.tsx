@@ -27,6 +27,8 @@ export function AppliedEditOverlay({
   zoomPxPerSec,
   selectedId,
 }: AppliedEditOverlayProps) {
+  // `appliedEditTicks` still filters by `trackId` on purpose, though
+  // TimelineView passes this lane its own slice (see PendingEditOverlay).
   const ticks = useMemo(
     () => appliedEditTicks(records, trackId, clips),
     [records, trackId, clips],
