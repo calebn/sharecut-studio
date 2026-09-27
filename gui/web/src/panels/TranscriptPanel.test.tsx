@@ -532,6 +532,33 @@ describe("TranscriptPanel", () => {
       ).toBeNull();
     });
 
+    it("a late close from an unmounted editor does not move focus later", async () => {
+      let resolve: () => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((r) => {
+            resolve = r;
+          }),
+      );
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      fireEvent.doubleClick(q.getByRole("button", { name: "hello" }));
+      const input = q.getByRole("textbox", { name: /Correct word/ });
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      // Switching mode unmounts the editor while its commit is in flight.
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      await act(async () => {
+        resolve();
+      });
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
+      fireEvent.blur(q.getByRole("textbox", { name: /Correct word/ }));
+      expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull();
+      expect(q.getByRole("button", { name: "hello" })).not.toHaveFocus();
+    });
+
     it("has no axe violations with the editor open", async () => {
       const { container } = render(<TranscriptPanel />);
       const hello = within(container).getByRole("button", { name: "hello" });

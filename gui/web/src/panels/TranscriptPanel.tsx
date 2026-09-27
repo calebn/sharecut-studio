@@ -296,12 +296,19 @@ export function TranscriptPanel() {
     setInlineEdit(ref);
   };
   const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
-    if (restoreFocus) inlineFocusRestoreRef.current = ref;
-    setInlineEdit((cur) =>
-      cur && cur.trackId === ref.trackId && cur.wordIndex === ref.wordIndex
-        ? null
-        : cur,
-    );
+    setInlineEdit((cur) => {
+      if (
+        !cur ||
+        cur.trackId !== ref.trackId ||
+        cur.wordIndex !== ref.wordIndex
+      ) {
+        // A replaced editor's late close: leave state and focus alone.
+        return cur;
+      }
+      // Idempotent, so StrictMode's double-invoked updater is harmless.
+      inlineFocusRestoreRef.current = restoreFocus ? ref : null;
+      return null;
+    });
   };
 
   // Close when editing becomes impossible or the word vanishes (remote edit, rehydrate).
