@@ -85,8 +85,15 @@ function guestReplaySource(token: string): ReplaySource {
   };
 }
 
-/** In-flight live sends a drain already waits on: repeated drains add no second wake-up. */
+/**
+ * In-flight live sends a drain already waits on, keyed by project and command
+ * id (`liveSendKey`): repeated drains add no second wake-up.
+ */
 const awaitedLiveSends = new Set<string>();
+
+function liveSendKey(projectPath: string, commandId: string): string {
+  return `${projectPath}\u0000${commandId}`;
+}
 
 /**
  * Host records replay in insertion order, coordinated with this tab's live
@@ -120,10 +127,11 @@ function hostReplaySource(projectPath: string): ReplaySource {
       // Stop to keep order, and drain again once that send settles.
       const live = hostSendDone(projectPath, cmd.command_id);
       if (live) {
-        if (!awaitedLiveSends.has(cmd.command_id)) {
-          awaitedLiveSends.add(cmd.command_id);
+        const key = liveSendKey(projectPath, cmd.command_id);
+        if (!awaitedLiveSends.has(key)) {
+          awaitedLiveSends.add(key);
           void live.then(() => {
-            awaitedLiveSends.delete(cmd.command_id);
+            awaitedLiveSends.delete(key);
             return requestHostDrain(projectPath);
           });
         }
