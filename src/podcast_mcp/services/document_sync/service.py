@@ -416,8 +416,23 @@ class DocumentSyncService:
             # A failed history render calls discard_changes; re-read the (possibly
             # reverted) in-memory project before deciding whether the commit landed.
             self.project = self.ws.project
-            if commit_landed(self.project, revision) is not True:
+            landed = commit_landed(self.project, revision)
+            if landed is not True:
+                # Never keep a record whose apply may not have landed: the next submit
+                # would journal an edit that never applied.
                 self.project.document_sync.last_command = previous
+            if landed is None:
+                # Unknown: the saved file holds the record only if the commit landed.
+                # discard_changes forgets the file signature first, so even if this
+                # re-read fails the next transaction() adopts the saved file.
+                try:
+                    self.ws.discard_changes()
+                except Exception:
+                    log.warning(
+                        "Could not re-read the project after a failed document command",
+                        exc_info=True,
+                    )
+                self.project = self.ws.project
             raise
 
 
