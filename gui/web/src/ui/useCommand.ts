@@ -5,6 +5,7 @@ import { execute } from "../commands/execute";
 import type { CommandDef, ExecuteResult } from "../commands/types";
 import { useDawStore } from "../state/dawStore";
 import type { TrackView } from "../types/project";
+import { memoByRef } from "../utils/memoByRef";
 
 /**
  * `tracks.map(id).join(",")`, cached per `tracks` array. `useCommand`'s
@@ -12,19 +13,12 @@ import type { TrackView } from "../types/project";
  * inputs changing), so recomputing this join every time would scan every
  * track on every unrelated store update.
  */
-const trackIdsKeyCache = new WeakMap<readonly TrackView[], string>();
+const trackIdsKeyOf = memoByRef((tracks: readonly TrackView[]) =>
+  tracks.map((track) => track.id).join(","),
+);
 
 export function trackIdsKey(tracks: readonly TrackView[] | undefined): string {
-  if (!tracks) {
-    return "";
-  }
-  const cached = trackIdsKeyCache.get(tracks);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const key = tracks.map((track) => track.id).join(",");
-  trackIdsKeyCache.set(tracks, key);
-  return key;
+  return tracks ? trackIdsKeyOf(tracks) : "";
 }
 
 export type UseCommandResult = {
