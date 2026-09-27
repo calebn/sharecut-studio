@@ -281,7 +281,7 @@ export function TransportBar({
         </div>
         {!showFit ? (
           <CommandMenuItem commandId="view.fit" onSelect={close}>
-            Fit session width
+            {capabilityLabel("daw.view.fit")}
           </CommandMenuItem>
         ) : null}
       </MenuSection>
