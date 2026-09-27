@@ -192,6 +192,8 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
     ``params['per_track_source']`` (``{track_id: [pre, post]}``) are restored as one
     clip; when any pair does not span the record's timeline hole (a cut across moved
     or gapped clips), revert raises and points to History undo before anything moves.
+    Track-scope punch archives (``params['scope'] == 'track'``) left a silent hole
+    instead, so they refill it in place on their own tracks and shift nothing.
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -225,11 +227,17 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
                 "(the cut crossed moved or gapped clips); use History undo instead"
             )
 
-    # Always realign every dialogue track; fill media when we know source clocks.
-    restore_tracks = dialogue_track_ids(project) or list(record.track_ids)
+    # A track-scope punch left a silent hole: refill it in place and move nothing.
+    # A session ripple closed the hole: reopen it on every dialogue track first.
+    punch = (record.params or {}).get("scope") == "track"
+    if punch:
+        restore_tracks = list(record.track_ids)
+    else:
+        restore_tracks = dialogue_track_ids(project) or list(record.track_ids)
     for tid in restore_tracks:
         clips = clips_for_track(project, tid)
-        shift_clips_timeline(clips, insert_at, duration)
+        if not punch:
+            shift_clips_timeline(clips, insert_at, duration)
         if tid in per_track:
             s0, s1 = per_track[tid]
         elif tid in record.track_ids:
