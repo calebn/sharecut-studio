@@ -149,6 +149,26 @@ def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
         bfa.OnnxBackend(tmp_path, "onnx/model.onnx", 1)
 
 
+def test_align_prediction_accepts_words_out_of_start_order() -> None:
+    vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "H": 2, "I": 3, "B": 4, "Y": 5, "E": 6})
+    words = [
+        {"text": "bye", "start": 0.7, "end": 1.2},
+        {"text": "hi", "start": 0.0, "end": 0.5},
+    ]
+    hot = {0: 2, 1: 3, 3: 1, 4: 4, 5: 5, 6: 6}
+    backend = FakeBackend(vocab, hot, frames=7, vocab_size=7)
+    samples = np.zeros(round(1.2 * bfa.SAMPLE_RATE), dtype=np.float32)
+
+    output, stats, _ = bfa.align_prediction(samples, words, backend, vocab)
+
+    assert [w["text"] for w in output] == ["bye", "hi"]
+    assert output[0]["start"] == pytest.approx(0.08)
+    assert output[0]["end"] == pytest.approx(0.14)
+    assert output[1]["start"] == pytest.approx(0.0)
+    assert output[1]["end"] == pytest.approx(0.04)
+    assert stats["aligned_words"] == 2
+
+
 def test_align_prediction_retimes_words_and_keeps_native_for_unalignable() -> None:
     vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "H": 2, "I": 3, "B": 4, "Y": 5, "E": 6})
     words = [
