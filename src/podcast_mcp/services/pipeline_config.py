@@ -684,15 +684,25 @@ def _require_known_presets(
             )
 
 
+def _require_known_mapping_leaves(
+    defaults: Mapping[str, Any], path: str, value: Mapping[str, Any], assignment: str
+) -> None:
+    """Raise ``ValueError`` naming the first leaf of a ``path={...}`` value missing from ``defaults``."""
+    for leaf_path, _leaf in _config_leaves(value, path):
+        if not _defaults_have_path(defaults, leaf_path):
+            raise ValueError(f"unknown pipeline config key: {leaf_path!r} (in {assignment!r})")
+
+
 def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
     """Parse ``path=value`` CLI/agent overrides (``--set``) into a nested override dict.
 
     ``value`` is parsed as a YAML scalar or flow value (``true``, ``-36``, ``[0.0, 0.2]``,
     ``null``, JSON arrays/objects all parse as YAML). The top-level key must be one of
-    ``ALLOWED_CONFIG_TOP_KEYS``; the dotted path must already exist in the shipped
-    defaults, and under ``effects`` every preset name (dotted ``effects.<preset>`` or the
-    keys of an ``effects={...}`` mapping) must be a known preset (builtin or the defaults
-    ``effects:`` overlay), so a typo raises instead of silently doing nothing.
+    ``ALLOWED_CONFIG_TOP_KEYS``; the dotted path, and every leaf key of a mapping value
+    (``focus={...}``), must already exist in the shipped defaults, and under ``effects``
+    every preset name (dotted ``effects.<preset>`` or the keys of an ``effects={...}``
+    mapping) must be a known preset (builtin or the defaults ``effects:`` overlay), so a
+    typo raises instead of silently doing nothing.
     """
     defaults = load_defaults()
     known_presets = resolve_presets(defaults)
@@ -722,6 +732,8 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
             if not isinstance(value, Mapping):
                 raise ValueError(f"effects must be a mapping of preset names (in {assignment!r})")
             _require_known_presets([str(k) for k in value], known_presets, assignment)
+        if top != "effects" and isinstance(value, Mapping):
+            _require_known_mapping_leaves(defaults, path, value, assignment)
         set_by_path(out, path, value)
     return out
 
