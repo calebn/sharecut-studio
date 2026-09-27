@@ -29,6 +29,13 @@ function pointMoved(
   return !sameEnvelopePoint(a, b);
 }
 
+/** Calls and clears a held release, if any; safe to call twice. */
+function releaseHeld(ref: { current: (() => void) | null }): void {
+  const release = ref.current;
+  ref.current = null;
+  release?.();
+}
+
 export interface EnvelopeOverlayViewProps {
   points: AutomationPoint[];
   zoomPxPerSec: number;
@@ -44,7 +51,11 @@ export interface EnvelopeOverlayViewProps {
     origin: AutomationPoint[],
   ) => Promise<unknown>;
   onCommitError: (error: unknown) => void;
-  onDragActiveChange?: (active: boolean) => void;
+  /**
+   * Freezes the lane geometry and returns its release. Called inside
+   * pointerdown so `height` cannot change before the first pointermove.
+   */
+  holdGeometry?: () => () => void;
 }
 
 /** Prop-driven envelope overlay used by the live adapter and the catalog. */
@@ -60,7 +71,7 @@ export function EnvelopeOverlayView({
   onSelectPoint,
   onCommitPoints,
   onCommitError,
-  onDragActiveChange,
+  holdGeometry,
 }: EnvelopeOverlayViewProps) {
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   // Kept mounted outside the chunk range: unmounting would drop pointer
@@ -75,14 +86,15 @@ export function EnvelopeOverlayView({
   } | null>(null);
   const commitLock = useRef(false);
 
-  const dragging = draft != null;
+  const releaseHold = useRef<(() => void) | null>(null);
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!dragging) {
-      return;
-    }
-    onDragActiveChange?.(true);
-    return () => onDragActiveChange?.(false);
-  }, [dragging, onDragActiveChange]);
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      releaseHeld(releaseHold);
+    };
+  }, []);
 
   if (points.length < 1) {
     return null;
@@ -107,6 +119,7 @@ export function EnvelopeOverlayView({
     dragRef.current = null;
     setDragIndex(null);
     setDraft(null);
+    releaseHeld(releaseHold);
   };
 
   const commit = async (
@@ -117,6 +130,7 @@ export function EnvelopeOverlayView({
     const movedPoint = next[dragIndex];
     if (!movedPoint || !pointMoved(origin[dragIndex], movedPoint)) {
       setDraft(null);
+      releaseHeld(releaseHold);
       return;
     }
     if (commitLock.current) {
@@ -126,13 +140,20 @@ export function EnvelopeOverlayView({
     commitLock.current = true;
     try {
       await onCommitPoints(replaced.points, origin);
-      setDraft(null);
-      onSelectPoint(Math.max(0, replaced.index));
+      // Unmounted mid-commit (track removed, Levels toggled off): skip the
+      // selection write for a view that no longer exists.
+      if (mounted.current) {
+        setDraft(null);
+        onSelectPoint(Math.max(0, replaced.index));
+      }
     } catch (error) {
-      setDraft(null);
-      onCommitError(error);
+      if (mounted.current) {
+        setDraft(null);
+        onCommitError(error);
+      }
     } finally {
       commitLock.current = false;
+      releaseHeld(releaseHold);
     }
   };
 
@@ -204,6 +225,10 @@ export function EnvelopeOverlayView({
                     return;
                   }
                   (e.target as Element).setPointerCapture?.(e.pointerId);
+                  // Freeze lane geometry now, not an effect later: yToValue
+                  // maps every pointermove through `height`.
+                  releaseHeld(releaseHold);
+                  releaseHold.current = holdGeometry?.() ?? null;
                   const copy = sorted.map((pt) => ({ ...pt }));
                   dragRef.current = {
                     index: i,

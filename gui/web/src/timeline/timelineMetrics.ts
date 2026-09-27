@@ -49,13 +49,22 @@ const TimelineGestureContext = createContext<HoldTimelineMetrics | null>(null);
 export const TimelineGestureProvider = TimelineGestureContext.Provider;
 
 /**
+ * The provider's hold, for a gesture that must freeze the geometry inside its
+ * own event handler (an envelope drag) rather than one effect later; null
+ * outside a `TimelineGestureProvider`.
+ */
+export function useTimelineGestureHold(): HoldTimelineMetrics | null {
+  return useContext(TimelineGestureContext);
+}
+
+/**
  * Hold the lane geometry still while `active` (a clip move, trim, fade, roll
  * or envelope drag). Lane and marker heights follow live data, so without
  * this a collaborator's update (a first comment adds a marker row, a new
  * track re-fits the lanes) could move lanes under the pointer mid-drag.
  */
 export function useHoldTimelineMetrics(active: boolean): void {
-  const hold = useContext(TimelineGestureContext);
+  const hold = useTimelineGestureHold();
   useEffect(() => {
     if (!active || !hold) {
       return;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import type { AutomationPoint } from "../types/project";
@@ -16,7 +16,8 @@ function renderView(
   const onSelectPoint = vi.fn();
   const onCommitPoints = vi.fn().mockResolvedValue({});
   const onCommitError = vi.fn();
-  const onDragActiveChange = vi.fn();
+  const release = vi.fn();
+  const holdGeometry = vi.fn(() => release);
   const utils = render(
     <EnvelopeOverlayView
       points={points}
@@ -30,7 +31,7 @@ function renderView(
       onSelectPoint={onSelectPoint}
       onCommitPoints={onCommitPoints}
       onCommitError={onCommitError}
-      onDragActiveChange={onDragActiveChange}
+      holdGeometry={holdGeometry}
       {...overrides}
     />,
   );
@@ -40,7 +41,8 @@ function renderView(
     onSelectPoint,
     onCommitPoints,
     onCommitError,
-    onDragActiveChange,
+    holdGeometry,
+    release,
   };
 }
 
@@ -106,11 +108,11 @@ describe("EnvelopeOverlayView", () => {
   });
 
   it("commits the exact re-sorted points and origin on a drag, then selects the moved point", async () => {
-    const { container, onCommitPoints, onSelectPoint, onDragActiveChange } =
+    const { container, onCommitPoints, onSelectPoint, holdGeometry, release } =
       renderView();
     const circle = container.querySelectorAll("circle")[0]!;
     fireEvent.pointerDown(circle);
-    expect(onDragActiveChange).toHaveBeenCalledWith(true);
+    expect(holdGeometry).toHaveBeenCalledTimes(1);
     fireEvent.pointerMove(circle, { clientX: 65, clientY: 8 });
     fireEvent.pointerUp(circle);
     await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
@@ -125,9 +127,36 @@ describe("EnvelopeOverlayView", () => {
       ],
     );
     await vi.waitFor(() => expect(onSelectPoint).toHaveBeenCalledWith(1));
-    await vi.waitFor(() =>
-      expect(onDragActiveChange).toHaveBeenLastCalledWith(false),
-    );
+    await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(holdGeometry).toHaveBeenCalledTimes(1);
+  });
+
+  it("engages the geometry hold inside pointerdown, before any effect flush", () => {
+    const { container, holdGeometry } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    let callsDuringEvent = -1;
+    act(() => {
+      fireEvent.pointerDown(circle);
+      callsDuringEvent = holdGeometry.mock.calls.length;
+    });
+    expect(callsDuringEvent).toBe(1);
+  });
+
+  it("releases the hold on pointercancel", () => {
+    const { container, release } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    fireEvent.pointerDown(circle);
+    fireEvent.pointerCancel(circle);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the hold when a press ends without moving", () => {
+    const { container, release, onCommitPoints } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    fireEvent.pointerDown(circle);
+    fireEvent.pointerUp(circle);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
   it("restores cy and calls onCommitError when a commit rejects", async () => {
@@ -192,5 +221,52 @@ describe("EnvelopeOverlayView", () => {
   it("renders nothing for an empty points array", () => {
     const { container } = renderView({ points: [] });
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("skips selection after a commit that resolves once unmounted", async () => {
+    let resolve!: (v: unknown) => void;
+    const onCommitPoints = vi.fn(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const { container, onSelectPoint, release, unmount } = renderView({
+      onCommitPoints,
+    });
+    const circle = container.querySelectorAll("circle")[0]!;
+    fireEvent.pointerDown(circle);
+    fireEvent.pointerMove(circle, { clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle);
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(release).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolve({});
+    });
+    expect(onSelectPoint).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips the error callback after a commit that rejects once unmounted", async () => {
+    let reject!: (e: unknown) => void;
+    const onCommitPoints = vi.fn(
+      () =>
+        new Promise((_, rj) => {
+          reject = rj;
+        }),
+    );
+    const { container, onCommitError, unmount } = renderView({
+      onCommitPoints,
+    });
+    const circle = container.querySelectorAll("circle")[0]!;
+    fireEvent.pointerDown(circle);
+    fireEvent.pointerMove(circle, { clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle);
+    unmount();
+    await act(async () => {
+      reject(new Error("gone"));
+    });
+    expect(onCommitError).not.toHaveBeenCalled();
   });
 });
