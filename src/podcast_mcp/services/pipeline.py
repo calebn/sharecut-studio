@@ -110,10 +110,12 @@ class PipelineService:
         return json.loads(render_preview_result(self.ws.project, rerender=False))
 
     def render_final(self) -> Path:
-        self.ws.checkpoint()
-        runner = PipelineRunner()
-        runner.run(self.ws.project, from_step="master_loudness")
-        self.ws.save_merged()
+        # Lock, then checkpoint: the wait can last minutes and the render must see the
+        # project as saved when it ends (#482). The steps' own render_lock re-enters this hold.
+        with render_lock(self.ws.project):
+            self.ws.checkpoint()
+            PipelineRunner().run(self.ws.project, from_step="master_loudness")
+            self.ws.save_merged()
         from podcast_mcp.export.names import sanitize_export_stem
 
         wav = self.ws.project.export_dir() / f"{sanitize_export_stem(self.ws.project.name)}.wav"
@@ -125,7 +127,6 @@ class PipelineService:
         *,
         cancel_check: Callable[[], bool] | None = None,
     ) -> list[Path]:
-        self.ws.checkpoint()
         defaults = load_defaults()
         export_cfg = dict(defaults.get("export", {}))
         if formats is not None:
@@ -144,6 +145,9 @@ class PipelineService:
             prefer_parent=True,
         ) as prog:
             with render_lock(self.ws.project, cancel_check=cancel_check):
+                # Checkpoint after the wait: a render that held the lock may have committed
+                # edits and published hashes for them meanwhile (#482).
+                self.ws.checkpoint()
                 raise_if_cancelled()
                 prog.set_phase("master", "Preparing mastered WAV…")
                 mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)

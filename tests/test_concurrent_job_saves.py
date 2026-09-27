@@ -43,6 +43,7 @@ from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     live_project,
     project_state_lock,
+    render_lock_held,
     snapshot_project,
     step_copy,
 )
@@ -279,6 +280,43 @@ def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_pat
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
     assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
+
+
+def _record_checkpoint_lock(monkeypatch) -> list[bool]:
+    seen: list[bool] = []
+    original = ProjectWorkspace.checkpoint
+
+    def wrapper(self):
+        seen.append(render_lock_held(self.project))
+        return original(self)
+
+    monkeypatch.setattr(ProjectWorkspace, "checkpoint", wrapper)
+    return seen
+
+
+def test_export_audio_checkpoints_inside_the_render_lock(minimal_project, tmp_path, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    seen = _record_checkpoint_lock(monkeypatch)
+    with (
+        patch(
+            "podcast_mcp.services.pipeline.pipeline_steps.ensure_current_master",
+            return_value=tmp_path / "mastered.wav",
+        ),
+        patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
+        patch("podcast_mcp.services.pipeline.ffmpeg", return_value=MagicMock()),
+    ):
+        PipelineService(ws).export_audio([{"ext": "mp3"}])
+    assert seen == [True]
+
+
+def test_render_final_checkpoints_inside_the_render_lock(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    seen = _record_checkpoint_lock(monkeypatch)
+    with patch("podcast_mcp.services.pipeline.PipelineRunner") as runner:
+        PipelineService(ws).render_final()
+    assert seen == [True]
+    runner.return_value.run.assert_called_once()
+    assert runner.return_value.run.call_args.kwargs["from_step"] == "master_loudness"
 
 
 def _index_matches_file(minimal_project: Path) -> None:
