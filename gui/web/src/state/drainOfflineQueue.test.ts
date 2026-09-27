@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shareProjectKey } from "../shareMode";
 import { ApiError } from "../utils/apiError";
 import type { QueuedCommand } from "./offlineStore";
 import { chainQueuedEnvelopeBaseline } from "./queuedEnvelopeBaseline";
@@ -387,6 +388,21 @@ describe("drainHostOfflineQueue", () => {
       "mine",
     ]);
   });
+
+  it("treats a retry-later 4xx as consumed, because the host submit layer already dequeued it", async () => {
+    const path = "/projects/episode.project.json";
+    hostQueue.mockResolvedValue([cmd("r"), cmd("next")]);
+    submit.mockRejectedValueOnce(new ApiError("Slow down", null, 429));
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+
+    await drainHostOfflineQueue(path);
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "r",
+      "next",
+    ]);
+    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["next"]);
+  });
 });
 
 describe("drainOfflineQueue (guest)", () => {
@@ -448,5 +464,186 @@ describe("drainOfflineQueue (guest)", () => {
     await first;
     expect(guestQueue).toHaveBeenCalledTimes(2);
     expect(submit).toHaveBeenCalledTimes(2);
+  });
+});
+
+const HOST_PATH = "/projects/parity.project.json";
+
+describe.each([
+  {
+    name: "host",
+    queue: () => hostQueue,
+    drain: async () =>
+      (await import("./drainOfflineQueue")).drainHostOfflineQueue(HOST_PATH),
+    path: HOST_PATH,
+  },
+  {
+    name: "guest",
+    queue: () => guestQueue,
+    drain: async () =>
+      (await import("./drainOfflineQueue")).drainOfflineQueue("parity"),
+    path: shareProjectKey("parity"),
+  },
+])("replay contract ($name)", ({ name, queue, drain, path }) => {
+  const rec = (id: string, seq: number): QueuedCommand => ({
+    command_id: id,
+    client_id: "tab-1",
+    client_seq: seq,
+    type: "SetTrackMeta",
+    payload: { label: id },
+    created_at: seq,
+  });
+
+  beforeEach(() => {
+    submit.mockReset().mockResolvedValue({ ok: true });
+    hostQueue.mockReset();
+    guestQueue.mockReset();
+    removeHostQueuedCommands.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("replays every record in order with its original identity", async () => {
+    queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+
+    await drain();
+
+    expect(submit.mock.calls.map((c) => c[0])).toEqual([path, path, path]);
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    for (const [callPath, type, payload, identity] of submit.mock.calls) {
+      const id = identity.command_id as string;
+      expect(callPath).toBe(path);
+      expect(type).toBe("SetTrackMeta");
+      expect(payload).toEqual({ label: id });
+      expect(identity).toMatchObject({
+        command_id: id,
+        client_id: "tab-1",
+        client_seq: { a: 1, b: 2, c: 3 }[id],
+        replaying: true,
+      });
+    }
+    if (name === "host") {
+      expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+      expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, [
+        "a",
+        "b",
+        "c",
+      ]);
+    } else {
+      expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+    }
+  });
+
+  it("skips a refused (403) record and keeps replaying", async () => {
+    queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+    submit
+      .mockResolvedValueOnce({ ok: true })
+      .mockRejectedValueOnce(new ApiError("Not allowed", null, 403))
+      .mockResolvedValueOnce({ ok: true });
+
+    await drain();
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    if (name === "host") {
+      expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+      expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, [
+        "a",
+        "c",
+      ]);
+    } else {
+      expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+    }
+  });
+
+  it("stops at a transport error without leapfrogging", async () => {
+    queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+    submit.mockRejectedValueOnce(new Error("offline"));
+
+    await drain();
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a"]);
+    if (name === "host") {
+      expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+      expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, []);
+    } else {
+      expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+    }
+  });
+
+  it("stops when the submit layer leaves a replay queued", async () => {
+    queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+    submit.mockResolvedValueOnce({ ok: true, queued: true });
+
+    await drain();
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a"]);
+    if (name === "host") {
+      expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+      expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, []);
+    } else {
+      expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+    }
+  });
+});
+
+describe("replayQueuedCommands", () => {
+  beforeEach(() => {
+    submit.mockReset().mockResolvedValue({ ok: true });
+    hostQueue.mockReset();
+    guestQueue.mockReset();
+    removeHostQueuedCommands.mockReset().mockResolvedValue(undefined);
+  });
+
+  const rec = (id: string): QueuedCommand => ({
+    command_id: id,
+    client_seq: 1,
+    type: "SetTrackMeta",
+    payload: {},
+    created_at: 0,
+  });
+
+  it("sends only records the gate allows and settles with the committed ids", async () => {
+    const { replayQueuedCommands } = await import("./drainOfflineQueue");
+    const settle = vi.fn();
+    const queue = [rec("a"), rec("b"), rec("c"), rec("d")];
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => queue,
+      gate: async (cmd) => {
+        if (cmd.command_id === "b") return "skip";
+        if (cmd.command_id === "d") return "stop";
+        return "send";
+      },
+      consumed: () => false,
+      settle,
+    });
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a", "c"]);
+    expect(settle).toHaveBeenCalledTimes(1);
+    expect(settle).toHaveBeenCalledWith(["a", "c"]);
+  });
+
+  it("defaults the gate to send and continues past a consumed failure", async () => {
+    const { replayQueuedCommands } = await import("./drainOfflineQueue");
+    const queue = [rec("a"), rec("b"), rec("c"), rec("d")];
+    submit.mockRejectedValueOnce(new ApiError("x", null, 403));
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => queue,
+      consumed: () => true,
+    });
+
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
   });
 });
