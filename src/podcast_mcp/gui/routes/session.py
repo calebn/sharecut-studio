@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import secrets
+import sqlite3
 import time
 from typing import Any
 
@@ -55,12 +56,18 @@ def _auth(
     )
 
 
-def _publish_viewer_blob(project: EpisodeProject, body: ViewerSessionSnapshot) -> dict[str, Any]:
+def _publish_viewer_blob(
+    project: EpisodeProject, body: ViewerSessionSnapshot, *, heartbeat: bool = True
+) -> dict[str, Any]:
     """Shared by ``POST /api/session/state`` and the WS ``ViewerState`` frame."""
-    return publish_viewer_snapshot(project, body.model_dump(exclude_none=True))
+    return publish_viewer_snapshot(project, body.model_dump(exclude_none=True), heartbeat=heartbeat)
 
 
-def _apply_viewer_state(
+def _viewer_state_error(code: str, exc: Exception) -> dict[str, Any]:
+    return {"type": "Error", "code": code, "detail": str(exc)[:500]}
+
+
+def apply_ws_viewer_state(
     svc: SessionSyncService,
     raw: Any,
     *,
@@ -70,15 +77,26 @@ def _apply_viewer_state(
 ) -> dict[str, Any]:
     """WS twin of ``POST /api/session/state``: viewer blob -> typed commands.
 
-    The socket's own ``client_id`` (and label, when set) replaces any value in
-    the blob, so a socket cannot publish as another client.
+    Blocking (several sqlite writes): ``session_ws`` runs it in a worker thread.
+    Only the host socket dispatches it; ``apply_ws_client_message`` (shared with
+    the guest share socket) does not, so a guest frame cannot reach it.
+    The socket's own ``client_id`` and ``label`` replace any value in the blob,
+    so a socket cannot publish as another client or under another name. No
+    ``PresenceHeartbeat``: the socket carries its own ``Presence`` frames.
+    A bad blob or a service error answers with an ``Error`` frame and the
+    socket stays open.
     """
     try:
         body = ViewerSessionSnapshot.model_validate(raw)
     except ValidationError as exc:
-        return {"type": "Error", "code": "invalid_viewer_state", "detail": str(exc)[:500]}
-    body = body.model_copy(update={"client_id": client_id, "label": label or body.label})
-    snapshot = _publish_viewer_blob(svc.project, body)
+        return _viewer_state_error("invalid_viewer_state", exc)
+    body = body.model_copy(update={"client_id": client_id, "label": label})
+    try:
+        snapshot = _publish_viewer_blob(svc.project, body, heartbeat=False)
+    except ValueError as exc:
+        return _viewer_state_error("invalid_viewer_state", exc)
+    except sqlite3.Error as exc:
+        return _viewer_state_error("viewer_state_failed", exc)
     return {
         "type": "Echo",
         "command": {"type": "ViewerState", "client_id": client_id, "role": role},
@@ -95,7 +113,12 @@ def apply_ws_client_message(
     label: str | None,
     seq: int,
 ) -> tuple[dict[str, Any] | None, int]:
-    """Handle one inbound WS client message. Returns (echo_or_none, next_seq)."""
+    """Handle one inbound WS client message. Returns (echo_or_none, next_seq).
+
+    Shared with the guest share socket. ``ViewerState`` is host-only and handled
+    by ``session_ws`` via ``apply_ws_viewer_state``; here it is ignored like any
+    unknown type.
+    """
     mtype = msg.get("type")
     if mtype == "Record":
         return None, seq
@@ -159,10 +182,6 @@ def apply_ws_client_message(
             )
         )
         return None, seq + 1
-    if mtype == "ViewerState":
-        return _apply_viewer_state(
-            svc, msg.get("snapshot"), client_id=client_id, role=role, label=label
-        ), seq
     return None, seq
 
 
@@ -431,6 +450,20 @@ async def session_ws(
                             "detail": str(exc),
                         }
                     )
+                continue
+            if msg.get("type") == "ViewerState":
+                # Several sqlite writes: keep them off the event loop, like the
+                # sync POST /api/session/state route (Starlette worker thread).
+                await _send(
+                    await asyncio.to_thread(
+                        apply_ws_viewer_state,
+                        svc,
+                        msg.get("snapshot"),
+                        client_id=client_id,
+                        role=role,
+                        label=label,
+                    )
+                )
                 continue
             echo, seq = apply_ws_client_message(
                 svc,

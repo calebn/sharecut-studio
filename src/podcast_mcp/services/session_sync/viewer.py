@@ -49,12 +49,26 @@ def publish_agent_play(
 def publish_viewer_snapshot(
     project: EpisodeProject,
     snapshot: dict[str, Any],
+    *,
+    heartbeat: bool = True,
 ) -> dict[str, Any]:
     """Viewer publish → Ack + presence playhead + durable deltas only.
 
     Continuous playhead heartbeats must not emit ``SetPlayhead`` (that fans out
     Applied events, the DAW re-seeks, and audio stutters). Live playhead rides
     ``PresenceHeartbeat``; durable ``SetPlayhead`` is for paused scrub only.
+
+    ``heartbeat=False`` skips the ``PresenceHeartbeat``: the WS ``ViewerState``
+    path passes it because that socket already carries ``Presence`` frames.
+
+    Thread safety: this runs from the HTTP route's worker threads and from the
+    WS path's ``asyncio.to_thread`` worker. ``SyncStore`` serializes every read
+    and write under its ``RLock`` on one ``check_same_thread=False`` connection,
+    and each write is its own ``BEGIN IMMEDIATE``. Each changed field is its own
+    command with no outer transaction, because ``submit`` fans out ``Applied``
+    per command (an outer transaction would announce events before commit). A
+    publish that fails partway is repaired by the next one, which re-diffs the
+    full blob against a fresh snapshot.
     """
     svc = SessionSyncService(project)
     client_id = str(snapshot.get("client_id") or "viewer-default")
@@ -78,7 +92,7 @@ def publish_viewer_snapshot(
         )["snapshot"]
 
     # Ephemeral playhead for agents / other clients (does not advance server_seq).
-    if "playhead_sec" in snapshot:
+    if heartbeat and "playhead_sec" in snapshot:
         latest = svc.submit(
             SyncCommand(
                 type="PresenceHeartbeat",

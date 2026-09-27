@@ -1744,6 +1744,25 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
     assert (seq, mal, reason) == (2, 0, None)
 
 
+def test_handle_guest_presence_frame_rejects_viewer_state(minimal_project) -> None:
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
+    from podcast_mcp.services.session_sync.service import SessionSyncService
+
+    svc = SessionSyncService(load_project(minimal_project))
+    seq, mal, reason = _handle_guest_presence_frame(
+        '{"type":"ViewerState","snapshot":{"selection":{"kind":"track","track_id":"host"}}}',
+        session_svc=svc,
+        guest_client_id="guest-abcd-tab",
+        label="A",
+        seq=2,
+        token="abcd1234token",
+        websocket=MagicMock(),
+        malformed=0,
+    )
+    assert (seq, mal, reason) == (2, 1, None)
+    assert svc.state_or_none() is None
+
+
 def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.edits.review_versions import get_version
     from podcast_mcp.services.play import PlayService
