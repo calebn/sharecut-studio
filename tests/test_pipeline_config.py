@@ -865,6 +865,14 @@ def test_parse_config_assignments_types_and_nesting() -> None:
         == []
     )
     assert parse_config_assignments(['effects={"gate": []}']) == {"effects": {"gate": []}}
+    assert parse_config_assignments(['transcribe={"vad": {"enabled": true}}']) == {
+        "transcribe": {"vad": {"enabled": True}}
+    }
+    assert parse_config_assignments(["focus={}"]) == {"focus": {}}
+    # effects={} is accepted and merges as a no-op; it does not clear the effects overlay.
+    assert parse_config_assignments(["effects={}"]) == {"effects": {}}
+    assert deep_merge(load_defaults(), {"effects": {}})["effects"] == load_defaults()["effects"]
+    assert config_assignments({"effects": {}}) == ["effects={}"]
 
 
 @pytest.mark.parametrize(
@@ -879,6 +887,8 @@ def test_parse_config_assignments_types_and_nesting() -> None:
         "effects.gatee=[]",
         'effects={"gatee": []}',
         "effects=[]",
+        'focus={"enabeld": true}',
+        'transcribe={"vad": {"enabeld": true}}',
     ],
 )
 def test_parse_config_assignments_rejects(assignment: str) -> None:

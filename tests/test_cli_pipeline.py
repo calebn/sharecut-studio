@@ -134,6 +134,12 @@ def test_pipeline_config_shows_overrides():
     assert "pass the same --set to podcast pipeline run to use these values" in result.stdout
 
 
+def test_pipeline_config_set_rejects_unknown_nested_key():
+    result = runner.invoke(app, ["pipeline", "config", "--set", 'focus={"enabeld": true}'])
+    assert result.exit_code == 2
+    assert "focus.enabeld" in result.stdout + (result.stderr or "")
+
+
 def test_pipeline_config_json():
     result = runner.invoke(app, ["pipeline", "config", "--json"])
     assert result.exit_code == 0, result.stdout
