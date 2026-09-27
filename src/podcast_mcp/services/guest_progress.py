@@ -15,14 +15,16 @@ from typing import Any
 from podcast_mcp.services.fanout_hub import FanoutHub
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
+    PROGRESS_UPDATE_MIN_INTERVAL_SEC,
     ElapsedProgressMixin,
     ProgressEvent,
     ProgressReporter,
     short_fail_headline,
 )
 
-GUEST_PROGRESS_MAX_HZ = 4
-GUEST_PROGRESS_COALESCE_SEC = 1.0 / GUEST_PROGRESS_MAX_HZ
+GUEST_PROGRESS_COALESCE_SEC = PROGRESS_UPDATE_MIN_INTERVAL_SEC
+"""Guest WS sink cadence: same cap as the source-side per-task coalesce (docs/progress.md)."""
+GUEST_PROGRESS_MAX_HZ = round(1.0 / GUEST_PROGRESS_COALESCE_SEC)
 GUEST_PROGRESS_MESSAGE_MAX = 200
 GUEST_PROGRESS_LAZY_SEC = PROGRESS_LAZY_CHIP_SEC
 _TERMINAL = frozenset({"end", "fail", "cancel"})
