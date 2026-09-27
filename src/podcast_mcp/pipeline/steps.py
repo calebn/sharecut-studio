@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.ffmpeg import LoudnormResult
@@ -23,7 +24,6 @@ from podcast_mcp.pipeline.helpers import (
     artifact,
     ensure_dialogue_clips,
     ffmpeg,
-    mix_peak_ceiling_db,
     set_or_replace_chain,
 )
 from podcast_mcp.util.atomic_render import render_atomic
@@ -591,7 +591,7 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
             before_replace=functools.partial(clear_premix_hash, project),
             reap_partials=True,
         )
-        write_premix_hash(project, mixed)
+        write_premix_hash(project, mixed, peak_ceiling_db=ceiling)
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 
@@ -611,11 +611,11 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
     )
     from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
-    if premix_path(project).is_file() and not premix_is_stale(project):
+    if premix_path(project).is_file() and not premix_is_stale(project, defaults):
         return
     assemble_timeline(project, defaults)
     mix_with_music(project, defaults)
-    if premix_is_stale(project):
+    if premix_is_stale(project, defaults):
         stuck = [
             tid
             for tid in mixed_dialogue_track_ids(project)
@@ -635,7 +635,7 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
     # The cheap hash check first: master_loudness checks the premix itself, so
     # the premix is checked here only when the master looks fresh.
-    if not mastered_is_fresh(project) or premix_is_stale(project):
+    if not mastered_is_fresh(project) or premix_is_stale(project, defaults):
         master_loudness(project, defaults)
     return mastered_path(project)
 
@@ -707,7 +707,6 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             "Mastering loudness",
             prefer_parent=True,
         ) as prog:
-
             loudnorm: LoudnormResult | None = None
 
             def _loudnorm(src: Path, dest: Path) -> LoudnormResult:

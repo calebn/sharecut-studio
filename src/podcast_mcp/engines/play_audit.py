@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
@@ -317,16 +318,20 @@ def mix_gains(project: EpisodeProject) -> dict[str, float]:
     return {t.id: t.output_gain_db for t in project.tracks if t.media and not t.muted}
 
 
-def mix_render_hash(gains: Mapping[str, float]) -> str:
+def mix_render_hash(gains: Mapping[str, float], peak_ceiling_db: float | None = None) -> str:
     """Fingerprint a mix: which tracks, at what output gain, in any order.
 
     Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
     check. The mix step adds only this, so a volume or mute change stales the
     premix without staling any stem. Includes ``MIX_SEMANTICS_REV``, so premixes
-    summed under older mix rules (1/N amix) re-mix once.
+    summed under older mix rules (1/N amix) re-mix once. Also includes the premix
+    true-peak ceiling (None reads the configured default), so changing
+    ``mix.premix_peak_ceiling_db`` re-mixes.
     """
+    ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
     payload = {
         "mix_rev": MIX_SEMANTICS_REV,
+        "peak_ceiling_db": round(ceiling, 2),
         "gains": sorted((track_id, round(float(gain), 4)) for track_id, gain in gains.items()),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -345,29 +350,32 @@ def read_premix_hash(project: EpisodeProject) -> str | None:
     return _read_hash(premix_hash_path(project))
 
 
-def write_premix_hash(project: EpisodeProject, gains: Mapping[str, float]) -> str:
+def write_premix_hash(
+    project: EpisodeProject, gains: Mapping[str, float], *, peak_ceiling_db: float | None = None
+) -> str:
     """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``)."""
-    return _write_hash(premix_hash_path(project), mix_render_hash(gains))
+    return _write_hash(premix_hash_path(project), mix_render_hash(gains, peak_ceiling_db))
 
 
 def clear_premix_hash(project: EpisodeProject) -> None:
     _clear_hash(premix_hash_path(project))
 
 
-def premix_stale_vs_mix(project: EpisodeProject) -> bool:
+def premix_stale_vs_mix(project: EpisodeProject, defaults: Mapping[str, Any] | None = None) -> bool:
     """True when the saved mix settings changed since ``premix.wav`` was mixed.
 
     A premix mixed before this hash existed predates saved volumes, so it's
     stale once a fader moves off 0 dB. It also counts stale once a track is
     muted: older mixes skipped muted tracks too, but nothing records which,
-    so a project with a hand-set mute re-mixes once.
+    so a project with a hand-set mute re-mixes once. ``defaults`` is the pipeline config
+    whose ``mix.premix_peak_ceiling_db`` the premix must match (None = ``load_defaults()``).
     """
     if not premix_path(project).is_file():
         return False
     stored = read_premix_hash(project)
     if stored is None:
         return any(t.fader_db or t.muted for t in project.tracks if t.media)
-    return stored != mix_render_hash(mix_gains(project))
+    return stored != mix_render_hash(mix_gains(project), mix_peak_ceiling_db(defaults))
 
 
 def _mtime(path: Path) -> float | None:
@@ -396,7 +404,7 @@ def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     )
 
 
-def premix_is_stale(project: EpisodeProject) -> bool:
+def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None = None) -> bool:
     """True when ``premix.wav`` no longer matches what the mix would play now.
 
     Covers the saved mix (volume, mute), a stem rendered after the premix, and a
@@ -407,7 +415,7 @@ def premix_is_stale(project: EpisodeProject) -> bool:
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
         return False
-    if premix_stale_vs_mix(project):
+    if premix_stale_vs_mix(project, defaults):
         return True
     for tid in mixed_dialogue_track_ids(project):
         newer = _stem_newer_than(project, tid, premix_mtime)

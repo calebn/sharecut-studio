@@ -626,3 +626,13 @@ def test_balance_depends_on_compress() -> None:
     assert "compress_tracks" in expand_enable({"balance_tracks"})
     left = cascade_disable(expand_enable({"assemble_timeline"}), "compress_tracks")
     assert "balance_tracks" not in left and "assemble_timeline" not in left
+
+
+def test_premix_peak_ceiling_default_is_defined_once() -> None:
+    from podcast_mcp.config import DEFAULT_PREMIX_PEAK_CEILING_DB, mix_peak_ceiling_db
+
+    field = next(f for f in PARAM_FIELDS if f.path == "mix.premix_peak_ceiling_db")
+    assert field.default == DEFAULT_PREMIX_PEAK_CEILING_DB
+    assert load_defaults()["mix"]["premix_peak_ceiling_db"] == DEFAULT_PREMIX_PEAK_CEILING_DB
+    assert mix_peak_ceiling_db({}) == DEFAULT_PREMIX_PEAK_CEILING_DB
+    assert mix_peak_ceiling_db({"mix": {"premix_peak_ceiling_db": -3}}) == -3.0
