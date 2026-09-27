@@ -677,13 +677,21 @@ def test_doctor_probe_and_timebase_edges(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(
         "podcast_mcp.engines.session_timeline.timebase_qc_report",
         lambda _ep: {
-            "tracks": {"host": {"max_drift_sec": 0.2, "unmapped_words": 4, "zero_length_words": 3}},
+            "tracks": {
+                "host": {
+                    "max_drift_sec": 0.2,
+                    "unmapped_words": 4,
+                    "zero_length_words": 3,
+                    "inverted_words": 2,
+                }
+            },
             "issues": ["gap"],
         },
     )
     report = run_doctor_checks(ep)
     assert any("unmapped_words=4" in c.message for c in report.checks)
     assert any("zero_length_words=3" in c.message for c in report.checks)
+    assert any("inverted_words=2" in c.message for c in report.checks)
     assert any(c.message == "timebase: gap" for c in report.checks)
     assert any("silero-vad: not available" in c.message for c in report.checks)
 

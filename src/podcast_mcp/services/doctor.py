@@ -161,6 +161,8 @@ def run_doctor_checks(
                 extra = f", unmapped_words={info['unmapped_words']}"
             if info.get("zero_length_words"):
                 extra += f", zero_length_words={info['zero_length_words']}"
+            if info.get("inverted_words"):
+                extra += f", inverted_words={info['inverted_words']}"
             report.checks.append(
                 DoctorCheck("ok", f"timebase {tid}: max_drift={drift:.1f}s{extra}")
             )

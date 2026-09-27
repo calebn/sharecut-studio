@@ -14,6 +14,7 @@ from podcast_mcp.engines.session_timeline import (
     same_source_timeline_overlaps,
     slip_clip_to_shift,
     timebase_qc_report,
+    word_source_span,
 )
 from podcast_mcp.models import (
     Clip,
@@ -321,7 +322,9 @@ def test_timebase_qc_zero_length_words_are_timing_flags(tmp_path):
             track_id="host",
             words=[
                 TranscriptWord(text="a", start=10.0, end=10.0),  # kept, zero-length
-                TranscriptWord(text="b", start=95.0, end=94.9),  # kept, inverted
+                TranscriptWord(
+                    text="b", start=95.0, end=94.99
+                ),  # kept, inverted within one ASR step
                 TranscriptWord(text="c", start=70.0, end=70.0),  # zero-length in cut gap
             ],
         )
@@ -356,7 +359,15 @@ def test_timebase_qc_zero_length_words_alone_stay_ok(tmp_path):
     assert report["tracks"]["host"]["zero_length_words"] == 1
 
 
-def test_map_source_points_matches_source_to_timeline(tmp_path):
+def test_word_source_span_pads_zero_length_words():
+    assert word_source_span(1.0, 2.0) == (SourceSec(1.0), SourceSec(2.0))
+    for end in (5.0, 4.99):
+        start, padded = word_source_span(5.0, end)
+        assert start == SourceSec(5.0)
+        assert float(padded) == pytest.approx(5.001)
+
+
+def test_timebase_qc_inverted_words_are_issues(tmp_path):
     p = _project(
         tmp_path,
         [
@@ -364,22 +375,27 @@ def test_map_source_points_matches_source_to_timeline(tmp_path):
                 id="c1",
                 track_id="host",
                 source_start=0.0,
-                source_end=60.0,
-                timeline_start=0.0,
-            ),
-            Clip(
-                id="c2",
-                track_id="host",
-                source_start=90.0,
                 source_end=200.0,
-                timeline_start=60.0,
-            ),
+                timeline_start=0.0,
+            )
         ],
     )
-    st = SessionTimeline(p)
-    secs = [SourceSec(10.0), SourceSec(70.0), SourceSec(95.0)]
-    assert st.map_source_points("host", secs) == [st.source_to_timeline("host", s) for s in secs]
-    assert st.map_source_points("host", secs)[1] is None
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="x", start=95.0, end=10.0),  # corrupt: bad merge/edit
+                TranscriptWord(text="uh", start=5.0, end=5.0),  # Whisper zero-length
+            ],
+        )
+    ]
+    report = timebase_qc_report(p)
+    host = report["tracks"]["host"]
+    assert host["inverted_words"] == 1
+    assert host["zero_length_words"] == 1
+    assert "unmapped_words" not in host
+    assert report["ok"] is False
+    assert any("before they start" in i for i in report["issues"])
 
 
 def test_indexes_parked_clip_by_origin_media(tmp_path):

@@ -6,10 +6,9 @@ from typing import Any
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.timeline_span import map_source_span_fields
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
-from podcast_mcp.util.timebase import SourceSec
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
 
@@ -113,13 +112,7 @@ def _mapped_word_index(
 ) -> _MappedWordIndex:
     tr = project.transcript_for_track(track_id)
     words = tr.words if tr is not None else []
-    source_spans = [
-        (
-            SourceSec(float(w.start)),
-            SourceSec(float(w.end) if w.end > w.start else float(w.start) + 0.001),
-        )
-        for w in words
-    ]
+    source_spans = [word_source_span(w.start, w.end) for w in words]
     mapped = timeline.map_source_spans(track_id, source_spans)
     views = [
         _word_view(timeline, track_id, i, w, spans)
@@ -161,7 +154,7 @@ def _word_view(
     word: Any,
     spans: list[tuple[Any, Any]] | None = None,
 ) -> dict[str, Any]:
-    src_end = float(word.start) + 0.001 if word.end <= word.start else float(word.end)
+    src_end = float(word_source_span(word.start, word.end)[1])
     if spans is None:
         mappable, _spans, tl_start, tl_end = map_source_span_fields(
             timeline, track_id, float(word.start), src_end
@@ -316,7 +309,7 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
             cutaway_word_ids: list[dict[str, Any]] = []
             if tr is not None and cutaway_end > cutaway_start + 1e-9:
                 for word_index, word in enumerate(tr.words):
-                    w_end = float(word.start) + 0.001 if word.end <= word.start else float(word.end)
+                    w_end = float(word_source_span(word.start, word.end)[1])
                     if w_end <= cutaway_start or float(word.start) >= cutaway_end:
                         continue
                     cutaway_word_ids.append(
