@@ -1,0 +1,40 @@
+{
+  "candidates": [
+    {
+      "label": "onnx-base",
+      "backend": "onnx",
+      "hf_repo": "onnx-community/wav2vec2-base-960h-ONNX",
+      "revision": "729c1a6730fb549c20a1c73a3d3f96f11020225e",
+      "allow_patterns": [
+        "vocab.json",
+        "config.json",
+        "preprocessor_config.json",
+        "onnx/model.onnx"
+      ],
+      "onnx_file": "onnx/model.onnx",
+      "license": "apache-2.0"
+    },
+    {
+      "label": "onnx-base-int8",
+      "backend": "onnx",
+      "hf_repo": "onnx-community/wav2vec2-base-960h-ONNX",
+      "revision": "729c1a6730fb549c20a1c73a3d3f96f11020225e",
+      "allow_patterns": [
+        "vocab.json",
+        "config.json",
+        "preprocessor_config.json",
+        "onnx/model_int8.onnx"
+      ],
+      "onnx_file": "onnx/model_int8.onnx",
+      "license": "apache-2.0"
+    },
+    {
+      "label": "torch-large",
+      "backend": "torch",
+      "hf_repo": "facebook/wav2vec2-large-960h-lv60-self",
+      "revision": "54074b1c16f4de6a5ad59affb4caa8f2ea03a119",
+      "allow_patterns": ["*.json", "pytorch_model.bin"],
+      "license": "apache-2.0"
+    }
+  ]
+}
