@@ -21,7 +21,7 @@ export function registerNavigationCommands(): void {
     if (!s.project) {
       return { status: "disabled", reason: "Project not loaded" };
     }
-    s.setIsPlaying(false);
+    s.stopPlayback();
     return { status: "ok" };
   });
 

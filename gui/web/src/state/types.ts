@@ -96,6 +96,8 @@ export interface DawState {
   activityJob: PipelineJobSnapshot | null;
   activityRunningCount: number;
   isPlaying: boolean;
+  /** Playhead when playback last started; Stop returns here (null: never started). */
+  playStartSec: number | null;
   auditionMode: AuditionMode;
   viewerMute: Record<string, boolean>;
   soloTracks: Record<string, boolean>;
@@ -194,6 +196,8 @@ export interface DawState {
   setActivityRunningCount: (count: number) => void;
   setIsPlaying: (playing: boolean) => void;
   togglePlaying: () => void;
+  /** Stop: halt and return to `playStartSec` (Pause keeps the position). */
+  stopPlayback: () => void;
   setAuditionMode: (mode: AuditionMode) => void;
   toggleViewerMute: (trackId: string) => void;
   toggleSolo: (trackId: string) => void;

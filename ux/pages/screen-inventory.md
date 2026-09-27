@@ -289,7 +289,7 @@ flowchart TB
 | text (**Maximize transcript**) | `Mod+3` | Expand transcript; shrink timeline |
 | review (**Review layout**) | `Mod+4` | Comments-forward + mix-oriented chrome |
 
-The transport layout control maximizes/restores (named **Maximize timeline** or **Restore layout** for what a click does), and a "… · Restore" chip in the transport leaves any non-default layout. Every layout keeps the banner, transport and status rows (geometry covered by `gui/web/e2e/layout-modes.spec.ts`); only the timeline and bottom-tab areas resize. Starting to follow shows the leader's tab; after that, following keeps your layout until the leader changes tab. Play, Pause and Stop tooltips carry their keyboard shortcut.
+The transport layout control maximizes/restores (named **Maximize timeline** or **Restore layout** for what a click does), and a "… · Restore" chip in the transport leaves any non-default layout. Every layout keeps the banner, transport and status rows (geometry covered by `gui/web/e2e/layout-modes.spec.ts`); only the timeline and bottom-tab areas resize. Starting to follow shows the leader's tab; after that, following keeps your layout until the leader changes tab. Play, Pause and Stop tooltips carry their keyboard shortcut. Stop returns the playhead to where playback last started; Pause keeps the position.
 
 ---
 

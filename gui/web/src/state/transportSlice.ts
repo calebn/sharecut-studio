@@ -7,6 +7,7 @@ type TransportSlice = Pick<
   DawStore,
   | "playheadSec"
   | "isPlaying"
+  | "playStartSec"
   | "auditionMode"
   | "viewerMute"
   | "soloTracks"
@@ -21,6 +22,7 @@ type TransportSlice = Pick<
   | "setPlayheadSec"
   | "setIsPlaying"
   | "togglePlaying"
+  | "stopPlayback"
   | "setAuditionMode"
   | "setViewerMuteMap"
   | "setSoloMap"
@@ -33,6 +35,15 @@ type TransportSlice = Pick<
   | "clearSessionRegion"
 >;
 
+/** On a not-playing → playing edge, remember where playback starts (Stop returns there). */
+export function playStartPatch(
+  s: Pick<DawStore, "isPlaying">,
+  playing: boolean,
+  atSec: number,
+): Partial<Pick<DawStore, "playStartSec">> {
+  return playing && !s.isPlaying ? { playStartSec: atSec } : {};
+}
+
 export const createTransportSlice: StateCreator<
   DawStore,
   [],
@@ -41,6 +52,7 @@ export const createTransportSlice: StateCreator<
 > = (set) => ({
   playheadSec: 0,
   isPlaying: false,
+  playStartSec: null as number | null,
   auditionMode: "mix" as AuditionMode,
   viewerMute: {},
   soloTracks: {},
@@ -56,6 +68,7 @@ export const createTransportSlice: StateCreator<
   setIsPlaying: (isPlaying) =>
     set((s) => ({
       isPlaying,
+      ...playStartPatch(s, isPlaying, s.playheadSec),
       // Local transport owns the clock — clear agent audition auto-stop.
       playUntilSec: isPlaying ? null : s.playUntilSec,
       playSkipStartSec: isPlaying ? null : s.playSkipStartSec,
@@ -67,12 +80,18 @@ export const createTransportSlice: StateCreator<
       const next = !s.isPlaying;
       return {
         isPlaying: next,
+        ...playStartPatch(s, next, s.playheadSec),
         playUntilSec: next ? null : s.playUntilSec,
         playSkipStartSec: next ? null : s.playSkipStartSec,
         playSkipEndSec: next ? null : s.playSkipEndSec,
         playAbFollowup: next ? null : s.playAbFollowup,
       };
     }),
+  stopPlayback: () =>
+    set((s) => ({
+      isPlaying: false,
+      playheadSec: s.playStartSec ?? s.playheadSec,
+    })),
   setAuditionMode: (auditionMode) =>
     set((s) => ({
       auditionMode: guestHearsMixOnly(s.guestMode) ? "mix" : auditionMode,
@@ -92,6 +111,7 @@ export const createTransportSlice: StateCreator<
     set((s) => ({
       playheadSec,
       isPlaying: true,
+      playStartSec: playheadSec,
       playUntilSec: untilSec,
       playSkipStartSec: skip?.start ?? null,
       playSkipEndSec: skip?.end ?? null,
