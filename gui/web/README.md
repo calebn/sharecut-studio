@@ -95,6 +95,13 @@ with launchers so each can be inspected independently. The launcher and
 play-helper live in `src/test/DialogLauncher.tsx` and `src/test/storyDialog.ts`.
 The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
+`Templates/ToolModeToggle`, `Templates/EditingToolRail` and
+`Templates/CommandPalette` show the production `ToolModeToggleView`,
+`EditingToolRailView` and `CommandPaletteView`, each driven by a local-state
+preview so clicking Select/Blade/Comment or confirming a blade cut behaves
+like the live tool cluster without mounting the DAW store; the live
+`ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters keep reading
+DAW state and dispatching through `execute`.
 
 `Templates/ShareDialog` renders the production `ShareDialogView`, the same
 view the live `ShareDialog` adapter renders. Stories use fictional
