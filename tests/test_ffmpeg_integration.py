@@ -134,6 +134,37 @@ def test_run_with_progress_raises_on_ffmpeg_error(tmp_path: Path):
         )
 
 
+def test_run_with_progress_check_false_returns_stderr(tmp_path: Path):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    missing = tmp_path / "missing.wav"
+    text = eng._run_with_progress(
+        [eng.ffmpeg, "-i", str(missing), "-f", "null", "-"],
+        total_sec=1.0,
+        on_progress=lambda *_: None,
+        check=False,
+    )
+    assert isinstance(text, str) and text
+
+
+def test_master_loudnorm_reports_measure_progress(two_wavs: tuple[Path, Path], tmp_path: Path):
+    a, _ = two_wavs
+    eng = FFmpegEngine()
+    calls: list[tuple[float, float]] = []
+    out = tmp_path / "measure_prog.wav"
+    eng.master_loudnorm(
+        a,
+        out,
+        integrated_lufs=-16,
+        true_peak_db=-1.5,
+        on_measure_progress=lambda d, t: calls.append((d, t)),
+    )
+    probe = eng.probe(a)
+    assert calls
+    assert calls[-1][1] == pytest.approx(probe.duration_sec, abs=0.1)
+
+
 def test_run_with_progress_closes_the_pipe_on_cancel(two_wavs, monkeypatch):
     from podcast_mcp.engines import ffmpeg as ffmpeg_mod
     from podcast_mcp.util.progress import CancelledProgress

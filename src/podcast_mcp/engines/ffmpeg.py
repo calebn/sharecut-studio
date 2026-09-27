@@ -1009,13 +1009,18 @@ class FFmpegEngine:
         self._sum_tracks(track_wavs, output_path, trim_db=trim)
         return output_path
 
-    def loudnorm_input_stats(self, input_path: Path) -> dict[str, float] | None:
+    def loudnorm_input_stats(
+        self,
+        input_path: Path,
+        *,
+        on_progress: Callable[[float, float], None] | None = None,
+    ) -> dict[str, float] | None:
         """loudnorm pass-1 values from one ebur128 pass.
 
         Much faster than a loudnorm measure pass, which resamples to 192 kHz.
         ``target_offset`` is 0: loudnorm only uses it in dynamic mode.
         """
-        m = self.measure_loudness_full(input_path) or {}
+        m = self.measure_loudness_full(input_path, on_progress=on_progress) or {}
         keys = {
             "input_i": "integrated_lufs",
             "input_tp": "true_peak_db",
@@ -1041,7 +1046,12 @@ class FFmpegEngine:
         stats["target_offset"] = 0.0
         return stats
 
-    def measure_loudness_full(self, path: Path) -> dict[str, float | None] | None:
+    def measure_loudness_full(
+        self,
+        path: Path,
+        *,
+        on_progress: Callable[[float, float], None] | None = None,
+    ) -> dict[str, float | None] | None:
         """Integrated LUFS + true peak + LRA from ebur128 (for post-master QC)."""
         cmd = [
             self.ffmpeg,
@@ -1053,8 +1063,13 @@ class FFmpegEngine:
             "null",
             "-",
         ]
-        r = run(cmd, capture_output=True, text=True)
-        text = (r.stderr or "") + (r.stdout or "")
+        if on_progress is None:
+            r = run(cmd, capture_output=True, text=True)
+            text = (r.stderr or "") + (r.stdout or "")
+        else:
+            text = self._run_with_progress(
+                cmd, total_sec=self.probe(path).duration_sec, on_progress=on_progress, check=False
+            )
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
         lra_m = re.search(r"\bLRA:\s*(-?\d+\.?\d*)\s*LU", text)
@@ -1074,6 +1089,7 @@ class FFmpegEngine:
         *,
         total_sec: float,
         on_progress: Callable[[float, float], None],
+        check: bool = True,
     ) -> str:
         """Run ffmpeg with ``-progress pipe:1``, report (done_sec, total_sec), return stderr."""
         cmd = [argv[0], "-nostats", "-progress", "pipe:1", *argv[1:]]
@@ -1092,7 +1108,7 @@ class FFmpegEngine:
                 raise
             err.seek(0)
             text = err.read().decode("utf-8", "replace")
-        if rc != 0:
+        if check and rc != 0:
             raise CalledProcessError(rc, cmd, stderr=text)
         return text
 
@@ -1107,6 +1123,7 @@ class FFmpegEngine:
         sample_rate: int | None = None,
         channels: int | None = None,
         on_progress: Callable[[float, float], None] | None = None,
+        on_measure_progress: Callable[[float, float], None] | None = None,
     ) -> LoudnormResult:
         """Two-pass loudnorm, then restore delivery sample rate/channels.
 
@@ -1117,6 +1134,9 @@ class FFmpegEngine:
         for true-peak work; without an explicit ``-ar``/``-ac`` that rate would leak
         into mastered/export WAVs.
 
+        ``on_measure_progress`` reports pass 1 (ebur128) and ``on_progress`` pass 2,
+        each as (done_sec, total_sec) of the input.
+
         If the premix loudness range exceeds ``lra``, loudnorm will under-shoot
         ``integrated_lufs`` to honor the LRA/TP ceilings - raise ``lra`` (or
         compress first) when QC shows a systematic LU miss.
@@ -1125,7 +1145,7 @@ class FFmpegEngine:
         probe = self.probe(input_path)
         out_rate = sample_rate if sample_rate is not None else probe.sample_rate
         out_ch = channels if channels is not None else probe.channels
-        stats = self.loudnorm_input_stats(input_path)
+        stats = self.loudnorm_input_stats(input_path, on_progress=on_measure_progress)
         base = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
         if stats is None:
             af = f"{base}:print_format=json"

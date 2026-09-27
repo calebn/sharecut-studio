@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import math
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,7 @@ from podcast_mcp.pipeline.helpers import (
 )
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.parallel import run_parallel
-from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
 from podcast_mcp.util.project_state import with_render_lock
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
@@ -747,6 +748,33 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
     return mastered_path(project)
 
 
+def _media_seconds_reporter(
+    task: ProgressTask, *, verb: str, pass_index: int = 0, passes: int = 1
+) -> Callable[[float, float], None]:
+    """ffmpeg ``-progress`` (done_sec, total_sec) -> whole media seconds on ``task``.
+
+    ``passes`` full decodes of one input share a bar: pass ``pass_index`` (0-based)
+    fills ``[i*T, (i+1)*T]`` of ``passes*T`` so the bar stays monotonic.
+    """
+    last = -1
+
+    def report(done_sec: float, total_sec: float) -> None:
+        nonlocal last
+        whole = int(done_sec)
+        if whole == last:
+            return
+        last = whole
+        per_pass = max(1, math.ceil(total_sec))
+        whole = min(whole, per_pass)
+        task.advance_to(
+            pass_index * per_pass + whole,
+            total=passes * per_pass,
+            message=f"{verb} {whole} of {per_pass} s",
+        )
+
+    return report
+
+
 @with_render_lock
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
@@ -817,35 +845,40 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             loudnorm: LoudnormResult | None = None
 
             def _loudnorm(src: Path, dest: Path) -> LoudnormResult:
-                with prog.child("master_loudnorm", "Normalizing loudness") as sub:
-                    last = -1
-
-                    def report(done_sec: float, total_sec: float) -> None:
-                        nonlocal last
-                        whole = int(done_sec)
-                        if whole == last:
-                            return
-                        last = whole
-                        total = max(1, math.ceil(total_sec))
-                        sub.advance_to(
-                            min(whole, total), total=total, message=f"{whole} of {total} s"
-                        )
-
-                    return eng.master_loudnorm(
+                with prog.child("master_loudnorm", "Measuring and normalizing loudness") as sub:
+                    result = eng.master_loudnorm(
                         src,
                         dest,
                         integrated_lufs=target_lufs,
                         true_peak_db=target_tp,
                         lra=target_lra,
-                        on_progress=report,
+                        on_measure_progress=_media_seconds_reporter(
+                            sub, verb="Measuring", pass_index=0, passes=2
+                        ),
+                        on_progress=_media_seconds_reporter(
+                            sub, verb="Normalizing", pass_index=1, passes=2
+                        ),
                     )
+                    if sub.total:
+                        # Both passes finished; -progress stops short of the last second.
+                        sub.advance_to(sub.total)
+                    return result
+
+            def _measure(path: Path) -> dict[str, float | None] | None:
+                with prog.child("master_qc_measure", "Measuring mastered loudness") as sub:
+                    measured = eng.measure_loudness_full(
+                        path, on_progress=_media_seconds_reporter(sub, verb="Measured")
+                    )
+                    if sub.total:
+                        sub.advance_to(sub.total)
+                    return measured
 
             def _master_into(tmp: Path) -> None:
                 nonlocal measured, qc, loudnorm
                 prog.set_phase("loudnorm", "Measuring premix, then normalizing loudness…")
                 loudnorm = _loudnorm(premix, tmp)
                 prog.set_phase("measure", "Measuring loudness…")
-                measured = eng.measure_loudness_full(tmp)
+                measured = _measure(tmp)
                 qc = _qc(measured, loudnorm)
                 # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
                 # Tame crest, then remaster once before writing QC.
@@ -858,7 +891,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
                     prog.set_phase("crest_tame", "Taming crest then remastering…")
                     eng.filter_audio(premix, tame_path, crest_tame_af)
                     loudnorm = _loudnorm(tame_path, tmp)
-                    measured = eng.measure_loudness_full(tmp)
+                    measured = _measure(tmp)
                     qc = _qc(measured, loudnorm)
                     qc["crest_tame_af"] = crest_tame_af
 

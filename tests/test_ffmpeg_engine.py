@@ -575,6 +575,55 @@ def test_measure_loudness_full_returns_none_without_integrated(tmp_path: Path):
         assert eng.measure_loudness_full(wav) is None
 
 
+def test_measure_loudness_full_reports_progress(tmp_path: Path):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    wav.write_bytes(b"x")
+    summary = (
+        "Summary:\n\n  Integrated loudness:\n    I:         -16.0 LUFS\n\n"
+        "  Loudness range:\n    LRA:         7.0 LU\n\n  True peak:\n    Peak:       -1.4 dBFS\n"
+    )
+    cb = MagicMock()
+    with (
+        patch.object(
+            eng, "probe", return_value=AudioProbe(duration_sec=3.0, sample_rate=44100, channels=1)
+        ),
+        patch.object(eng, "_run_with_progress", return_value=summary) as run_with_progress,
+    ):
+        result = eng.measure_loudness_full(wav, on_progress=cb)
+    assert result == {
+        "integrated_lufs": -16.0,
+        "true_peak_db": -1.4,
+        "lra": 7.0,
+        "integrated_threshold_lufs": None,
+    }
+    assert run_with_progress.call_args.kwargs["total_sec"] == 3.0
+    assert run_with_progress.call_args.kwargs["check"] is False
+    assert run_with_progress.call_args.kwargs["on_progress"] is cb
+
+
+def test_master_loudnorm_forwards_measure_progress(tmp_path: Path):
+    eng = FFmpegEngine()
+    src = tmp_path / "premix.wav"
+    src.write_bytes(b"x")
+    out = tmp_path / "mastered.wav"
+    cb = MagicMock()
+    with (
+        patch.object(
+            eng,
+            "probe",
+            return_value=AudioProbe(duration_sec=1.0, sample_rate=48000, channels=2),
+        ),
+        patch.object(eng, "loudnorm_input_stats", return_value=None) as stats,
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+    ):
+        run.return_value = MagicMock(stderr="", returncode=0)
+        eng.master_loudnorm(
+            src, out, integrated_lufs=-16.0, true_peak_db=-1.5, on_measure_progress=cb
+        )
+    assert stats.call_args.kwargs["on_progress"] is cb
+
+
 def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
