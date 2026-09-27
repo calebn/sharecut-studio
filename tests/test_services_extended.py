@@ -760,6 +760,23 @@ def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_th
     rerender.assert_not_called()
 
 
+def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample_wav) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    premix = ws.project.artifacts_dir() / "premix.wav"
+    premix.parent.mkdir(parents=True, exist_ok=True)
+    premix.write_bytes(sample_wav.read_bytes())
+
+    def boom(project):
+        project.name = "partial"
+        raise Timeout("lock")
+
+    svc = PlayService(ws)
+    with patch("podcast_mcp.services.play.rerender_preview", side_effect=boom):
+        assert svc._ensure_premix(rerender=True) == premix
+    assert ws.project.name == load_project(minimal_project).name
+    assert svc.project.name != "partial"
+
+
 def test_premix_rerender_with_no_premix_raises_busy_while_another_render_holds_the_lock(
     minimal_project, monkeypatch
 ) -> None:
