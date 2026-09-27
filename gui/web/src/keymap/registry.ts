@@ -40,8 +40,8 @@ export type KeymapCommand = {
   requireMod?: boolean;
   /**
    * When true, require Alt/Option without Mod (Alt+key chords). Also
-   * matches the physical `e.code`, since macOS Option+= types "≠" and
-   * Option+- types "–".
+   * matches the key derived from the physical `e.code` (letters, digits,
+   * punctuation), since macOS Option rewrites `e.key` (Option+= types "≠").
    */
   requireAlt?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
@@ -708,19 +708,39 @@ export function keymapByCategory(): Record<KeymapCategory, KeymapCommand[]> {
   return out;
 }
 
-/**
- * macOS Option+= / Option+- report `key` as "≠" / "–" (and Option+Shift+=
- * variants), not "=" / "-", so Alt chords also match by physical `code`.
- */
-const ALT_CODE_KEYS: Record<string, string> = {
+/** Punctuation `e.code` → the key it types unmodified (US layout). */
+const PUNCTUATION_CODE_KEYS: Record<string, string> = {
   Equal: "=",
   Minus: "-",
   NumpadAdd: "+",
   NumpadSubtract: "-",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  Backslash: "\\",
+  Backquote: "`",
 };
 
+/**
+ * The unmodified key for a physical `e.code`. macOS Option rewrites `e.key`
+ * for almost every key (Option+= → "≠", Option+] → "'"), so Alt rows —
+ * including a remapped one — also match by code.
+ */
+function keyFromCode(code: string | undefined): string | null {
+  if (!code) return null;
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return letter[1];
+  const digit = /^(?:Digit|Numpad)([0-9])$/.exec(code);
+  if (digit) return digit[1];
+  return PUNCTUATION_CODE_KEYS[code] ?? null;
+}
+
 function eventKeyCandidates(
-  e: Pick<KeyboardEvent, "key" | "code" | "shiftKey" | "altKey">,
+  e: Pick<KeyboardEvent, "key" | "code" | "shiftKey">,
 ): string[] {
   const keys = [e.key];
   if (e.code === "Space" || e.key === " ") {
@@ -731,9 +751,6 @@ function eventKeyCandidates(
   }
   if (e.key.length === 1) {
     keys.push(e.key.toUpperCase(), e.key.toLowerCase());
-  }
-  if (e.altKey && ALT_CODE_KEYS[e.code]) {
-    keys.push(ALT_CODE_KEYS[e.code]);
   }
   return keys;
 }
@@ -750,6 +767,8 @@ export function matchKeymapCommands(
   >,
 ): KeymapCommand[] {
   const candidates = eventKeyCandidates(e);
+  const physical = e.altKey ? keyFromCode(e.code) : null;
+  const altCandidates = physical ? [...candidates, physical] : candidates;
   const mod = e.metaKey || e.ctrlKey;
   const out: KeymapCommand[] = [];
 
@@ -788,8 +807,9 @@ export function matchKeymapCommands(
     }
 
     const keys = effectiveKeys(cmd);
+    const pool = cmd.requireAlt ? altCandidates : candidates;
     const matched = keys.some((k) =>
-      candidates.some((c) => c === k || c.toUpperCase() === k.toUpperCase()),
+      pool.some((c) => c === k || c.toUpperCase() === k.toUpperCase()),
     );
     if (matched) {
       out.push(cmd);
