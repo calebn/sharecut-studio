@@ -82,7 +82,9 @@ def edits_for_clip_source(
 
 
 def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool) -> float:
-    if not first or clip.join_in_mode == ClipJoinMode.CUT:
+    # A cut is per join: a track's first clip has no join, so a leftover cut
+    # mode (e.g. after its left neighbour was deleted) keeps its fade-in.
+    if not first or (prev is not None and clip.join_in_mode == ClipJoinMode.CUT):
         return 0.0
     if prev is not None and uses_crossfade_join(prev, clip):
         return 0.0
