@@ -425,7 +425,8 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     Any existing acompressor (from an earlier run, a preset such as ``podcast_standard``,
     or ``add_effect``) is overwritten in place, keeping its position and ``bypass``;
     extra acompressors are removed. Overwrites and removals are logged and counted in
-    the summary. ``--skip compress_tracks`` keeps a hand-tuned compressor.
+    the summary. Skipping the step (CLI ``--skip compress_tracks``, MCP
+    ``skip_steps_json``, or the Pipeline pane checkbox) keeps a hand-tuned compressor.
     """
     comp = defaults.get("compression", {})
     touched = overwritten = removed = 0
