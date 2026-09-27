@@ -31,7 +31,7 @@ Plan for expanding end-to-end coverage beyond `aligned_dialogue` (synthetic/cann
 | Merge / combined | — | `merge_transcript` |
 | Filler / tighten | `podcast edit`, `propose-edits` | `analyze_fillers_pauses`, `tighten_from_transcript` |
 | Audio cleanup | `analyze_cleanup`, effects | `clean_audio` |
-| Level / compression | — | `balance_tracks`, `compress_tracks` |
+| Level / compression | — | `compress_tracks`, `balance_tracks` |
 | Timeline / preview | `render-preview` | `assemble_timeline` |
 | Reconcile / bleed | `reconcile-transcript`, `suppress-bleed` | `reconcile_transcript` |
 | Precorrect | `transcript precorrect` | `precorrect_transcript` |
@@ -100,7 +100,7 @@ Legend: **A** = assert automatically, **R** = range/threshold, **M** = manual li
 | `analyze_fillers_pauses` | — | **A** proposals exist | **A** | **A** (canned) |
 | `tighten_from_transcript` | — | **M** / **R** duration shrink | **M** | **A** (canned) |
 | `clean_audio` | — | **R** audibility map shifts | **R** | skip |
-| `balance_tracks` / `compress` | — | **A** LUFS within ±2 dB | **A** | **A** |
+| `compress_tracks` / `balance_tracks` | — | **A** LUFS within ±2 dB | **A** | **A** |
 | `mix_with_music` | — | — | — | **A** (no music bed) |
 | `master_loudness` / `export` | — | **A** MP3 exists, LUFS −16 ±1 | **A** | optional |
 | `play` / search | — | **A** query hits AMI vocabulary | **A** documented, people, … | canned terms |

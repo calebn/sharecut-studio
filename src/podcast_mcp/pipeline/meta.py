@@ -733,7 +733,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
     ParamField(
         path="compression.makeup_db",
         label="Comp makeup",
-        description="Makeup gain after compression (0 when balance already stages LUFS).",
+        description=(
+            "Makeup gain after compression; leave at 0: balance_tracks runs after "
+            "compression and stages LUFS on the compressed signal."
+        ),
         type="number",
         default=0.0,
         minimum=-12.0,
