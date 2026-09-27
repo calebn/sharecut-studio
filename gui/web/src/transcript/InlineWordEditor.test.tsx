@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
@@ -114,6 +120,70 @@ describe("InlineWordEditor", () => {
     await user.keyboard("{Escape}");
     expect(correctTranscriptWord).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalledWith(true);
+  });
+
+  it("ignores Escape while a commit is in flight", async () => {
+    let resolve: () => void = () => {};
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={onClose}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello{Enter}");
+    await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(input).toHaveAttribute("readonly");
+    await act(async () => {
+      resolve();
+    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledWith(true);
+  });
+
+  it("shows a failure that settles after Escape was pressed", async () => {
+    let reject: (e: Error) => void = () => {};
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise<void>((_r, rej) => {
+          reject = rej;
+        }),
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={onClose}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello{Enter}");
+    await waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    await user.keyboard("{Escape}");
+    await act(async () => {
+      reject(new Error("network down"));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("network down");
+    });
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("blur cancels without restoring focus", () => {
