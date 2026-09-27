@@ -15,6 +15,7 @@ from podcast_mcp.edits.clips_ops import (
 )
 from podcast_mcp.edits.mute_regions import subtract_source_mute
 from podcast_mcp.edits.transcript_sync import rebuild_combined
+from podcast_mcp.engines.session_timeline import seam_source_clocks_over_clips
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
@@ -88,19 +89,25 @@ def archive_timeline_op(
     return record
 
 
-def source_envelope_by_track(
-    spans_by_track: Mapping[str, Sequence[tuple[float, float]]],
+def seam_source_by_track(
+    clips_by_track: Mapping[str, Sequence[Clip]],
+    timeline_start: float,
+    timeline_end: float,
 ) -> dict[str, list[float]]:
-    """``params['per_track_source']``: each track's first source start and last source end.
+    """``params['per_track_source']``: each track's source clocks on either side of a cut.
 
-    The GUI projects applied ticks through the current clips from these clocks (#527);
-    ``revert_applied_edit`` reads the same shape.
+    Read from the **pre-edit** clips in timeline order (see
+    :func:`seam_source_clocks_over_clips`), so a span crossing a moved clip still
+    records the joins the cut makes. The GUI projects applied ticks through the
+    current clips from these clocks (#527); ``revert_applied_edit`` reads the same shape.
+    Tracks with no material in the span are omitted.
     """
-    return {
-        str(tid): [float(spans[0][0]), float(spans[-1][1])]
-        for tid, spans in spans_by_track.items()
-        if spans
-    }
+    out: dict[str, list[float]] = {}
+    for tid, clips in clips_by_track.items():
+        pair = seam_source_clocks_over_clips(clips, timeline_start, timeline_end)
+        if pair is not None:
+            out[str(tid)] = [float(pair[0]), float(pair[1])]
+    return out
 
 
 def list_applied_edits(
