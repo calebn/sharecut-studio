@@ -54,9 +54,10 @@ def pipeline_run(
         help="Re-run ASR even when transcripts exist (edited ones need an attended run)",
     ),
     strict: bool = typer.Option(
-        False,
+        True,
         "--strict/--no-strict",
-        help="Exit 1 when this run exported and export_qc.json is not ok (opt-in until #621)",
+        help="Exit 1 when this run exported and export_qc.json is not ok "
+        "(default; --no-strict reports the verdict and exits 0)",
     ),
     assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
 ) -> None:
@@ -79,7 +80,7 @@ def pipeline_run(
     )
     _echo_run_report(result)
     if strict and not result.ok:
-        typer.echo("Export QC is not ok; exiting 1 (--strict).", err=True)
+        typer.echo("Export QC is not ok; exiting 1 (pass --no-strict to exit 0).", err=True)
         raise typer.Exit(1)
 
 

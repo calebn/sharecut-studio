@@ -79,7 +79,7 @@ issue (`alignment.issues`).
 This check is non-blocking by design (matches `master_qc.json`) — it reports, it
 doesn't raise, so an agent decides whether to re-run steps or ship as-is.
 
-From the CLI, `podcast pipeline run` already prints this verdict as an `Export QC: ok|FAILED (N issue[s]), M warning[s] (<path>)` line (plus each issue) right after a run that reached `export_deliverables` — read that line instead of opening `export_qc.json` by hand. MCP `pipeline_run` returns the same verdict lines after `Completed through …`. Pass `--strict` to exit 1 when the verdict is not ok (opt-in until #621's false-QC-failure fixes land); without it, a failed verdict still exits 0 and the agent decides.
+From the CLI, `podcast pipeline run` already prints this verdict as an `Export QC: ok|FAILED (N issue[s]), M warning[s] (<path>)` line (plus each issue) right after a run that reached `export_deliverables` — read that line instead of opening `export_qc.json` by hand. MCP `pipeline_run` returns the same verdict lines after `Completed through …`. The command exits 1 when the verdict is not ok (strict by default); pass `--no-strict` to get the report with exit 0 and decide yourself.
 
 ## Workflow
 
