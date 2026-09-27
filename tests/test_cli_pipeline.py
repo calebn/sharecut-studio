@@ -4,6 +4,7 @@ import json
 import shlex
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
@@ -32,7 +33,7 @@ def test_pipeline_run_prints_summaries_and_verdict(tmp_path):
         export_qc_path=tmp_path / "export_qc.json",
     )
     with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=result_obj):
-        result = runner.invoke(app, ["pipeline", "run", "--project", str(project)])
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--no-strict"])
     assert result.exit_code == 0
     assert "ok    ingest_tracks: 1 track" in result.stdout
     assert "ok    export_deliverables" in result.stdout
@@ -41,21 +42,37 @@ def test_pipeline_run_prints_summaries_and_verdict(tmp_path):
     assert "Pipeline complete. Last step: export_deliverables" in result.stdout
 
 
-def test_pipeline_run_strict_exits_1_on_not_ok(tmp_path):
-    project = _init_project(tmp_path)
-    result_obj = PipelineRunResult(
+def _not_ok_result(tmp_path) -> PipelineRunResult:
+    return PipelineRunResult(
         last_step="export_deliverables",
         steps=[PipelineStepLog(step="export_deliverables", started_at="t", status="ok")],
         export_qc={"ok": False, "issues": ["bad thing"], "warnings": []},
         export_qc_path=tmp_path / "export_qc.json",
     )
+
+
+@pytest.mark.parametrize("flags", [[], ["--strict"]], ids=["default", "explicit"])
+def test_pipeline_run_strict_exits_1_on_not_ok(tmp_path, flags):
+    project = _init_project(tmp_path)
+    result_obj = _not_ok_result(tmp_path)
     with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=result_obj):
-        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--strict"])
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), *flags])
     assert result.exit_code == 1
-    assert "--strict" in result.stderr
+    assert "--no-strict" in result.stderr
+    assert "Export QC: FAILED (1 issue)" in result.stdout
 
 
-def test_pipeline_run_strict_ok_qc_exits_0(tmp_path):
+def test_pipeline_run_no_strict_exits_0_on_not_ok(tmp_path):
+    project = _init_project(tmp_path)
+    result_obj = _not_ok_result(tmp_path)
+    with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=result_obj):
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--no-strict"])
+    assert result.exit_code == 0
+    assert "Export QC: FAILED" in result.stdout
+    assert "exiting 1" not in (result.stderr or "")
+
+
+def test_pipeline_run_ok_qc_exits_0(tmp_path):
     project = _init_project(tmp_path)
     result_obj = PipelineRunResult(
         last_step="export_deliverables",
@@ -64,11 +81,11 @@ def test_pipeline_run_strict_ok_qc_exits_0(tmp_path):
         export_qc_path=tmp_path / "export_qc.json",
     )
     with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=result_obj):
-        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--strict"])
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project)])
     assert result.exit_code == 0
 
 
-def test_pipeline_run_strict_no_export_exits_0(tmp_path):
+def test_pipeline_run_no_export_exits_0(tmp_path):
     project = _init_project(tmp_path)
     result_obj = PipelineRunResult(
         last_step="ingest_tracks",
@@ -77,7 +94,7 @@ def test_pipeline_run_strict_no_export_exits_0(tmp_path):
         export_qc_path=None,
     )
     with patch("podcast_mcp.cli.pipeline.PipelineService.run", return_value=result_obj):
-        result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--strict"])
+        result = runner.invoke(app, ["pipeline", "run", "--project", str(project)])
     assert result.exit_code == 0
 
 

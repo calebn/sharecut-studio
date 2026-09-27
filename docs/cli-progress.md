@@ -61,7 +61,7 @@ still prints for the plain (non-Rich) stderr fallback.
 | Determinate | `total` known | Bar with `current/total` |
 | Indeterminate | `total` omitted | Spinner + phase headline + elapsed heartbeat |
 
-For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summary}`. Summaries are stored on `PipelineStepLog.message` and shown in the DAW Pipeline tab. Progress lines like these go to stderr; `pipeline run`'s own result — per-step summaries, the `Export QC:` verdict when this run exported, and the final `Pipeline complete. Last step: …` line — is always on stdout, TTY or not (see [pipeline.md § CLI result and --strict](pipeline.md#cli-result-and---strict)).
+For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summary}`. Summaries are stored on `PipelineStepLog.message` and shown in the DAW Pipeline tab. Progress lines like these go to stderr; `pipeline run`'s own result — per-step summaries, the `Export QC:` verdict when this run exported, and the final `Pipeline complete. Last step: …` line — is always on stdout, TTY or not; a not-ok verdict exits 1 unless `--no-strict` (see [pipeline.md § CLI result and --strict](pipeline.md#cli-result-and---strict)).
 
 ### Common `task_id` values
 
