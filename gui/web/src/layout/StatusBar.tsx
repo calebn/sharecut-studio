@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
+import { presenceSummary } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import { selectUnmappedPending } from "../utils/edits";
 import { pipelineChipOpensPanel } from "../utils/pipeline";
@@ -18,6 +19,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     setActiveTab,
     shellBreakpoint,
     sessionClients,
+    localClientId,
     highlightStaleRender,
     statusAnnouncement,
     announceStatus,
@@ -29,6 +31,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     setActiveTab: s.setActiveTab,
     shellBreakpoint: s.shellBreakpoint,
     sessionClients: s.sessionClients,
+    localClientId: s.localClientId,
     highlightStaleRender: s.highlightStaleRender,
     statusAnnouncement: s.statusAnnouncement,
     announceStatus: s.announceStatus,
@@ -76,7 +79,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
   const { edit_impact, pending_edits, social_clips } = project;
   const unmappable = selectUnmappedPending(pending_edits).length;
   const narrow = shellBreakpoint === "phone" || shellBreakpoint === "tablet";
-  const viewers = sessionClients.filter((c) => c.role !== "agent").length;
   const reconcileHighlight = highlightStaleRender && render.reconcileStale;
 
   return (
@@ -91,8 +93,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
             )
             .join(", ")}
         >
-          Presence: {sessionClients.length}
-          {viewers > 0 ? ` · ${viewers} guest` : ""}
+          Presence: {presenceSummary(sessionClients, localClientId)}
         </span>
       )}
       <button

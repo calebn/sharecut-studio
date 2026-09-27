@@ -277,7 +277,7 @@ flowchart TB
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) · Intensity (Light/Medium/Aggressive) + Find hits |
 | **Pipeline** | Checklist (empty state until Analyze) · param inspector · Analyze · Batch vs leave-gates (align + refine) · Terms and guest-name vocabulary editor with a re-transcribe action when the saved list changes · SSE progress (live headline) |
 | **Transcript** | Follow/edit (also layout `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
-| **Status** | Actionable chips (pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
+| **Status** | Actionable chips (**Presence: You + N guests**, pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
 
 ### Layouts (desktop/tablet)
 
@@ -380,7 +380,7 @@ Not ReviewApp. Prefix `/rec/` 404s a review token.
 | **Offline host (relay)** | Share/tunnel offline page |
 | **Offline edit queue** | Host and guest edits wait offline and drain on reconnect; guest structural ops demote to propose |
 | **Offline attention** | Host pending count and host/guest conflicts appear in **Needs attention**; conflicts are dismissible |
-| **Presence** | Transport **avatar stack** (follow/unfollow); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar names on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts are clamped to the session length and invalid positions are ignored. The server drops an invalid presence playhead and keeps the last good one. |
+| **Presence** | Transport **avatar stack** (follow/unfollow); ghost cursors on timeline lanes and DAW chrome (`data-presence-anchor`); unresolved anchors hidden. Follow mirrors tab/transcript/audition/selection when capable. Status-bar roster (“You + N guests”, names in the tooltip) on desktop/tablet; phone **More → People**. Follow banner is a dedicated shell row (guest Mix / host-only tab hints). Phone Listen = listen-along; phone Timeline = colored center needle (not a copied zoom window). Follower count only; followers do not broadcast a lagging playhead. Guests never draw their own cursor. Remote playhead ghosts are clamped to the session length and invalid positions are ignored. The server drops an invalid presence playhead and keeps the last good one. |
 
 ---
 
