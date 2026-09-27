@@ -11,9 +11,10 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 
 
 def audio_state_fingerprint(project: EpisodeProject) -> str:
-    """Hash of all audio-affecting state across dialogue tracks."""
+    """Hash of the audio state reconciliation measures: dialogue tracks only."""
     parts: list[str] = []
-    for tid in sorted(dialogue_track_ids(project)):
+    dialogue = sorted(dialogue_track_ids(project))
+    for tid in dialogue:
         parts.append(track_render_hash(project, tid))
         track = project.track_by_id(tid)
         if track:
@@ -32,7 +33,9 @@ def audio_state_fingerprint(project: EpisodeProject) -> str:
                         separators=(",", ":"),
                     )
                 )
-    for env in sorted(project.automation_envelopes, key=lambda e: e.track_id):
+    dialogue_set = set(dialogue)
+    envelopes = (e for e in project.automation_envelopes if e.track_id in dialogue_set)
+    for env in sorted(envelopes, key=lambda e: e.track_id):
         parts.append(json.dumps(envelope_audio_payload(env), sort_keys=True, separators=(",", ":")))
     raw = "|".join(parts)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]

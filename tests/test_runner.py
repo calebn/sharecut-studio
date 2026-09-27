@@ -277,3 +277,21 @@ def test_balance_runs_after_compress() -> None:
         for n in ("clean_audio", "compress_tracks", "balance_tracks", "assemble_timeline")
     ]
     assert idx == sorted(idx)
+
+
+@pytest.mark.parametrize(("step", "stale"), [("mix_with_music", False), ("balance_tracks", True)])
+def test_runner_marks_reconciliation_stale_only_for_dialogue_steps(
+    minimal_project, monkeypatch, step, stale
+):
+    import podcast_mcp.pipeline.runner as runner_mod
+    from podcast_mcp.engines.reconciliation_state import (
+        mark_reconciliation_fresh,
+        reconciliation_status,
+    )
+
+    proj = load_project(minimal_project)
+    mark_reconciliation_fresh(proj)
+    monkeypatch.setitem(runner_mod._STEP_MAP, step, lambda _p, _d: "stub")
+    PipelineRunner(defaults={}).run(proj, only_step=step)
+    assert reconciliation_status(proj)["stale"] is stale
+    assert ("mix_with_music" in runner_mod.AUDIO_AFFECTING_STEPS) is False

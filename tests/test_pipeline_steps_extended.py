@@ -22,6 +22,8 @@ from podcast_mcp.models import (
     MediaAsset,
     Track,
     TrackRole,
+    Transcript,
+    TranscriptWord,
     load_project,
     save_project,
 )
@@ -343,6 +345,38 @@ def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_work
     steps.export_deliverables(proj, defaults)
     assert (proj.export_dir() / f"{proj.name}.chapters.json").is_file()
     assert (proj.export_dir() / f"{proj.name}.srt").is_file()
+
+
+@pytest.mark.parametrize("with_music", [False, True])
+def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, with_music):
+    """Reconcile pass 2 then mix -> master -> export stays ok, with or without a bed (#621)."""
+    from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    if not with_music:
+        proj.tracks = [t for t in proj.tracks if t.role != TrackRole.MUSIC]
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.4),
+            ],
+        )
+    ]
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    mark_reconciliation_fresh(proj)  # stands in for reconcile_transcript pass 2
+    PipelineRunner(defaults=defaults).run(proj, only_step="mix_with_music")
+    steps.master_loudness(proj, defaults)
+    steps.export_deliverables(proj, defaults)
+    qc = json.loads((proj.artifacts_dir() / "export_qc.json").read_text(encoding="utf-8"))
+    assert qc["reconciliation"]["stale"] is False
+    assert qc["issues"] == []
+    assert qc["ok"] is True
 
 
 def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):

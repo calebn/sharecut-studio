@@ -624,7 +624,12 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
     if not meta_path.is_file():
+        from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
+
         assemble_timeline(project, defaults)
+        # The runner no longer marks stale after this step (#621); an inline assemble is
+        # still a dialogue re-render, as the runner would treat assemble_timeline.
+        mark_reconciliation_stale(project)
     rendered = json.loads(meta_path.read_text(encoding="utf-8"))
     eng = ffmpeg()
 

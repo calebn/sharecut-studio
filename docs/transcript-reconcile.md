@@ -85,10 +85,12 @@ Regenerate and validate: `python3 scripts/build_synthetic_bleed_fixture.py` (fai
 
 ## Ship gate: staleness at export time
 
-The pipeline's last audio-affecting step (`mix_with_music`) always marks reconciliation
-stale (`PipelineRunner.AUDIO_AFFECTING_STEPS`), and nothing downstream re-reconciles
-before `export_deliverables` — so a full pipeline run can finish with a genuinely stale
-reconciliation state without erroring. `export_deliverables` writes
+Reconciliation pass 2 runs after `assemble_timeline`, the last step that changes dialogue
+audio. `mix_with_music` is not in `PipelineRunner.AUDIO_AFFECTING_STEPS`: it only writes
+music/intro/outro envelopes and stems and mixes (#621). A clean full run therefore
+exports with `reconciliation.stale: false`. `export_qc.json` still reports staleness if
+anything changed dialogue audio after pass 2 (an edit, FX, a partial `--from` run).
+`export_deliverables` writes
 `artifacts/export_qc.json` with the current `reconciliation_status()` and an explicit
 issue message when stale, specifically so this doesn't ship unnoticed. See
 [podcast-master-export](../.agents/skills/podcast-master-export/SKILL.md#final-ship-gate-export_qcjson).
