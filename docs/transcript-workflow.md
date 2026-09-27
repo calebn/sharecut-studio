@@ -112,12 +112,23 @@ steps. Each transcript stores the vocabulary revision it was produced with. Stud
 asks for re-transcription when any transcript differs from the revision in
 `transcript_context.yaml`: single-track runs update only that track, a concurrent
 edit stays stale, and a project without transcripts never asks. ASR caches
-include model, language, and prompt. ASR also reads an older
-`transcripts/{track}_{audio}.json` cache (which does not encode model or prompt)
-when the new-name cache misses, caches are in use (not forced), and no prompt is set;
+include model, language, prompt, and the VAD / decode options (`transcribe.vad`,
+`transcribe.decode`). ASR also reads an older
+`transcripts/{track}_{audio}.json` cache (which does not encode model, prompt or
+decode options) when the new-name cache misses, caches are in use (not forced), no
+prompt is set, **and** the decode options equal faster-whisper's own defaults (VAD off,
+its default temperatures); with the shipped defaults that legacy file is ignored;
 it never migrates or rewrites that file. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
+
+**Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
+low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)
+and decodes with `hallucination_silence_threshold`. Afterwards each word whose own-track
+peak is below `transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets
+`suspect_hallucination: true` (also on cache hits, so the threshold is not part of the cache
+key). Words are never deleted; reconcile, merge and export are unchanged. If a track still
+loops, set `transcribe.decode.condition_on_previous_text: false`.
 
 **Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
 already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),

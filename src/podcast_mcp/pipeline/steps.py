@@ -148,6 +148,15 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
+    suspect = sum(
+        1
+        for t in project.transcripts
+        if t.key in job_keys
+        for w in t.words
+        if w.suspect_hallucination
+    )
+    if suspect:
+        summary += f", {suspect} suspect hallucinations"
     return summary
 
 

@@ -15,6 +15,7 @@ description: >-
 
 1. **Get** — `pipeline_get_config_tool(project_path)`  
    Returns `config`, `enabled_steps`, `unattended`, step metadata (`depends_on`, components), curated `params`, and `whisper_models` (catalog with `cached`). In the GUI, `transcribe.model` is a catalog picker; missing weights open a confirm Dialog that downloads via host bootstrap (`whisper` only). Pipeline **Run** (Sharecut Studio / MCP / CLI) does not download: missing weights with `transcribe_tracks` selected fail fast (HTTP 409 / tool error). Download via the picker Dialog, first-run wizard, or `podcast bootstrap --component whisper --whisper-model …`.
+   `transcribe.vad.enabled` (common) skips silence before Whisper; advanced `transcribe.vad.*`, `transcribe.decode.*` and `transcribe.silence_filter.enabled` tune hallucination handling (`suspect_hallucination` words are flagged, never deleted).
    `transcribe.overwrite` (advanced param) persists "always re-run ASR"; `pipeline_run(force_transcribe=true)` does the same for one run only and is never saved.
 2. **Optional Analyze** — `pipeline_analyze_tool(project_path, apply=true|false)`  
    Heuristics from cleanup/health (hum, noise floor, gate overreach, bleed, clipping) → proposed patches. With `apply=true`, writes into the working set (same as GUI **Analyze**). Review `reasons[]`; do not treat Analyze as a full production run.

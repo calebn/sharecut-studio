@@ -63,6 +63,10 @@ Cross-backend agreement (mean symmetric WER): **93%** overall (rehana 33%, vicky
 
 **Takeaway:** whisper.cpp is much faster on Apple Silicon but `ggml-base.en.bin` over-transcribes on this dialogue (especially vicky: 428 words vs 147 reference in 90s). faster-whisper `base` is far more accurate against the existing reference transcripts. A larger whisper.cpp model or tuning may close the gap; speed alone is not enough to swap backends.
 
+## Silence hallucinations
+
+The whisper.cpp adapter is benchmark-only and does not use the VAD / decode options of `transcribe.vad` / `transcribe.decode` (faster-whisper only, #521); whisper-cli's VAD needs a separate ggml VAD model.
+
 ## Code
 
 - `src/podcast_mcp/engines/whisper_cpp.py` — `whisper-cli` wrapper + JSON parser
