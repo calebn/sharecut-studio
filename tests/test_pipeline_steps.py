@@ -218,6 +218,24 @@ def test_tighten_steps_skip_when_disabled(minimal_project):
     assert proj.edit_decisions == []
 
 
+def test_tighten_steps_skip_when_enabled_key_missing(minimal_project):
+    proj = load_project(minimal_project)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="um", start=0.1, end=0.2),
+                TranscriptWord(text="hi", start=2.0, end=2.2),
+            ],
+        )
+    ]
+    defaults = load_defaults()
+    defaults.setdefault("tighten", {}).pop("enabled", None)
+    assert steps.analyze_fillers_pauses(proj, defaults) == "skipped (tighten.enabled=false)"
+    assert steps.tighten_from_transcript(proj, defaults) == "skipped (tighten.enabled=false)"
+    assert proj.edit_decisions == []
+
+
 def test_analyze_fillers_summary_counts_discourse_skips(minimal_project):
     proj = load_project(minimal_project)
     proj.transcripts = [

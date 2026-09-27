@@ -240,11 +240,11 @@ def merge_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepS
 def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.focus import propose_focus_cuts, write_focus_outline
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.pipeline.meta import step_noop_reason
 
     assert_refine_clear(project, defaults=defaults)
-    focus_cfg = defaults.get("focus", {})
-    if not focus_cfg.get("enabled", False):
-        return "skipped (focus.enabled=false)"
+    if reason := step_noop_reason("analyze_focus_cuts", defaults):
+        return f"skipped ({reason})"
     with resolve_progress_task(
         "analyze_focus_cuts",
         "Analyzing focus cuts",
@@ -260,10 +260,11 @@ def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> Ste
 def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.focus import apply_focus_decisions
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.pipeline.meta import step_noop_reason
 
     assert_refine_clear(project, defaults=defaults)
-    if not defaults.get("focus", {}).get("auto_apply", False):
-        return "skipped (focus.auto_apply=false)"
+    if reason := step_noop_reason("focus_from_transcript", defaults):
+        return f"skipped ({reason})"
     with resolve_progress_task(
         "focus_from_transcript",
         "Applying focus cuts",
@@ -276,10 +277,11 @@ def focus_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
 def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.pipeline.meta import step_noop_reason
 
     assert_refine_clear(project, defaults=defaults)
-    if not defaults.get("tighten", {}).get("enabled", True):
-        return "skipped (tighten.enabled=false)"
+    if reason := step_noop_reason("analyze_fillers_pauses", defaults):
+        return f"skipped ({reason})"
     with resolve_progress_task(
         "analyze_fillers_pauses",
         "Analyzing fillers and pauses",
@@ -292,10 +294,11 @@ def analyze_fillers_pauses(project: EpisodeProject, defaults: dict[str, Any]) ->
 
 def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+    from podcast_mcp.pipeline.meta import step_noop_reason
 
     assert_refine_clear(project, defaults=defaults)
-    if not defaults.get("tighten", {}).get("enabled", True):
-        return "skipped (tighten.enabled=false)"
+    if reason := step_noop_reason("tighten_from_transcript", defaults):
+        return f"skipped ({reason})"
     with resolve_progress_task(
         "tighten_from_transcript",
         "Applying tighten cuts",
