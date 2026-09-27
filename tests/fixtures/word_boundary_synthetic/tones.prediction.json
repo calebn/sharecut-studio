@@ -1,0 +1,36 @@
+{
+  "audio_sha256": "343628837eaca7ffd550b449597320047105ac956e21f616600d512469aea9d0",
+  "provenance": {
+    "model": "hand-authored-offsets",
+    "version": "1",
+    "settings": {},
+    "license": "CC0-1.0"
+  },
+  "words": [
+    {
+      "text": "one",
+      "start": 0.22,
+      "end": 0.46
+    },
+    {
+      "text": "two",
+      "start": 0.6,
+      "end": 0.9
+    },
+    {
+      "text": "um",
+      "start": 0.92,
+      "end": 0.98
+    },
+    {
+      "text": "three",
+      "start": 1.2,
+      "end": 1.36
+    },
+    {
+      "text": "four",
+      "start": 1.44,
+      "end": 1.8
+    }
+  ]
+}

@@ -8,12 +8,28 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
-from podcast_mcp.engines.word_boundary_metrics import measure_word_boundaries
+from podcast_mcp.engines.word_boundary_metrics import matched_word_pairs, measure_word_boundaries
 from podcast_mcp.util import atomic_json
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.wav import pcm_wav_header
 from script_loader import load_script
+
+SYNTH = Path(__file__).parent / "fixtures" / "word_boundary_synthetic"
+SYNTH_SPANS = ((0.20, 0.50), (0.60, 0.90), (1.00, 1.40), (1.50, 1.80), (1.90, 2.20))
+
+
+def tone_burst_wav_bytes(
+    spans: tuple[tuple[float, float], ...], *, sample_rate: int = 16_000, duration_sec: float = 2.5
+) -> bytes:
+    samples = np.zeros(round(duration_sec * sample_rate), dtype="<i2")
+    for start, end in spans:
+        idx = np.arange(round(start * sample_rate), round(end * sample_rate))
+        samples[idx] = np.where((idx // 18) % 2 == 0, 8000, -8000)  # ~444 Hz square, integer-exact
+    data = samples.tobytes()
+    return pcm_wav_header(len(data), sample_rate=sample_rate) + data
 
 
 def word(text: str, start: float, end: float) -> dict[str, str | float]:
@@ -28,6 +44,8 @@ def test_boundary_errors_and_threshold_are_per_matched_word() -> None:
 
     assert result.matched_words == 2
     assert result.boundary_mae_ms == pytest.approx(137.5)
+    assert result.mean_start_error_ms == pytest.approx(100)
+    assert result.mean_end_error_ms == pytest.approx(175)
     assert result.words_over_150ms == 2
     assert result.words_over_150ms_fraction == 1.0
 
@@ -77,6 +95,8 @@ def test_zero_matches_reports_coverage_without_inventing_accuracy() -> None:
         1,
     )
     assert result.boundary_mae_ms is None
+    assert result.mean_start_error_ms is None
+    assert result.mean_end_error_ms is None
     assert result.words_over_150ms_fraction is None
 
 
@@ -275,3 +295,54 @@ def test_checked_in_native_reports_match_reference_fixture() -> None:
         weighted_mae += metrics.boundary_mae_ms * metrics.matched_words
     assert (total_matches, total_reference, total_over) == (42, 48, 15)
     assert weighted_mae / total_matches == pytest.approx(82.2619, abs=0.0001)
+
+
+def test_matched_word_pairs_validates_and_returns_monotone_pairs() -> None:
+    reference = [word("one", 0, 0.2), word("two", 0.2, 0.4), word("three", 0.4, 0.6)]
+    prediction = [word("one", 0, 0.2), word("three", 0.4, 0.6)]
+
+    pairs = matched_word_pairs(reference, prediction)
+
+    assert [ref["text"] for ref, _ in pairs] == ["one", "three"]
+
+    with pytest.raises(ValueError):
+        matched_word_pairs([word("one", 0.2, 0.2)], [word("one", 0, 0.2)])
+
+
+def test_synthetic_fixture_audio_is_reproducible() -> None:
+    gold = json.loads((SYNTH / "tones.gold.json").read_text(encoding="utf-8"))
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+
+    assert (SYNTH / "tones.wav").read_bytes() == tone_burst_wav_bytes(SYNTH_SPANS)
+    assert sha256_file(SYNTH / "tones.wav") == gold["audio_sha256"] == prediction["audio_sha256"]
+    assert [(w["start"], w["end"]) for w in gold["words"]] == list(SYNTH_SPANS)
+
+
+def test_synthetic_fixture_hand_computed_metrics() -> None:
+    gold = json.loads((SYNTH / "tones.gold.json").read_text(encoding="utf-8"))
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+
+    result = measure_word_boundaries(gold["words"], prediction["words"])
+
+    assert result.matched_words == 4
+    assert (result.reference_words, result.predicted_words) == (5, 5)
+    assert (result.missed_reference_words, result.extra_predicted_words) == (1, 1)
+    assert result.boundary_mae_ms == pytest.approx(45.0, abs=1e-9)
+    assert result.words_over_150ms == 1
+    assert result.words_over_150ms_fraction == pytest.approx(0.25)
+    assert result.mean_start_error_ms == pytest.approx(40.0, abs=1e-9)
+    assert result.mean_end_error_ms == pytest.approx(-20.0, abs=1e-9)
+
+
+def test_synthetic_fixture_benchmark_cli_matches_hand_computation() -> None:
+    benchmark = load_script("benchmark_word_boundaries")
+    metrics = benchmark.benchmark(
+        SYNTH / "tones.gold.json",
+        prediction_path=SYNTH / "tones.prediction.json",
+        native_model=None,
+    )["metrics"]
+
+    assert metrics["matched_words"] == 4
+    assert metrics["boundary_mae_ms"] == pytest.approx(45.0, abs=1e-9)
+    assert metrics["mean_start_error_ms"] == pytest.approx(40.0, abs=1e-9)
+    assert metrics["mean_end_error_ms"] == pytest.approx(-20.0, abs=1e-9)
