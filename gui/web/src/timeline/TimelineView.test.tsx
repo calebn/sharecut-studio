@@ -31,6 +31,13 @@ vi.mock("../commands/execute", () => ({ execute }));
 const renders = vi.hoisted(() => ({
   lanes: [] as string[],
   clips: [] as string[],
+  laneProps: {} as Record<
+    string,
+    {
+      pendingEdits: readonly { id: string }[];
+      appliedRecords: readonly { id: string }[];
+    }
+  >,
 }));
 vi.mock("./TrackLane", async (importOriginal) => {
   const mod = await importOriginal<typeof import("./TrackLane")>();
@@ -39,6 +46,7 @@ vi.mock("./TrackLane", async (importOriginal) => {
     ...mod,
     TrackLane: memo((p: Parameters<typeof mod.TrackLaneView>[0]) => {
       renders.lanes.push(p.track.id);
+      renders.laneProps[p.track.id] = p;
       return <mod.TrackLaneView {...p} />;
     }),
   };
@@ -687,6 +695,7 @@ describe("TimelineView render isolation", () => {
   });
 
   function mount() {
+    renders.laneProps = {};
     const view = render(
       <DawProvider
         projectPath="/tmp/p.json"
@@ -805,6 +814,66 @@ describe("TimelineView render isolation", () => {
     }
     act(() => useDawStore.getState().setProject(next));
     expect(renders.lanes).toEqual(["guest"]);
+  });
+
+  it("hands each lane only its own track's pending edits and applied records", () => {
+    const view = mount();
+    const prev = useDawStore.getState().project!;
+    const fresh = structuredClone(prev);
+    fresh.pending_edits = [
+      {
+        id: "pe-guest",
+        track_id: "guest",
+        type: "remove",
+        reason: null,
+        source_start: 1,
+        source_end: 2,
+        timeline_start: 1,
+        timeline_end: 2,
+        timeline_spans: [{ start: 1, end: 2 }],
+        mappable: true,
+        crossfade_ms: null,
+        boundary_mode: null,
+        cut_confidence: null,
+        review_required: false,
+        applied: false,
+      },
+    ];
+    fresh.applied_edits = {
+      count: 1,
+      records: [
+        {
+          id: "ar-third",
+          applied_at: "2024-01-01T00:00:00Z",
+          operation: "cut",
+          track_ids: ["third"],
+          timeline_start: 4,
+          timeline_end: 5,
+          source_start: 4,
+          source_end: 5,
+          reason: null,
+          params: {},
+        },
+      ],
+    };
+    const next = projectFromDocumentSnapshot(prev, { project: fresh });
+    if (!next) {
+      throw new Error("snapshot dropped the project");
+    }
+    act(() => useDawStore.getState().setProject(next));
+    const ids = (list: readonly { id: string }[] | undefined) =>
+      list?.map((item) => item.id);
+    expect(ids(renders.laneProps.guest?.pendingEdits)).toEqual(["pe-guest"]);
+    expect(ids(renders.laneProps.host?.pendingEdits)).toEqual([]);
+    expect(ids(renders.laneProps.third?.pendingEdits)).toEqual([]);
+    expect(ids(renders.laneProps.third?.appliedRecords)).toEqual(["ar-third"]);
+    expect(ids(renders.laneProps.host?.appliedRecords)).toEqual([]);
+    expect(ids(renders.laneProps.guest?.appliedRecords)).toEqual([]);
+    const lane = (id: string) =>
+      view.container.querySelector(`.lane-row[data-track-id="${id}"]`);
+    expect(lane("guest")?.querySelector(".pending-overlay")).not.toBeNull();
+    expect(lane("host")?.querySelector(".pending-overlay")).toBeNull();
+    expect(lane("third")?.querySelector(".pending-overlay")).toBeNull();
   });
 
   it("draws the blade guide on target lanes at the pointer time", () => {

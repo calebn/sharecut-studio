@@ -110,6 +110,9 @@ export function PendingEditOverlay({
 
   return (
     <>
+      {/* Defensive: TimelineView already passes this lane its own slice
+          (laneOverlaySlices). The track filter stays so a wrong slice can
+          never draw another track's edits; TimelineView.test pins slices. */}
       {edits
         .filter((e) => pendingEditTrackIds(e).includes(trackId) && e.mappable)
         .flatMap((edit) =>
