@@ -588,6 +588,9 @@ def suggest_pipeline_tuning(
             )
         )
 
+    # asr describes the *base* config: it is not re-read after the loop below sets
+    # transcribe.vad.enabled on `proposed`, so later checks must not rely on it for
+    # the proposed value.
     asr = AsrOptions.from_defaults(base)
     silence, silence_skipped = _dialogue_silence_fractions(project, peak_dbfs=asr.silence_peak_dbfs)
     for tid, why in silence_skipped.items():
