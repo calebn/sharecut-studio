@@ -784,6 +784,8 @@ export function TranscriptPanel() {
                     transcriptAnnotate &&
                     w.confidence != null &&
                     w.confidence < LOW_CONFIDENCE;
+                  const suspectChip =
+                    transcriptAnnotate && Boolean(w.suspect_hallucination);
                   const cutAwayChip =
                     transcriptAnnotate &&
                     showCutAwayUtterances &&
@@ -810,6 +812,7 @@ export function TranscriptPanel() {
                     unmapped: w.mappable === false,
                     selected,
                     lowConfidence: lowConf,
+                    suspectHallucination: suspectChip,
                     interactive: wordInteractive,
                     activeRef: bindActiveRef(wActive),
                     anchorProps: wordAnchor,

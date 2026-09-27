@@ -180,6 +180,7 @@ def _word_view(
         "word_index": word_index,
         "confidence": word.confidence,
         "suppressed": bool(word.suppressed),
+        "suspect_hallucination": bool(word.suspect_hallucination),
     }
 
 

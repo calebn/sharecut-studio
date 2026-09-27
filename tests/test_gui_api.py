@@ -180,7 +180,9 @@ def test_map_transcript_utterances_to_timeline() -> None:
             track_id="host",
             words=[
                 TranscriptWord(text="hello", start=1.0, end=1.4, confidence=0.95),
-                TranscriptWord(text="world", start=1.5, end=2.0, confidence=0.4),
+                TranscriptWord(
+                    text="world", start=1.5, end=2.0, confidence=0.4, suspect_hallucination=True
+                ),
                 TranscriptWord(text="skip", start=1.7, end=1.9, suppressed=True, confidence=0.9),
             ],
         )
@@ -217,6 +219,8 @@ def test_map_transcript_utterances_to_timeline() -> None:
     assert u["words"][2]["text"] == "skip"
     assert u["words"][2]["word_index"] == 2
     assert u["words"][2]["suppressed"] is True
+    assert u["words"][0]["suspect_hallucination"] is False
+    assert u["words"][1]["suspect_hallucination"] is True
 
 
 def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypatch) -> None:

@@ -2085,7 +2085,7 @@
     {
       "id": "daw.view.transcriptAnnotate",
       "label": "Annotate transcript",
-      "tooltip": "Annotate: show edit boundaries, low-confidence words, and cut-away text",
+      "tooltip": "Annotate: show edit boundaries, low-confidence words, words over silence, and cut-away text",
       "tooltip_pressed": "Hide annotate marks (clean reading view)",
       "toggle": true,
       "service": "Sharecut Studio UI",

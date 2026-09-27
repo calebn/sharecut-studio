@@ -392,6 +392,8 @@ def test_brief_reads_precorrect_report_and_low_conf(minimal_project):
     proj = _with_words(minimal_project)
     proj.transcripts[0].words[0].confidence = 0.2
     proj.transcripts[0].words[1].suppressed = True
+    proj.transcripts[0].words[0].suspect_hallucination = True
+    proj.transcripts[0].words[1].suspect_hallucination = True
     art = proj.artifacts_dir()
     art.mkdir(parents=True, exist_ok=True)
     (art / "transcript_precorrect_report.json").write_text(
@@ -422,6 +424,8 @@ def test_brief_reads_precorrect_report_and_low_conf(minimal_project):
     assert brief["deferred_queue_count"] == 1
     assert brief["garble_hits_count"] == 1
     assert brief["low_confidence_open_words"] == 1
+    assert brief["suspect_hallucination_open_words"] == 1
+    assert brief["suspect_hallucination_sample"][0]["word_index"] == 0
 
 
 @pytest.mark.refine_gate

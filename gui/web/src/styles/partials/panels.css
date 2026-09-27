@@ -397,6 +397,12 @@
   color: var(--color-text-unmapped);
 }
 
+.utterance-word.suspect-hallucination {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-warning);
+}
+
 .utterance-word.suppressed {
   color: var(--color-text-unmapped);
   text-decoration: line-through;

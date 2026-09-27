@@ -44,7 +44,7 @@ Never call `correct_word` / `correct_phrase` outside `ProjectWorkspace.mutate`.
 
 | Tool | Use |
 |------|-----|
-| `transcript_refine_brief_tool` | Start here — glossary, deferred/garble counts, combined path |
+| `transcript_refine_brief_tool` | Start here — glossary, deferred/garble counts, low-confidence and `suspect_hallucination` counts (with a sample to review / suppress), combined path |
 | `low_confidence_words_tool` | Work queue (`threshold` 0.35–0.7) |
 | `search_transcript_tool` | Find garbled patterns before fixing |
 | `apply_transcript_cleanup_tool` | Batch words + phrases (one undo step) |
