@@ -6,8 +6,10 @@ import {
   minimalProject,
   pipelineJobSnapshot,
   sampleTrack,
+  sessionClient,
 } from "../test/fixtures";
 import { staleRenderBreakdown } from "../utils/staleRender";
+import { PresenceStatusView } from "./PresenceStatusView";
 import { StatusBarView } from "./StatusBarView";
 import { statusBarSummary } from "./statusBarSummary";
 
@@ -186,12 +188,25 @@ describe("StatusBarView", () => {
       <StatusBarView
         summary={summaryOf(minimalProject())}
         narrow
-        presence={<span title="Ada (viewer)">Presence: You + 1 guest</span>}
+        presence={
+          <PresenceStatusView
+            narrow
+            clients={[
+              sessionClient({
+                client_id: "g1",
+                role: "guest",
+                meta: { display_name: "Ada", color_index: 0 },
+              }),
+            ]}
+            localClientId={null}
+          />
+        }
         statusAnnouncement=""
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.getByText("Presence: You + 1 guest")).toBeTruthy();
-    expect(screen.getByTitle("Ada (viewer)")).toBeTruthy();
+    const chip = screen.getByText("Presence: You + 1 guest");
+    expect(chip.getAttribute("title")).toBe("Ada (guest)");
+    expect(chip.className).toBe("status-bar-secondary");
   });
 });
