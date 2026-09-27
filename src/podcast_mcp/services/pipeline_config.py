@@ -434,7 +434,10 @@ def suggest_pipeline_tuning(
                 {
                     "code": "clipping",
                     "track_id": tid,
-                    "message": (f"{tid}: clipping indicators - keep compression.makeup_db at 0"),
+                    "message": (
+                        f"{tid}: clipping indicators - keep compression.makeup_db at 0 "
+                        "(balance_tracks stages level after compression)"
+                    ),
                 }
             )
             set_by_path(proposed, "compression.makeup_db", 0.0)
