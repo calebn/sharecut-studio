@@ -23,7 +23,7 @@ from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.project_state import project_file_revision, project_state_lock
+from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +77,14 @@ def dump_projection_locked(
     with document_submit_lock(ws.project):
         ws.reload()
         return dump_project_projection(ws, projection=projection, audience=guest_or_host)
+
+
+def _file_wire(revision: FileRevision | None) -> dict[str, int] | None:
+    """``{mtime_ns, size}`` of the project JSON, matching ``project_meta`` (#657)."""
+    if revision is None:
+        return None
+    _dev, _ino, size, mtime_ns = revision
+    return {"mtime_ns": mtime_ns, "size": size}
 
 
 def _history_wire(hist: dict[str, Any]) -> dict[str, Any]:
@@ -245,6 +253,9 @@ class DocumentSyncService:
                 "active_version_id": self.project.review.active_version_id,
                 "history": _history_wire(hist),
             }
+            file_wire = _file_wire(self.ws.loaded_file_revision)
+            if file_wire is not None:
+                api_snap["file"] = file_wire
             if proj is ViewProjection.COMMENTS:
                 return api_snap
             dumped = dump_project_projection(self.ws, projection=proj, history=hist)
@@ -302,6 +313,9 @@ class DocumentSyncService:
         with self.ws.transaction():
             self.project = self.ws.project
             journal_saved_command(store, self.project)
+            # The file this command applies on top of, after transaction() adopted any
+            # outside write; clients chain it to the last file they received (#657).
+            file_before = _file_wire(self.ws.loaded_file_revision)
             with store.write_transaction():
                 existing = existing_document_command(store, command)
                 if existing is not None:
@@ -344,6 +358,8 @@ class DocumentSyncService:
                         api_snap = self.document_snapshot(projection="shell")
                     except Exception:
                         api_snap = {"server_seq": int(row["server_seq"]), "resync": True}
+                if file_before is not None and not api_snap.get("resync"):
+                    api_snap["file_before"] = file_before
                 event = {
                     "type": "Applied",
                     "plane": "document",

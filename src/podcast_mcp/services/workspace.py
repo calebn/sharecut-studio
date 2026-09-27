@@ -74,6 +74,11 @@ class ProjectWorkspace:
             )
             return self.project
 
+    @property
+    def loaded_file_revision(self) -> FileRevision | None:
+        """Identity of the saved file ``self.project`` matches; ``None`` when unknown."""
+        return self._loaded_file_signature
+
     @contextmanager
     def transaction(self) -> Iterator[EpisodeProject]:
         """Serialize reload -> mutate -> commit on this workspace across threads and processes (#213).

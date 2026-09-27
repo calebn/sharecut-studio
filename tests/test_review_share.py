@@ -932,6 +932,26 @@ def test_sanitize_guest_document_event_strips_paths():
     assert "workspace_dir" not in blob
 
 
+def test_sanitize_guest_document_event_keeps_file_signature():
+    from podcast_mcp.services.share import sanitize_guest_document_event
+
+    event = {
+        "type": "Applied",
+        "plane": "document",
+        "command": {"type": "AddComment", "client_id": "agent", "payload": {}},
+        "snapshot": {
+            "server_seq": 3,
+            "comments": [],
+            "file": {"mtime_ns": 111, "size": 22},
+            "file_before": {"mtime_ns": 100, "size": 20},
+        },
+        "server_seq": 3,
+    }
+    out = sanitize_guest_document_event(event)
+    assert out["snapshot"]["file"] == {"mtime_ns": 111, "size": 22}
+    assert out["snapshot"]["file_before"] == {"mtime_ns": 100, "size": 20}
+
+
 def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestWS")
