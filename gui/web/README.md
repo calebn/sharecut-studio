@@ -50,6 +50,13 @@ an edit; the live Impact panel owns selection.
 regions, including overlapping causes, minimum-width spans, right-edge clipping,
 and filtered or empty 360px lanes. These bands are decorative; the live stale
 status controls explain the render state.
+`Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
+`Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
+as props-only views (`EnvelopeOverlayView`, `PresenceOverlayView`,
+`CommentPlaybackBubbleView`); the live adapters keep the store, API and
+timeline-metrics reads, including a fixed `nowMs` for presence instead of the
+server clock. Each has a 360px story alongside its desktop ones, and a guard
+test keeps the views themselves free of direct store/API imports.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.
