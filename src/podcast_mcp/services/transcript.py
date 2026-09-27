@@ -5,7 +5,6 @@ from pathlib import Path
 from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
 from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
 from podcast_mcp.engines import TranscriptionEngine
-from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import write_combined_transcript_markdown
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -18,11 +17,10 @@ class TranscriptService:
         self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
-        from podcast_mcp.services.pipeline_config import config_store
+        from podcast_mcp.services.pipeline_config import asr_options_for
 
-        # Same transcribe.* settings as pipeline_run: the project's staged working set
-        # (Studio Pipeline pane / pipeline_set_config_tool), else the shipped defaults.
-        self._engine.options = AsrOptions.from_defaults(config_store().get(self.ws.path).config)
+        # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
+        self._engine.options = asr_options_for(self.ws.path)
 
         def mutate(p) -> list[str]:
             jobs = [track_transcribe_job(p, track_id)] if track_id else dialogue_transcribe_jobs(p)
