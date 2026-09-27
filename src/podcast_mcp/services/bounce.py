@@ -65,7 +65,12 @@ def _render_private_stems(
     eng,
     on_stem: Callable[[str, int, int], None] | None = None,
 ) -> list[tuple[Path, float]]:
-    """Render bounce stems into ``stem_dir`` — never touch shared ``artifacts/tracks/``."""
+    """Render bounce stems into ``stem_dir`` — never touch shared ``artifacts/tracks/``.
+
+    Deliberately not ``publish_stem`` / ``render_lock``: these stems are private to this
+    bounce (no ``.hash``, no other reader or writer), so the #356/#482 publish rules for
+    the shared stem cache do not apply. Never point ``stem_dir`` at ``artifacts/tracks``.
+    """
     stem_dir.mkdir(parents=True, exist_ok=True)
 
     def render_one(track: Track) -> tuple[str, Path, float]:
