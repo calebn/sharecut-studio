@@ -145,7 +145,10 @@ before the first `pointermove`; it releases the hold when the drag commits,
 cancels or unmounts. `PresenceOverlayView` takes a fixed `nowMs` instead of
 reading the server clock itself, so its stories and tests never depend on the
 wall clock. All three views ship a 360px story (`PhoneEmpty`,
-`PhoneStaleClient`) alongside their desktop ones. A guard test
+`PhoneStaleClient`) alongside their desktop ones. All three stories share
+`timelineLaneStoryDecorator`; `Templates/PresenceOverlay` passes
+`laneTrackIds` for its second lane and `reserveRulerRoom`, so the remote
+playhead's avatar chip drawn above the lane stays inside the canvas. A guard test
 (`timeline/liveOverlayViews.test.ts`) checks each view's own imports never
 reach the store, the API layer, or `timelineMetrics` directly — `followSync`
 still reaches the store transitively through `clock.ts`, which the guard does
