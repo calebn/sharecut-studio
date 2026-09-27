@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useMountedRef } from "../../hooks/useMountedRef";
 import { errorMessage } from "../../utils/apiError";
 import type { ByteSink } from "../keeper/store";
 import {
@@ -50,13 +51,7 @@ export function useKeeperRecoveryActions(args: {
   allowedRef.current = args.recoverAllowed;
   const onRecoveredRef = useRef(args.onRecovered);
   onRecoveredRef.current = args.onRecovered;
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const mountedRef = useMountedRef();
 
   const run = useCallback(
     (action: () => Promise<string | null>, afterSuccess?: () => void) => {
@@ -82,7 +77,7 @@ export function useKeeperRecoveryActions(args: {
           if (mountedRef.current) setBusy(false);
         });
     },
-    [],
+    [mountedRef],
   );
 
   const ready =
