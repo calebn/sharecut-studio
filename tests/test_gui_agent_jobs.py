@@ -512,13 +512,9 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
         assert "message" in kinds
 
 
-def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.gui.jobs import shared_job_manager
-    from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
+    """Route MCP pipeline_run and the Studio job manager to a fake PipelineService."""
     from podcast_mcp.services import PipelineRunResult
-
-    proj = tmp_path / "ep.json"
-    proj.write_text("{}")
 
     class FakeWs:
         path = proj
@@ -532,7 +528,7 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
             return PipelineRunResult(
                 last_step="ingest_tracks",
                 steps=[],
-                export_qc={"ok": True, "issues": [], "warnings": []},
+                export_qc=export_qc,
                 export_qc_path=proj.parent / "export_qc.json",
             )
 
@@ -548,6 +544,15 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
             {"get": staticmethod(lambda _p: None), "put": staticmethod(lambda *_a, **_k: None)},
         )(),
     )
+
+
+def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.gui.jobs import shared_job_manager
+    from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+
+    proj = tmp_path / "ep.json"
+    proj.write_text("{}")
+    _patch_fake_pipeline(monkeypatch, proj, {"ok": True, "issues": [], "warnings": []})
 
     mgr = shared_job_manager(reset=True)
     busy = PipelineJob(
@@ -567,6 +572,35 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
     assert "ingest_tracks" in out
     assert "Export QC: ok (0 issues), 0 warnings" in out
     shared_job_manager(reset=True)
+
+
+def test_pipeline_run_studio_job_reports_failed_export_qc(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+
+    proj = tmp_path / "ep.json"
+    proj.write_text("{}")
+    _patch_fake_pipeline(
+        monkeypatch, proj, {"ok": False, "issues": ["bad thing"], "warnings": ["w"]}
+    )
+
+    def _no_direct_run(_ws):
+        raise AssertionError("pipeline_run must go through the Studio job manager")
+
+    monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.PipelineService", _no_direct_run)
+    mgr = shared_job_manager(reset=True)
+    try:
+        out = mcp_pipeline.pipeline_run(str(proj), only_step="ingest_tracks", use_working_set=False)
+        assert mgr._job is not None
+        assert mgr._job.result == {
+            "export_qc": {"ok": False, "issues": ["bad thing"], "warnings": ["w"]},
+            "export_qc_path": str(proj.parent / "export_qc.json"),
+        }
+    finally:
+        shared_job_manager(reset=True)
+    lines = out.splitlines()
+    assert lines[0] == "Completed through ingest_tracks"
+    assert lines[1] == f"Export QC: FAILED (1 issue), 1 warning ({proj.parent / 'export_qc.json'})"
+    assert lines[2] == "  - bad thing"
 
 
 def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
