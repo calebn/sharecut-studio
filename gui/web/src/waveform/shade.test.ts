@@ -139,6 +139,7 @@ describe("displayAmplitude", () => {
   it("is 0 at digital zero, in linear and log", () => {
     expect(displayAmplitude(0, 1, "linear")).toBe(0);
     expect(displayAmplitude(0, 1, "log")).toBe(0);
+    expect(displayAmplitude(Number.NaN, 1, "log")).toBe(0);
   });
 
   it("is 0 under the floor", () => {

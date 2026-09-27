@@ -1,3 +1,4 @@
+import { linearToDb } from "../utils/audio";
 import {
   COARSE_COLUMN_SEC,
   COARSE_PEAK_ALPHA,
@@ -52,11 +53,9 @@ export function displayAmplitude(
   if (scale === "linear") {
     return Math.min(1, a);
   }
-  if (!(a > 0)) {
-    return 0;
-  }
+  // linearToDb(0 or NaN) is -Infinity, which clamps to 0.
   return clamp(
-    (20 * Math.log10(a) - WAVEFORM_LOG_FLOOR_DB) / -WAVEFORM_LOG_FLOOR_DB,
+    (linearToDb(a) - WAVEFORM_LOG_FLOOR_DB) / -WAVEFORM_LOG_FLOOR_DB,
     0,
     1,
   );
