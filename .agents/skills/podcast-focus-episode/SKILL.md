@@ -68,8 +68,7 @@ See **podcast-play-audition** for playback rules (`track:` vs source vs `process
    use the match's mapped `timeline_start`/`timeline_end` (see **podcast-play-audition**),
    not the raw word times — see alignment note in example below.
 4. `history_snapshot` — `before narrative focus`.
-5. Optional: light filler pass first (**podcast-tighten-dialogue**) so themes are
-   easier to hear.
+5. Do **not** tighten first on a long raw session. Filler/pause proposals in material you are about to cut are wasted review. Tighten (**podcast-tighten-dialogue**) after Phase 4, on the kept range.
 
 ### Phase 1 — Theme discovery (whole transcript)
 
@@ -148,12 +147,14 @@ Do **not** remove >**15%** in one batch without explicit user consent.
 `apply_edit_plan_tool` with **`review_required: true`** and segment-aligned
 `start`/`end` from the outline.
 
+**Structural content cuts** (the `focus:dead_start` pre-show, whole off-topic runs, meta talk) span every speaker. After the user signs off on the kept ranges, remove them with `ripple_delete_tool`: dead start `start=0`, mid-episode `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`. Work from the end toward the start. A per-track `apply_edit_plan_tool` cut with peer speech in the window becomes a track-local punch and leaves a hole. After **each** ripple, re-waive the refine gate (`transcript_refine_waive_tool` / `podcast transcript refine-waive --reason "content cut: structural edit"`), because dropped words make it stale. Then tighten. Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
+
 Present the brief + impact report. **Lead with theme**, not minutes removed.
 
 ### Phase 4 — Listen loop
 
 Audition `REVIEW` and any disputed cut on **one track** (**podcast-play-audition**).
-User approves → `approve_edits_tool` → `assemble_timeline` → `merge_transcript`.
+User approves → `approve_edits_tool` → `assemble_timeline` → `merge_transcript`. Re-clear the refine gate after approving (applied cuts make it stale), then tighten the kept range.
 
 ### Phase 5 — Optional duration pass
 
@@ -166,13 +167,14 @@ User approves → `approve_edits_tool` → `assemble_timeline` → `merge_transc
 ## Pipeline (`analyze_focus_cuts`)
 
 Runs after `merge_transcript`, before filler tighten. Writes
-`artifacts/focus_outline.md` (thought blocks). Heuristic `focus:*` hints are
-**optional noise** — verify against the theme brief. Primary intelligence is
-**this skill**, not the pipeline step.
+`artifacts/focus_outline.md` (thought blocks): **an outline, not a cut list.**
+Zero proposed cuts is normal; the lab tape got a 322-segment outline and 0 cuts.
+Heuristic `focus:*` hints are **optional noise**, so verify them against the theme brief.
+Primary intelligence is **this skill**, not the pipeline step.
 
 **Requires `focus.enabled: true`** in pipeline defaults / working set. With the
 default `focus.enabled: false`, `podcast pipeline run --only analyze_focus_cuts`
-finishes in ~0s and writes **nothing** (summary: `skipped (focus.enabled=false)`).
+finishes in ~0s, writes **nothing** and reports nothing beyond the summary `skipped (focus.enabled=false)`.
 Enable first (GUI Pipeline tab / `pipeline_set_config_tool` / project pipeline
 params), or skip the step and build `focus_brief.md` from the combined transcript
 alone.
@@ -190,6 +192,7 @@ podcast pipeline run --project episode.project.json --only analyze_focus_cuts
 - Chunk reading is for context limits only; judgments must use the whole-episode map.
 - Bilingual / Spanglish: prefer REVIEW over aggressive divert labels.
 - `analyze_focus_cuts` hints ≠ approved edits.
+- `analyze_focus_cuts` is an outline, not a cut list; do the content cut yourself, before tighten.
 
 ## Example — `podcast-cleanup-test`
 
