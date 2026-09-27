@@ -92,7 +92,11 @@ export const Empty: Story = {
 export const DraftAndPost: Story = {
   render: (args) => (
     <div className="comments-panel">
-      <ComposeHarness {...args} clearOnSubmit />
+      <ComposeHarness
+        key={JSON.stringify([args.body, args.author])}
+        {...args}
+        clearOnSubmit
+      />
     </div>
   ),
   play: async ({ args, canvasElement }) => {
