@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeAlias
+from typing import BinaryIO, TypeAlias
 
 from podcast_mcp.runtime_config import ObjectStoreConfig, load_object_store_config
 
@@ -59,6 +59,22 @@ class ObjectStoreClient:
             self._cfg.bucket,
             object_key,
             ExtraArgs=extra,
+        )
+
+    def upload_fileobj(
+        self,
+        source: BinaryIO,
+        object_key: str,
+        *,
+        content_type: str = "audio/mpeg",
+        acl: str = "private",
+    ) -> None:
+        """Upload an already-open source; boto3 must not reopen its pathname."""
+        self._client.upload_fileobj(
+            source,
+            self._cfg.bucket,
+            object_key,
+            ExtraArgs={"ContentType": content_type, "ACL": acl},
         )
 
     def presigned_get_url(self, object_key: str, *, expires_in: int) -> str:

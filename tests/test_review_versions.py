@@ -1101,7 +1101,8 @@ def test_failed_mp3_retry_never_exposes_partial_file(
 
     class FailingEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
-            assert source == wav
+            assert source != wav
+            assert source.read_bytes() == wav_bytes
             assert output.suffix == ".mp3"
             assert output != mp3
             output.write_bytes(b"partial mp3")
@@ -1414,7 +1415,8 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
 
     class RetargetingEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
-            assert source == wav
+            assert source != wav
+            assert source.read_bytes() == wav_bytes
             assert output.parent == old_root / version.id
             output.write_bytes(b"retry mp3")
             review_root.unlink()
