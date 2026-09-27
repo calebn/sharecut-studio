@@ -201,6 +201,16 @@ def clip_source_to_timeline_shift(clip: SourcePlacement) -> float:
     return clip.timeline_start - clip.source_start
 
 
+def clip_source_at_timeline(clip: SourcePlacement, timeline_sec: float) -> float:
+    """Source clock at ``timeline_sec`` on ``clip``'s placement line, with no bounds check.
+
+    The one copy of ``timeline - shift`` for callers that already own the membership
+    rule: :func:`seam_source_clocks_over_clips` accepts a cut that starts exactly at a
+    clip's ``timeline_end``, where :func:`clip_timeline_point_to_source` raises.
+    """
+    return timeline_sec - clip_source_to_timeline_shift(clip)
+
+
 def seam_source_clocks_over_clips(
     clips: Sequence[Clip],
     timeline_start: float,
@@ -210,33 +220,35 @@ def seam_source_clocks_over_clips(
 
     ``pre`` is the source second at ``timeline_start`` on the clip that runs **into**
     the cut; ``post`` is the source second at ``timeline_end`` on the clip that runs
-    **out of** it. Both come from ``clips`` in timeline order, so a span that crosses a
-    clip moved out of source order still yields the joins the cut makes (the merged
-    source spans from :func:`map_timeline_spans_over_clips` are source-sorted). A side
-    that falls in a gap keeps the removed material's first start / last end. Returns
-    ``None`` when no clip material lies in the span.
+    **out of** it. Both come from ``clips`` in timeline order (never the source-sorted
+    merged spans), so a span that crosses a clip moved out of source order still yields
+    the joins the cut makes. A side that falls in a gap reads the source clock where
+    the first (last) clip inside the cut, in timeline order, enters (leaves) it.
+    Returns ``None`` when no clip material lies in the span.
     """
-    if not clips:
-        return None
-    spans = map_timeline_spans_over_clips(clips, [(timeline_start, timeline_end)])
-    if not spans:
-        return None
     ordered = sorted(clips, key=lambda c: c.timeline_start)
+    inside = [
+        c
+        for c in ordered
+        if min(timeline_end, c.timeline_end) - max(timeline_start, c.timeline_start) > _EPS
+    ]
+    if not inside:
+        return None
     pre = next(
         (
-            timeline_start - clip_source_to_timeline_shift(c)
+            clip_source_at_timeline(c, timeline_start)
             for c in ordered
             if c.timeline_start + _MERGE_EPS < timeline_start <= c.timeline_end + _MERGE_EPS
         ),
-        float(spans[0][0]),
+        clip_source_at_timeline(inside[0], max(timeline_start, inside[0].timeline_start)),
     )
     post = next(
         (
-            timeline_end - clip_source_to_timeline_shift(c)
+            clip_source_at_timeline(c, timeline_end)
             for c in ordered
             if c.timeline_start - _MERGE_EPS <= timeline_end < c.timeline_end - _MERGE_EPS
         ),
-        float(spans[-1][1]),
+        clip_source_at_timeline(inside[-1], min(timeline_end, inside[-1].timeline_end)),
     )
     return SourceSec(pre), SourceSec(post)
 
