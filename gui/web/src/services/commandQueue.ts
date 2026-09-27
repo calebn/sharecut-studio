@@ -1,6 +1,7 @@
 /** Persisted command order, replay, conflict, and result-application policy. */
 
 import {
+  type DocumentCommandReply,
   postGuestDocumentCommand,
   postHostDocumentCommand,
 } from "../api/documentTransport";
@@ -14,7 +15,7 @@ import {
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
 import { requestHostDrainLazy } from "../state/requestHostDrainLazy";
-import { isRetryLater, readApiFailure } from "../utils/apiError";
+import { isRetryLater } from "../utils/apiError";
 import {
   documentClientId,
   newCommandId,
@@ -94,28 +95,29 @@ export async function submitQueuedDocumentCommand(
       created_at: Date.now(),
     });
 
-    let res: Response;
+    let reply: DocumentCommandReply;
     try {
-      res = await postGuestDocumentCommand(token, {
+      reply = await postGuestDocumentCommand(token, {
         ...bodyBase,
         role: "guest",
         ...(structural_mode ? { structural_mode } : {}),
       });
     } catch (err) {
-      // The request never reached the server. The command stays queued and
-      // replays on reconnect, so the caller keeps its optimistic value.
+      // The request never reached the server, or its reply did not arrive in
+      // time. The command stays queued and replays on reconnect, so the
+      // caller keeps its optimistic value.
       if (opts?.replaying) {
         throw err;
       }
       return queuedResult(command_id, client_seq);
     }
-    if (!res.ok) {
-      const failure = await readApiFailure(res);
+    if (!reply.ok) {
+      const failure = reply.failure;
       if (opts?.replaying && isRetryLater(failure)) {
         // Nobody awaits a replay: keep it queued for the next drain.
         throw failure;
       }
-      if (res.status === 409 || opts?.replaying) {
+      if (reply.status === 409 || opts?.replaying) {
         // Record it, so the banner says why the edit was dropped.
         const { addConflict } = await import("../state/offlineStore");
         await addConflict(token, {
@@ -135,7 +137,7 @@ export async function submitQueuedDocumentCommand(
       throw failure;
     }
     await removeQueuedCommand(token, command_id);
-    const data = (await res.json()) as Record<string, unknown>;
+    const data = reply.data;
     if (useDawStore.getState().projectPath === projectPath) {
       applyDocumentResult(data);
     }
@@ -237,9 +239,9 @@ async function submitHostDocumentCommand(
     }
     bodyBase = { ...bodyBase, payload: head.payload };
   }
-  let res: Response;
+  let reply: DocumentCommandReply;
   try {
-    res = await postHostDocumentCommand(projectPath, {
+    reply = await postHostDocumentCommand(projectPath, {
       ...bodyBase,
       role: "viewer",
     });
@@ -249,13 +251,13 @@ async function submitHostDocumentCommand(
     }
     throw err;
   }
-  if (!res.ok) {
-    const failure = await readApiFailure(res);
+  if (!reply.ok) {
+    const { failure, status } = reply;
     const detail = failure.message;
-    if (res.status < 500) {
+    if (status < 500) {
       // A 4xx will never succeed on retry. Record 409s, and any rejected
       // replay (nobody is awaiting it), so the banner says why it was dropped.
-      if (res.status === 409 || opts?.replaying) {
+      if (status === 409 || opts?.replaying) {
         await hostQueue.addHostConflict(projectPath, {
           command: {
             command_id,
@@ -271,7 +273,7 @@ async function submitHostDocumentCommand(
         await hostQueue.removeHostQueuedCommand(projectPath, command_id);
       }
     }
-    if (res.status >= 500 && enqueueResult.persisted) {
+    if (status >= 500 && enqueueResult.persisted) {
       return queuedResult(command_id, client_seq);
     }
     throw failure;
@@ -284,7 +286,7 @@ async function submitHostDocumentCommand(
       // A later idempotent replay will clean up this same command identity.
     }
   }
-  const data = (await res.json()) as Record<string, unknown>;
+  const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
     applyDocumentResult(data);
   }
