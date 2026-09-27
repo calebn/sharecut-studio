@@ -304,13 +304,16 @@ def build_refine_brief(
 
     ctx = load_transcript_context(project.workspace_path())
     low_conf = 0
-    suspect: list[dict[str, Any]] = []
+    suspect_count = 0
+    suspect_sample: list[dict[str, Any]] = []
     for tr in project.transcripts:
         for index, w in enumerate(tr.words or []):
             if getattr(w, "suppressed", False):
                 continue
             if w.suspect_hallucination:
-                suspect.append(transcript_word_record(tr, index))
+                suspect_count += 1
+                if len(suspect_sample) < 10:
+                    suspect_sample.append(transcript_word_record(tr, index))
             conf = getattr(w, "confidence", None)
             if conf is not None and float(conf) < REFINE_BRIEF_LOW_CONFIDENCE:
                 low_conf += 1
@@ -326,8 +329,8 @@ def build_refine_brief(
         "garble_hits_count": len(garble),
         "garble_hits_sample": garble[:10],
         "low_confidence_open_words": low_conf,
-        "suspect_hallucination_open_words": len(suspect),
-        "suspect_hallucination_sample": suspect[:10],
+        "suspect_hallucination_open_words": suspect_count,
+        "suspect_hallucination_sample": suspect_sample,
         "combined_transcript_path": str(combined) if combined.is_file() else None,
         "precorrect_report_path": str(report_path) if report_path.is_file() else None,
         "track_ids": [t.track_id for t in project.transcripts],

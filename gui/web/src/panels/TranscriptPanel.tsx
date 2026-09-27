@@ -808,6 +808,22 @@ export function TranscriptPanel() {
                   const cutAwayTip = cutAwayChip
                     ? capabilityTooltip("daw.view.cutAwayWord")
                     : undefined;
+                  const suspectTip = suspectChip
+                    ? "Possible transcription over silence"
+                    : undefined;
+                  const interactionTip = wordInteractive
+                    ? intent === "correct"
+                      ? wordIndex != null
+                        ? "Click: select for Correct · Double-click: seek"
+                        : undefined
+                      : intent === "select"
+                        ? wordIndex != null
+                          ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
+                          : undefined
+                        : wSeek != null
+                          ? `Double-click: ${wSeek.toFixed(1)}s`
+                          : undefined
+                    : undefined;
                   return {
                     word: w,
                     trackId: u.track_id,
@@ -820,20 +836,9 @@ export function TranscriptPanel() {
                     activeRef: bindActiveRef(wActive),
                     anchorProps: wordAnchor,
                     title:
-                      cutAwayTip ??
-                      (wordInteractive
-                        ? intent === "correct"
-                          ? wordIndex != null
-                            ? "Click: select for Correct · Double-click: seek"
-                            : undefined
-                          : intent === "select"
-                            ? wordIndex != null
-                              ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
-                              : undefined
-                            : wSeek != null
-                              ? `Double-click: ${wSeek.toFixed(1)}s`
-                              : undefined
-                        : undefined),
+                      [cutAwayTip ?? interactionTip, suspectTip]
+                        .filter(Boolean)
+                        .join(" · ") || undefined,
                     ariaLabel: cutAwayTip,
                     boundaryAfter: renderBoundaryMarks(
                       turnIndex,

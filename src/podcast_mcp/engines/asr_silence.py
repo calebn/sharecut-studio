@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from hashlib import sha256
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,19 @@ log = logging.getLogger(__name__)
 
 PEAK_BLOCK_SEC = 0.01
 MIN_SPAN_SEC = 0.05
+
+
+def silence_filter_fingerprint(
+    words: Sequence[TranscriptWord], audio_sha256: str, options: AsrOptions
+) -> str:
+    """Identify the media, filter policy and word spans used for stored flags."""
+    digest = sha256()
+    digest.update(f"v1:{audio_sha256}:{options.silence_filter_enabled}:".encode())
+    if options.silence_filter_enabled:
+        digest.update(f"{float(options.silence_peak_dbfs).hex()}:".encode())
+    for word in words:
+        digest.update(f"{word.start.hex()}:{word.end.hex()};".encode())
+    return digest.hexdigest()
 
 
 def flag_words_over_silence(

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.asr_silence import refresh_silence_flags
+from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.transcript_context import load_transcript_context
@@ -192,10 +192,9 @@ def refresh_reused_silence_flags(
 ) -> list[str]:
     """Re-flag ``suspect_hallucination`` on ``plan.reused`` transcripts from ``options``.
 
-    Reused transcripts skip ASR, so without this a changed ``transcribe.silence_filter``
-    (or a transcript stored before the filter existed) would keep stale flags. Only a peak
-    envelope is decoded; Whisper does not run. Returns the labels whose audio could not
-    be decoded.
+    Reused transcripts skip ASR. Decode an envelope only when their stored flags do not
+    match the current media, settings and word spans. Legacy transcripts have no
+    fingerprint and are checked once. Returns labels whose audio could not be decoded.
     """
     stored = {t.key: t for t in project.transcripts}
     skipped: list[str] = []
@@ -203,6 +202,14 @@ def refresh_reused_silence_flags(
         transcript = stored.get(job.key)
         if transcript is None:
             continue
+        fingerprint = silence_filter_fingerprint(
+            transcript.words, plan.audio_hashes[job.key], options
+        )
+        if transcript.silence_filter_fingerprint == fingerprint:
+            continue
         if refresh_silence_flags(transcript.words, job.audio, options) is None:
             skipped.append(job.label)
+            transcript.silence_filter_fingerprint = None
+        else:
+            transcript.silence_filter_fingerprint = fingerprint
     return skipped

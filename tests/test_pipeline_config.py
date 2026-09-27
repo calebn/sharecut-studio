@@ -647,6 +647,7 @@ def test_premix_peak_ceiling_default_is_defined_once() -> None:
     assert mix_peak_ceiling_db({}) == DEFAULT_PREMIX_PEAK_CEILING_DB
     assert mix_peak_ceiling_db({"mix": {"premix_peak_ceiling_db": -3}}) == -3.0
 
+
 def test_asr_options_for_unstaged_project_uses_defaults_without_staging(tmp_path):
     proj = tmp_path / "ep.project.json"
     proj.write_text("{}", encoding="utf-8")

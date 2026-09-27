@@ -1139,6 +1139,7 @@ def test_balance_keeps_gain_when_every_word_is_cut(minimal_project, sample_wav, 
     assert "not measured, gain kept: host" in summary
     assert "speech-gated" not in summary
 
+
 def test_transcribe_tracks_summary_counts_suspect_hallucinations(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -1192,6 +1193,33 @@ def test_transcribe_tracks_reflags_reused_transcripts_from_current_peak(
     assert seen == [-30.0]
 
 
+def test_transcribe_tracks_reuses_silence_flags_without_decoding(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _first_pass(proj)
+    assert proj.transcripts[0].silence_filter_fingerprint
+    with patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file") as decode:
+        steps.transcribe_tracks(proj, load_defaults())
+    decode.assert_not_called()
+
+
+def test_transcribe_tracks_rechecks_legacy_and_changed_word_spans(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _first_pass(proj)
+    transcript = proj.transcripts[0]
+    transcript.silence_filter_fingerprint = None
+    with patch(
+        "podcast_mcp.engines.asr_silence.flag_silent_words_in_file", return_value=0
+    ) as decode:
+        steps.transcribe_tracks(proj, load_defaults())
+        transcript.words[0].start += 0.01
+        steps.transcribe_tracks(proj, load_defaults())
+    assert decode.call_count == 2
+
+
 def test_transcribe_tracks_disabled_filter_clears_reused_flags(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -1211,11 +1239,13 @@ def test_transcribe_tracks_reused_decode_failure_reports_skip(
 ):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     _first_pass(proj)
+    defaults = load_defaults()
+    defaults["transcribe"]["silence_filter"]["peak_dbfs"] = -30.0
     with (
         patch("podcast_mcp.pipeline.steps.TranscriptionEngine"),
         patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", return_value=None),
     ):
-        second = steps.transcribe_tracks(proj, load_defaults())
+        second = steps.transcribe_tracks(proj, defaults)
     assert "silence filter skipped on 1 track(s)" in second
 
 
