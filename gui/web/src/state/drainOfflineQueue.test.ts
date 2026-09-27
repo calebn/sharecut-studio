@@ -35,6 +35,23 @@ describe("drainHostOfflineQueue", () => {
     await vi.waitFor(() => expect(activeHostDrain(path)).toBeNull());
   });
 
+  it("attaches one wake-up per in-flight send across repeated drains", async () => {
+    const path = "/projects/once.project.json";
+    const { beginHostSend } = await import("./hostSendOrder");
+    const send = beginHostSend(path, "live-once");
+    let current = [cmd("live-once")];
+    hostQueue.mockReset().mockImplementation(async () => current);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue(path);
+    await drainHostOfflineQueue(path);
+    expect(hostQueue).toHaveBeenCalledTimes(2);
+    current = [];
+    send.finish();
+    await vi.waitFor(() => expect(hostQueue).toHaveBeenCalledTimes(3));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hostQueue).toHaveBeenCalledTimes(3);
+  });
+
   it("stops at this tab's in-flight send and drains again once it settles", async () => {
     const path = "/projects/episode.project.json";
     const { beginHostSend } = await import("./hostSendOrder");
