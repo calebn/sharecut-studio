@@ -162,11 +162,13 @@ export function usePipelineJob(
 
   // One tick of the stream-down status poll.
   const pollStatusOnce = useEffectEvent(() => {
-    const attachedAtStart = attachedJobId.current;
     void loadPipelineStatus({ signal: abortRef.current?.signal })
       .then((st) => {
-        // A stream attached since this fetch started owns the job now.
-        if (!mountedRef.current || attachedJobId.current !== attachedAtStart) {
+        // A stream that is attached BY THE TIME this result comes back owns
+        // the job now, whether it (re)attached before or after this fetch
+        // started — the poll is only a down-time fallback, so any live
+        // stream, even one back on the same job id, wins over a stale result.
+        if (!mountedRef.current || esRef.current != null) {
           return;
         }
         apply(st);
