@@ -7,10 +7,12 @@ import pytest
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
+    digital_silence_fraction,
     flag_silent_words_in_file,
     flag_words_over_silence,
     peak_envelope,
     refresh_silence_flags,
+    silent_fraction,
 )
 from podcast_mcp.models import TranscriptWord
 
@@ -97,6 +99,44 @@ def test_real_decode_of_tone(sample_wav):
     words = [_w(0.5, 1.0)]
     assert flag_silent_words_in_file(words, sample_wav, peak_dbfs=-60.0) == 0
     assert not words[0].suspect_hallucination
+
+
+def test_silent_fraction_counts_blocks_below_floor():
+    peaks = np.array([0.0, 1e-5, 0.5, 0.2], dtype=np.float32)
+    assert silent_fraction(peaks, peak_dbfs=-60.0) == 0.5
+    assert silent_fraction(np.array([], dtype=np.float32), peak_dbfs=-60.0) == 0.0
+
+
+def test_digital_silence_fraction_real_decode(tmp_path):
+    sr = 8000
+    zeros = np.zeros(sr * 3, dtype=np.float32)
+    t = np.arange(sr) / sr
+    tone = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    samples = np.concatenate([zeros, tone])
+    ints = np.round(samples * 32767).astype("<i2")
+    path = tmp_path / "mostly_silent.wav"
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(ints.tobytes())
+
+    frac = digital_silence_fraction(path, peak_dbfs=-60.0)
+    assert frac is not None
+    assert 0.70 <= frac <= 0.80
+
+
+def test_digital_silence_fraction_undecodable(monkeypatch, tmp_path, caplog):
+    from podcast_mcp.engines import asr_silence
+
+    def boom(*a, **k):
+        raise RuntimeError("no decode")
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", boom)
+    with caplog.at_level("WARNING"):
+        result = asr_silence.digital_silence_fraction(tmp_path / "a.wav", peak_dbfs=-60.0)
+    assert result is None
+    assert "digital silence measure skipped" in caplog.text
 
 
 def test_refresh_silence_flags_off_clears_and_on_reflags(monkeypatch, tmp_path):

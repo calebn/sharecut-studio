@@ -7,6 +7,9 @@ marked ``suspect_hallucination``. Words are never deleted or retimed.
 The track is streamed at its native rate and layout, so there is no resampling and
 energy above 4 kHz still counts. It is reduced to a per-block peak envelope, so
 memory stays small on long tracks.
+
+Analyze (``suggest_pipeline_tuning``) reuses the same envelope to flag a dialogue
+source that is mostly digital silence, a sign of a gated stem worth VAD.
 """
 
 from __future__ import annotations
@@ -95,6 +98,26 @@ def peak_envelope(path: Path, *, block_sec: float = PEAK_BLOCK_SEC) -> tuple[np.
     if not parts:
         raise ValueError(f"no audio decoded from {path}")
     return np.concatenate(parts), sample_rate / block
+
+
+def silent_fraction(peaks: np.ndarray, *, peak_dbfs: float) -> float:
+    """Share of ``peaks`` blocks below ``peak_dbfs`` (0.0 for an empty envelope)."""
+    if peaks.size == 0:
+        return 0.0
+    return float(np.count_nonzero(peaks < db_to_amplitude(peak_dbfs)) / peaks.size)
+
+
+def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
+    """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
+
+    ``None`` (a warning is logged) when the media cannot be decoded.
+    """
+    try:
+        peaks, _rate = peak_envelope(path)
+    except Exception as exc:
+        log.warning("digital silence measure skipped for %s: %s", path, exc)
+        return None
+    return silent_fraction(peaks, peak_dbfs=peak_dbfs)
 
 
 def flag_silent_words_in_file(
