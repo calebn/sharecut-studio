@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -218,6 +218,14 @@ and closable. They cover an open episode, the no-episode warning, the
 gesture sheet's callback handoff to keyboard shortcuts, and a 360px phone
 viewport without app or network context.
 
+`Templates/ShareDialog` renders the production `ShareDialogView` that the live
+`ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
+links (`../api`), clipboard writes, the copied-flash timer, `window.confirm`,
+and the `record.openPanel` handoff. Stories pass fictional `hostShareRow`
+fixtures and local callbacks, covering empty, live review and agent links, a
+record room, a missing producer link, busy, clipboard error, and a 360px
+phone.
+
 ### Catalog boundary (store-bound components)
 
 Per sync rule 6 (#172/#173), a component that cannot render from props alone
@@ -226,7 +234,7 @@ tracked as grouped follow-up issues, one per cluster, each component its own
 checkbox so it can ship as its own PR:
 
 - **A** ([#608](https://github.com/calebn/sharecut-studio/issues/608)) — share
-  and bounce dialogs: `ShareDialog`, `BounceDialog`
+  and bounce dialogs: `BounceDialog` (`ShareDialog` done)
 - **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
   rail, tool mode toggle and command palette: `EditingToolRail`,
   `ToolModeToggle`, `CommandPalette`
@@ -245,7 +253,8 @@ and `MenuItem`, which already have stories; they are not on this list and get
 no separate refactor issue. A component leaves this list only once its
 production view is extracted into a props-only `XView` rendered by the live
 adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
-`FollowBannerView` and `GuestAttentionBannerView` already were.
+`FollowBannerView`, `GuestAttentionBannerView` and `ShareDialogView` already
+were.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -391,6 +400,9 @@ that store or simulate command execution.
   the shared `dawShellStoryDecorator`, and removed cluster **B** from the
   Catalog boundary follow-up list; the conflict list now ends with a "+N
   more" item when more than 5 conflicts are queued.
+
+- 2026-09-27 — Added `Templates/ShareDialog` with the props-only
+  `ShareDialogView` rendered by the live `ShareDialog` (#608).
 
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,

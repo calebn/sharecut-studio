@@ -10,6 +10,7 @@ import type {
   TrackView,
 } from "../types/project";
 import type { SessionClient } from "../types/session";
+import type { HostShareRow } from "../types/shares";
 import type { RenderInvalidationView } from "../utils/staleRender";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
@@ -227,6 +228,23 @@ export function pipelineJobSnapshot(
     error: null,
     elapsed_sec: 12,
     steps: [],
+    ...overrides,
+  };
+}
+
+/** A fictional live review share row (never a real token or relay URL). */
+export function hostShareRow(
+  overrides: Partial<HostShareRow> = {},
+): HostShareRow {
+  return {
+    token: "sample-review-link",
+    url: "http://127.0.0.1:8765/r/sample-review-link",
+    kind: "review",
+    docs_role: "commenter",
+    mcp_url: null,
+    usable: true,
+    review_version_label: "Share mix",
+    last_used_at: null,
     ...overrides,
   };
 }
