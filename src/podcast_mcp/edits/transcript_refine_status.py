@@ -16,6 +16,8 @@ from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
+# Open words below this confidence count toward the refine brief's low_confidence_open_words.
+REFINE_BRIEF_LOW_CONFIDENCE = 0.5
 STATUS_FILENAME = "transcript_refine_status.json"
 RefineStatusValue = Literal["pending", "done", "waived"]
 RefineMode = Literal["require", "waive_unattended", "off"]
@@ -298,6 +300,8 @@ def build_refine_brief(
         except ValueError:
             pass
 
+    from podcast_mcp.edits.transcript_correct import transcript_word_record
+
     ctx = load_transcript_context(project.workspace_path())
     low_conf = 0
     suspect: list[dict[str, Any]] = []
@@ -306,18 +310,9 @@ def build_refine_brief(
             if getattr(w, "suppressed", False):
                 continue
             if w.suspect_hallucination:
-                suspect.append(
-                    {
-                        "track_id": tr.track_id,
-                        "source_id": tr.source_id,
-                        "word_index": index,
-                        "text": w.text,
-                        "start": w.start,
-                        "end": w.end,
-                    }
-                )
+                suspect.append(transcript_word_record(tr, index))
             conf = getattr(w, "confidence", None)
-            if conf is not None and float(conf) < 0.5:
+            if conf is not None and float(conf) < REFINE_BRIEF_LOW_CONFIDENCE:
                 low_conf += 1
 
     combined = project.transcripts_dir() / "combined.json"
