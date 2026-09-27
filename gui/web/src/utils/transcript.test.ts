@@ -9,6 +9,7 @@ import {
   centeredScrollTop,
   findActiveUtteranceIndex,
   findTranscriptWord,
+  findTranscriptWordIn,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isUtteranceActive,
@@ -402,6 +403,13 @@ describe("indexed transcript word lookup", () => {
     expect(findTranscriptWord(project, "host", 2)?.text).toBe("first");
     expect(findTranscriptWord(project, "host", 99)).toBeNull();
     expect(findTranscriptWord(null, "host", 2)).toBeNull();
+  });
+
+  it("finds a word among bare utterances", () => {
+    const utterances = project.transcript?.utterances ?? [];
+    expect(findTranscriptWordIn(utterances, "host", 2)?.text).toBe("first");
+    expect(findTranscriptWordIn(utterances, "host", 99)).toBeNull();
+    expect(findTranscriptWordIn([], "host", 2)).toBeNull();
   });
 
   it("combines reversed indexed ranges across utterances using timeline fallback", () => {

@@ -7,13 +7,13 @@ import type {
 } from "../types/project";
 import { memoByRef } from "./memoByRef";
 
-/** First indexed word on a track, in transcript order. */
-export function findTranscriptWord(
-  project: ProjectView | null,
+/** First indexed word on a track among these utterances, in transcript order. */
+export function findTranscriptWordIn(
+  utterances: readonly CombinedUtterance[],
   trackId: string,
   wordIndex: number,
 ): TranscriptWordView | null {
-  for (const utterance of project?.transcript?.utterances ?? []) {
+  for (const utterance of utterances) {
     if (utterance.track_id !== trackId) {
       continue;
     }
@@ -24,6 +24,19 @@ export function findTranscriptWord(
     }
   }
   return null;
+}
+
+/** First indexed word on a track, in transcript order. */
+export function findTranscriptWord(
+  project: ProjectView | null,
+  trackId: string,
+  wordIndex: number,
+): TranscriptWordView | null {
+  return findTranscriptWordIn(
+    project?.transcript?.utterances ?? [],
+    trackId,
+    wordIndex,
+  );
 }
 
 /** Inclusive indexed range on a track; uses mapped times when present. */
