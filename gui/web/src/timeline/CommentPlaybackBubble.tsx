@@ -2,14 +2,7 @@ import { useCallback } from "react";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { activeCommentId } from "./activeComment";
-
-function truncate(body: string, max = 80): string {
-  const t = body.trim();
-  if (t.length <= max) {
-    return t;
-  }
-  return `${t.slice(0, max - 1)}…`;
-}
+import { CommentPlaybackBubbleView } from "./CommentPlaybackBubbleView";
 
 interface CommentPlaybackBubbleProps {
   comments: readonly TimelineComment[];
@@ -38,26 +31,13 @@ export function CommentPlaybackBubble({
     ),
   );
   const active =
-    activeId == null ? null : comments.find((c) => c.id === activeId);
-
-  if (!active) {
-    return null;
-  }
-
-  const left = active.timeline_start * zoomPxPerSec;
+    activeId == null ? null : (comments.find((c) => c.id === activeId) ?? null);
 
   return (
-    <button
-      type="button"
-      className="comment-playback-bubble"
-      style={{ left }}
-      title={`${active.author}: ${active.body}`}
-      onClick={() => onSelect(active)}
-    >
-      <span className="comment-playback-bubble-author">{active.author}</span>
-      <span className="comment-playback-bubble-body">
-        {truncate(active.body)}
-      </span>
-    </button>
+    <CommentPlaybackBubbleView
+      comment={active}
+      zoomPxPerSec={zoomPxPerSec}
+      onSelect={onSelect}
+    />
   );
 }
