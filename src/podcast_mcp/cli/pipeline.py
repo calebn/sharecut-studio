@@ -125,7 +125,11 @@ def pipeline_config_cmd(
 ) -> None:
     """Show the effective pipeline config: defaults + --set, params, and step states."""
     from podcast_mcp.pipeline.meta import PARAM_FIELDS
-    from podcast_mcp.services.pipeline_config import merge_pipeline_config, pipeline_step_states
+    from podcast_mcp.services.pipeline_config import (
+        config_assignment_paths,
+        merge_pipeline_config,
+        pipeline_step_states,
+    )
     from podcast_mcp.util.dicts import get_by_path
 
     overrides = _overrides(assignments)
@@ -137,19 +141,16 @@ def pipeline_config_cmd(
         return
 
     _echo_step_states(rows)
-    overridden_paths = set(_config_assignments_paths(overrides))
+    overridden_paths = set(config_assignment_paths(overrides))
     for field in PARAM_FIELDS:
         value = get_by_path(cfg, field.path)
         marker = " *" if field.path in overridden_paths else ""
         typer.echo(f"  {field.path} = {json.dumps(value)}{marker}")
     if overrides:
-        typer.echo("  (* overridden by --set; pass --set again to change, run --set to apply)")
-
-
-def _config_assignments_paths(overrides: dict[str, Any]) -> list[str]:
-    from podcast_mcp.services.pipeline_config import config_assignments
-
-    return [a.split("=", 1)[0] for a in config_assignments(overrides)]
+        typer.echo(
+            "  (* overridden by --set; pass the same --set to podcast pipeline run "
+            "to use these values)"
+        )
 
 
 @pipeline_app.command("analyze")
