@@ -1,5 +1,6 @@
 import { hostFetch } from "../api/documentTransport";
 import { readApiError } from "../utils/apiError";
+import { JOB_STREAM_RECHECK_MS } from "./pipeline";
 
 export type BootstrapComponentStatus = {
   ok: boolean;
@@ -167,7 +168,7 @@ export async function fetchBootstrapJob(
   return body.job ?? null;
 }
 
-/** Wait for a bootstrap job via SSE; re-check status-job once when EventSource errors. */
+/** Wait for a bootstrap job via SSE; re-check status-job when EventSource errors and every JOB_STREAM_RECHECK_MS while the stream is open (backstop for a silent stream; no hard timeout because model downloads can be long). */
 export function waitForBootstrapJob(
   jobId: string,
   opts?: {
@@ -178,7 +179,16 @@ export function waitForBootstrapJob(
     let settled = false;
     const es = new EventSource(bootstrapEventsUrl(jobId));
 
+    const recheck = window.setInterval(() => {
+      void fetchBootstrapJob(jobId)
+        .then((job) => consider(job))
+        .catch(() => {
+          /* ignore transient */
+        });
+    }, JOB_STREAM_RECHECK_MS);
+
     const cleanup = () => {
+      window.clearInterval(recheck);
       es.close();
     };
 

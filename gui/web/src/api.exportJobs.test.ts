@@ -5,6 +5,7 @@ import {
   followExportJob,
   waitForPipelineJob,
 } from "./api";
+import { JOB_STREAM_RECHECK_MS } from "./api/pipeline";
 import type { PipelineJobSnapshot } from "./types/pipeline";
 
 class FakeEventSource {
@@ -73,6 +74,7 @@ describe("export job helpers", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -250,6 +252,33 @@ describe("export job helpers", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     es.emit(okJob("live", "pipeline", []));
     await pending;
+  });
+
+  it("resolves from the slow status re-check when the open stream goes silent", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        const done = calls > 1;
+        return new Response(
+          JSON.stringify({
+            running: !done,
+            job: done ? okJob("live", "pipeline", []) : null,
+            jobs: [],
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const pending = waitForPipelineJob("live", { timeoutMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    const es = FakeEventSource.instances[0]!;
+    await vi.advanceTimersByTimeAsync(JOB_STREAM_RECHECK_MS);
+    await expect(pending).resolves.toMatchObject({ id: "live", status: "ok" });
+    expect(es.closed).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("rejects when the stream closes with no terminal job", async () => {
