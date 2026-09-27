@@ -493,7 +493,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       const timeWidth = next.timeViewportPx;
       setTimelineViewportWidth(timeWidth);
       stageHeightRef.current = el.clientHeight;
-      refitLanes();
+      // Fixed mode ignores the stage height; the layout effect above
+      // re-resolves when the mode or fixed px changes.
+      if (fitInputsRef.current.mode === "fit") {
+        refitLanes();
+      }
       if (useDawStore.getState().followingClientId) {
         return;
       }
