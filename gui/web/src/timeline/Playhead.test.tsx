@@ -61,6 +61,27 @@ describe("Playhead", () => {
     expect(onRender).not.toHaveBeenCalled();
   });
 
+  it("keeps the latest store transform through a parent rerender", () => {
+    const { container, rerender } = render(<Playhead height={144} />);
+    const el = container.querySelector(".playhead") as HTMLElement;
+    const stale = { ...useDawStore.getState(), playheadSec: 3 };
+    act(() => useDawStore.setState({ playheadSec: 5 }));
+    expect(el.style.transform).toBe("translateX(200px)");
+
+    // A concurrent render can observe older state before its DOM commit.
+    // The live needle's React style must never replace the store's newer move.
+    const getState = vi.spyOn(useDawStore, "getState").mockReturnValue(stale);
+    try {
+      rerender(<Playhead height={160} />);
+    } finally {
+      getState.mockRestore();
+    }
+    expect(el.style.height).toBe("160px");
+    expect(el.style.transform).toBe("translateX(200px)");
+    act(() => useDawStore.setState({ playheadSec: 6 }));
+    expect(el.style.transform).toBe("translateX(240px)");
+  });
+
   it("is the same needle in the ruler", () => {
     useDawStore.setState({ playheadSec: 3, zoomPxPerSec: 20 });
     const { container } = render(

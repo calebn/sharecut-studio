@@ -37,12 +37,5 @@ export function Playhead({ height }: PlayheadProps) {
       }
     });
   }, []);
-  const { playheadSec, zoomPxPerSec } = useDawStore.getState();
-  return (
-    <PlayheadNeedle
-      ref={ref}
-      height={height}
-      xPx={playheadSec * zoomPxPerSec}
-    />
-  );
+  return <PlayheadNeedle ref={ref} height={height} />;
 }
