@@ -103,6 +103,7 @@ distribution profile. See [docs/setup.md](docs/setup.md#configuration-boundary).
 - [Host-online relay](docs/host-online-relay.md) — Docker share edge, tunnel, **capability-scoped remote MCP** (via the FOSS collaboration extension)
 - [Recording session (design)](docs/recording-session.md) — record links, local WAV keepers, mix-minus monitor, consent
 - [UX onboarding pack](ux/README.md) — shareable brief, screens, glossary, backlog ([live site](https://ux.sharecut.studio/); [See the UI](https://ux.sharecut.studio/#/demo))
+- [UI philosophy](docs/ui-philosophy.md) — trust-first beta design principles for automation, recovery, and the free core workflow
 - [Setup](docs/setup.md) — install, extras, optional downloads, MCP, bootstrap, play, GUI
 - [Architecture](docs/architecture.md) — layers and timebase
 - [Contributing](docs/contributing.md) — where new code goes; [Git workflow](docs/contributing.md#git-workflow) (feature branch → PR → `main`)

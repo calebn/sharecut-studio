@@ -29,3 +29,18 @@ def test_ux_pack_sync_hook_covers_every_script_trigger() -> None:
     files_pattern = re.compile(ux_pack_sync["files"])
     for trigger in module.TRIGGER_PREFIXES:
         assert files_pattern.match(trigger), trigger
+    assert "docs/ui-philosophy.md" in module.TRIGGER_PREFIXES
+
+
+def test_ui_philosophy_change_requires_ux_page(monkeypatch) -> None:
+    module = load_script("check_ux_pack_sync")
+    monkeypatch.setattr(module, "_commit_msg_allows_skip", lambda: False)
+    monkeypatch.setattr(module, "_staged_files", lambda: ["docs/ui-philosophy.md"])
+    assert module.main(["check_ux_pack_sync.py", "docs/ui-philosophy.md"]) == 1
+
+    monkeypatch.setattr(
+        module,
+        "_staged_files",
+        lambda: ["docs/ui-philosophy.md", "ux/pages/brief.md"],
+    )
+    assert module.main(["check_ux_pack_sync.py", "docs/ui-philosophy.md"]) == 0
