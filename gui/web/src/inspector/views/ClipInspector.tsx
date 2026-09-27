@@ -75,9 +75,19 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     shareCapabilities,
   );
 
+  // Render ignores the fades at a cut join: this clip's fade-in when its
+  // incoming join is a cut, its fade-out when the next clip's join is.
+  const cutIn = isCutJoin(clip);
+  const cutOut = useDawStore((s) =>
+    Object.values(s.project?.clips?.tracks ?? {}).some((rows) =>
+      rows.some((c) => c.join_left_clip_id === clip.id && isCutJoin(c)),
+    ),
+  );
   const commitFades = async () => {
-    const fadeIn = Number.parseInt(fadeInStr, 10);
-    const fadeOut = Number.parseInt(fadeOutStr, 10);
+    // An edge at a cut join is disabled: send its stored value unchanged
+    // (the pair clamp below still keeps the two fades inside the clip).
+    const fadeIn = cutIn ? clip.fade_in_ms : Number.parseInt(fadeInStr, 10);
+    const fadeOut = cutOut ? clip.fade_out_ms : Number.parseInt(fadeOutStr, 10);
     if (
       !Number.isFinite(fadeIn) ||
       !Number.isFinite(fadeOut) ||
@@ -110,14 +120,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   };
 
   const leftClipId = clip.join_left_clip_id ?? null;
-  // Render ignores the fades at a cut join: this clip's fade-in when its
-  // incoming join is a cut, its fade-out when the next clip's join is.
-  const cutIn = isCutJoin(clip);
-  const cutOut = useDawStore((s) =>
-    Object.values(s.project?.clips?.tracks ?? {}).some((rows) =>
-      rows.some((c) => c.join_left_clip_id === clip.id && isCutJoin(c)),
-    ),
-  );
   const fadeHint = cutFadeHint(cutIn, cutOut);
   const joinNote = joinRenderNote(clip);
 
@@ -233,7 +235,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
               <span>ms out</span>
               {capKnown ? (
                 <span className="ui-field-hint" role="status">
-                  {fadeHint ?? clampNotice ?? `max ${fadeLimitMs} ms`}
+                  {[fadeHint, clampNotice ?? `max ${fadeLimitMs} ms`]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
               ) : null}
               <Button

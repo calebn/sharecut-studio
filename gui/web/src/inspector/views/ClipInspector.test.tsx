@@ -155,6 +155,26 @@ describe("ClipInspector join", () => {
     join_crossfade_ms: 0,
     join_crossfade_blocked: null,
   };
+  const cutAfterSecond: ClipRow = {
+    ...second,
+    id: "c3",
+    timeline_start: 4,
+    timeline_end: 6,
+    join_left_clip_id: "c2",
+    join_in_mode: "cut",
+  };
+  function hydrateCutAfter(trackFadeMax: number | null, left: ClipRow) {
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [sampleTrack({ role: "music", fade_max_ms: trackFadeMax })],
+        clips: {
+          tracks: { host: [clip, left, cutAfterSecond] },
+          clip_count: 3,
+        },
+      }),
+    );
+  }
 
   beforeEach(() => {
     vi.mocked(setClipJoin).mockClear();
@@ -242,6 +262,38 @@ describe("ClipInspector join", () => {
     expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
     expect(screen.getByLabelText("Fade out ms")).toBeDisabled();
     expect(screen.getByText(/Fade out ignored/)).toBeInTheDocument();
+  });
+
+  it("shows the clamp notice next to the cut hint", async () => {
+    hydrateCutAfter(40, second);
+    const { rerender } = render(<ClipInspector clip={second} />);
+    expect(
+      screen.getByText(/Fade out ignored.* · max 40 ms/),
+    ).toBeInTheDocument();
+    await applyFades("100");
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 0);
+    rerender(<ClipInspector clip={{ ...second, fade_in_ms: 40 }} />);
+    expect(
+      screen.getByText(/Fade out ignored.* · Clamped to 40 ms/),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the ignored fade-out unchanged", async () => {
+    const left = { ...second, fade_out_ms: 30 };
+    hydrateCutAfter(null, left);
+    vi.mocked(setClipFade).mockClear();
+    render(<ClipInspector clip={left} />);
+    await applyFades("20");
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30);
+  });
+
+  it("trims the ignored fade-out only so the fades fit the clip", async () => {
+    const left = { ...second, source_end: 0.05, fade_out_ms: 30 };
+    hydrateCutAfter(null, left);
+    vi.mocked(setClipFade).mockClear();
+    render(<ClipInspector clip={left} />);
+    await applyFades("40");
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 10);
   });
 
   it("uses a typed length once, then the mode default", async () => {
