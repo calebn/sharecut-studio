@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { clearRegisteredCommands, execute } from "./execute";
+import { PROJECT_CLOSE_TIMEOUT_MS } from "./projectMedia";
 import {
   _resetProjectOpenInFlightForTests,
   registerDawCommands,
@@ -94,6 +95,7 @@ describe("project.open", () => {
     expect((await execute("project.new")).status).toBe("ok");
     await waitFor(() => expect(assign).toHaveBeenCalled());
     expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(closeMock).toHaveBeenCalledWith(expect.any(AbortSignal));
     expect(closeMock.mock.invocationCallOrder[0]).toBeLessThan(
       assign.mock.invocationCallOrder[0] ?? 0,
     );
@@ -103,12 +105,42 @@ describe("project.open", () => {
     expect(destination.searchParams.get("theme")).toBe("dark");
   });
 
-  it("New still opens home when unpinning fails", async () => {
-    closeMock.mockRejectedValue(new Error("403"));
+  it("New stays in Studio and reports a failed unpin", async () => {
+    closeMock.mockRejectedValue(new Error("403 forbidden"));
     expect((await execute("project.new")).status).toBe("ok");
-    await waitFor(() => expect(assign).toHaveBeenCalled());
-    const destination = new URL(String(assign.mock.calls[0]?.[0]));
-    expect(destination.searchParams.get("home")).toBe("1");
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "New project failed: 403 forbidden",
+      ),
+    );
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("New ignores a repeat while the unpin is pending", async () => {
+    closeMock.mockImplementationOnce(() => new Promise<void>(() => {}));
+    expect((await execute("project.new")).status).toBe("ok");
+    expect((await execute("project.new")).status).toBe("ok");
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().statusAnnouncement).toBe("Closing project…");
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("New gives up on a stalled unpin", async () => {
+    vi.useFakeTimers();
+    try {
+      closeMock.mockImplementationOnce(
+        (signal?: AbortSignal) =>
+          new Promise<void>((_, reject) => {
+            signal?.addEventListener("abort", () => reject(signal.reason));
+          }),
+      );
+      expect((await execute("project.new")).status).toBe("ok");
+      await vi.advanceTimersByTimeAsync(PROJECT_CLOSE_TIMEOUT_MS);
+      expect(useDawStore.getState().statusAnnouncement).toContain("timed out");
+      expect(assign).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("blocks Open before showing a picker while the guard is armed", async () => {

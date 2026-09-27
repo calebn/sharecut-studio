@@ -1,3 +1,11 @@
+import {
+  addTrackCommand,
+  closeEpisodeProject,
+  openEpisodeProject,
+  pickEpisodeProject,
+  removeTrackCommand,
+  reorderTrackCommand,
+} from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
@@ -14,8 +22,12 @@ const PROJECT_SWITCH_BLOCKED =
   "Stop and finish recording before switching projects";
 
 let projectOpenInFlight = false;
+let projectNewInFlight = false;
+/** Studio New stops waiting for the unpin after this long and stays open. */
+export const PROJECT_CLOSE_TIMEOUT_MS = 10_000;
 export function _resetProjectOpenInFlightForTests(): void {
   projectOpenInFlight = false;
+  projectNewInFlight = false;
 }
 function resolveInspectorTrackId(args: Record<string, unknown>): string | null {
   if (typeof args.trackId === "string" && args.trackId) {
@@ -74,7 +86,6 @@ async function applyTrackReorder(
   const seqAtStart = currentDocumentSeq();
   s.setProject(patchTracksOrder(previous, trackId, index));
   try {
-    const { reorderTrackCommand } = await import("../api");
     await reorderTrackCommand(s.projectPath, trackId, index);
     useDawStore.getState().announceStatus("Reordered track");
     return { status: "ok" };
@@ -91,12 +102,31 @@ export function registerProjectMediaCommands(): void {
       useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
       return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
     }
+    if (projectNewInFlight) {
+      return { status: "ok" };
+    }
+    projectNewInFlight = true;
+    useDawStore.getState().announceStatus("Closing project…");
     void (async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(
+        () =>
+          controller.abort(
+            new DOMException("Closing the project timed out", "TimeoutError"),
+          ),
+        PROJECT_CLOSE_TIMEOUT_MS,
+      );
       try {
-        const { closeEpisodeProject } = await import("../api");
-        await closeEpisodeProject();
-      } catch {
-        /* ?home=1 still shows Home when the unpin fails */
+        await closeEpisodeProject(controller.signal);
+      } catch (e) {
+        // Home would show while host MCP stays pinned; stay and say so.
+        projectNewInFlight = false;
+        useDawStore
+          .getState()
+          .announceStatus(`New project failed: ${errorMessage(e)}`);
+        return;
+      } finally {
+        clearTimeout(timer);
       }
       window.location.assign(homeUrl(window.location.href));
     })();
@@ -114,9 +144,6 @@ export function registerProjectMediaCommands(): void {
     projectOpenInFlight = true;
     void (async () => {
       try {
-        const { openEpisodeProject, pickEpisodeProject } = await import(
-          "../api"
-        );
         let path: string | null = null;
         try {
           const picked = await pickEpisodeProject();
@@ -170,7 +197,6 @@ export function registerProjectMediaCommands(): void {
     if (!canIngestMedia(s.projectPath, s.guestMode, s.shareCapabilities)) {
       return { status: "disabled", reason: "Media ingest not allowed" };
     }
-    const { addTrackCommand } = await import("../api");
     await addTrackCommand(s.projectPath, {});
     return { status: "ok" };
   });
@@ -191,7 +217,6 @@ export function registerProjectMediaCommands(): void {
         return { status: "disabled", reason: "Cancelled" };
       }
       try {
-        const { removeTrackCommand } = await import("../api");
         await removeTrackCommand(s.projectPath, trackId);
         useDawStore.getState().announceStatus(`Removed ${label}`);
         const next = useDawStore.getState();

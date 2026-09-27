@@ -160,9 +160,10 @@ export async function openEpisodeProject(
   return res.json() as Promise<{ project_path: string; name: string }>;
 }
 
-export async function closeEpisodeProject(): Promise<void> {
+export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
   const res = await hostFetch("/api/project/close", {
     method: "POST",
+    signal,
   });
   if (!res.ok) {
     throw new Error(await readApiError(res));

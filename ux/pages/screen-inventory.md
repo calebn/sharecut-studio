@@ -15,7 +15,7 @@ Per-surface **display schemas**: what regions exist, what data they show, empty/
 | **Purpose** | Create a new episode workspace or open an existing `episode.project.json` on the host |
 | **Primary actions** | New project… · Open project… · **Browse…** (OS file dialog via the local engine) · paste path · **Connect agent…** · **Help** (create and preview a sanitized diagnostics zip; optionally submit a public report after consent, or open a prefilled GitHub issue and attach the local zip; local **Creating…** busy, not StatusBar) |
 | **Data shown** | Episode name + workspace directory (New); path to `episode.project.json` (Open) |
-| **Pinned project** | Opening `/` while a project is pinned goes straight to that project; `/?home=1` (recovery page “Choose a different project…”, Studio **New project**) shows home. Only New project unpins. |
+| **Pinned project** | Opening `/` while a project is pinned goes straight to that project; `/?home=1` (recovery page “Choose a different project…”, Studio **New project**) shows home. Only New project unpins; if the unpin fails or takes over 10 s, Studio stays open and says so in the status line. |
 | **Empty / error** | Missing OS dialog tool → keep paste field + alert; wrong filename → server error |
 | **Out of scope** | Guests / share tokens; uploading project JSON as a browser File |
 
