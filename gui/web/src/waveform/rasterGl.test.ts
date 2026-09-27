@@ -125,7 +125,7 @@ describe("GlRaster", () => {
     env.max.set([0.5, 0.9, 0.1]);
     env.min.set([-0.5, -0.2, -0.1]);
     env.rms.set([0.2, 0.3, 0.05]);
-    const geom = columnGeometry(env, 1, 24, "pyramid");
+    const geom = columnGeometry(env, 1, 24, "pyramid", "linear");
     const core = new Float32Array([0.1, 0.2, 0.3, 1]);
     const edge = new Float32Array([0.4, 0.5, 0.6, 0.6]);
     raster.render(geom, 3, 24, core, edge);

@@ -20,6 +20,9 @@ export const LINE_MODE_MAX_SAMPLES_PER_PX = 4;
 export const QUIET_AMP = 0.04;
 export const QUIET_MIN_DURATION_SEC = 0.12;
 export const QUIET_WASH_MIN_ZOOM_PX_PER_SEC = 8;
+export const WAVEFORM_LOG_FLOOR_DB = -54;
+export const COARSE_COLUMN_SEC = 0.05;
+export const COARSE_PEAK_ALPHA = 0.35;
 
 /** Paint DPR on a 1/8 grid, so `RENDER_TILE_CSS_PX * paintDpr(d)` is an integer. */
 export function paintDpr(devicePixelRatio: number): number {

@@ -12,7 +12,8 @@ and its knobs live in the `waveform` block of
 > layer, the raster worker and the timeline renderer (§ Client) are in place.
 > Pyramids are the only waveform format: the uint8 overview JSON
 > (`artifacts/peaks/{track}.json` and its HTTP route) is gone, and `gc_pyramids`
-> deletes leftover `artifacts/peaks/*.json` once it is 7 days old.
+> deletes leftover `artifacts/peaks/*.json` at once when that track has a live
+> pyramid, otherwise once it is 7 days old.
 > Zoom clamps to `effectiveMaxZoomPxPerSec(sessionSec)` (§ Deep zoom).
 
 ## Contract knobs
@@ -32,6 +33,7 @@ CI's `frontend` job runs it with `--check`).
 | `pcm_block_frames` | 65536 | Host deep-zoom PCM block size |
 | `render_tile_css_px`, `overscan_css_px`, `paint_dpr_cap`, `min_clip_css_px`, `line_mode_max_samples_per_px` | 512, 512, 2, 6, 4 | Client rendering |
 | `quiet_amp`, `quiet_min_duration_sec`, `quiet_wash_min_zoom_px_per_sec` | 0.04, 0.12, 8 | Quiet wash |
+| `log_floor_db`, `coarse_column_sec`, `coarse_peak_alpha` | −54, 0.05, 0.35 | Display scale and coarse-zoom peak dimming (client only) |
 
 `max_content_px` (15,000,000) at the top level caps timeline content width;
 `min_viewport_span_sec` (0.001) is the shortest presence viewport span, and
@@ -41,7 +43,9 @@ generated TS exports `effectiveMaxZoomPxPerSec(sessionSec) =
 min(MAX_ZOOM_PX_PER_SEC, MAX_CONTENT_PX / max(sessionSec, 1))` and
 `paintDpr(dpr) = clamp(round(dpr·8)/8, 1, PAINT_DPR_CAP)`, so `512·paintDpr` is
 always an integer. `paintDpr` is client-only: `paint_dpr_cap` has no Python getter
-and reaches TS as `PAINT_DPR_CAP` via `scripts/export_timeline_zoom.py`. Python
+and reaches TS as `PAINT_DPR_CAP` via `scripts/export_timeline_zoom.py`; the same
+is true of `log_floor_db`, `coarse_column_sec` and `coarse_peak_alpha`
+(`WAVEFORM_LOG_FLOOR_DB`, `COARSE_COLUMN_SEC`, `COARSE_PEAK_ALPHA`). Python
 reads only the keys it needs, through
 `util/timeline_zoom.py` getters (`waveform_format_version()`,
 `base_samples_per_bin()`, `level_factor()`, `bins_per_data_tile()`,
@@ -252,14 +256,16 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   media (`sources=False` builds only the `track:<id>` refs);
   `schedule_stem_waveforms(project, track_ids)` queues just-rendered stems.
   They run after `add_track`, `set_track_media`, ingest consolidate, record
-  landing, stem renders (`_render_track_stems`) and `PlayService.ensure_stem`;
+  landing, stem renders (`assemble_timeline` / `_render_track_stems`; pass-1
+  `render_dialogue_stems` queues none) and `PlayService.ensure_stem`;
   the pipeline's `ingest_tracks` step builds inline with
   `ensure_project_waveforms` (its summary reports "N waveforms").
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
   (per-ref pruning never reaches deleted refs), plus legacy
-  `artifacts/peaks/*.json` overview files older than 7 days (an older app build
-  may still write them, and a guest status poll can trigger the pass). A failed
+  `artifacts/peaks/{track}.json` overview files: at once when that track has a
+  live pyramid, otherwise once they are 7 days old (an older app build may
+  still write them, and a guest status poll can trigger the pass). A failed
   pass is retried on a later status call and never fails the status request.
 - **Social clip energy:** `ClipService.propose` first builds any missing
   `track:<id>` pyramids inline with
@@ -357,11 +363,20 @@ Revocation stops new requests only.
     range with ±512 px overscan, the canvas rectangle clipped to the clip,
     the tile keys, and the mode: pyramid, pcm, or pcm drawn as a line.
   - `shade.ts` turns an envelope into per-column geometry: the peak span and
-    the RMS body in device rows. Silence and columns with no data are
-    skipped, and thin columns are widened to 1 row (pyramid) or 1.5 rows
-    (PCM). It also holds the row-coverage formula. `rasterCpu.ts` and
-    `rasterGl.ts` both draw from this geometry, so the two cannot drift
-    apart. Each pixel is `core·rc + edge·(pc − rc)`, premultiplied.
+    the RMS body in device rows. Amplitudes map through
+    `displayAmplitude(v, gain, scale)`: linear clamps `|v|·gain` at 1, or log
+    maps `(dB − floor) / −floor` with `floor = log_floor_db` (−54 dB), so
+    −30 dBFS lands at 0.44 of the half-lane and digital zero or anything
+    under the floor draws nothing. The gain is the View amplitude × the
+    post-fader track gain, applied before the mapping. Silence and columns
+    with no data are skipped, and thin columns are widened to 1 row
+    (pyramid) or 1.5 rows (PCM). It also holds the row-coverage formula and
+    `coarsePeakEdge`: past `coarse_column_sec` (50 ms) media seconds per
+    device column, the peak (`edge`) tint's alpha drops to
+    `coarse_peak_alpha` (0.35), so the RMS body reads as the shape.
+    `rasterCpu.ts` and `rasterGl.ts` both draw from this geometry, so the two
+    cannot drift apart. Each pixel is `core·rc + edge·(pc − rc)`,
+    premultiplied.
   - The WebGL2 path uploads the geometry as a `cols × 1` RGBA32F texture and
     draws one full-screen triangle.
   - `raster.worker.ts` uses WebGL2 on an `OffscreenCanvas` when it can, and
@@ -418,15 +433,16 @@ Revocation stops new requests only.
 ### Renderer
 
 `timeline/WaveformLayer.tsx` is a `memo` component with primitive props:
-`{mediaRef, kind, mediaStartSec, clipLeftCss, clipWidthCss, zoom, colorVar}`.
-`ClipBlock` renders one for the clip, and a second for the trim ghost, which
-starts at the ghost's source start and has the ghost's width.
+`{mediaRef, kind, mediaStartSec, clipLeftCss, clipWidthCss, zoom, colorVar,
+role, gainDb}`. `ClipBlock` renders one for the clip, and a second for the
+trim ghost, which starts at the ghost's source start and has the ghost's
+width.
 
 - **Subscriptions.** The layer subscribes to its ref's status entry, the DPR,
-  the amp zoom, the theme and its visible tile range. The range comes from a
-  selector over `scrollLeft` and `timelineViewportWidth` that returns a
-  string (`"k0:k1"`), so scrolling re-renders the layer only when tiles come
-  or go.
+  the amp zoom, the scale mode, the post-fader flag, the theme and its
+  visible tile range. The range comes from a selector over `scrollLeft` and
+  `timelineViewportWidth` that returns a string (`"k0:k1"`), so scrolling
+  re-renders the layer only when tiles come or go.
 - **Geometry (S5).** `origin` puts media time 0 on a device pixel. Tile
   `k`'s canvas (`canvas.clip-waveform-tile`) covers only the part of
   `[k·512 + origin, +512)` inside the clip, and its backing store is
@@ -434,7 +450,8 @@ starts at the ghost's source start and has the ghost's width.
   `ResizeObserver`, never read during render. Clips narrower than
   `min_clip_css_px` (6) get no layer.
 - **Draw.** The layer draws the cached bitmap for the tile key
-  (`mediaKey|zoom|d|heightDev|style|ampZoom|k`) with `drawImage` on a 2D
+  (`mediaKey|zoom|d|heightDev|style|ampZoom|k`, with `style` = `v2|scale|tints`
+  and `ampZoom` the display gain) with `drawImage` on a 2D
   context. Without one, it draws a stand-in (the nearest zoom that overlaps,
   or a render from a coarser level that is already loaded) and asks for the
   data and a raster. A tile whose render is already queued or in flight is
@@ -451,8 +468,9 @@ starts at the ghost's source start and has the ghost's width.
   side (within the clip), then clipped to the mounted range, so a long pause
   still washes when a deep zoom shows only milliseconds of it. Columns are
   one CSS px, but never finer than a level-0 bin. It is memoized, and
-  recomputed only when the range, the geometry or the loaded pyramid tiles
-  change.
+  recomputed only when the range, the geometry, the loaded pyramid tiles or
+  the Silence-shading layer flag changes. Hidden when View › Layers ›
+  Silence shading is off.
 - **Move ghosts.** Ghosts carry `origin_track_id` and always draw raw media.
 - **Lane hint.** `laneWaveformStatus` returns generating when any ref of the
   lane is generating. It returns unavailable only when every ref is known
@@ -460,6 +478,23 @@ starts at the ghost's source start and has the ghost's width.
 - **Backend.** `TimelineView` mounts `WaveformStatusSync`, which also starts
   the worker and installs the E2E hook. It renders `data-waveform-backend`
   on `.timeline-area`.
+
+### Display scale
+
+View › **Waveform scale** is three-way: **Auto** (the default) draws
+`role === "dialogue"` lanes in dB and every other role linear
+(`resolveWaveformScale`); **Linear** and **Log (dB)** force one scale on
+every lane. The amplitude ×N control (View › Waveform amplitude −/+, or
+`Shift+ArrowUp/Down`) is a pre-mapping gain under both scales: under log,
+×2 lifts the shape by 6 dB. **Show waveforms post-fader** (off by default)
+multiplies the display gain by `dbToLinear(gain_db + fader_db)`
+(`utils/audio.ts` `trackOutputGainDb`) in every audition mode. The scale,
+amplitude and post-fader flag are remembered per project, per browser, in
+`localStorage` (`sharecut.waveformView`, `utils/waveformViewPref.ts`, 32
+most-recent projects) — a convenience like `sharecut.laneHeight`, not a
+durable project store. `renderTiles.ts` `styleKey` is bumped to
+`v${SHADE_VERSION}|${scale}|${tints}` (`v2|scale|tints`) so tiles re-render
+when the scale or the shading version changes.
 
 ### Deep zoom
 

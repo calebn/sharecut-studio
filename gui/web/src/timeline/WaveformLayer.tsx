@@ -12,6 +12,7 @@ import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { dbToLinear } from "../utils/audio";
 import {
   MIN_CLIP_CSS_PX,
   QUIET_WASH_MIN_ZOOM_PX_PER_SEC,
@@ -52,12 +53,14 @@ import {
   tileRect,
   visibleTileRange,
 } from "../waveform/renderTiles";
+import { coarsePeakEdge } from "../waveform/shade";
 import { useWaveformStatus } from "../waveform/statusStore";
 import {
   isReady,
   type MediaRef,
   type RasterJob,
   type ReadyEntry,
+  resolveWaveformScale,
   type WaveformKind,
   type WaveformStyle,
 } from "../waveform/types";
@@ -76,6 +79,10 @@ type Props = {
   zoom: number;
   /** Lane colour (e.g. `var(--clip-dialogue-0)`): keys the cached tints. */
   colorVar: string;
+  /** Track role: under Auto, `dialogue` draws in dB (`resolveWaveformScale`). */
+  role: string;
+  /** Track output gain (dB, `gain_db + fader_db`); drawn only post-fader. */
+  gainDb: number;
 };
 
 type Tile = { k: number; rect: TileRect };
@@ -178,8 +185,9 @@ function quietBands(
 /**
  * One clip's waveform: source-anchored render tiles drawn from cached
  * bitmaps, rasterized off the main thread. Moving, trimming or splitting a
- * clip changes only where tiles sit; zoom, DPR, height, amp zoom or theme
- * pick new tiles, and a nearby cached tile stands in until they arrive.
+ * clip changes only where tiles sit; zoom, DPR, height, amp zoom, scale,
+ * post-fader gain or theme pick new tiles, and a nearby cached tile stands
+ * in until they arrive.
  */
 function WaveformLayerView({
   mediaRef,
@@ -189,9 +197,16 @@ function WaveformLayerView({
   clipWidthCss,
   zoom,
   colorVar,
+  role,
+  gainDb,
 }: Props) {
   const projectPath = useDawStore((s) => s.projectPath);
   const ampZoom = useDawStore((s) => s.waveformAmpZoom);
+  const scaleMode = useDawStore((s) => s.waveformScale);
+  const postFader = useDawStore((s) => s.waveformPostFader);
+  const scale = resolveWaveformScale(scaleMode, role);
+  // Display gain: View amplitude, times the track's output gain post-fader.
+  const gain = ampZoom * (postFader ? dbToLinear(gainDb) : 1);
   const theme = useResolvedTheme();
   const dprReal = useDevicePixelRatio();
   const { laneHeight } = useTimelineMetrics();
@@ -273,8 +288,8 @@ function WaveformLayerView({
           zoom,
           d,
           heightDev,
-          styleKey: styleKey(style),
-          ampZoom,
+          styleKey: styleKey(style, scale),
+          ampZoom: gain,
         }
       : null;
   const ready = identity != null;
@@ -372,9 +387,10 @@ function WaveformLayerView({
       // Its exact render is already queued or in flight: don't rebuild (and
       // copy) the job on every data event. This is safe because the tile key
       // fixes the job's data. It holds the media key (bins and PCM are
-      // content-addressed by it), zoom, d, height, style and amp zoom, and an
-      // exact job is built only from complete bins or PCM. Keep any new job
-      // input in `tileKey`.
+      // content-addressed by it), zoom, d, height, style (with the scale)
+      // and display gain; the coarse peak dim derives from zoom and the
+      // media's sample rate. An exact job is built only from complete bins
+      // or PCM. Keep any new job input in `tileKey`.
       if (hasRaster(key, false, priority)) {
         continue;
       }
@@ -385,9 +401,10 @@ function WaveformLayerView({
         rows: heightDev,
         frameStart: frames.frameStart,
         sppDev: frames.sppDev,
-        ampZoom,
+        ampZoom: gain,
+        scale,
         core: style.core,
-        edge: style.edge,
+        edge: coarsePeakEdge(style.edge, frames.sppDev / meta.sample_rate),
       };
       const isWanted = () => mounted.current && wanted.current.has(key);
       const submit = (job: RasterJob, provisional: boolean) =>
@@ -493,11 +510,14 @@ function WaveformLayerView({
     }
   });
 
+  const showSilence = useDawStore((s) => s.layers.showSilence);
   // Only the tile range, geometry or loaded pyramid tiles change the bands.
   const quiet = useMemo(() => {
     void pyramidRev; // new bins can fill columns that had no data
-    return quietBands(meta, range, origin, zoom, clipWidthCss);
-  }, [meta, range, origin, zoom, clipWidthCss, pyramidRev]);
+    return showSilence
+      ? quietBands(meta, range, origin, zoom, clipWidthCss)
+      : [];
+  }, [meta, range, origin, zoom, clipWidthCss, pyramidRev, showSilence]);
 
   if (clipWidthCss < MIN_CLIP_CSS_PX) {
     return null;

@@ -74,6 +74,7 @@ export function parityJob(): RasterJob {
     frameStart: 0,
     sppDev: 64,
     ampZoom: 1.25,
+    scale: "linear",
     core: new Float32Array([0.48, 0.72, 0.7, 1]),
     edge: new Float32Array([0.73, 0.86, 0.85, 0.6]),
     source: { kind: "pyramid", bins, binStart: 0, spp: 64 },
