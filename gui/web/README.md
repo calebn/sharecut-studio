@@ -63,6 +63,10 @@ shared by the modifier inspectors: seek and play actions, seek-only footers,
 preview modes with a blocked-skip reason, and a 360px footer. The live
 `InspectorSeekFooter` keeps the DAW store and audition wiring; stories pass
 props and local callbacks.
+`Templates/BottomTabsSplitter` shows the production `BottomTabsSplitterView`
+separator with keyboard resize and a 360px band. The live `BottomTabsSplitter`
+keeps the `useTabsHeight` preference (localStorage and the root
+`--tabs-height`); stories use local state only.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
