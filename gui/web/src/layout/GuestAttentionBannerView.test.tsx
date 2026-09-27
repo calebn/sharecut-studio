@@ -78,6 +78,10 @@ describe("GuestAttentionBannerView", () => {
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(6);
     expect(items[5]).toHaveTextContent("+2 more");
+    expect(items[5]).toHaveClass("guest-attention-more");
+    for (const item of items.slice(0, 5)) {
+      expect(item).not.toHaveClass("guest-attention-more");
+    }
     expect(screen.getByText("7 conflicts")).toBeInTheDocument();
   });
 

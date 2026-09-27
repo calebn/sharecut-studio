@@ -54,7 +54,10 @@ export function GuestAttentionBannerView({
           </li>
         ))}
         {hiddenConflicts > 0 && (
-          <li key="more">{`+${hiddenConflicts} more`}</li>
+          <li
+            key="more"
+            className="guest-attention-more"
+          >{`+${hiddenConflicts} more`}</li>
         )}
       </ul>
     </div>

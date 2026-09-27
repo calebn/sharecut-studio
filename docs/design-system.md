@@ -183,8 +183,8 @@ renders the production `GuestAttentionBannerView` used by the live
 `GuestAttentionBanner`, which polls IndexedDB every 2s for pending host
 edits and host/guest 409 conflicts and resolves the share-token vs.
 host-project path; the view renders the pending/conflict summary, the
-conflict list (first 5 items, then a "+N more" item), and the dismiss
-control from props alone.
+conflict list (first 5 items, then a muted, unbulleted "+N more" summary
+item), and the dismiss control from props alone.
 Both stories share `dawShellStoryDecorator` for a real `.daw-shell` frame at
 desktop and 360px widths.
 
