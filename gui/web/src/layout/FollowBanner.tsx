@@ -1,11 +1,7 @@
-import type { CSSProperties } from "react";
 import { execute } from "../commands/execute";
-import { presenceColorVar, rosterDisplayName } from "../presence/colors";
-import { followBannerDetail } from "../presence/followSync";
+import { rosterDisplayName } from "../presence/colors";
 import { useDawStore } from "../state/dawStore";
-import { Avatar } from "../ui/Avatar";
-import { Button } from "../ui/Button";
-import { tabLabel } from "./tabLabels";
+import { FollowBannerView } from "./FollowBannerView";
 
 export function FollowBanner() {
   const followingClientId = useDawStore((s) => s.followingClientId);
@@ -16,39 +12,16 @@ export function FollowBanner() {
     return null;
   }
   const target = sessionClients.find((c) => c.client_id === followingClientId);
-  const name = target ? rosterDisplayName(target) : followingClientId;
-  const color = presenceColorVar(target?.meta?.color_index);
-  const guestMix =
-    guestMode != null && followDegraded.audition ? " · Listening in Mix" : "";
-  const detail = followBannerDetail(followDegraded, tabLabel);
   return (
-    <div
-      className="follow-banner"
-      role="status"
-      style={{ "--presence-color": color } as CSSProperties}
-    >
-      <span aria-hidden>
-        <Avatar
-          name={name}
-          colorIndex={target?.meta?.color_index}
-          sessionRole={target?.role}
-          size="sm"
-        />
-      </span>
-      <span className="follow-banner-text">
-        Following {name}
-        {guestMix}
-        {detail}
-      </span>
-      <Button
-        variant="link"
-        className="follow-banner-stop"
-        onClick={() => {
-          void execute("presence.unfollow");
-        }}
-      >
-        Stop following
-      </Button>
-    </div>
+    <FollowBannerView
+      name={target ? rosterDisplayName(target) : followingClientId}
+      colorIndex={target?.meta?.color_index}
+      sessionRole={target?.role}
+      guest={guestMode != null}
+      degraded={followDegraded}
+      onStopFollowing={() => {
+        void execute("presence.unfollow");
+      }}
+    />
   );
 }
