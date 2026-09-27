@@ -215,6 +215,7 @@ def _apply_remove_edit(
             use_inaudible_opt=use_inaudible_opt,
             record_log=record_log,
         )
+        tl_start, tl_end = report["timeline_start"], report["timeline_end"]
         per_track = report["per_track_source"]
         track_ids = [edit.track_id]
     else:
@@ -225,6 +226,7 @@ def _apply_remove_edit(
             use_inaudible_opt=use_inaudible_opt,
             record_log=record_log,
         )
+        tl_start, tl_end = report["timeline_start"], report["timeline_end"]
         per_track = report["per_track_source"]
         track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
         _apply_replace_gap_pad(project, edit, tl_start)

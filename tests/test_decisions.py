@@ -527,6 +527,40 @@ def test_apply_prefix_edits_pause_with_crossfade():
     assert proj.edit_decisions == []
 
 
+def test_apply_prefix_edits_archives_the_optimized_cut_range():
+    """The archived timeline range is the cut per_track_source describes, so revert fills it exactly."""
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        EditDecision(
+            id="p1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.5,
+            reason="pause:long",
+            review_required=False,
+            applied=False,
+        )
+    ]
+    optimized = type("R", (), {"start": 2.0, "end": 2.56, "mode": "vocal_transcript_guided"})()
+    with (
+        patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
+        patch(
+            "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
+            return_value=optimized,
+        ),
+    ):
+        defaults.return_value = {"tighten": {"inaudible_opt": True}}
+        assert apply_prefix_edits(proj, "pause:", config_key="tighten") == 1
+    record = proj.editorial.edit_log[-1]
+    assert record.timeline_start == pytest.approx(2.0)
+    assert record.timeline_end == pytest.approx(2.56)
+    pre, post = record.params["per_track_source"]["host"]
+    assert post - pre == pytest.approx(record.timeline_end - record.timeline_start)
+    revert_applied_edit(proj, record.id)
+    assert proj.timeline.duration_sec == pytest.approx(10.0)
+
+
 def test_apply_prefix_edits_skips_review_required_and_invalid_range():
     proj = _project_with_clip()
     proj.edit_decisions = [
