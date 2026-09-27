@@ -253,6 +253,9 @@ export const JOB_STREAM_RECHECK_MS = 15_000;
  * Re-check a job every `JOB_STREAM_RECHECK_MS` while its SSE stream is open
  * (backstop for a stream that stays open but goes silent). Transient fetch
  * errors are ignored; null results are skipped. Returns a stop function.
+ * Session-wide hooks that poll only while their stream is down
+ * (`usePipelineJob`, `useGuestSync`) use `createFallbackPoll` in
+ * `utils/fallbackPoll.ts` instead.
  */
 export function startJobStatusRecheck<T>(
   check: () => Promise<T | null | undefined>,
