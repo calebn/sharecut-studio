@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import platform
 import re
 import shutil
 import time
 import wave
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +43,7 @@ from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import project_commit_lock, snapshot_project
 from podcast_mcp.util.tracks import track_audio_path
@@ -52,6 +55,7 @@ _PLAY_CACHE_MAX_AGE_SEC = 7 * 24 * 60 * 60
 _PLAY_CACHE_MIN_EVICT_AGE_SEC = 60 * 60
 _PLAY_CACHE_MAX_FILES = 512
 _PLAY_CACHE_HARD_MAX_FILES = 4096
+_PLAY_CACHE_LOCK_TIMEOUT_SEC = 30.0
 
 
 def _wav_peak_abs(path: Path) -> float | None:
@@ -149,31 +153,56 @@ class PlayService:
         """Keep old generated auditions bounded without touching active outputs."""
         out_dir = self.project.artifacts_dir() / "play_cache"
         out_dir.mkdir(parents=True, exist_ok=True)
-        now = time.time()
-        candidates: list[tuple[float, Path]] = []
-        for path in out_dir.glob("*.wav"):
-            if path.is_symlink() or not path.is_file():
-                continue
-            try:
-                modified = path.stat().st_mtime
-            except FileNotFoundError:
-                continue
-            candidates.append((modified, path))
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        protected_paths = {path.resolve() for path in protected}
-        unprotected_index = 0
-        for index, (modified, path) in enumerate(candidates):
-            if path.resolve() in protected_paths:
-                continue
-            age = now - modified
-            if (
-                age > _PLAY_CACHE_MAX_AGE_SEC
-                or unprotected_index >= _PLAY_CACHE_HARD_MAX_FILES
-                or (index >= _PLAY_CACHE_MAX_FILES and age > _PLAY_CACHE_MIN_EVICT_AGE_SEC)
-            ):
-                path.unlink(missing_ok=True)
-            unprotected_index += 1
+        lock = shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC)
+        with lock.acquire(timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+            now = time.time()
+            candidates: list[tuple[float, Path]] = []
+            for path in protected:
+                self._refresh_cache_access(path, out_dir)
+            for path in out_dir.glob("*.wav"):
+                if path.is_symlink() or not path.is_file():
+                    continue
+                try:
+                    accessed = path.stat().st_atime
+                except FileNotFoundError:
+                    continue
+                candidates.append((accessed, path))
+            candidates.sort(key=lambda item: item[0], reverse=True)
+            protected_paths = {path.resolve() for path in protected}
+            unprotected_index = 0
+            for index, (_, path) in enumerate(candidates):
+                if path.resolve() in protected_paths:
+                    continue
+                # Re-stat under the lock: a concurrent serve may have refreshed it.
+                try:
+                    age = now - path.stat().st_atime
+                except FileNotFoundError:
+                    continue
+                if age <= _PLAY_CACHE_MIN_EVICT_AGE_SEC:
+                    continue
+                if (
+                    age > _PLAY_CACHE_MAX_AGE_SEC
+                    or unprotected_index >= _PLAY_CACHE_HARD_MAX_FILES
+                    or index >= _PLAY_CACHE_MAX_FILES
+                ):
+                    path.unlink(missing_ok=True)
+                unprotected_index += 1
         return out_dir
+
+    @staticmethod
+    def _refresh_cache_access(path: Path, out_dir: Path) -> None:
+        if path.parent != out_dir or path.is_symlink():
+            return
+        with suppress(FileNotFoundError):
+            stat = path.stat()
+            os.utime(path, ns=(time.time_ns(), stat.st_mtime_ns), follow_symlinks=False)
+
+    def _mark_play_cache_used(self, path: Path) -> None:
+        """Refresh an audition lease before returning a cached WAV to a caller."""
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        lock = shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC)
+        with lock.acquire(timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+            self._refresh_cache_access(path, out_dir)
 
     def resolve_transport_path(
         self,
@@ -299,6 +328,7 @@ class PlayService:
         wav_path, tier, ext_start, ext_end = self._resolve_audio(
             source, start, end, rerender=req.rerender
         )
+        self._mark_play_cache_used(wav_path)
 
         cmd = None if dry_run else self._player_command(player, wav_path)
         if cmd:
@@ -539,8 +569,10 @@ class PlayService:
         end: float,
         edit_hash: str,
     ) -> Path:
-        out_dir = self._play_cache_dir()
-        return out_dir / f"processed_{track_id}_{start:.2f}_{end:.2f}_{edit_hash}.wav"
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        path = out_dir / f"processed_{track_id}_{start:.2f}_{end:.2f}_{edit_hash}.wav"
+        self._play_cache_dir(path)
+        return path
 
     def _latest_export_wav(self) -> Path:
         export = self.project.export_dir()
@@ -556,8 +588,10 @@ class PlayService:
         key = f"{src}:{mtime}:{label}:{start:.3f}:{end:.3f}:{extra}"
         digest = hashlib.sha256(key.encode()).hexdigest()[:16]
         safe = re.sub(r"[^a-z0-9_-]+", "_", label.lower())[:40]
-        out_dir = self._play_cache_dir(src)
-        return out_dir / f"{safe}_{digest}.wav"
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        path = out_dir / f"{safe}_{digest}.wav"
+        self._play_cache_dir(src, path)
+        return path
 
     def _source_mtime_ns(self, source: str) -> int:
         path: Path | None = None
@@ -662,6 +696,7 @@ class PlayService:
                     gain_db=gain_db,
                 ),
             )
+        self._mark_play_cache_used(out)
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
             run(cmd, check=True)
@@ -728,6 +763,7 @@ class PlayService:
                     gains_db=gains_db,
                 ),
             )
+        self._mark_play_cache_used(out)
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
             run(cmd, check=True)
@@ -944,6 +980,7 @@ class PlayService:
         )
         if not out.is_file() or rerender:
             self._render_atomic(out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp))
+        self._mark_play_cache_used(out)
 
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -996,6 +1033,7 @@ class PlayService:
             self._render_atomic(
                 out, lambda tmp: self._write_ab_concat(path_a, path_b, tmp, gap_sec=gap)
             )
+        self._mark_play_cache_used(out)
 
         cmd = None if dry_run else self._player_command(player, out)
         if cmd:
@@ -1063,11 +1101,13 @@ class PlayService:
         self.project = self.ws.project
         a_result = self.play(req, dry_run=True, publish_audition=False)
         shutil.copy2(a_result.wav_path, stable_a)
+        self._mark_play_cache_used(stable_a)
 
         hist.goto(after_index)
         self.project = self.ws.project
         b_result = self.play(req, dry_run=True, publish_audition=False)
         shutil.copy2(b_result.wav_path, stable_b)
+        self._mark_play_cache_used(stable_b)
 
         return self.play_ab_wavs(
             stable_a,
@@ -1128,6 +1168,7 @@ class PlayService:
 
         suggested = self._pending_suggested_wav(window, source=source, rerender=rerender)
         if kind == "suggested":
+            self._mark_play_cache_used(suggested)
             cmd = None if dry_run else self._player_command(player, suggested)
             if cmd:
                 run(cmd, check=True)
@@ -1174,9 +1215,11 @@ class PlayService:
             if not premix.is_file():
                 return None
             path = self._cache_path("premix", window.play_start, window.play_end, premix)
+            self._mark_play_cache_used(path)
             return path if path.is_file() else None
         suggested = self._pending_suggested_path(window, source=source)
         if kind == "suggested":
+            self._mark_play_cache_used(suggested)
             return suggested if suggested.is_file() else None
         current = self.pending_preview_cached_wav(
             edit_id,
@@ -1188,19 +1231,21 @@ class PlayService:
             return None
         gap = gap_sec if gap_sec is not None else DEFAULT_AB_GAP_SEC
         out = self._ab_concat_path(current, suggested, max(0.0, float(gap)))
+        self._mark_play_cache_used(out)
         return out if out.is_file() else None
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
-        out_dir = self._play_cache_dir(wav_a, wav_b)
         key = (
             f"{wav_a.resolve()}:{wav_a.stat().st_mtime_ns}:"
             f"{wav_b.resolve()}:{wav_b.stat().st_mtime_ns}:{gap:.3f}"
         )
         digest = hashlib.sha256(key.encode()).hexdigest()[:16]
-        return out_dir / f"ab_concat_{digest}.wav"
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        path = out_dir / f"ab_concat_{digest}.wav"
+        self._play_cache_dir(wav_a, wav_b, path)
+        return path
 
     def _pending_suggested_path(self, window: PendingPreviewWindow, *, source: str) -> Path:
-        out_dir = self._play_cache_dir()
         mtime = self._source_mtime_ns(source)
         key = (
             f"pending:{window.edit_id}:{window.play_start:.3f}:"
@@ -1208,7 +1253,10 @@ class PlayService:
             f"{window.play_end:.3f}:{source}:{mtime}"
         )
         digest = hashlib.sha256(key.encode()).hexdigest()[:16]
-        return out_dir / f"pending_suggested_{digest}.wav"
+        out_dir = self.project.artifacts_dir() / "play_cache"
+        path = out_dir / f"pending_suggested_{digest}.wav"
+        self._play_cache_dir(path)
+        return path
 
     def _pending_suggested_wav(
         self,
@@ -1219,6 +1267,7 @@ class PlayService:
     ) -> Path:
         out = self._pending_suggested_path(window, source=source)
         if out.is_file() and not rerender:
+            self._mark_play_cache_used(out)
             return out
         parts: list[Path] = []
         before_end = window.timeline_start

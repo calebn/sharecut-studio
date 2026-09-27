@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from podcast_mcp.util.project_state import FileRevision, project_commit_lock, pr
 
 log = logging.getLogger(__name__)
 HISTORY_ENTRY_LIMIT = 400
+_GENERATED_SNAPSHOT_ID = re.compile(r"[0-9a-f]{12}\Z")
 
 
 def history_index_path(project: EpisodeProject) -> Path:
@@ -186,8 +188,21 @@ class ProjectStore:
     def _remove_pruned_snapshots(self, project: EpisodeProject, pruned_ids: set[str]) -> None:
         """Only collect snapshots after the canonical project replacement has landed."""
         index_path = history_index_path(project)
+        snapshots_dir = history_snapshots_dir(index_path).resolve()
+        if snapshots_dir != project.workspace_path() / "history" / "snapshots":
+            log.warning(
+                "Skipping pruned history snapshots outside project workspace: %s", snapshots_dir
+            )
+            return
         for entry_id in pruned_ids:
-            history_snapshot_path(index_path, entry_id).unlink(missing_ok=True)
+            if _GENERATED_SNAPSHOT_ID.fullmatch(entry_id) is None:
+                log.warning("Skipping unsafe pruned history snapshot id %r", entry_id)
+                continue
+            path = history_snapshot_path(index_path, entry_id)
+            if path.resolve().parent != snapshots_dir:
+                log.warning("Skipping pruned history snapshot outside %s: %s", snapshots_dir, path)
+                continue
+            path.unlink(missing_ok=True)
 
     def reload(self, project: EpisodeProject) -> EpisodeProject:
         loaded = self.load()
