@@ -8,6 +8,7 @@ import type {
   PendingEditView,
   ProjectView,
 } from "../types/project";
+import { jsonEqual } from "../utils/jsonEqual";
 
 type SourceSpans = ClipMuteRegion[] | ClippingRegion[];
 
@@ -26,15 +27,10 @@ function sameSourceSpans(
   );
 }
 
-/** Deep-equal by JSON value, for a field with no identity-safe key of its own. */
-function sameJson(a: unknown, b: unknown): boolean {
-  return a === b || JSON.stringify(a) === JSON.stringify(b);
-}
-
 /**
  * Same own keys with equal values; `mute_regions` and `clipping_regions`
  * compared per region, and any key named in `deepKeys` compared structurally
- * (`sameJson`) instead of by identity.
+ * (`jsonEqual`) instead of by identity.
  * Any other nested value compares by identity, so a freshly parsed one never
  * matches. That is safe (the row only loses reuse), but a nested field added
  * that should keep reuse needs its own case here or a `deepKeys` entry.
@@ -59,7 +55,7 @@ function sameExcept<T extends object>(
       );
     }
     if (deepKeys.includes(key)) {
-      return sameJson(a[key], b[key]);
+      return jsonEqual(a[key], b[key]);
     }
     return a[key] === b[key];
   });

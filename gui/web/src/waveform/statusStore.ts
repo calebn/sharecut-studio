@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { loadWaveformStatus } from "../api";
 import { isPermanentRejection } from "../utils/apiError";
+import { jsonEqual } from "../utils/jsonEqual";
 import { listenerSet } from "./listenerSet";
 import {
   isReady,
@@ -81,17 +82,13 @@ function pollerFor(projectPath: string, kind: WaveformKind): Poller {
   return poller;
 }
 
-function sameEntry(a: StatusEntry, b: StatusEntry): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 /** Merge a poll; returns whether any entry changed. */
 function applyStatus(poller: Poller, status: WaveformStatus): boolean {
   let changed = false;
   const next = new Map<string, StatusEntry>();
   for (const [ref, entry] of Object.entries(status.media ?? {})) {
     const prev = poller.entries.get(ref);
-    if (prev && sameEntry(prev, entry)) {
+    if (prev && jsonEqual(prev, entry)) {
       next.set(ref, prev);
       continue;
     }
