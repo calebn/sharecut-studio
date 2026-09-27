@@ -809,7 +809,8 @@ class _PeerSpeechIndex:
 
     @classmethod
     def build(cls, spans: Iterable[tuple[float, float, str]]) -> _PeerSpeechIndex:
-        ordered = sorted((start, end, track_id) for start, end, track_id in spans if end > start)
+        # Match the direct guard's two boundary checks, including point words.
+        ordered = sorted((start, end, track_id) for start, end, track_id in spans)
         first_track: str | None = None
         second_track: str | None = None
         first_end = second_end = float("-inf")
