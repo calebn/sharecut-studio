@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   ApiError,
   errorMessage,
-  isClientRejection,
   isPermanentRejection,
   readApiFailure,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
@@ -59,9 +58,7 @@ describe("readApiFailure", () => {
   it("keeps the HTTP status for callers that branch on it", async () => {
     const error = await readApiFailure(new Response("stale", { status: 409 }));
     expect(error.status).toBe(409);
-    expect(isClientRejection(error)).toBe(true);
-    expect(isClientRejection(new ApiError("busy", null, 503))).toBe(false);
-    expect(isClientRejection(new Error("offline"))).toBe(false);
+    expect(isPermanentRejection(error)).toBe(true);
   });
 
   it("maps a bare JSON string host-offline body to the actionable copy", async () => {
