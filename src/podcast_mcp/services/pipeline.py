@@ -15,11 +15,7 @@ from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_lock
-
-
-def _count(n: int, noun: str) -> str:
-    """`1 issue` / `2 issues` / `0 issues`."""
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+from podcast_mcp.util.text import count_noun
 
 
 def format_export_qc_lines(
@@ -32,8 +28,8 @@ def format_export_qc_lines(
     issues = list(export_qc.get("issues") or [])
     warnings = list(export_qc.get("warnings") or [])
     lines = [
-        f"Export QC: {verdict} ({_count(len(issues), 'issue')}), "
-        f"{_count(len(warnings), 'warning')} ({qc_path})"
+        f"Export QC: {verdict} ({count_noun(len(issues), 'issue')}), "
+        f"{count_noun(len(warnings), 'warning')} ({qc_path})"
     ]
     lines.extend(f"  - {issue}" for issue in issues)
     return lines
