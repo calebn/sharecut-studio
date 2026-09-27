@@ -36,6 +36,7 @@ This skill applies **waveform** gating derived from reconciled transcript metada
 1. Confirm transcript reconcile: `overlap_duplicates_tool` → `text_match_count == 0`.
 2. Ensure stems are fresh **and not longer than the session timeline** (`render_dialogue_stems` or `assemble_timeline`). Bleed mute skips stems that fail `stem_is_fresh` (hash or overlong duration).
 3. `apply_transcript_gate_tool` with `dry_run=true` — review `interval_count` per track; check `skipped` for stale stems.
+   If apply fails with "another render of this project is in progress", an export or Refresh holds the render lock: retry when it finishes.
 4. Apply on one track or both; audition with `play_compose_tool` (both mics at once) or `play --compare` in the bleed window.
 5. Re-run mix/premix after gating (never pad gates to a longer source-length file).
 

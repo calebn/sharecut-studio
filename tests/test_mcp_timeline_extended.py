@@ -20,6 +20,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 
 def _seed_project(path: str, sample_wav) -> None:
@@ -269,6 +270,9 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
         overlap = json.loads(mcp_timeline.overlap_duplicates_tool(path, start_sec=0.0))
         gate_preview = json.loads(
             mcp_timeline.apply_transcript_gate_tool(path, speaker="Host", dry_run=True)
+        )
+        assert (
+            svc.apply_bleed_mute.call_args.kwargs["lock_timeout"] == REQUEST_RENDER_LOCK_TIMEOUT_SEC
         )
         low_aud = json.loads(mcp_timeline.low_audibility_words_tool(path, track_id="host"))
         suppressed_low = json.loads(

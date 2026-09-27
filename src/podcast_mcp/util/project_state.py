@@ -25,6 +25,8 @@ FileRevision = tuple[int, int, int, int]
 
 PROJECT_COMMIT_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_TIMEOUT_SEC = 3600.0
+# MCP tool calls cannot be cancelled: they wait this long for the render lock, then RenderBusyError.
+REQUEST_RENDER_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_POLL_SEC = 0.5
 
 log = logging.getLogger(__name__)
