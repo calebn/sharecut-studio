@@ -55,6 +55,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
     schedule_pyramid_build,
 )
+from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.timeline_zoom import (
@@ -133,7 +134,7 @@ def parse_ref(ref: str) -> tuple[RefKind, str]:
 
 
 def _artifacts_dir(project_path: Path) -> Path:
-    return project_path.parent.resolve() / "artifacts"
+    return workspace_artifacts_dir(project_path.parent.resolve())
 
 
 def _watch_signature(paths: tuple[Path, ...]) -> _WatchSig:

@@ -10,6 +10,7 @@ from filelock import FileLock
 
 from podcast_mcp.config import repo_root
 from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
+from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dicts import deep_merge
 from podcast_mcp.util.file_locks import shared_file_lock
@@ -121,7 +122,7 @@ def context_lock(workspace: Path) -> FileLock:
     load-modify-save. Raises ``filelock.Timeout`` after ``CONTEXT_LOCK_TIMEOUT_SEC``.
     """
     return shared_file_lock(
-        workspace / "artifacts" / "transcript_context.yaml.lock",
+        workspace_artifacts_dir(workspace) / "transcript_context.yaml.lock",
         timeout=CONTEXT_LOCK_TIMEOUT_SEC,
     )
 

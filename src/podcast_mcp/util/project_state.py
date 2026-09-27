@@ -14,7 +14,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 
 from filelock import Timeout
 
-from podcast_mcp.models import EpisodeProject, project_file_path
+from podcast_mcp.models import EpisodeProject, project_file_path, workspace_artifacts_dir
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
@@ -62,12 +62,12 @@ def _workspace_key(project: EpisodeProject) -> str:
 
 def project_commit_lock_path(project: EpisodeProject) -> Path:
     """Lock file for cross-process commits (not under ``history/``: that dir arms index writes)."""
-    return project.workspace_path().resolve() / "artifacts" / "episode.project.json.lock"
+    return workspace_artifacts_dir(project.workspace_path().resolve()) / "episode.project.json.lock"
 
 
 def render_lock_path(project: EpisodeProject) -> Path:
     """Lock file serializing writers of stems, ``premix.wav`` and ``mastered.wav`` (#482)."""
-    return project.workspace_path().resolve() / "artifacts" / "render.lock"
+    return workspace_artifacts_dir(project.workspace_path().resolve()) / "render.lock"
 
 
 def project_state_lock(project: EpisodeProject) -> RLock:
