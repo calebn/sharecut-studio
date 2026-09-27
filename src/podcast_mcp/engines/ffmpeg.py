@@ -121,6 +121,7 @@ def _loudnorm_json(text: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+_SUMMARY_TRUE_PEAK_RE = re.compile(r"Peak:\s*(-inf|-?\d+(?:\.\d+)?)\s*dBFS")
 _EBUR128_BLOCK_RE = re.compile(r"\bt:\s*(\d+(?:\.\d+)?)\s+TARGET:.*?\bM:\s*(-?\d+(?:\.\d+)?)")
 
 
@@ -930,36 +931,44 @@ class FFmpegEngine:
         run(cmd, check=True, capture_output=True)
         return output_path
 
-    def _sum_tracks(
-        self,
-        track_wavs: list[tuple[Path, float]],
-        output_path: Path,
-        *,
-        codec_args: tuple[str, ...] = (),
-    ) -> None:
-        """Each input at its gain, summed at unity (amix normalize=0, not 1/N)."""
+    @staticmethod
+    def _sum_graph(track_wavs: list[tuple[Path, float]], tail: str | None) -> list[str]:
+        """ffmpeg input + filtergraph args: each input at its gain, summed at unity (amix
+        normalize=0, not 1/N), then ``tail`` (e.g. a trim or ebur128), ending at ``[out]``."""
         inputs: list[str] = []
         filters: list[str] = []
         n = len(track_wavs)
+        suffix = f",{tail}" if tail else ""
         for i, (wav, gain_db) in enumerate(track_wavs):
             inputs.extend(["-i", str(wav)])
-            label = "[out]" if n == 1 else f"[a{i}]"
+            label = f"{suffix}[out]" if n == 1 else f"[a{i}]"
             filters.append(f"[{i}:a]volume={gain_db}dB{label}")
         if n > 1:
             mix_inputs = "".join(f"[a{i}]" for i in range(n))
-            filters.append(f"{mix_inputs}amix=inputs={n}:duration=longest:normalize=0[out]")
+            filters.append(f"{mix_inputs}amix=inputs={n}:duration=longest:normalize=0{suffix}[out]")
+        return [*inputs, "-filter_complex", ";".join(filters), "-map", "[out]"]
+
+    def _sum_tracks(
+        self, track_wavs: list[tuple[Path, float]], output_path: Path, *, trim_db: float = 0.0
+    ) -> None:
+        tail = f"volume={trim_db}dB" if trim_db else None
+        cmd = [self.ffmpeg, "-y", *self._sum_graph(track_wavs, tail), str(output_path)]
+        run(cmd, check=True, capture_output=True)
+
+    def _sum_true_peak_db(self, track_wavs: list[tuple[Path, float]]) -> float | None:
+        """True peak (dBTP) of the unity sum, measured on the float graph (no file written)."""
         cmd = [
             self.ffmpeg,
-            "-y",
-            *inputs,
-            "-filter_complex",
-            ";".join(filters),
-            "-map",
-            "[out]",
-            *codec_args,
-            str(output_path),
+            "-hide_banner",
+            "-nostats",
+            *self._sum_graph(track_wavs, "ebur128=peak=true"),
+            "-f",
+            "null",
+            "-",
         ]
-        run(cmd, check=True, capture_output=True)
+        r = run(cmd, check=True, capture_output=True, text=True)
+        m = _SUMMARY_TRUE_PEAK_RE.search(r.stderr or "")
+        return float(m.group(1)) if m else None
 
     def mix_tracks(
         self,
@@ -970,8 +979,9 @@ class FFmpegEngine:
     ) -> Path:
         """Sum tracks at unity after each one's gain (never 1/N).
 
-        With ``peak_ceiling_db``, sum to 32-bit float first, measure the true peak,
-        and trim the whole mix down so it peaks at or below the ceiling (never up).
+        With ``peak_ceiling_db``, measure the unity sum's true peak on the float graph
+        (ebur128 to a null output), then render once with the whole mix trimmed down so it
+        peaks at or below the ceiling (never up); no intermediate file.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not track_wavs:
@@ -985,19 +995,18 @@ class FFmpegEngine:
                 return self.apply_gain(wav, output_path, float(gain_db))
             self._sum_tracks(track_wavs, output_path)
             return output_path
-        summed = output_path.with_name(f".{output_path.stem}.sum.wav")
-        try:
-            self._sum_tracks(track_wavs, summed, codec_args=("-c:a", "pcm_f32le"))
-            measured = self.measure_loudness_full(summed)
-            peak = measured.get("true_peak_db") if measured else None
-            trim = headroom_trim_db(peak, float(peak_ceiling_db))
-            if trim < 0:
-                log.info(
-                    "mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, peak_ceiling_db
-                )
-            self.apply_gain(summed, output_path, trim)
-        finally:
-            summed.unlink(missing_ok=True)
+        ceiling = float(peak_ceiling_db)
+        peak = self._sum_true_peak_db(track_wavs)
+        if peak is None:
+            log.warning(
+                "mix true peak not measured; writing %s untrimmed at unity (ceiling %s dBTP)",
+                output_path.name,
+                ceiling,
+            )
+        trim = headroom_trim_db(peak, ceiling)
+        if trim < 0:
+            log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, ceiling)
+        self._sum_tracks(track_wavs, output_path, trim_db=trim)
         return output_path
 
     def loudnorm_input_stats(self, input_path: Path) -> dict[str, float] | None:
@@ -1006,24 +1015,31 @@ class FFmpegEngine:
         Much faster than a loudnorm measure pass, which resamples to 192 kHz.
         ``target_offset`` is 0: loudnorm only uses it in dynamic mode.
         """
-        m = self.measure_loudness_full(input_path)
-        if not m:
-            return None
-        i, tp, lra, thr = (
-            m.get("integrated_lufs"),
-            m.get("true_peak_db"),
-            m.get("lra"),
-            m.get("integrated_threshold_lufs"),
-        )
-        if i is None or tp is None or lra is None or thr is None:
-            return None
-        return {
-            "input_i": i,
-            "input_tp": tp,
-            "input_lra": lra,
-            "input_thresh": thr,
-            "target_offset": 0.0,
+        m = self.measure_loudness_full(input_path) or {}
+        keys = {
+            "input_i": "integrated_lufs",
+            "input_tp": "true_peak_db",
+            "input_lra": "lra",
+            "input_thresh": "integrated_threshold_lufs",
         }
+        stats: dict[str, float] = {}
+        missing: list[str] = []
+        for out_key, src_key in keys.items():
+            value = m.get(src_key)
+            if value is None:
+                missing.append(src_key)
+            else:
+                stats[out_key] = value
+        if missing:
+            log.warning(
+                "loudnorm pass-1 stats unavailable for %s (ebur128 summary has no %s); "
+                "mastering runs single-pass loudnorm",
+                input_path,
+                ", ".join(missing),
+            )
+            return None
+        stats["target_offset"] = 0.0
+        return stats
 
     def measure_loudness_full(self, path: Path) -> dict[str, float | None] | None:
         """Integrated LUFS + true peak + LRA from ebur128 (for post-master QC)."""
@@ -1061,8 +1077,7 @@ class FFmpegEngine:
     ) -> str:
         """Run ffmpeg with ``-progress pipe:1``, report (done_sec, total_sec), return stderr."""
         cmd = [argv[0], "-nostats", "-progress", "pipe:1", *argv[1:]]
-        with tempfile.TemporaryFile() as err:
-            proc = popen(cmd, stdout=PIPE, stderr=err)
+        with tempfile.TemporaryFile() as err, popen(cmd, stdout=PIPE, stderr=err) as proc:
             try:
                 if proc.stdout is None:
                     raise RuntimeError("ffmpeg progress pipe missing")
@@ -1241,7 +1256,21 @@ class FFmpegEngine:
             "-",
         ]
         r = run(cmd, capture_output=True, text=True)
-        return [(float(t), float(m)) for t, m in _EBUR128_BLOCK_RE.findall(r.stderr or "")]
+        stderr = r.stderr or ""
+        if r.returncode != 0:
+            log.warning(
+                "ebur128 measure failed for %s (exit %s): %s",
+                path,
+                r.returncode,
+                stderr[-PCM_STDERR_TAIL_BYTES:].strip(),
+            )
+            return []
+        blocks = [(float(t), float(m)) for t, m in _EBUR128_BLOCK_RE.findall(stderr)]
+        if not blocks:
+            log.warning(
+                "ebur128 printed no momentary blocks for %s; its log format may have changed", path
+            )
+        return blocks
 
     def measure_loudness(self, path: Path) -> float | None:
         cmd = [
