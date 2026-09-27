@@ -11,6 +11,8 @@ from typing import Any
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJob
 from podcast_mcp.gui.job_events import (
     JOB_EVENT_QUEUE_MAX,
+    LIVE_JOB_STATUSES,
+    TERMINAL_JOB_STATUSES,
     job_events_hub,
     job_listener_count,
     publish_job_event,
@@ -174,3 +176,14 @@ def test_bootstrap_job_publish_goes_through_the_same_hub() -> None:
 
     events = asyncio.run(scenario())
     assert [ev["type"] for ev in events] == ["status", "progress", "done"]
+
+
+def test_live_and_terminal_statuses_partition_the_job_lifecycle() -> None:
+    assert LIVE_JOB_STATUSES.isdisjoint(TERMINAL_JOB_STATUSES)
+    assert {
+        "queued",
+        "running",
+        "ok",
+        "error",
+        "cancelled",
+    } == LIVE_JOB_STATUSES | TERMINAL_JOB_STATUSES

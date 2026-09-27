@@ -10,7 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.gui.job_events import job_listener_count, publish_job_event
+from podcast_mcp.gui.job_events import (
+    LIVE_JOB_STATUSES,
+    TERMINAL_JOB_STATUSES,
+    job_listener_count,
+    publish_job_event,
+)
 from podcast_mcp.services import BounceRequest, BounceService, PipelineService, ProjectWorkspace
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
@@ -21,7 +26,6 @@ from podcast_mcp.util.progress import (
 
 JobKind = Literal["pipeline", "render_preview", "bounce", "export", "agent"]
 
-_LIVE_STATUSES = frozenset({"queued", "running"})
 _GUI_FAIL_MAX = 200
 _AGENT_LIVE_LIMIT = 8
 _PIPELINE_OWNED_WRAPS = frozenset({"pipeline_run"})
@@ -435,7 +439,7 @@ class _SsePublishReporter:
             candidates.extend(self._manager._catalog._agent_live.values())
             for job in candidates:
                 if (
-                    job.status in _LIVE_STATUSES
+                    job.status in LIVE_JOB_STATUSES
                     and job.has_listeners()
                     and _job_owns_task(job, task_id)
                 ):
@@ -577,9 +581,9 @@ class _JobCatalog:
 
     def _running_jobs_locked(self) -> list[PipelineJob]:
         running: list[PipelineJob] = []
-        if self._job is not None and self._job.status in _LIVE_STATUSES:
+        if self._job is not None and self._job.status in LIVE_JOB_STATUSES:
             running.append(self._job)
-        running.extend(job for job in self._agent_live.values() if job.status in _LIVE_STATUSES)
+        running.extend(job for job in self._agent_live.values() if job.status in LIVE_JOB_STATUSES)
         return running
 
     def _visible_jobs_locked(self) -> list[PipelineJob]:
@@ -723,7 +727,7 @@ class _JobCatalog:
             self._agent_latest = job
         for old in evicted:
             with old._lock:
-                if old.status in _LIVE_STATUSES:
+                if old.status in LIVE_JOB_STATUSES:
                     old.status = "cancelled"
                     old.message = "Replaced by newer activity"
                     old.finished_at = time.monotonic()
@@ -741,7 +745,7 @@ class _JobCatalog:
     ) -> None:
         """Mark an agent job terminal. Idempotent if already finished."""
         with job._lock:
-            if job.status in _LIVE_STATUSES:
+            if job.status in LIVE_JOB_STATUSES:
                 job.status = status
                 job.finished_at = time.monotonic()
                 if message is not None:
@@ -849,7 +853,7 @@ class PipelineJobManager:
         """Publish-only SSE sink when the pipeline job itself has listeners."""
         with self._catalog._lock:
             job = self._catalog._job
-            if job is None or job.status not in _LIVE_STATUSES:
+            if job is None or job.status not in LIVE_JOB_STATUSES:
                 return None
             if not job.has_listeners():
                 return None
@@ -858,7 +862,7 @@ class PipelineJobManager:
     def wait(self, job: PipelineJob, *, timeout: float | None = None) -> PipelineJob:
         """Block until ``job`` leaves queued/running (host MCP pipeline_run)."""
         deadline = None if timeout is None else time.monotonic() + timeout
-        while job.status in _LIVE_STATUSES:
+        while job.status in LIVE_JOB_STATUSES:
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for job {job.id}")
             time.sleep(0.05)
@@ -942,7 +946,7 @@ class PipelineJobManager:
                 return None
             if job_id is not None and job.id != job_id:
                 return None
-            if job.status not in _LIVE_STATUSES:
+            if job.status not in LIVE_JOB_STATUSES:
                 return job
             job.cancel_requested = True
             job.message = "Cancel requested…"
@@ -962,12 +966,12 @@ class PipelineJobManager:
         validate: Callable[[], None] | None = None,
     ) -> PipelineJob:
         with self._catalog._lock:
-            if self._catalog._job is not None and self._catalog._job.status in _LIVE_STATUSES:
+            if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
                 raise RuntimeError("A pipeline-slot job is already running")
         if validate is not None:
             validate()
         with self._catalog._lock:
-            if self._catalog._job is not None and self._catalog._job.status in _LIVE_STATUSES:
+            if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
                 raise RuntimeError("A pipeline-slot job is already running")
             if self._catalog._job is not None and self._catalog._job.status in (
                 "ok",
@@ -1045,7 +1049,7 @@ class PipelineJobManager:
         finally:
             reporter.close()
         with self._catalog._lock:
-            if self._catalog._job is job and job.status in ("ok", "error", "cancelled"):
+            if self._catalog._job is job and job.status in TERMINAL_JOB_STATUSES:
                 self._catalog._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
 
@@ -1377,7 +1381,7 @@ def guest_render_job(job: PipelineJob | None, project_path: Path) -> dict[str, A
         "status": status,
         "current": snap["current"],
         "total": snap["total"],
-        "message": "Rendering preview" if status in _LIVE_STATUSES else None,
+        "message": "Rendering preview" if status in LIVE_JOB_STATUSES else None,
         "error": "Render preview failed" if status == "error" else None,
     }
 
