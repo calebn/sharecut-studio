@@ -47,7 +47,7 @@ killed between `record(after)` and `save_project` (#576). It is ignored with a w
 next commit rewrites it from the project's history, and its snapshots stay behind as
 harmless orphans. The warning names the reason: a current entry that holds other state (a
 commit that never landed), a current snapshot that is missing or unreadable (damage or an
-out-of-band delete), or no current entry. Snapshots are compared in their saved JSON form
+out-of-band delete), or no current entry (#576, `test_document_submit_crash_recovery.py::test_a_crash_before_the_first_commit_adopts_no_phantom_history`). Snapshots are compared in their saved JSON form
 (`project_store.snapshots_equal`).
 
 Pipeline run logs stay on the project file and are not reverted by undo (only editable layers).

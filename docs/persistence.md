@@ -85,7 +85,9 @@ scattering new files.
 History snapshots follow the same durable-publication rule: write the unique
 snapshot first, then atomically replace `history/index.json`. Readers therefore
 see a complete prior or complete current generation while an index update is in
-flight.
+flight. `test_document_submit_crash_recovery.py` kills a document submit at every
+handoff between history, `episode.project.json` and `document.db` (and under
+project-lock contention) to check exactly what a restart sees survive.
 `ReviewService.publish` checks the canonical project after a late persistence
 error: an uncommitted version has its new history entries and media removed,
 while a version already saved in the project retains both.
