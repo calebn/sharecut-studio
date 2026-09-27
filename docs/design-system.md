@@ -152,7 +152,9 @@ and full-button actions, seek-only footers, the Current/Suggested/A/B preview
 modes, the blocked-skip reason, and a 360px phone footer. The live
 `InspectorSeekFooter` adapter reads the DAW store and chooses the audition
 (timeline range, suggested skip or A/B) on Play; the story's callbacks only
-update local preview-mode state.
+update local preview-mode state. The view derives the blocked-skip reason id
+with `useId()`, so several footers on one autodocs page never share an
+`aria-describedby` target.
 
 `Templates/BottomTabsSplitter` renders the production `BottomTabsSplitterView`,
 the separator above the Transcript/Comments/History band, with fixed default,
@@ -328,8 +330,8 @@ that store or simulate command execution.
 
 - 2026-09-27 — Added `Templates/InspectorSeekFooter` over the extracted
   props-only `InspectorSeekFooterView`, and `Templates/BottomTabsSplitter`
-  over `BottomTabsSplitterView`; follow-up E leaves the catalog boundary list
-  (#612).
+  over `BottomTabsSplitterView`; the blocked-skip reason uses a `useId()` id;
+  follow-up E leaves the catalog boundary list (#612).
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
   the `UndoToast` and `FocusPull` stories, and the Catalog boundary section
