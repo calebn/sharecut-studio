@@ -539,7 +539,7 @@ The path-filtered `.github/workflows/desktop.yml` also builds the web distributi
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
 Windows desktop binary. The Windows job compiles WebView2-only adapters that macOS
 and Linux cannot typecheck; installer creation remains in the reusable release
-workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` so the Windows fallback of pinned media reads is tested on NTFS, not only simulated.
+workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated.
 
 Local mirrors:
 

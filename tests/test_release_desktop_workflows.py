@@ -102,6 +102,20 @@ def test_desktop_workflow_compiles_windows_only_adapters() -> None:
     assert check["run"] == "cargo check --bin sharecut --features app"
 
 
+def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> None:
+    job = load_github_yaml(DESKTOP_CHECK)["jobs"]["pinned-media-windows"]
+    assert job["runs-on"] == "windows-latest"
+    assert job["strategy"]["matrix"]["python-version"] == ["3.11", "3.12"]
+    setup = next(
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("actions/setup-python")
+    )
+    assert setup["with"]["python-version"] == "${{ matrix.python-version }}"
+    run = next(step for step in job["steps"] if step.get("name") == "Pinned media tests")
+    assert "tests/test_pinned_media.py" in run["run"]
+
+
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     data = load_github_yaml(BUILD)
     prepare = data["jobs"]["prepare-extension-runtime"]

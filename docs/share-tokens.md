@@ -28,7 +28,8 @@ is missing on Windows. `PinnedFileResponse` overrides Starlette's private `FileR
 hooks, so `starlette>=0.47.0` (and `fastapi>=0.116.1`, the first release that accepts it)
 is required. In `tests/test_pinned_media.py`, a signature-drift test and a test that forbids
 opening the path fail on the next incompatible change; the `pinned-media-windows` CI job
-runs that file on Windows.
+runs that file on Windows with Python 3.11 (the `requires-python` floor) and 3.12 (the
+desktop sidecar's version).
 
 ## State diagram
 
