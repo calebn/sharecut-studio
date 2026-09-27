@@ -1734,8 +1734,11 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             ]
             if new_stacks:
                 restore_clip_geometry(project, snap)
-                a, b = new_stacks[0].clip_ids
-                skip = f"clips {a!r} and {b!r} would stack on the same source"
+                pairs = [f"{s.clip_ids[0]!r}/{s.clip_ids[1]!r}" for s in new_stacks]
+                listed = ", ".join(pairs[:6])
+                if len(pairs) > 6:
+                    listed += f", +{len(pairs) - 6} more"
+                skip = f"clip pairs would stack on the same source: {listed}"
 
         if skip:
             log.warning("align_tracks: skipping %s: %s", track.id, skip)

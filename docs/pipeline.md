@@ -50,8 +50,9 @@ reference clip it overlaps most) — a head that would land before the file star
 (timeline start moves later, source start clamps to 0), and a tail past the file end
 clamps too. When the delta would leave a piece with no audio, or applying it would newly
 stack two same-source clips on the timeline (`same_source_timeline_overlaps`, #520), the
-whole track is left unchanged: its plans get `skipped_reason` (surfaced in the step
-summary as `skipped <track> (...)` and in the artifact), while `offset_sec` is kept so the
+whole track is left unchanged: its plans get `skipped_reason` (naming each newly stacked clip
+pair, up to six; surfaced in the step summary as `skipped <track> (...)` and in the artifact),
+while `offset_sec` is kept so the
 unattended gate still sees the move. `meta.ingest_alignment` is written from each placed
 clip's source-to-timeline shift (`session_start_in_file_sec = max(0, -shift)`,
 `content_align_sec = max(0, shift)`), which reproduces the old whole-file values exactly.
