@@ -149,10 +149,11 @@ wall clock. All three views ship a 360px story (`PhoneEmpty`,
 `timelineLaneStoryDecorator`; `Templates/PresenceOverlay` passes
 `laneTrackIds` for its second lane and `reserveRulerRoom`, so the remote
 playhead's avatar chip drawn above the lane stays inside the canvas. A guard test
-(`timeline/liveOverlayViews.test.ts`) checks each view's own imports never
-reach the store, the API layer, or `timelineMetrics` directly — `followSync`
-still reaches the store transitively through `clock.ts`, which the guard does
-not follow.
+(`timeline/liveOverlayViews.test.ts`) parses each view's import specifiers
+(`importSpecifiers` from `test/storyGovernance.ts`, so a `../state` barrel is
+caught and comments are ignored) and checks they never reach the store, the
+API layer, or `timelineMetrics` directly — `followSync` still reaches the
+store transitively through `clock.ts`, which the guard does not follow.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
