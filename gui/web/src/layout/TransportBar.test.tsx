@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { capabilityTooltip } from "../capabilities/copy";
+import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
@@ -136,9 +136,10 @@ describe("TransportBar collapsed", () => {
     const menu = screen.getByRole("menu");
     expect(
       within(menu).getByRole("menuitem", {
-        name: "Fit session width",
+        name: capabilityLabel("daw.view.fit"),
       }),
     ).toBeTruthy();
+    expect(capabilityLabel("daw.view.fit")).toBe("Fit session width");
     expect(
       within(menu).queryByRole("button", {
         name: "Fit tracks to window height",
