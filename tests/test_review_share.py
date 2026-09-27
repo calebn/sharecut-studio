@@ -952,6 +952,24 @@ def test_sanitize_guest_document_event_keeps_file_signature():
     assert out["snapshot"]["file_before"] == {"mtime_ns": 100, "size": 20}
 
 
+def test_sanitize_guest_document_event_reduces_file_signature_to_numbers():
+    from podcast_mcp.services.share import sanitize_guest_document_event
+
+    event = {
+        "type": "Applied",
+        "plane": "document",
+        "snapshot": {
+            "server_seq": 3,
+            "file": {"mtime_ns": 111, "size": 22, "ino": 9, "path": "/Users/h/ep.json"},
+            "file_before": {"mtime_ns": "100", "size": 20},
+        },
+        "server_seq": 3,
+    }
+    out = sanitize_guest_document_event(event)
+    assert out["snapshot"]["file"] == {"mtime_ns": 111, "size": 22}
+    assert "file_before" not in out["snapshot"]
+
+
 def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestWS")
