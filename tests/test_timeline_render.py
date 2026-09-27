@@ -658,9 +658,9 @@ def test_render_track_without_clips_uses_full_file(sample_wav: Path, tmp_path: P
 
 
 def test_crossfade_join_helpers():
-    from podcast_mcp.engines.timeline_render import (
-        _crossfade_ms_at_join,
-        _uses_crossfade_join,
+    from podcast_mcp.edits.clips_ops import (
+        crossfade_ms_at_join,
+        uses_crossfade_join,
     )
 
     left = Clip(
@@ -679,14 +679,14 @@ def test_crossfade_join_helpers():
         timeline_start=0.5,
         fade_in_ms=20,
     )
-    assert not _uses_crossfade_join(left, right)
+    assert not uses_crossfade_join(left, right)
     right.join_in_mode = ClipJoinMode.CROSSFADE
-    assert _uses_crossfade_join(left, right)
-    assert _crossfade_ms_at_join(left, right) >= 20
+    assert uses_crossfade_join(left, right)
+    assert crossfade_ms_at_join(left, right) >= 20
 
 
 def test_crossfade_join_uses_canonical_gap_tolerance():
-    from podcast_mcp.engines.timeline_render import _uses_crossfade_join
+    from podcast_mcp.edits.clips_ops import uses_crossfade_join
 
     left = Clip(
         id="left",
@@ -705,9 +705,9 @@ def test_crossfade_join_uses_canonical_gap_tolerance():
         fade_in_ms=20,
         join_in_mode=ClipJoinMode.CROSSFADE,
     )
-    assert _uses_crossfade_join(left, right)
+    assert uses_crossfade_join(left, right)
     right.timeline_start = 1.0 + JOIN_GAP_TOLERANCE_SEC + 1e-3
-    assert not _uses_crossfade_join(left, right)
+    assert not uses_crossfade_join(left, right)
 
 
 def _two_clip_project(ws: Path, sample_wav: Path, gap: float, mode: ClipJoinMode) -> EpisodeProject:

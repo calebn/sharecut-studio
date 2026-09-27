@@ -4,7 +4,7 @@ import math
 import uuid
 from collections.abc import Mapping, Sequence
 from itertools import pairwise
-from typing import Any
+from typing import Any, Literal
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.mute_regions import intersect_mute_regions
@@ -322,6 +322,83 @@ def trim_clip_edge(
     return clip
 
 
+CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in"]
+
+
+def crossfade_block_reason(left: Clip, right: Clip) -> CrossfadeBlocked | None:
+    """Why a crossfade-mode join renders as a plain fade/cut, or ``None`` when it blends."""
+    if not clips_abut(left, right):
+        return "not_abutting"
+    if left.fade_out_ms <= 0:
+        return "no_fade_out"
+    if right.fade_in_ms <= 0:
+        return "no_fade_in"
+    return None
+
+
+def uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
+    """True when render blends ``prev`` into ``clip`` with an overlapping crossfade."""
+    return (
+        clip.join_in_mode == ClipJoinMode.CROSSFADE and crossfade_block_reason(prev, clip) is None
+    )
+
+
+def crossfade_ms_at_join(left: Clip, right: Clip) -> int:
+    """Overlap (ms) render uses at the join, ``0`` when it is not a crossfade."""
+    if not uses_crossfade_join(left, right):
+        return 0
+    vals = [left.fade_out_ms, right.fade_in_ms]
+    return max(min(vals), max(vals) // 2)
+
+
+def join_render_fields(prev: Clip | None, clip: Clip) -> dict[str, Any]:
+    """Effective render of the join into ``clip`` (flat fields for ``list_clips`` rows)."""
+    if prev is None:
+        return {
+            "join_left_clip_id": None,
+            "join_render_mode": None,
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": None,
+        }
+    blocked = (
+        crossfade_block_reason(prev, clip) if clip.join_in_mode == ClipJoinMode.CROSSFADE else None
+    )
+    return {
+        "join_left_clip_id": prev.id,
+        "join_render_mode": (
+            "crossfade"
+            if clip.join_in_mode == ClipJoinMode.CROSSFADE and blocked is None
+            else clip.join_in_mode.value
+        ),
+        "join_crossfade_ms": crossfade_ms_at_join(prev, clip),
+        "join_crossfade_blocked": blocked,
+    }
+
+
+def neighbour_clips(
+    project: EpisodeProject,
+    left_clip_id: str,
+    right_clip_id: str,
+) -> tuple[Clip, Clip, list[Clip], int]:
+    """Resolve ``left``/``right`` as adjacent clips on one track.
+
+    Returns ``(left, right, track_clips, left_index)``; raises ``ValueError`` otherwise.
+    """
+    left = next((c for c in project.clips if c.id == left_clip_id), None)
+    right = next((c for c in project.clips if c.id == right_clip_id), None)
+    if left is None:
+        raise ValueError(f"unknown left_clip_id: {left_clip_id!r}")
+    if right is None:
+        raise ValueError(f"unknown right_clip_id: {right_clip_id!r}")
+    if left.track_id != right.track_id:
+        raise ValueError("join requires clips on the same track")
+    track_clips = clips_for_track(project, left.track_id)
+    left_idx = next(i for i, c in enumerate(track_clips) if c.id == left_clip_id)
+    if left_idx + 1 >= len(track_clips) or track_clips[left_idx + 1].id != right_clip_id:
+        raise ValueError("right clip must be the next clip after left on the track")
+    return left, right, track_clips, left_idx
+
+
 def roll_clip_join(
     project: EpisodeProject,
     left_clip_id: str,
@@ -335,22 +412,7 @@ def roll_clip_join(
     unchanged so later clips do not ripple. Cutaway gap size is preserved when
     both edges move equally.
     """
-    left = next((c for c in project.clips if c.id == left_clip_id), None)
-    right = next((c for c in project.clips if c.id == right_clip_id), None)
-    if left is None:
-        raise ValueError(f"unknown left_clip_id: {left_clip_id!r}")
-    if right is None:
-        raise ValueError(f"unknown right_clip_id: {right_clip_id!r}")
-    if left.track_id != right.track_id:
-        raise ValueError("roll join requires clips on the same track")
-
-    track_clips = clips_for_track(project, left.track_id)
-    try:
-        left_idx = next(i for i, c in enumerate(track_clips) if c.id == left_clip_id)
-    except StopIteration as exc:
-        raise ValueError(f"unknown left_clip_id: {left_clip_id!r}") from exc
-    if left_idx + 1 >= len(track_clips) or track_clips[left_idx + 1].id != right_clip_id:
-        raise ValueError("right clip must be the next clip after left on the track")
+    left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
 
     prev = track_clips[left_idx - 1] if left_idx > 0 else None
     nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None

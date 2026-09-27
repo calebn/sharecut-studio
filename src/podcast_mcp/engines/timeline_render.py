@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from podcast_mcp.edits.clips_ops import JOIN_GAP_TOLERANCE_SEC, clips_abut, clips_for_track
+from podcast_mcp.edits.clips_ops import (
+    JOIN_GAP_TOLERANCE_SEC,
+    clips_for_track,
+    crossfade_ms_at_join,
+    uses_crossfade_join,
+)
 from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
@@ -74,25 +79,10 @@ def edits_for_clip_source(
     return mapped
 
 
-def _uses_crossfade_join(prev: Clip, clip: Clip) -> bool:
-    if clip.join_in_mode != ClipJoinMode.CROSSFADE:
-        return False
-    if not clips_abut(prev, clip):
-        return False
-    return prev.fade_out_ms > 0 and clip.fade_in_ms > 0
-
-
-def _crossfade_ms_at_join(left: Clip, right: Clip) -> int:
-    if not _uses_crossfade_join(left, right):
-        return 0
-    vals = [left.fade_out_ms, right.fade_in_ms]
-    return max(min(vals), max(vals) // 2)
-
-
 def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool) -> float:
     if not first or clip.join_in_mode == ClipJoinMode.CUT:
         return 0.0
-    if prev is not None and _uses_crossfade_join(prev, clip):
+    if prev is not None and uses_crossfade_join(prev, clip):
         return 0.0
     return clip.fade_in_ms / 1000.0
 
@@ -100,7 +90,7 @@ def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool) -> float:
 def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
     if not last or clip.join_in_mode == ClipJoinMode.CUT:
         return 0.0
-    if nxt is not None and _uses_crossfade_join(clip, nxt):
+    if nxt is not None and uses_crossfade_join(clip, nxt):
         return 0.0
     return clip.fade_out_ms / 1000.0
 
@@ -166,7 +156,7 @@ def render_track_from_timeline(
         )
         prev = track_clips[i - 1] if i > 0 else None
         nxt = track_clips[i + 1] if i < len(track_clips) - 1 else None
-        crossfade_prev = _crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
+        crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
 
         gap_before = 0.0
         overlap_prev = 0.0
@@ -464,7 +454,7 @@ def render_track_segment(
         clip_i = track_clips.index(clip)
         prev = track_clips[clip_i - 1] if clip_i > 0 else None
         nxt = track_clips[clip_i + 1] if clip_i + 1 < len(track_clips) else None
-        crossfade_prev = _crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
+        crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
 
         gap_before = ov_tl_start - timeline_cursor
         if gap_before <= JOIN_GAP_TOLERANCE_SEC or crossfade_prev > 0:

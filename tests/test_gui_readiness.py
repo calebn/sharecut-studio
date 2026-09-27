@@ -57,6 +57,12 @@ def test_list_clips_includes_join_in_mode_and_source_id() -> None:
     assert clip["join_in_mode"] == "fade"
     assert clip["source_id"] == "src1"
     assert clip["origin_track_id"] == "host"
+    assert clip["join_left_clip_id"] == data["tracks"]["host"][0]["id"]
+    assert data["tracks"]["host"][0]["join_left_clip_id"] is None
+    assert data["tracks"]["host"][0]["join_render_mode"] is None
+    assert clip["join_render_mode"] == "fade"
+    assert clip["join_crossfade_ms"] == 0
+    assert clip["join_crossfade_blocked"] is None
 
 
 def test_archive_decision_and_list_applied() -> None:

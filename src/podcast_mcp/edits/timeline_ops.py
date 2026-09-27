@@ -10,6 +10,7 @@ from podcast_mcp.edits.clips_ops import (
     build_clips_after_removes,
     clips_for_track,
     extract_clips_in_timeline_range,
+    join_render_fields,
     new_clip_id,
     place_clips_at,
     punch_timeline_range_from_clips,
@@ -878,8 +879,11 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
         clips = [c for c in clips if c.track_id == track_id]
     by_track: dict[str, list[dict]] = {}
     sources = {s.id: s for s in project.sources}
+    prev_by_track: dict[str, Clip] = {}
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
         src = sources.get(c.source_id) if c.source_id else None
+        prev = prev_by_track.get(c.track_id)
+        prev_by_track[c.track_id] = c
         by_track.setdefault(c.track_id, []).append(
             {
                 "id": c.id,
@@ -891,6 +895,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
                 "join_in_mode": c.join_in_mode.value,
+                **join_render_fields(prev, c),
                 "source_id": c.source_id,
                 "origin_track_id": origin_track_id_for_clip(project, c),
                 "mute_regions": mute_regions_payload(c.mute_regions),
