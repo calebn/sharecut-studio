@@ -12,7 +12,6 @@ import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { dbToLinear } from "../utils/audio";
 import {
   MIN_CLIP_CSS_PX,
   QUIET_WASH_MIN_ZOOM_PX_PER_SEC,
@@ -58,6 +57,7 @@ import { useWaveformStatus } from "../waveform/statusStore";
 import {
   isReady,
   type MediaRef,
+  postFaderDisplayGain,
   type RasterJob,
   type ReadyEntry,
   resolveWaveformScale,
@@ -205,8 +205,8 @@ function WaveformLayerView({
   const scaleMode = useDawStore((s) => s.waveformScale);
   const postFader = useDawStore((s) => s.waveformPostFader);
   const scale = resolveWaveformScale(scaleMode, role);
-  // Display gain: View amplitude, times the track's output gain post-fader.
-  const gain = ampZoom * (postFader ? dbToLinear(gainDb) : 1);
+  // Display gain: View amplitude, times the track's output gain (0.5 dB steps) post-fader.
+  const gain = ampZoom * (postFader ? postFaderDisplayGain(gainDb) : 1);
   const theme = useResolvedTheme();
   const dprReal = useDevicePixelRatio();
   const { laneHeight } = useTimelineMetrics();

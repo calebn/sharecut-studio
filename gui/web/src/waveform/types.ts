@@ -3,6 +3,8 @@
  * `i16 min, i16 max, i16 rms` triples, exactly as the server sends them.
  */
 
+import { dbToLinear } from "../utils/audio";
+
 /** Which media a status poll lists: raw (track / source) or rendered stems. */
 export type WaveformKind = "raw" | "stem";
 
@@ -68,6 +70,19 @@ export function resolveWaveformScale(
     return mode;
   }
   return role === "dialogue" ? "log" : "linear";
+}
+
+/** Post-fader display gain resolution (dB): a fader drag re-rasterizes tiles at most once per step. */
+export const POST_FADER_DISPLAY_STEP_DB = 0.5;
+
+/**
+ * Linear display gain for a track's output gain (`gain_db + fader_db`),
+ * rounded to `POST_FADER_DISPLAY_STEP_DB` first so every fader step does
+ * not mint a new tile identity (`ampZoom` is part of `tileKey`/`tileGroup`).
+ */
+export function postFaderDisplayGain(gainDb: number): number {
+  const step = POST_FADER_DISPLAY_STEP_DB;
+  return dbToLinear(Math.round(gainDb / step) * step);
 }
 
 /** Straight-alpha RGBA, 0..1 per channel. */

@@ -370,6 +370,9 @@ describe("WaveformLayer", () => {
     useDawStore.setState({ waveformPostFader: true });
     mount({ gainDb: -6 });
     expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (-6 / 20), 5);
+    state.rasters = [];
+    mount({ gainDb: -6.2 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (-6 / 20), 5);
   });
 
   it("dims the peak edge at coarse zoom, keeps it at fine zoom", () => {

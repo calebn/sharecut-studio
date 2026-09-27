@@ -488,7 +488,9 @@ every lane. The amplitude ×N control (View › Waveform amplitude −/+, or
 `Shift+ArrowUp/Down`) is a pre-mapping gain under both scales: under log,
 ×2 lifts the shape by 6 dB. **Show waveforms post-fader** (off by default)
 multiplies the display gain by `dbToLinear(gain_db + fader_db)`
-(`utils/audio.ts` `trackOutputGainDb`) in every audition mode. The scale,
+(`utils/audio.ts` `trackOutputGainDb`), rounded to 0.5 dB
+(`postFaderDisplayGain`, `waveform/types.ts`) so a fader drag re-rasterizes
+at most once per half dB, in every audition mode. The scale,
 amplitude and post-fader flag are remembered per project, per browser, in
 `localStorage` (`sharecut.waveformView`, `utils/waveformViewPref.ts`, 32
 most-recent projects) — a convenience like `sharecut.laneHeight`, not a

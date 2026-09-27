@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isReady, refKind, resolveWaveformScale } from "./types";
+import {
+  isReady,
+  postFaderDisplayGain,
+  refKind,
+  resolveWaveformScale,
+} from "./types";
 
 describe("waveform types", () => {
   it("maps refs to the status kind that lists them", () => {
@@ -41,5 +46,14 @@ describe("resolveWaveformScale", () => {
   it("forces one scale on every lane when not auto", () => {
     expect(resolveWaveformScale("linear", "dialogue")).toBe("linear");
     expect(resolveWaveformScale("log", "music")).toBe("log");
+  });
+});
+
+describe("postFaderDisplayGain", () => {
+  it("rounds the output gain to 0.5 dB before converting", () => {
+    expect(postFaderDisplayGain(-6)).toBeCloseTo(10 ** (-6 / 20), 9);
+    expect(postFaderDisplayGain(-6.2)).toBe(postFaderDisplayGain(-6));
+    expect(postFaderDisplayGain(-6.3)).toBe(postFaderDisplayGain(-6.5));
+    expect(postFaderDisplayGain(0)).toBe(1);
   });
 });
