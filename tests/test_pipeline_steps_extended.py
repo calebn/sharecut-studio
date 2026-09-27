@@ -1153,26 +1153,70 @@ def test_transcribe_tracks_summary_counts_suspect_hallucinations(
     asr = Transcript(track_id="", words=[TranscriptWord(text="ghost", start=0.0, end=0.5)])
     with (
         patch.object(Engine, "transcribe_file", return_value=asr),
-        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", side_effect=_flag_first),
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", side_effect=_flag_first),
     ):
         summary = steps.transcribe_tracks(proj, load_defaults())
     assert "1 suspect hallucinations" in summary
 
 
-def test_transcribe_tracks_summary_ignores_flags_on_reused_transcripts(
-    minimal_project, sample_wav, tmp_workspace
-):
+def _first_pass(proj):
     from podcast_mcp.engines import TranscriptionEngine as Engine
 
-    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
         steps.transcribe_tracks(proj, load_defaults())
-    proj.transcripts[0].words[0].suspect_hallucination = True
-    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
-        second = steps.transcribe_tracks(proj, load_defaults())
+
+
+def test_transcribe_tracks_reflags_reused_transcripts_from_current_peak(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _first_pass(proj)
+    defaults = load_defaults()
+    defaults["transcribe"]["silence_filter"]["peak_dbfs"] = -30.0
+    seen: list[float] = []
+
+    def _flag(words, path, *, peak_dbfs):
+        seen.append(peak_dbfs)
+        words[0].suspect_hallucination = True
+        return 1
+
+    with (
+        patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls,
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", side_effect=_flag),
+    ):
+        second = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
     assert "0 transcribed, 1 reused" in second
+    assert "1 suspect hallucinations" in second
+    assert proj.transcripts[0].words[0].suspect_hallucination is True
+    assert seen == [-30.0]
+
+
+def test_transcribe_tracks_disabled_filter_clears_reused_flags(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _first_pass(proj)
+    proj.transcripts[0].words[0].suspect_hallucination = True
+    defaults = load_defaults()
+    defaults["transcribe"]["silence_filter"]["enabled"] = False
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine"):
+        second = steps.transcribe_tracks(proj, defaults)
+    assert proj.transcripts[0].words[0].suspect_hallucination is False
     assert "suspect hallucinations" not in second
+
+
+def test_transcribe_tracks_reused_decode_failure_reports_skip(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    _first_pass(proj)
+    with (
+        patch("podcast_mcp.pipeline.steps.TranscriptionEngine"),
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", return_value=None),
+    ):
+        second = steps.transcribe_tracks(proj, load_defaults())
+    assert "silence filter skipped on 1 track(s)" in second
 
 
 def test_transcribe_tracks_summary_reports_silence_filter_skip(
@@ -1183,7 +1227,7 @@ def test_transcribe_tracks_summary_reports_silence_filter_skip(
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with (
         patch.object(Engine, "transcribe_file", return_value=_asr_result()),
-        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=None),
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", return_value=None),
     ):
         summary = steps.transcribe_tracks(proj, load_defaults())
     assert "silence filter skipped on 1 track(s)" in summary

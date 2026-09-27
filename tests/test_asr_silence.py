@@ -5,10 +5,12 @@ import wave
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     flag_silent_words_in_file,
     flag_words_over_silence,
     peak_envelope,
+    refresh_silence_flags,
 )
 from podcast_mcp.models import TranscriptWord
 
@@ -95,3 +97,16 @@ def test_real_decode_of_tone(sample_wav):
     words = [_w(0.5, 1.0)]
     assert flag_silent_words_in_file(words, sample_wav, peak_dbfs=-60.0) == 0
     assert not words[0].suspect_hallucination
+
+
+def test_refresh_silence_flags_off_clears_and_on_reflags(monkeypatch, tmp_path):
+    from podcast_mcp.engines import asr_silence
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+    words = [_w(0.2, 0.5)]
+    words[0].suspect_hallucination = True
+    path = tmp_path / "a.wav"
+    assert refresh_silence_flags(words, path, AsrOptions(silence_filter_enabled=False)) == 0
+    assert words[0].suspect_hallucination is False
+    assert refresh_silence_flags(words, path, AsrOptions()) == 1
+    assert words[0].suspect_hallucination is True

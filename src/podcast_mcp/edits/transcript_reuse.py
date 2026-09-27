@@ -7,6 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_silence import refresh_silence_flags
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.transcript_context import load_transcript_context
@@ -183,3 +185,24 @@ def run_transcribe_plan(
         merge_transcripts_by_key(project, transcripts)
     stamp_audio_identity(project, plan)
     return transcripts
+
+
+def refresh_reused_silence_flags(
+    project: EpisodeProject, plan: TranscribePlan, options: AsrOptions
+) -> list[str]:
+    """Re-flag ``suspect_hallucination`` on ``plan.reused`` transcripts from ``options``.
+
+    Reused transcripts skip ASR, so without this a changed ``transcribe.silence_filter``
+    (or a transcript stored before the filter existed) would keep stale flags. Only a peak
+    envelope is decoded; Whisper does not run. Returns the labels whose audio could not
+    be decoded.
+    """
+    stored = {t.key: t for t in project.transcripts}
+    skipped: list[str] = []
+    for job in plan.reused:
+        transcript = stored.get(job.key)
+        if transcript is None:
+            continue
+        if refresh_silence_flags(transcript.words, job.audio, options) is None:
+            skipped.append(job.label)
+    return skipped
