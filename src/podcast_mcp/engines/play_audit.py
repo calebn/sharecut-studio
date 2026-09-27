@@ -435,6 +435,9 @@ def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:
     """Delete stem hash sidecars so play falls back to segment render after history nav.
 
     Leaves stem WAVs in place (cheap to ignore when stale). Returns track ids cleared.
+    Runs inside the undo/redo transaction without render_lock (taking it there would invert
+    the lock order); deleting a hash only makes a stem stale, and a publish racing it writes
+    a hash naming its own snapshot, which freshness rejects if it differs.
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 
