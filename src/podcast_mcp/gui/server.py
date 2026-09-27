@@ -115,6 +115,10 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
     opening the root silently closed a CLI-pinned project. Only host-authorized
     callers are redirected (the Location names the served path); an explicit
     ``project``, a ``review`` share or ``home`` keeps the page as asked.
+
+    The ``served.is_file()`` check is not locked against a concurrent unpin or
+    file removal. That race is benign: the redirected ``?project=`` request goes
+    through the usual mismatch / recovery handling.
     """
     params = request.query_params
     if any(key in params for key in ("project", "review", HOME_QUERY_PARAM)):
@@ -125,9 +129,11 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
         require_host(request, token=params.get("session_token"))
     except HTTPException:
         return None
-    target = request.url.include_query_params(project=str(served))
+    query = request.url.include_query_params(project=str(served)).query
+    # A query-only Location resolves against the URL the browser asked for, so a
+    # mount prefix or a path-rewriting proxy cannot send it to the wrong path.
     return RedirectResponse(
-        f"{target.path}?{target.query}",
+        f"?{query}",
         status_code=307,
         headers={"Cache-Control": "no-store"},
     )
