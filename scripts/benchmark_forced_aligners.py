@@ -282,7 +282,10 @@ def align_prediction(
     samples: np.ndarray, words: list[dict[str, Any]], backend: Backend, vocab: CtcVocab
 ) -> tuple[list[dict[str, Any]], dict[str, int], float]:
     audio_sec = len(samples) / SAMPLE_RATE
-    windows = plan_windows([(w["start"], w["end"]) for w in words], audio_sec=audio_sec)
+    order = sorted(range(len(words)), key=lambda i: words[i]["start"])
+    windows = plan_windows(
+        [(words[i]["start"], words[i]["end"]) for i in order], audio_sec=audio_sec
+    )
 
     output = [dict(w, aligned=False) for w in words]
     windows_count = 0
@@ -296,10 +299,11 @@ def align_prediction(
         end_sample = round(win.end_sec * SAMPLE_RATE)
         chunk = samples[start_sample:end_sample]
         lp = backend.log_probs(chunk)
-        texts = [words[i]["text"] for i in win.word_indices]
+        indices = [order[j] for j in win.word_indices]
+        texts = [words[i]["text"] for i in indices]
         spans = align_words(lp, texts, vocab, offset_sec=win.start_sec)
         window_failed = True
-        for word_index, span in zip(win.word_indices, spans, strict=True):
+        for word_index, span in zip(indices, spans, strict=True):
             if span is None:
                 continue
             window_failed = False

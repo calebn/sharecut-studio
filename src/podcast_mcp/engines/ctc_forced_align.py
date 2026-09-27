@@ -8,6 +8,7 @@ from __future__ import annotations
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 
 import numpy as np
 
@@ -164,8 +165,16 @@ def plan_windows(
     max_window_sec: float = 20.0,
     pad_sec: float = 0.5,
 ) -> list[AlignmentWindow]:
+    """Group word spans into padded alignment windows.
+
+    ``spans`` must be sorted by start time (ties allowed): grouping is a single
+    left-to-right pass. Windows split on gaps over ``max_gap_sec`` or spans over
+    ``max_window_sec`` and never pad across the midpoint to the next window.
+    """
     if not spans:
         return []
+    if any(later[0] < earlier[0] for earlier, later in pairwise(spans)):
+        raise ValueError("plan_windows needs spans sorted by start time")
 
     groups: list[list[int]] = []
     group_first_start = 0.0

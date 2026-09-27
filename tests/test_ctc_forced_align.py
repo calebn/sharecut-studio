@@ -107,6 +107,13 @@ def test_plan_windows_empty_input_returns_empty_list() -> None:
     assert plan_windows([], audio_sec=10.0) == []
 
 
+def test_plan_windows_rejects_unsorted_spans_but_allows_ties() -> None:
+    with pytest.raises(ValueError, match="sorted"):
+        plan_windows([(1.0, 1.2), (0.0, 0.2)], audio_sec=5.0)
+    windows = plan_windows([(0.0, 0.2), (0.0, 0.3)], audio_sec=5.0, pad_sec=0.0)
+    assert [w.word_indices for w in windows] == [(0, 1)]
+
+
 def test_plan_windows_single_overlong_word_gets_its_own_window() -> None:
     windows = plan_windows(
         [(0.0, 25.0), (25.5, 25.8)], audio_sec=30.0, max_window_sec=20.0, pad_sec=0.0
