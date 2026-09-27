@@ -42,56 +42,139 @@ const HOT_FIELD_READ = new RegExp(`\\bs\\.(${HOT_FIELD_ALTERNATION})\\b`, "g");
 const HOT_FIELD_NAME = new RegExp(`\\b(${HOT_FIELD_ALTERNATION})\\b`, "g");
 
 /**
- * Start of an inline selector passed to `useDaw(`, `useDawStore(` or
- * `useShallow(` (also `useDawStore(useShallow(`): an arrow whose parameter
- * is a name (group 1) or a destructuring pattern (group 2), optionally typed.
+ * Where an inline selector starts: just past `useDaw(`, `useDawStore(` or
+ * `useShallow(` (also `useDawStore(useShallow(`). `selectorAt` parses the
+ * function (if any) from there.
  */
-const SELECTOR_START =
-  /\b(?:useDaw(?:Store)?|useShallow)\(\s*(?:useShallow\(\s*)?\(?\s*(?:(\w+)|\{([^}]*)\})(?:\s*:\s*[\w.<>[\]]+)?\s*\)?\s*=>/g;
+const SELECTOR_CALL =
+  /\b(?:useDaw(?:Store)?|useShallow)\(\s*(?:useShallow\(\s*)?/g;
 
-/** `text` from `from` up to the `)` closing the call already open there. */
-function callBody(text: string, from: number): string {
+/**
+ * Where a hoisted selector starts: an arrow or `function` whose first
+ * parameter is annotated with a type naming `DawState`, e.g.
+ * `(st: DawState) =>` or `function pick(st: Pick<DawState, "scrollLeft">)`.
+ */
+const TYPED_SELECTOR =
+  /(?:\bfunction\b\s*\w*\s*)?\(\s*(?:\w+|\{[^)]*?\})\s*:[^)]*\bDawState\b/g;
+
+/** Index just past the `close` matching an `open` already open before `from`. */
+function closeOf(
+  text: string,
+  from: number,
+  open: string,
+  close: string,
+): number {
   let depth = 1;
   for (let i = from; i < text.length; i += 1) {
-    const ch = text[i];
-    if (ch === "(") {
+    if (text[i] === open) {
       depth += 1;
-    } else if (ch === ")") {
+    } else if (text[i] === close) {
       depth -= 1;
       if (depth === 0) {
-        return text.slice(from, i);
+        return i + 1;
       }
     }
   }
-  return text.slice(from);
+  return text.length;
 }
 
 /**
- * Hot-field reads in `text`: any `s.<field>`, plus, inside an inline store
- * selector, `<param>.<field>` for a parameter of any other name and any hot
- * field named in a destructuring parameter (reported as `{ field }`).
- * Handler reads (`useDawStore.getState().field`, `ctx.field`) never match.
+ * A function body starting at `from`: a `{ ... }` block, or an expression
+ * running to a `,` / `;` at depth 0 or to the bracket closing an outer call.
+ */
+function bodyAt(text: string, from: number): string {
+  const start = from + (/^\s*/.exec(text.slice(from))?.[0].length ?? 0);
+  if (text[start] === "{") {
+    return text.slice(start, closeOf(text, start + 1, "{", "}"));
+  }
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if ("([{".includes(ch)) {
+      depth += 1;
+    } else if (")]}".includes(ch)) {
+      depth -= 1;
+      if (depth < 0) {
+        return text.slice(start, i);
+      }
+    } else if ((ch === "," || ch === ";") && depth === 0) {
+      return text.slice(start, i);
+    }
+  }
+  return text.slice(start);
+}
+
+/** A parsed selector: its first parameter's name or destructuring pattern, and its body. */
+type Selector = { param?: string; pattern?: string; body: string };
+
+/**
+ * The arrow or `function` expression starting at `from` (after optional
+ * whitespace). A destructuring pattern is taken with balanced braces, so a
+ * nested pattern stays whole; a type annotation is skipped with the rest of
+ * the parameter list. `undefined` when no function starts there (e.g. a
+ * named selector, `useDaw(pick)`).
+ */
+function selectorAt(text: string, from: number): Selector | undefined {
+  const rest = text.slice(from);
+  const bare = /^\s*(\w+)\s*=>/.exec(rest);
+  if (bare) {
+    return { param: bare[1], body: bodyAt(text, from + bare[0].length) };
+  }
+  const head = /^\s*(?:\bfunction\b\s*\w*\s*)?\(\s*/.exec(rest);
+  if (!head) {
+    return undefined;
+  }
+  const paramsStart = from + head[0].length;
+  const paramsEnd = closeOf(text, paramsStart, "(", ")");
+  const arrow = /^\s*(?:=>|(?=\{))/.exec(text.slice(paramsEnd));
+  if (!arrow) {
+    return undefined;
+  }
+  const body = bodyAt(text, paramsEnd + arrow[0].length);
+  if (text[paramsStart] === "{") {
+    const patternEnd = closeOf(text, paramsStart + 1, "{", "}");
+    return { pattern: text.slice(paramsStart, patternEnd), body };
+  }
+  const name = /^\w+/.exec(text.slice(paramsStart));
+  return name ? { param: name[0], body } : undefined;
+}
+
+/** Hot-field reads by one parsed selector (see `hotFieldReads`). */
+function selectorReads({ param, pattern, body }: Selector): string[] {
+  if (pattern !== undefined) {
+    return [...pattern.matchAll(HOT_FIELD_NAME)].map((f) => `{ ${f[1]} }`);
+  }
+  if (param === undefined || param === "s") {
+    return []; // `s.<field>` is already counted by HOT_FIELD_READ
+  }
+  const paramRead = new RegExp(
+    `\\b${param}\\.(${HOT_FIELD_ALTERNATION})\\b`,
+    "g",
+  );
+  return [...body.matchAll(paramRead)].map((f) => f[0]);
+}
+
+/**
+ * Hot-field reads in `text`: any `s.<field>`, plus, in a store selector,
+ * `<param>.<field>` for a parameter of any other name and any hot field named
+ * in a (possibly nested) destructuring parameter (reported as `{ field }`).
+ * A store selector is an arrow or `function` expression passed inline to
+ * `useDaw` / `useDawStore` / `useShallow`, or any arrow or `function` whose
+ * first parameter's type names `DawState` (a hoisted selector). Handler
+ * reads (`useDawStore.getState().field`, `ctx.field`) never match.
  */
 function hotFieldReads(text: string): string[] {
   const reads = [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
-  for (const m of text.matchAll(SELECTOR_START)) {
-    const [, param, pattern] = m;
-    if (pattern !== undefined) {
-      for (const f of pattern.matchAll(HOT_FIELD_NAME)) {
-        reads.push(`{ ${f[1]} }`);
-      }
-      continue;
-    }
-    if (param === undefined || param === "s") {
-      continue; // `s.<field>` is already counted above
-    }
-    const body = callBody(text, (m.index ?? 0) + m[0].length);
-    const paramRead = new RegExp(
-      `\\b${param}\\.(${HOT_FIELD_ALTERNATION})\\b`,
-      "g",
-    );
-    for (const f of body.matchAll(paramRead)) {
-      reads.push(f[0]);
+  const starts = new Set([
+    ...[...text.matchAll(SELECTOR_CALL)].map(
+      (m) => (m.index ?? 0) + m[0].length,
+    ),
+    ...[...text.matchAll(TYPED_SELECTOR)].map((m) => m.index ?? 0),
+  ]);
+  for (const from of starts) {
+    const selector = selectorAt(text, from);
+    if (selector !== undefined) {
+      reads.push(...selectorReads(selector));
     }
   }
   return reads;
@@ -323,6 +406,26 @@ describe("store governance", () => {
     ["useDawStore((state) => state.playheadSecs)", []],
     ["useDaw((st) => st.zoom); st.playheadSec", []],
     ["el.scrollLeft; ctx.playheadSec", []],
+    [
+      "useDaw(({ project: { tracks }, playheadSec }) => tracks)",
+      ["{ playheadSec }"],
+    ],
+    [
+      'useDaw(({ playheadSec }: Pick<DawState, "playheadSec">) => playheadSec)',
+      ["{ playheadSec }"],
+    ],
+    [
+      "const pick = (st: DawState) => st.playheadSec; useDaw(pick)",
+      ["st.playheadSec"],
+    ],
+    ["useDaw(function (st) { return st.playheadSec; })", ["st.playheadSec"]],
+    [
+      "function pick(st: DawState) { return st.scrollLeft; }",
+      ["st.scrollLeft"],
+    ],
+    ['const p = (st: Pick<DawState, "zoom">) => st.zoom; st.playheadSec', []],
+    ["useDaw((st) => st.zoom, (a, b) => a === b); st.playheadSec", []],
+    ["useDaw(pick)", []],
   ])("finds hot field reads in %j", (text, expected) => {
     expect(hotFieldReads(text)).toEqual(expected);
   });
