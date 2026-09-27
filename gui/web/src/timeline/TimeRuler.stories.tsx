@@ -61,12 +61,23 @@ export const PhoneWidth: Story = {
 };
 
 export const CommentAnchor: Story = {
-  args: { commentMode: true, valueSec: 5 },
+  args: {
+    commentMode: true,
+    valueSec: 5,
+    getPlayheadSec: () => 5,
+    playhead: <PlayheadNeedle xPx={120} height="100%" />,
+  },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("slider", {
-        name: "Comment time anchor",
-      }),
-    ).toHaveAttribute("title", "Click for instant comment, drag for a span");
+    const slider = within(canvasElement).getByRole("slider", {
+      name: "Comment time anchor",
+    });
+    await expect(slider).toHaveAttribute(
+      "title",
+      "Click for instant comment, drag for a span",
+    );
+    await expect(slider).toHaveAttribute("aria-valuenow", "5");
+    await expect(slider.querySelector(".playhead")).toHaveStyle({
+      transform: "translateX(120px)",
+    });
   },
 };
