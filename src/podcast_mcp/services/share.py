@@ -45,7 +45,7 @@ from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
 from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.document_sync.projection_types import parse_view_projection
 from podcast_mcp.services.document_sync.service import (
-    document_server_seq,
+    document_poll_meta,
     notify_comments_changed,
 )
 from podcast_mcp.services.review_media import (
@@ -695,14 +695,9 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
 
 
 def share_daw_meta(token: str) -> dict[str, Any]:
-    """Poll meta for guest Sharecut Studio (mtime/size + document seq; no filesystem path)."""
+    """Poll meta for guest Sharecut Studio (mtime/size + document seq when readable; no filesystem path)."""
     _row, ws = require_share_cap(token, CAP_VIEW)
-    stat = ws.path.stat()
-    return {
-        "mtime_ns": stat.st_mtime_ns,
-        "size": stat.st_size,
-        "server_seq": document_server_seq(ws.path),
-    }
+    return document_poll_meta(ws.path)
 
 
 _GUEST_WAVEFORM_REFS = ("track:", "source:")

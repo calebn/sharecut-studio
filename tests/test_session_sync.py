@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import errno
 import json
+import logging
 import sqlite3
 import subprocess
 import sys
@@ -2096,21 +2098,135 @@ def test_session_meta_read_errors_report_missing(minimal_project, monkeypatch, e
     def _boom(*_a, **_k):
         raise exc
 
-    monkeypatch.setattr(session_service, "_store_at", _boom)
+    monkeypatch.setattr(session_service, "_existing_store_at", _boom)
     meta = session_meta(minimal_project)
     assert meta["exists"] is False
     assert meta["mtime_ns"] == 0 and meta["size"] == 0 and meta["server_seq"] == 0
 
 
-def test_session_meta_path_resolution_error_reports_missing(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(errno.ELOOP, "Too many levels of symbolic links"),
+        RuntimeError("Symlink loop from '/loop'"),
+    ],
+)
+def test_session_meta_path_resolution_error_reports_missing(monkeypatch, exc) -> None:
     from podcast_mcp.services.session_sync import service as session_service
 
     def _boom(_path):
-        raise OSError("symlink loop")
+        raise exc
 
     monkeypatch.setattr(session_service, "resolve_project_path", _boom)
     meta = session_meta("/loop/episode.project.json")
     assert meta["exists"] is False and meta["server_seq"] == 0
+
+
+def test_session_meta_never_raises_on_a_real_symlink_loop(tmp_path) -> None:
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.symlink_to(b)
+    b.symlink_to(a)
+    meta = session_meta(a / "episode.project.json")
+    assert meta["exists"] is False and meta["server_seq"] == 0
+
+
+def test_best_effort_meta_returns_the_default_on_read_errors() -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _boom() -> int:
+        raise sqlite3.OperationalError("database is locked")
+
+    assert best_effort_meta(_boom, 7, what="x", path="/p") == 7
+    assert best_effort_meta(lambda: 3, 7, what="x", path="/p") == 3
+
+
+def test_best_effort_meta_does_not_swallow_other_errors() -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _boom() -> int:
+        raise ValueError("bug")
+
+    with pytest.raises(ValueError):
+        best_effort_meta(_boom, 0, what="x", path="/p")
+
+
+def test_best_effort_meta_warns_once_per_path_on_a_corrupt_store(caplog, tmp_path) -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _corrupt() -> int:
+        raise sqlite3.DatabaseError("file is not a database")
+
+    path = tmp_path / "sync.db"
+    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.services.session_sync.service"):
+        for _ in range(3):
+            assert best_effort_meta(_corrupt, 0, what="session meta", path=path) == 0
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "corrupt" in warnings[0].getMessage()
+
+
+def test_best_effort_meta_keeps_transient_errors_at_debug(caplog, tmp_path) -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _locked() -> int:
+        raise sqlite3.OperationalError("database is locked")
+
+    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.services.session_sync.service"):
+        best_effort_meta(_locked, 0, what="session meta", path=tmp_path / "sync.db")
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_meta_reads_treat_a_corrupt_store_as_missing(minimal_project, caplog) -> None:
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    session_dir = minimal_project.parent / "artifacts" / "session"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    garbage = b"not a sqlite database\x00" * 512
+    (session_dir / "sync.db").write_bytes(garbage)
+    (session_dir / "document.db").write_bytes(garbage)
+    cached_before = set(session_sync_log._STORE_CACHE)
+
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
+        for _ in range(2):
+            meta = session_meta(minimal_project)
+            assert meta["exists"] is False
+            assert meta["mtime_ns"] == 0 and meta["size"] == 0 and meta["server_seq"] == 0
+            assert document_server_seq(minimal_project) is None
+
+    assert set(session_sync_log._STORE_CACHE) == cached_before
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 2  # one per store, not one per poll
+
+
+def test_cached_sync_store_if_exists_does_not_recreate_a_vanished_file(
+    tmp_path, monkeypatch
+) -> None:
+    path = tmp_path / "sync.db"
+    # Simulate another process deleting the file after the is_file() check.
+    monkeypatch.setattr(type(path), "is_file", lambda self: True)
+    with pytest.raises(sqlite3.OperationalError):
+        session_sync_log.cached_sync_store_if_exists(path)
+    monkeypatch.undo()
+    assert not path.exists()
+    assert session_sync_log.sync_store_cache_key(path) not in session_sync_log._STORE_CACHE
+
+
+def test_sync_store_closes_its_connection_when_schema_setup_fails(tmp_path, monkeypatch) -> None:
+    opened = []
+    real_connect = session_sync_log.connect_session_db
+
+    def _record(path, **kwargs):
+        conn = real_connect(path, **kwargs)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(session_sync_log, "connect_session_db", _record)
+    monkeypatch.setattr(session_sync_log, "_schema", lambda _prefix: "NOT VALID SQL;")
+    with pytest.raises(sqlite3.OperationalError):
+        SyncStore(tmp_path / "sync.db")
+    assert len(opened) == 1
+    with pytest.raises(sqlite3.ProgrammingError):
+        opened[0].execute("SELECT 1")
 
 
 def test_session_control_seek_stop_mode(minimal_project) -> None:

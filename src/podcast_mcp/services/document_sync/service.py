@@ -11,7 +11,6 @@ from typing import Any
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
-from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
@@ -28,7 +27,8 @@ from podcast_mcp.services.session_sync.log import (
     cached_sync_store_if_exists,
 )
 from podcast_mcp.services.session_sync.service import (
-    SYNC_META_READ_ERRORS,
+    best_effort_meta,
+    meta_workspace_dir,
     session_dir_for_workspace,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -60,7 +60,7 @@ def document_submit_lock(project: EpisodeProject) -> threading.RLock:
     return project_state_lock(project)
 
 
-def _store_at(db_path: Path) -> SyncStore:
+def _open_store(db_path: Path) -> SyncStore:
     """Cached store for ``db_path`` (creates it). Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
     return cached_sync_store(db_path)
 
@@ -72,7 +72,7 @@ def _existing_store_at(db_path: Path) -> SyncStore | None:
 
 def _store_for(project: EpisodeProject) -> SyncStore:
     """Cached document.db store. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
-    return _store_at(document_db_path(project))
+    return _open_store(document_db_path(project))
 
 
 def dump_projection_locked(
@@ -512,21 +512,36 @@ def notify_document_changed(project_path: str | Path) -> None:
         return
 
 
-def document_server_seq(project_path: str | Path) -> int:
-    """Materialized document log seq, or 0 if the store is missing or unreadable.
+def document_server_seq(project_path: str | Path) -> int | None:
+    """Materialized document log seq: 0 when document.db does not exist, None when unreadable.
 
     Stat + document.db read only: no project parse, never creates document.db.
-    Path resolution and store reads share one guard (``SYNC_META_READ_ERRORS``,
-    same policy as ``session_meta_at``). The caller must pass a project path it
-    has already authorized; this helper does no authz.
+    Path resolution and store reads share ``best_effort_meta`` (same policy as
+    ``session_meta``). ``None`` lets the meta routes omit ``server_seq`` so a
+    transient read error does not look like a seq change to the client poll. The
+    caller must pass a project path it has already authorized; this helper does no authz.
     """
-    try:
-        db_path = document_db_path_for_workspace(resolve_project_path(project_path).parent)
+
+    def _read() -> int | None:
+        db_path = document_db_path_for_workspace(meta_workspace_dir(project_path))
         store = _existing_store_at(db_path)
         return _journal_server_seq(store) if store is not None else 0
-    except SYNC_META_READ_ERRORS:
-        log.debug("document server_seq unavailable for %s", project_path, exc_info=True)
-        return 0
+
+    return best_effort_meta(_read, None, what="document server_seq", path=project_path)
+
+
+def document_poll_meta(project_path: Path) -> dict[str, Any]:
+    """Poll meta shared by host ``GET /api/project/meta`` and guest ``.../daw/meta``.
+
+    mtime/size of episode.project.json plus document.db's ``server_seq``, which is
+    omitted when document.db cannot be read, so the client poll skips that tick.
+    """
+    stat = project_path.stat()
+    meta: dict[str, Any] = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+    seq = document_server_seq(project_path)
+    if seq is not None:
+        meta["server_seq"] = seq
+    return meta
 
 
 def notify_comments_changed(project_path: str | Path) -> None:
