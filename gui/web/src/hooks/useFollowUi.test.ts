@@ -73,14 +73,22 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().followDegraded.audition).toBeUndefined();
   });
 
-  it("keeps a follower's timeline layout until the leader changes tab", () => {
+  it("reveals the leader tab on the first tick even behind the timeline layout", () => {
     useDawStore.setState({
       activeTab: "comments",
       layoutMode: "timeline",
       sessionClients: [leader({ tab: "comments" })],
     });
+    renderHook(() => useFollowUi());
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    expect(useDawStore.getState().layoutMode).toBe("default");
+    expect(useDawStore.getState().followingClientId).toBe("a");
+  });
+
+  it("keeps a follower's timeline layout until the leader changes tab", () => {
     const { rerender } = renderHook(() => useFollowUi());
-    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    useDawStore.setState({ layoutMode: "timeline" });
     useDawStore.setState({
       sessionClients: [leader({ tab: "comments", audition: "fx" })],
     });
@@ -107,6 +115,42 @@ describe("useFollowUi", () => {
     rerender();
     expect(useDawStore.getState().activeTab).toBe("transcript");
     expect(useDawStore.getState().layoutMode).toBe("default");
+  });
+
+  it("keeps a tab the follower chose until the leader's tab changes", () => {
+    const { rerender } = renderHook(() => useFollowUi());
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    useDawStore.setState({ activeTab: "transcript" });
+    useDawStore.setState({
+      sessionClients: [leader({ tab: "comments", audition: "fx" })],
+    });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(useDawStore.getState().followingClientId).toBe("a");
+    useDawStore.setState({ sessionClients: [leader({ tab: "pipeline" })] });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("pipeline");
+  });
+
+  it("ignores a leader tab flip it never saw and follows one it did", () => {
+    const { rerender } = renderHook(() => useFollowUi());
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    useDawStore.setState({ activeTab: "transcript" });
+    // Leader went comments -> pipeline -> comments between two renders.
+    useDawStore.setState({
+      sessionClients: [
+        leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
+      ],
+    });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("transcript");
+    // A flip the hook does see is mirrored at each step.
+    useDawStore.setState({ sessionClients: [leader({ tab: "pipeline" })] });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("pipeline");
+    useDawStore.setState({ sessionClients: [leader({ tab: "comments" })] });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("comments");
   });
 
   it("applies the same ui only once", () => {
