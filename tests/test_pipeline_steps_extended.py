@@ -575,6 +575,7 @@ def test_master_loudness_writes_qc_report(minimal_project, sample_wav, tmp_works
     assert qc["target_integrated_lufs"] == -16.0
     assert qc["target_true_peak_db"] == -1.5
     assert "issues" in qc
+    assert qc["normalization_type"] in {"linear", "dynamic", None}
 
 
 def test_master_loudness_qc_flags_out_of_tolerance(minimal_project, sample_wav, tmp_workspace):

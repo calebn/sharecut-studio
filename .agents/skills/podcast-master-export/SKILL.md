@@ -12,8 +12,8 @@ description: >-
 
 - **-16 LUFS** integrated, **-1.5 dBTP** true peak (podcast / Apple-friendly)
 - Configured in `.agents/defaults/pipeline.yaml` under `master`
-- Mastering runs FFmpeg's `loudnorm` **twice** (measure pass, then a linear-gain pass fed
-  the measured values) — accurate to a few tenths of a LU, not the 1-2+ LU drift and
+- Mastering measures with one `ebur128` pass (I, TP, LRA, gate threshold), then runs
+  FFmpeg's `loudnorm` in linear mode fed those values — accurate to a few tenths of a LU, not the 1-2+ LU drift and
   pumping that single-pass `loudnorm` can produce. Details: [docs/audio-engineering.md](../../../docs/audio-engineering.md).
 - Mastered WAV keeps the premix sample rate/channels (loudnorm's internal 192 kHz path is
   not left in deliverables).
@@ -30,9 +30,13 @@ mastering** before telling the user the episode is ready:
   "target_integrated_lufs": -16.0,
   "measured": {"integrated_lufs": -16.1, "true_peak_db": -1.6, "lra": 7.2},
   "within_tolerance": true,
-  "issues": []
+  "issues": [],
+  "normalization_type": "linear",
+  "loudnorm_input": {"input_i": -20.1, "input_tp": -3.0, "input_lra": 6.0, "input_thresh": -30.5, "target_offset": 0.0}
 }
 ```
+
+If `normalization_type` is `"dynamic"`, tell the user the master needed dynamic limiting.
 
 If `within_tolerance` is `false`, read `issues` and flag it to the user before export —
 don't proceed silently. Tolerances: `master.qc_lufs_tolerance_lu` (default `0.5` LU),

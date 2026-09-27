@@ -116,11 +116,17 @@ transcript or under 3 s of speech it falls back to ungated BS.1770 and reports `
 `master_loudnorm` now runs FFmpeg's `loudnorm` filter **twice**, as FFmpeg's own docs
 recommend:
 
-1. **Pass 1** (`measure_loudnorm_stats`) runs with `print_format=json` only to measure
-   the input's true integrated loudness, true peak, and loudness range — nothing is
-   written yet.
+1. **Pass 1** (`loudnorm_input_stats`) is one `ebur128` pass that reads the input's
+   integrated loudness, true peak, loudness range and gate threshold. It replaces a
+   loudnorm measure pass, which resamples to 192 kHz and dominated the step's wall time.
+   `target_offset` is passed as 0: loudnorm only uses it in dynamic mode.
 2. **Pass 2** re-runs `loudnorm` with `linear=true` and the pass-1 measured values fed
-   back in (`measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, `offset`).
+   back in (`measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, `offset`) and
+   `print_format=json`. loudnorm falls back to **dynamic** mode when `TP + gain` would
+   exceed the TP target or the LRA exceeds `master.lra` (or the measured LRA is 0); the
+   printed `normalization_type` (`linear` / `dynamic`) says which ran.
+   Pass 2 runs with `-progress pipe:1` and reports seconds processed on a
+   `master_loudnorm` child progress task.
    This produces a static (non-pumping) gain instead of single-pass `loudnorm`'s
    dynamic/frame-by-frame correction, and lands much closer to the target LUFS (typically
    within a few tenths of a LU, versus 1-2+ LU drift from single-pass).
@@ -139,7 +145,7 @@ filter by hand on `premix.wav` to inspect it. Set
 `crest_tame_af: ""` to disable. Loosen `master.true_peak_db` (e.g. `-1.0`) only when
 you intentionally accept hotter peaks.
 
-If premix LRA (from pass-1 `measured_LRA` / `input_lra`) exceeds `master.lra`
+If premix LRA (from pass-1 `measured_LRA` / `loudnorm_input.input_lra`) exceeds `master.lra`
 (default `11`), raise `master.lra` toward the measured range or compress first — this
 is secondary to crest/TP for most dialogue masters.
 
@@ -152,9 +158,15 @@ After mastering, the `master_loudness` pipeline step re-measures the output
   "target_true_peak_db": -1.5,
   "measured": {"integrated_lufs": -16.1, "true_peak_db": -1.6, "lra": 7.2},
   "within_tolerance": true,
-  "issues": []
+  "issues": [],
+  "normalization_type": "linear",
+  "loudnorm_input": {"input_i": -20.1, "input_tp": -3.0, "input_lra": 6.0, "input_thresh": -30.5, "target_offset": 0.0}
 }
 ```
+
+`normalization_type: "dynamic"` means loudnorm could not apply one static gain within the
+TP/LRA limits, so it limited or compressed dynamically. `loudnorm_input` is the pass-1 stats
+(`null` when loudnorm ran single-pass).
 
 Tolerances are configurable (`master.qc_lufs_tolerance_lu`, default `0.5` LU;
 `master.qc_true_peak_tolerance_db`, default `0.3` dB) in

@@ -27,6 +27,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
+from podcast_mcp.engines.ffmpeg import LoudnormResult
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
     mastered_path,
@@ -122,7 +123,12 @@ def _mastering_engine() -> MagicMock:
     eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_text(
         json.dumps(sorted(Path(p).stem for p, _gain in inputs))
     )
-    eng.master_loudnorm.side_effect = lambda src, dst, **_kw: shutil.copyfile(src, dst)
+
+    def _fake_master(src, dst, **_kw):
+        shutil.copyfile(src, dst)
+        return LoudnormResult(Path(dst), "dynamic", None)
+
+    eng.master_loudnorm.side_effect = _fake_master
     eng.measure_loudness_full.return_value = None
     return eng
 
@@ -717,6 +723,7 @@ def test_a_premix_swapped_mid_master_leaves_the_master_stale(minimal_project: Pa
         premix = premix_path(ws.project)
         st = premix.stat()
         os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+        return LoudnormResult(Path(dst), "dynamic", None)
 
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(ws.project, defaults)
@@ -875,7 +882,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
     in_mix, release = threading.Event(), threading.Event()
     errors: list[BaseException] = []
 
-    def slow_mix(inputs, out):
+    def slow_mix(inputs, out, **kw):
         with counter:
             state["active"] += 1
             state["max"] = max(state["max"], state["active"])
@@ -884,7 +891,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
             in_mix.set()
             release.wait(5)
         try:
-            return original(inputs, out)
+            return original(inputs, out, **kw)
         finally:
             with counter:
                 state["active"] -= 1
@@ -933,3 +940,17 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
     assert state["max"] == 1
     assert eng.mix_tracks.call_count == 2
     assert eng.master_loudnorm.call_count == 1
+
+
+def test_master_qc_records_normalization_type(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        summary = steps.master_loudness(ws.project, defaults)
+    qc = json.loads((ws.project.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
+    assert qc["normalization_type"] == "dynamic"
+    assert "loudnorm_input" in qc
+    assert summary is not None
