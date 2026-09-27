@@ -216,14 +216,17 @@ export function waitForBootstrapJob(
       }
     };
 
-    // Backstop only: a non-terminal re-check must not roll back newer SSE progress.
+    // Status re-checks are a backstop only: a non-terminal snapshot must not
+    // roll back newer SSE progress, so they act only on a terminal job.
+    const considerTerminal = (job: BootstrapJobSnapshot | null | undefined) => {
+      if (job && isTerminalJobStatus(job.status)) {
+        consider(job);
+      }
+    };
+
     const stopRecheck = startJobStatusRecheck(
       () => fetchBootstrapJob(jobId),
-      (job) => {
-        if (isTerminalJobStatus(job.status)) {
-          consider(job);
-        }
-      },
+      considerTerminal,
     );
 
     es.onmessage = (ev) => {
@@ -261,7 +264,7 @@ export function waitForBootstrapJob(
     es.onerror = () => {
       void fetchBootstrapJob(jobId)
         .then((job) => {
-          consider(job);
+          considerTerminal(job);
           if (!settled && es.readyState === EventSource.CLOSED) {
             finishErr(
               new Error("Lost connection while waiting for bootstrap job"),
