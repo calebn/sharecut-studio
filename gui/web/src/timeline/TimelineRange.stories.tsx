@@ -73,7 +73,7 @@ function Stage({
 }
 
 export const AuditionRange: Story = {
-  render: ({ xPx }) => <Stage xPx={xPx} audition />,
+  render: ({ xPx }) => <Stage xPx={xPx ?? 0} audition />,
   play: async ({ canvasElement }) => {
     const range = canvasElement.querySelector(
       ".audition-overlay",
@@ -85,7 +85,7 @@ export const AuditionRange: Story = {
 };
 
 export const SelectedCommentSpan: Story = {
-  render: ({ xPx }) => <Stage xPx={xPx} selected="span" />,
+  render: ({ xPx }) => <Stage xPx={xPx ?? 0} selected="span" />,
   play: async ({ canvasElement }) => {
     const selection = canvasElement.querySelector(
       ".comment-selection-overlay.span",
@@ -96,7 +96,7 @@ export const SelectedCommentSpan: Story = {
 };
 
 export const SelectedCommentPin: Story = {
-  render: ({ xPx }) => <Stage xPx={xPx} selected="pin" />,
+  render: ({ xPx }) => <Stage xPx={xPx ?? 0} selected="pin" />,
   play: async ({ canvasElement }) => {
     const selection = canvasElement.querySelector(
       ".comment-selection-overlay.pin",
