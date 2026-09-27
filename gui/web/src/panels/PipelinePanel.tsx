@@ -451,6 +451,8 @@ export function PipelinePanel() {
         setCfg(next);
         return;
       }
+      // The scan result is shown; the re-read below runs without holding Analyze busy.
+      setAnalyzing(false);
       // A full-config PUT sent during the scan may have landed after apply_patches and
       // replaced the patched config, so re-read the server once that write settles.
       const latest = persistRequest.peek();
