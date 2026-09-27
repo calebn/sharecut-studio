@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.hashing import sha256_file, sha256_head_tail
 
 
 @pytest.mark.parametrize("data", [b"", b"x", b"abcde"])
@@ -28,3 +28,24 @@ def test_sha256_file_default_digest(tmp_path: Path) -> None:
 def test_sha256_file_rejects_nonpositive_chunk(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="chunk_size must be positive"):
         sha256_file(tmp_path / "missing", chunk_size=0)
+
+
+def test_sha256_head_tail_short_file_hashes_whole(tmp_path: Path) -> None:
+    path = tmp_path / "p.bin"
+    path.write_bytes(b"abcdef")
+    assert sha256_head_tail(path, span=4) == hashlib.sha256(b"abcdef").hexdigest()
+
+
+def test_sha256_head_tail_hashes_ends_only(tmp_path: Path) -> None:
+    path = tmp_path / "p.bin"
+    path.write_bytes(b"abcdXXXXwxyz")
+    assert sha256_head_tail(path, span=4) == hashlib.sha256(b"abcdwxyz").hexdigest()
+    path.write_bytes(b"abcdYYYYwxyz")  # middle-only change
+    assert sha256_head_tail(path, span=4) == hashlib.sha256(b"abcdwxyz").hexdigest()
+    path.write_bytes(b"abcdXXXXwxyZ")
+    assert sha256_head_tail(path, span=4) != hashlib.sha256(b"abcdwxyz").hexdigest()
+
+
+def test_sha256_head_tail_rejects_nonpositive_span(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="span must be positive"):
+        sha256_head_tail(tmp_path / "missing", span=0)
