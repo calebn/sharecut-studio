@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { useSessionSync } from "./useSessionSync";
@@ -19,46 +20,9 @@ vi.mock("../api", () => ({
   })),
 }));
 
-class FakeWebSocket {
-  static OPEN = 1;
-  static CONNECTING = 0;
-  static instances: FakeWebSocket[] = [];
-  static autoOpen = true;
-  readyState = FakeWebSocket.autoOpen
-    ? FakeWebSocket.OPEN
-    : FakeWebSocket.CONNECTING;
-  onopen: (() => void) | null = null;
-  onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  url: string;
-  sent: string[] = [];
-
-  constructor(url: string) {
-    this.url = url;
-    FakeWebSocket.instances.push(this);
-    if (FakeWebSocket.autoOpen) {
-      queueMicrotask(() => this.onopen?.());
-    }
-  }
-
-  send(data: string) {
-    this.sent.push(data);
-  }
-
-  close() {
-    this.onclose?.();
-  }
-
-  emit(msg: unknown) {
-    this.onmessage?.({ data: JSON.stringify(msg) });
-  }
-}
-
 describe("useSessionSync presence", () => {
   beforeEach(async () => {
-    FakeWebSocket.instances = [];
-    FakeWebSocket.autoOpen = true;
+    FakeWebSocket.reset();
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
     const { postSessionState, loadSessionMeta } = await import("../api");
@@ -269,7 +233,7 @@ describe("useSessionSync presence", () => {
     });
     expect(old.onclose).toBeNull();
     expect(useRecordHostStore.getState().connected).toBe(true);
-    act(() => lateClose?.());
+    act(() => lateClose?.({ code: 1000 }));
     expect(useRecordHostStore.getState().connected).toBe(true);
     expect(useRecordHostStore.getState().dropped).toBe(false);
     expect(sendRecordHostCommand("SetMuted", { muted: true })).toBe(true);
@@ -359,6 +323,157 @@ describe("useSessionSync presence", () => {
         });
       });
       expect(apply).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("republishes over HTTP when an open socket never echoes a ViewerState", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = FakeWebSocket.instances[0].sent
+        .map(
+          (s) =>
+            JSON.parse(s) as {
+              type: string;
+              snapshot?: { client_id?: string };
+            },
+        )
+        .filter((f) => f.type === "ViewerState");
+      expect(frames).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1400);
+      });
+      expect(postSessionState).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+      expect(postSessionState).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        expect.objectContaining({ client_id: frames[0].snapshot?.client_id }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not fall back once the ViewerState echo arrives", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = FakeWebSocket.instances[0].sent
+        .map(
+          (s) =>
+            JSON.parse(s) as {
+              type: string;
+              snapshot?: { client_id?: string };
+            },
+        )
+        .filter((f) => f.type === "ViewerState");
+      const clientId = frames[0].snapshot?.client_id;
+
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Echo",
+          command: { type: "ViewerState", client_id: clientId, role: "viewer" },
+          snapshot: { server_seq: 1, last_command_id: "cmd-1" },
+        });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(postSessionState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to HTTP when the server rejects a ViewerState frame", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Error",
+          code: "invalid_viewer_state",
+          detail: "bad",
+        });
+        await Promise.resolve();
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
@@ -561,6 +676,100 @@ describe("useSessionSync presence", () => {
         FakeWebSocket.instances[0].emit(applied(3, "cmd-3"));
       });
       expect(apply).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the cursor monotonic when wsReady flips during an in-flight HTTP publish", async () => {
+    FakeWebSocket.autoOpen = false;
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      let finishPublish: ((state: SessionState) => void) | undefined;
+      vi.mocked(postSessionState).mockImplementationOnce(
+        () =>
+          new Promise<SessionState>((resolve) => {
+            finishPublish = resolve;
+          }),
+      );
+      const apply = vi.fn();
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(finishPublish).toBeDefined();
+      const sock = FakeWebSocket.instances[0];
+      await act(async () => {
+        sock.readyState = FakeWebSocket.OPEN;
+        sock.onopen?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = sock.sent
+        .map(
+          (s) =>
+            JSON.parse(s) as {
+              type: string;
+              snapshot?: { client_id?: string };
+            },
+        )
+        .filter((f) => f.type === "ViewerState");
+      expect(frames).toHaveLength(1);
+      await act(async () => {
+        sock.emit({
+          type: "Echo",
+          command: {
+            type: "ViewerState",
+            client_id: frames[0].snapshot?.client_id,
+            role: "viewer",
+          },
+          snapshot: { server_seq: 3, last_command_id: "cmd-3" },
+        });
+      });
+      // The torn-down effect's POST finishes late with an older sequence.
+      await act(async () => {
+        finishPublish?.({
+          server_seq: 1,
+          last_command_id: "cmd-1",
+        } as SessionState);
+        await Promise.resolve();
+      });
+      const applied = (seq: number, commandId: string) => ({
+        type: "Applied",
+        command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+        snapshot: {
+          server_seq: seq,
+          last_command_id: commandId,
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: seq,
+        },
+      });
+      await act(async () => {
+        sock.emit(applied(3, "cmd-3"));
+      });
+      expect(apply).not.toHaveBeenCalled();
+      await act(async () => {
+        sock.emit(applied(4, "cmd-4"));
+      });
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(postSessionState).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
