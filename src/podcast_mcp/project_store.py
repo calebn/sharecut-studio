@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections.abc import Collection, Iterable
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +15,7 @@ from podcast_mcp.models import (
     project_file_path,
     save_project,
 )
-from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
+from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import snapshot_editable_state
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
@@ -137,26 +139,87 @@ def commit_landed(project: EpisodeProject, revision_before: FileRevision | None)
         return None
 
 
-def history_matches_project(project: EpisodeProject, history: ProjectHistory) -> bool:
-    """Whether ``history``'s current entry snapshots ``project``'s editable state.
+class HistoryMatch(StrEnum):
+    """How an index's current entry compares to a project (``match_history_to_project``)."""
+
+    MATCHES = "matches"
+    NO_CURRENT_ENTRY = "it has no current entry"
+    SNAPSHOT_UNREADABLE = "its current entry's snapshot is missing or unreadable"
+    STATE_DIFFERS = "its current entry holds other state (a commit that never landed)"
+
+
+def read_history_snapshot(project: EpisodeProject, entry: HistoryEntry) -> ProjectStateSnapshot:
+    """``entry``'s snapshot file parsed (the one reader of history snapshots).
+
+    A missing file raises ``FileNotFoundError``; an unreadable, non-v2 or invalid one raises
+    ``ValueError`` (incl. ``pydantic.ValidationError``). ``entry.snapshot_file`` is joined
+    onto the workspace unchecked: ``history/index.json`` is written only by local writers
+    under ``project_commit_lock``, and no share or guest path writes history. If one ever
+    does, confine the resolved path to ``history/snapshots/`` here, as
+    ``ProjectStore._remove_pruned_snapshots`` does.
+    """
+    path = project.workspace_path() / entry.snapshot_file
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or "timeline" not in data:
+        raise ValueError(
+            f"History snapshot {entry.snapshot_file} is not v2 format (missing timeline section)."
+        )
+    return ProjectStateSnapshot.model_validate(data)
+
+
+def snapshots_equal(a: ProjectStateSnapshot, b: ProjectStateSnapshot) -> bool:
+    """Whether two snapshots hold the same editable state, compared as saved JSON.
+
+    One side is usually parsed back from a snapshot file; comparing the JSON forms keeps a
+    field whose Python type drifts on a JSON round trip (datetime, tuple, Decimal) from
+    reading as a difference.
+    """
+    return a.model_dump(mode="json", by_alias=True) == b.model_dump(mode="json", by_alias=True)
+
+
+def match_history_to_project(project: EpisodeProject, history: ProjectHistory) -> HistoryMatch:
+    """How ``history``'s current entry compares to ``project``'s editable state.
 
     Every commit that records history saves the state its current entry snapshots, so an
-    index whose current entry holds other state was written by a commit that never landed
-    (for example a process killed between ``record(after)`` and ``save_project``, #576). No
-    current entry, or a missing or unreadable snapshot, does not match.
+    index whose current entry holds other state (``STATE_DIFFERS``) was written by a commit
+    that never landed, for example a process killed between ``record(after)`` and
+    ``save_project`` (#576). A missing or unreadable snapshot points at damage or an
+    out-of-band delete instead.
+
+    Takes no lock of its own. Callers hold ``project_commit_lock``, or read unlocked
+    (``ProjectWorkspace.open``, ``HistoryManager.status`` and ``list_entries``) and rely on
+    the publication order in docs/history.md: a snapshot is written before the atomic
+    ``index.json`` replace that lists it, and only a locked commit prunes one. An unlocked
+    caller outside that order can see a pruned current snapshot as unreadable.
     """
     if not 0 <= history.cursor < len(history.entries):
-        return False
-    snapshot_path = project.workspace_path() / history.entries[history.cursor].snapshot_file
+        return HistoryMatch.NO_CURRENT_ENTRY
+    entry = history.entries[history.cursor]
     try:
-        data = load_json_object(snapshot_path)
-        saved = None if data is None else ProjectStateSnapshot.model_validate(data)
-    except ValueError:  # includes pydantic.ValidationError
-        saved = None
-    if saved is None:
-        log.warning("History snapshot %s is missing or unreadable", snapshot_path)
-        return False
-    return saved == snapshot_from_project(project)
+        saved = read_history_snapshot(project, entry)
+    except (OSError, ValueError):  # ValueError includes pydantic.ValidationError
+        log.warning(
+            "History snapshot %s is missing or unreadable", entry.snapshot_file, exc_info=True
+        )
+        return HistoryMatch.SNAPSHOT_UNREADABLE
+    if snapshots_equal(saved, snapshot_from_project(project)):
+        return HistoryMatch.MATCHES
+    return HistoryMatch.STATE_DIFFERS
+
+
+def history_index_adoptable(
+    project: EpisodeProject, history: ProjectHistory, index_path: Path
+) -> bool:
+    """Whether an empty in-memory history may adopt ``history``, read from ``index_path``.
+
+    Only when its current entry matches ``project`` (``match_history_to_project``); otherwise
+    the reason is logged and the next commit rewrites the index.
+    """
+    match = match_history_to_project(project, history)
+    if match is HistoryMatch.MATCHES:
+        return True
+    log.warning("Not adopting %s: %s; the next commit rewrites it", index_path, match.value)
+    return False
 
 
 class ProjectStore:
@@ -241,7 +304,7 @@ class ProjectStore:
         """Fill an empty in-memory history from ``history/index.json`` when it matches.
 
         The index is adopted only when its current entry snapshots ``project``'s editable
-        state (``history_matches_project``). An index a commit left ahead of the saved
+        state (``match_history_to_project``). An index a commit left ahead of the saved
         project before dying is ignored with a warning, and the next commit rewrites it
         from the project's history (#576). A corrupt index raises ``ValueError``.
         """
@@ -251,12 +314,7 @@ class ProjectStore:
         history = read_history_index(index_path)
         if history is None or history.is_empty():
             return False
-        if not history_matches_project(project, history):
-            log.warning(
-                "Not adopting %s: its current entry does not match the project "
-                "(a commit that never landed); the next commit rewrites it",
-                index_path,
-            )
+        if not history_index_adoptable(project, history, index_path):
             return False
         project.history = history
         return True

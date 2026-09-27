@@ -394,6 +394,10 @@ def _dead_first_commit(path: Path) -> None:
     mgr.record(project, "after add comment")
 
 
+def _not_adopting(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.getMessage().startswith("Not adopting")]
+
+
 def test_store_load_ignores_an_index_a_dead_commit_left_ahead(minimal_project, caplog):
     _dead_first_commit(minimal_project)
     with caplog.at_level("WARNING"):
@@ -419,9 +423,16 @@ def test_retry_after_a_dead_first_commit_records_no_phantom_entry(minimal_projec
     assert read_history_index(history_index_path(saved)) == saved.history
 
 
-@pytest.mark.parametrize("damage", ["missing", "corrupt", "no_cursor"])
+@pytest.mark.parametrize(
+    ("damage", "reason"),
+    [
+        ("missing", "snapshot is missing or unreadable"),
+        ("corrupt", "snapshot is missing or unreadable"),
+        ("no_cursor", "no current entry"),
+    ],
+)
 def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
-    minimal_project, caplog, damage
+    minimal_project, caplog, damage, reason
 ):
     proj = load_project(minimal_project)
     entry = HistoryManager(minimal_project).record(proj, "indexed", force=True)
@@ -436,7 +447,9 @@ def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
     with caplog.at_level("WARNING"):
         loaded = ProjectStore(minimal_project).load()
     assert loaded.history.is_empty()
-    assert "Not adopting" in caplog.text
+    [message] = _not_adopting(caplog)
+    assert reason in message
+    assert "never landed" not in message
 
 
 def test_snapshot_file_uses_the_shared_layout(minimal_project):
