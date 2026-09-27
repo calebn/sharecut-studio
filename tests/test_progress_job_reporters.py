@@ -304,7 +304,7 @@ def test_progress_task_fail_then_runtime_error_skips_second_fail() -> None:
     assert sum(1 for e in rec.events if e.kind == "fail") == 1
 
 
-def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch) -> None:
+def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch, fake_rich_progress) -> None:
     from podcast_mcp.util.progress import CliProgressReporter
 
     disabled = CliProgressReporter(enabled=False)
@@ -314,6 +314,8 @@ def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch) -> None:
     disabled.end("t")
     disabled.close()
 
+    # fake_rich_progress (tests/conftest.py) keeps this from starting a real
+    # background-thread rich.progress.Progress — see #645.
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
     rich = CliProgressReporter(enabled=True)
     rich.start("u", "Indeterminate", total=None)
