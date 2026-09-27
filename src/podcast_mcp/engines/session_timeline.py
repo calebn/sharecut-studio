@@ -224,13 +224,15 @@ def seam_source_clocks_over_clips(
     merged spans), so a span that crosses a clip moved out of source order still yields
     the joins the cut makes. A side that falls in a gap reads the source clock where
     the first (last) clip inside the cut, in timeline order, enters (leaves) it.
+    Membership and both edge matches share ``_MERGE_EPS``, so a clip that only grazes
+    the cut (overlap under 1 µs) is neither inside it nor a fallback anchor.
     Returns ``None`` when no clip material lies in the span.
     """
     ordered = sorted(clips, key=lambda c: c.timeline_start)
     inside = [
         c
         for c in ordered
-        if min(timeline_end, c.timeline_end) - max(timeline_start, c.timeline_start) > _EPS
+        if min(timeline_end, c.timeline_end) - max(timeline_start, c.timeline_start) > _MERGE_EPS
     ]
     if not inside:
         return None
