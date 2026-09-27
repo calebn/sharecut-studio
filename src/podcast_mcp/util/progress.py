@@ -804,7 +804,8 @@ class ProgressTask:
                 self.total = total
             if not self._update_due(now, total_changed=self.total != prev_total):
                 self._pending_update = True
-                # Latest non-None message wins: reporters read message=None as "keep the headline".
+                # Latest non-None message wins, so a later None never clears a pending one
+                # (most sinks keep the headline on None; MCP sinks fall back to the task label).
                 if message is not None:
                     self._pending_message = message
                 return
