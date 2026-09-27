@@ -120,5 +120,13 @@
       "start": 6.92,
       "end": 7.28
     }
-  ]
+  ],
+  "provenance": {
+    "model": "base",
+    "library": "faster-whisper",
+    "library_version": "1.2.1",
+    "device": "cpu",
+    "compute_type": "int8",
+    "runtime_sec": 2.597821707953699
+  }
 }

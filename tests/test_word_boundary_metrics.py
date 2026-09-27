@@ -5,10 +5,14 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from podcast_mcp.engines.word_boundary_metrics import measure_word_boundaries
+from podcast_mcp.util import atomic_json
+from podcast_mcp.util.hashing import sha256_file
+from script_loader import load_script
 
 
 def word(text: str, start: float, end: float) -> dict[str, str | float]:
@@ -42,14 +46,47 @@ def test_insertions_and_deletions_are_counted_without_false_timing_pairs() -> No
 @pytest.mark.parametrize(
     "reference,prediction",
     [
-        ([word("one", 0, 0.2)], [word("two", 0, 0.2)]),
         ([word("one", 0, 0.2)], [word("one", 0.2, 0.2)]),
         ([word("one", 0, 0.2)], [word("!", 0, 0.2)]),
+        ([word("one", float("nan"), 0.2)], [word("one", 0, 0.2)]),
     ],
 )
 def test_invalid_comparison_fails_closed(reference, prediction) -> None:
     with pytest.raises(ValueError):
         measure_word_boundaries(reference, prediction)
+
+
+def test_repeated_word_deletion_matches_later_timing() -> None:
+    reference = [word("the", 0.1, 0.2), word("the", 0.5, 0.6)]
+    prediction = [word("the", 0.5, 0.6)]
+
+    result = measure_word_boundaries(reference, prediction)
+
+    assert result.matched_words == 1
+    assert result.missed_reference_words == 1
+    assert result.boundary_mae_ms == 0
+
+
+def test_zero_matches_reports_coverage_without_inventing_accuracy() -> None:
+    result = measure_word_boundaries([word("cat", 0, 0.2)], [word("dog", 0, 0.2)])
+
+    assert (result.matched_words, result.missed_reference_words, result.extra_predicted_words) == (
+        0,
+        1,
+        1,
+    )
+    assert result.boundary_mae_ms is None
+    assert result.words_over_150ms_fraction is None
+
+
+def test_long_repeated_transcript_keeps_monotone_matches() -> None:
+    reference = [word("the" if i % 2 else "and", i * 0.2, i * 0.2 + 0.1) for i in range(4000)]
+    prediction = reference[1:]
+
+    result = measure_word_boundaries(reference, prediction)
+
+    assert result.matched_words == 3999
+    assert result.boundary_mae_ms == 0
 
 
 def test_benchmark_cli_accepts_same_audio_prediction_and_rejects_wrong_hash(tmp_path) -> None:
@@ -58,7 +95,19 @@ def test_benchmark_cli_accepts_same_audio_prediction_and_rejects_wrong_hash(tmp_
     payload = json.loads(gold.read_text(encoding="utf-8"))
     prediction = tmp_path / "prediction.json"
     prediction.write_text(
-        json.dumps({"audio_sha256": payload["audio_sha256"], "words": payload["words"]}),
+        json.dumps(
+            {
+                "audio_sha256": payload["audio_sha256"],
+                "provenance": {
+                    "model": "reference-copy",
+                    "version": "1",
+                    "settings": {"sample_rate": 16000},
+                    "license": "CC BY 4.0",
+                    "runtime_sec": 0.5,
+                },
+                "words": payload["words"],
+            }
+        ),
         encoding="utf-8",
     )
     output = tmp_path / "report.json"
@@ -75,7 +124,16 @@ def test_benchmark_cli_accepts_same_audio_prediction_and_rejects_wrong_hash(tmp_
 
     passed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert passed.returncode == 0, passed.stderr
-    assert json.loads(output.read_text(encoding="utf-8"))["metrics"]["boundary_mae_ms"] == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["metrics"]["boundary_mae_ms"] == 0
+    assert report["provenance"] == {
+        "model": "reference-copy",
+        "version": "1",
+        "settings": {"sample_rate": 16000},
+        "license": "CC BY 4.0",
+        "runtime_sec": 0.5,
+    }
+    assert report["runtime_sec"] == 0.5
 
     bad_gold = tmp_path / gold.name
     shutil.copyfile(fixture / payload["audio"], tmp_path / payload["audio"])
@@ -91,6 +149,39 @@ def test_benchmark_cli_accepts_same_audio_prediction_and_rejects_wrong_hash(tmp_
     assert "SHA-256 does not match" in failed.stderr
 
 
+def test_benchmark_streams_audio_hash_and_preserves_report_on_publish_failure(tmp_path) -> None:
+    fixture = Path(__file__).parent / "fixtures" / "word_boundary"
+    gold = fixture / "1988-147956-0023.gold.json"
+    stored = json.loads(gold.read_text(encoding="utf-8"))
+    prediction = tmp_path / "prediction.json"
+    prediction.write_text(
+        json.dumps(
+            {
+                "audio_sha256": stored["audio_sha256"],
+                "provenance": {"model": "candidate"},
+                "words": stored["words"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    benchmark = load_script("benchmark_word_boundaries")
+    with patch.object(Path, "read_bytes", side_effect=AssertionError("whole-file read")):
+        report = benchmark.benchmark(gold, prediction_path=prediction, native_model=None)
+    assert report["metrics"]["boundary_mae_ms"] == 0
+
+    output = tmp_path / "report.json"
+    output.write_text('{"previous": true}\n', encoding="utf-8")
+    with (
+        patch.object(atomic_json.os, "replace", side_effect=OSError("disk full")),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        benchmark.main(
+            ["--gold", str(gold), "--prediction", str(prediction), "--output", str(output)]
+        )
+    assert json.loads(output.read_text(encoding="utf-8")) == {"previous": True}
+    assert list(tmp_path.glob(".report.json.*.tmp")) == []
+
+
 def test_checked_in_native_reports_match_reference_fixture() -> None:
     fixture = Path(__file__).parent / "fixtures" / "word_boundary"
     total_matches = total_reference = total_over = 0
@@ -101,7 +192,9 @@ def test_checked_in_native_reports_match_reference_fixture() -> None:
         report = json.loads(report_path.read_text(encoding="utf-8"))
         metrics = measure_word_boundaries(gold["words"], report["words"])
         assert metrics.as_dict() == report["metrics"]
-        assert gold["audio_sha256"] == report["audio_sha256"]
+        assert (
+            sha256_file(fixture / gold["audio"]) == gold["audio_sha256"] == report["audio_sha256"]
+        )
         total_matches += metrics.matched_words
         total_reference += metrics.reference_words
         total_over += metrics.words_over_150ms
