@@ -9,7 +9,7 @@ import shutil
 import time
 import wave
 from contextlib import suppress
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from filelock import Timeout
@@ -50,6 +50,7 @@ from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
+    RenderBusyError,
     project_commit_lock,
     render_lock,
     snapshot_project,
@@ -108,6 +109,9 @@ class PlayRequest:
 
 @dataclass
 class PlayResult:
+    """One audition. ``render_busy``: a premix ``--rerender`` lost the render-lock race
+    (``RenderBusyError``) and the premix already on disk, possibly stale, was played."""
+
     wav_path: Path
     player_cmd: list[str] | None
     source_label: str
@@ -127,8 +131,10 @@ class TransportPath:
     same path resolution helpers (``_ensure_premix``, ``ensure_stem``,
     ``track_audio_path``).
 
-    ``render_busy`` is True when a rerender or stem build lost the render-lock race (or
-    the project lock was busy) and the file already on disk is served instead.
+    ``render_busy`` is True when a premix rerender or stem build lost the render-lock race
+    (``RenderBusyError``) and the premix or stem already on disk, possibly stale, is served
+    instead. A project-lock timeout after a successful render serves the fresh file
+    without the flag.
     """
 
     path: Path
@@ -167,7 +173,6 @@ class PlayService:
         self.ws = workspace
         self.project = workspace.project
         self._defaults = load_defaults()
-        self.render_busy = False  # a rerender fell back to the file on disk (lock busy)
 
     def _play_cache_dir(self, *protected: Path) -> Path:
         """Keep old generated auditions bounded without touching active outputs."""
@@ -246,8 +251,9 @@ class PlayService:
         if normalized == "premix":
             # Transport streaming must not rebuild on every GET; use rerender=True
             # (CLI --rerender / ?rerender=1) when a rebuild is intentional.
+            busy = False
             if rerender:
-                path = self._ensure_premix(rerender=True)
+                path, busy = self._ensure_premix(rerender=True)
             else:
                 path = self.project.artifacts_dir() / "premix.wav"
                 if not path.is_file():
@@ -258,7 +264,7 @@ class PlayService:
                 path=path.resolve(),
                 source="premix",
                 tier="premix",
-                render_busy=self.render_busy,
+                render_busy=busy,
             )
 
         if normalized == "review" or normalized.startswith("review:"):
@@ -287,16 +293,17 @@ class PlayService:
                 raise ValueError("track_id required for stem/processed transport")
             if self.project.track_by_id(track_id) is None:
                 raise KeyError(f"unknown track {track_id!r}")
+            busy = False
             if rerender or build_stem:
                 try:
                     path = self.ensure_stem(track_id, lock_timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC)
                 # RenderBusyError, or the commit-lock timeout from ensure_stem's invalidation
-                # clear (after its publish).
-                except Timeout:
+                # clear, which runs after its publish: then the stem on disk is the fresh one.
+                except Timeout as exc:
                     path = stem_path(self.project, track_id)
                     if not path.is_file():
                         raise
-                    self.render_busy = True
+                    busy = isinstance(exc, RenderBusyError)
                     log.info("render or project busy; streaming the existing %s stem", track_id)
             else:
                 path = stem_path(self.project, track_id)
@@ -310,7 +317,7 @@ class PlayService:
                 source=f"processed:{track_id}",
                 tier="stem",
                 stem_is_fresh=stem_is_fresh(self.project, track_id),
-                render_busy=self.render_busy,
+                render_busy=busy,
             )
 
         if normalized in ("raw", "track"):
@@ -339,30 +346,18 @@ class PlayService:
         publish_audition: bool = True,
     ) -> PlayResult:
         if req.follow_transcript:
-            return replace(
-                self._play_follow_transcript(
-                    req,
-                    dry_run=dry_run,
-                    player=player,
-                    publish_audition=publish_audition,
-                ),
-                render_busy=self.render_busy,
+            return self._play_follow_transcript(
+                req, dry_run=dry_run, player=player, publish_audition=publish_audition
             )
         if req.compare:
-            return replace(
-                self._play_compare(
-                    req,
-                    dry_run=dry_run,
-                    player=player,
-                    publish_audition=publish_audition,
-                ),
-                render_busy=self.render_busy,
+            return self._play_compare(
+                req, dry_run=dry_run, player=player, publish_audition=publish_audition
             )
         source, start, end = self._resolve_source_and_times(req)
         if req.raw and source.startswith("processed:"):
             source = "track:" + source.split(":", 1)[1]
 
-        wav_path, tier, ext_start, ext_end = self._resolve_audio(
+        wav_path, tier, ext_start, ext_end, busy = self._resolve_audio(
             source, start, end, rerender=req.rerender
         )
         self._mark_play_cache_used(wav_path)
@@ -377,7 +372,7 @@ class PlayService:
             start_sec=ext_start,
             end_sec=ext_end,
             tier=tier,
-            render_busy=self.render_busy,
+            render_busy=busy,
         )
         if publish_audition:
             # Prefer timeline bounds from the request resolution (start/end),
@@ -449,10 +444,14 @@ class PlayService:
         timeline_end: float,
         *,
         rerender: bool,
-    ) -> tuple[Path, str, float, float]:
+    ) -> tuple[Path, str, float, float, bool]:
+        """Audio for one source; the last item is ``render_busy`` (only a premix rerender sets it)."""
         if source.startswith("processed:"):
             tid = source.split(":", 1)[1]
-            return self._processed_audio(tid, timeline_start, timeline_end, rerender=rerender)
+            path, tier, ext_start, ext_end = self._processed_audio(
+                tid, timeline_start, timeline_end, rerender=rerender
+            )
+            return path, tier, ext_start, ext_end, False
         if source.startswith("track:"):
             tid = source.split(":", 1)[1]
             try:
@@ -464,19 +463,19 @@ class PlayService:
             out = self._cache_path(f"raw_{tid}", timeline_start, timeline_end, media)
             if not out.is_file():
                 FFmpegEngine().extract_segment(media, out, ext_start, ext_end)
-            return out, "raw", ext_start, ext_end
+            return out, "raw", ext_start, ext_end, False
         if source == "premix":
-            path = self._ensure_premix(rerender=rerender)
+            path, busy = self._ensure_premix(rerender=rerender)
             out = self._cache_path("premix", timeline_start, timeline_end, path)
             if not out.is_file():
                 FFmpegEngine().extract_segment(path, out, timeline_start, timeline_end)
-            return out, "premix", timeline_start, timeline_end
+            return out, "premix", timeline_start, timeline_end, busy
         if source == "export":
             path = self._latest_export_wav()
             out = self._cache_path("export", timeline_start, timeline_end, path)
             if not out.is_file():
                 FFmpegEngine().extract_segment(path, out, timeline_start, timeline_end)
-            return out, "export", timeline_start, timeline_end
+            return out, "export", timeline_start, timeline_end, False
         raise ValueError(
             f"unknown source {source!r}; use processed:<id>, track:<id>, premix, or export"
         )
@@ -506,9 +505,9 @@ class PlayService:
                         self.ensure_stem(track_id)
             except Timeout:
                 # RenderBusyError, or the commit-lock timeout from ensure_stem's invalidation clear.
+                # The segment render below plays the current edits, so this is not render_busy.
                 log.info("render or project busy; playing %s from a segment render", track_id)
                 use_stem = False
-                self.render_busy = True
 
         # Freshness includes timeline-duration match; mismatched stems fall through
         # to segment render so timeline seconds are never treated as source offsets.
@@ -550,8 +549,10 @@ class PlayService:
         )
         return cache, "segment_render", timeline_start, timeline_end
 
-    def _ensure_premix(self, *, rerender: bool) -> Path:
+    def _ensure_premix(self, *, rerender: bool) -> tuple[Path, bool]:
+        """The premix path and ``render_busy`` (a rerender lost the render-lock race)."""
         premix = self.project.artifacts_dir() / "premix.wav"
+        busy = False
         if rerender or not premix.is_file():
             try:
                 # Bounded wait; rerender_preview's own @with_render_lock re-enters this hold.
@@ -566,14 +567,15 @@ class PlayService:
                         # (as HistoryService._move does), so a reused workspace matches the file.
                         self.project = self.ws.discard_changes()
                         raise
-            except Timeout:
+            except Timeout as exc:
                 if not premix.is_file():
                     raise
-                self.render_busy = True
+                # A commit-lock timeout from save_merged comes after the render: premix is fresh.
+                busy = isinstance(exc, RenderBusyError)
                 log.info("render or project busy; playing the existing premix")
         if not premix.is_file():
             raise FileNotFoundError("premix.wav not found; run render-preview or pipeline first")
-        return premix
+        return premix, busy
 
     def _invalidate_processed_cache(self, track_id: str) -> None:
         """Delete the track's stem, its hash and its play-cache extracts. Caller holds ``render_lock``."""
@@ -932,6 +934,7 @@ class PlayService:
             *(("track", t.id) for t in dialogue),
             ("premix", "premix"),
         ]
+        busy = False
         for kind, label in order:
             sub = PlayRequest(
                 source=f"track:{label}" if kind == "track" else "premix",
@@ -949,6 +952,7 @@ class PlayService:
             )
             last_wav = result.wav_path
             last_cmd = result.player_cmd
+            busy = busy or result.render_busy
 
         result = PlayResult(
             wav_path=last_wav or Path("."),
@@ -958,6 +962,7 @@ class PlayService:
             end_sec=req.end_sec,
             tier="compare",
             compare_segments=segments,
+            render_busy=busy,
         )
         if publish_audition:
             self._publish_audition(
@@ -1022,7 +1027,7 @@ class PlayService:
         segments: list[tuple[Path, float]] = []
         for tid in ids:
             source = f"track:{tid}" if kind == "raw" else f"processed:{tid}"
-            wav, tier_used, _, _ = self._resolve_audio(
+            wav, tier_used, _, _, _ = self._resolve_audio(
                 source, start_sec, end_sec, rerender=rerender
             )
             track = self.project.track_by_id(tid)

@@ -902,7 +902,7 @@ def test_play_compose_adds_unbaked_gain_and_writes_atomic(
     tier = {"value": "stem"}
 
     def fake_resolve(self, source, start, end, *, rerender=False):
-        return wav, tier["value"], start, end
+        return wav, tier["value"], start, end, False
 
     mix_dests: list[str] = []
     gains: list[float] = []
