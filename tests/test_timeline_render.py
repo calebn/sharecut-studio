@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -1176,3 +1176,51 @@ def test_render_overlapping_multi_source_clips_mixes(sample_wav: Path, tmp_path:
     assert mix_cmds
     dur = eng.probe(out).duration_sec
     assert 1.2 < dur < 1.5
+
+
+def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
+    project = EpisodeProject.create("cutfades", str(tmp_path))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            fade_out_ms=20,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=1.0,
+            source_end=2.0,
+            timeline_start=1.0,
+            fade_in_ms=20,
+            fade_out_ms=30,
+            join_in_mode=ClipJoinMode.CUT,
+        ),
+        Clip(
+            id="c",
+            track_id="host",
+            source_start=2.0,
+            source_end=3.0,
+            timeline_start=2.0,
+            fade_in_ms=30,
+            join_in_mode=ClipJoinMode.FADE,
+        ),
+    ]
+    eng = MagicMock(spec=FFmpegEngine)
+    eng.segments_after_edits.side_effect = lambda dur, *_a: [MagicMock(start=0.0, end=dur)]
+    render_track_from_timeline(project, project.tracks[0], tmp_path / "out.wav", {}, engine=eng)
+    placed = eng.render_timeline.call_args.args[2]
+    fades = [(s.fade_in_sec, s.fade_out_sec) for s in placed]
+    # a->b is a cut: a's fade-out and b's fade-in go; b->c is a fade: both stay.
+    assert fades == [(0.0, 0.0), (0.0, pytest.approx(0.03)), (pytest.approx(0.03), 0.0)]
