@@ -1,6 +1,7 @@
 import {
   deleteClips,
   duplicateSegment,
+  moveClips,
   pasteSegment,
   rippleDeleteClips,
   rippleDeleteRange,
@@ -377,7 +378,6 @@ export function registerClipMoveCommands(): void {
         }
       }
       try {
-        const { moveClips } = await import("../api");
         await moveClips(s.projectPath, clips);
         useDawStore.getState().announceStatus("Moved clips");
         return { status: "ok" };
