@@ -55,7 +55,11 @@ from podcast_mcp.services.remote_mcp.limits import (
 )
 from podcast_mcp.services.review_media import media_type_for_path
 from podcast_mcp.services.session_sync.authz import authorize_share_token
-from podcast_mcp.services.session_sync.commands import SyncCommand, sanitize_display_name
+from podcast_mcp.services.session_sync.commands import (
+    GUEST_CLIENT_ID_PREFIX,
+    SyncCommand,
+    sanitize_display_name,
+)
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.share import (
@@ -625,7 +629,7 @@ def _guest_client_id(token: str, client_id: str | None) -> str:
     suffix = _GUEST_CLIENT_SUFFIX_RE.sub("", client_id or "")[:16]
     if not suffix:
         suffix = secrets.token_hex(4)
-    return f"guest-{token[:8]}-{suffix}"
+    return f"{GUEST_CLIENT_ID_PREFIX}{token[:8]}-{suffix}"
 
 
 def _guest_label(name: str | None, token: str) -> str:

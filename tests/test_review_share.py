@@ -1894,16 +1894,18 @@ def test_guest_waveform_tiles_openapi_is_octet_stream():
 
 
 def test_guest_client_ids_carry_the_prefix_the_gui_counts_as_guests() -> None:
-    """Pin review_share._guest_client_id to the GUI's GUEST_CLIENT_ID_PREFIX."""
+    """Pin the Python GUEST_CLIENT_ID_PREFIX (producer and consumers) to the GUI's."""
     import re
 
     from podcast_mcp.config import repo_root
     from podcast_mcp.gui.routes.review_share import _guest_client_id
+    from podcast_mcp.services.session_sync.commands import GUEST_CLIENT_ID_PREFIX
 
     ts = (repo_root() / "gui" / "web" / "src" / "presence" / "followSync.ts").read_text(
         encoding="utf-8"
     )
     match = re.search(r'export const GUEST_CLIENT_ID_PREFIX = "([^"]+)";', ts)
     assert match
+    assert match.group(1) == GUEST_CLIENT_ID_PREFIX
     for raw in ("tab-1", None, "!!"):
-        assert _guest_client_id("abcdefghijkl", raw).startswith(match.group(1))
+        assert _guest_client_id("abcdefghijkl", raw).startswith(GUEST_CLIENT_ID_PREFIX)
