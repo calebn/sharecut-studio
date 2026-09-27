@@ -187,6 +187,21 @@ def test_proxy_upload_reads_pinned_chunk_after_path_swap(minimal_project, monkey
     assert not fake.upload_file.called
 
 
+def test_proxy_upload_reads_chunks_on_pinned_media_fallback(minimal_project, monkeypatch, request):
+    import podcast_mcp.services.proxy_media as proxy_media
+
+    ws = _seed_track(minimal_project)
+    proxy = ensure_track_proxy(ws, "host")
+    chunks = [proxy_dir(ws, "host", proxy.hash) / f"{i:05d}.mp3" for i in range(proxy.chunk_count)]
+    request.getfixturevalue("pinned_media_fallback")
+    uploaded = []
+    fake = MagicMock()
+    fake.upload_fileobj.side_effect = lambda source, _key: uploaded.append(source.read())
+    monkeypatch.setattr(proxy_media, "ensure_track_proxy", lambda _ws, _tid: proxy)
+    upload_track_proxy_to_object_store(ws, "host", object_store=fake)
+    assert uploaded == [chunk.read_bytes() for chunk in chunks]
+
+
 def test_delete_proxy_when_no_shares(minimal_project, monkeypatch, tmp_workspace):
     ws = _seed_track(minimal_project)
     track_id = "host"

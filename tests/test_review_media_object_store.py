@@ -222,7 +222,8 @@ def test_revoke_deletes_object_store_object_when_unused(
     assert get_version(ws.project, ver["id"]).object_store_key is None
 
 
-def test_upload_idempotent(minimal_project, sample_wav, monkeypatch):
+@pytest.mark.parametrize("fallback", [False, True], ids=["descriptor-walk", "path-fallback"])
+def test_upload_idempotent(minimal_project, sample_wav, monkeypatch, request, fallback):
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -237,6 +238,8 @@ def test_upload_idempotent(minimal_project, sample_wav, monkeypatch):
     )
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="once")
+    if fallback:
+        request.getfixturevalue("pinned_media_fallback")
     key1 = upload_review_version_to_object_store(ws, ver["id"], object_store=cfg)
     key2 = upload_review_version_to_object_store(ws, ver["id"], object_store=cfg)
     assert key1 == key2

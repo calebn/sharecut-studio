@@ -1463,10 +1463,13 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
     assert version.model_dump() == original_metadata
 
 
-def test_mp3_retry_uses_separate_inode(minimal_project, sample_wav):
+@pytest.mark.parametrize("fallback", [False, True], ids=["descriptor-walk", "path-fallback"])
+def test_mp3_retry_uses_separate_inode(minimal_project, sample_wav, request, fallback):
     project, version_id = _publish(minimal_project, sample_wav)
     version_mp3_path(project, version_id).unlink()
     wav = version_audio_path(project, version_id)
+    if fallback:
+        request.getfixturevalue("pinned_media_fallback")
 
     class InspectingEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
