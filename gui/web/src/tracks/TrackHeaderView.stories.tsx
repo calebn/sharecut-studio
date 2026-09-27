@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { sampleTrack } from "../test/fixtures";
+import { trackHasSourceAudio } from "../utils/projectMedia";
 import { TrackHeaderView } from "./TrackHeaderView";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
 
@@ -19,12 +20,16 @@ const meta: Meta<typeof TrackHeaderView> = {
   component: TrackHeaderView,
   tags: ["autodocs"],
   decorators: [
-    (Story) => (
+    (Story, context) => (
       <div
-        className="daw-shell timeline-area track-headers"
-        style={{ width: "18rem" }}
+        className={`daw-shell${context.parameters.trackHeaderPhone ? " daw-shell--phone" : ""} timeline-area`}
+        style={{
+          width: context.parameters.trackHeaderPhone ? "360px" : "48rem",
+        }}
       >
-        <Story />
+        <div className="track-headers">
+          <Story />
+        </div>
       </div>
     ),
   ],
@@ -69,10 +74,9 @@ export const Default: Story = {
     await expect(
       canvas.getByRole("button", { name: "Open track details, Mira voice" }),
     ).toHaveAttribute("aria-expanded", "false");
-    await expect(canvas.getByText("FX 2")).toHaveAttribute(
-      "title",
-      "2 effects",
-    );
+    await expect(canvas.getByText("Mira voice")).toBeVisible();
+    await expect(canvas.getByText("dialogue · Mira")).toBeVisible();
+    await expect(canvas.getByText("FX 2")).toBeVisible();
   },
 };
 
@@ -184,18 +188,35 @@ export const EmptyTrack: Story = {
       id: "blank-lane",
       label: "Empty lane",
       duration_sec: 0,
+      media_path: null,
+      has_source_audio: false,
       stem_is_fresh: false,
       fx_count: 0,
     }),
     stemClass: "",
+    mixer: (
+      <TrackMuteSoloButtonsView
+        trackId="blank-lane"
+        muteState="off"
+        solo={false}
+        editsMix
+        {...actions}
+      />
+    ),
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
+    await expect(trackHasSourceAudio(args.track)).toBe(false);
     await expect(canvasElement.querySelector(".stem-dot")).toBeNull();
+    await expect(
+      canvasElement.querySelector(
+        '[data-presence-anchor="track:blank-lane:mute"]',
+      ),
+    ).toBeInTheDocument();
   },
 };
 
-export const ReorderDrop: Story = {
-  args: { mayReorder: true, dragging: true, dropEdge: "after" },
+export const ReorderTarget: Story = {
+  args: { mayReorder: true, dragging: false, dropEdge: "after" },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", {
@@ -203,24 +224,16 @@ export const ReorderDrop: Story = {
       }),
     ).toHaveAttribute("draggable", "true");
     await expect(
-      canvasElement.querySelector(".track-header-row.drop-after"),
+      canvasElement.querySelector(
+        ".track-header-row.drop-after:not(.dragging)",
+      ),
     ).toBeInTheDocument();
   },
 };
 
 export const PhoneWidth: Story = {
-  parameters: recordMobileViewport.parameters,
+  parameters: { ...recordMobileViewport.parameters, trackHeaderPhone: true },
   globals: recordMobileViewport.globals,
-  decorators: [
-    (Story) => (
-      <div
-        className="daw-shell daw-shell--phone timeline-area track-headers"
-        style={{ width: "360px" }}
-      >
-        <Story />
-      </div>
-    ),
-  ],
   play: async ({ canvasElement }) => {
     await expect(canvasElement.querySelector(".track-chip")).toHaveTextContent(
       "MV",
