@@ -484,13 +484,45 @@ def _silent_job_engine(minimal_project, tmp_path, options=None):
     return proj, job, engine, patch.object(engine, "transcribe_file", return_value=asr)
 
 
-def test_transcribe_job_flags_silent_word_and_caches_flag(minimal_project, tmp_path):
+def test_transcribe_job_flags_silent_word_but_caches_unflagged_words(minimal_project, tmp_path):
     proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
     with patcher:
         tr = engine.transcribe_job(proj, job, language="en")
     assert tr.words[0].suspect_hallucination
     cached = engine.cache_path(proj, job.cache_id, job.audio, language="en")
-    assert '"suspect_hallucination": true' in cached.read_text(encoding="utf-8")
+    text = cached.read_text(encoding="utf-8")
+    assert '"suspect_hallucination": true' not in text
+    assert '"suspect_hallucination": false' in text
+
+
+def test_transcribe_job_cache_hit_recomputes_flags_from_current_settings(minimal_project, tmp_path):
+    from unittest.mock import patch
+
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
+    with patcher:
+        first = engine.transcribe_job(proj, job, language="en")
+    assert first.words[0].suspect_hallucination
+    off = TranscriptionEngine(options=AsrOptions(silence_filter_enabled=False))
+    with patch.object(off, "transcribe_file") as asr:
+        tr = off.transcribe_job(proj, job, language="en")
+    asr.assert_not_called()
+    assert not tr.words[0].suspect_hallucination
+
+
+def test_transcribe_job_decode_failure_clears_flags_and_records_skip(minimal_project, tmp_path):
+    from unittest.mock import patch
+
+    proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
+    with (
+        patcher as asr_call,
+        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=None),
+    ):
+        asr_call.return_value.words[0].suspect_hallucination = True
+        tr = engine.transcribe_job(proj, job, language="en")
+    assert not tr.words[0].suspect_hallucination
+    assert engine.silence_filter_skipped == [job.label]
 
 
 def test_transcribe_job_silence_filter_can_be_disabled(minimal_project, tmp_path):

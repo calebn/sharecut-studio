@@ -86,3 +86,13 @@ def test_faster_whisper_defaults_match_installed_signature():
     assert ref.vad_enabled == params["vad_filter"].default
     assert ref.is_faster_whisper_default
     assert not AsrOptions().is_faster_whisper_default
+
+
+def test_engine_default_options_follow_pipeline_yaml(monkeypatch, tmp_path):
+    from podcast_mcp.engines.transcribe import TranscriptionEngine
+
+    cfg = tmp_path / "pipeline.yaml"
+    cfg.write_text("transcribe:\n  vad:\n    enabled: false\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
+    assert TranscriptionEngine().options.vad_enabled is False
+    assert TranscriptionEngine(options=AsrOptions()).options.vad_enabled is True

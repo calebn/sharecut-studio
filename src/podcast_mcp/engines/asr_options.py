@@ -4,7 +4,9 @@ Whisper hallucinates text over silence (typically low-volume bleed tracks).
 Defaults run faster-whisper's built-in Silero VAD (the same bundled model as
 ``engines/vad_silero.py``) and hallucination-safe decode settings. The single
 source of truth for defaults is ``.agents/defaults/pipeline.yaml`` ``transcribe``;
-the constants below mirror it (a test keeps them equal).
+engines built without options read it via ``AsrOptions.from_defaults()``. The dataclass
+values below are only the fallback for missing or invalid keys (a test keeps them equal
+to the yaml).
 """
 
 from __future__ import annotations
