@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
+from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.services.session_sync.commands import (
     GUEST_CLIENT_ID_PREFIX,
     ClientRole,
@@ -34,17 +35,24 @@ from podcast_mcp.services.session_sync.snapshot import (
 _SEQ = itertools.count(1)
 
 
+def session_dir_for_workspace(workspace: Path) -> Path:
+    return workspace_artifacts_dir(workspace) / "session"
+
+
+def sync_db_path_for_workspace(workspace: Path) -> Path:
+    return session_dir_for_workspace(workspace) / "sync.db"
+
+
 def session_dir(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / "session"
+    return session_dir_for_workspace(project.workspace_path())
 
 
 def sync_db_path(project: EpisodeProject) -> Path:
-    return session_dir(project) / "sync.db"
+    return sync_db_path_for_workspace(project.workspace_path())
 
 
-def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | None:
-    """Return the project store. Does not create sync.db until ``create``."""
-    path = sync_db_path(project)
+def _store_at(path: Path, *, create: bool = False) -> SyncStore | None:
+    """Return the store for ``path``. Does not create the file until ``create``."""
     key = f"{path.resolve()}|"
     store = _STORE_CACHE.get(key)
     if store is not None:
@@ -53,6 +61,11 @@ def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | 
         return None
     store = cached_sync_store(path, table_prefix="", enforce_command_ids=True)
     return store
+
+
+def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | None:
+    """Return the project store. Does not create sync.db until ``create``."""
+    return _store_at(sync_db_path(project), create=create)
 
 
 def next_client_seq() -> int:
@@ -69,6 +82,60 @@ def _presence_label(command: SyncCommand) -> str | None:
     ``None`` (blank or missing) keeps the stored label: ``touch_client`` COALESCEs it.
     """
     return sanitize_display_name(command.payload.get("label"), guest=_is_guest(command))
+
+
+def _is_empty_authority(snap: dict[str, Any] | None) -> bool:
+    """True when ``snap`` is missing or has never applied a command.
+
+    Single home for the "empty authority" rule: a sync.db that exists (e.g. from
+    a failed open) but has never applied a command is treated as missing, both
+    for ``state_or_none`` and for the session meta endpoint.
+    """
+    if snap is None:
+        return True
+    return int(snap.get("server_seq") or 0) == 0 and snap.get("last_command_id") is None
+
+
+def session_meta_at(db_path: Path) -> dict[str, Any]:
+    """Stat-and-one-row meta for the sync.db at ``db_path``. Never parses the project.
+
+    Reports ``mtime_ns`` as the snapshot row's ``updated_at_ns`` rather than a
+    WAL-aware file stat. The same WAL is also written by presence heartbeats and
+    Acks (``touch_client``); a WAL-aware stat would change on every heartbeat and
+    fire the poll (and so a state reload) on presence-only traffic. The snapshot's
+    ``updated_at_ns`` changes only on a durable command commit
+    (``append_and_apply`` / ``mutate_snapshot`` / ``reset``), which is what the
+    poll should react to. ``size`` stays the plain size of the main db file, so
+    the WAL/checkpoint behavior does not otherwise change this endpoint's shape.
+    """
+    store = _store_at(db_path, create=False)
+    snap = store.get_snapshot() if store is not None else None
+    if _is_empty_authority(snap):
+        return {
+            "path": str(db_path.resolve()),
+            "mtime_ns": 0,
+            "size": 0,
+            "exists": False,
+            "server_seq": 0,
+        }
+    assert snap is not None
+    try:
+        size = db_path.stat().st_size
+    except FileNotFoundError:
+        size = 0
+    return {
+        "path": str(db_path.resolve()),
+        "mtime_ns": int(snap.get("updated_at_ns") or 0),
+        "size": size,
+        "exists": True,
+        "server_seq": int(snap.get("server_seq") or 0),
+    }
+
+
+def session_meta(project_path: str | Path) -> dict[str, Any]:
+    """Session meta for the project at ``project_path``, without parsing it."""
+    workspace = resolve_project_path(project_path).parent
+    return session_meta_at(sync_db_path_for_workspace(workspace))
 
 
 class SessionSyncService:
@@ -113,29 +180,12 @@ class SessionSyncService:
         if self._store_optional() is None:
             return None
         snap = self.snapshot()
-        if int(snap.get("server_seq") or 0) == 0 and snap.get("last_command_id") is None:
+        if _is_empty_authority(snap):
             return None
         return snap
 
     def meta(self) -> dict[str, Any]:
-        path = sync_db_path(self.project)
-        snap = self.state_or_none()
-        if snap is None:
-            return {
-                "path": str(path.resolve()),
-                "mtime_ns": 0,
-                "size": 0,
-                "exists": False,
-                "server_seq": 0,
-            }
-        stat = path.stat() if path.is_file() else None
-        return {
-            "path": str(path.resolve()),
-            "mtime_ns": (stat.st_mtime_ns if stat else int(snap.get("updated_at_ns") or 0)),
-            "size": stat.st_size if stat else 0,
-            "exists": True,
-            "server_seq": int(snap.get("server_seq") or 0),
-        }
+        return session_meta_at(sync_db_path(self.project))
 
     def submit(self, command: SyncCommand) -> dict[str, Any]:
         """Append command, materialize snapshot, fanout. Idempotent on client_seq."""

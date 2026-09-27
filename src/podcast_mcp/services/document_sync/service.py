@@ -11,6 +11,7 @@ from typing import Any
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
+from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
@@ -22,6 +23,7 @@ from podcast_mcp.services.document_sync.projection_types import (
 from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import SyncStore
+from podcast_mcp.services.session_sync.service import session_dir_for_workspace
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
@@ -31,8 +33,12 @@ _STORE_CACHE: dict[str, SyncStore] = {}
 _STORE_LOCK = threading.Lock()
 
 
+def document_db_path_for_workspace(workspace: Path) -> Path:
+    return session_dir_for_workspace(workspace) / "document.db"
+
+
 def document_db_path(project: EpisodeProject) -> Path:
-    return project.artifacts_dir() / "session" / "document.db"
+    return document_db_path_for_workspace(project.workspace_path())
 
 
 def document_hub_key(project: EpisodeProject) -> str:
@@ -50,16 +56,21 @@ def document_submit_lock(project: EpisodeProject) -> threading.RLock:
     return project_state_lock(project)
 
 
-def _store_for(project: EpisodeProject) -> SyncStore:
-    """Cached document.db store. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
-    key = str(document_db_path(project).resolve())
+def _store_at(db_path: Path) -> SyncStore:
+    """Cached store for ``db_path``. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
+    key = str(db_path.resolve())
     with _STORE_LOCK:
         store = _STORE_CACHE.get(key)
         if store is not None:
             return store
-        store = SyncStore(document_db_path(project))
+        store = SyncStore(db_path)
         _STORE_CACHE[key] = store
         return store
+
+
+def _store_for(project: EpisodeProject) -> SyncStore:
+    """Cached document.db store. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
+    return _store_at(document_db_path(project))
 
 
 def dump_projection_locked(
@@ -500,9 +511,15 @@ def notify_document_changed(project_path: str | Path) -> None:
 
 
 def document_server_seq(project_path: str | Path) -> int:
-    """Materialized document log seq, or 0 if the store is missing."""
+    """Materialized document log seq, or 0 if the store is missing.
+
+    Stat + document.db read only: no project parse, never creates document.db.
+    """
+    db_path = document_db_path_for_workspace(resolve_project_path(project_path).parent)
     try:
-        return _journal_server_seq(DocumentSyncService.open(project_path).store)
+        if not db_path.is_file():
+            return 0
+        return _journal_server_seq(_store_at(db_path))
     except OSError:
         return 0
 

@@ -1414,6 +1414,12 @@ def gui_agent_job_progress_sink() -> AgentJobFanInReporter | None:
 
 
 def project_meta(project_path: Path) -> dict[str, Any]:
+    """mtime/size of episode.project.json plus document.db's server_seq.
+
+    Stats the project file directly and reads ``document_server_seq``, which
+    itself is stat + one row on document.db. Neither parses the project, and
+    neither creates document.db.
+    """
     from podcast_mcp.services.document_sync.service import document_server_seq
 
     stat = project_path.stat()
@@ -1426,7 +1432,11 @@ def project_meta(project_path: Path) -> dict[str, Any]:
 
 
 def session_file_meta(project_path: Path) -> dict[str, Any]:
-    """mtime/size of artifacts/session/sync.db (zeros if missing)."""
-    from podcast_mcp.services.session_sync.service import SessionSyncService
+    """mtime/size of artifacts/session/sync.db (zeros if missing).
 
-    return SessionSyncService.open(project_path).meta()
+    ``mtime_ns`` is the snapshot's ``updated_at_ns`` rather than a WAL-aware file
+    stat (see ``session_meta_at``). Parse-free: never opens/parses the project.
+    """
+    from podcast_mcp.services.session_sync.service import session_meta
+
+    return session_meta(project_path)
