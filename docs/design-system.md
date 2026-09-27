@@ -122,8 +122,11 @@ and displays trimmed successful replies, as the public review page does.
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
 Storybook server port; the live dialog still derives its URL from the host.
-The previews cover an open episode, the no-episode warning, keyboard-shortcut
-navigation, and a 360px phone viewport without app or network context.
+Standalone Canvas stories open their dialogs for visual review. Autodocs
+examples start with launchers so the previews remain independently inspectable
+and closable. They cover an open episode, the no-episode warning, the
+gesture sheet's callback handoff to keyboard shortcuts, and a 360px phone
+viewport without app or network context.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
