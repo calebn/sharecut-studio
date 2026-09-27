@@ -14,6 +14,10 @@ export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
 export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
   "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";
 
+/** Status while an inline word fix saves; another word opens once it settles. */
+export const TRANSCRIPT_INLINE_SAVING_STATUS =
+  "Saving the word fix… you can fix another word once it is saved.";
+
 /** Under Apply in the word editor. */
 export const TRANSCRIPT_CORRECT_TIMING_NOTE =
   "Apply changes the text only; the audio and word timing stay as recorded. With End index above the start, the new words share the original span evenly.";

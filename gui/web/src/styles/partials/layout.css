@@ -314,6 +314,13 @@
   font-size: var(--font-size-caption);
 }
 
+.transcript-inline-status {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+}
+
 .track-headers-chrome {
   display: flex;
   align-items: flex-end;

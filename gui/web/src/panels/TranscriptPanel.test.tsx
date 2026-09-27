@@ -383,6 +383,7 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({ projectPath: "share:tok" });
       const { container } = render(<TranscriptPanel />);
       expect(container.querySelector(".transcript-mode-hint")).toBeNull();
+      expect(container.querySelector(".transcript-inline-status")).toBeNull();
     });
 
     it("points coarse pointers at double-tap correction", () => {
@@ -658,12 +659,18 @@ describe("TranscriptPanel", () => {
       fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
       expect(q.getByRole("textbox", { name: /hello/ })).toHaveValue("Hello");
       expect(q.queryByRole("textbox", { name: /there/ })).toBeNull();
+      expect(
+        container.querySelector(".transcript-inline-status"),
+      ).toHaveTextContent(/Saving the word fix/);
       await act(async () => {
         resolve();
       });
       await vi.waitFor(() =>
         expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull(),
       );
+      expect(
+        container.querySelector(".transcript-inline-status")?.textContent,
+      ).toBe("");
       fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
       expect(q.getByRole("textbox", { name: /there/ })).toHaveFocus();
     });

@@ -26,6 +26,7 @@ import {
   TranscriptTurnView,
 } from "../transcript/TranscriptTurnView";
 import {
+  TRANSCRIPT_INLINE_SAVING_STATUS,
   TRANSCRIPT_MODE_HINT,
   TRANSCRIPT_NAVIGATE_TOUCH_HINT,
   type TranscriptIntent,
@@ -196,6 +197,7 @@ export function TranscriptPanel() {
   const inlineCommitPendingRef = useRef(false);
   /** Failure of an inline commit whose editor had already closed. */
   const [inlineEditError, setInlineEditError] = useState<string | null>(null);
+  const [inlineCommitPending, setInlineCommitPending] = useState(false);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
   const longPressReleasedRef = useRef(false);
@@ -747,6 +749,11 @@ export function TranscriptPanel() {
           </ToggleButton>
         </div>
       </div>
+      {canCorrect ? (
+        <p className="transcript-inline-status" role="status">
+          {inlineCommitPending ? TRANSCRIPT_INLINE_SAVING_STATUS : null}
+        </p>
+      ) : null}
       <InlineError role="alert" message={inlineEditError} />
       {canCorrect ? (
         <p className="transcript-mode-hint">
@@ -958,6 +965,7 @@ export function TranscriptPanel() {
                           }
                           onBusyChange={(pending) => {
                             inlineCommitPendingRef.current = pending;
+                            setInlineCommitPending(pending);
                           }}
                           onDetachedError={setInlineEditError}
                         />
