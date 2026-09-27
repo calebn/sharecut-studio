@@ -1,4 +1,4 @@
-/** Server skips its pinned-project redirect for `/?home=1` (gui/server.py). */
+/** Server skips its pinned-project redirect for `/?home=1` (gui/server.py); tests/test_gui_api.py pins the two values. */
 export const HOME_QUERY_PARAM = "home";
 
 /** Home without unpinning or a redirect back to the pinned project. */
