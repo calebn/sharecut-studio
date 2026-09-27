@@ -31,6 +31,10 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import project_state_lock
 
 
+def _blocks(value: float) -> list[tuple[float, float]]:
+    return [(0.1 * i, value) for i in range(1, 61)]
+
+
 def _dialogue_project(minimal_project: Path, sample_wav: Path, tmp_workspace: Path):
     proj = load_project(minimal_project)
     (tmp_workspace / "raw").mkdir(exist_ok=True)
@@ -488,7 +492,7 @@ def test_balance_tracks_skips_non_dialogue_and_none_loudness(
             media=MediaAsset(path="raw/host.wav"),
         )
     )
-    with patch.object(FFmpegEngine, "measure_loudness", return_value=None):
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=[]):
         steps.balance_tracks(proj, load_defaults())
     assert proj.track_by_id("host").gain_db == 0.0
 
@@ -653,14 +657,14 @@ def test_balance_tracks_absolute_path_and_none_measurement(
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     host = proj.track_by_id("host")
     host.media.path = str((proj.workspace_path() / "raw" / "host.wav").resolve())
-    with patch.object(FFmpegEngine, "measure_loudness", side_effect=[-22.0, None]):
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", side_effect=[_blocks(-22.0)]):
         steps.balance_tracks(proj, load_defaults())
     assert host.gain_db != 0.0
 
 
 def test_balance_tracks_skips_when_loudness_missing(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    with patch.object(FFmpegEngine, "measure_loudness", return_value=None):
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=[]):
         steps.balance_tracks(proj, load_defaults())
     assert proj.track_by_id("host").gain_db == 0.0
 
@@ -988,3 +992,55 @@ def test_transcribe_tracks_attended_overwrite_warns(
     assert "1 edited overwritten" in summary
     assert "overwrites edited transcript" in caplog.text
     assert proj.transcripts[0].words[0].text == "teh"
+
+
+def _words_project(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    words = [TranscriptWord(text=f"w{i}", start=1.0 + i, end=2.0 + i) for i in range(5)]
+    words.append(TranscriptWord(text="bleed", start=10.0, end=15.0, suppressed=True))
+    proj.transcript_data.per_track = [Transcript(track_id="host", words=words)]
+    return proj
+
+
+def test_balance_measures_through_the_track_chain(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.models import ProcessingChain, ProcessingEffect
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.processing_chains = [
+        ProcessingChain(
+            track_id="host",
+            effects=[
+                ProcessingEffect(effect="highpass", params={"frequency": 80}),
+                ProcessingEffect(effect="acompressor", params={"threshold_db": -20, "ratio": 3}),
+            ],
+        )
+    ]
+    with patch.object(
+        FFmpegEngine, "measure_loudness_blocks", return_value=_blocks(-20.0)
+    ) as measure:
+        steps.balance_tracks(proj, load_defaults())
+    af = measure.call_args[0][1]
+    assert "highpass=f=" in af and "acompressor=" in af
+
+
+def test_balance_gates_to_own_non_suppressed_words(minimal_project, sample_wav, tmp_workspace):
+    proj = _words_project(minimal_project, sample_wav, tmp_workspace)
+    blocks = (
+        [(1.2 + 0.1 * i, -20.0) for i in range(50)]
+        + [(10.2 + 0.1 * i, -30.0) for i in range(50)]
+        + [(20.0 + 0.1 * i, -60.0) for i in range(50)]
+    )
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=blocks):
+        summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    assert proj.track_by_id("host").gain_db == 0.0
+    assert "speech-gated" in summary
+    assert "host -20 LUFS (+0.0 dB)" in summary
+
+
+def test_balance_reports_ungated_without_a_transcript(minimal_project, sample_wav, tmp_workspace):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(FFmpegEngine, "measure_loudness_blocks", return_value=_blocks(-24.0)):
+        summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    assert "ungated" in summary

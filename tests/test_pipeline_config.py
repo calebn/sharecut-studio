@@ -618,3 +618,11 @@ def test_transcribe_overwrite_param_and_run_only_helper() -> None:
     confirmed = transcribe_run_config(None, force=True, overwrite_edited=True)
     assert confirmed["transcribe"]["overwrite_edited"] is True
     assert load_defaults()["transcribe"]["overwrite"] is False
+
+
+def test_balance_depends_on_compress() -> None:
+    from podcast_mcp.pipeline.meta import cascade_disable, expand_enable
+
+    assert "compress_tracks" in expand_enable({"balance_tracks"})
+    left = cascade_disable(expand_enable({"assemble_timeline"}), "compress_tracks")
+    assert "balance_tracks" not in left and "assemble_timeline" not in left

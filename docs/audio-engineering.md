@@ -100,6 +100,17 @@ not change level from window to window.
 Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
 `mix_render_hash`.
 
+## Dialogue gain staging (`balance_tracks`)
+
+`balance_tracks` runs after `compress_tracks`. It measures each dialogue track through its
+own processing chain (`measure_loudness_blocks`: one ffmpeg pass with `ebur128=framelog=info`,
+which prints the 400 ms momentary loudness every 100 ms; those are the BS.1770 gating
+blocks). [`util/loudness.py`](../src/podcast_mcp/util/loudness.py) keeps the blocks whose
+window centre falls inside the track's own non-suppressed transcript words, then applies the
+-70 LUFS absolute and -10 LU relative gates. Bleed and silence therefore don't count. With no
+transcript or under 3 s of speech it falls back to ungated BS.1770 and reports `ungated`.
+`gain_db = target - measured`; `gain_db` is applied only in the mix, never baked into stems.
+
 ## Two-pass loudness + mastering QC
 
 `master_loudnorm` now runs FFmpeg's `loudnorm` filter **twice**, as FFmpeg's own docs

@@ -85,3 +85,15 @@ def test_mix_tracks_peak_ceiling_holds_true_peak(tmp_path: Path):
     full = eng.measure_loudness_full(out)
     assert full is not None and full["true_peak_db"] is not None
     assert full["true_peak_db"] <= -0.9
+
+
+def test_measure_loudness_blocks_matches_ebur128_integrated(two_wavs: tuple[Path, Path]):
+    from podcast_mcp.util.loudness import integrated_lufs_from_blocks
+
+    a, _ = two_wavs
+    eng = FFmpegEngine()
+    blocks = eng.measure_loudness_blocks(a)
+    got = integrated_lufs_from_blocks([m for _t, m in blocks])
+    ref = eng.measure_loudness(a)
+    assert got is not None and ref is not None
+    assert abs(got - ref) < 0.2

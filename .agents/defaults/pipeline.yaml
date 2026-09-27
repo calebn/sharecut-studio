@@ -27,8 +27,9 @@ compression:
   ratio: 3.0
   attack_ms: 15.0
   release_ms: 150.0
-  # 0 when balance_tracks already stages dialogue to dialogue_lufs; non-zero
-  # makeup after gain staging routinely pushes peaks into clip.
+  # 0 by default. balance_tracks runs after compression and measures the
+  # compressed signal, so makeup is compensated by gain staging; non-zero makeup
+  # only risks clipping the stem before the mix gain.
   makeup_db: 0.0
 
 focus:

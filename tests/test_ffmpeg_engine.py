@@ -1012,3 +1012,23 @@ def test_headroom_trim_db():
     assert headroom_trim_db(2.0, -1.0) == -3.0
     assert headroom_trim_db(-6.0, -1.0) == 0.0
     assert headroom_trim_db(None, -1.0) == 0.0
+
+
+def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    wav.write_bytes(b"x")
+    stderr = (
+        "[Parsed_ebur128_1 @ 0x1] t: 0.199977   TARGET:-23 LUFS    M:-120.7 S:-120.7     I: -70.0 LUFS       LRA:   0.0 LU\n"
+        "[Parsed_ebur128_1 @ 0x1] t: 0.399977   TARGET:-23 LUFS    M: -41.8 S:-120.7     I: -41.8 LUFS       LRA:   0.0 LU\n"
+        "[Parsed_ebur128_1 @ 0x1] Summary:\n\n  Integrated loudness:\n    I:         -41.8 LUFS\n"
+    )
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        run.return_value = MagicMock(stderr=stderr, stdout="", returncode=0)
+        got = eng.measure_loudness_blocks(wav, af="highpass=f=80")
+        af1 = run.call_args[0][0]
+        eng.measure_loudness_blocks(wav, af="anull")
+        af2 = run.call_args[0][0]
+    assert got == [(0.199977, -120.7), (0.399977, -41.8)]
+    assert af1[af1.index("-af") + 1] == "highpass=f=80,ebur128=framelog=info"
+    assert af2[af2.index("-af") + 1] == "ebur128=framelog=info"

@@ -3,6 +3,11 @@ from __future__ import annotations
 import functools
 import json
 import logging
+<<<<<<< HEAD
+=======
+import math
+import os
+>>>>>>> 288e54a7 (fix(pipeline): balance_tracks stages post-FX, speech-gated loudness)
 from pathlib import Path
 from typing import Any
 
@@ -296,22 +301,54 @@ def clean_audio(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummar
     return f"highpass on {touched} dialogue tracks"
 
 
+def _track_media_path(project: EpisodeProject, track: Track) -> Path:
+    assert track.media is not None
+    path = Path(track.media.path)
+    return path if path.is_absolute() else project.workspace_path() / path
+
+
 def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    """Stage each dialogue track's ``gain_db`` so its post-FX own-speech loudness hits the target.
+
+    Measures the media through the track's processing chain (what the stem renders),
+    gated to the track's non-suppressed transcript words so bleed and silence don't count.
+    """
+    from podcast_mcp.engines.transcript_gated_play import source_word_intervals
+    from podcast_mcp.util.loudness import speech_gated_lufs
+
     eng = ffmpeg()
     target = float(defaults.get("balance", {}).get("dialogue_lufs", -20.0))
-    adjusted = 0
-    for track in project.tracks:
-        if track.role != TrackRole.DIALOGUE or not track.media:
-            continue
-        path = Path(track.media.path)
-        if not path.is_absolute():
-            path = project.workspace_path() / path
-        measured = eng.measure_loudness(path)
-        if measured is None:
-            continue
-        track.gain_db = round(target - measured, 2)
-        adjusted += 1
-    return f"{adjusted} tracks gain-staged to {target:g} LUFS"
+    jobs = [
+        (t, _track_media_path(project, t))
+        for t in project.tracks
+        if t.role == TrackRole.DIALOGUE and t.media
+    ]
+    reports: list[str] = []
+    gated_all = True
+    with resolve_progress_task(
+        "balance_tracks", "Balancing track levels", total=max(1, len(jobs)), prefer_parent=True
+    ) as prog:
+        prog.set_phase("measure", f"Measuring {len(jobs)} tracks after FX…")
+        for done, (track, path) in enumerate(jobs, start=1):
+            chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
+            # Envelope left out: its times are stem-clock mix automation, not level.
+            blocks = eng.measure_loudness_blocks(path, eng.build_track_filter(chain, None))
+            speech = source_word_intervals(project, track.id, 0.0, math.inf)
+            measured = speech_gated_lufs(blocks, speech)
+            prog.advance(1, message=f"Measured {track.id} ({done}/{len(jobs)})")
+            if measured.lufs is None:
+                continue
+            track.gain_db = round(target - measured.lufs, 2)
+            achieved = round(measured.lufs + track.gain_db, 1)
+            gated_all = gated_all and measured.speech_gated
+            reports.append(
+                f"{track.id} {achieved:g} LUFS ({track.gain_db:+.1f} dB"
+                f"{'' if measured.speech_gated else ', ungated'})"
+            )
+    if not reports:
+        return f"0 tracks gain-staged (no loudness measured; target {target:g} LUFS)"
+    how = "post-FX, speech-gated" if gated_all else "post-FX"
+    return f"{len(reports)} tracks gain-staged to {target:g} LUFS ({how}): " + ", ".join(reports)
 
 
 def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

@@ -8,6 +8,7 @@
     "analyze_focus_cuts",
     "apply_bleed_suppression_tool",
     "assemble_timeline",
+    "balance_tracks",
     "audio_diagnostics_tool",
     "bootstrap",
     "bounce",
