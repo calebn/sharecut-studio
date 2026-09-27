@@ -53,6 +53,34 @@ describe("drainHostOfflineQueue", () => {
     expect(hostQueue).toHaveBeenCalledTimes(3);
   });
 
+  it("wakes each project's drain for its own in-flight send, even with a shared command id", async () => {
+    const pathA = "/projects/twin-a.project.json";
+    const pathB = "/projects/twin-b.project.json";
+    const { beginHostSend } = await import("./hostSendOrder");
+    const sendA = beginHostSend(pathA, "twin");
+    const sendB = beginHostSend(pathB, "twin");
+    const queues = new Map<string, QueuedCommand[]>([
+      [pathA, [cmd("twin")]],
+      [pathB, [cmd("twin")]],
+    ]);
+    hostQueue
+      .mockReset()
+      .mockImplementation(async (p: string) => queues.get(p) ?? []);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue(pathA);
+    await drainHostOfflineQueue(pathB);
+    queues.set(pathA, []);
+    queues.set(pathB, []);
+    sendA.finish();
+    sendB.finish();
+    const reads = (p: string) =>
+      hostQueue.mock.calls.filter((c) => c[0] === p).length;
+    await vi.waitFor(() => {
+      expect(reads(pathA)).toBe(2);
+      expect(reads(pathB)).toBe(2);
+    });
+  });
+
   it("stops at this tab's in-flight send and drains again once it settles", async () => {
     const path = "/projects/episode.project.json";
     const { beginHostSend } = await import("./hostSendOrder");
