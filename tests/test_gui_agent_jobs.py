@@ -515,6 +515,7 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
 def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
     from podcast_mcp.gui.jobs import shared_job_manager
     from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
+    from podcast_mcp.services import PipelineRunResult
 
     proj = tmp_path / "ep.json"
     proj.write_text("{}")
@@ -528,7 +529,7 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
 
     class FakeSvc:
         def run(self, **_kwargs):
-            return "ingest_tracks"
+            return PipelineRunResult(last_step="ingest_tracks", steps=[])
 
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.ProjectWorkspace.open", FakeWs.open)
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.PipelineService", lambda _ws: FakeSvc())
