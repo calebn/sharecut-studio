@@ -445,4 +445,7 @@ Implementation: [`src/podcast_mcp/gui/`](../src/podcast_mcp/gui/) (`server.py` w
 Transcript utterance mapping batches source-to-timeline word spans once per
 track and indexes the words for repeated utterance overlap queries. The API
 retains original transcript word order and indexes, including suppressed and
-zero-duration words; views that omit words skip this work.
+zero-duration words; views that omit words skip this work. Word spans map
+through `SessionTimeline.map_word_spans`, the same helper export/doctor
+timebase QC uses, so a zero-length word at a kept clip's source end is
+mappable in both, and edit-boundary `cutaway_word_ids` leave it out.
