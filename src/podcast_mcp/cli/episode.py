@@ -97,4 +97,6 @@ def info_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(ws.project.model_dump(), indent=2, default=str))
+    # document_sync holds an unredacted command payload for crash recovery (#575); this
+    # output gets pasted into bug reports, so leave it out.
+    typer.echo(json.dumps(ws.project.model_dump(exclude={"document_sync"}), indent=2, default=str))
