@@ -170,11 +170,13 @@ def test_coalesced_update_without_messages_flushes_none(frozen_clock):
 
 def test_concurrent_advance_loses_no_counts_and_stays_ordered(frozen_clock):
     rec = RecordingProgress()
+    clock_lock = threading.Lock()
     with progress_task("t", "T", reporter=rec) as p:
 
         def worker() -> None:
             for _ in range(500):
-                frozen_clock[0] += 0.001
+                with clock_lock:  # keep the fake clock monotonic; only advance() should race
+                    frozen_clock[0] += 0.001
                 p.advance(1)
 
         threads = [threading.Thread(target=worker) for _ in range(8)]
