@@ -418,6 +418,27 @@
   background: var(--color-accent-muted);
 }
 
+.transcript-inline-editor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.transcript-inline-input {
+  margin: 0;
+  padding: 0 var(--space-0);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-xs);
+  background: var(--color-field);
+  color: var(--text);
+  font: inherit;
+}
+
+.transcript-inline-error {
+  color: var(--danger);
+  font-size: var(--font-size-caption);
+}
+
 /*
  * Touch long-press on a word / comment opens its sheet; stop the native
  * selection handles and callout (~500 ms) from claiming the press first.

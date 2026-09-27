@@ -349,13 +349,15 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.transcript.correct": {
     label: "Correct transcript",
-    tooltip: "Correct: click a word to fix ASR text or suppress",
+    tooltip:
+      "Correct: click a word to fix ASR text or suppress (text only; audio and timing unchanged)",
     tooltip_pressed: "Exit Correct (restore seek-on-click)",
     toggle: true,
   },
   "daw.transcript.select": {
     label: "Select transcript range",
-    tooltip: "Select: click/shift/drag words for copy/cut (Mod+C/X/V)",
+    tooltip:
+      "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
     tooltip_pressed: "Exit Select (restore seek-on-click)",
     toggle: true,
   },
@@ -440,6 +442,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.annotate": "daw.view.transcriptAnnotate",
   "transcript.correct": "daw.transcript.correct",
   "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
+  "transcript.inlineEdit": "daw.transcript.correct",
   "transcript.select": "daw.transcript.select",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",

@@ -2180,7 +2180,7 @@
     {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
-      "tooltip": "Correct: click a word to fix ASR text or suppress",
+      "tooltip": "Correct: click a word to fix ASR text or suppress (text only; audio and timing unchanged)",
       "tooltip_pressed": "Exit Correct (restore seek-on-click)",
       "toggle": true,
       "service": "Sharecut Studio UI",
@@ -2192,7 +2192,8 @@
         "command": "transcript.correctIntent",
         "gui": [
           "transcript.correct",
-          "mobileShell.gesture.doubleTapWord"
+          "mobileShell.gesture.doubleTapWord",
+          "transcript.inlineEdit"
         ]
       },
       "omit": {
@@ -2207,7 +2208,7 @@
     {
       "id": "daw.transcript.select",
       "label": "Select transcript range",
-      "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V)",
+      "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
       "tooltip_pressed": "Exit Select (restore seek-on-click)",
       "toggle": true,
       "service": "Sharecut Studio UI",

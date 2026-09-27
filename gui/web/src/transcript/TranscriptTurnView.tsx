@@ -21,6 +21,8 @@ export type TranscriptTurnWord = {
   >;
   activeRef?: Ref<HTMLElement>;
   boundaryAfter?: ReactNode;
+  /** Replaces the word chip while it is edited in place (panel-owned). */
+  editor?: ReactNode;
 };
 
 export type TranscriptTurnSegment = {
@@ -107,40 +109,41 @@ export function TranscriptTurnView({
                 key={`${item.word.start}-${wordIndex}-${item.word.word_index ?? wordIndex}`}
               >
                 {wordIndex > 0 ? " " : ""}
-                {item.interactive ? (
-                  <button
-                    type="button"
-                    ref={item.activeRef as Ref<HTMLButtonElement>}
-                    className={chipClass}
-                    data-transcript-word
-                    data-track-id={item.trackId}
-                    data-word-index={item.word.word_index}
-                    {...item.anchorProps}
-                    title={item.title}
-                    aria-label={
-                      item.suspectHallucination
-                        ? [item.word.text, item.ariaLabel, SILENCE_WARNING]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : item.ariaLabel
-                    }
-                    {...item.buttonProps}
-                  >
-                    {item.word.text}
-                  </button>
-                ) : (
-                  <span
-                    ref={item.activeRef as Ref<HTMLSpanElement>}
-                    className={chipClass}
-                    title={item.title}
-                    {...item.anchorProps}
-                  >
-                    {item.word.text}
-                    {item.suspectHallucination && (
-                      <span className="sr-only"> {SILENCE_WARNING}</span>
-                    )}
-                  </span>
-                )}
+                {item.editor ??
+                  (item.interactive ? (
+                    <button
+                      type="button"
+                      ref={item.activeRef as Ref<HTMLButtonElement>}
+                      className={chipClass}
+                      data-transcript-word
+                      data-track-id={item.trackId}
+                      data-word-index={item.word.word_index}
+                      {...item.anchorProps}
+                      title={item.title}
+                      aria-label={
+                        item.suspectHallucination
+                          ? [item.word.text, item.ariaLabel, SILENCE_WARNING]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : item.ariaLabel
+                      }
+                      {...item.buttonProps}
+                    >
+                      {item.word.text}
+                    </button>
+                  ) : (
+                    <span
+                      ref={item.activeRef as Ref<HTMLSpanElement>}
+                      className={chipClass}
+                      title={item.title}
+                      {...item.anchorProps}
+                    >
+                      {item.word.text}
+                      {item.suspectHallucination && (
+                        <span className="sr-only"> {SILENCE_WARNING}</span>
+                      )}
+                    </span>
+                  ))}
                 {item.boundaryAfter}
               </span>
             );

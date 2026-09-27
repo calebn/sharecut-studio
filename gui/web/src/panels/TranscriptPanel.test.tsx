@@ -1,10 +1,16 @@
 import { act, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { correctTranscriptWord } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { scrollChildIntoParent } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
+
+vi.mock("../api", async (orig) => ({
+  ...(await orig<typeof import("../api")>()),
+  correctTranscriptWord: vi.fn(async () => {}),
+}));
 
 vi.mock("../utils/transcript", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/transcript")>();
@@ -107,6 +113,7 @@ function largeProject(turnCount = 1200) {
 
 describe("TranscriptPanel", () => {
   beforeEach(() => {
+    vi.mocked(correctTranscriptWord).mockClear();
     useDawStore.setState({
       project: project(),
       projectPath: "/tmp/ep",
@@ -332,6 +339,204 @@ describe("TranscriptPanel", () => {
       expect(container.textContent).not.toContain("correct mode");
       expect(useDawStore.getState().playheadSec).toBe(1);
       vi.useRealTimers();
+    });
+  });
+
+  describe("transcript mode hint", () => {
+    it("wraps the toggles in a named group", () => {
+      const { container } = render(<TranscriptPanel />);
+      const group = within(container).getByRole("group", {
+        name: "Transcript mode",
+      });
+      expect(
+        within(group).getByRole("button", { name: /Correct/i }),
+      ).toBeTruthy();
+      expect(
+        within(group).getByRole("button", { name: /Select/i }),
+      ).toBeTruthy();
+    });
+
+    it("shows the navigate, correct, and select hints", () => {
+      const { container } = render(<TranscriptPanel />);
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/never move or cut audio/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/text only/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/i }),
+      );
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/edits audio/);
+    });
+
+    it("hides the hint for a guest", () => {
+      useDawStore.setState({ projectPath: "share:tok" });
+      const { container } = render(<TranscriptPanel />);
+      expect(container.querySelector(".transcript-mode-hint")).toBeNull();
+    });
+
+    it("hides the hint for unhydrated transcript words", () => {
+      const base = project();
+      useDawStore.setState({
+        project: {
+          ...base,
+          meta: {
+            ...base.meta,
+            hydration: { transcript_words: false, history_groups: false },
+          },
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      expect(container.querySelector(".transcript-mode-hint")).toBeNull();
+    });
+  });
+
+  describe("inline word edit", () => {
+    it("double-click opens a focused textbox with the word's text", () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      const input = within(container).getByRole("textbox", {
+        name: /Correct word/,
+      });
+      expect(input).toHaveFocus();
+      expect(input).toHaveValue("hello");
+    });
+
+    it("Enter commits the change and refocuses the chip", async () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      const input = within(container).getByRole("textbox", {
+        name: /Correct word/,
+      });
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await vi.waitFor(() => {
+        expect(correctTranscriptWord).toHaveBeenCalledWith(
+          "/tmp/ep",
+          "host",
+          0,
+          "Hello",
+        );
+      });
+      await vi.waitFor(() => {
+        expect(
+          within(container).queryByRole("textbox", { name: /Correct word/ }),
+        ).toBeNull();
+      });
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("Escape closes without a call and refocuses the chip", () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      const input = within(container).getByRole("textbox", {
+        name: /Correct word/,
+      });
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(correctTranscriptWord).not.toHaveBeenCalled();
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+    });
+
+    it.each([
+      [
+        "a guest share",
+        () => useDawStore.setState({ projectPath: "share:tok" }),
+      ],
+      [
+        "unhydrated words",
+        () => {
+          const base = project();
+          useDawStore.setState({
+            project: {
+              ...base,
+              meta: {
+                ...base.meta,
+                hydration: { transcript_words: false, history_groups: false },
+              },
+            },
+          });
+        },
+      ],
+    ])("leaves no textbox and keeps seek for %s", (_name, arrange) => {
+      arrange();
+      useDawStore.setState({ playheadSec: 5 });
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+      expect(useDawStore.getState().playheadSec).toBe(0);
+    });
+
+    it("Select intent does not open the editor", () => {
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Select/i }),
+      );
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+    });
+
+    it("touch double-tap opens Correct, not the inline editor", () => {
+      const touch = { pointerType: "touch", isPrimary: true, pointerId: 1 };
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      const tap = (el: HTMLElement) => {
+        fireEvent.pointerDown(el, touch);
+        fireEvent.pointerUp(el, touch);
+        fireEvent.click(el);
+      };
+      tap(hello);
+      tap(hello);
+      fireEvent.doubleClick(hello);
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "transcriptWord",
+        trackId: "host",
+        wordIndex: 0,
+      });
+    });
+
+    it("closes the editor when switching to Correct", () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      expect(
+        within(container).getByRole("textbox", { name: /Correct word/ }),
+      ).toBeTruthy();
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+    });
+
+    it("has no axe violations with the editor open", async () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      fireEvent.doubleClick(hello);
+      await expectNoA11yViolations(container);
     });
   });
 
