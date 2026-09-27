@@ -668,15 +668,27 @@ def _defaults_have_path(defaults: Mapping[str, Any], path: str) -> bool:
     return True
 
 
+def _require_known_presets(
+    names: Sequence[str], known_presets: Mapping[str, Any], assignment: str
+) -> None:
+    """Raise ``ValueError`` naming the first of ``names`` that is not a known effect preset."""
+    for name in names:
+        if name not in known_presets:
+            raise ValueError(
+                f"unknown effect preset: {name!r} (in {assignment!r}); "
+                f"known: {', '.join(sorted(known_presets))}"
+            )
+
+
 def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
     """Parse ``path=value`` CLI/agent overrides (``--set``) into a nested override dict.
 
     ``value`` is parsed as a YAML scalar or flow value (``true``, ``-36``, ``[0.0, 0.2]``,
     ``null``, JSON arrays/objects all parse as YAML). The top-level key must be one of
     ``ALLOWED_CONFIG_TOP_KEYS``; the dotted path must already exist in the shipped
-    defaults, and under ``effects`` the preset name must be a known preset (builtin or
-    the defaults ``effects:`` overlay), so a typo raises instead of silently doing
-    nothing.
+    defaults, and under ``effects`` every preset name (dotted ``effects.<preset>`` or the
+    keys of an ``effects={...}`` mapping) must be a known preset (builtin or the defaults
+    ``effects:`` overlay), so a typo raises instead of silently doing nothing.
     """
     defaults = load_defaults()
     known_presets = resolve_presets(defaults)
@@ -696,15 +708,16 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
             raise ValueError(f"unknown pipeline config key: {top!r} (in {assignment!r})")
         if top != "effects" and not _defaults_have_path(defaults, path):
             raise ValueError(f"unknown pipeline config key: {path!r}")
-        if top == "effects" and len(parts) > 1 and parts[1] not in known_presets:
-            raise ValueError(
-                f"unknown effect preset: {parts[1]!r} (in {assignment!r}); "
-                f"known: {', '.join(sorted(known_presets))}"
-            )
+        if top == "effects" and len(parts) > 1:
+            _require_known_presets([parts[1]], known_presets, assignment)
         try:
             value = yaml.safe_load(raw_value) if raw_value else None
         except yaml.YAMLError as exc:
             raise ValueError(f"invalid value for {path!r}: {raw_value!r} ({exc})") from exc
+        if top == "effects" and len(parts) == 1:
+            if not isinstance(value, Mapping):
+                raise ValueError(f"effects must be a mapping of preset names (in {assignment!r})")
+            _require_known_presets([str(k) for k in value], known_presets, assignment)
         set_by_path(out, path, value)
     return out
 
