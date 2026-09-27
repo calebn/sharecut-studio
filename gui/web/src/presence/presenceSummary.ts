@@ -15,7 +15,11 @@ function count(n: number, noun: string): string {
   return `${n} ${plural(n, noun)}`;
 }
 
-/** Status-bar roster: "You", "You + 2 guests", "You + 1 host + 1 guest · 1 agent". */
+/**
+ * Status-bar roster: "You", "You + 2 guests", "You + 1 host + 1 guest · 1 agent".
+ * Until the local client id is known (`localClientId` null, before session sync
+ * connects) no row is treated as local, as in AvatarStack and PresenceGhostLayer.
+ */
 export function presenceSummary(
   clients: readonly SessionClient[],
   localClientId: string | null,
