@@ -1655,6 +1655,59 @@ def test_a_history_move_saved_before_its_render_failed_is_not_repeated_by_a_retr
     assert len(_journal(retry)) == 2
 
 
+def test_an_unknown_commit_outcome_rereads_a_landed_saved_command(minimal_project):
+    svc = _undoable_rejection(minimal_project)
+    cmd = DocumentCommand(
+        type="UndoHistory",
+        payload={"rerender": True},
+        client_id="c1",
+        role="viewer",
+        client_seq=3,
+    )
+
+    def failing_render(_project):
+        raise OSError("ffmpeg failed")
+
+    with (
+        patch("podcast_mcp.services.history.rerender_preview", failing_render),
+        patch("podcast_mcp.services.document_sync.service.commit_landed", return_value=None),
+        pytest.raises(DocumentConflictError),
+    ):
+        svc.submit(cmd)
+
+    cursor_before = HistoryService(ProjectWorkspace.open(minimal_project)).status()["cursor"]
+    # Same service: its workspace must still carry the saved record.
+    result = svc.submit(cmd)
+    assert result["idempotent"] is True
+    assert (
+        HistoryService(ProjectWorkspace.open(minimal_project)).status()["cursor"] == cursor_before
+    )
+    assert len(_journal(svc)) == 2
+
+
+def test_an_unknown_commit_outcome_does_not_keep_a_failed_command(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    assert svc.submit(_comment("first"))["ok"]
+    with (
+        patch("podcast_mcp.services.document_sync.service.commit_landed", return_value=None),
+        pytest.raises(DocumentConflictError),
+    ):
+        svc.submit(
+            DocumentCommand(
+                type="UpdateComment",
+                payload={"comment_id": "does-not-exist", "body": "nope"},
+                client_id="c1",
+                role="viewer",
+                client_seq=2,
+            )
+        )
+    kept = svc.ws.project.document_sync.last_command
+    assert kept is not None
+    assert kept.payload.get("body") == "first"
+    assert svc.submit(_comment("second", seq=3))["ok"]
+    assert [row["payload"]["body"] for row in _journal(svc)] == ["first", "second"]
+
+
 def test_a_reset_journal_never_journals_an_old_record(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("a", seq=1, client_id="a"))
