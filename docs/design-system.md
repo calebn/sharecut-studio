@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -268,15 +268,12 @@ gets a refactor issue, not a story. These remaining store-bound surfaces are
 tracked as grouped follow-up issues, one per cluster, each component its own
 checkbox so it can ship as its own PR:
 
-- **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
-  rail, tool mode toggle and command palette: `EditingToolRail`,
-  `ToolModeToggle`, `CommandPalette`
 - **F** ([#614](https://github.com/calebn/sharecut-studio/issues/614)) —
   timeline editing surfaces: `ClipBlock`, `MarkerLane`,
   `PendingEditOverlay`, `EditBoundaryMark`
 - **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
   fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
-  desktop, blocked by D and the remaining `TransportBar` pieces
+  desktop, blocked by the remaining `TransportBar` pieces
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories; they are not on this list and get
@@ -315,6 +312,19 @@ saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop, and
 360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons` adapters
 continue to read DAW state and dispatch commands; catalog stories do not mount
 that store or simulate command execution.
+
+`Templates/ToolModeToggle`, `Templates/EditingToolRail` and
+`Templates/CommandPalette` follow the same split. `ToolModeToggleView` and
+`EditingToolRailView` render from fixed props with a local-state preview
+wrapper so a story's tool/comment/blade-confirm clicks feel live without
+touching the DAW store; `EditingToolRailView` takes its `ToolModeToggle` as a
+`toolToggle` slot, the same pattern as `TrackHeaderView`'s `mixer` slot.
+`CommandPaletteView` takes its shortcut categories and unbound actions as
+props built by `layout/commandPaletteRows.ts`, a pure `.ts` helper kept out of
+`.tsx` so it never has to import the store-bound keymap registry at runtime.
+The live `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters are
+unchanged for callers and continue to read DAW state and dispatch through
+`execute`.
 
 ## Adding a story
 
@@ -421,6 +431,11 @@ that store or simulate command execution.
   `Templates/PresenceOverlay` and `Templates/CommentPlaybackBubble`, and
   added `timeline/useVisibleChunks.ts` shared by `TimeRuler` and
   `EnvelopeOverlay`.
+- 2026-09-27 — Closed #611: added props-only `ToolModeToggleView`,
+  `EditingToolRailView` and `CommandPaletteView`, extracted from
+  `ToolModeToggle`, `EditingToolRail` and `CommandPalette` following the
+  `TrackHeaderView` pattern; removed follow-up D from the Catalog boundary
+  list.
 - 2026-09-27 — Closed #610: extracted props-only `StatusBarView`,
   `AvatarStackView`, `OverlayLegendView` and `PresenceStatusView` from their
   live adapters and added `Templates/StatusBar`, `Templates/AvatarStack` and
