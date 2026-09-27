@@ -22,6 +22,9 @@ from pydantic import (
 
 from podcast_mcp.util.timeline_zoom import min_viewport_span_sec
 
+# Share-guest client ids start with this; the GUI mirrors it (presence/followSync.ts).
+GUEST_CLIENT_ID_PREFIX = "guest-"
+
 ClientRole = Literal["agent", "viewer", "cli"]
 
 

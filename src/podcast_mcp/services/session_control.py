@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from podcast_mcp.services.session_sync.commands import normalize_presence_playhead
+from podcast_mcp.services.session_sync.commands import (
+    GUEST_CLIENT_ID_PREFIX,
+    normalize_presence_playhead,
+)
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -88,7 +91,7 @@ class SessionControlService:
             cid = str(row.get("client_id") or "")
             if role == "agent":
                 pri = 0
-            elif role == "viewer" and not cid.startswith("guest-"):
+            elif role == "viewer" and not cid.startswith(GUEST_CLIENT_ID_PREFIX):
                 pri = 1
             elif role == "cli":
                 pri = 2

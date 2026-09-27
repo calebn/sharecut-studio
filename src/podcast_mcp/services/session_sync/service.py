@@ -9,6 +9,7 @@ from typing import Any
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.session_sync.commands import (
+    GUEST_CLIENT_ID_PREFIX,
     ClientRole,
     SyncCommand,
     audition_mode_from_source,
@@ -147,12 +148,12 @@ class SessionSyncService:
             }
 
         if command.type == "PresenceHeartbeat":
-            guest = command.client_id.startswith("guest-")
+            guest = command.client_id.startswith(GUEST_CLIENT_ID_PREFIX)
             meta = normalize_presence_meta(command.payload.get("meta"), guest=guest)
             return self._touch_and_fanout(command, meta)
 
         if command.type == "FollowUser":
-            guest = command.client_id.startswith("guest-")
+            guest = command.client_id.startswith(GUEST_CLIENT_ID_PREFIX)
             raw = dict(command.payload.get("meta") or {})
             raw.setdefault("display_name", command.payload.get("display_name"))
             raw["following"] = command.payload.get("follow_client_id")
