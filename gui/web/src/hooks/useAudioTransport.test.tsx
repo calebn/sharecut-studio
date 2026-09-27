@@ -287,6 +287,35 @@ describe("useAudioTransport saved mix (#386)", () => {
     unmount();
   });
 
+  it("a tick that lands after Stop keeps the rewound playhead", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    useDawStore
+      .getState()
+      .setProject(
+        mixProject(
+          [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+          true,
+        ),
+      );
+    const { unmount } = renderHook(() => useAudioTransport());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await vi.waitFor(() => expect(frames.length).toBeGreaterThan(0));
+    for (const el of FakeAudio.instances) {
+      el.currentTime = 30;
+    }
+    act(() => {
+      useDawStore.getState().stopPlayback();
+      for (const cb of frames.splice(0)) cb(0);
+    });
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    unmount();
+  });
+
   it("keeps playing through a saved volume or mute change", async () => {
     useDawStore
       .getState()

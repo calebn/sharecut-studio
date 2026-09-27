@@ -4,6 +4,7 @@ import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { ProxyEngine } from "../audio/proxyEngine";
 import type { ProxyManifest } from "../audio/proxyMath";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import {
   loadOfflineSnapshot,
   mergeOfflineSnapshot,
@@ -165,7 +166,7 @@ export function useProxyTransport(): boolean {
     if (isPlaying) {
       engine.play(playheadSecRef.current);
       const tick = () => {
-        if (cancelled) {
+        if (cancelled || !useDawStore.getState().isPlaying) {
           return;
         }
         let t = engine.currentTimeSec();
@@ -225,8 +226,9 @@ export function useProxyTransport(): boolean {
       };
       rafRef.current = requestAnimationFrame(tick);
     } else {
-      const t = engine.pause();
-      setPlayheadSec(t);
+      // Keep the store playhead (Stop may have rewound it); the seek effect
+      // below moves the paused engine there.
+      engine.pause();
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
