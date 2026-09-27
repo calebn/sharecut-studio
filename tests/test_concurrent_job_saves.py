@@ -994,3 +994,19 @@ def test_live_project_resolves_only_the_marked_step_copy(minimal_project):
         assert live_project(work) is live
         assert live_project(live) is live
     assert live_project(work) is work
+
+
+def test_a_published_step_shares_no_mutable_state_with_its_copy(minimal_project, monkeypatch):
+    ws = _two_tracks(minimal_project)
+    kept = {}
+
+    def step(work, _defaults):
+        work.track_by_id("host").gain_db = 3.0
+        kept["work"] = work
+        return "done"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "merge_transcript", step)
+    PipelineService(ws).run(only_step="merge_transcript")
+    assert ws.project.track_by_id("host").gain_db == 3.0
+    kept["work"].track_by_id("host").gain_db = 9.0
+    assert ws.project.track_by_id("host").gain_db == 3.0
