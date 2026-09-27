@@ -54,6 +54,34 @@ export function estimateTimelineViewportWidth(bp: ShellBreakpoint): number {
   return Math.max(200, w - 500);
 }
 
+/** The one tab a layout shows: null for default (all tabs) and timeline (none). */
+const LAYOUT_TAB: Readonly<Record<LayoutMode, DawTab | null>> = {
+  default: null,
+  timeline: null,
+  text: "transcript",
+  review: "comments",
+};
+
+/**
+ * Switch to `activeTab`, restoring the default layout when the current layout
+ * does not show that tab (timeline hides every tab; text/review show only
+ * their own) so the requested panel is on screen. Leaving the timeline layout
+ * this way also drops the timeline key focus that layout set.
+ */
+function revealTab(
+  s: Pick<DawStore, "layoutMode">,
+  activeTab: DawTab,
+): Partial<DawStore> {
+  if (s.layoutMode === "default" || LAYOUT_TAB[s.layoutMode] === activeTab) {
+    return { activeTab };
+  }
+  return {
+    activeTab,
+    layoutMode: "default",
+    ...(s.layoutMode === "timeline" ? { timelineFocused: false } : {}),
+  };
+}
+
 type UiSlice = Pick<
   DawStore,
   | "highlightStaleRender"
@@ -284,13 +312,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }
       return { selectedClipIds: [clipId], selection: asClip };
     }),
-  // The timeline layout hides the bottom tabs: opening a tab there restores
-  // the default layout so the requested panel is actually on screen.
-  setActiveTab: (activeTab) =>
-    set((s) => ({
-      activeTab,
-      ...(s.layoutMode === "timeline" ? { layoutMode: "default" as LayoutMode } : {}),
-    })),
+  setActiveTab: (activeTab) => set((s) => revealTab(s, activeTab)),
   setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
     set({ transcriptFollowPlayhead }),
   toggleTranscriptFollowPlayhead: () =>
@@ -393,7 +415,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       return {
         commentMode: next,
         commentDraft: next ? s.commentDraft : null,
-        activeTab: next ? "comments" : s.activeTab,
+        ...(next ? revealTab(s, "comments") : {}),
         mobileMode: next ? "listen" : s.mobileMode,
         moreDestination: next ? "comments" : s.moreDestination,
         ...(next
@@ -429,7 +451,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     set({
       shellBreakpoint,
       // The phone shell has no layouts: never carry one into it or back out.
-      ...(shellBreakpoint === "phone" ? { layoutMode: "default" as LayoutMode } : {}),
+      ...(shellBreakpoint === "phone"
+        ? { layoutMode: "default" as LayoutMode }
+        : {}),
     });
     // Re-derive from the live timeline: a registered scrollport that measures
     // 0 (a remount mid shell switch) and no timeline at all both store the
@@ -464,17 +488,17 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
                 ? { activeTab: "pipeline" as DawTab }
                 : {}),
     }),
-  setLayoutMode: (layoutMode) =>
+  setLayoutMode: (layoutMode) => {
+    const tab = LAYOUT_TAB[layoutMode];
     set({
       layoutMode,
-      ...(layoutMode === "text"
-        ? { activeTab: "transcript" as DawTab, timelineFocused: false }
-        : layoutMode === "review"
-          ? { activeTab: "comments" as DawTab, timelineFocused: false }
-          : layoutMode === "timeline"
-            ? { timelineFocused: true }
-            : {}),
-    }),
+      ...(tab
+        ? { activeTab: tab, timelineFocused: false }
+        : layoutMode === "timeline"
+          ? { timelineFocused: true }
+          : {}),
+    });
+  },
   setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
   commandPaletteOpen: false,
   setCommandPaletteOpen: (commandPaletteOpen) =>
