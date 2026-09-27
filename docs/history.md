@@ -38,7 +38,14 @@ If another writer advances the cursor and prunes a long job's checkpoint entry, 
 job's next merged save reports a history lineage conflict before reading the deleted
 snapshot; it must rerun from the saved project.
 The separate history index and transcript caches are rewritten only when their desired
-contents differ; a missing or damaged mirror is repaired on the next commit.
+contents differ; a missing or damaged mirror is repaired on the next commit. A project
+whose saved history is empty (never recorded, or a legacy `"history": null`) adopts
+`history/index.json` on load and commit only when the index's current entry snapshots the
+project's editable state (`project_store.history_matches_project`). An index whose current
+entry holds other state was left by a commit that never landed, for example a process
+killed between `record(after)` and `save_project` (#576). It is ignored with a warning, the
+next commit rewrites it from the project's history, and its snapshots stay behind as
+harmless orphans.
 
 Pipeline run logs stay on the project file and are not reverted by undo (only editable layers).
 

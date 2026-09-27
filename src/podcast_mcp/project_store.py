@@ -13,7 +13,8 @@ from podcast_mcp.models import (
     project_file_path,
     save_project,
 )
-from podcast_mcp.models.history import ProjectHistory
+from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
+from podcast_mcp.models.project_format import snapshot_editable_state
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.project_state import FileRevision, project_commit_lock, project_file_revision
 
@@ -35,6 +36,11 @@ def history_snapshots_dir(index_path: Path) -> Path:
 def history_snapshot_path(index_path: Path, entry_id: str) -> Path:
     """Snapshot file of history entry ``entry_id`` (``snapshots/<id>.json``)."""
     return history_snapshots_dir(index_path) / f"{entry_id}.json"
+
+
+def snapshot_from_project(project: EpisodeProject) -> ProjectStateSnapshot:
+    """``project``'s editable state as a history snapshot (what undo/redo restores)."""
+    return ProjectStateSnapshot.model_validate(snapshot_editable_state(project))
 
 
 def read_history_index(index_path: Path) -> ProjectHistory | None:
@@ -131,6 +137,28 @@ def commit_landed(project: EpisodeProject, revision_before: FileRevision | None)
         return None
 
 
+def history_matches_project(project: EpisodeProject, history: ProjectHistory) -> bool:
+    """Whether ``history``'s current entry snapshots ``project``'s editable state.
+
+    Every commit that records history saves the state its current entry snapshots, so an
+    index whose current entry holds other state was written by a commit that never landed
+    (for example a process killed between ``record(after)`` and ``save_project``, #576). No
+    current entry, or a missing or unreadable snapshot, does not match.
+    """
+    if not 0 <= history.cursor < len(history.entries):
+        return False
+    snapshot_path = project.workspace_path() / history.entries[history.cursor].snapshot_file
+    try:
+        data = load_json_object(snapshot_path)
+        saved = None if data is None else ProjectStateSnapshot.model_validate(data)
+    except ValueError:  # includes pydantic.ValidationError
+        saved = None
+    if saved is None:
+        log.warning("History snapshot %s is missing or unreadable", snapshot_path)
+        return False
+    return saved == snapshot_from_project(project)
+
+
 class ProjectStore:
     """Single API for loading and committing episode.project.json."""
 
@@ -210,14 +238,25 @@ class ProjectStore:
         return project
 
     def adopt_history_index(self, project: EpisodeProject) -> bool:
-        """Fill an empty in-memory history from ``history/index.json`` if one exists.
+        """Fill an empty in-memory history from ``history/index.json`` when it matches.
 
-        A corrupt index raises ``ValueError``.
+        The index is adopted only when its current entry snapshots ``project``'s editable
+        state (``history_matches_project``). An index a commit left ahead of the saved
+        project before dying is ignored with a warning, and the next commit rewrites it
+        from the project's history (#576). A corrupt index raises ``ValueError``.
         """
         if not project.history.is_empty():
             return False
-        history = read_history_index(history_index_path(project))
-        if history is None:
+        index_path = history_index_path(project)
+        history = read_history_index(index_path)
+        if history is None or history.is_empty():
+            return False
+        if not history_matches_project(project, history):
+            log.warning(
+                "Not adopting %s: its current entry does not match the project "
+                "(a commit that never landed); the next commit rewrites it",
+                index_path,
+            )
             return False
         project.history = history
         return True
