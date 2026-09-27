@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import wave
+
 import numpy as np
+import pytest
 
 from podcast_mcp.engines.asr_silence import (
-    SILENCE_SAMPLE_RATE,
     flag_silent_words_in_file,
     flag_words_over_silence,
+    peak_envelope,
 )
 from podcast_mcp.models import TranscriptWord
 
@@ -49,19 +52,43 @@ def test_threshold_respected():
     assert flag_words_over_silence([_w(0.1, 0.4)], quiet, SR, peak_dbfs=-70.0) == 0
 
 
-def test_file_wrapper_success_and_failure(monkeypatch, tmp_path):
-    from podcast_mcp.engines import audio_audit
+def test_file_wrapper_success_and_failure(monkeypatch, tmp_path, caplog):
+    from podcast_mcp.engines import asr_silence
 
-    monkeypatch.setattr(audio_audit, "load_mono_full", lambda *a, **k: _audio())
+    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
     words = [_w(0.2, 0.5)]
     assert flag_silent_words_in_file(words, tmp_path / "a.wav", peak_dbfs=-60.0) == 1
-    assert SILENCE_SAMPLE_RATE == SR
 
     def boom(*a, **k):
         raise RuntimeError("no decode")
 
-    monkeypatch.setattr(audio_audit, "load_mono_full", boom)
-    assert flag_silent_words_in_file(words, tmp_path / "a.wav", peak_dbfs=-60.0) is None
+    monkeypatch.setattr(asr_silence, "peak_envelope", boom)
+    with caplog.at_level("WARNING"):
+        assert flag_silent_words_in_file(words, tmp_path / "a.wav", peak_dbfs=-60.0) is None
+    assert "silence filter skipped" in caplog.text
+
+
+def test_peak_envelope_native_rate_stereo_high_frequency(tmp_path):
+    sr = 44100
+    t = np.arange(sr) / sr
+    sine = np.round(0.003 * 32767 * np.sin(2 * np.pi * 6000 * t)).astype("<i2")
+    zeros = np.zeros(sr, dtype="<i2")
+    left = np.concatenate([zeros, zeros])
+    right = np.concatenate([zeros, sine])
+    path = tmp_path / "s.wav"
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(sr)
+        wf.writeframes(np.column_stack([left, right]).astype("<i2").tobytes())
+    peaks, rate = peak_envelope(path)
+    assert rate == pytest.approx(100.0)
+    assert peaks.size == 200
+    assert float(peaks[:100].max()) == 0.0
+    assert float(peaks[100:].max()) > 10 ** (-60 / 20)
+    words = [_w(0.2, 0.5), _w(1.2, 1.5)]
+    assert flag_silent_words_in_file(words, path, peak_dbfs=-60.0) == 1
+    assert [w.suspect_hallucination for w in words] == [True, False]
 
 
 def test_real_decode_of_tone(sample_wav):
