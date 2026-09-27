@@ -30,7 +30,7 @@ from podcast_mcp.edits.clips_ops import (
     trim_clip_edge as trim_clip_edge_bounds,
 )
 from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
-from podcast_mcp.edits.edit_log import archive_timeline_op
+from podcast_mcp.edits.edit_log import archive_timeline_op, source_envelope_by_track
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
@@ -165,7 +165,10 @@ def ripple_delete(
             track_ids=tracks,
             timeline_start=timeline_start,
             timeline_end=timeline_end,
-            params={"use_inaudible_opt": use_inaudible_opt},
+            params={
+                "use_inaudible_opt": use_inaudible_opt,
+                "per_track_source": source_envelope_by_track(removes_by_track),
+            },
         )
     return change_summary(
         project,
@@ -221,7 +224,11 @@ def punch_delete(
             track_ids=[track_id],
             timeline_start=timeline_start,
             timeline_end=timeline_end,
-            params={"use_inaudible_opt": use_inaudible_opt, "scope": "track"},
+            params={
+                "use_inaudible_opt": use_inaudible_opt,
+                "scope": "track",
+                "per_track_source": source_envelope_by_track({track_id: src_ranges}),
+            },
         )
     return change_summary(
         project,
@@ -483,6 +490,14 @@ def split_clips_at(
             skipped.append(tid)
     if not affected:
         raise ValueError(f"no clip at timeline {at_time} on tracks {tracks}")
+    split_source_by_track: dict[str, float] = {}
+    for tid in affected:
+        left = next(
+            (c for c in clips_for_track(project, tid) if abs(c.timeline_end - at_time) <= 1e-6),
+            None,
+        )
+        if left is not None:
+            split_source_by_track[tid] = float(left.source_end)
     if record_log:
         archive_timeline_op(
             project,
@@ -494,6 +509,7 @@ def split_clips_at(
                 "at_time": at_time,
                 "track_ids": affected,
                 "skipped_track_ids": skipped,
+                "split_source_by_track": split_source_by_track,
             },
         )
     return change_summary(
@@ -502,6 +518,7 @@ def split_clips_at(
         affected_tracks=affected,
         at_time=at_time,
         skipped_track_ids=skipped,
+        split_source_by_track=split_source_by_track,
     )
 
 

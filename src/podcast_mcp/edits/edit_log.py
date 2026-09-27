@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -85,6 +86,21 @@ def archive_timeline_op(
     )
     project.editorial.edit_log.append(record)
     return record
+
+
+def source_envelope_by_track(
+    spans_by_track: Mapping[str, Sequence[tuple[float, float]]],
+) -> dict[str, list[float]]:
+    """``params['per_track_source']``: each track's first source start and last source end.
+
+    The GUI projects applied ticks through the current clips from these clocks (#527);
+    ``revert_applied_edit`` reads the same shape.
+    """
+    return {
+        str(tid): [float(spans[0][0]), float(spans[-1][1])]
+        for tid, spans in spans_by_track.items()
+        if spans
+    }
 
 
 def list_applied_edits(

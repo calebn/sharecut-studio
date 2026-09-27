@@ -5,7 +5,7 @@ from itertools import pairwise
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.edit_log import archive_decision
+from podcast_mcp.edits.edit_log import archive_decision, source_envelope_by_track
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
@@ -59,13 +59,12 @@ def _per_track_source_for_timeline(
 ) -> dict[str, list[float]]:
     """Map a timeline hole to each dialogue track's source range (pre-ripple)."""
     st = SessionTimeline(project)
-    out: dict[str, list[float]] = {}
-    for tid in dialogue_track_ids(project):
-        spans = st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
-        if not spans:
-            continue
-        out[tid] = [float(spans[0][0]), float(spans[-1][1])]
-    return out
+    return source_envelope_by_track(
+        {
+            tid: st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
+            for tid in dialogue_track_ids(project)
+        }
+    )
 
 
 def apply_join_fades_from_decisions(
@@ -324,7 +323,11 @@ def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
             timeline_start=at_time,
             timeline_end=at_time,
             track_ids=list(report.get("affected_tracks") or tids),
-            params={"at_time": at_time, "track_ids": tids},
+            params={
+                "at_time": at_time,
+                "track_ids": tids,
+                "split_source_by_track": report.get("split_source_by_track") or {},
+            },
         )
         applied_ids.add(edit.id)
 
