@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { FakeWebSocket } from "../test/fakeWebSocket";
 import { sampleComment } from "../test/fixtures";
 import { urlOf } from "../test/urlOf";
 import { ReviewApp } from "./ReviewApp";
@@ -38,27 +39,8 @@ function jsonRequestBody(init?: RequestInit): unknown {
 }
 
 describe("ReviewApp", () => {
-  class FakeWebSocket {
-    static OPEN = 1;
-    static instances: FakeWebSocket[] = [];
-    readyState = FakeWebSocket.OPEN;
-    onmessage: ((ev: { data: string }) => void) | null = null;
-    onclose: (() => void) | null = null;
-    url: string;
-    constructor(url: string) {
-      this.url = url;
-      FakeWebSocket.instances.push(this);
-    }
-    close() {
-      this.onclose?.();
-    }
-    emit(msg: unknown) {
-      this.onmessage?.({ data: JSON.stringify(msg) });
-    }
-  }
-
   beforeEach(() => {
-    FakeWebSocket.instances = [];
+    FakeWebSocket.reset({ autoOpen: false });
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
   });
 
@@ -429,7 +411,7 @@ describe("ReviewApp", () => {
     });
     vi.useFakeTimers();
     await act(async () => {
-      FakeWebSocket.instances[0].onclose?.();
+      FakeWebSocket.instances[0].onclose?.({ code: 1000 });
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(FakeWebSocket.instances.length).toBe(2);

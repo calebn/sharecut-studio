@@ -5,35 +5,10 @@ import {
   resetDocumentSeqForTests,
 } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
+import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { useDocumentSync } from "./useDocumentSync";
-
-class FakeWebSocket {
-  static OPEN = 1;
-  static instances: FakeWebSocket[] = [];
-  readyState = FakeWebSocket.OPEN;
-  onopen: (() => void) | null = null;
-  onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: ((ev: { code: number }) => void) | null = null;
-  onerror: (() => void) | null = null;
-  url: string;
-  closed = false;
-
-  constructor(url: string) {
-    this.url = url;
-    FakeWebSocket.instances.push(this);
-  }
-
-  close(code = 1000) {
-    this.closed = true;
-    this.onclose?.({ code });
-  }
-
-  emit(msg: unknown) {
-    this.onmessage?.({ data: JSON.stringify(msg) });
-  }
-}
 
 const track = (id: string, label = id): TrackView => ({
   id,
@@ -49,7 +24,7 @@ const track = (id: string, label = id): TrackView => ({
 
 describe("useDocumentSync", () => {
   beforeEach(() => {
-    FakeWebSocket.instances = [];
+    FakeWebSocket.reset({ autoOpen: false });
     resetDocumentSeqForTests();
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
     useDawStore.getState().hydrate("/tmp/ep.json", minimalProject());

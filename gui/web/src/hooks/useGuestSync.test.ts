@@ -29,8 +29,7 @@ vi.mock("../state/drainOfflineQueue", () => ({
 
 describe("useGuestSync", () => {
   beforeEach(() => {
-    FakeWebSocket.instances = [];
-    FakeWebSocket.autoOpen = true;
+    FakeWebSocket.reset();
     resetDocumentSeqForTests();
     loadProject.mockReset();
     loadProjectMeta.mockReset();
