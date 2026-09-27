@@ -720,78 +720,181 @@ def test_apply_ws_client_message_paths(minimal_project) -> None:
     assert none is None and seq2 == seq
 
 
-def test_apply_ws_client_message_viewer_state_publishes_durable_deltas(minimal_project) -> None:
-    from podcast_mcp.gui.server import apply_ws_client_message
+def test_apply_ws_viewer_state_publishes_durable_deltas(minimal_project) -> None:
+    from podcast_mcp.gui.server import apply_ws_viewer_state
 
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
-    echo, seq = apply_ws_client_message(
+    echo = apply_ws_viewer_state(
         svc,
-        {
-            "type": "ViewerState",
-            "snapshot": {
-                "selection": {"kind": "track", "track_id": "host"},
-                "client_id": "spoofed",
-            },
-            "client_seq": 5,
-        },
+        {"selection": {"kind": "track", "track_id": "host"}, "client_id": "spoofed"},
         client_id="ws-vs",
         role="viewer",
         label="Host",
-        seq=5,
     )
-    assert seq == 5
     assert echo is not None and echo["type"] == "Echo"
     assert echo["command"] == {"type": "ViewerState", "client_id": "ws-vs", "role": "viewer"}
     assert echo["snapshot"]["selection"] == {"kind": "track", "track_id": "host"}
     assert echo["snapshot"]["last_client_id"] == "ws-vs"
 
-    repeat, seq2 = apply_ws_client_message(
+    repeat = apply_ws_viewer_state(
         svc,
-        {
-            "type": "ViewerState",
-            "snapshot": {"selection": {"kind": "track", "track_id": "host"}},
-            "client_seq": 5,
-        },
+        {"selection": {"kind": "track", "track_id": "host"}},
         client_id="ws-vs",
         role="viewer",
         label="Host",
-        seq=seq,
     )
-    assert seq2 == seq
     assert repeat is not None
     assert repeat["snapshot"]["server_seq"] == echo["snapshot"]["server_seq"]
 
 
-def test_apply_ws_client_message_viewer_state_rejects_malformed(minimal_project) -> None:
-    from podcast_mcp.gui.server import apply_ws_client_message
+def test_apply_ws_viewer_state_rejects_malformed(minimal_project) -> None:
+    from podcast_mcp.gui.server import apply_ws_viewer_state
 
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
 
-    bad, seq = apply_ws_client_message(
-        svc,
-        {"type": "ViewerState", "snapshot": "nope"},
-        client_id="ws-vs",
-        role="viewer",
-        label=None,
-        seq=1,
-    )
-    assert seq == 1
+    bad = apply_ws_viewer_state(svc, "nope", client_id="ws-vs", role="viewer", label=None)
     assert bad is not None and bad["type"] == "Error"
     assert bad["code"] == "invalid_viewer_state"
 
-    missing, seq2 = apply_ws_client_message(
-        svc,
-        {"type": "ViewerState"},
-        client_id="ws-vs",
-        role="viewer",
-        label=None,
-        seq=1,
-    )
-    assert seq2 == 1
+    missing = apply_ws_viewer_state(svc, None, client_id="ws-vs", role="viewer", label=None)
     assert missing is not None and missing["code"] == "invalid_viewer_state"
     assert svc.state_or_none() is None
+
+
+def test_apply_ws_viewer_state_service_errors_answer_error_frames(
+    minimal_project, monkeypatch
+) -> None:
+    import sqlite3
+
+    from podcast_mcp.gui.server import apply_ws_viewer_state
+
+    svc = SessionSyncService(load_project(minimal_project))
+
+    def value_error(project, snapshot, *, heartbeat=True):
+        raise ValueError("boom")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.session.publish_viewer_snapshot", value_error)
+    out = apply_ws_viewer_state(
+        svc, {"selection": None}, client_id="ws-vs", role="viewer", label="Host"
+    )
+    assert out == {"type": "Error", "code": "invalid_viewer_state", "detail": "boom"}
+
+    def db_error(project, snapshot, *, heartbeat=True):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.session.publish_viewer_snapshot", db_error)
+    out = apply_ws_viewer_state(svc, {}, client_id="ws-vs", role="viewer", label="Host")
+    assert out["code"] == "viewer_state_failed"
+
+
+def test_apply_ws_client_message_ignores_viewer_state(minimal_project) -> None:
+    from podcast_mcp.gui.server import apply_ws_client_message
+
+    svc = SessionSyncService(load_project(minimal_project))
+    echo, seq = apply_ws_client_message(
+        svc,
+        {"type": "ViewerState", "snapshot": {"selection": {"kind": "track", "track_id": "host"}}},
+        client_id="guest-abcd-tab",
+        role="viewer",
+        label="A",
+        seq=3,
+    )
+    assert (echo, seq) == (None, 3)
+    assert svc.state_or_none() is None
+
+
+def test_apply_ws_viewer_state_forces_socket_identity(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.gui.server import apply_ws_viewer_state
+
+    svc = SessionSyncService(load_project(minimal_project))
+    seen: list[tuple[dict, bool]] = []
+
+    def capture(project, snapshot, *, heartbeat=True):
+        seen.append((snapshot, heartbeat))
+        return {"server_seq": 0}
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.session.publish_viewer_snapshot", capture)
+    blob = {"client_id": "spoofed", "label": "Host (admin)", "playhead_sec": 1.0}
+    apply_ws_viewer_state(svc, blob, client_id="ws-nolabel", role="viewer", label=None)
+    apply_ws_viewer_state(svc, blob, client_id="ws-host", role="viewer", label="Host")
+    assert seen[0] == ({"client_id": "ws-nolabel", "playhead_sec": 1.0}, False)
+    assert seen[1] == ({"client_id": "ws-host", "label": "Host", "playhead_sec": 1.0}, False)
+
+
+def test_websocket_viewer_state_publishes_off_the_event_loop(minimal_project, monkeypatch) -> None:
+    pytest = __import__("pytest")
+    pytest.importorskip("fastapi")
+    import asyncio
+    from urllib.parse import quote
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.routes import session as session_routes
+    from podcast_mcp.gui.server import create_app
+
+    on_loop: list[bool] = []
+    real = session_routes.publish_viewer_snapshot
+
+    def spy(project, snapshot, *, heartbeat=True):
+        try:
+            asyncio.get_running_loop()
+            on_loop.append(True)
+        except RuntimeError:
+            on_loop.append(False)
+        return real(project, snapshot, heartbeat=heartbeat)
+
+    monkeypatch.setattr(session_routes, "publish_viewer_snapshot", spy)
+    client = TestClient(create_app())
+    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-thread&role=viewer"
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(
+            {
+                "type": "ViewerState",
+                "snapshot": {"selection": {"kind": "track", "track_id": "host"}},
+            }
+        )
+        for _ in range(8):
+            frame = ws.receive_json()
+            if frame.get("type") == "Echo":
+                break
+        else:
+            raise AssertionError("expected a ViewerState Echo")
+    assert on_loop == [False]
+
+
+def test_publish_viewer_snapshot_from_many_threads_converges(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlaying", {"is_playing": False})
+
+    def publish(i: int) -> dict:
+        track = "host" if i % 2 else "guest"
+        return publish_viewer_snapshot(
+            proj,
+            {"client_id": f"viewer-{i}", "selection": {"kind": "track", "track_id": track}},
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(publish, range(8)))
+    snap = svc.snapshot()
+    assert snap["server_seq"] >= max(int(r["server_seq"]) for r in results)
+    assert snap["selection"]["track_id"] in {"host", "guest"}
+
+
+def test_viewer_snapshot_heartbeat_can_be_skipped(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlaying", {"is_playing": True})
+    blob = {"is_playing": True, "playhead_sec": 2.0}
+    publish_viewer_snapshot(proj, {**blob, "client_id": "viewer-ws"}, heartbeat=False)
+    ids = {c["client_id"] for c in svc.snapshot()["clients"]}
+    assert "viewer-ws" not in ids
+    publish_viewer_snapshot(proj, {**blob, "client_id": "viewer-http"})
+    http = next(c for c in svc.snapshot()["clients"] if c["client_id"] == "viewer-http")
+    assert http["playhead_sec"] == 2.0
 
 
 def test_post_session_command_http(minimal_project) -> None:
@@ -963,6 +1066,56 @@ def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
                 break
         else:
             raise AssertionError("socket closed instead of echoing after recovery")
+
+
+def test_websocket_viewer_state_service_error_keeps_connection_open(
+    minimal_project, monkeypatch
+) -> None:
+    pytest = __import__("pytest")
+    pytest.importorskip("fastapi")
+    from urllib.parse import quote
+
+    def value_error(project, snapshot, *, heartbeat=True):
+        raise ValueError("boom")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.session.publish_viewer_snapshot", value_error)
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-boom&role=viewer"
+
+    def receive_type(ws, kind: str) -> dict:
+        for _ in range(8):
+            frame = ws.receive_json()
+            if frame["type"] == kind:
+                return frame
+        raise AssertionError(f"no {kind} frame")
+
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(
+            {
+                "type": "ViewerState",
+                "snapshot": {"selection": {"kind": "track", "track_id": "host"}},
+            }
+        )
+        err = receive_type(ws, "Error")
+        assert err["code"] == "invalid_viewer_state"
+
+        ws.send_json({"type": "Presence", "client_seq": 2, "playhead_sec": 1.0})
+        ws.send_json(
+            {
+                "type": "Command",
+                "command_type": "SetPlayhead",
+                "payload": {"playhead_sec": 4.0},
+                "client_seq": 1,
+            }
+        )
+        echo = receive_type(ws, "Echo")
+        assert echo["snapshot"]["playhead_sec"] == 4.0
 
 
 def test_normalize_presence_playhead_matches_transport_rule() -> None:

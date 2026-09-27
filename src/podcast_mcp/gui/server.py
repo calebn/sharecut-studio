@@ -37,13 +37,13 @@ from podcast_mcp.gui.routes import (
     waveform,
 )
 from podcast_mcp.gui.routes.deps import require_host
-from podcast_mcp.gui.routes.session import apply_ws_client_message
+from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
 
-__all__ = ["apply_ws_client_message", "create_app"]
+__all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
 
 log = logging.getLogger(__name__)
 
