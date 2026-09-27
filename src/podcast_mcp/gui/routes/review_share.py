@@ -19,8 +19,7 @@ from starlette.background import BackgroundTask
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
-from podcast_mcp.gui.audio import audio_cache_headers
-from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
+from podcast_mcp.gui.audio import pinned_audio_response, release_background
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GUEST_SHARE_RECHECK_ON_FRAME_S,
@@ -137,25 +136,10 @@ def _audio_slot(token: str) -> BackgroundTask | None:
     return BackgroundTask(lim.audio_concurrent.exit, token)
 
 
-def _release_audio_slot(slot: BackgroundTask | None) -> None:
-    """Run *slot*'s release now, when no response will run it (``exit`` is not idempotent)."""
-    if slot is not None:
-        slot.func(*slot.args, **slot.kwargs)
-
-
 def _audio_file_response(token: str, path, **kwargs: Any):
     """Pin authorized media before returning; hold the slot until streaming ends."""
-    slot = _audio_slot(token)
-    try:
-        cache_audio = kwargs.pop("cache_audio", False)
-        response = PinnedFileResponse(path, background=slot, **kwargs)
-        if cache_audio:
-            assert response.stat_result is not None
-            response.headers.update(audio_cache_headers(response.stat_result))
-        return response
-    except BaseException:
-        _release_audio_slot(slot)
-        raise
+    cache_audio = kwargs.pop("cache_audio", False)
+    return pinned_audio_response(path, cache=cache_audio, background=_audio_slot(token), **kwargs)
 
 
 def _map_share_exc(exc: Exception) -> HTTPException:
@@ -282,7 +266,7 @@ def get_daw_waveform_tiles(
                 token, ref=ref, key=key, level=level, start=start, count=count
             )
         except BaseException:
-            _release_audio_slot(slot)
+            release_background(slot)
             raise
         return binary_response(body, background=slot)
 
