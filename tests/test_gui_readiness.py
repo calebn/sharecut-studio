@@ -228,6 +228,32 @@ def test_punch_across_a_moved_clip_records_the_seam() -> None:
     assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
 
 
+def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
+    import pytest
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+    from podcast_mcp.edits.timeline_ops import move_clips
+
+    p = _project_with_moved_clip()
+    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    ripple_delete(p, 10.0, 21.0, use_inaudible_opt=False)
+    record = list_applied_edits(p)[-1]
+    # Give the timeline op decision source clocks so revert reaches the seam check.
+    record.source_start = 10.0
+    record.source_end = 21.0
+    before = [c.model_dump() for c in clips_for_track(p, "host")]
+    # [15, 33] is 18 s of source for an 11 s hole.
+    with pytest.raises(ValueError, match="History undo"):
+        revert_applied_edit(p, record.id)
+    assert [c.model_dump() for c in clips_for_track(p, "host")] == before
+    assert record in p.editorial.edit_log
+    # pre > post (moved material later in source than the clip after the cut).
+    record.params["per_track_source"] = {"host": [33.0, 15.0]}
+    with pytest.raises(ValueError, match="History undo"):
+        revert_applied_edit(p, record.id)
+
+
 def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
     """Recorded clocks stay within the GUI's APPLIED_EDGE_EPS_SEC through ripple/split/trim/roll."""
     import re

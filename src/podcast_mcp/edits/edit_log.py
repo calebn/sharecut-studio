@@ -25,6 +25,8 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.change_summary import change_summary
 
+_REVERT_SPAN_EPS_SEC = 1e-3
+
 
 def _new_log_id() -> str:
     return f"alog_{uuid.uuid4().hex[:8]}"
@@ -99,7 +101,8 @@ def seam_source_by_track(
     Read from the **pre-edit** clips in timeline order (see
     :func:`seam_source_clocks_over_clips`), so a span crossing a moved clip still
     records the joins the cut makes. The GUI projects applied ticks through the
-    current clips from these clocks (#527); ``revert_applied_edit`` reads the same shape.
+    current clips from these clocks (#527). ``revert_applied_edit`` restores ``[pre, post]``
+    only when it spans the record's timeline hole, and otherwise refuses (History undo).
     Tracks with no material in the span are omitted.
     """
     out: dict[str, list[float]] = {}
@@ -185,8 +188,10 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
 
     Cross-track ripples must reopen the same timeline hole on **all** dialogue
     tracks (even legacy archives that only listed one ``track_id``); otherwise
-    later clips stay skewed forever. Per-track source ranges may be supplied in
-    ``params['per_track_source']`` as ``{track_id: [start, end]}``.
+    later clips stay skewed forever. Per-track seam clocks in
+    ``params['per_track_source']`` (``{track_id: [pre, post]}``) are restored as one
+    clip; when any pair does not span the record's timeline hole (a cut across moved
+    or gapped clips), revert raises and points to History undo before anything moves.
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -212,6 +217,13 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
         duration = float(record.source_end) - float(record.source_start)
 
     per_track = _per_track_source_pairs(record)
+
+    for tid, (s0, s1) in per_track.items():
+        if abs((s1 - s0) - duration) > _REVERT_SPAN_EPS_SEC:
+            raise ValueError(
+                f"applied edit's seam clocks on {tid!r} do not span its {duration:.3f}s hole "
+                "(the cut crossed moved or gapped clips); use History undo instead"
+            )
 
     # Always realign every dialogue track; fill media when we know source clocks.
     restore_tracks = dialogue_track_ids(project) or list(record.track_ids)
