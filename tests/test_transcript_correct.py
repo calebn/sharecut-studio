@@ -8,6 +8,7 @@ from podcast_mcp.edits.transcript_correct import (
     list_low_confidence,
     run_user_transcript_edit,
     set_word_suppressed,
+    transcript_word_record,
     verify_words,
 )
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
@@ -27,6 +28,8 @@ def test_correct_word_and_low_confidence() -> None:
     low = list_low_confidence(p, threshold=0.7)
     assert len(low) == 1
     assert low[0]["text"] == "teh"
+    assert low[0]["source_id"] is None
+    assert low[0]["word_index"] == 0
     correct_word(p, "host", 0, "the")
     assert p.transcripts[0].words[0].text == "the"
     assert p.transcripts[0].words[0].confidence == 1.0
@@ -189,3 +192,17 @@ def test_user_edit_noop_does_not_flag() -> None:
     ]
     assert run_user_transcript_edit(p, "host", lambda q: verify_words(q, "host", [])) == 0
     assert p.transcripts[0].user_edited is False
+
+
+def test_transcript_word_record_includes_source_id() -> None:
+    tr = Transcript(
+        track_id="host", source_id="s1", words=[TranscriptWord(text="a", start=1.0, end=1.2)]
+    )
+    assert transcript_word_record(tr, 0) == {
+        "track_id": "host",
+        "source_id": "s1",
+        "word_index": 0,
+        "text": "a",
+        "start": 1.0,
+        "end": 1.2,
+    }

@@ -95,6 +95,7 @@ from podcast_mcp.edits.timeline_ops import (
 )
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.edits.transcript_correct import (
+    DEFAULT_LOW_CONFIDENCE_THRESHOLD,
     apply_transcript_corrections,
     correct_phrase,
     correct_word,
@@ -1096,7 +1097,9 @@ class EditService:
             ),
         )
 
-    def low_confidence_words(self, threshold: float = 0.7) -> list[dict]:
+    def low_confidence_words(
+        self, threshold: float = DEFAULT_LOW_CONFIDENCE_THRESHOLD
+    ) -> list[dict]:
         return list_low_confidence(self.ws.project, threshold)
 
     def verify_transcript(

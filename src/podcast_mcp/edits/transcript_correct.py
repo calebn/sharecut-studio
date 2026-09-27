@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
-from podcast_mcp.models import EpisodeProject, TranscriptWord
+from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.text import has_meaningful_text
 
 T = TypeVar("T")
@@ -118,9 +118,25 @@ def set_word_suppressed(
     }
 
 
+DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.7
+
+
+def transcript_word_record(transcript: Transcript, index: int) -> dict[str, Any]:
+    """Identity and timing of one word for review lists (source-media seconds)."""
+    w = transcript.words[index]
+    return {
+        "track_id": transcript.track_id,
+        "source_id": transcript.source_id,
+        "word_index": index,
+        "text": w.text,
+        "start": w.start,
+        "end": w.end,
+    }
+
+
 def list_low_confidence(
     project: EpisodeProject,
-    threshold: float = 0.7,
+    threshold: float = DEFAULT_LOW_CONFIDENCE_THRESHOLD,
 ) -> list[dict]:
     out: list[dict] = []
     for tr in project.transcripts:
@@ -132,12 +148,8 @@ def list_low_confidence(
             ctx_after = " ".join(x.text for x in tr.words[i + 1 : min(len(tr.words), i + 4)])
             out.append(
                 {
-                    "track_id": tr.track_id,
-                    "word_index": i,
-                    "text": w.text,
+                    **transcript_word_record(tr, i),
                     "confidence": conf,
-                    "start": w.start,
-                    "end": w.end,
                     "context_before": ctx_before,
                     "context_after": ctx_after,
                 }
