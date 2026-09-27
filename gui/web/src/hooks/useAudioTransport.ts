@@ -515,8 +515,9 @@ export function useAudioTransport(enabled = true): void {
         clearSessionRegion();
       };
 
+      // A Stop or Pause can land before this effect's cleanup; never write a stale clock over it.
       const tick = () => {
-        if (cancelled) {
+        if (cancelled || !useDawStore.getState().isPlaying) {
           return;
         }
         const picked = pickMaster(playersRef.current);
