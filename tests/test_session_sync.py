@@ -720,6 +720,80 @@ def test_apply_ws_client_message_paths(minimal_project) -> None:
     assert none is None and seq2 == seq
 
 
+def test_apply_ws_client_message_viewer_state_publishes_durable_deltas(minimal_project) -> None:
+    from podcast_mcp.gui.server import apply_ws_client_message
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    echo, seq = apply_ws_client_message(
+        svc,
+        {
+            "type": "ViewerState",
+            "snapshot": {
+                "selection": {"kind": "track", "track_id": "host"},
+                "client_id": "spoofed",
+            },
+            "client_seq": 5,
+        },
+        client_id="ws-vs",
+        role="viewer",
+        label="Host",
+        seq=5,
+    )
+    assert seq == 5
+    assert echo is not None and echo["type"] == "Echo"
+    assert echo["command"] == {"type": "ViewerState", "client_id": "ws-vs", "role": "viewer"}
+    assert echo["snapshot"]["selection"] == {"kind": "track", "track_id": "host"}
+    assert echo["snapshot"]["last_client_id"] == "ws-vs"
+
+    repeat, seq2 = apply_ws_client_message(
+        svc,
+        {
+            "type": "ViewerState",
+            "snapshot": {"selection": {"kind": "track", "track_id": "host"}},
+            "client_seq": 5,
+        },
+        client_id="ws-vs",
+        role="viewer",
+        label="Host",
+        seq=seq,
+    )
+    assert seq2 == seq
+    assert repeat is not None
+    assert repeat["snapshot"]["server_seq"] == echo["snapshot"]["server_seq"]
+
+
+def test_apply_ws_client_message_viewer_state_rejects_malformed(minimal_project) -> None:
+    from podcast_mcp.gui.server import apply_ws_client_message
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+
+    bad, seq = apply_ws_client_message(
+        svc,
+        {"type": "ViewerState", "snapshot": "nope"},
+        client_id="ws-vs",
+        role="viewer",
+        label=None,
+        seq=1,
+    )
+    assert seq == 1
+    assert bad is not None and bad["type"] == "Error"
+    assert bad["code"] == "invalid_viewer_state"
+
+    missing, seq2 = apply_ws_client_message(
+        svc,
+        {"type": "ViewerState"},
+        client_id="ws-vs",
+        role="viewer",
+        label=None,
+        seq=1,
+    )
+    assert seq2 == 1
+    assert missing is not None and missing["code"] == "invalid_viewer_state"
+    assert svc.state_or_none() is None
+
+
 def test_post_session_command_http(minimal_project) -> None:
     pytest = __import__("pytest")
     pytest.importorskip("fastapi")
@@ -825,6 +899,70 @@ def test_websocket_command_collision_keeps_connection_open(minimal_project) -> N
         ws.send_json({**command, "client_seq": 2, "payload": {"playhead_sec": 8.0}})
         recovered = receive_type(ws, "Echo")
         assert recovered["snapshot"]["playhead_sec"] == 8.0
+
+
+def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
+    pytest = __import__("pytest")
+    pytest.importorskip("fastapi")
+    from urllib.parse import quote
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    url = (
+        f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-vs&role=viewer&label=Host"
+    )
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        ws.send_json(
+            {
+                "type": "ViewerState",
+                "snapshot": {"selection": {"kind": "track", "track_id": "host"}},
+            }
+        )
+        seen_echo = False
+        seen_applied = False
+        for _ in range(8):
+            if seen_echo and seen_applied:
+                break
+            frame = ws.receive_json()
+            if (
+                frame.get("type") == "Echo"
+                and frame.get("command", {}).get("type") == "ViewerState"
+            ):
+                seen_echo = True
+            if (
+                frame.get("type") == "Applied"
+                and frame.get("command", {}).get("type") == "SetSelection"
+                and frame.get("command", {}).get("client_id") == "ws-vs"
+            ):
+                seen_applied = True
+        assert seen_echo, "expected a ViewerState Echo"
+        assert seen_applied, "expected a fanned-out SetSelection Applied"
+
+        ws.send_json({"type": "ViewerState", "snapshot": 3})
+        for _ in range(8):
+            frame = ws.receive_json()
+            if frame.get("type") == "Error":
+                assert frame["code"] == "invalid_viewer_state"
+                break
+        else:
+            raise AssertionError("expected invalid_viewer_state Error")
+
+        ws.send_json(
+            {
+                "type": "ViewerState",
+                "snapshot": {"selection": {"kind": "track", "track_id": "guest"}},
+            }
+        )
+        for _ in range(8):
+            frame = ws.receive_json()
+            if frame.get("type") == "Echo":
+                break
+        else:
+            raise AssertionError("socket closed instead of echoing after recovery")
 
 
 def test_normalize_presence_playhead_matches_transport_rule() -> None:
