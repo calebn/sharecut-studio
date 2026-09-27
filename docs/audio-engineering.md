@@ -91,8 +91,9 @@ staged to -20 LUFS the sum lands near -17 LUFS, where the old 1/N mix sat near -
 1/N sum put the #518 lab premix at about -31 LUFS and made the master add about 16 dB
 into the limiter.
 
-`FFmpegEngine.mix_tracks(..., peak_ceiling_db=...)` sums to a 32-bit float temp file,
-measures its true peak, and trims the whole mix down (never up) so it peaks at or below
+`FFmpegEngine.mix_tracks(..., peak_ceiling_db=...)` measures the unity sum's true peak on
+the float amix graph (`ebur128=peak=true` into a null output, no temp file), then renders
+once with the whole mix trimmed down (never up) so it peaks at or below
 `mix.premix_peak_ceiling_db` (default -1.0 dBTP). `bounce` shares the ceiling.
 `play_compose` uses the same ceiling on its own window, so a hot window is trimmed rather
 than clipped; a window that peaks under the ceiling plays at unity, the same as the premix

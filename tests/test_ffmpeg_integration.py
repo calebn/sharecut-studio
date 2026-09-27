@@ -132,3 +132,30 @@ def test_run_with_progress_raises_on_ffmpeg_error(tmp_path: Path):
             total_sec=1.0,
             on_progress=lambda *_: None,
         )
+
+
+def test_run_with_progress_closes_the_pipe_on_cancel(two_wavs, monkeypatch):
+    from podcast_mcp.engines import ffmpeg as ffmpeg_mod
+    from podcast_mcp.util.progress import CancelledProgress
+
+    procs = []
+    real = ffmpeg_mod.popen
+
+    def spy(*args, **kwargs):
+        proc = real(*args, **kwargs)
+        procs.append(proc)
+        return proc
+
+    monkeypatch.setattr(ffmpeg_mod, "popen", spy)
+    a, _ = two_wavs
+    eng = FFmpegEngine()
+
+    def cancel(_done, _total):
+        raise CancelledProgress()
+
+    with pytest.raises(CancelledProgress):
+        eng._run_with_progress(
+            [eng.ffmpeg, "-i", str(a), "-f", "null", "-"], total_sec=1.0, on_progress=cancel
+        )
+    assert procs and procs[0].stdout.closed
+    assert procs[0].returncode is not None

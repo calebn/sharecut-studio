@@ -481,7 +481,7 @@ _EBUR128_SUMMARY = (
 )
 
 
-def test_loudnorm_input_stats_from_ebur128(tmp_path: Path):
+def test_loudnorm_input_stats_from_ebur128(tmp_path: Path, caplog):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
@@ -495,13 +495,44 @@ def test_loudnorm_input_stats_from_ebur128(tmp_path: Path):
         "input_thresh": -34.2,
         "target_offset": 0.0,
     }
-    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
+    ):
         run.return_value = MagicMock(
             stderr=_EBUR128_SUMMARY.replace("    Threshold: -34.2 LUFS\n", ""),
             stdout="",
             returncode=0,
         )
         assert eng.loudnorm_input_stats(wav) is None
+    assert "integrated_threshold_lufs" in caplog.text
+    assert "single-pass" in caplog.text
+
+
+def test_measure_loudness_blocks_warns_on_a_failed_run(tmp_path: Path, caplog):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    wav.write_bytes(b"x")
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
+    ):
+        run.return_value = MagicMock(stderr="Invalid argument", stdout="", returncode=1)
+        assert eng.measure_loudness_blocks(wav, af="bogus") == []
+    assert "exit 1" in caplog.text
+
+
+def test_measure_loudness_blocks_warns_when_no_blocks_parse(tmp_path: Path, caplog):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    wav.write_bytes(b"x")
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
+    ):
+        run.return_value = MagicMock(stderr="garbage", stdout="", returncode=0)
+        assert eng.measure_loudness_blocks(wav) == []
+    assert "no momentary blocks" in caplog.text
 
 
 def test_progress_seconds():
@@ -1005,29 +1036,49 @@ def test_mix_tracks_sums_at_unity(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-    ("measured", "trim"),
+    ("peak_line", "trim_filter"),
     [
-        ({"integrated_lufs": -14.0, "true_peak_db": 2.0, "lra": 5.0}, -3.0),
-        ({"integrated_lufs": -14.0, "true_peak_db": -6.0, "lra": 5.0}, 0.0),
-        (None, 0.0),
+        ("    Peak:        2.0 dBFS", "volume=-3.0dB[out]"),
+        ("    Peak:       -6.0 dBFS", None),
+        ("    Peak:       -inf dBFS", None),
     ],
 )
-def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, measured, trim):
+def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, peak_line, trim_filter):
+    eng = FFmpegEngine()
+    out = tmp_path / "mix.wav"
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        run.side_effect = [
+            MagicMock(stderr=f"  True peak:\n{peak_line}\n", returncode=0),
+            MagicMock(returncode=0),
+        ]
+        eng.mix_tracks(
+            [(tmp_path / "a.wav", 0.0), (tmp_path / "b.wav", 0.0)], out, peak_ceiling_db=-1.0
+        )
+    measure, render = (c[0][0] for c in run.call_args_list)
+    assert _filter_complex(measure).endswith("normalize=0,ebur128=peak=true[out]")
+    assert measure[-3:] == ["-f", "null", "-"]
+    assert render[-1] == str(out)
+    fc = _filter_complex(render)
+    if trim_filter:
+        assert fc.endswith(trim_filter)
+    else:
+        assert "volume=" not in fc.split("amix")[1]
+    assert not list(tmp_path.glob(".*sum*"))
+
+
+def test_mix_tracks_warns_when_the_peak_is_unmeasured(tmp_path: Path, caplog):
     eng = FFmpegEngine()
     out = tmp_path / "mix.wav"
     with (
         patch("podcast_mcp.engines.ffmpeg.run") as run,
-        patch.object(eng, "measure_loudness_full", return_value=measured),
-        patch.object(eng, "apply_gain") as apply_gain,
+        caplog.at_level("WARNING", logger="podcast_mcp.engines.ffmpeg"),
     ):
+        run.side_effect = [MagicMock(stderr="no summary", returncode=0), MagicMock(returncode=0)]
         eng.mix_tracks(
             [(tmp_path / "a.wav", 0.0), (tmp_path / "b.wav", 0.0)], out, peak_ceiling_db=-1.0
         )
-    cmd = run.call_args[0][0]
-    assert cmd[cmd.index("-c:a") + 1] == "pcm_f32le"
-    sum_path, dst, gain = apply_gain.call_args[0]
-    assert sum_path.name == ".mix.sum.wav"
-    assert (dst, gain) == (out, trim)
+    assert "true peak not measured" in caplog.text
+    assert "volume=" not in _filter_complex(run.call_args_list[1][0][0]).split("amix")[1]
 
 
 def test_headroom_trim_db():
@@ -1036,6 +1087,7 @@ def test_headroom_trim_db():
     assert headroom_trim_db(2.0, -1.0) == -3.0
     assert headroom_trim_db(-6.0, -1.0) == 0.0
     assert headroom_trim_db(None, -1.0) == 0.0
+    assert headroom_trim_db(float("-inf"), -1.0) == 0.0
 
 
 def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
