@@ -21,8 +21,12 @@ vi.mock("../api", () => ({
 
 class FakeWebSocket {
   static OPEN = 1;
+  static CONNECTING = 0;
   static instances: FakeWebSocket[] = [];
-  readyState = FakeWebSocket.OPEN;
+  static autoOpen = true;
+  readyState = FakeWebSocket.autoOpen
+    ? FakeWebSocket.OPEN
+    : FakeWebSocket.CONNECTING;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: (() => void) | null = null;
@@ -33,7 +37,9 @@ class FakeWebSocket {
   constructor(url: string) {
     this.url = url;
     FakeWebSocket.instances.push(this);
-    queueMicrotask(() => this.onopen?.());
+    if (FakeWebSocket.autoOpen) {
+      queueMicrotask(() => this.onopen?.());
+    }
   }
 
   send(data: string) {
@@ -50,10 +56,14 @@ class FakeWebSocket {
 }
 
 describe("useSessionSync presence", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     FakeWebSocket.instances = [];
+    FakeWebSocket.autoOpen = true;
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+    const { postSessionState, loadSessionMeta } = await import("../api");
+    vi.mocked(postSessionState).mockClear();
+    vi.mocked(loadSessionMeta).mockClear();
   });
 
   afterEach(() => {
@@ -265,13 +275,14 @@ describe("useSessionSync presence", () => {
     expect(sendRecordHostCommand("SetMuted", { muted: true })).toBe(true);
   });
 
-  it("advances the applied cursor to the published last_command_id", async () => {
+  it("advances the applied cursor from the ViewerState echo", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
     });
     try {
       const { postSessionState } = await import("../api");
       const apply = vi.fn();
+      const clientIdRef: { current: string | null } = { current: null };
       renderHook(() =>
         useSessionSync(
           "/tmp/ep.project.json",
@@ -292,7 +303,31 @@ describe("useSessionSync presence", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(60);
       });
-      expect(postSessionState).toHaveBeenCalled();
+      expect(postSessionState).not.toHaveBeenCalled();
+      const viewerStateFrames = FakeWebSocket.instances[0].sent
+        .map(
+          (s) =>
+            JSON.parse(s) as {
+              type: string;
+              snapshot?: { client_id?: string };
+            },
+        )
+        .filter((f) => f.type === "ViewerState");
+      expect(viewerStateFrames).toHaveLength(1);
+      clientIdRef.current = viewerStateFrames[0].snapshot?.client_id ?? null;
+      expect(clientIdRef.current).toBeTruthy();
+
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Echo",
+          command: {
+            type: "ViewerState",
+            client_id: clientIdRef.current,
+            role: "viewer",
+          },
+          snapshot: { server_seq: 1, last_command_id: "cmd-1" },
+        });
+      });
       // Cursor now holds { serverSeq: 1, commandId: "cmd-1" }: an agent echo of
       // that same command is deduped instead of re-applied.
       await act(async () => {
@@ -329,7 +364,131 @@ describe("useSessionSync presence", () => {
     }
   });
 
+  it("publishes a selection change as one WS frame and zero POSTs while live", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState, loadSessionMeta } = await import("../api");
+      const { rerender } = renderHook(
+        ({ publishKey }: { publishKey: string }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            vi.fn(),
+            () => ({ playhead_sec: 0, is_playing: false }),
+            false,
+            0,
+            null,
+            false,
+            publishKey,
+            true,
+          ),
+        { initialProps: { publishKey: "k1" } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      rerender({ publishKey: "k2" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const viewerStateFrames = FakeWebSocket.instances[0].sent.filter((s) =>
+        s.includes('"ViewerState"'),
+      );
+      expect(viewerStateFrames).toHaveLength(2);
+      expect(postSessionState).not.toHaveBeenCalled();
+      expect(vi.mocked(loadSessionMeta).mock.calls.length).toBeLessThanOrEqual(
+        1,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("falls back to POST /api/session/state while the socket is down, without a meta GET", async () => {
+    FakeWebSocket.autoOpen = false;
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState, loadSessionMeta } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+      const sentTypes = FakeWebSocket.instances[0].sent.map(
+        (s) => (JSON.parse(s) as { type: string }).type,
+      );
+      expect(sentTypes).not.toContain("ViewerState");
+      expect(loadSessionMeta).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("republishes over HTTP when the socket drops", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].close();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = FakeWebSocket.instances[1].sent.filter((s) =>
+        s.includes('"ViewerState"'),
+      );
+      expect(frames.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps a newer WebSocket cursor when an older HTTP publish finishes", async () => {
+    FakeWebSocket.autoOpen = false;
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
     });
