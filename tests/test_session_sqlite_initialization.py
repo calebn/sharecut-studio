@@ -101,3 +101,52 @@ def test_pragma_failure_closes_connection_and_propagates_error(
         session_sqlite.connect_session_db(tmp_path / "sync.db")
 
     connection.close.assert_called_once_with()
+
+
+def test_wal_initialization_retries_while_another_process_holds_the_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = Mock()
+    connection.execute.side_effect = [
+        sqlite3.OperationalError("database is locked"),
+        Mock(fetchone=Mock(return_value=("wal",))),
+    ]
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    sleep = Mock()
+    monkeypatch.setattr(session_sqlite.time, "sleep", sleep)
+
+    assert session_sqlite.connect_session_db(tmp_path / "sync.db") is connection
+
+    sleep.assert_called_once_with(session_sqlite._WAL_INIT_RETRY_SEC)
+    connection.close.assert_not_called()
+
+
+def test_wal_initialization_gives_up_after_the_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = Mock()
+    connection.execute.side_effect = sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    monkeypatch.setattr(session_sqlite, "_WAL_INIT_TIMEOUT_SEC", 0.0)
+    monkeypatch.setattr(session_sqlite.time, "sleep", Mock())
+
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        session_sqlite.connect_session_db(tmp_path / "sync.db")
+
+    connection.close.assert_called_once_with()
+
+
+def test_wal_initialization_does_not_retry_other_sqlite_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = Mock()
+    connection.execute.side_effect = sqlite3.OperationalError("disk I/O error")
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    sleep = Mock()
+    monkeypatch.setattr(session_sqlite.time, "sleep", sleep)
+
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O"):
+        session_sqlite.connect_session_db(tmp_path / "sync.db")
+
+    sleep.assert_not_called()
+    connection.close.assert_called_once_with()
