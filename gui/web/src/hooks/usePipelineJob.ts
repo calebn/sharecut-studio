@@ -9,6 +9,8 @@ import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
 
 const STATUS_POLL_MS = 1000;
 const DISCOVER_POLL_MS = 5000;
+/** No frame for this long (server keepalive is 1s) counts as the stream being down. */
+const STREAM_SILENCE_MS = 5000;
 
 type Options = {
   enabled?: boolean;
@@ -82,7 +84,8 @@ export function attachTargetId(st: PipelineStatusResponse): string | null {
  * Pipeline tab). The attached job's SSE stream (connect snapshot, live
  * events, 1s keepalive snapshots, `done`) is the only source for that job
  * while it is open; the 1s status poll runs only while the stream is down
- * (from `onerror` until a reconnected stream delivers a frame). The 5s
+ * (from `onerror`, or `STREAM_SILENCE_MS` without a frame, until a
+ * reconnected stream delivers a frame). The 5s
  * discover poll owns activityJob / running_count for other jobs and
  * discovers in-process agent jobs started from host MCP without a prior
  * POST; a stream frame updates activityJob only when no other job is the
@@ -99,6 +102,7 @@ export function usePipelineJob(
   const pollRef = useRef<number | null>(null);
   const attachedJobId = useRef<string | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(false);
   const setJobRef = useRef(setPipelineJob);
@@ -125,6 +129,21 @@ export function usePipelineJob(
       window.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
+  };
+
+  const clearSilenceTimer = () => {
+    if (silenceTimerRef.current != null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+  };
+
+  /** Close the attached stream (if any) and forget it and its watchdog. */
+  const closeStream = () => {
+    clearSilenceTimer();
+    esRef.current?.close();
+    esRef.current = null;
+    attachedJobId.current = null;
   };
 
   const apply = (st: StatusPayload, opts?: { skipUnchanged?: boolean }) => {
@@ -167,9 +186,7 @@ export function usePipelineJob(
             if (!st.running) {
               stopPoll();
               clearReconnectTimer();
-              esRef.current?.close();
-              esRef.current = null;
-              attachedJobId.current = null;
+              closeStream();
             }
           })
           .catch((err: unknown) => {
@@ -184,67 +201,19 @@ export function usePipelineJob(
     if (attachedJobId.current === jobId && esRef.current) {
       return;
     }
-    esRef.current?.close();
+    closeStream();
     attachedJobId.current = jobId;
     const es = new EventSource(pipelineEventsUrl(jobId));
     esRef.current = es;
-    es.onmessage = (ev) => {
+
+    // `onerror`, or a stream that stays open but goes silent (buffering
+    // proxy, half-open socket, sleep/wake): fall back to the status poll and
+    // schedule a reconnect.
+    const onStreamDown = () => {
       if (esRef.current !== es) {
         return;
       }
-      // Any frame proves the stream is live again: drop the socket-down poll.
-      stopPoll();
-      try {
-        const data = JSON.parse(ev.data) as PipelineEvent;
-        if (data.job) {
-          if (isPipelineKindJob(data.job)) {
-            setJobRef.current(data.job);
-          }
-          const primary = activityRef.current;
-          if (
-            primary == null ||
-            primary.id === data.job.id ||
-            !isPipelineRunning(primary)
-          ) {
-            setActivityRef.current?.(data.job);
-          }
-        }
-        if (data.type === "done") {
-          es.close();
-          esRef.current = null;
-          attachedJobId.current = null;
-          void loadPipelineStatus({ signal: abortRef.current?.signal })
-            .then((st) => {
-              if (!mountedRef.current) {
-                return;
-              }
-              apply(st);
-              if (!st.running) {
-                stopPoll();
-                return;
-              }
-              const next = attachTargetId(st);
-              if (next) {
-                attachEvents(next);
-              }
-            })
-            .catch((err: unknown) => {
-              if (err instanceof DOMException && err.name === "AbortError") {
-                return;
-              }
-            });
-        }
-      } catch {
-        // ignore malformed events
-      }
-    };
-    es.onerror = () => {
-      if (esRef.current !== es) {
-        return;
-      }
-      es.close();
-      esRef.current = null;
-      attachedJobId.current = null;
+      closeStream();
       startPoll();
       void loadPipelineStatus({ signal: abortRef.current?.signal })
         .then((st) => {
@@ -275,6 +244,66 @@ export function usePipelineJob(
           }
         });
     };
+
+    const armSilenceWatchdog = () => {
+      clearSilenceTimer();
+      silenceTimerRef.current = window.setTimeout(
+        onStreamDown,
+        STREAM_SILENCE_MS,
+      );
+    };
+    armSilenceWatchdog();
+
+    es.onmessage = (ev) => {
+      if (esRef.current !== es) {
+        return;
+      }
+      // Any frame proves the stream is live again: drop the socket-down poll.
+      armSilenceWatchdog();
+      stopPoll();
+      try {
+        const data = JSON.parse(ev.data) as PipelineEvent;
+        if (data.job) {
+          if (isPipelineKindJob(data.job)) {
+            setJobRef.current(data.job);
+          }
+          const primary = activityRef.current;
+          if (
+            primary == null ||
+            primary.id === data.job.id ||
+            !isPipelineRunning(primary)
+          ) {
+            setActivityRef.current?.(data.job);
+          }
+        }
+        if (data.type === "done") {
+          closeStream();
+          void loadPipelineStatus({ signal: abortRef.current?.signal })
+            .then((st) => {
+              if (!mountedRef.current) {
+                return;
+              }
+              apply(st);
+              if (!st.running) {
+                stopPoll();
+                return;
+              }
+              const next = attachTargetId(st);
+              if (next) {
+                attachEvents(next);
+              }
+            })
+            .catch((err: unknown) => {
+              if (err instanceof DOMException && err.name === "AbortError") {
+                return;
+              }
+            });
+        }
+      } catch {
+        // ignore malformed events
+      }
+    };
+    es.onerror = onStreamDown;
   });
 
   // Bootstrap + discover jobs started outside this viewer (host MCP fan-in).
@@ -328,9 +357,7 @@ export function usePipelineJob(
       abortRef.current = null;
       window.clearInterval(discover);
       clearReconnectTimer();
-      esRef.current?.close();
-      esRef.current = null;
-      attachedJobId.current = null;
+      closeStream();
       stopPoll();
     };
   }, [enabled]);
