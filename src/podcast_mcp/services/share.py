@@ -561,12 +561,26 @@ def sanitize_guest_project_view(view: dict[str, Any]) -> dict[str, Any]:
     return _drop_absolute_path_strings(out)
 
 
+def _guest_file_signature(value: Any) -> dict[str, int] | None:
+    """Numeric-only ``{mtime_ns, size}`` for guests; never dev, inode or a path (#657)."""
+    if not isinstance(value, dict):
+        return None
+    mtime_ns, size = value.get("mtime_ns"), value.get("size")
+    if not isinstance(mtime_ns, int) or isinstance(mtime_ns, bool):
+        return None
+    if not isinstance(size, int) or isinstance(size, bool):
+        return None
+    return {"mtime_ns": mtime_ns, "size": size}
+
+
 def sanitize_guest_document_event(event: dict[str, Any]) -> dict[str, Any]:
     """Sanitize a document-plane hub event for share guests.
 
     Drops host filesystem paths from ``snapshot.project`` / ``snapshot.patch``
     and reduces ``command`` to ``{"type": ...}`` only. ``snapshot.history``
     (groups and entries) is omitted — labels/params can embed local paths.
+    ``snapshot.file`` / ``snapshot.file_before`` are reduced to numeric
+    ``{mtime_ns, size}``.
     """
     out = dict(event)
     cmd = out.get("command")
@@ -580,6 +594,13 @@ def sanitize_guest_document_event(event: dict[str, Any]) -> dict[str, Any]:
         if isinstance(snap.get("patch"), dict):
             snap["patch"] = sanitize_guest_project_view(snap["patch"])
         snap.pop("history", None)
+        for key in ("file", "file_before"):
+            if key in snap:
+                signature = _guest_file_signature(snap[key])
+                if signature is None:
+                    snap.pop(key)
+                else:
+                    snap[key] = signature
         out["snapshot"] = snap
     return _drop_absolute_path_strings(out)
 
