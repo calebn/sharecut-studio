@@ -14,7 +14,7 @@ import {
   type HostSend,
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
-import { requestHostDrainLazy } from "../state/requestHostDrainLazy";
+import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { isRetryLater } from "../utils/apiError";
 import {
   documentClientId,
