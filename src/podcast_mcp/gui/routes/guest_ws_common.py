@@ -110,6 +110,61 @@ async def guest_ws_share_row(
         return None
 
 
+class WsTaskSet:
+    """Background tasks for one GUI WebSocket: ``spawn`` pumps, ``stop`` on teardown.
+
+    Shared by the guest sockets (via ``GuestWsConnection``) and the owner
+    ``/api/document/ws`` and ``/api/session/ws`` routes.
+    """
+
+    def __init__(self, log_label: str) -> None:
+        self._log_label = log_label
+        self._tasks: list[asyncio.Task[None]] = []
+
+    def spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+        task = asyncio.create_task(coro)
+        self._tasks.append(task)
+        return task
+
+    async def stop(self) -> None:
+        """Cancel and await every spawned task; log (never raise) task failures.
+
+        Every task is awaited to completion first. If the coroutine calling
+        ``stop`` was itself cancelled meanwhile (server shutdown, outer cancel),
+        that cancel is re-raised afterwards instead of being swallowed. The
+        original ``CancelledError`` is re-raised (not a fresh instance) so
+        cancel-scope-based runtimes (anyio, used by Starlette's TestClient)
+        still recognize it as their own cancellation and unwind cleanly.
+        """
+        tasks, self._tasks = self._tasks, []
+        for task in tasks:
+            task.cancel()
+        outer_cancel: asyncio.CancelledError | None = None
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError as exc:
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():
+                    outer_cancel = exc
+            except Exception:
+                log.exception("%s pump exit", self._log_label)
+        current = asyncio.current_task()
+        if current is not None and current.cancelling():
+            # A cancellation aimed at *this* task may still be outstanding, or
+            # may be the one just caught above from a child. Prefer catching a
+            # still-undelivered one here, with its real identity intact, over
+            # the substitute we may have captured above — cancel-scope-based
+            # runtimes (anyio, used by Starlette's TestClient) only recognize
+            # their own CancelledError instance, not a fabricated one.
+            try:
+                await asyncio.sleep(0)
+            except asyncio.CancelledError as exc:
+                outer_cancel = exc
+        if outer_cancel is not None:
+            raise outer_cancel
+
+
 class GuestWsConnection:
     """One admitted guest socket: its concurrency slot, guard, and background tasks.
 
@@ -123,8 +178,7 @@ class GuestWsConnection:
         self.websocket = websocket
         self.token = token
         self._gate_held = gate_held
-        self._log_label = log_label
-        self._tasks: list[asyncio.Task[None]] = []
+        self._tasks = WsTaskSet(f"{log_label} token={token[:8]}")
 
     async def start(
         self,
@@ -145,22 +199,11 @@ class GuestWsConnection:
         return guard
 
     def spawn(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
-        task = asyncio.create_task(coro)
-        self._tasks.append(task)
-        return task
+        return self._tasks.spawn(coro)
 
     async def stop_tasks(self) -> None:
-        """Cancel and await every spawned task; log (never raise) task failures."""
-        tasks, self._tasks = self._tasks, []
-        for task in tasks:
-            task.cancel()
-        for task in tasks:
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                log.exception("%s pump exit token=%s", self._log_label, self.token[:8])
+        """Cancel and await every spawned task (see ``WsTaskSet.stop``)."""
+        await self._tasks.stop()
 
     def release(self) -> None:
         """Return the concurrency slot (idempotent)."""

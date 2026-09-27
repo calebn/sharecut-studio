@@ -967,7 +967,9 @@ async def daw_ws(
             if q_progress is not None:
                 progress_hub.unsubscribe(token, q_progress)
             await conn.stop_tasks()
-            if session_svc is not None and guest_client_id is not None:
-                session_svc.remove_client(guest_client_id, generation=conn_gen)
         finally:
-            conn.release()
+            try:
+                if session_svc is not None and guest_client_id is not None:
+                    session_svc.remove_client(guest_client_id, generation=conn_gen)
+            finally:
+                conn.release()
