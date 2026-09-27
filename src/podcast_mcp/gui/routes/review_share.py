@@ -147,7 +147,12 @@ def _audio_file_response(token: str, path, **kwargs: Any):
     """Pin authorized media before returning; hold the slot until streaming ends."""
     slot = _audio_slot(token)
     try:
-        return PinnedFileResponse(path, background=slot, **kwargs)
+        cache_audio = kwargs.pop("cache_audio", False)
+        response = PinnedFileResponse(path, background=slot, **kwargs)
+        if cache_audio:
+            assert response.stat_result is not None
+            response.headers.update(audio_cache_headers(response.stat_result))
+        return response
     except BaseException:
         _release_audio_slot(slot)
         raise
@@ -329,7 +334,7 @@ def get_daw_audio(
         media_type="audio/wav",
         filename=path.name,
         content_disposition_type="inline",
-        headers=audio_cache_headers(path),
+        cache_audio=True,
     )
 
 

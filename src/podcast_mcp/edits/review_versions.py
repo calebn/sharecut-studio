@@ -614,12 +614,27 @@ def encode_version_mp3(
     ) as temporary:
         temporary_path = Path(temporary.name)
     try:
-        # FFmpeg accepts a path, so give it a private copy of the pinned source.
-        # A workspace symlink swap after resolution cannot change its input.
+        # FFmpeg needs a path. A private hardlink avoids copying a large WAV;
+        # verify it names the descriptor we pinned before passing it to FFmpeg.
+        # A raced pathname or cross-device source needs a full copy from the
+        # pinned descriptor; the buffer is bounded but the disk use is not.
         with tempfile.TemporaryDirectory(prefix="review-source-") as source_dir:
             snapshot = Path(source_dir) / "mix.wav"
-            with open_pinned_media(wav) as source_file, snapshot.open("xb") as snapshot_file:
-                shutil.copyfileobj(source_file, snapshot_file)
+            with open_pinned_media(wav) as source_file:
+                source_stat = os.fstat(source_file.fileno())
+                linked = False
+                try:
+                    os.link(wav, snapshot, follow_symlinks=False)
+                    linked_stat = snapshot.lstat()
+                    linked = stat.S_ISREG(linked_stat.st_mode) and _dir_identity(
+                        linked_stat
+                    ) == _dir_identity(source_stat)
+                except OSError:
+                    pass
+                if not linked:
+                    snapshot.unlink(missing_ok=True)
+                    with snapshot.open("xb") as snapshot_file:
+                        shutil.copyfileobj(source_file, snapshot_file, length=1024 * 1024)
             engine.export_mp3(snapshot, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
         if review_root.resolve(strict=True) != resolved_root:
             raise RuntimeError("review artifacts directory changed during MP3 retry")
