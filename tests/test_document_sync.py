@@ -973,6 +973,91 @@ def test_document_snapshot_includes_project(minimal_project):
     assert snap["project"]["project_path"] or snap["project"].get("meta")
 
 
+def test_document_snapshot_reports_project_file_signature(minimal_project):
+    import os
+
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    svc = DocumentSyncService.open(minimal_project)
+    st = os.stat(minimal_project)
+    expected = {"mtime_ns": st.st_mtime_ns, "size": st.st_size}
+
+    snap = svc.document_snapshot()
+    assert snap["file"] == expected
+
+    comments_snap = svc.document_snapshot(projection="comments")
+    assert comments_snap["file"] == expected
+
+
+def test_submit_applied_chains_file_before_across_services(minimal_project):
+    import os
+
+    svc1 = DocumentSyncService.open(minimal_project)
+    svc2 = DocumentSyncService.open(minimal_project)
+
+    def add(seq: int, body: str) -> DocumentCommand:
+        return DocumentCommand(
+            type="AddComment",
+            payload={"body": body, "author": "viewer", "timeline_start": 1.0},
+            client_id=f"c{seq}",
+            role="viewer",
+            client_seq=seq,
+        )
+
+    r1 = svc1.submit(add(1, "first"))
+    r2 = svc2.submit(add(2, "second"))
+
+    assert r1["snapshot"]["file_before"] != r1["snapshot"]["file"]
+    assert r2["snapshot"]["file_before"] == r1["snapshot"]["file"]
+    st = os.stat(minimal_project)
+    assert r2["snapshot"]["file"] == {"mtime_ns": st.st_mtime_ns, "size": st.st_size}
+
+
+def test_submit_file_before_reflects_an_out_of_band_write(minimal_project):
+    import os
+
+    svc = DocumentSyncService.open(minimal_project)
+
+    def add(seq: int, body: str) -> DocumentCommand:
+        return DocumentCommand(
+            type="AddComment",
+            payload={"body": body, "author": "viewer", "timeline_start": 1.0},
+            client_id=f"c{seq}",
+            role="viewer",
+            client_seq=seq,
+        )
+
+    r1 = svc.submit(add(1, "first"))
+    st = os.stat(minimal_project)
+    os.utime(minimal_project, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+
+    r2 = svc.submit(add(2, "second"))
+    assert r2["snapshot"]["file_before"]["mtime_ns"] == st.st_mtime_ns + 5_000_000_000
+    assert r2["snapshot"]["file_before"] != r1["snapshot"]["file"]
+
+
+def test_document_snapshot_omits_file_when_revision_unknown(minimal_project, monkeypatch):
+    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.document_sync import DocumentSyncService
+
+    monkeypatch.setattr(ProjectWorkspace, "loaded_file_revision", property(lambda self: None))
+    svc = DocumentSyncService.open(minimal_project)
+
+    snap = svc.document_snapshot()
+    assert "file" not in snap
+
+    result = svc.submit(
+        DocumentCommand(
+            type="AddComment",
+            payload={"body": "x", "author": "viewer", "timeline_start": 1.0},
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert "file_before" not in result["snapshot"]
+
+
 def test_hub_fanout_document_applied(minimal_project):
     import asyncio
 
