@@ -87,7 +87,11 @@ class PipelineService:
         )
 
     def render_preview(
-        self, *, rerender: bool = True, progress: ProgressReporter | None = None
+        self,
+        *,
+        rerender: bool = True,
+        progress: ProgressReporter | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict:
         if rerender:
 
@@ -96,7 +100,7 @@ class PipelineService:
 
             # mutate() re-reads the saved project under the cross-process lock, so Refresh renders it.
             # The render lock comes before mutate()'s project locks (lock order, #482).
-            with render_lock(self.ws.project):
+            with render_lock(self.ws.project, cancel_check=cancel_check):
                 return self.ws.mutate(
                     "before render preview",
                     "after render preview",

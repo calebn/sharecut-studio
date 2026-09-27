@@ -1255,7 +1255,10 @@ def test_api_pipeline_render_preview(minimal_project, monkeypatch) -> None:
 
     from podcast_mcp.gui.server import create_app
 
-    def fake_preview(self, *, rerender=True, progress=None):
+    seen: list[object] = []
+
+    def fake_preview(self, *, rerender=True, progress=None, cancel_check=None):
+        seen.append(cancel_check)
         if progress is not None:
             progress.start("render", "Render preview", total=1)
             progress.update("render", 1, total=1, message="Done")
@@ -1283,6 +1286,7 @@ def test_api_pipeline_render_preview(minimal_project, monkeypatch) -> None:
     st = client.get("/api/pipeline/status").json()
     assert st["job"]["status"] == "ok"
     assert st["job"]["kind"] == "render_preview"
+    assert len(seen) == 1 and callable(seen[0])
 
 
 def test_api_export_bounce(minimal_project, monkeypatch) -> None:
@@ -1441,7 +1445,7 @@ def test_api_pipeline_render_preview_marks_error_when_ok_false(
 
     from podcast_mcp.gui.server import create_app
 
-    def fake_preview(self, *, rerender=True, progress=None):
+    def fake_preview(self, *, rerender=True, progress=None, cancel_check=None):
         return {"ok": False, "path": None}
 
     monkeypatch.setattr(
@@ -1481,7 +1485,7 @@ def test_api_pipeline_render_preview_conflict(minimal_project, monkeypatch) -> N
     started = threading.Event()
     release = threading.Event()
 
-    def blocking_preview(self, *, rerender=True, progress=None):
+    def blocking_preview(self, *, rerender=True, progress=None, cancel_check=None):
         started.set()
         release.wait(timeout=5)
         return {"ok": True}
@@ -1519,7 +1523,7 @@ def test_pipeline_job_manager_retains_finished_for_get_job(minimal_project, monk
 
     from podcast_mcp.gui.server import create_app
 
-    def fake_preview(self, *, rerender=True, progress=None):
+    def fake_preview(self, *, rerender=True, progress=None, cancel_check=None):
         return {"ok": True}
 
     monkeypatch.setattr(

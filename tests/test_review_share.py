@@ -652,7 +652,7 @@ def test_guest_render_preview_requires_edit(
 
     calls: list[bool] = []
 
-    def fake_preview(self, *, rerender=True, progress=None):
+    def fake_preview(self, *, rerender=True, progress=None, cancel_check=None):
         calls.append(rerender)
         return {"ok": True}
 
@@ -771,7 +771,7 @@ def test_guest_render_preview_conflict_when_host_job_running(
     started = threading.Event()
     release = threading.Event()
 
-    def slow_preview(self, *, rerender=True, progress=None):
+    def slow_preview(self, *, rerender=True, progress=None, cancel_check=None):
         started.set()
         release.wait(timeout=5)
         return {"ok": True}

@@ -96,6 +96,14 @@ def test_an_export_waiting_for_the_render_lock_stops_on_cancel(minimal_project) 
         PipelineService(ws).export_audio([{"ext": "mp3"}], cancel_check=lambda: True)
 
 
+def test_a_refresh_waiting_for_the_render_lock_stops_on_cancel(minimal_project) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    started = time.monotonic()
+    with _held_elsewhere(ws.project), pytest.raises(CancelledProgress):
+        PipelineService(ws).render_preview(rerender=True, cancel_check=lambda: True)
+    assert time.monotonic() - started < 5
+
+
 def test_render_lock_refuses_a_first_acquire_under_the_commit_lock(minimal_project) -> None:
     project = load_project(minimal_project)
     with project_commit_lock(project), pytest.raises(RuntimeError, match="lock order"):
