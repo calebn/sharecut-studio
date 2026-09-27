@@ -21,6 +21,7 @@ from podcast_mcp.services.document_sync.service import document_db_path
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
+from process_helpers import reap
 
 _CTX = mp.get_context("spawn")
 
@@ -92,7 +93,7 @@ def test_commit_waits_for_lock_held_by_another_process(minimal_project, monkeypa
             ProjectStore(minimal_project).commit(project)
     finally:
         release.set()
-        proc.join(30)
+        reap(proc, 30)
     ProjectStore(minimal_project).commit(project)
 
 
@@ -131,7 +132,7 @@ def test_publication_encodes_while_another_process_holds_lock(
             ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="x")
     finally:
         release.set()
-        proc.join(30)
+        reap(proc, 30)
     assert encoded == ["mix.mp3"]
     assert len(hashed) == 1
     review_root = art / "review"
@@ -167,8 +168,8 @@ def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project
     time.sleep(1.0)
     may_clean.set()
     assert cleaned.wait(60)
-    a.join(60)
-    b.join(60)
+    reap(a, 60)
+    reap(b, 60)
     assert result.get(timeout=10) != "ok"
 
     persisted = load_project(minimal_project)
@@ -215,7 +216,7 @@ def test_mutate_takes_the_lock_before_running_the_mutation(minimal_project, monk
         assert called == []
     finally:
         release.set()
-        holder.join(60)
+        reap(holder, 60)
     assert load_project(minimal_project).comments == []
 
 
@@ -243,7 +244,7 @@ def test_document_submit_waits_for_another_process_holding_the_commit_lock(
             svc.submit(cmd)
     finally:
         release.set()
-        holder.join(60)
+        reap(holder, 60)
     assert load_project(minimal_project).comments == []
     assert svc.store.commands_after(0) == []
     assert svc.submit(cmd)["ok"]
@@ -254,7 +255,7 @@ def test_stale_workspace_keeps_a_commit_from_another_process(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     child = _CTX.Process(target=_child_add_comment, args=(str(minimal_project), "theirs"))
     child.start()
-    child.join(60)
+    assert reap(child, 60), "the child hung and was killed"
     assert child.exitcode == 0
     CommentService(ws).add(body="ours", author="me", timeline_start=1.0)
     assert {c.body for c in load_project(minimal_project).comments} == {"theirs", "ours"}
@@ -270,7 +271,7 @@ def test_document_commands_from_two_processes_keep_every_edit(minimal_project):
         child.start()
     start.set()
     for child in children:
-        child.join(120)
+        assert reap(child, 120), "a submitting child hung and was killed"
         assert child.exitcode == 0
     project = load_project(minimal_project)
     bodies = {c.body for c in project.comments}
@@ -314,7 +315,7 @@ def test_same_sequence_race_across_processes_journals_only_the_applied_edit(mini
         child.start()
     start.set()
     for child in children:
-        child.join(120)
+        reap(child, 120)
     outcomes = sorted(results.get(timeout=10) for _ in children)
     assert outcomes == ["DocumentSequenceConflictError", "ok"]
     project = load_project(minimal_project)

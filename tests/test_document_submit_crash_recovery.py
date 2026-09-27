@@ -28,7 +28,6 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from multiprocessing.process import BaseProcess
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +44,7 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import document_db_path, document_server_seq
 from podcast_mcp.services.session_sync.log import SyncStore
+from process_helpers import reap
 
 # win32 has no SIGKILL: os.kill with any signal but CTRL_C/CTRL_BREAK_EVENT calls
 # TerminateProcess there (no Python cleanup either), with the signal number as exit code.
@@ -58,21 +58,6 @@ def _die(**_ignored: Any) -> None:
 
 
 _CTX = mp.get_context("spawn")
-
-
-def _reap(proc: BaseProcess, timeout: float) -> bool:
-    """Join ``proc``; kill and reap it if it still runs after ``timeout``.
-
-    Returns True when it exited on its own. A child killed here also exits with
-    ``_KILLED_EXIT``, so callers assert this result, not only the exit code. A child stuck
-    holding the project lock or a ``document.db`` handle must not outlive its test.
-    """
-    proc.join(timeout)
-    if not proc.is_alive():
-        return True
-    proc.kill()
-    proc.join()
-    return False
 
 
 BEFORE_PROJECT_COMMIT = "before_project_commit"
@@ -184,7 +169,7 @@ def _submit_then_die(
 def _run_crash(*args: object) -> None:
     proc = _CTX.Process(target=_submit_then_die, args=args)
     proc.start()
-    assert _reap(proc, 60), "the child hung before its kill point and was killed"
+    assert reap(proc, 60), "the child hung before its kill point and was killed"
     assert proc.exitcode == _KILLED_EXIT
 
 
@@ -437,7 +422,7 @@ def test_sigkill_at_each_handoff_loses_no_edit_and_applies_a_retry_once(
     seeded_project, tmp_path, point
 ):
     proc, marker, _reached = _start_crash_at(seeded_project, point, tmp_path)
-    assert _reap(proc, 120), f"{point} never fired: the child hung and was killed"
+    assert reap(proc, 120), f"{point} never fired: the child hung and was killed"
     assert proc.exitcode == _KILLED_EXIT, f"{point} never fired (exit {proc.exitcode})"
     expect = HANDOFFS[point]
 
@@ -506,8 +491,8 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
             pytest.fail("the waiter never reported a submit result after the holder died")
     finally:
         go.set()
-        crasher_exited = _reap(crasher, 60)
-        waiter_exited = waiter.pid is None or _reap(waiter, 60)
+        crasher_exited = reap(crasher, 60)
+        waiter_exited = waiter.pid is None or reap(waiter, 60)
     assert crasher_exited, "the crasher outlived its kill point and was killed"
     assert waiter_exited, "the waiter hung after the holder died and was killed"
     assert crasher.exitcode == _KILLED_EXIT
@@ -527,7 +512,7 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
 def test_a_crash_before_the_first_commit_adopts_no_phantom_history(minimal_project, tmp_path):
     """A project saved without history ignores the index a killed first commit wrote (#576)."""
     proc, marker, _reached = _start_crash_at(minimal_project, BEFORE_PROJECT_COMMIT, tmp_path)
-    assert _reap(proc, 120), "the kill point never fired: the child hung and was killed"
+    assert reap(proc, 120), "the kill point never fired: the child hung and was killed"
     assert proc.exitcode == _KILLED_EXIT
     seen = json.loads(marker.read_text())
     assert seen["saved_history"] == []
