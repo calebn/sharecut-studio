@@ -39,15 +39,18 @@ const DISCRETE_DEBOUNCE_MS = 50;
  */
 const VIEWER_STATE_ECHO_TIMEOUT_MS = 1500;
 
-/** `ViewerState` frames sent and not yet echoed, and the echo-wait timer. */
-type ViewerStateWait = { inFlight: number; timer: number | null };
+/**
+ * One echo-deadline timer per `ViewerState` frame sent and not yet echoed,
+ * oldest first. Server Echoes arrive in send order, so an own-client Echo
+ * cancels the head; the next-oldest frame keeps its own deadline.
+ */
+type ViewerStateWait = { timers: number[] };
 
 function stopViewerStateWait(wait: ViewerStateWait): void {
-  wait.inFlight = 0;
-  if (wait.timer != null) {
-    window.clearTimeout(wait.timer);
-    wait.timer = null;
+  for (const timer of wait.timers) {
+    window.clearTimeout(timer);
   }
+  wait.timers.length = 0;
 }
 
 function wsUrl(projectPath: string, clientId: string): string {
@@ -101,10 +104,7 @@ export function useSessionSync(
 
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
-  const viewerStateWaitRef = useRef<ViewerStateWait>({
-    inFlight: 0,
-    timer: null,
-  });
+  const viewerStateWaitRef = useRef<ViewerStateWait>({ timers: [] });
 
   useEffect(() => {
     if (!enabled) {
@@ -162,6 +162,7 @@ export function useSessionSync(
     if (!enabled || !projectPath) {
       return;
     }
+    const viewerStateWait = viewerStateWaitRef.current;
     let cancelled = false;
     let retry: number | null = null;
     let socket: WebSocket | null = null;
@@ -226,10 +227,9 @@ export function useSessionSync(
               msg.command?.type === "ViewerState" &&
               msg.command.client_id === clientIdRef.current
             ) {
-              const wait = viewerStateWaitRef.current;
-              wait.inFlight = Math.max(0, wait.inFlight - 1);
-              if (wait.inFlight === 0) {
-                stopViewerStateWait(wait);
+              const oldest = viewerStateWaitRef.current.timers.shift();
+              if (oldest !== undefined) {
+                window.clearTimeout(oldest);
               }
             }
             if (Array.isArray(snap.clients)) {
@@ -277,7 +277,7 @@ export function useSessionSync(
         // Unechoed ViewerState frames are not lost: setWsReady(false) below
         // re-runs the debounced publish effect (wsReady is in its deps), which
         // republishes the latest snapshot over HTTP since sendRef is now null.
-        stopViewerStateWait(viewerStateWaitRef.current);
+        stopViewerStateWait(viewerStateWait);
         bindRecordHostSend(null);
         setWsReady(false);
         useRecordHostStore.getState().setConnected(false);
@@ -307,7 +307,7 @@ export function useSessionSync(
         socket.close();
       }
       sendRef.current = null;
-      stopViewerStateWait(viewerStateWaitRef.current);
+      stopViewerStateWait(viewerStateWait);
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
     };
@@ -334,21 +334,18 @@ export function useSessionSync(
    * Durable viewer state: one WS `ViewerState` frame while live, else HTTP.
    * The server's own-client Echo advances the cursor (onmessage) and ends the
    * wait; a rejection or no Echo within VIEWER_STATE_ECHO_TIMEOUT_MS of the oldest unechoed
-   * send (half-open socket, dropped frame) republishes over HTTP; later sends do not extend that deadline.
+   * send (half-open socket, dropped frame) republishes over HTTP. Each frame has its own
+   * deadline: later sends do not extend the oldest one, and an Echo for the oldest hands
+   * the deadline to the next-oldest frame's own send time.
    */
   const publish = useEffectEvent(async () => {
     if (
       sendRef.current?.({ type: "ViewerState", snapshot: viewerSnapshot() })
     ) {
-      const wait = viewerStateWaitRef.current;
-      wait.inFlight += 1;
-      // Keep the oldest unechoed send's deadline: a later send must not push it back.
-      if (wait.timer == null) {
-        wait.timer = window.setTimeout(() => {
-          wait.timer = null;
-          fallBackToHttp();
-        }, VIEWER_STATE_ECHO_TIMEOUT_MS);
-      }
+      // Each frame gets its own deadline; fallBackToHttp clears the rest.
+      viewerStateWaitRef.current.timers.push(
+        window.setTimeout(() => fallBackToHttp(), VIEWER_STATE_ECHO_TIMEOUT_MS),
+      );
       return;
     }
     await publishOverHttp();
