@@ -1891,3 +1891,19 @@ def test_guest_waveform_tiles_openapi_is_octet_stream():
     path = "/api/review/{token}/daw/waveform/tiles/{key}"
     content = create_app().openapi()["paths"][path]["get"]["responses"]["200"]["content"]
     assert content == {"application/octet-stream": {}}
+
+
+def test_guest_client_ids_carry_the_prefix_the_gui_counts_as_guests() -> None:
+    """Pin review_share._guest_client_id to the GUI's GUEST_CLIENT_ID_PREFIX."""
+    import re
+
+    from podcast_mcp.config import repo_root
+    from podcast_mcp.gui.routes.review_share import _guest_client_id
+
+    ts = (repo_root() / "gui" / "web" / "src" / "presence" / "followSync.ts").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r'export const GUEST_CLIENT_ID_PREFIX = "([^"]+)";', ts)
+    assert match
+    for raw in ("tab-1", None, "!!"):
+        assert _guest_client_id("abcdefghijkl", raw).startswith(match.group(1))

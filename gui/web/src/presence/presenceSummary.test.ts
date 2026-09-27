@@ -6,6 +6,12 @@ const c = (client_id: string, role: string) =>
   ({ client_id, role }) as SessionClient;
 
 describe("presenceSummary", () => {
+  it("counts an agent with a guest- id as an agent", () => {
+    expect(presenceSummary([c("guest-x-y", "agent")], null)).toBe(
+      "You · 1 agent",
+    );
+  });
+
   it("reads You when only the local client is present (#533)", () => {
     expect(presenceSummary([c("h1", "viewer")], "h1")).toBe("You");
   });
