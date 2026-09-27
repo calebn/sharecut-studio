@@ -1,7 +1,10 @@
 import type {
+  AppliedEditRecord,
+  AutomationEnvelope,
   ClipMuteRegion,
   ClippingRegion,
   ClipRow,
+  PendingEditView,
   ProjectView,
 } from "../types/project";
 
@@ -22,14 +25,24 @@ function sameSourceSpans(
   );
 }
 
+/** Deep-equal by JSON value, for a field with no identity-safe key of its own. */
+function sameJson(a: unknown, b: unknown): boolean {
+  return a === b || JSON.stringify(a) === JSON.stringify(b);
+}
+
 /**
  * Same own keys with equal values; `mute_regions` and `clipping_regions`
- * compared per region.
+ * compared per region, and any key named in `deepKeys` compared structurally
+ * (`sameJson`) instead of by identity.
  * Any other nested value compares by identity, so a freshly parsed one never
- * matches. That is safe (the row only loses reuse), but a nested field added to
- * `ClipRow` or `TrackView` that should keep reuse needs its own case here.
+ * matches. That is safe (the row only loses reuse), but a nested field added
+ * that should keep reuse needs its own case here or a `deepKeys` entry.
  */
-function sameShallow<T extends object>(a: T, b: T): boolean {
+function sameExcept<T extends object>(
+  a: T,
+  b: T,
+  deepKeys: readonly (keyof T)[] = [],
+): boolean {
   const aKeys = Object.keys(a) as (keyof T)[];
   if (aKeys.length !== Object.keys(b).length) {
     return false;
@@ -44,8 +57,15 @@ function sameShallow<T extends object>(a: T, b: T): boolean {
         b[key] as SourceSpans | undefined,
       );
     }
+    if (deepKeys.includes(key)) {
+      return sameJson(a[key], b[key]);
+    }
     return a[key] === b[key];
   });
+}
+
+function sameShallow<T extends object>(a: T, b: T): boolean {
+  return sameExcept(a, b);
 }
 
 /** Same `clips` fields other than the lanes (count, duration, any later key). */
@@ -56,19 +76,52 @@ function sameClipsMeta(
   return sameShallow({ ...a, tracks: null }, { ...b, tracks: null });
 }
 
+/** Envelopes have no `id`; keyed by the pair that identifies one on a track. */
+export function envelopeKey(e: AutomationEnvelope): string {
+  return `${e.track_id}\u0000${e.parameter}`;
+}
+
+export function idKey<T extends { id: string }>(item: T): string {
+  return item.id;
+}
+
+function sameEnvelope(a: AutomationEnvelope, b: AutomationEnvelope): boolean {
+  return (
+    a.track_id === b.track_id &&
+    a.parameter === b.parameter &&
+    sameJson(a.points, b.points)
+  );
+}
+
+function samePendingEdit(a: PendingEditView, b: PendingEditView): boolean {
+  return sameExcept(a, b, ["timeline_spans", "track_ids"]);
+}
+
+function sameAppliedRecord(
+  a: AppliedEditRecord,
+  b: AppliedEditRecord,
+): boolean {
+  return sameExcept(a, b, ["params", "track_ids"]);
+}
+
 /**
- * `next` items replaced by the equal `prev` item with the same id; the
+ * `next` items replaced by the equal `prev` item with the same key; the
  * whole `prev` array when every item was reused in the same order.
  */
-function reuseById<T extends { id: string }>(prev: T[], next: T[]): T[] {
+export function reuseByKey<T>(
+  prev: T[],
+  next: T[],
+  keyOf: (item: T) => string,
+  same: (a: T, b: T) => boolean,
+): T[] {
   if (prev === next) {
     return prev;
   }
-  const byId = new Map(prev.map((item) => [item.id, item]));
+  const byKey = new Map(prev.map((item) => [keyOf(item), item]));
   let allReused = prev.length === next.length;
   const out = next.map((item, i) => {
-    const old = byId.get(item.id);
-    if (old && sameShallow(old, item)) {
+    const old = byKey.get(keyOf(item));
+    if (old && same(old, item)) {
       if (prev[i] !== old) {
         allReused = false;
       }
@@ -80,10 +133,16 @@ function reuseById<T extends { id: string }>(prev: T[], next: T[]): T[] {
   return allReused ? prev : out;
 }
 
+/** `reuseByKey` keyed by `id`, comparing items with `sameShallow`. */
+function reuseById<T extends { id: string }>(prev: T[], next: T[]): T[] {
+  return reuseByKey(prev, next, idKey, sameShallow);
+}
+
 /**
- * Structural sharing for a new project projection: tracks and clips equal to
- * the previous ones keep their identity (and so do whole lanes), so memoized
- * timeline rows re-render only for what changed.
+ * Structural sharing for a new project projection: tracks, clips, envelopes,
+ * pending edits and applied-edit records equal to the previous ones keep
+ * their identity (and so do whole lanes), so memoized timeline rows re-render
+ * only for what changed.
  */
 export function reuseUnchanged(
   prev: ProjectView | null,
@@ -116,8 +175,58 @@ export function reuseUnchanged(
       : lanes === nextLanes
         ? next.clips
         : { ...next.clips, tracks: lanes };
-  if (tracks === next.tracks && clips === next.clips) {
+
+  const envelopes = reuseByKey(
+    prev.envelopes,
+    next.envelopes,
+    envelopeKey,
+    sameEnvelope,
+  );
+
+  const pendingEdits = reuseByKey(
+    prev.pending_edits,
+    next.pending_edits,
+    idKey,
+    samePendingEdit,
+  );
+
+  const prevApplied = prev.applied_edits;
+  const nextApplied = next.applied_edits;
+  let appliedEdits = nextApplied;
+  if (prevApplied !== nextApplied) {
+    const records = reuseByKey(
+      prevApplied.records,
+      nextApplied.records,
+      idKey,
+      sameAppliedRecord,
+    );
+    appliedEdits =
+      records === prevApplied.records &&
+      sameShallow(
+        { ...prevApplied, records: null },
+        { ...nextApplied, records: null },
+      )
+        ? prevApplied
+        : records === nextApplied.records
+          ? nextApplied
+          : { ...nextApplied, records };
+  }
+
+  if (
+    tracks === next.tracks &&
+    clips === next.clips &&
+    envelopes === next.envelopes &&
+    pendingEdits === next.pending_edits &&
+    appliedEdits === next.applied_edits
+  ) {
     return next;
   }
-  return { ...next, tracks, clips };
+  return {
+    ...next,
+    tracks,
+    clips,
+    envelopes,
+    pending_edits: pendingEdits,
+    applied_edits: appliedEdits,
+  };
 }
