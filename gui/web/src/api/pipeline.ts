@@ -245,6 +245,9 @@ export async function followExportJob(
   return jobResultPaths(done);
 }
 
+/** Slow status re-check while a job SSE stream is open: backstop for a stream that stays OPEN but goes silent (buffering proxy, half-open socket, backgrounded webview). */
+export const JOB_STREAM_RECHECK_MS = 15_000;
+
 /**
  * Wait until a Studio job reaches ok|error|cancelled.
  *
@@ -252,7 +255,9 @@ export async function followExportJob(
  * follows that job's own SSE stream: each subscriber has its own queue, so
  * any number of concurrent callers get the full stream. If the stream
  * closes without a terminal job, a one-shot status re-check either finishes
- * the wait or fails it with "Lost connection…".
+ * the wait or fails it with "Lost connection…". While the stream is open, a
+ * status re-check every `JOB_STREAM_RECHECK_MS` finishes the wait if the
+ * stream went silent.
  */
 export async function waitForPipelineJob(
   jobId: string,
@@ -302,6 +307,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
+      window.clearInterval(recheck);
       es.close();
       signal?.removeEventListener("abort", onAbort);
       resolve(job);
@@ -313,6 +319,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
+      window.clearInterval(recheck);
       es.close();
       signal?.removeEventListener("abort", onAbort);
       reject(err);
@@ -325,6 +332,18 @@ export async function waitForPipelineJob(
     const timeout = window.setTimeout(() => {
       fail(new Error("Timed out waiting for job"));
     }, timeoutMs);
+
+    const recheck = window.setInterval(() => {
+      void fromStatus()
+        .then((job) => {
+          if (job) {
+            finish(job);
+          }
+        })
+        .catch(() => {
+          /* ignore transient */
+        });
+    }, JOB_STREAM_RECHECK_MS);
 
     signal?.addEventListener("abort", onAbort);
     if (signal?.aborted) {
