@@ -31,7 +31,8 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `shorten_gaps_tool` | Tighten inter-word pauses |
 | `fade_joins_tool` | Declick butt-splice fades at clip joins (default dialogue mode) |
 | `crossfade_joins_tool` | Opt-in overlapping crossfade at joins (music / explicit blend) |
-| `list_clips_tool` | Clip timeline for GUI/agents (`join_in_mode`, `source_id`, `origin_track_id`) |
+| `list_clips_tool` | Clip timeline for GUI/agents (`join_in_mode`, `source_id`, `origin_track_id`, effective join render `join_left_clip_id` / `join_render_mode` / `join_crossfade_ms` / `join_crossfade_blocked`) |
+| `set_clip_join_tool` | One join's mode plus fades (`left_clip_id`, `right_clip_id`, `mode`, `length_ms?`); `set_join_mode_tool` is mode-only |
 | `list_applied_edits_tool` | Committed-cut provenance from `editorial.edit_log` |
 | `render_status_tool` | Stem freshness, premix, reconciliation stale |
 | `history_status_tool` / `history_goto_tool` / `history_diff_tool` | Structured history inspector |

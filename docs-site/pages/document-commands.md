@@ -55,6 +55,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RollClipJoin` | `delta_sec` (number), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetClipFade` | `clip_id` (string), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
+| `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
@@ -72,7 +73,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 45 command types._
+_Generated 46 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

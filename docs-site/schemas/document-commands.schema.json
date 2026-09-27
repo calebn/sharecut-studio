@@ -3607,6 +3607,149 @@
       "title": "SetClipFadePayload",
       "type": "object"
     },
+    "SetClipJoinCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetClipJoinPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetClipJoin",
+          "default": "SetClipJoin",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SetClipJoinCommand",
+      "type": "object"
+    },
+    "SetClipJoinPayload": {
+      "properties": {
+        "left_clip_id": {
+          "title": "Left Clip Id",
+          "type": "string"
+        },
+        "length_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Length Ms"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "fade",
+                "crossfade",
+                "cut"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/ClipJoinMode"
+            }
+          ],
+          "title": "Mode"
+        },
+        "right_clip_id": {
+          "title": "Right Clip Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "left_clip_id",
+        "right_clip_id",
+        "mode"
+      ],
+      "title": "SetClipJoinPayload",
+      "type": "object"
+    },
     "SetEffectBypassCommand": {
       "properties": {
         "causation_id": {
@@ -5659,6 +5802,7 @@
       "RollClipJoin": "#/$defs/RollClipJoinCommand",
       "SetActionDone": "#/$defs/SetActionDoneCommand",
       "SetClipFade": "#/$defs/SetClipFadeCommand",
+      "SetClipJoin": "#/$defs/SetClipJoinCommand",
       "SetEffectBypass": "#/$defs/SetEffectBypassCommand",
       "SetEnvelope": "#/$defs/SetEnvelopeCommand",
       "SetJoinMode": "#/$defs/SetJoinModeCommand",
@@ -5729,6 +5873,9 @@
     },
     {
       "$ref": "#/$defs/SetJoinModeCommand"
+    },
+    {
+      "$ref": "#/$defs/SetClipJoinCommand"
     },
     {
       "$ref": "#/$defs/ApplyFadeRecommendationsCommand"

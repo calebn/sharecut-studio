@@ -43,7 +43,7 @@ Defaults: `.agents/defaults/pipeline.yaml` → `inaudible_cuts`, `join_continuit
 
 Use the short in-repo fixture (`tests/fixtures/join_continuity/`, ~3 s stems) for join QA demos — not huge external episode trees.
 
-Dialogue cuts default to **fade joins** (`join_in_mode=fade`) — butt splice with micro-fades, no overlap. Use `fade_joins_tool` if joins click; `crossfade_joins_tool` only for explicit overlap blend.
+Dialogue cuts default to **fade joins** (`join_in_mode=fade`) — butt splice with micro-fades, no overlap. Use `set_clip_join_tool` to set one join's mode and fades together (`set_join_mode_tool` changes the mode only). Use `fade_joins_tool` if joins click; `crossfade_joins_tool` only for explicit overlap blend.
 
 Quiet air after a cut end is absorbed up to the next word (leaving ~0.4s breath) when that gap is ≤2s — see `absorb_trailing_silence*` in defaults. This stops restart/ripple joins from leaving a double-breath. It is the **wrong** tool for “leave a beat between punchline and closing” — absorb **removes** that beat.
 

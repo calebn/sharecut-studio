@@ -3457,6 +3457,143 @@
         "title": "SetClipFadePayload",
         "type": "object"
       },
+      "SetClipJoinCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetClipJoinPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetClipJoin",
+            "default": "SetClipJoin",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetClipJoinCommand",
+        "type": "object"
+      },
+      "SetClipJoinPayload": {
+        "properties": {
+          "left_clip_id": {
+            "title": "Left Clip Id",
+            "type": "string"
+          },
+          "length_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Ms"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fade",
+                  "crossfade",
+                  "cut"
+                ],
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/ClipJoinMode"
+              }
+            ],
+            "title": "Mode"
+          },
+          "right_clip_id": {
+            "title": "Right Clip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "left_clip_id",
+          "right_clip_id",
+          "mode"
+        ],
+        "title": "SetClipJoinPayload",
+        "type": "object"
+      },
       "SetEffectBypassCommand": {
         "properties": {
           "causation_id": {
@@ -6424,6 +6561,7 @@
                     "RollClipJoin": "#/components/schemas/RollClipJoinCommand",
                     "SetActionDone": "#/components/schemas/SetActionDoneCommand",
                     "SetClipFade": "#/components/schemas/SetClipFadeCommand",
+                    "SetClipJoin": "#/components/schemas/SetClipJoinCommand",
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
                     "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
                     "SetJoinMode": "#/components/schemas/SetJoinModeCommand",
@@ -6494,6 +6632,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetJoinModeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetClipJoinCommand"
                   },
                   {
                     "$ref": "#/components/schemas/ApplyFadeRecommendationsCommand"

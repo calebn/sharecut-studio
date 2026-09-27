@@ -161,6 +161,7 @@ flowchart LR
 | Range | decision `start`/`end` (source) → shown mapped on timeline, as `m:ss.mmm` |
 | Reason | agent/tool reason string, shown once in words (for example "Suggested by guest"; codes in `edits/edit_reasons.py`, each with a label) |
 | Join fade | `crossfade_ms` (applied as fade lengths on approve) |
+| Clip join | `SetClipJoin`: mode (`fade` / `crossfade` / `cut`) plus both edge fades in one undo step; a crossfade needs fades to overlap |
 | Track | track id |
 | Actions | Approve / Reject / nudge |
 

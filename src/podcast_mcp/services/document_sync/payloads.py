@@ -146,6 +146,13 @@ class SetJoinModePayload(BaseModel):
     join_in_mode: JoinInMode | ClipJoinMode
 
 
+class SetClipJoinPayload(BaseModel):
+    left_clip_id: str
+    right_clip_id: str
+    mode: JoinInMode | ClipJoinMode
+    length_ms: int | None = Field(default=None, ge=0)
+
+
 class ApplyFadeRecommendationsPayload(BaseModel):
     track_id: str | None = None
 
@@ -439,6 +446,11 @@ class SetJoinModeCommand(DocumentCommandEnvelope):
     payload: SetJoinModePayload
 
 
+class SetClipJoinCommand(DocumentCommandEnvelope):
+    type: Literal["SetClipJoin"] = "SetClipJoin"
+    payload: SetClipJoinPayload
+
+
 class ApplyFadeRecommendationsCommand(DocumentCommandEnvelope):
     type: Literal["ApplyFadeRecommendations"] = "ApplyFadeRecommendations"
     payload: ApplyFadeRecommendationsPayload = Field(
@@ -599,6 +611,7 @@ DocumentCommandBody = Annotated[
     | TrimClipEdgeCommand
     | RollClipJoinCommand
     | SetJoinModeCommand
+    | SetClipJoinCommand
     | ApplyFadeRecommendationsCommand
     | SetEffectBypassCommand
     | CorrectTranscriptWordCommand
@@ -701,6 +714,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "TrimClipEdge": TrimClipEdgePayload,
     "RollClipJoin": RollClipJoinPayload,
     "SetJoinMode": SetJoinModePayload,
+    "SetClipJoin": SetClipJoinPayload,
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
     "SetEffectBypass": SetEffectBypassPayload,
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,

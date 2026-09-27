@@ -37,6 +37,7 @@ description: >-
 - `apply_fade_recommendations_tool` — apply fade JSON from recommendations
 - `fade_joins_tool` — declick butt-splice fades at all abutting joins (default dialogue mode)
 - `crossfade_joins_tool` — opt-in overlapping crossfade (music beds, explicit blend)
+- `set_clip_join_tool` — one join's mode and fades together (crossfade sets both fades to `length_ms`; cut zeroes them)
 - `apply_low_audibility_suppression_tool` — targeted suppression by word keys
 - `bleed_words_tool` / `apply_bleed_suppression_tool` — bleed-only suppress (not inaudible)
 - `overlap_duplicates_tool` — overlapping cross-track word pairs in a time window

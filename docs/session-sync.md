@@ -246,6 +246,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) |
+| `SetClipJoin` | `EditService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
 | `ApplyFadeRecommendations` | `EditService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
 | `SetEffectBypass` | `EditService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |

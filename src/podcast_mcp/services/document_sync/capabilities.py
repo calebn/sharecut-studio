@@ -16,6 +16,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "TrimClipEdge",
         "RollClipJoin",
         "SetJoinMode",
+        "SetClipJoin",
         "ApplyFadeRecommendations",
         "SetEffectBypass",
         "UndoHistory",

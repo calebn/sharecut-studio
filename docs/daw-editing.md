@@ -126,8 +126,8 @@ Shipped:
 
 - Edge handles for fade lengths on clip blocks (a drag shows the length live and clamps to the track's `fade_max_ms`, the clip length and what the other edge's fade leaves; a pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects; each handle's accessible name carries its current length (the on-clip readout is visual only)); join diamond selects clip
 - Inspector: editable `fade_in_ms` / `fade_out_ms`, `join_in_mode` (fade / crossfade / cut) (entries clamp to the same limit; the hint says when an entry was clamped, and Apply waits until the clip's track is known)
-- Document commands `SetClipFade`, `SetJoinMode`, `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
-- MCP `set_join_mode_tool`; `set_clip_fade` caps dialogue fades at `render.join_fade_max_ms`, bounds each fade to the clip length and limits fade-out to what fade-in leaves (`join_modes.clamp_clip_fades`); the project view exposes the track cap as `TrackView.fade_max_ms` (null = uncapped; same `track_fade_max_ms` resolver), and the GUI mirrors the rule (`edit/fadeLimits.ts` `clampClipFades` / `edgeFadeMaxMs`) so drags and inspector inputs clamp before sending
+- Document commands `SetClipFade`, `SetJoinMode` (mode only), `SetClipJoin` (mode plus both fades, one undo step; the inspector's Join control), `ApplyFadeRecommendations` (track-scoped recommend+apply; Track inspector **Smooth all joins on this track**)
+- MCP `set_clip_join_tool` (also `podcast edit set-clip-join`) and `set_join_mode_tool`; `set_clip_fade` caps dialogue fades at `render.join_fade_max_ms`, bounds each fade to the clip length and limits fade-out to what fade-in leaves (`join_modes.clamp_clip_fades`); the project view exposes the track cap as `TrackView.fade_max_ms` (null = uncapped; same `track_fade_max_ms` resolver), and the GUI mirrors the rule (`edit/fadeLimits.ts` `clampClipFades` / `edgeFadeMaxMs`) so drags and inspector inputs clamp before sending
 - Seek join / Play across join audition footer
 
 **Done when:** changing fade ms or join mode from the inspector updates `timeline.clips` and is audible on next audition.

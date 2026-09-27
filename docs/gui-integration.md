@@ -42,7 +42,7 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 
 | API | Purpose |
 |-----|---------|
-| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `origin_track_id` |
+| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
 | `list_edit_decisions_tool` | Pending cuts |
 | `list_applied_edits_tool` | Committed cut provenance |
 | `edit_impact_report_tool` | Aggregate removed duration |

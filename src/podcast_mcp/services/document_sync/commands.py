@@ -26,6 +26,7 @@ DocumentCommandType = Literal[
     "TrimClipEdge",
     "RollClipJoin",
     "SetJoinMode",
+    "SetClipJoin",
     "ApplyFadeRecommendations",
     "SetEffectBypass",
     "CorrectTranscriptWord",
