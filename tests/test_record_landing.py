@@ -2388,12 +2388,11 @@ def test_land_skips_drift_when_pending_empty(
 
 
 def test_release_session_land_lock_drops_idle_entry() -> None:
-    _LAND_LOCKS["idle-session"] = threading.Lock()
+    _LAND_LOCKS.get("idle-session")
     release_session_land_lock("idle-session")
     assert "idle-session" not in _LAND_LOCKS
-    held = threading.Lock()
+    held = _LAND_LOCKS.get("busy-session")
     held.acquire()
-    _LAND_LOCKS["busy-session"] = held
     release_session_land_lock("busy-session")
     assert "busy-session" in _LAND_LOCKS
     held.release()

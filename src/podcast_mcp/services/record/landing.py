@@ -80,6 +80,7 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 
@@ -87,8 +88,7 @@ log = logging.getLogger(__name__)
 
 AlignFn = Callable[[EpisodeProject], None]
 
-_LAND_LOCKS_GUARD = threading.Lock()
-_LAND_LOCKS: dict[str, threading.Lock] = {}
+_LAND_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 
 # A land includes WAV hashing, copies, and drift measurement, so allow more than the
 # 30 s project commit lock, but never wait forever on a hung process (#503).
@@ -109,22 +109,9 @@ def rollback_retry_after_ns(attempts: int, now_ns: int) -> int:
     return now_ns + delay * 1_000_000_000
 
 
-def _session_land_lock(session_id: str) -> threading.Lock:
-    with _LAND_LOCKS_GUARD:
-        lock = _LAND_LOCKS.get(session_id)
-        if lock is None:
-            lock = threading.Lock()
-            _LAND_LOCKS[session_id] = lock
-        return lock
-
-
 def release_session_land_lock(session_id: str) -> None:
     """Drop the per-session land lock after the room ends."""
-    with _LAND_LOCKS_GUARD:
-        lock = _LAND_LOCKS.get(session_id)
-        if lock is None or lock.locked():
-            return
-        _LAND_LOCKS.pop(session_id, None)
+    _LAND_LOCKS.discard_idle(session_id)
 
 
 def record_land_lock_path(workspace_dir: Path, session_id: str) -> Path:
@@ -164,7 +151,7 @@ def room_land_lock(workspace_dir: Path, session_id: str) -> Iterator[None]:
     Waits at most ``RECORD_LAND_LOCK_TIMEOUT_SEC`` for another process, then raises
     ``RecordLandingError('land in progress')``.
     """
-    with _session_land_lock(session_id):
+    with _LAND_LOCKS.get(session_id):
         file_lock = shared_file_lock(
             record_land_lock_path(workspace_dir, session_id),
             timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
