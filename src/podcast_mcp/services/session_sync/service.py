@@ -15,6 +15,7 @@ from podcast_mcp.services.session_sync.commands import (
     audition_mode_from_source,
     normalize_presence_meta,
     normalize_presence_playhead,
+    sanitize_display_name,
     track_id_from_source,
 )
 from podcast_mcp.services.session_sync.hub import get_hub
@@ -56,6 +57,18 @@ def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | 
 
 def next_client_seq() -> int:
     return next(_SEQ)
+
+
+def _is_guest(command: SyncCommand) -> bool:
+    return command.client_id.startswith(GUEST_CLIENT_ID_PREFIX)
+
+
+def _presence_label(command: SyncCommand) -> str | None:
+    """Roster ``label`` under the ``meta.display_name`` rule (control chars, 40 max, guest suffix).
+
+    ``None`` (blank or missing) keeps the stored label: ``touch_client`` COALESCEs it.
+    """
+    return sanitize_display_name(command.payload.get("label"), guest=_is_guest(command))
 
 
 class SessionSyncService:
@@ -136,7 +149,7 @@ class SessionSyncService:
                 role=command.role,
                 acked_server_seq=ack_seq,
                 playhead_sec=normalize_presence_playhead(command.payload.get("playhead_sec")),
-                label=command.payload.get("label"),
+                label=_presence_label(command),
             )
             snap = self.snapshot()
             return {
@@ -148,16 +161,14 @@ class SessionSyncService:
             }
 
         if command.type == "PresenceHeartbeat":
-            guest = command.client_id.startswith(GUEST_CLIENT_ID_PREFIX)
-            meta = normalize_presence_meta(command.payload.get("meta"), guest=guest)
+            meta = normalize_presence_meta(command.payload.get("meta"), guest=_is_guest(command))
             return self._touch_and_fanout(command, meta)
 
         if command.type == "FollowUser":
-            guest = command.client_id.startswith(GUEST_CLIENT_ID_PREFIX)
             raw = dict(command.payload.get("meta") or {})
             raw.setdefault("display_name", command.payload.get("display_name"))
             raw["following"] = command.payload.get("follow_client_id")
-            meta = normalize_presence_meta(raw, guest=guest)
+            meta = normalize_presence_meta(raw, guest=_is_guest(command))
             return self._touch_and_fanout(command, meta)
 
         existing = (
@@ -232,7 +243,7 @@ class SessionSyncService:
         self.store.touch_client(
             command.client_id,
             role=command.role,
-            label=command.payload.get("label"),
+            label=_presence_label(command),
             playhead_sec=normalize_presence_playhead(command.payload.get("playhead_sec")),
             meta=meta,
         )

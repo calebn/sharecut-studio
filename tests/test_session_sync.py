@@ -535,6 +535,47 @@ def test_follow_user_drops_oversize_id(minimal_project) -> None:
     assert following != "x" * 80
 
 
+def test_presence_label_sanitized_like_display_name(minimal_project) -> None:
+    """#653: roster ``label`` gets the display-name rule on Ack, heartbeat and FollowUser."""
+    svc = SessionSyncService(load_project(minimal_project))
+
+    def send(
+        ctype: Literal["Ack", "PresenceHeartbeat", "FollowUser"], cid: str, label: object
+    ) -> None:
+        payload: dict[str, object] = {"label": label}
+        if ctype == "Ack":
+            payload["acked_server_seq"] = 0
+        svc.submit(
+            SyncCommand(
+                type=ctype,
+                payload=payload,
+                client_id=cid,
+                role="viewer",
+                client_seq=next_client_seq(),
+            )
+        )
+
+    def label(cid: str) -> str | None:
+        return next(c["label"] for c in svc.snapshot()["clients"] if c["client_id"] == cid)
+
+    for ctype in ("Ack", "PresenceHeartbeat", "FollowUser"):
+        long_id = f"viewer-long-{ctype}"
+        send(ctype, long_id, "x" * 500)
+        assert label(long_id) == "x" * 40
+        ctl_id = f"viewer-ctl-{ctype}"
+        send(ctype, ctl_id, "A\x00​\n  B\x1b")
+        assert label(ctl_id) == "A B"
+        guest_id = f"guest-abcdefgh-{ctype.lower()}"
+        send(ctype, guest_id, "Host")
+        assert label(guest_id) == "Host (guest)"
+        host_id = f"viewer-host-{ctype}"
+        send(ctype, host_id, "Host")
+        assert label(host_id) == "Host"
+        # Blank sanitizes to None; touch_client COALESCEs, so the last good label stays.
+        send(ctype, host_id, "   ")
+        assert label(host_id) == "Host"
+
+
 def test_remove_client_skips_stale_generation(minimal_project) -> None:
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
@@ -913,6 +954,26 @@ def test_owner_ws_presence_drops_invalid_playhead(minimal_project) -> None:
             time.sleep(0.05)
         assert mine is not None, snap.get("clients")
         assert mine["playhead_sec"] == 3.0
+
+
+def test_owner_ws_label_sanitized(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from urllib.parse import quote
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    raw = "Ana\x07   Bee" + "z" * 80
+    url = (
+        f"/api/session/ws?path={quote(str(minimal_project))}"
+        f"&client_id=ws-label&role=viewer&label={quote(raw)}"
+    )
+    with client.websocket_connect(url) as ws:
+        snap = ws.receive_json()["snapshot"]
+    mine = next(c for c in snap["clients"] if c["client_id"] == "ws-label")
+    assert mine["label"] == ("Ana Bee" + "z" * 80)[:40]
 
 
 def test_list_clients_expires_stale_presence(minimal_project) -> None:
