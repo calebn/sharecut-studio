@@ -83,6 +83,23 @@ total broadband energy. Returns `hum_detected`, the `dominant_frequency` bucket,
 plain-language `recommendation` (add a notch, or raise the highpass cutoff) when the
 ratio crosses `threshold_ratio` (default `0.05`).
 
+## Premix gain staging and headroom
+
+The premix (`mix_with_music`) sums tracks at **unity** (`amix normalize=0`, the same as
+`timeline_render`'s overlaps), not the 1/N of amix's default. With two dialogue tracks
+staged to -20 LUFS the sum lands near -17 LUFS, where the old 1/N mix sat near -23. That
+1/N sum put the #518 lab premix at about -31 LUFS and made the master add about 16 dB
+into the limiter.
+
+`FFmpegEngine.mix_tracks(..., peak_ceiling_db=...)` sums to a 32-bit float temp file,
+measures its true peak, and trims the whole mix down (never up) so it peaks at or below
+`mix.premix_peak_ceiling_db` (default -1.0 dBTP). `bounce` shares the ceiling.
+`play_compose` and `audition_eval` sum at unity with no trim, so a preview window does
+not change level from window to window.
+
+Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
+`mix_render_hash`.
+
 ## Two-pass loudness + mastering QC
 
 `master_loudnorm` now runs FFmpeg's `loudnorm` filter **twice**, as FFmpeg's own docs

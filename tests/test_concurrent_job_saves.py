@@ -181,7 +181,7 @@ def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minima
         write_stem_hash(ws.project, track_id)
     ws.save()
 
-    def mix(_inputs, out):
+    def mix(_inputs, out, **_kw):
         _other_sets_volume(minimal_project)
         out.write_bytes(b"RIFFMIX")
         return out

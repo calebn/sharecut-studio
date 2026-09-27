@@ -21,6 +21,7 @@ from podcast_mcp.pipeline.helpers import (
     artifact,
     ensure_dialogue_clips,
     ffmpeg,
+    mix_peak_ceiling_db,
     set_or_replace_chain,
 )
 from podcast_mcp.util.atomic_render import render_atomic
@@ -549,9 +550,10 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         inputs = [(Path(rendered[tid]), gain) for tid, gain in mixed.items()]
         # Mix beside it and swap in whole with the old hash dropped first (#356): a failed or
         # cancelled mix keeps the old premix and hash, and no reader pairs old hash, new bytes.
+        ceiling = mix_peak_ceiling_db(defaults)
         render_atomic(
             premix_path(project),
-            lambda tmp: eng.mix_tracks(inputs, tmp),
+            lambda tmp: eng.mix_tracks(inputs, tmp, peak_ceiling_db=ceiling),
             before_replace=functools.partial(clear_premix_hash, project),
             reap_partials=True,
         )
