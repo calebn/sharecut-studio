@@ -83,7 +83,7 @@ Shipped:
 
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
 - `UpdatePendingEdit` — timeline edge drag (a pointer-up under `HANDLE_DRAG_MIN_PX`, 3 px net, only selects the edit) + inspector source nudge with inaudible snap; the nudge fields take `m:ss.mmm` (or plain seconds); an untouched field sends its exact stored time; the inspector shows the reason once in words (codes in `edits/edit_reasons.py`, labels pinned by `tests/test_edit_reasons.py`), the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths)
-- `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks → History undo
+- `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks, or whose `params.per_track_source` seam clocks do not span the archived timeline hole (a cut across moved or gapped clips), → History undo
 - Inspector Seek / Play around footers (Current / Suggested / A/B on pending)
 
 **Restore limits:** audio/timeline restore only; hard transcript removes are not fully reversed (reconciliation may go stale). Multi-track `ripple_delete` log rows without `source_*` are not restorable this way.
