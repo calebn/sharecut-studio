@@ -10,7 +10,7 @@ export interface FileMeta {
 const DEFAULT_POLL_MS = 1500;
 
 /**
- * Poll a meta endpoint; call onChange when mtime (or size) changes.
+ * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.
  * First successful meta read only baselines — does not fire onChange.
  */
 export function useFileMetaPoll(
@@ -21,6 +21,7 @@ export function useFileMetaPoll(
 ): void {
   const mtimeRef = useRef<number | null>(null);
   const sizeRef = useRef<number | null | undefined>(null);
+  const seqRef = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const fetchMetaRef = useRef(fetchMeta);
@@ -49,10 +50,15 @@ export function useFileMetaPoll(
         const changed =
           mtimeRef.current !== null &&
           (meta.mtime_ns !== mtimeRef.current ||
-            (meta.size !== undefined && meta.size !== sizeRef.current));
+            (meta.size !== undefined && meta.size !== sizeRef.current) ||
+            (meta.server_seq !== undefined &&
+              meta.server_seq !== seqRef.current));
         mtimeRef.current = meta.mtime_ns;
         if (meta.size !== undefined) {
           sizeRef.current = meta.size;
+        }
+        if (meta.server_seq !== undefined) {
+          seqRef.current = meta.server_seq;
         }
         if (changed) {
           await onChangeRef.current(meta);
@@ -70,6 +76,7 @@ export function useFileMetaPoll(
         if (!cancelled && meta.exists !== false) {
           mtimeRef.current = meta.mtime_ns;
           sizeRef.current = meta.size;
+          seqRef.current = meta.server_seq;
         }
       })
       .catch(() => undefined);
