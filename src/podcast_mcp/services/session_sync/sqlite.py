@@ -8,15 +8,14 @@ import time
 from pathlib import Path
 
 from podcast_mcp.util.keyed_lock import KeyedLocks
-from podcast_mcp.util.sqlite_tx import is_sqlite_busy
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, is_sqlite_busy
 
 _WAL_INIT_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 _WAL_INIT_TIMEOUT_SEC = 10.0
 _WAL_INIT_RETRY_SEC = 0.05
-# sqlite3.connect's default busy timeout (5 s). The WAL switch runs with the busy
-# handler off (timeout=0) so the retry loop alone enforces _WAL_INIT_TIMEOUT_SEC;
-# this restores the default for the store's later writes.
-_BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"
+# The WAL switch runs with the busy handler off (timeout=0) so the retry loop alone
+# enforces _WAL_INIT_TIMEOUT_SEC; connect_session_db then restores
+# DEFAULT_BUSY_TIMEOUT_PRAGMA for the store's later writes.
 
 
 def _wal_init_key(db_path: Path) -> str:
@@ -76,7 +75,7 @@ def connect_session_db(db_path: Path) -> sqlite3.Connection:
         # WAL now persists on the file, so later opens only read journal_mode; drop
         # the lock so the registry does not grow with every sync.db this process opens.
         _WAL_INIT_LOCKS.discard_idle(_wal_init_key(db_path))
-        connection.execute(_BUSY_TIMEOUT_PRAGMA)
+        connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
     except Exception:
         connection.close()
         raise

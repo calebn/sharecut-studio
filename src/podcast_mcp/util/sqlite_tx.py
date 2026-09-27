@@ -1,4 +1,4 @@
-"""One ``BEGIN IMMEDIATE`` write-transaction helper for every sqlite store, and busy detection."""
+"""One ``BEGIN IMMEDIATE`` write-transaction helper for every sqlite store, busy detection, and the shared busy timeout."""
 
 from __future__ import annotations
 
@@ -8,6 +8,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 _BUSY_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
+
+# Busy timeout every sqlite store sets on its connection: wait up to 5 s for another
+# connection's write lock before raising SQLITE_BUSY (sqlite3.connect's default).
+DEFAULT_BUSY_TIMEOUT_PRAGMA = "PRAGMA busy_timeout=5000"
 
 
 def is_sqlite_busy(exc: BaseException) -> bool:

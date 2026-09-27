@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -116,7 +117,7 @@ class ShareIdentityStore:
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
+        self._conn.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
         with contextlib.suppress(OSError):  # pragma: no cover - platform may refuse chmod

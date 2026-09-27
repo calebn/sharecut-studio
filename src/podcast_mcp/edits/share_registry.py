@@ -23,7 +23,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from coolname import generate_slug
 
-from podcast_mcp.util.sqlite_tx import immediate_transaction
+from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, immediate_transaction
 
 # Invariant for agents / scale: public /r/{token} and /rec/{token} IDs must not
 # collide across hosts once a relay-owned registry exists. This flag documents
@@ -171,7 +171,7 @@ class SqliteShareRegistry:
         with self._lock:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA synchronous=NORMAL")
-            self._conn.execute("PRAGMA busy_timeout=5000")
+            self._conn.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
             self._conn.executescript(_SCHEMA)
             _ensure_columns(self._conn, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
         with contextlib.suppress(OSError):
