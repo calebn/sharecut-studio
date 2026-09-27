@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import itertools
+import json
+import logging
+import sqlite3
 import time
 from pathlib import Path
 from typing import Any
@@ -21,9 +24,9 @@ from podcast_mcp.services.session_sync.commands import (
 )
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import (
-    _STORE_CACHE,
     SyncStore,
     cached_sync_store,
+    cached_sync_store_if_exists,
 )
 from podcast_mcp.services.session_sync.presence_fanout import schedule as schedule_presence
 from podcast_mcp.services.session_sync.snapshot import (
@@ -33,6 +36,11 @@ from podcast_mcp.services.session_sync.snapshot import (
 )
 
 _SEQ = itertools.count(1)
+
+log = logging.getLogger(__name__)
+
+SYNC_META_READ_ERRORS: tuple[type[Exception], ...] = (OSError, sqlite3.DatabaseError)
+"""Errors the parse-free meta helpers treat as "store unavailable" (best-effort poll)."""
 
 
 def session_dir_for_workspace(workspace: Path) -> Path:
@@ -53,14 +61,9 @@ def sync_db_path(project: EpisodeProject) -> Path:
 
 def _store_at(path: Path, *, create: bool = False) -> SyncStore | None:
     """Return the store for ``path``. Does not create the file until ``create``."""
-    key = f"{path.resolve()}|"
-    store = _STORE_CACHE.get(key)
-    if store is not None:
-        return store
-    if not path.is_file() and not create:
-        return None
-    store = cached_sync_store(path, table_prefix="", enforce_command_ids=True)
-    return store
+    if create:
+        return cached_sync_store(path, table_prefix="", enforce_command_ids=True)
+    return cached_sync_store_if_exists(path, table_prefix="", enforce_command_ids=True)
 
 
 def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | None:
@@ -96,6 +99,31 @@ def _is_empty_authority(snap: dict[str, Any] | None) -> bool:
     return int(snap.get("server_seq") or 0) == 0 and snap.get("last_command_id") is None
 
 
+def _snapshot_size(snap: dict[str, Any]) -> int:
+    """Byte length of the serialized snapshot row: moves only on a durable commit."""
+    return len(json.dumps(snap, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+
+
+def _missing_session_meta(path: str) -> dict[str, Any]:
+    return {"path": path, "mtime_ns": 0, "size": 0, "exists": False, "server_seq": 0}
+
+
+def _read_session_meta(db_path: Path) -> dict[str, Any]:
+    path = str(db_path.resolve())
+    store = _store_at(db_path, create=False)
+    snap = store.get_snapshot() if store is not None else None
+    if _is_empty_authority(snap):
+        return _missing_session_meta(path)
+    assert snap is not None
+    return {
+        "path": path,
+        "mtime_ns": int(snap.get("updated_at_ns") or 0),
+        "size": _snapshot_size(snap),
+        "exists": True,
+        "server_seq": int(snap.get("server_seq") or 0),
+    }
+
+
 def session_meta_at(db_path: Path) -> dict[str, Any]:
     """Stat-and-one-row meta for the sync.db at ``db_path``. Never parses the project.
 
@@ -105,36 +133,32 @@ def session_meta_at(db_path: Path) -> dict[str, Any]:
     fire the poll (and so a state reload) on presence-only traffic. The snapshot's
     ``updated_at_ns`` changes only on a durable command commit
     (``append_and_apply`` / ``mutate_snapshot`` / ``reset``), which is what the
-    poll should react to. ``size`` stays the plain size of the main db file, so
-    the WAL/checkpoint behavior does not otherwise change this endpoint's shape.
+    poll should react to. ``size`` is the byte length of the serialized snapshot
+    row (not the file size), for the same reason: a WAL checkpoint that lands
+    presence-only writes grows the main file without a commit.
+
+    Read errors (``SYNC_META_READ_ERRORS``) report the missing meta, the same
+    policy as ``document_server_seq``. The caller must pass a path it has already
+    authorized; this helper does no authz.
     """
-    store = _store_at(db_path, create=False)
-    snap = store.get_snapshot() if store is not None else None
-    if _is_empty_authority(snap):
-        return {
-            "path": str(db_path.resolve()),
-            "mtime_ns": 0,
-            "size": 0,
-            "exists": False,
-            "server_seq": 0,
-        }
-    assert snap is not None
     try:
-        size = db_path.stat().st_size
-    except FileNotFoundError:
-        size = 0
-    return {
-        "path": str(db_path.resolve()),
-        "mtime_ns": int(snap.get("updated_at_ns") or 0),
-        "size": size,
-        "exists": True,
-        "server_seq": int(snap.get("server_seq") or 0),
-    }
+        return _read_session_meta(db_path)
+    except SYNC_META_READ_ERRORS:
+        log.debug("session meta unavailable for %s", db_path, exc_info=True)
+        return _missing_session_meta(str(db_path))
 
 
 def session_meta(project_path: str | Path) -> dict[str, Any]:
-    """Session meta for the project at ``project_path``, without parsing it."""
-    workspace = resolve_project_path(project_path).parent
+    """Session meta for the project at ``project_path``, without parsing it.
+
+    The caller must pass a project path it has already authorized (the GUI route
+    runs ``resolve_project`` + host auth first); this helper does no authz.
+    """
+    try:
+        workspace = resolve_project_path(project_path).parent
+    except OSError:
+        log.debug("session meta unavailable for %s", project_path, exc_info=True)
+        return _missing_session_meta(str(project_path))
     return session_meta_at(sync_db_path_for_workspace(workspace))
 
 

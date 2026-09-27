@@ -1432,10 +1432,11 @@ def project_meta(project_path: Path) -> dict[str, Any]:
 
 
 def session_file_meta(project_path: Path) -> dict[str, Any]:
-    """mtime/size of artifacts/session/sync.db (zeros if missing).
+    """Session poll meta for artifacts/session/sync.db (zeros if missing).
 
-    ``mtime_ns`` is the snapshot's ``updated_at_ns`` rather than a WAL-aware file
-    stat (see ``session_meta_at``). Parse-free: never opens/parses the project.
+    ``mtime_ns`` is the snapshot's ``updated_at_ns`` and ``size`` the serialized
+    snapshot's byte length, not file stats (see ``session_meta_at``). Parse-free:
+    never opens/parses the project.
     """
     from podcast_mcp.services.session_sync.service import session_meta
 

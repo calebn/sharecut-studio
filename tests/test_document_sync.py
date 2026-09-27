@@ -1945,6 +1945,19 @@ def test_document_server_seq_reuses_the_service_store(minimal_project):
     assert _store_at(db_path) is svc.store
 
 
+def test_document_server_seq_reads_the_cached_store_when_the_file_check_fails(
+    minimal_project, monkeypatch
+):
+    from pathlib import Path
+
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    monkeypatch.setattr(Path, "is_file", lambda self: False)
+    assert document_server_seq(minimal_project) == 1
+
+
 def test_a_handler_that_drops_the_saved_command_is_logged(minimal_project, caplog):
     from podcast_mcp.services.document_sync.handlers import HANDLERS
 

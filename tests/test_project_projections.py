@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
 from podcast_mcp.gui.assembler import (
@@ -359,7 +361,8 @@ def test_project_meta_includes_server_seq(minimal_project) -> None:
     assert res.json()["server_seq"] == 0
 
 
-def test_document_server_seq_oserror(tmp_path) -> None:
+@pytest.mark.parametrize("exc", [OSError("nope"), sqlite3.DatabaseError("malformed")])
+def test_document_server_seq_read_errors_return_zero(tmp_path, exc) -> None:
     from unittest.mock import patch
 
     from podcast_mcp.services.document_sync.service import document_server_seq
@@ -370,12 +373,22 @@ def test_document_server_seq_oserror(tmp_path) -> None:
     db_path.touch()
 
     with patch(
-        "podcast_mcp.services.document_sync.service._store_at",
-        side_effect=OSError("nope"),
+        "podcast_mcp.services.document_sync.service._existing_store_at",
+        side_effect=exc,
     ):
         assert document_server_seq(project_path) == 0
 
     assert document_server_seq("/missing.json") == 0
+
+
+def test_document_server_seq_path_resolution_error_returns_zero(monkeypatch) -> None:
+    from podcast_mcp.services.document_sync import service as document_service
+
+    def _boom(_path):
+        raise OSError("symlink loop")
+
+    monkeypatch.setattr(document_service, "resolve_project_path", _boom)
+    assert document_service.document_server_seq("/loop/episode.project.json") == 0
 
 
 def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:

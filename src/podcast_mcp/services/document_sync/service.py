@@ -22,15 +22,19 @@ from podcast_mcp.services.document_sync.projection_types import (
 )
 from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.log import SyncStore
-from podcast_mcp.services.session_sync.service import session_dir_for_workspace
+from podcast_mcp.services.session_sync.log import (
+    SyncStore,
+    cached_sync_store,
+    cached_sync_store_if_exists,
+)
+from podcast_mcp.services.session_sync.service import (
+    SYNC_META_READ_ERRORS,
+    session_dir_for_workspace,
+)
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
-
-_STORE_CACHE: dict[str, SyncStore] = {}
-_STORE_LOCK = threading.Lock()
 
 
 def document_db_path_for_workspace(workspace: Path) -> Path:
@@ -57,15 +61,13 @@ def document_submit_lock(project: EpisodeProject) -> threading.RLock:
 
 
 def _store_at(db_path: Path) -> SyncStore:
-    """Cached store for ``db_path``. Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
-    key = str(db_path.resolve())
-    with _STORE_LOCK:
-        store = _STORE_CACHE.get(key)
-        if store is not None:
-            return store
-        store = SyncStore(db_path)
-        _STORE_CACHE[key] = store
-        return store
+    """Cached store for ``db_path`` (creates it). Write to it only through ``DocumentSyncService.submit`` (project lock first)."""
+    return cached_sync_store(db_path)
+
+
+def _existing_store_at(db_path: Path) -> SyncStore | None:
+    """Cached store for ``db_path`` without creating document.db (meta reads)."""
+    return cached_sync_store_if_exists(db_path)
 
 
 def _store_for(project: EpisodeProject) -> SyncStore:
@@ -511,16 +513,19 @@ def notify_document_changed(project_path: str | Path) -> None:
 
 
 def document_server_seq(project_path: str | Path) -> int:
-    """Materialized document log seq, or 0 if the store is missing.
+    """Materialized document log seq, or 0 if the store is missing or unreadable.
 
     Stat + document.db read only: no project parse, never creates document.db.
+    Path resolution and store reads share one guard (``SYNC_META_READ_ERRORS``,
+    same policy as ``session_meta_at``). The caller must pass a project path it
+    has already authorized; this helper does no authz.
     """
-    db_path = document_db_path_for_workspace(resolve_project_path(project_path).parent)
     try:
-        if not db_path.is_file():
-            return 0
-        return _journal_server_seq(_store_at(db_path))
-    except OSError:
+        db_path = document_db_path_for_workspace(resolve_project_path(project_path).parent)
+        store = _existing_store_at(db_path)
+        return _journal_server_seq(store) if store is not None else 0
+    except SYNC_META_READ_ERRORS:
+        log.debug("document server_seq unavailable for %s", project_path, exc_info=True)
         return 0
 
 
