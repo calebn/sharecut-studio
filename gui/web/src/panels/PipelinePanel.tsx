@@ -458,6 +458,8 @@ export function PipelinePanel() {
       // replaced the patched config, so re-read the server once that write settles.
       const latest = persistRequest.peek();
       await lastPersist.current.catch(() => undefined);
+      // If that write failed, onParamChange's snapshot revert either already ran or is
+      // retired by the reload's begin() below, so the re-read deliberately wins.
       if (
         !analyzeRequest.isCurrent(token) ||
         !persistRequest.isCurrent(latest)

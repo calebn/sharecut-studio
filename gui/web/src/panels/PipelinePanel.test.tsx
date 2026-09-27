@@ -1172,6 +1172,64 @@ describe("PipelinePanel", () => {
     expect(startPipelineRun.mock.calls[0][1].config).toEqual(merged.config);
   });
 
+  it("re-reads the config and keeps the save error when a param PUT rejects during Analyze", async () => {
+    const user = userEvent.setup();
+    // A distinct value proves the pane shows the re-read, not onParamChange's snapshot revert.
+    const serverAfterReject = structuredClone(baseConfig);
+    serverAfterReject.config.balance.dialogue_lufs = -21;
+    serverAfterReject.config.master.integrated_lufs = -14;
+    loadPipelineConfig
+      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(structuredClone(serverAfterReject));
+    let resolveAnalyze!: (v: unknown) => void;
+    analyzePipeline.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAnalyze = r;
+        }),
+    );
+    let rejectPut!: (e: Error) => void;
+    putPipelineConfig.mockImplementationOnce(
+      () =>
+        new Promise((_r, reject) => {
+          rejectPut = reject;
+        }),
+    );
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    fireEvent.change(screen.getByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      resolveAnalyze({
+        proposed_config: serverAfterReject.config,
+        patches: { master: { integrated_lufs: -14 } },
+        reasons: [],
+        report_summary: { track_count: 0, reason_count: 0, tracks: [] },
+        applied: true,
+        config: serverAfterReject,
+      });
+    });
+    await act(async () => {
+      rejectPut(new Error("save failed"));
+    });
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-21);
+    });
+    expect(screen.getByText(/save failed/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+  });
+
   it("formatAnalyzeFields skips nulls and a given key", () => {
     expect(
       formatAnalyzeFields({ a: 1, b: null, c: [1, 2], d: "x" }, ["d"]),
