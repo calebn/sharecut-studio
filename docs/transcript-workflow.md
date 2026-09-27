@@ -145,7 +145,7 @@ hallucinations with `set_word_suppressed_tool`. If a track still loops, set
 `podcast transcribe` / `transcribe_track` read the same `transcribe.*` settings as
 `pipeline_run`: the project's staged working set (Studio Pipeline pane,
 `pipeline_set_config_tool`), or the shipped defaults when nothing is staged. The CLI has no
-working set, so it always uses the shipped defaults.
+working set, so it always uses the shipped defaults. Reading them never stages a working set for the project.
 
 **Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
 already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),

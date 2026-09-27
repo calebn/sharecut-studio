@@ -9,6 +9,7 @@ from typing import Any
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.effects.presets import resolve_presets
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
@@ -287,6 +288,11 @@ class PipelineConfigStore:
                 self._by_path[key] = ws
             return ws
 
+    def peek(self, project_path: Path | str) -> WorkingSet | None:
+        """The staged working set, or ``None`` when nothing is staged (never creates one)."""
+        with self._lock:
+            return self._by_path.get(self._key(project_path))
+
     def put(
         self,
         project_path: Path | str,
@@ -333,6 +339,15 @@ _STORE = PipelineConfigStore()
 
 def config_store() -> PipelineConfigStore:
     return _STORE
+
+
+def asr_options_for(project_path: Path | str) -> AsrOptions:
+    """ASR options ``pipeline_run`` would use: the staged working set, else shipped defaults.
+
+    Read-only: an unstaged project gets no working-set entry.
+    """
+    staged = config_store().peek(project_path)
+    return AsrOptions.from_defaults(staged.config if staged is not None else load_defaults())
 
 
 def build_config_payload(project_path: Path | str) -> dict[str, Any]:

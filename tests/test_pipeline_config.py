@@ -14,6 +14,7 @@ from podcast_mcp.pipeline.meta import (
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
 from podcast_mcp.services.pipeline_config import (
+    asr_options_for,
     config_store,
     deep_merge,
     default_enabled_steps,
@@ -645,3 +646,21 @@ def test_premix_peak_ceiling_default_is_defined_once() -> None:
     assert load_defaults()["mix"]["premix_peak_ceiling_db"] == DEFAULT_PREMIX_PEAK_CEILING_DB
     assert mix_peak_ceiling_db({}) == DEFAULT_PREMIX_PEAK_CEILING_DB
     assert mix_peak_ceiling_db({"mix": {"premix_peak_ceiling_db": -3}}) == -3.0
+
+def test_asr_options_for_unstaged_project_uses_defaults_without_staging(tmp_path):
+    proj = tmp_path / "ep.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    assert config_store().peek(proj) is None
+    opts = asr_options_for(proj)
+    assert opts.vad_enabled is True
+    assert config_store().peek(proj) is None
+
+
+def test_asr_options_for_reads_staged_config(tmp_path):
+    proj = tmp_path / "ep2.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    try:
+        config_store().put(proj, config={"transcribe": {"vad": {"enabled": False}}})
+        assert asr_options_for(proj).vad_enabled is False
+    finally:
+        config_store()._by_path.pop(config_store()._key(proj), None)
