@@ -37,7 +37,10 @@ const meta: Meta<typeof AppliedEditOverlay> = {
   title: "Templates/AppliedEditOverlay",
   component: AppliedEditOverlay,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    lanePreviewLabel: "Applied edit marker preview",
+  },
   decorators: [timelineLaneStoryDecorator],
   args: {
     records: [visible, selected],
@@ -56,6 +59,10 @@ type Story = StoryObj<typeof AppliedEditOverlay>;
 
 export const Visible: Story = {
   play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector("main")).toHaveAttribute(
+      "aria-label",
+      "Applied edit marker preview",
+    );
     const ticks = canvasElement.querySelectorAll(".applied-tick");
     await expect(ticks).toHaveLength(2);
     await expect(ticks[0]).toHaveStyle({ left: "80px", width: "40px" });
