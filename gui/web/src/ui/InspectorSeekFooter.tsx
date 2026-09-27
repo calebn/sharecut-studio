@@ -1,50 +1,28 @@
 import { useDaw } from "../state/useDaw";
-import type { PreviewMode } from "../utils/playRange";
 import {
   playAbRange,
   playSuggestedRange,
   playTimelineRange,
 } from "../utils/playRange";
-import { Button } from "./Button";
-import { SegmentedControl } from "./SegmentedControl";
-import { ToggleButton } from "./ToggleButton";
+import {
+  InspectorSeekFooterView,
+  type InspectorSeekFooterViewProps,
+} from "./InspectorSeekFooterView";
 
-type Props = {
+type Props = Omit<InspectorSeekFooterViewProps, "onSeek" | "onPlay"> & {
   seekSec: number;
   playStart: number;
   playEnd: number;
   padSec?: number;
-  seekLabel?: string;
-  playLabel?: string;
-  showPlay?: boolean;
-  previewMode?: PreviewMode;
-  onPreviewModeChange?: (mode: PreviewMode) => void;
-  suggestDisabled?: boolean;
-  suggestDisabledReason?: string | null;
-  /** Seek and play buttons: quiet links (default) or full buttons. */
-  actionVariant?: "link" | "default";
 };
 
-const PREVIEW_MODES: { id: PreviewMode; label: string }[] = [
-  { id: "current", label: "Current" },
-  { id: "suggested", label: "Suggested" },
-  { id: "ab", label: "A/B" },
-];
-
-/** Shared seek + play-around footer for modifier inspectors. */
+/** Live adapter over `InspectorSeekFooterView`. */
 export function InspectorSeekFooter({
   seekSec,
   playStart,
   playEnd,
   padSec,
-  seekLabel = "Seek",
-  playLabel = "Play around",
-  showPlay = true,
-  previewMode,
-  onPreviewModeChange,
-  suggestDisabled = false,
-  suggestDisabledReason,
-  actionVariant = "link",
+  ...view
 }: Props) {
   const { setPlayheadSec, setPlayUntilSec, setIsPlaying, beginAudition } =
     useDaw((s) => ({
@@ -55,8 +33,9 @@ export function InspectorSeekFooter({
     }));
 
   const play = () => {
-    const mode = previewMode ?? "current";
-    if (mode === "suggested" && !suggestDisabled) {
+    const mode = view.previewMode ?? "current";
+    const blocked = view.suggestDisabled ?? false;
+    if (mode === "suggested" && !blocked) {
       playSuggestedRange({
         skipStart: playStart,
         skipEnd: playEnd,
@@ -65,7 +44,7 @@ export function InspectorSeekFooter({
       });
       return;
     }
-    if (mode === "ab" && !suggestDisabled) {
+    if (mode === "ab" && !blocked) {
       playAbRange({
         skipStart: playStart,
         skipEnd: playEnd,
@@ -86,46 +65,10 @@ export function InspectorSeekFooter({
   };
 
   return (
-    <div className="modifier-footer-actions">
-      <Button variant={actionVariant} onClick={() => setPlayheadSec(seekSec)}>
-        {seekLabel}
-      </Button>
-      {showPlay ? (
-        <Button variant={actionVariant} onClick={play}>
-          {playLabel}
-        </Button>
-      ) : null}
-      {onPreviewModeChange && suggestDisabled && suggestDisabledReason ? (
-        <span id="preview-mode-skip-reason" className="sr-only">
-          {suggestDisabledReason}
-        </span>
-      ) : null}
-      {onPreviewModeChange ? (
-        <SegmentedControl label="Preview mode" className="preview-modes">
-          {PREVIEW_MODES.map((m) => {
-            const blocked = m.id !== "current" && suggestDisabled;
-            return (
-              <ToggleButton
-                key={m.id}
-                quiet
-                pressed={previewMode === m.id}
-                disabled={blocked}
-                title={
-                  blocked ? (suggestDisabledReason ?? undefined) : undefined
-                }
-                aria-describedby={
-                  blocked && suggestDisabledReason
-                    ? "preview-mode-skip-reason"
-                    : undefined
-                }
-                onClick={() => onPreviewModeChange(m.id)}
-              >
-                {m.label}
-              </ToggleButton>
-            );
-          })}
-        </SegmentedControl>
-      ) : null}
-    </div>
+    <InspectorSeekFooterView
+      {...view}
+      onSeek={() => setPlayheadSec(seekSec)}
+      onPlay={play}
+    />
   );
 }
