@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 
@@ -181,12 +182,37 @@ def _write_legacy(proj, dest):
     legacy.write_text(tr.model_dump_json(), encoding="utf-8")
 
 
+def test_cache_key_changes_with_decode_options(minimal_project, sample_wav, tmp_workspace):
+    proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
+    on = TranscriptionEngine(options=AsrOptions())
+    off = TranscriptionEngine(options=AsrOptions(vad_enabled=False))
+    loops = TranscriptionEngine(options=AsrOptions(condition_on_previous_text=False))
+    paths = {e.cache_path(proj, "host", dest) for e in (on, off, loops)}
+    assert len(paths) == 3
+    assert on.cache_path(proj, "host", dest) == TranscriptionEngine().cache_path(proj, "host", dest)
+
+
+def test_legacy_cache_ignored_with_non_default_decode_options(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from unittest.mock import patch
+
+    proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
+    _write_legacy(proj, dest)
+    engine = TranscriptionEngine()  # VAD on: legacy words were decoded without it
+    with patch.object(
+        engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
+    ) as asr:
+        engine.transcribe_all_dialogue(proj, language="en")
+    asr.assert_called_once()
+
+
 def test_legacy_cache_name_is_honoured_by_default(minimal_project, sample_wav, tmp_workspace):
     from unittest.mock import patch
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
-    engine = TranscriptionEngine()
+    engine = TranscriptionEngine(options=AsrOptions.faster_whisper_defaults())
     with patch.object(engine, "transcribe_file") as asr:
         out = engine.transcribe_all_dialogue(proj, language="en")
     asr.assert_not_called()

@@ -104,6 +104,42 @@ def test_transcribe_file_segment_without_words_and_with_prompt(sample_wav):
     assert mock_model.transcribe.call_args.kwargs["initial_prompt"] == "podcast glossary"
 
 
+def test_transcribe_file_passes_vad_and_decode_kwargs(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    engine = TranscriptionEngine()
+    model = MagicMock()
+    model.transcribe.return_value = ([], None)
+    with patch.object(engine, "_get_model", return_value=model):
+        engine.transcribe_file(sample_wav, language="en")
+    kw = model.transcribe.call_args.kwargs
+    assert kw["vad_filter"] is True
+    assert kw["vad_parameters"] == {
+        "threshold": 0.4,
+        "min_silence_duration_ms": 500,
+        "speech_pad_ms": 300,
+    }
+    assert kw["temperature"] == [0.0, 0.2, 0.4]
+    assert kw["hallucination_silence_threshold"] == 2.0
+    assert kw["condition_on_previous_text"] is True
+    assert "initial_prompt" not in kw and "hotwords" not in kw
+
+
+def test_transcribe_file_sends_prompt_as_hotwords_without_conditioning(sample_wav):
+    from unittest.mock import MagicMock, patch
+
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    engine = TranscriptionEngine(options=AsrOptions(condition_on_previous_text=False))
+    model = MagicMock()
+    model.transcribe.return_value = ([], None)
+    with patch.object(engine, "_get_model", return_value=model):
+        engine.transcribe_file(sample_wav, language="en", initial_prompt="glossary")
+    kw = model.transcribe.call_args.kwargs
+    assert kw["hotwords"] == "glossary"
+    assert "initial_prompt" not in kw
+
+
 def test_transcribe_track_not_found_raises(minimal_project):
     engine = TranscriptionEngine()
     proj = load_project(minimal_project)

@@ -912,10 +912,36 @@ def test_transcribe_tracks_honours_legacy_cache(minimal_project, sample_wav, tmp
         ).model_dump_json(),
         encoding="utf-8",
     )
+    defaults = load_defaults()
+    defaults["transcribe"]["vad"]["enabled"] = False
+    defaults["transcribe"]["decode"] = {
+        "temperature": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+        "hallucination_silence_threshold": None,
+    }
     with patch.object(Engine, "transcribe_file") as asr:
-        steps.transcribe_tracks(proj, load_defaults())
+        steps.transcribe_tracks(proj, defaults)
     asr.assert_not_called()
     assert proj.transcripts[0].words[0].text == "old"
+
+
+def test_transcribe_tracks_builds_engine_from_yaml_options(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    defaults["transcribe"]["vad"]["threshold"] = 0.25
+    seen: list[AsrOptions] = []
+
+    def fake(self, *a, **k):
+        seen.append(self.options)
+        return _asr_result()
+
+    with patch.object(Engine, "transcribe_file", fake):
+        steps.transcribe_tracks(proj, defaults)
+    assert seen and seen[0].vad_threshold == 0.25
 
 
 def test_transcribe_tracks_force_bypasses_asr_cache(minimal_project, sample_wav, tmp_workspace):

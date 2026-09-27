@@ -5,6 +5,7 @@ from pathlib import Path
 from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
 from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
 from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import write_combined_transcript_markdown
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -14,7 +15,9 @@ from podcast_mcp.whisper_models import resolve_whisper_model
 class TranscriptService:
     def __init__(self, workspace: ProjectWorkspace, *, model: str | None = None) -> None:
         self.ws = workspace
-        self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
+        self._engine = TranscriptionEngine(
+            resolve_whisper_model(requested=model), options=AsrOptions.from_defaults()
+        )
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
         def mutate(p) -> list[str]:

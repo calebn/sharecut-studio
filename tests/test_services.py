@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -241,7 +242,9 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
         TranscriptService(ws, model="base.en")
 
     resolve.assert_called_once_with(requested="base.en")
-    engine.assert_called_once_with("base.en")
+    engine.assert_called_once()
+    assert engine.call_args.args == ("base.en",)
+    assert engine.call_args.kwargs["options"] == AsrOptions.from_defaults()
 
 
 def test_transcript_service_export_subtitles(minimal_project):
