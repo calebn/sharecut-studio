@@ -139,7 +139,7 @@ class PipelineService:
             total=2,
             prefer_parent=True,
         ) as prog:
-            with render_lock(self.ws.project):
+            with render_lock(self.ws.project, cancel_check=cancel_check):
                 raise_if_cancelled()
                 prog.set_phase("master", "Preparing mastered WAV…")
                 mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)

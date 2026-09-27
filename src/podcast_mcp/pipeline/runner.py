@@ -40,6 +40,7 @@ from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_file_revision,
     project_state_lock,
+    render_cancel_scope,
     step_copy,
 )
 
@@ -242,6 +243,7 @@ class PipelineRunner:
 
         with (
             bind_progress(reporter),
+            render_cancel_scope(cancel_check),
             progress_task(
                 "pipeline",
                 "Pipeline",

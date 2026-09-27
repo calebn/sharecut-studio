@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -15,6 +16,7 @@ from filelock import Timeout
 
 from podcast_mcp.models import EpisodeProject, project_file_path
 from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.progress import CancelledProgress
 
 _registry_lock = Lock()
 _locks: dict[str, RLock] = {}
@@ -23,6 +25,7 @@ FileRevision = tuple[int, int, int, int]
 
 PROJECT_COMMIT_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_TIMEOUT_SEC = 3600.0
+RENDER_LOCK_POLL_SEC = 0.5
 
 log = logging.getLogger(__name__)
 _P = ParamSpec("_P")
@@ -32,6 +35,22 @@ _R = TypeVar("_R")
 _step_copy: ContextVar[tuple[EpisodeProject, EpisodeProject] | None] = ContextVar(
     "pipeline_step_copy", default=None
 )
+
+# Cancel callback for render_lock waits in this context (a pipeline run's cancel_check).
+_render_cancel_check: ContextVar[Callable[[], bool] | None] = ContextVar(
+    "render_cancel_check", default=None
+)
+
+
+class RenderBusyError(Timeout):
+    """Another render of this workspace held ``render_lock`` past the caller's timeout (#482).
+
+    A ``filelock.Timeout``, so adapters that map the project-lock timeout to a busy error
+    (``project_busy``) map this one the same way.
+    """
+
+    def __str__(self) -> str:
+        return "another render of this project is in progress; try again when it finishes"
 
 
 def _workspace_key(project: EpisodeProject) -> str:
@@ -132,23 +151,79 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
 
 
 @contextmanager
-def render_lock(project: EpisodeProject) -> Iterator[None]:
+def render_cancel_scope(cancel_check: Callable[[], bool] | None) -> Iterator[None]:
+    """Let ``render_lock`` waits in this context stop once ``cancel_check()`` is true."""
+    token = _render_cancel_check.set(cancel_check)
+    try:
+        yield
+    finally:
+        _render_cancel_check.reset(token)
+
+
+def render_lock_held(project: EpisodeProject) -> bool:
+    """Whether this thread holds ``render_lock(project)`` (the file lock is thread-local)."""
+    return shared_file_lock(render_lock_path(project), timeout=RENDER_LOCK_TIMEOUT_SEC).is_locked
+
+
+def _commit_lock_held(project: EpisodeProject) -> bool:
+    return shared_file_lock(
+        project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
+    ).is_locked
+
+
+@contextmanager
+def render_lock(
+    project: EpisodeProject,
+    *,
+    timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+    cancel_check: Callable[[], bool] | None = None,
+) -> Iterator[None]:
     """Serialize render writers of this workspace across threads and processes (#356, #482).
 
     Held around every write of ``artifacts/tracks/<id>.wav`` + ``.hash``, ``premix.wav`` +
     ``premix.hash`` and ``mastered.wav`` + ``mastered.hash`` (stem render, mix, master,
-    export, bleed-mute rewrite). Re-entrant per thread; stem worker threads of the holder
-    do not take it. Readers never take it. Lock order: take it before ``project_state_lock`` /
-    ``project_commit_lock``, never while holding them (unless this thread already holds it),
-    or a render that snapshots the project deadlocks against a mutation waiting for it.
-    Raises ``filelock.Timeout`` after ``RENDER_LOCK_TIMEOUT_SEC``.
+    export, bleed-mute rewrite, on-demand ``ensure_stem``). Re-entrant per thread. Stem
+    worker threads of the holder never take it: the file lock is thread-local, so a worker
+    would wait on its own parent. Readers never take it. Hash deletions that only make a
+    stem stale (``invalidate_stem_hashes`` inside an undo/redo transaction) run without it:
+    a publish racing one writes a hash naming its own snapshot, which freshness rejects
+    if the project moved.
+
+    Lock order: take it before ``project_state_lock`` / ``project_commit_lock``, never while
+    holding them (unless this thread already holds it). A first acquire while this thread
+    holds the commit lock raises ``RuntimeError`` instead of risking a deadlock.
+
+    Use ``@with_render_lock`` on functions whose first argument is the project (pipeline
+    steps, ``rerender_preview``), and ``with render_lock(project):`` in services, which
+    hold ``self.ws.project``.
+
+    Waits in ``RENDER_LOCK_POLL_SEC`` slices for up to ``timeout``. Between slices,
+    ``cancel_check`` (or the one set by ``render_cancel_scope``) returning true raises
+    ``CancelledProgress``. After ``timeout`` it raises ``RenderBusyError``.
     """
     lock = shared_file_lock(render_lock_path(project), timeout=RENDER_LOCK_TIMEOUT_SEC)
+    if not lock.is_locked and _commit_lock_held(project):
+        raise RuntimeError(
+            "render_lock taken while holding project_commit_lock; lock order is the render "
+            "lock, then the project locks (#482)"
+        )
+    check = cancel_check if cancel_check is not None else _render_cancel_check.get()
+    deadline = time.monotonic() + timeout
     try:
         lock.acquire(timeout=0)
     except Timeout:
         log.info("waiting for another render of %s", project.workspace_path())
-        lock.acquire(timeout=RENDER_LOCK_TIMEOUT_SEC)
+        while True:
+            if check is not None and check():
+                raise CancelledProgress("cancelled while waiting for another render") from None
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RenderBusyError(str(render_lock_path(project))) from None
+            try:
+                lock.acquire(timeout=min(RENDER_LOCK_POLL_SEC, remaining))
+                break
+            except Timeout:
+                continue
     try:
         yield
     finally:
@@ -158,7 +233,11 @@ def render_lock(project: EpisodeProject) -> Iterator[None]:
 def with_render_lock(
     fn: Callable[Concatenate[EpisodeProject, _P], _R],
 ) -> Callable[Concatenate[EpisodeProject, _P], _R]:
-    """Decorator: hold ``render_lock`` of the first argument (the project) around ``fn``."""
+    """Decorator: hold ``render_lock`` of the first argument (the project) around ``fn``.
+
+    For project-first functions (pipeline steps, ``rerender_preview``); services use
+    ``with render_lock(self.ws.project):``.
+    """
 
     @functools.wraps(fn)
     def wrapper(project: EpisodeProject, /, *args: _P.args, **kwargs: _P.kwargs) -> _R:
