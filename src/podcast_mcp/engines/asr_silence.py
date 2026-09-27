@@ -26,6 +26,7 @@ import numpy as np
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
+from podcast_mcp.util.hashing import sha256_head_tail
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
 log = logging.getLogger(__name__)
@@ -111,9 +112,14 @@ def silent_fraction(peaks: np.ndarray, *, peak_dbfs: float) -> float:
 
 
 @lru_cache(maxsize=64)
-def _cached_silent_fraction(path: str, revision: FileRevision, peak_dbfs: float) -> float:
-    """Decode ``path`` once per (``file_revision``, peak_dbfs); ``revision`` is only a cache key."""
-    del revision  # cache key only
+def _cached_silent_fraction(
+    path: str, revision: FileRevision, head_tail: str, peak_dbfs: float
+) -> float:
+    """Decode ``path`` once per (``file_revision``, head/tail digest, peak_dbfs).
+
+    ``revision`` and ``head_tail`` are only cache keys.
+    """
+    del revision, head_tail  # cache key only
     peaks, _rate = peak_envelope(Path(path))
     return silent_fraction(peaks, peak_dbfs=peak_dbfs)
 
@@ -121,18 +127,19 @@ def _cached_silent_fraction(path: str, revision: FileRevision, peak_dbfs: float)
 def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
     """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
 
-    Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime)
-    and ``peak_dbfs``, so a re-run Analyze (GUI button, MCP) does not decode an unchanged
-    file again. On filesystems with stable inode numbers an atomic replace misses the
-    cache. Where ``st_ino`` is 0 or unstable (some network mounts, some Windows setups), or
-    an inode is reused after delete and recreate, a replace that keeps size and mtime is
-    not detected, and neither is an in-place rewrite that keeps inode, size and mtime,
-    until the process restarts.
+    Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime),
+    a SHA-256 of the first and last 64 KiB (``util.hashing.sha256_head_tail``) and
+    ``peak_dbfs``, so a re-run Analyze (GUI button, MCP) does not decode an unchanged
+    file again. An atomic replace or in-place rewrite re-measures when it changes the
+    inode, size, mtime or either 64 KiB end; only a same-size edit confined to the middle
+    of the file that also keeps inode and mtime stays cached until the process restarts.
     ``None`` (a warning is logged) when the media cannot be read or decoded; failures
     are not cached.
     """
     try:
-        return _cached_silent_fraction(str(path.resolve()), file_revision(path), float(peak_dbfs))
+        return _cached_silent_fraction(
+            str(path.resolve()), file_revision(path), sha256_head_tail(path), float(peak_dbfs)
+        )
     except Exception as exc:
         log.warning("digital silence measure skipped for %s: %s", path, exc)
         return None

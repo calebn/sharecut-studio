@@ -196,6 +196,37 @@ def test_digital_silence_fraction_cache_misses_on_atomic_replace(monkeypatch, tm
     asr_silence._cached_silent_fraction.cache_clear()
 
 
+def test_digital_silence_fraction_cache_misses_on_in_place_rewrite(monkeypatch, tmp_path):
+    import os
+
+    from podcast_mcp.engines import asr_silence
+
+    asr_silence._cached_silent_fraction.cache_clear()
+    calls = []
+
+    def fake_envelope(path, **_k):
+        calls.append(path)
+        return np.array([0.0, 0.5], dtype=np.float32), 100.0
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", fake_envelope)
+    p = tmp_path / "a.wav"
+    p.write_bytes(b"x")
+    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    st = p.stat()
+    with p.open("r+b") as fh:  # same inode, same size
+        fh.write(b"y")
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))  # same mtime
+    after = p.stat()
+    assert (after.st_ino, after.st_size, after.st_mtime_ns) == (
+        st.st_ino,
+        st.st_size,
+        st.st_mtime_ns,
+    )
+    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    assert len(calls) == 2  # content digest changed -> cache miss
+    asr_silence._cached_silent_fraction.cache_clear()
+
+
 def test_digital_silence_fraction_missing_file(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         assert digital_silence_fraction(tmp_path / "nope.wav", peak_dbfs=-60.0) is None
