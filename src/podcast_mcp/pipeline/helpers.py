@@ -50,9 +50,13 @@ def replace_effect(
 ) -> list[ProcessingEffect]:
     """``effects`` with one ``new.effect`` entry: ``new`` in place of the first, later ones dropped.
 
-    The replaced entry keeps its position and ``bypass``. ``new`` is appended when the
-    chain has none. A pipeline step that owns an effect updates it on re-run instead of
-    stacking another copy.
+    Only for single-instance effects a pipeline step owns (e.g. ``compress_tracks``'s
+    ``acompressor``): every same-type entry anywhere in the chain collapses into one,
+    including user-authored ones. Do not use it for effect types that legitimately repeat
+    (several ``equalizer`` bands, an ``agate`` on both sides of another effect); those
+    extra instances would be deleted. The replaced entry keeps its position and
+    ``bypass``; ``new`` is appended when the chain has none. Pure: neither argument is
+    mutated.
     """
     slot = next((i for i, e in enumerate(effects) if e.effect == new.effect), None)
     if slot is None:
