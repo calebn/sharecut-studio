@@ -1432,7 +1432,7 @@ def test_host_ws_reattaches_when_record_session_changes(
 
 
 def test_host_ws_teardown_survives_record_disconnect_error(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, removed_session_clients
 ):
     import contextlib
     from urllib.parse import quote
@@ -1467,6 +1467,8 @@ def test_host_ws_teardown_survives_record_disconnect_error(
             _drain_until(host, lambda m: m.get("plane") == "record")
     hub = get_hub()
     assert disconnects == [HOST_PARTICIPANT_ID]
+    # remove_client runs in the inner finally even though disconnect raised.
+    assert removed_session_clients == ["host-lock"]
     assert len(spawned) >= 2  # session hub pump + record pump
     assert all(task.done() for task in spawned)
     assert hub.listener_count(str(ws.project.workspace_path())) == 0
