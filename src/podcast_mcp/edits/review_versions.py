@@ -33,7 +33,11 @@ from podcast_mcp.engines.play_audit import (
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
-from podcast_mcp.util.pinned_media import open_pinned_media
+from podcast_mcp.util.pinned_media import (
+    descriptor_walk_supported,
+    open_nofollow_dir,
+    open_pinned_media,
+)
 from podcast_mcp.util.project_state import project_commit_lock
 from podcast_mcp.util.workspace_paths import resolve_within
 
@@ -43,12 +47,10 @@ _REVIEW_MP3_BITRATE_KBPS = 128
 _STALE_MP3_TEMP_AGE_SECONDS = 24 * 60 * 60
 _STALE_MP3_TEMP_CLEANUP_LIMIT = 32
 _SAFE_STALE_CLEANUP_SUPPORTED = (
-    os.scandir in os.supports_fd
-    and os.open in os.supports_dir_fd
+    descriptor_walk_supported()
+    and os.scandir in os.supports_fd
     and os.stat in os.supports_dir_fd
     and os.unlink in os.supports_dir_fd
-    and hasattr(os, "O_DIRECTORY")
-    and hasattr(os, "O_NOFOLLOW")
 )
 _SAFE_FAILED_CLEANUP_SUPPORTED = (
     _SAFE_STALE_CLEANUP_SUPPORTED
@@ -111,7 +113,7 @@ def _release_stage_lease(identity: DirectoryIdentity) -> None:
 
 def _hash_stage_wav(staging_dir: Path, identity: DirectoryIdentity) -> tuple[str, MediaIdentity]:
     """Hash through a pinned no-follow fd outside the project commit lock."""
-    stage_fd = _open_pinned_dir(staging_dir)
+    stage_fd = open_nofollow_dir(staging_dir)
     try:
         if not _is_created_dir(os.fstat(stage_fd), identity):
             raise RuntimeError("review staging directory changed before hashing")
@@ -133,16 +135,11 @@ def _hash_stage_wav(staging_dir: Path, identity: DirectoryIdentity) -> tuple[str
         os.close(stage_fd)
 
 
-def _open_pinned_dir(path: str | Path, *, dir_fd: int | None = None) -> int:
-    """Open *path* as a no-follow directory descriptor (callers check platform support)."""
-    return os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dir_fd)
-
-
 def _created_dir_identity(version_dir: Path) -> DirectoryIdentity:
     """Record the identity through a pinned descriptor before media is written."""
-    root_fd = _open_pinned_dir(version_dir.parent)
+    root_fd = open_nofollow_dir(version_dir.parent)
     try:
-        staging_fd = _open_pinned_dir(version_dir.name, dir_fd=root_fd)
+        staging_fd = open_nofollow_dir(version_dir.name, dir_fd=root_fd)
         try:
             identity = _dir_identity(os.fstat(staging_fd))
             current = os.stat(version_dir.name, dir_fd=root_fd, follow_symlinks=False)
@@ -185,7 +182,7 @@ def promote_staged_version(
     """Publish complete media with one no-replace rename under the caller's commit lock."""
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
-    root_fd = _open_pinned_dir(staging_dir.parent)
+    root_fd = open_nofollow_dir(staging_dir.parent)
     try:
         root_stat = os.fstat(root_fd)
         if not _trusted_dir(root_stat):
@@ -194,7 +191,7 @@ def promote_staged_version(
         if not _is_created_dir(current, identity) or not _trusted_dir(current, private=True):
             raise RuntimeError("review staging directory changed before publication")
         _rename_noreplace(staging_dir.name, version_id, root_fd)
-        promoted_fd = _open_pinned_dir(version_id, dir_fd=root_fd)
+        promoted_fd = open_nofollow_dir(version_id, dir_fd=root_fd)
         try:
             promoted = os.fstat(promoted_fd)
             current = os.stat(version_id, dir_fd=root_fd, follow_symlinks=False)
@@ -338,9 +335,9 @@ def _clean_stale_mp3_temps(version_dir: Path) -> None:
     inspected = 0
     directory_fd = -1
     try:
-        directory_fd = _open_pinned_dir(version_dir.anchor)
+        directory_fd = open_nofollow_dir(version_dir.anchor)
         for component in version_dir.parts[1:]:
-            child_fd = _open_pinned_dir(component, dir_fd=directory_fd)
+            child_fd = open_nofollow_dir(component, dir_fd=directory_fd)
             os.close(directory_fd)
             directory_fd = child_fd
         with os.scandir(directory_fd) as entries:
@@ -389,7 +386,7 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
     quarantine: Path | None = None
     media_moved = False
     try:
-        root_fd = _open_pinned_dir(root)
+        root_fd = open_nofollow_dir(root)
         public = version_dir.name
         try:
             current = os.stat(public, dir_fd=root_fd, follow_symlinks=False)
@@ -402,7 +399,7 @@ def _clean_created_version_locked(version_dir: Path, identity: DirectoryIdentity
         quarantine_name = f"{_QUARANTINE_PREFIX}{uuid.uuid4().hex}"
         os.mkdir(quarantine_name, dir_fd=root_fd)
         quarantine = root / quarantine_name
-        quarantine_fd = _open_pinned_dir(quarantine_name, dir_fd=root_fd)
+        quarantine_fd = open_nofollow_dir(quarantine_name, dir_fd=root_fd)
         moved = _QUARANTINE_ENTRY
         marker = {"name": version_dir.name, "dev": identity[0], "ino": identity[1]}
         marker_fd = os.open(
@@ -495,7 +492,7 @@ def sweep_stale_quarantines(project: EpisodeProject) -> None:
     root = review_artifacts_dir(project)
     if not root.is_dir():
         return
-    root_fd = _open_pinned_dir(root.resolve(strict=True))
+    root_fd = open_nofollow_dir(root.resolve(strict=True))
     try:
         root_stat = os.fstat(root_fd)
         # An untrusted writer must not be able to forge cleanup authority.
@@ -510,7 +507,7 @@ def sweep_stale_quarantines(project: EpisodeProject) -> None:
                     continue
                 candidate_fd: int | None = None
                 try:
-                    candidate_fd = _open_pinned_dir(name, dir_fd=root_fd)
+                    candidate_fd = open_nofollow_dir(name, dir_fd=root_fd)
                     directory = os.fstat(candidate_fd)
                     if not _trusted_dir(directory):
                         continue
@@ -539,7 +536,7 @@ def sweep_stale_quarantines(project: EpisodeProject) -> None:
         for _, name in sorted(oldest, reverse=True):
             quarantine_fd: int | None = None
             try:
-                quarantine_fd = _open_pinned_dir(name, dir_fd=root_fd)
+                quarantine_fd = open_nofollow_dir(name, dir_fd=root_fd)
                 dir_stat = os.fstat(quarantine_fd)
                 current = os.stat(name, dir_fd=root_fd, follow_symlinks=False)
                 if not _is_created_dir(current, _dir_identity(dir_stat)) or not _trusted_dir(
@@ -593,7 +590,7 @@ def _clone_pinned_wav(source_fd: int, snapshot: Path) -> bool:
             clone = libc.fclonefileat
             clone.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32)
             clone.restype = ctypes.c_int
-            directory_fd = _open_pinned_dir(snapshot.parent)
+            directory_fd = open_nofollow_dir(snapshot.parent)
             try:
                 if clone(source_fd, directory_fd, os.fsencode(snapshot.name), 0) != 0:
                     raise OSError(ctypes.get_errno(), "fclonefileat failed")
@@ -689,7 +686,7 @@ def stage_version(
     review_root.mkdir(parents=True, exist_ok=True)
     resolved_root = review_root.resolve(strict=True)
     version_dir = resolved_root / f"{_STAGING_PREFIX}{uuid.uuid4().hex}"
-    root_fd = _open_pinned_dir(resolved_root)
+    root_fd = open_nofollow_dir(resolved_root)
     initial_identity: DirectoryIdentity
     stage_fd: int | None = None
     leased = False
@@ -699,7 +696,7 @@ def stage_version(
             raise PermissionError("review artifacts directory must be owned and private")
         os.mkdir(version_dir.name, 0o700, dir_fd=root_fd)
         made_stage = True
-        stage_fd = _open_pinned_dir(version_dir.name, dir_fd=root_fd)
+        stage_fd = open_nofollow_dir(version_dir.name, dir_fd=root_fd)
         os.fchmod(stage_fd, 0o700)
         if not _trusted_dir(os.fstat(stage_fd), private=True):
             raise PermissionError("review staging directory must be private")

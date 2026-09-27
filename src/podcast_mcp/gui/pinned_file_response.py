@@ -30,8 +30,13 @@ class PinnedFileResponse(FileResponse):
             raise
 
     def close(self) -> None:
-        """Release the pinned descriptor; safe to call more than once."""
-        self._source.close()
+        """Release the pinned descriptor once any in-flight read finishes; safe to call twice.
+
+        It does not run ``background``: when no response will stream (a 304 or a setup
+        failure), :func:`podcast_mcp.gui.audio.pinned_audio_response` releases it.
+        """
+        with self._read_lock:
+            self._source.close()
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         try:
@@ -42,10 +47,11 @@ class PinnedFileResponse(FileResponse):
                 await self._on_close()
 
     def _read_at(self, offset: int, length: int) -> bytes:
-        if hasattr(os, "pread"):
-            return os.pread(self._source.fileno(), length, offset)
-        with self._read_lock:  # Windows has no pread; serialize seek + read instead.
-            self._source.seek(offset)
+        # One lock covers both branches so close() never releases the descriptor mid-read.
+        with self._read_lock:
+            if hasattr(os, "pread"):
+                return os.pread(self._source.fileno(), length, offset)
+            self._source.seek(offset)  # Windows has no pread
             return self._source.read(length)
 
     async def _chunk(self, offset: int, length: int) -> bytes:

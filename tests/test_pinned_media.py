@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import inspect
 import os
 from pathlib import Path
@@ -15,7 +16,12 @@ from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.pinned_media import open_pinned_media
 
+posix_only = pytest.mark.skipif(
+    os.name == "nt", reason="descriptor walk and unlink-while-open are POSIX-only"
+)
 
+
+@posix_only
 def test_pinned_media_keeps_original_after_symlink_swap(tmp_path: Path) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"published")
@@ -29,6 +35,7 @@ def test_pinned_media_keeps_original_after_symlink_swap(tmp_path: Path) -> None:
         open_pinned_media(media)
 
 
+@posix_only
 def test_pinned_media_rejects_replaced_parent(tmp_path: Path) -> None:
     parent = tmp_path / "review"
     parent.mkdir()
@@ -40,6 +47,7 @@ def test_pinned_media_rejects_replaced_parent(tmp_path: Path) -> None:
         open_pinned_media(media)
 
 
+@posix_only
 @pytest.mark.anyio
 async def test_pinned_response_ranges_head_and_cleanup(tmp_path: Path) -> None:
     media = tmp_path / "mix.mp3"
@@ -88,8 +96,9 @@ def _no_descriptor_walk(monkeypatch: pytest.MonkeyPatch, how: str) -> None:
     if how == "dir_fd":
         monkeypatch.setattr(os, "supports_dir_fd", set())
     else:
-        monkeypatch.delattr(os, how)
-    assert not pinned_media._descriptor_walk_supported()
+        monkeypatch.delattr(os, how, raising=False)
+    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", True)
+    assert not pinned_media.descriptor_walk_supported()
 
 
 @pytest.mark.parametrize("how", ["dir_fd", "O_NOFOLLOW", "O_DIRECTORY"])
@@ -114,12 +123,14 @@ def test_fallback_rejects_links_directories_and_relative_paths(
     _no_descriptor_walk(monkeypatch, "dir_fd")
     with pytest.raises(ValueError, match="links"):
         open_pinned_media(tmp_path / "linked" / "mix.mp3")
-    with pytest.raises(OSError):  # O_NOFOLLOW still present: the open itself refuses
+    with pytest.raises((OSError, ValueError)):  # POSIX: O_NOFOLLOW refuses; Windows: lstat check
         open_pinned_media(tmp_path / "alias.mp3")
-    monkeypatch.delattr(os, "O_NOFOLLOW")  # Windows: only the lstat identity check remains
+    monkeypatch.delattr(
+        os, "O_NOFOLLOW", raising=False
+    )  # Windows: only the lstat identity check remains
     with pytest.raises(ValueError, match="regular"):
         open_pinned_media(tmp_path / "alias.mp3")
-    with pytest.raises(ValueError, match="regular"):
+    with pytest.raises((OSError, ValueError)):  # Windows refuses to open a directory
         open_pinned_media(real)
     with pytest.raises(ValueError, match="absolute"):
         open_pinned_media(Path("mix.mp3"))
@@ -145,25 +156,170 @@ def test_fallback_rejects_a_path_swapped_after_open(
 
 
 @pytest.mark.anyio
-async def test_response_reads_ranges_without_pread(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("without_pread", [False, True])
+@pytest.mark.parametrize(
+    ("method", "range_header", "status", "expected"),
+    [
+        ("GET", None, 200, [b"0123456789"]),
+        ("GET", b"bytes=2-4", 206, [b"234"]),
+        ("GET", b"bytes=0-1,5-6", 206, [b"01", b"56"]),
+        ("HEAD", None, 200, []),
+    ],
+)
+async def test_pinned_response_reads_only_the_descriptor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    without_pread: bool,
+    method: str,
+    range_header: bytes | None,
+    status: int,
+    expected: list[bytes],
 ) -> None:
+    """Every response shape reads the pinned descriptor and never opens the path."""
+    import anyio
+
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"0123456789")
-    monkeypatch.delattr(os, "pread")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    if without_pread:
+        monkeypatch.delattr(os, "pread", raising=False)
+        _no_descriptor_walk(monkeypatch, "dir_fd")
+
+    async def forbidden_open(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("FileResponse opened the path instead of the pinned descriptor")
+
+    monkeypatch.setattr(anyio, "open_file", forbidden_open)
     response = PinnedFileResponse(media)
+    response.chunk_size = 3  # several chunks per range exercise the shared seek position
     sent: list[dict] = []
 
     async def send(event: dict) -> None:
         sent.append(event)
 
-    await response(
-        {"type": "http", "method": "GET", "headers": [(b"range", b"bytes=2-4")]},
-        lambda: None,
-        send,
+    headers = [] if range_header is None else [(b"range", range_header)]
+    await response({"type": "http", "method": method, "headers": headers}, lambda: None, send)
+    assert sent[0]["status"] == status
+    body = b"".join(event.get("body", b"") for event in sent[1:])
+    if method == "HEAD":
+        assert body == b""
+    elif len(expected) == 1:
+        assert body == expected[0]
+    else:
+        assert all(part in body for part in expected)
+        assert b"multipart/byteranges" in dict(sent[0]["headers"])[b"content-type"]
+    assert response._source.closed
+
+
+def test_other_platforms_without_descriptor_walk_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    media = tmp_path / "mix.mp3"
+    media.write_bytes(b"published")
+    monkeypatch.setattr(os, "supports_dir_fd", set())
+    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", False)
+    with pytest.raises(OSError) as caught:
+        open_pinned_media(media)
+    assert caught.value.errno == errno.ENOTSUP
+
+
+@pytest.mark.parametrize("blind_link_check", [False, True])
+def test_fallback_rejects_a_parent_swapped_before_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blind_link_check: bool
+) -> None:
+    review = tmp_path / "review"
+    review.mkdir()
+    media = review / "mix.mp3"
+    media.write_bytes(b"published")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "mix.mp3").write_bytes(b"secret")
+    _no_descriptor_walk(monkeypatch, "dir_fd")
+    if blind_link_check:  # a link the link checks cannot see; realpath must still catch it
+        monkeypatch.setattr(pinned_media, "_is_link", lambda _path: False)
+    real_open = os.open
+
+    def swap_parent_then_open(path, flags, *args, **kwargs):
+        if Path(path) == media:
+            review.rename(tmp_path / "old-review")
+            review.symlink_to(outside, target_is_directory=True)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(pinned_media.os, "open", swap_parent_then_open)
+    with pytest.raises(ValueError, match="links"):
+        open_pinned_media(media)
+
+
+def test_fallback_refuses_unverifiable_file_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    media = tmp_path / "mix.mp3"
+    media.write_bytes(b"published")
+    _no_descriptor_walk(monkeypatch, "dir_fd")
+
+    def without_file_id(real):
+        def stat_without_file_id(target):
+            found = tuple(real(target))
+            return os.stat_result((found[0], 0, *found[2:]))
+
+        return stat_without_file_id
+
+    monkeypatch.setattr(pinned_media.os, "fstat", without_file_id(os.fstat))
+    monkeypatch.setattr(pinned_media.os, "lstat", without_file_id(os.lstat))
+    with pytest.raises(ValueError, match="unverifiable"):
+        open_pinned_media(media)
+
+
+def test_close_waits_for_an_in_flight_read(tmp_path: Path) -> None:
+    import threading
+
+    media = tmp_path / "mix.mp3"
+    media.write_bytes(b"0123456789")
+    response = PinnedFileResponse(media)
+    response._read_lock.acquire()  # a worker-thread read is in flight
+    closer = threading.Thread(target=response.close)
+    closer.start()
+    closer.join(0.2)
+    assert closer.is_alive() and not response._source.closed
+    response._read_lock.release()
+    closer.join(5)
+    assert response._source.closed
+    with pytest.raises(ValueError):  # never reads through a reused descriptor number
+        response._read_at(0, 1)
+
+
+def test_pinned_audio_response_releases_background_when_nothing_streams(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from starlette.requests import Request
+
+    from podcast_mcp.gui import audio
+
+    media = tmp_path / "mix.wav"
+    media.write_bytes(b"RIFF")
+    released: list[str] = []
+    first = audio.pinned_audio_response(media)
+    etag = first.headers["etag"]
+    first.close()
+    request = Request(
+        {"type": "http", "method": "GET", "headers": [(b"if-none-match", etag.encode())]}
     )
-    assert b"".join(event.get("body", b"") for event in sent) == b"234"
+    response = audio.pinned_audio_response(
+        media, request=request, background=BackgroundTask(released.append, "304")
+    )
+    assert response.status_code == 304
+    assert released == ["304"]
+    with pytest.raises(FileNotFoundError):
+        audio.pinned_audio_response(
+            tmp_path / "missing.wav", background=BackgroundTask(released.append, "missing")
+        )
+    assert released == ["304", "missing"]
+
+    def broken_headers(_st):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(audio, "audio_cache_headers", broken_headers)
+    with pytest.raises(RuntimeError):
+        audio.pinned_audio_response(media, background=BackgroundTask(released.append, "error"))
+    assert released == ["304", "missing", "error"]
 
 
 def test_close_is_public_and_idempotent(tmp_path: Path) -> None:

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from os import stat_result
 from pathlib import Path
+from typing import Any
 
 from fastapi import Request
 from fastapi.responses import Response
+from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.play import PlayService, TransportPath
@@ -61,30 +63,64 @@ def audio_cache_headers(st: stat_result) -> dict[str, str]:
     }
 
 
+def release_background(background: BackgroundTask | None) -> None:
+    """Run a synchronous *background* now, when no response will run it."""
+    if background is not None:
+        background.func(*background.args, **background.kwargs)
+
+
+def pinned_audio_response(
+    path: Path,
+    *,
+    request: Request | None = None,
+    cache: bool = True,
+    background: BackgroundTask | None = None,
+    **kwargs: Any,
+) -> PinnedFileResponse | Response:
+    """Pin *path* for streaming, with cache headers and an ``If-None-Match`` 304 when *cache*.
+
+    *background* (synchronous, such as an audio slot's ``exit``) runs once streaming ends.
+    When nothing will stream (the pin fails, a 304 is returned, or header setup raises),
+    the descriptor is closed and *background* is released here instead.
+    """
+    try:
+        response = PinnedFileResponse(path, background=background, **kwargs)
+    except BaseException:
+        release_background(background)
+        raise
+    not_modified: dict[str, str] | None = None
+    try:
+        if cache:
+            st = response.stat_result
+            assert st is not None  # PinnedFileResponse always passes the pinned fstat
+            headers = audio_cache_headers(st)
+            inm = request.headers.get("if-none-match") if request is not None else None
+            if inm is not None and headers["ETag"] in inm:
+                not_modified = headers
+            else:
+                response.headers.update(headers)
+    except BaseException:
+        response.close()
+        release_background(background)
+        raise
+    if not_modified is not None:
+        response.close()
+        release_background(background)
+        return Response(status_code=304, headers=not_modified)
+    return response
+
+
 def audio_file_response(
     path: Path,
     *,
     filename: str | None = None,
     request: Request | None = None,
 ) -> PinnedFileResponse | Response:
-    """Stream a file with Range + ETag so waveform byte ranges can be cached."""
-    response = PinnedFileResponse(
+    """Stream a WAV with Range + ETag so waveform byte ranges can be cached."""
+    return pinned_audio_response(
         path,
+        request=request,
         media_type="audio/wav",
         filename=filename or path.name,
         content_disposition_type="inline",
     )
-    try:
-        st = response.stat_result
-        assert st is not None
-        headers = audio_cache_headers(st)
-        if request is not None:
-            inm = request.headers.get("if-none-match")
-            if inm is not None and headers["ETag"] in inm:
-                response.close()
-                return Response(status_code=304, headers=headers)
-        response.headers.update(headers)
-    except BaseException:
-        response.close()
-        raise
-    return response
