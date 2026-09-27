@@ -1,4 +1,5 @@
 import { documentClientId } from "../utils/documentClient";
+import { jsonEqual } from "../utils/jsonEqual";
 
 /** Identity of the episode.project.json a document snapshot was built from (#657). */
 export type DocumentFileSignature = { mtime_ns: number; size: number };
@@ -76,16 +77,16 @@ function wireFile(value: unknown): DocumentFileSignature | null {
   return null;
 }
 
-/** mtime_ns exceeds 2^53; both sides round-trip through JSON.parse, so an exact
-match here means the same double on both ends, not a false collision from
-float rounding. */
+/** Exact field match. Epoch `mtime_ns` (~1.8e18) exceeds 2^53, so JSON.parse keeps
+it only to ~256 ns on both the socket and the meta path: the same file always
+matches, but two writes of equal `size` whose true mtimes fall within one ~256 ns
+step would match too. Saves are never that close, and `useFileMetaPoll` already
+compares mtime at this precision. */
 function sameFile(
   a: DocumentFileSignature | null,
   b: DocumentFileSignature | null,
 ): boolean {
-  return (
-    a !== null && b !== null && a.mtime_ns === b.mtime_ns && a.size === b.size
-  );
+  return a !== null && b !== null && jsonEqual(a, b);
 }
 
 /** Track the file identity this client has applied so far — from the document
