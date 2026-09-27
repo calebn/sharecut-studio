@@ -108,7 +108,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     isPlaying,
   });
 
-  useProjectPoll(projectPath, setProject);
   useDocumentSync(projectPath, project, setProject, syncEnabled);
   useSessionSync(
     projectPath,
@@ -121,7 +120,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     publishKey,
     syncEnabled,
   );
-  useGuestSync(
+  const guestWsReady = useGuestSync(
     projectPath,
     applyAgentSession,
     project,
@@ -129,6 +128,9 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setSessionClients,
     guestSyncEnabled,
   );
+  // Hosts always poll meta; guests only while their socket is live, since useGuestSync
+  // polls on its own while the socket is down (#657).
+  useProjectPoll(projectPath, setProject, syncEnabled || guestWsReady);
   usePointerType();
 
   useEffect(() => {

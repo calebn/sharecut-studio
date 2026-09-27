@@ -7,6 +7,7 @@ import {
 import {
   currentDocumentSeq,
   eventServerSeq,
+  noteDocumentFile,
   noteDocumentSeq,
   resetDocumentSeq,
   shouldApplyDocumentEvent,
@@ -58,7 +59,9 @@ const FALLBACK_POLL_MS = 1500;
 /**
  * Guest dual-plane WS: session + document fanout; guests may send Presence frames.
  * When the socket is down, HTTP project poll keeps document state fresh.
- * useProjectPoll remains an additional mtime safety net.
+ * Returns whether the guest socket is currently open, so DawApp can run
+ * useProjectPoll only while it is live (useGuestSync polls on its own while it
+ * is down), giving a guest one project poll at a time (#657).
  */
 export function useGuestSync(
   projectPath: string,
@@ -67,7 +70,7 @@ export function useGuestSync(
   _setProject: (project: ProjectView) => void,
   setSessionClients: (clients: NonNullable<SessionState["clients"]>) => void,
   enabled = true,
-): void {
+): boolean {
   const applyRef = useRef(applyAgentSession);
   applyRef.current = applyAgentSession;
   const setClientsRef = useRef(setSessionClients);
@@ -209,6 +212,7 @@ export function useGuestSync(
             return;
           }
           if (msg.plane === "document") {
+            noteDocumentFile(snap as DocumentSnapshot);
             const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
             if (
               !shouldApplyDocumentEvent({
@@ -289,4 +293,5 @@ export function useGuestSync(
     sendRef.current?.(frame);
   }, []);
   usePresencePublisher(wsReady ? sendPresence : null, guestName);
+  return wsReady;
 }
