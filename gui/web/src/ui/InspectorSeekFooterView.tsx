@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { PreviewMode } from "../utils/playRange";
 import { Button } from "./Button";
 import { SegmentedControl } from "./SegmentedControl";
@@ -41,6 +42,7 @@ export function InspectorSeekFooterView({
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
+  const reasonId = useId();
   return (
     <div className="modifier-footer-actions">
       <Button variant={actionVariant} onClick={onSeek}>
@@ -52,7 +54,7 @@ export function InspectorSeekFooterView({
         </Button>
       ) : null}
       {onPreviewModeChange && suggestDisabled && suggestDisabledReason ? (
-        <span id="preview-mode-skip-reason" className="sr-only">
+        <span id={reasonId} className="sr-only">
           {suggestDisabledReason}
         </span>
       ) : null}
@@ -70,9 +72,7 @@ export function InspectorSeekFooterView({
                   blocked ? (suggestDisabledReason ?? undefined) : undefined
                 }
                 aria-describedby={
-                  blocked && suggestDisabledReason
-                    ? "preview-mode-skip-reason"
-                    : undefined
+                  blocked && suggestDisabledReason ? reasonId : undefined
                 }
                 onClick={() => onPreviewModeChange(m.id)}
               >

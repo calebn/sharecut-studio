@@ -72,15 +72,37 @@ describe("InspectorSeekFooterView", () => {
     const ab = screen.getByRole("button", { name: "A/B" });
     expect(suggested).toBeDisabled();
     expect(ab).toBeDisabled();
-    expect(suggested).toHaveAttribute(
-      "aria-describedby",
-      "preview-mode-skip-reason",
-    );
-    expect(ab).toHaveAttribute("aria-describedby", "preview-mode-skip-reason");
+    const reasonEl = screen.getByText(reason);
+    expect(reasonEl.id).not.toBe("");
+    expect(suggested).toHaveAttribute("aria-describedby", reasonEl.id);
+    expect(ab).toHaveAttribute("aria-describedby", reasonEl.id);
     expect(suggested).toHaveAttribute("title", reason);
     expect(ab).toHaveAttribute("title", reason);
     expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
-    expect(screen.getByText(reason)).toBeInTheDocument();
+  });
+
+  it("gives each footer its own reason id", async () => {
+    const reason = "A split does not change the mix until you delete a side.";
+    const props: InspectorSeekFooterViewProps = {
+      onSeek: vi.fn(),
+      onPlay: vi.fn(),
+      previewMode: "current",
+      onPreviewModeChange: vi.fn(),
+      suggestDisabled: true,
+      suggestDisabledReason: reason,
+    };
+    const { container } = render(
+      <>
+        <InspectorSeekFooterView {...props} />
+        <InspectorSeekFooterView {...props} />
+      </>,
+    );
+    const [first, second] = screen.getAllByText(reason);
+    expect(first.id).not.toBe(second.id);
+    const suggested = screen.getAllByRole("button", { name: "Suggested" });
+    expect(suggested[0]).toHaveAttribute("aria-describedby", first.id);
+    expect(suggested[1]).toHaveAttribute("aria-describedby", second.id);
+    await expectNoA11yViolations(container);
   });
 
   it("omits the reason and preview group without onPreviewModeChange", () => {
@@ -94,20 +116,30 @@ describe("InspectorSeekFooterView", () => {
     );
     expect(screen.queryByRole("group")).toBeNull();
     expect(
-      document.getElementById("preview-mode-skip-reason"),
-    ).not.toBeInTheDocument();
+      screen.queryByText(
+        "A split does not change the mix until you delete a side.",
+      ),
+    ).toBeNull();
   });
 
-  it("switches action variant", () => {
+  it("switches action variant between quiet links and full buttons", () => {
     const props: InspectorSeekFooterViewProps = {
       onSeek: vi.fn(),
       onPlay: vi.fn(),
     };
     const { rerender } = render(<InspectorSeekFooterView {...props} />);
-    const link = screen.getByRole("button", { name: "Seek" }).className;
+    for (const name of ["Seek", "Play around"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveClass("linkish");
+      expect(button).not.toHaveClass("modifier-action");
+    }
     rerender(<InspectorSeekFooterView {...props} actionVariant="default" />);
-    expect(screen.getByRole("button", { name: "Seek" }).className).not.toBe(
-      link,
-    );
+    for (const name of ["Seek", "Play around"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).not.toHaveClass("linkish");
+      expect(button).toHaveClass("modifier-action");
+      expect(button).not.toHaveClass("primary");
+      expect(button).not.toHaveClass("danger");
+    }
   });
 });
