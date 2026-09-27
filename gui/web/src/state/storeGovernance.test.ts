@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
+import {
+  SRC_ROOT,
+  sourceFiles,
+  srcRelative,
+  walkTsFiles,
+} from "../test/sourceFiles";
 
 /**
  * Whole-store reads: `useDaw()` / `useDawStore()` with no selector, or with an
@@ -24,22 +29,167 @@ function wholeStoreReads(text: string): number {
 const HOT_FIELD_READ =
   /\bs\.(playheadSec|scrollLeft|sessionClients|pointerTrackId|bladeHoverSec)\b/g;
 
-/** The app root, shells and timeline rows: none may select a hot field. */
-const HOT_FIELD_FREE_FILES = [
-  "dawApp.tsx",
-  "layout/StudioShell.tsx",
-  "layout/MobileShell.tsx",
-  "timeline/TimelineView.tsx",
-  "timeline/TrackLane.tsx",
-  "timeline/ClipBlock.tsx",
-];
-
 function hotFieldReads(text: string): string[] {
   return [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
 }
 
 function isTestFile(rel: string): boolean {
   return /\.test\.[jt]sx?$/.test(rel);
+}
+
+type AllowEntry = { file: string; reason: string };
+
+/**
+ * Files allowed to read a hot field directly: leaves that isolate a hot
+ * field's own re-renders from their ancestors (playhead/scroll/presence/
+ * pointer ticks), and non-component code (command context, store slices,
+ * pure math) that legitimately reads current transport/presence state
+ * outside of React render. Every other file must select hot fields only
+ * through a memoized leaf like these.
+ */
+const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
+  {
+    file: "commands/context.ts",
+    reason: "builds the command ctx snapshot at execute time, not render",
+  },
+  {
+    file: "commands/editing.ts",
+    reason:
+      "falls back to the current playhead when a blade atTime arg is omitted",
+  },
+  {
+    file: "hooks/useAudioTransport.ts",
+    reason: "drives audio transport from the live playhead",
+  },
+  {
+    file: "hooks/useFollowTransport.ts",
+    reason:
+      "computes follow-mode transport targets from presence and the playhead",
+  },
+  {
+    file: "hooks/useFollowUi.ts",
+    reason: "derives follow-mode UI state from the presence roster",
+  },
+  {
+    file: "hooks/useFollowViewport.ts",
+    reason: "derives follow-mode viewport targets from the presence roster",
+  },
+  {
+    file: "hooks/useProxyTransport.ts",
+    reason: "mirrors the live playhead to a proxy transport",
+  },
+  {
+    file: "hooks/useSnapTicks.ts",
+    reason:
+      "computes snap ticks from the live playhead and blade hover position",
+  },
+  {
+    file: "layout/AvatarStack.tsx",
+    reason: "leaf that reads the presence roster itself",
+  },
+  {
+    file: "layout/FollowBanner.tsx",
+    reason: "leaf that reads the presence roster itself",
+  },
+  {
+    file: "layout/ListenPlayhead.tsx",
+    reason: "leaf that reads the live playhead itself",
+  },
+  {
+    file: "layout/PresenceStatus.tsx",
+    reason:
+      "leaf that reads the presence roster itself, isolating StatusBar from presence frames",
+  },
+  {
+    file: "layout/TransportTimecode.tsx",
+    reason:
+      "leaf that reads the live playhead itself, isolating the transport bar from playhead ticks",
+  },
+  {
+    file: "panels/TranscriptPanel.tsx",
+    reason: "follows the live playhead to auto-scroll the transcript",
+  },
+  {
+    file: "presence/PresenceGhostLayer.tsx",
+    reason: "leaf that reads the presence roster itself",
+  },
+  {
+    file: "presence/presenceSummary.ts",
+    reason: "selectAgentPresent reduces the presence roster to a boolean",
+  },
+  {
+    file: "presence/usePresenceCursorSource.ts",
+    reason: "publishes the local scroll position to presence",
+  },
+  {
+    file: "presence/usePresencePublisher.ts",
+    reason: "publishes the live playhead and scroll position to presence",
+  },
+  {
+    file: "state/presenceSlice.ts",
+    reason:
+      "the presence slice's own actions read the playhead/roster to publish state",
+  },
+  {
+    file: "state/storeMath.ts",
+    reason: "pure scroll/zoom math evaluated at the current scroll position",
+  },
+  {
+    file: "state/transportSlice.ts",
+    reason:
+      "the transport slice's own actions read and update the live playhead",
+  },
+  {
+    file: "timeline/CommentPlaybackBubble.tsx",
+    reason: "leaf that reads the live playhead itself",
+  },
+  {
+    file: "timeline/EnvelopeOverlay.tsx",
+    reason: "reads the current scroll position to draw only the visible chunk",
+  },
+  {
+    file: "timeline/Playhead.tsx",
+    reason: "leaf that reads the live playhead itself",
+  },
+  {
+    file: "timeline/PresenceOverlay.tsx",
+    reason: "leaf that reads the presence roster itself",
+  },
+  {
+    file: "timeline/TimeRuler.tsx",
+    reason: "leaf that reads the live playhead and scroll position itself",
+  },
+  {
+    file: "timeline/TimelineLeaves.tsx",
+    reason:
+      "small leaves that read the live playhead, scroll and blade hover themselves",
+  },
+  {
+    file: "timeline/WaveformLayer.tsx",
+    reason: "reads the current scroll position to draw only the visible chunk",
+  },
+  {
+    file: "timeline/followTarget.ts",
+    reason: "derives the follow target from the presence roster",
+  },
+];
+
+/** Files with a hot-field read outside `allow` (excluding test files). Pure, for a planted-fixture test and the whole-src scan. */
+function hotFieldOffenders(
+  files: Iterable<{ rel: string; text: string }>,
+  allow: readonly AllowEntry[],
+): string[] {
+  const allowed = new Set(allow.map((e) => e.file));
+  const offenders: string[] = [];
+  for (const { rel, text } of files) {
+    if (isTestFile(rel) || allowed.has(rel)) {
+      continue;
+    }
+    if (hotFieldReads(text).length > 0) {
+      offenders.push(rel);
+    }
+  }
+  return offenders;
 }
 
 describe("store governance", () => {
@@ -102,9 +252,32 @@ describe("store governance", () => {
     expect(hotFieldReads(text)).toEqual(expected);
   });
 
-  it.each(HOT_FIELD_FREE_FILES)("%s selects no hot store field", (rel) => {
-    const text = readFileSync(join(SRC_ROOT, rel), "utf8");
-    expect(hotFieldReads(text)).toEqual([]);
+  it("flags a hot-field read outside the allowlist", () => {
+    const files = [
+      { rel: "timeline/TrackLane.tsx", text: "s.playheadSec" },
+      { rel: "layout/TransportTimecode.tsx", text: "s.playheadSec" },
+      { rel: "layout/StatusBar.test.tsx", text: "s.sessionClients" },
+    ];
+    expect(hotFieldOffenders(files, HOT_FIELD_ALLOWLIST)).toEqual([
+      "timeline/TrackLane.tsx",
+    ]);
+  });
+
+  it("finds no hot-field read outside the allowlist in the real source tree", () => {
+    const offenders = hotFieldOffenders(sourceFiles(), HOT_FIELD_ALLOWLIST);
+    expect(offenders).toEqual([]);
+  });
+
+  it.each(HOT_FIELD_ALLOWLIST)(
+    "$file still reads a hot field (stale allowlist entry)",
+    ({ file }) => {
+      const text = readFileSync(join(SRC_ROOT, file), "utf8");
+      expect(hotFieldReads(text).length).toBeGreaterThan(0);
+    },
+  );
+
+  it.each(HOT_FIELD_ALLOWLIST)("$file has a non-empty reason", ({ reason }) => {
+    expect(reason.trim().length).toBeGreaterThan(0);
   });
 
   it("keeps the DAW store free of waveform modules", () => {

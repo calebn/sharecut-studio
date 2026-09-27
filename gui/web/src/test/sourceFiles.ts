@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,4 +36,13 @@ export function walkTsFiles(
 /** `file` relative to `SRC_ROOT` with forward slashes, e.g. `record/Declined.tsx`. */
 export function srcRelative(file: string): string {
   return relative(SRC_ROOT, file).replace(/\\/g, "/");
+}
+
+/** Every `.ts`/`.tsx` file under `dir`, as its `SRC_ROOT`-relative path and contents. */
+export function* sourceFiles(
+  dir: string = SRC_ROOT,
+): Generator<{ rel: string; text: string }> {
+  for (const file of walkTsFiles(dir)) {
+    yield { rel: srcRelative(file), text: readFileSync(file, "utf8") };
+  }
 }
