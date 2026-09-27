@@ -342,6 +342,30 @@ def _two_track_project() -> EpisodeProject:
     return p
 
 
+def test_approve_split_records_split_source_by_track():
+    proj = _two_track_project()
+    proj.edit_decisions = [
+        EditDecision(
+            id="s1",
+            track_id="host",
+            type=EditDecisionType.SPLIT,
+            start=4.0,
+            end=4.0,
+            track_ids=["host", "guest"],
+            reason="blade",
+        )
+    ]
+    approve_edits(proj, ["s1"])
+    from podcast_mcp.edits.edit_log import list_applied_edits
+
+    records = list_applied_edits(proj)
+    record = next(r for r in records if r.operation == "approve_split")
+    assert record.params["split_source_by_track"] == {
+        "host": pytest.approx(4.0),
+        "guest": pytest.approx(4.0),
+    }
+
+
 def test_apply_auto_edits_ripple_aligns_two_tracks():
     proj = _two_track_project()
     proj.edit_decisions = [

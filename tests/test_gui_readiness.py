@@ -92,14 +92,53 @@ def test_archive_decision_and_list_applied() -> None:
 
 
 def test_ripple_delete_archives_edit_log() -> None:
+    import pytest
+
     from podcast_mcp.edits.edit_log import list_applied_edits
 
     p = _project_with_two_clips()
-    ripple_delete(p, 1.0, 1.5)
+    ripple_delete(p, 1.0, 1.5, use_inaudible_opt=False)
     records = list_applied_edits(p)
     assert len(records) == 1
     assert records[0].operation == "ripple_delete"
     assert records[0].timeline_start == 1.0
+    assert records[0].params["per_track_source"] == {
+        "host": [pytest.approx(1.0), pytest.approx(1.5)]
+    }
+
+
+def test_punch_delete_archives_per_track_source() -> None:
+    import pytest
+
+    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.timeline_ops import punch_delete
+
+    p = _project_with_two_clips()
+    punch_delete(p, "host", 2.5, 3.0, use_inaudible_opt=False)
+    records = list_applied_edits(p, track_id="host")
+    assert len(records) == 1
+    assert records[0].params["per_track_source"]["host"] == [
+        pytest.approx(2.5),
+        pytest.approx(3.0),
+    ]
+
+
+def test_split_clips_at_records_split_source_by_track() -> None:
+    import pytest
+
+    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.timeline_ops import split_clips_at
+
+    p = _project_with_two_clips()
+    split_clips_at(p, 1.0, ["host"])
+    records = list_applied_edits(p, track_id="host")
+    assert records[-1].params["split_source_by_track"] == {"host": pytest.approx(1.0)}
+
+
+def test_source_envelope_by_track_skips_empty() -> None:
+    from podcast_mcp.edits.edit_log import source_envelope_by_track
+
+    assert source_envelope_by_track({"a": [(1.0, 2.0), (3.0, 4.0)], "b": []}) == {"a": [1.0, 4.0]}
 
 
 def test_history_diff_detects_clip_change() -> None:
