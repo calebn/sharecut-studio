@@ -1709,6 +1709,40 @@ def test_an_unknown_commit_outcome_does_not_keep_a_failed_command(minimal_projec
     assert [row["payload"]["body"] for row in _journal(svc)] == ["first", "second"]
 
 
+def test_an_unknown_commit_outcome_survives_a_failed_reread(minimal_project, caplog):
+    svc = DocumentSyncService.open(minimal_project)
+    assert svc.submit(_comment("first"))["ok"]
+    # commit_landed is None when the project file cannot be stat'ed; the re-read in
+    # discard_changes() then usually fails on the same stat.
+    with (
+        patch("podcast_mcp.services.document_sync.service.commit_landed", return_value=None),
+        patch.object(ProjectWorkspace, "reload", side_effect=OSError("stat failed")),
+        caplog.at_level(logging.WARNING, logger="podcast_mcp.services.document_sync.service"),
+        pytest.raises(DocumentConflictError),
+    ):
+        svc.submit(
+            DocumentCommand(
+                type="UpdateComment",
+                payload={"comment_id": "does-not-exist", "body": "nope"},
+                client_id="c1",
+                role="viewer",
+                client_seq=2,
+            )
+        )
+    assert any(
+        "Could not re-read the project after a failed document command" in r.getMessage()
+        for r in caplog.records
+    )
+    kept = svc.ws.project.document_sync.last_command
+    assert kept is not None
+    assert kept.payload.get("body") == "first"
+    # Once stat works again, the next submit adopts the saved file and never journals
+    # the failed command.
+    assert svc.submit(_comment("second", seq=3))["ok"]
+    assert [row["payload"]["body"] for row in _journal(svc)] == ["first", "second"]
+    assert [c.body for c in svc.ws.reload().comments] == ["first", "second"]
+
+
 def test_a_reset_journal_never_journals_an_old_record(minimal_project, caplog):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("a", seq=1, client_id="a"))
