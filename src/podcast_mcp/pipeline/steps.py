@@ -932,6 +932,21 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
     return ", ".join(parts)
 
 
+def export_qc_path(project: EpisodeProject) -> Path:
+    """Return the path of the export_qc.json sidecar for ``project``."""
+    return artifact(project, "export_qc.json")
+
+
+def read_export_qc(project: EpisodeProject) -> dict[str, Any] | None:
+    """Read export_qc.json for ``project``, or None if it is missing.
+
+    Raises ``ValueError`` if the file is present but unreadable or corrupt.
+    """
+    from podcast_mcp.util.atomic_json import load_json_object
+
+    return load_json_object(export_qc_path(project))
+
+
 def write_export_qc(
     project: EpisodeProject, *, defaults: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -981,6 +996,6 @@ def write_export_qc(
         "issues": issues,
         "ok": not issues,
     }
-    qc_path = artifact(project, "export_qc.json")
+    qc_path = export_qc_path(project)
     qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
     return qc

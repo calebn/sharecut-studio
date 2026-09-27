@@ -11,7 +11,7 @@ from podcast_mcp.services.history import (
     HistoryService,
 )
 from podcast_mcp.services.ingest import IngestService
-from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
 from podcast_mcp.services.play import PlayService
 from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.session_control import SessionControlService
@@ -38,6 +38,7 @@ __all__ = [
     "HistoryRerenderError",
     "HistoryService",
     "IngestService",
+    "PipelineRunResult",
     "PipelineService",
     "PlayService",
     "ProjectWorkspace",
