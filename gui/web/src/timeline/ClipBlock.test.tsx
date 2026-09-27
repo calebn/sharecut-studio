@@ -146,15 +146,37 @@ describe("ClipBlock waveform", () => {
     }
   });
 
-  it("hides fade regions and handles on a cut join", () => {
+  it("hides only the fades at a cut join and keeps trim and roll", () => {
     const faded = { ...clip, fade_in_ms: 20, fade_out_ms: 20 };
+    const prev = { ...clip, id: "c0" };
     const { container, rerender } = render(
-      <ClipBlock {...base} clip={faded} />,
+      <ClipBlock {...base} clip={faded} prevClip={prev} />,
     );
     expect(container.querySelectorAll(".fade-region")).toHaveLength(2);
-    rerender(<ClipBlock {...base} clip={{ ...faded, join_in_mode: "cut" }} />);
-    expect(container.querySelector(".fade-region")).toBeNull();
-    expect(container.querySelector(".fade-handle")).toBeNull();
+    // Incoming join is a cut: the fade-in goes, the fade-out stays.
+    rerender(
+      <ClipBlock
+        {...base}
+        clip={{ ...faded, join_in_mode: "cut" }}
+        prevClip={prev}
+      />,
+    );
+    expect(container.querySelector(".fade-in-region")).toBeNull();
+    expect(container.querySelector(".fade-out-region")).not.toBeNull();
+    expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
+    expect(container.querySelector("button.join-diamond")).not.toBeNull();
+    // Outgoing join is a cut: the fade-out goes, the fade-in stays.
+    rerender(
+      <ClipBlock
+        {...base}
+        clip={faded}
+        prevClip={prev}
+        nextClip={{ ...clip, id: "c2", join_in_mode: "cut" }}
+      />,
+    );
+    expect(container.querySelector(".fade-out-region")).toBeNull();
+    expect(container.querySelector(".fade-in-region")).not.toBeNull();
+    expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
   });
 
   describe("fade handle drags", () => {

@@ -16,15 +16,39 @@ const BLOCKED_REASON: Record<string, string> = {
   no_fade_in: "this clip has no fade-in",
 };
 
+/** True when render treats this clip's incoming join as a hard cut. */
+export function isCutJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
+  return clip.join_in_mode === "cut";
+}
+
+/** True when this clip's incoming join is set to crossfade (it may still be blocked). */
+export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
+  return clip.join_in_mode === "crossfade";
+}
+
+/** Why inspector fade inputs are ignored at cut joins, or null. */
+export function cutFadeHint(cutIn: boolean, cutOut: boolean): string | null {
+  if (cutIn && cutOut) {
+    return "Ignored: both joins are cuts";
+  }
+  if (cutIn) {
+    return "Fade in ignored: the join into this clip is a cut";
+  }
+  if (cutOut) {
+    return "Fade out ignored: the join after this clip is a cut";
+  }
+  return null;
+}
+
 /** One line on what render does at this clip's incoming join. */
 export function joinRenderNote(clip: ClipRow): string | null {
   if (clip.join_left_clip_id == null) {
     return null;
   }
-  if (clip.join_in_mode === "cut") {
-    return "Renders as a hard cut: fades on both clips are ignored.";
+  if (isCutJoin(clip)) {
+    return "Renders as a hard cut: the fades at this join are ignored.";
   }
-  if (clip.join_in_mode === "crossfade") {
+  if (isCrossfadeJoin(clip)) {
     if (clip.join_crossfade_blocked) {
       const why =
         BLOCKED_REASON[clip.join_crossfade_blocked] ??

@@ -24,6 +24,7 @@ import {
   ROLL_COMMIT_MIN_PX,
 } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
+import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -676,13 +677,15 @@ export function ClipBlockView({
   const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
   const moveTip = capabilityTooltip("daw.edit.moveClips");
-  // Render ignores both fades of a clip whose incoming join is a cut.
-  const isCut = clip.join_in_mode === "cut";
-  const showHandles = editable && interactive && !isCut;
+  // Render ignores the fades at a cut join: this clip's fade-in when its
+  // incoming join is a cut, its fade-out when the next clip's join is.
+  const cutIn = isCutJoin(clip);
+  const cutOut = nextClip != null && isCutJoin(nextClip);
+  const showHandles = editable && interactive;
 
   return (
     <div
-      className={`clip-block${selected ? " selected" : ""}${clip.join_in_mode === "crossfade" ? " join-crossfade" : ""}${fadePreview ? " fade-dragging" : ""}${trimPreview || rollActive ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
+      className={`clip-block${selected ? " selected" : ""}${isCrossfadeJoin(clip) ? " join-crossfade" : ""}${fadePreview ? " fade-dragging" : ""}${trimPreview || rollActive ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
       style={{ left, width, background: color }}
       aria-hidden={!interactive}
       title={
@@ -761,7 +764,7 @@ export function ClipBlockView({
           />
         </span>
       ) : null}
-      {!isCut && fadeInW > 0 && (
+      {!cutIn && fadeInW > 0 && (
         <span className="fade-region fade-in-region" style={{ width: fadeInW }}>
           {showHandles && (
             <button
@@ -776,7 +779,7 @@ export function ClipBlockView({
           )}
         </span>
       )}
-      {!isCut && fadeOutW > 0 && (
+      {!cutOut && fadeOutW > 0 && (
         <span
           className="fade-region fade-out-region"
           style={{ width: fadeOutW }}
@@ -799,7 +802,7 @@ export function ClipBlockView({
           {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
         </span>
       ) : null}
-      {showHandles && clip.fade_in_ms === 0 && (
+      {showHandles && !cutIn && clip.fade_in_ms === 0 && (
         <button
           type="button"
           className="fade-handle fade-handle-zero in"
@@ -810,7 +813,7 @@ export function ClipBlockView({
           onPointerUp={onDragUp}
         />
       )}
-      {showHandles && clip.fade_out_ms === 0 && (
+      {showHandles && !cutOut && clip.fade_out_ms === 0 && (
         <button
           type="button"
           className="fade-handle fade-handle-zero out"
