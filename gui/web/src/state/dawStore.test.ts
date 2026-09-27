@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
+import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
 import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 
@@ -533,4 +534,58 @@ describe("dawStore follow presence", () => {
       expect(agent.soloTracks).toEqual({ guest: true });
     },
   );
+});
+
+describe("lane height preference", () => {
+  afterEach(() => {
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+    localStorage.removeItem(LANE_HEIGHT_STORAGE_KEY);
+  });
+
+  it("defaults to fixed 104", () => {
+    expect(useDawStore.getInitialState().laneHeightMode).toBe("fixed");
+    expect(useDawStore.getInitialState().laneHeightPx).toBe(104);
+  });
+
+  it("toggles to fit and persists, then back to fixed with px unchanged", () => {
+    useDawStore.getState().toggleFitTracksHeight();
+    expect(useDawStore.getState().laneHeightMode).toBe("fit");
+    expect(
+      JSON.parse(localStorage.getItem(LANE_HEIGHT_STORAGE_KEY) ?? "{}"),
+    ).toEqual({
+      mode: "fit",
+      px: 104,
+    });
+
+    useDawStore.getState().toggleFitTracksHeight();
+    expect(useDawStore.getState().laneHeightMode).toBe("fixed");
+    expect(useDawStore.getState().laneHeightPx).toBe(104);
+  });
+
+  it("stepLaneHeight from fit switches to fixed and steps up", () => {
+    useDawStore.getState().toggleFitTracksHeight();
+    useDawStore.getState().stepLaneHeight("up");
+    const state = useDawStore.getState();
+    expect(state.laneHeightMode).toBe("fixed");
+    expect(state.laneHeightPx).toBe(144);
+    expect(
+      JSON.parse(localStorage.getItem(LANE_HEIGHT_STORAGE_KEY) ?? "{}"),
+    ).toEqual({
+      mode: "fixed",
+      px: 144,
+    });
+  });
+
+  it("stepLaneHeight down twice from 144 lands at 72", () => {
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 144 });
+    useDawStore.getState().stepLaneHeight("down");
+    useDawStore.getState().stepLaneHeight("down");
+    expect(useDawStore.getState().laneHeightPx).toBe(72);
+  });
+
+  it("hydrate does not reset the lane height preference", () => {
+    useDawStore.getState().toggleFitTracksHeight();
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    expect(useDawStore.getState().laneHeightMode).toBe("fit");
+  });
 });

@@ -10,6 +10,7 @@ import {
   fitLaneHeight,
   markerLaneHeight,
   markerRows,
+  resolveLaneHeight,
   useGestureStable,
 } from "./timelineMetrics";
 
@@ -72,6 +73,54 @@ describe("fitLaneHeight", () => {
     expect(fitLaneHeight(0, 2)).toBe(LANE_HEIGHT);
     expect(fitLaneHeight(-40, 2)).toBe(LANE_HEIGHT);
     expect(fitLaneHeight(500, 0)).toBe(LANE_HEIGHT);
+  });
+});
+
+describe("resolveLaneHeight", () => {
+  it("ignores stage size and track count in fixed mode", () => {
+    expect(
+      resolveLaneHeight({
+        mode: "fixed",
+        fixedPx: 104,
+        availablePx: 400,
+        trackCount: 2,
+      }),
+    ).toBe(104);
+    expect(
+      resolveLaneHeight({
+        mode: "fixed",
+        fixedPx: 500,
+        availablePx: 400,
+        trackCount: 2,
+      }),
+    ).toBe(240);
+    expect(
+      resolveLaneHeight({
+        mode: "fixed",
+        fixedPx: 10,
+        availablePx: 400,
+        trackCount: 2,
+      }),
+    ).toBe(72);
+  });
+
+  it("delegates to fitLaneHeight in fit mode", () => {
+    expect(
+      resolveLaneHeight({
+        mode: "fit",
+        fixedPx: 104,
+        availablePx: 400,
+        trackCount: 2,
+      }),
+    ).toBe(200);
+    expect(
+      resolveLaneHeight({
+        mode: "fit",
+        fixedPx: 104,
+        availablePx: 300,
+        trackCount: 10,
+      }),
+    ).toBe(LANE_HEIGHT);
   });
 });
 

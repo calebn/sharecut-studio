@@ -13,6 +13,10 @@ import type {
   TimelineComment,
 } from "../types/project";
 import {
+  clampLaneHeightPx,
+  type LaneHeightMode,
+} from "../utils/laneHeightPref";
+import {
   LANE_HEIGHT,
   MARKER_LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
@@ -97,7 +101,7 @@ export function useGestureStable<T>(live: T): {
 /**
  * Lane height that fills the stage when every track fits (between the
  * default lane and {@link MAX_FIT_LANE_HEIGHT}); the default when they don't,
- * so the lanes scroll.
+ * so the lanes scroll. Used only in fit mode — see {@link resolveLaneHeight}.
  */
 export function fitLaneHeight(available: number, trackCount: number): number {
   if (trackCount <= 0 || !Number.isFinite(available) || available <= 0) {
@@ -105,6 +109,21 @@ export function fitLaneHeight(available: number, trackCount: number): number {
   }
   const each = Math.floor(available / trackCount);
   return Math.max(LANE_HEIGHT, Math.min(MAX_FIT_LANE_HEIGHT, each));
+}
+
+/**
+ * Lane height for the current mode (#529): the saved fixed height, or the
+ * fitted height when "Fit tracks to window height" is on.
+ */
+export function resolveLaneHeight(input: {
+  mode: LaneHeightMode;
+  fixedPx: number;
+  availablePx: number;
+  trackCount: number;
+}): number {
+  return input.mode === "fit"
+    ? fitLaneHeight(input.availablePx, input.trackCount)
+    : clampLaneHeightPx(input.fixedPx);
 }
 
 export type MarkerRows = {

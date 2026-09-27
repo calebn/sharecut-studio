@@ -25,3 +25,13 @@ export const FIT_GUTTER = 48;
  * gain strip under it (`data-lane-density="compact"` on `.timeline-area`).
  */
 export const COMPACT_LANE_HEIGHT = 104;
+/** Default fixed lane height (#529): the smallest height with the full header layout. */
+export const DEFAULT_LANE_HEIGHT_PX = COMPACT_LANE_HEIGHT;
+/** Track-height step commands (Alt+= / Alt+-) walk these, LANE_HEIGHT..MAX_FIT_LANE_HEIGHT. */
+export const LANE_HEIGHT_STEPS: readonly number[] = [
+  LANE_HEIGHT,
+  DEFAULT_LANE_HEIGHT_PX,
+  144,
+  192,
+  MAX_FIT_LANE_HEIGHT,
+];
