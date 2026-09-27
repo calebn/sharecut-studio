@@ -32,6 +32,7 @@ my_episode/
 | `social` | Social clip candidates |
 | `review` | Timeline comments and action items (session-clock feedback) |
 | `history` | Undo/redo cursor and snapshot index |
+| `document_sync` | `last_command`: the document-plane command saved on the same commit as its apply, for crash recovery (#575, [session-sync.md § Command identity and retries](session-sync.md#command-identity-and-retries)). Not an editable layer; undo/redo never restore it |
 
 `history` is always an object: a project with no recorded snapshots saves an empty `ProjectHistory` (`{"cursor": -1, "entries": []}`), and a legacy `"history": null` loads as that empty history. An empty saved history adopts `history/index.json` only when the index's current entry matches the saved editable state ([history.md § Storage layout](history.md#storage-layout)). A track's optional `room_tone` and `proxy` are saved as `null` when absent; `schemas/episode.project.schema.json` accepts that, so a file written by `save_project` validates as-is.
 
