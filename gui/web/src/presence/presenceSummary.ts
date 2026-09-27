@@ -1,3 +1,4 @@
+import type { DawState } from "../state/types";
 import type { SessionClient } from "../types/session";
 import { plural } from "../utils/format";
 import { isGuestClientId, isLocalPresenceClient } from "./followSync";
@@ -48,4 +49,15 @@ export function presenceSummary(
   }
   const label = people.join(" + ");
   return agents > 0 ? `${label} · ${count(agents, "agent")}` : label;
+}
+
+/**
+ * True while an MCP agent is present in the session. A boolean selector, so
+ * a panel that only cares whether an agent is around re-renders on that flag
+ * flipping, not on every presence-frame roster change.
+ */
+export function selectAgentPresent(
+  s: Pick<DawState, "sessionClients">,
+): boolean {
+  return s.sessionClients.some((c) => c.role === "agent");
 }

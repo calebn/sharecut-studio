@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
-import { presenceSummary } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import { selectUnmappedPending } from "../utils/edits";
 import { pipelineChipOpensPanel } from "../utils/pipeline";
@@ -11,6 +10,7 @@ import {
 import { timelineCut } from "../utils/projectMedia";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
+import { PresenceStatus } from "./PresenceStatus";
 
 export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
   const {
@@ -20,8 +20,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityRunningCount,
     setActiveTab,
     shellBreakpoint,
-    sessionClients,
-    localClientId,
     highlightStaleRender,
     statusAnnouncement,
     announceStatus,
@@ -32,8 +30,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     activityRunningCount: s.activityRunningCount,
     setActiveTab: s.setActiveTab,
     shellBreakpoint: s.shellBreakpoint,
-    sessionClients: s.sessionClients,
-    localClientId: s.localClientId,
     highlightStaleRender: s.highlightStaleRender,
     statusAnnouncement: s.statusAnnouncement,
     announceStatus: s.announceStatus,
@@ -86,19 +82,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
 
   return (
     <footer className="status-bar">
-      {sessionClients.length > 0 && (
-        <span
-          className={narrow ? "status-bar-secondary" : undefined}
-          title={sessionClients
-            .map(
-              (c) =>
-                `${c.meta?.display_name || c.label || c.client_id} (${c.role})`,
-            )
-            .join(", ")}
-        >
-          Presence: {presenceSummary(sessionClients, localClientId)}
-        </span>
-      )}
+      <PresenceStatus narrow={narrow} />
       <button
         type="button"
         className="ui-control status-chip"

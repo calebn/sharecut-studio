@@ -7,6 +7,7 @@ import {
   startPipelineRun,
 } from "../api";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
+import { selectAgentPresent } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import type {
   PipelineAnalyzeReason,
@@ -207,7 +208,6 @@ export function PipelinePanel() {
     setPipelineJob,
     setActivityJob,
     setActiveTab,
-    sessionClients,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     pipelineJob: s.pipelineJob,
@@ -215,8 +215,8 @@ export function PipelinePanel() {
     setPipelineJob: s.setPipelineJob,
     setActivityJob: s.setActivityJob,
     setActiveTab: s.setActiveTab,
-    sessionClients: s.sessionClients,
   }));
+  const agentRecent = useDaw(selectAgentPresent);
   const [cfg, setCfg] = useState<PipelineConfigResponse | null>(null);
   const [whisperPending, setWhisperPending] =
     useState<WhisperDownloadRequest | null>(null);
@@ -246,7 +246,6 @@ export function PipelinePanel() {
   const pipelineRunning =
     isPipelineKindJob(pipelineJob) && isPipelineRunning(pipelineJob);
   const running = slotBusy;
-  const agentRecent = sessionClients.some((c) => c.role === "agent");
 
   useEffect(() => {
     let cancelled = false;

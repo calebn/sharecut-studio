@@ -6,6 +6,23 @@ import { DawProvider } from "../state/store";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
+// Delegates to the real hook; its call count is how many times StatusBar's
+// own function body ran (it is called unconditionally at the top).
+const breakdownCalls = vi.hoisted(() => vi.fn());
+vi.mock("../hooks/useStaleRenderBreakdown", async (importOriginal) => {
+  const mod =
+    await importOriginal<typeof import("../hooks/useStaleRenderBreakdown")>();
+  return {
+    ...mod,
+    useStaleRenderBreakdown: (
+      ...args: Parameters<typeof mod.useStaleRenderBreakdown>
+    ) => {
+      breakdownCalls();
+      return mod.useStaleRenderBreakdown(...args);
+    },
+  };
+});
+
 describe("StatusBar chips", () => {
   it("reveal their tab, restoring any layout that does not show it", async () => {
     const user = userEvent.setup();
@@ -450,6 +467,31 @@ describe("StatusBar live region", () => {
     });
     expect(chip.textContent).not.toContain("last update");
     expect(chip.querySelector(".pipeline-pulse")).toBeTruthy();
+  });
+
+  it("does not re-render on a presence frame; the presence chip still updates", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    breakdownCalls.mockClear();
+    act(() => {
+      useDawStore.setState({
+        localClientId: "h1",
+        sessionClients: [{ client_id: "h1", role: "viewer" }] as never,
+      });
+    });
+    act(() => {
+      useDawStore.setState({
+        sessionClients: [
+          { client_id: "h1", role: "viewer" },
+          { client_id: "guest-abcd1234-g1", role: "viewer" },
+        ] as never,
+      });
+    });
+    expect(breakdownCalls).not.toHaveBeenCalled();
+    expect(screen.getByText("Presence: You + 1 guest")).toBeTruthy();
   });
 
   it("uses presence display names in the roster title", () => {
