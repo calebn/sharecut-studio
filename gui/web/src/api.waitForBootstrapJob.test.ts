@@ -128,6 +128,31 @@ describe("waitForBootstrapJob", () => {
     await expect(p).rejects.toThrow(/Lost connection/);
   });
 
+  it("ignores a non-terminal onerror re-check while the stream is still open", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          job: { ...okJob("job-err-open"), status: "running" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const onUpdate = vi.fn();
+    const p = waitForBootstrapJob("job-err-open", { onUpdate });
+    const es = FakeEventSource.instances[0]!;
+    es.emitError();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onUpdate).not.toHaveBeenCalled();
+    es.emit({ type: "status", job: okJob("job-err-open") });
+    await expect(p).resolves.toMatchObject({
+      id: "job-err-open",
+      status: "ok",
+    });
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
   it("resolves from the slow status re-check when the open stream goes silent", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () => {
