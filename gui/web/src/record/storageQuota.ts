@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useMountedRef } from "../hooks/useMountedRef";
 import { KEEPER_BYTES_PER_SECOND } from "./keeper/pcm";
 import { STORAGE_UNKNOWN_COPY, storageLowCopy } from "./types";
 
@@ -82,13 +83,7 @@ export function useStorageHeadroom(): StorageHeadroomCheck {
   // Only the latest refresh may commit, and never after unmount: an older
   // estimate taken before keeper reclaim must not overwrite a newer one.
   const latest = useRef(0);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = useMountedRef();
   const refresh = useCallback(async () => {
     latest.current += 1;
     const request = latest.current;
@@ -107,7 +102,7 @@ export function useStorageHeadroom(): StorageHeadroomCheck {
     } catch {
       commit(assessStorageHeadroom());
     }
-  }, []);
+  }, [mounted]);
   useEffect(() => void refresh(), [refresh]);
   return { ...headroom, refresh };
 }
