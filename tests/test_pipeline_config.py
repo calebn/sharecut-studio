@@ -864,6 +864,7 @@ def test_parse_config_assignments_types_and_nesting() -> None:
         ]
         == []
     )
+    assert parse_config_assignments(['effects={"gate": []}']) == {"effects": {"gate": []}}
 
 
 @pytest.mark.parametrize(
@@ -876,6 +877,8 @@ def test_parse_config_assignments_types_and_nesting() -> None:
         "focus..enabled=1",
         "focus.enabled=[unclosed",
         "effects.gatee=[]",
+        'effects={"gatee": []}',
+        "effects=[]",
     ],
 )
 def test_parse_config_assignments_rejects(assignment: str) -> None:
