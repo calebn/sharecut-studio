@@ -47,6 +47,7 @@ from podcast_mcp.models.episode import (
     load_project,
     project_file_path,
     save_project,
+    workspace_artifacts_dir,
 )
 from podcast_mcp.models.history import (
     HistoryEntry,
@@ -106,4 +107,5 @@ __all__ = [
     "load_project",
     "project_file_path",
     "save_project",
+    "workspace_artifacts_dir",
 ]

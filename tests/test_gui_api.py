@@ -956,6 +956,46 @@ def test_api_session_meta_missing(minimal_project) -> None:
     assert data["mtime_ns"] == 0
 
 
+def test_api_session_meta_tracks_commits(minimal_project, monkeypatch) -> None:
+    import itertools
+
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import load_project
+    from podcast_mcp.services.session_sync import log as session_sync_log
+    from podcast_mcp.services.session_sync.viewer import publish_agent_play
+
+    ticker = itertools.count(10**18, 1000)
+    monkeypatch.setattr(session_sync_log.time, "time_ns", lambda: next(ticker))
+
+    proj = load_project(minimal_project)
+    publish_agent_play(
+        proj,
+        timeline_start_sec=0.0,
+        timeline_end_sec=1.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+    )
+    client = TestClient(create_app())
+    meta1 = client.get("/api/session/meta", params={"path": str(minimal_project)}).json()
+
+    publish_agent_play(
+        proj,
+        timeline_start_sec=1.0,
+        timeline_end_sec=2.0,
+        source="premix",
+        tier="premix",
+        dry_run=True,
+    )
+    meta2 = client.get("/api/session/meta", params={"path": str(minimal_project)}).json()
+
+    assert meta2["server_seq"] > meta1["server_seq"]
+    assert meta2["mtime_ns"] != meta1["mtime_ns"]
+
+
 def test_api_session_state_roundtrip(minimal_project) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
@@ -2184,6 +2224,10 @@ def test_project_meta_helper(minimal_project) -> None:
     meta = project_meta(minimal_project)
     assert meta["mtime_ns"] > 0
     assert meta["size"] > 0
+    assert meta["server_seq"] == 0
+
+    document_db = minimal_project.parent / "artifacts" / "session" / "document.db"
+    assert not document_db.exists()
 
 
 def test_resolve_viewer_audio_premix(tmp_path) -> None:

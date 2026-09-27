@@ -18,7 +18,9 @@ from podcast_mcp.services.session_sync.service import (
     SessionSyncService,
     next_client_seq,
     read_session_state,
+    session_meta,
     sync_db_path,
+    sync_db_path_for_workspace,
 )
 from podcast_mcp.services.session_sync.snapshot import (
     apply_command,
@@ -1961,6 +1963,99 @@ def test_session_meta_missing_and_present(minimal_project) -> None:
     meta2 = SessionSyncService.open(minimal_project).meta()
     assert meta2["exists"] is True
     assert meta2["mtime_ns"] > 0
+
+
+def test_sync_db_path_for_workspace_matches_project(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    assert sync_db_path_for_workspace(proj.workspace_path()) == sync_db_path(proj)
+
+
+def test_session_meta_does_not_parse_the_project(minimal_project, monkeypatch) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    r = svc.submit_control("SetPlayhead", {"playhead_sec": 1.0})
+
+    from podcast_mcp.project_store import ProjectStore
+
+    def _boom(self):
+        raise AssertionError("session_meta must not parse the project")
+
+    monkeypatch.setattr(ProjectStore, "load", _boom)
+
+    meta = session_meta(minimal_project)
+    assert meta["exists"] is True
+    assert meta["server_seq"] == r["server_seq"]
+
+    meta_from_dir = session_meta(minimal_project.parent)
+    assert meta_from_dir["server_seq"] == r["server_seq"]
+
+
+def test_session_meta_does_not_create_sync_db(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    db_path = sync_db_path(proj)
+    assert not db_path.exists()
+    meta = session_meta(minimal_project)
+    assert meta == {
+        "path": str(db_path.resolve()),
+        "mtime_ns": 0,
+        "size": 0,
+        "exists": False,
+        "server_seq": 0,
+    }
+    assert not db_path.exists()
+
+
+def test_session_meta_changes_on_every_durable_commit(minimal_project, monkeypatch) -> None:
+    import itertools
+
+    from podcast_mcp.services.session_sync import log as session_sync_log
+
+    ticker = itertools.count(10**18, 1000)
+    monkeypatch.setattr(session_sync_log.time, "time_ns", lambda: next(ticker))
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    r1 = svc.submit_control("SetPlayhead", {"playhead_sec": 1.0})
+    meta1 = session_meta(minimal_project)
+    r2 = svc.submit_control("SetPlayhead", {"playhead_sec": 2.0})
+    meta2 = session_meta(minimal_project)
+
+    assert meta2["mtime_ns"] != meta1["mtime_ns"]
+    assert meta2["server_seq"] == meta1["server_seq"] + 1
+    assert meta2["server_seq"] == r2["server_seq"]
+    assert meta1["server_seq"] == r1["server_seq"]
+    assert meta2["mtime_ns"] == svc.store.get_snapshot()["updated_at_ns"]
+
+
+def test_session_meta_ignores_presence_writes(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    svc.submit_control("SetPlayhead", {"playhead_sec": 1.0})
+    before = session_meta(minimal_project)
+
+    svc.submit(
+        SyncCommand(
+            type="PresenceHeartbeat",
+            payload={"label": "DAW", "playhead_sec": 1.0},
+            client_id="viewer-1",
+            role="viewer",
+            client_seq=next_client_seq(),
+        )
+    )
+    seq = before["server_seq"]
+    svc.submit(
+        SyncCommand(
+            type="Ack",
+            payload={"acked_server_seq": seq, "label": "DAW"},
+            client_id="viewer-1",
+            role="viewer",
+            client_seq=next_client_seq(),
+        )
+    )
+
+    after = session_meta(minimal_project)
+    assert after["mtime_ns"] == before["mtime_ns"]
+    assert after["server_seq"] == before["server_seq"]
 
 
 def test_session_control_seek_stop_mode(minimal_project) -> None:

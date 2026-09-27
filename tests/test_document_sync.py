@@ -1896,6 +1896,55 @@ def test_document_server_seq_matches_the_journal(minimal_project):
     assert document_server_seq(minimal_project) == 1
 
 
+def test_document_db_path_for_workspace_matches_project(minimal_project):
+    from podcast_mcp.services.document_sync.service import (
+        document_db_path,
+        document_db_path_for_workspace,
+    )
+
+    proj = load_project(minimal_project)
+    assert document_db_path_for_workspace(proj.workspace_path()) == document_db_path(proj)
+
+
+def test_document_server_seq_does_not_parse_the_project(minimal_project, monkeypatch):
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+
+    from podcast_mcp.project_store import ProjectStore
+
+    def _boom(self):
+        raise AssertionError("document_server_seq must not parse the project")
+
+    monkeypatch.setattr(ProjectStore, "load", _boom)
+
+    assert document_server_seq(minimal_project) == 1
+    assert document_server_seq(minimal_project.parent) == 1
+
+
+def test_document_server_seq_does_not_create_document_db(minimal_project):
+    from podcast_mcp.services.document_sync.service import (
+        document_db_path,
+        document_server_seq,
+    )
+
+    proj = load_project(minimal_project)
+    db_path = document_db_path(proj)
+    assert not db_path.exists()
+    assert document_server_seq(minimal_project) == 0
+    assert not db_path.exists()
+
+
+def test_document_server_seq_reuses_the_service_store(minimal_project):
+    from podcast_mcp.services.document_sync.service import _store_at, document_db_path
+
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    db_path = document_db_path(svc.project)
+    assert _store_at(db_path) is svc.store
+
+
 def test_a_handler_that_drops_the_saved_command_is_logged(minimal_project, caplog):
     from podcast_mcp.services.document_sync.handlers import HANDLERS
 

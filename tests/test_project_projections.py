@@ -359,16 +359,23 @@ def test_project_meta_includes_server_seq(minimal_project) -> None:
     assert res.json()["server_seq"] == 0
 
 
-def test_document_server_seq_oserror() -> None:
+def test_document_server_seq_oserror(tmp_path) -> None:
     from unittest.mock import patch
 
     from podcast_mcp.services.document_sync.service import document_server_seq
 
+    project_path = tmp_path / "episode.project.json"
+    db_path = tmp_path / "artifacts" / "session" / "document.db"
+    db_path.parent.mkdir(parents=True)
+    db_path.touch()
+
     with patch(
-        "podcast_mcp.services.document_sync.service.DocumentSyncService.open",
+        "podcast_mcp.services.document_sync.service._store_at",
         side_effect=OSError("nope"),
     ):
-        assert document_server_seq("/missing.json") == 0
+        assert document_server_seq(project_path) == 0
+
+    assert document_server_seq("/missing.json") == 0
 
 
 def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:

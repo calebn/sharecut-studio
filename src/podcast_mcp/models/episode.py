@@ -698,7 +698,7 @@ class EpisodeProject(BaseModel):
         return self.workspace_path() / "transcripts"
 
     def artifacts_dir(self) -> Path:
-        return self.workspace_path() / "artifacts"
+        return workspace_artifacts_dir(self.workspace_path())
 
     def export_dir(self) -> Path:
         return self.workspace_path() / "export"
@@ -731,6 +731,10 @@ class EpisodeProject(BaseModel):
 
 def project_file_path(workspace: Path) -> Path:
     return workspace / EPISODE_PROJECT_FILENAME
+
+
+def workspace_artifacts_dir(workspace: Path) -> Path:
+    return Path(workspace) / "artifacts"
 
 
 def load_project(path: Path) -> EpisodeProject:
