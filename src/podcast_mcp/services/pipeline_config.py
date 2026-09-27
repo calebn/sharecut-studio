@@ -431,24 +431,34 @@ def _track_evidence(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _dialogue_silence_fractions(project: Any, *, peak_dbfs: float) -> dict[str, tuple[Path, float]]:
-    """Digital-silence fraction of each dialogue track's source audio (skips missing/undecodable)."""
+def _dialogue_silence_fractions(
+    project: Any, *, peak_dbfs: float
+) -> tuple[dict[str, tuple[Path, float]], dict[str, str]]:
+    """Digital-silence fraction of each dialogue track's source audio.
+
+    Returns ``(measured, skipped)``: ``skipped`` maps a track id to why it was not
+    measured (``missing_audio`` or ``decode_failed``) so callers can report it.
+    """
     from podcast_mcp.engines.asr_silence import digital_silence_fraction
     from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-    out: dict[str, tuple[Path, float]] = {}
+    measured: dict[str, tuple[Path, float]] = {}
+    skipped: dict[str, str] = {}
     for tid in dialogue_track_ids(project):
         try:
             path = track_audio_path(project, tid)
         except ValueError:
+            skipped[tid] = "missing_audio"
             continue
         if not path.is_file():
+            skipped[tid] = "missing_audio"
             continue
         frac = digital_silence_fraction(path, peak_dbfs=peak_dbfs)
         if frac is None:
+            skipped[tid] = "decode_failed"
             continue
-        out[tid] = (path, frac)
-    return out
+        measured[tid] = (path, frac)
+    return measured, skipped
 
 
 def suggest_pipeline_tuning(
@@ -579,7 +589,11 @@ def suggest_pipeline_tuning(
         )
 
     asr = AsrOptions.from_defaults(base)
-    silence = _dialogue_silence_fractions(project, peak_dbfs=asr.silence_peak_dbfs)
+    silence, silence_skipped = _dialogue_silence_fractions(project, peak_dbfs=asr.silence_peak_dbfs)
+    for tid, why in silence_skipped.items():
+        row = track_rows.setdefault(tid, {"track_id": tid})
+        row["digital_silence_fraction"] = None
+        row["digital_silence_skipped"] = why
     for tid, (path, frac) in silence.items():
         track_rows.setdefault(tid, {"track_id": tid})["digital_silence_fraction"] = round(frac, 3)
         if frac >= DIGITAL_SILENCE_VAD_FRACTION:

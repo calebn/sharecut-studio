@@ -164,7 +164,14 @@ def test_pipeline_analyze_prints_evidence_and_proposal(tmp_path):
         "report_summary": {
             "track_count": 1,
             "reason_count": 2,
-            "tracks": [{"track_id": "host", "digital_silence_fraction": 0.85}],
+            "tracks": [
+                {"track_id": "host", "digital_silence_fraction": 0.85},
+                {
+                    "track_id": "guest",
+                    "digital_silence_fraction": None,
+                    "digital_silence_skipped": "decode_failed",
+                },
+            ],
         },
     }
     with patch(
@@ -186,6 +193,7 @@ def test_pipeline_analyze_prints_evidence_and_proposal(tmp_path):
     assert "silent_fraction=0.85" in result.stdout
     assert "suggest: --skip align_tracks" in result.stdout
     assert "track host:" in result.stdout
+    assert "track guest: digital_silence_skipped=decode_failed" in result.stdout
     assert "--set transcribe.vad.enabled=true" in result.stdout
     base_config = mock_suggest.call_args.kwargs["base_config"]
     assert base_config["focus"]["enabled"] is True
