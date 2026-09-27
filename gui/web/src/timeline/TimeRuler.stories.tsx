@@ -76,8 +76,7 @@ export const CommentAnchor: Story = {
       "Click for instant comment, drag for a span",
     );
     await expect(slider).toHaveAttribute("aria-valuenow", "5");
-    await expect(slider.querySelector(".playhead")).toHaveStyle({
-      transform: "translateX(120px)",
-    });
+    const needle = slider.querySelector<HTMLElement>(".playhead");
+    await expect(needle?.style.transform).toBe("translateX(120px)");
   },
 };
