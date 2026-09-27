@@ -26,6 +26,7 @@ import numpy as np
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
+from podcast_mcp.util.project_state import FileRevision, file_revision
 
 log = logging.getLogger(__name__)
 
@@ -110,9 +111,9 @@ def silent_fraction(peaks: np.ndarray, *, peak_dbfs: float) -> float:
 
 
 @lru_cache(maxsize=64)
-def _cached_silent_fraction(path: str, size: int, mtime_ns: int, peak_dbfs: float) -> float:
-    """Decode ``path`` once per (size, mtime_ns, peak_dbfs); size/mtime key the file version."""
-    del size, mtime_ns  # cache key only
+def _cached_silent_fraction(path: str, revision: FileRevision, peak_dbfs: float) -> float:
+    """Decode ``path`` once per (``file_revision``, peak_dbfs); ``revision`` is only a cache key."""
+    del revision  # cache key only
     peaks, _rate = peak_envelope(Path(path))
     return silent_fraction(peaks, peak_dbfs=peak_dbfs)
 
@@ -120,16 +121,15 @@ def _cached_silent_fraction(path: str, size: int, mtime_ns: int, peak_dbfs: floa
 def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
     """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
 
-    Cached in-process per file version (path, size, mtime) and ``peak_dbfs``, so a
-    re-run Analyze (GUI button, MCP) does not decode an unchanged file again.
+    Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime)
+    and ``peak_dbfs``, so a re-run Analyze (GUI button, MCP) does not decode an unchanged
+    file again; an atomic replace misses the cache. An in-place rewrite that keeps inode,
+    size and mtime is not detected until the process restarts.
     ``None`` (a warning is logged) when the media cannot be read or decoded; failures
     are not cached.
     """
     try:
-        st = path.stat()
-        return _cached_silent_fraction(
-            str(path.resolve()), st.st_size, st.st_mtime_ns, float(peak_dbfs)
-        )
+        return _cached_silent_fraction(str(path.resolve()), file_revision(path), float(peak_dbfs))
     except Exception as exc:
         log.warning("digital silence measure skipped for %s: %s", path, exc)
         return None
