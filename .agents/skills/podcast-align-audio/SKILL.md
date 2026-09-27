@@ -24,7 +24,7 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 
 | Step | Who | Behavior |
 |------|-----|----------|
-| `align_tracks` | Deterministic scorer | Locks first (`hold` when every dialogue stem is equal length, manifest `manual`); bleed phrase Δt when at least 5 weighted matches agree; moves above `align.large_move_sec` need waveform confirmation else `unconfirmed_hold`; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); N speakers; whole-file clips only |
+| `align_tracks` | Deterministic scorer | Locks first (`hold` when every dialogue stem is equal length, manifest `manual`); bleed phrase Δt when at least 5 weighted matches agree; moves above `align.large_move_sec` need waveform confirmation else `unconfirmed_hold`; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); N speakers; whole-file clips re-placed, split/trimmed tracks slip source by the delta (edit points kept; ambiguous → track skipped with `skipped_reason`) |
 | `require_align_accept` | Gate | Blocks until done/waived; `--unattended` auto-waives small moves when `align.accept.mode=waive_unattended` but stops on any move above `align.large_move_sec` |
 
 ### Gate (interactive / MCP)

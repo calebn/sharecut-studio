@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.conversation_align import (
+    REFERENCE_METHOD,
     AcousticOffset,
     AlignResult,
     ClipAlignPlan,
@@ -32,6 +33,7 @@ from podcast_mcp.edits.conversation_align import (
     snapshot_clip_geometry,
     write_alignment_artifact,
 )
+from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
 from podcast_mcp.engines.transcript_align import WordToken
 from podcast_mcp.models import (
     Clip,
@@ -1353,6 +1355,309 @@ def test_is_common_ngram_and_weighted_median() -> None:
 
 
 _LONG = 1689.58
+_BLADE = 1045.55
+
+
+def _bladed_project(tmp_path: Path) -> EpisodeProject:
+    """Host + guest, both bladed at ``_BLADE`` into two whole-lane-media pieces."""
+    p = EpisodeProject(meta=ProjectMeta(name="bladed", workspace_dir=str(tmp_path)))
+    for tid in ("host", "guest"):
+        p.tracks.append(
+            Track(
+                id=tid,
+                label=tid.title(),
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=_LONG),
+            )
+        )
+    p.clips = [
+        Clip(id="host_a", track_id="host", source_start=0.0, source_end=_BLADE, timeline_start=0.0),
+        Clip(
+            id="host_b",
+            track_id="host",
+            source_start=_BLADE,
+            source_end=_LONG,
+            timeline_start=_BLADE,
+        ),
+        Clip(
+            id="guest_a", track_id="guest", source_start=0.0, source_end=_BLADE, timeline_start=0.0
+        ),
+        Clip(
+            id="guest_b",
+            track_id="guest",
+            source_start=_BLADE,
+            source_end=_LONG,
+            timeline_start=_BLADE,
+        ),
+    ]
+    return p
+
+
+def _plans(offset: float, method: str = "bleed") -> AlignResult:
+    return AlignResult(
+        reference_track_id="host",
+        plans=[
+            ClipAlignPlan(
+                track_id="host", clip_id="host_a", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(
+                track_id="host", clip_id="host_b", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=offset, method=method),
+            ClipAlignPlan(track_id="guest", clip_id="guest_b", offset_sec=offset, method=method),
+        ],
+    )
+
+
+@pytest.mark.parametrize("off", [-0.18, -35.6])
+def test_split_track_negative_offset_slips_source(tmp_path: Path, off: float) -> None:
+    proj = _bladed_project(tmp_path)
+    apply_alignment_plans(proj, _plans(off))
+    guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
+    assert len(guest) == 2
+    assert same_source_timeline_overlaps(proj) == []
+    assert guest["guest_a"].timeline_start == pytest.approx(0.0)
+    assert guest["guest_b"].timeline_start == pytest.approx(_BLADE)
+    assert (guest["guest_a"].source_start, guest["guest_a"].source_end) == pytest.approx(
+        (-off, _BLADE - off)
+    )
+    assert (guest["guest_b"].source_start, guest["guest_b"].source_end) == pytest.approx(
+        (_BLADE - off, _LONG)
+    )
+    assert guest["guest_a"].source_end == pytest.approx(guest["guest_b"].source_start)
+    host = {c.id: c for c in proj.clips if c.track_id == "host"}
+    assert (
+        host["host_a"].source_start,
+        host["host_a"].source_end,
+        host["host_a"].timeline_start,
+    ) == (0.0, _BLADE, 0.0)
+    assert (
+        host["host_b"].source_start,
+        host["host_b"].source_end,
+        host["host_b"].timeline_start,
+    ) == (_BLADE, _LONG, _BLADE)
+
+
+def test_split_track_positive_offset_trims_head(tmp_path: Path) -> None:
+    proj = _bladed_project(tmp_path)
+    apply_alignment_plans(proj, _plans(5.0))
+    guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
+    assert (
+        guest["guest_a"].source_start,
+        guest["guest_a"].source_end,
+        guest["guest_a"].timeline_start,
+    ) == pytest.approx((0.0, _BLADE - 5.0, 5.0))
+    assert (
+        guest["guest_b"].source_start,
+        guest["guest_b"].source_end,
+        guest["guest_b"].timeline_start,
+    ) == pytest.approx((_BLADE - 5.0, _LONG - 5.0, _BLADE))
+
+
+def test_split_track_after_ripple_follows_reference_piece(tmp_path: Path) -> None:
+    proj = EpisodeProject(meta=ProjectMeta(name="ripple", workspace_dir=str(tmp_path)))
+    for tid in ("host", "guest"):
+        proj.tracks.append(
+            Track(
+                id=tid,
+                label=tid.title(),
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=_LONG),
+            )
+        )
+        proj.clips.append(
+            Clip(
+                id=f"{tid}_a", track_id=tid, source_start=0.0, source_end=1375.4, timeline_start=0.0
+            )
+        )
+        proj.clips.append(
+            Clip(
+                id=f"{tid}_b",
+                track_id=tid,
+                source_start=1421.1,
+                source_end=_LONG,
+                timeline_start=1375.4,
+            )
+        )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            ClipAlignPlan(
+                track_id="host", clip_id="host_a", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(
+                track_id="host", clip_id="host_b", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=-2.0, method="bleed"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_b", offset_sec=-2.0, method="bleed"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    guest = {c.id: c for c in proj.clips if c.track_id == "guest"}
+    assert guest["guest_a"].timeline_start == pytest.approx(0.0)
+    assert guest["guest_b"].timeline_start == pytest.approx(1375.4)
+    assert guest["guest_a"].source_start == pytest.approx(2.0)
+    assert guest["guest_b"].source_start == pytest.approx(1423.1)
+
+
+def _geometry_full(proj: EpisodeProject) -> list[tuple[str, float, float, float]]:
+    return sorted((c.id, c.source_start, c.source_end, c.timeline_start) for c in proj.clips)
+
+
+def test_split_track_ambiguous_delta_is_skipped_with_reason(tmp_path: Path) -> None:
+    proj = EpisodeProject(meta=ProjectMeta(name="ambiguous", workspace_dir=str(tmp_path)))
+    proj.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=100.0),
+        )
+    )
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=100.0),
+        )
+    )
+    proj.clips = [
+        Clip(id="host_a", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="ga", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(id="gb", track_id="guest", source_start=90.0, source_end=100.0, timeline_start=10.0),
+    ]
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            ClipAlignPlan(
+                track_id="host", clip_id="host_a", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(track_id="guest", clip_id="ga", offset_sec=-95.0, method="bleed"),
+            ClipAlignPlan(track_id="guest", clip_id="gb", offset_sec=-95.0, method="bleed"),
+        ],
+    )
+    before = _geometry_full(proj)
+    updated = apply_alignment_plans(proj, result)
+    assert _geometry_full(proj) == before
+    assert updated == 1
+    guest_plans = [p for p in result.plans if p.track_id == "guest"]
+    assert guest_plans and all(
+        p.skipped_reason is not None and "track left unchanged" in p.skipped_reason
+        for p in guest_plans
+    )
+    assert "skipped guest" in result.summary()
+    assert not any(k.startswith("guest:") for k in (proj.meta.ingest_alignment or {}))
+    path = write_alignment_artifact(proj, result)
+    import json
+
+    payload = json.loads(path.read_text())
+    assert all(row["skipped_reason"] for row in payload["plans"] if row["track_id"] == "guest")
+
+
+def test_apply_invariant_reverts_stacking_geometry(tmp_path: Path, monkeypatch) -> None:
+    proj = _bladed_project(tmp_path)
+    before = _geometry_full(proj)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.conversation_align.slip_clip_to_shift",
+        lambda clip, target_shift, *, media_duration: (0.0, media_duration, 0.0),
+    )
+    result = _plans(-35.6)
+    apply_alignment_plans(proj, result)
+    assert _geometry_full(proj) == before
+    guest_plans = [p for p in result.plans if p.track_id == "guest"]
+    assert guest_plans and all(
+        p.skipped_reason is not None and "stack" in p.skipped_reason for p in guest_plans
+    )
+    assert same_source_timeline_overlaps(proj) == []
+
+
+def test_whole_file_single_clip_keeps_legacy_geometry(tmp_path: Path) -> None:
+    proj = EpisodeProject(meta=ProjectMeta(name="whole_file", workspace_dir=str(tmp_path)))
+    proj.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=100.0),
+        )
+    )
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=90.0),
+        )
+    )
+    proj.clips = [
+        Clip(id="host_a", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="guest_a", track_id="guest", source_start=0.0, source_end=90.0, timeline_start=0.0),
+    ]
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            ClipAlignPlan(
+                track_id="host", clip_id="host_a", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=5.0, method="bleed"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    guest_a = next(c for c in proj.clips if c.id == "guest_a")
+    assert (guest_a.source_start, guest_a.source_end, guest_a.timeline_start) == (0.0, 90.0, 5.0)
+
+
+def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
+    proj = _bladed_project(tmp_path)
+    apply_alignment_plans(proj, _plans(-35.6))
+    meta = proj.meta.ingest_alignment or {}
+    entry = meta["guest:guest_b"]
+    assert entry.session_start_in_file_sec == pytest.approx(35.6, abs=1e-6)
+    assert entry.content_align_sec == pytest.approx(0.0, abs=1e-6)
+
+
+def test_align_tracks_step_summary_names_skipped_track(tmp_path: Path, monkeypatch) -> None:
+    from podcast_mcp.pipeline import steps
+
+    proj = EpisodeProject(meta=ProjectMeta(name="ambiguous_step", workspace_dir=str(tmp_path)))
+    proj.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=100.0),
+        )
+    )
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=100.0),
+        )
+    )
+    proj.clips = [
+        Clip(id="host_a", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="ga", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(id="gb", track_id="guest", source_start=90.0, source_end=100.0, timeline_start=10.0),
+    ]
+    ambiguous_result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            ClipAlignPlan(
+                track_id="host", clip_id="host_a", offset_sec=0.0, method=REFERENCE_METHOD
+            ),
+            ClipAlignPlan(track_id="guest", clip_id="ga", offset_sec=-95.0, method="bleed"),
+            ClipAlignPlan(track_id="guest", clip_id="gb", offset_sec=-95.0, method="bleed"),
+        ],
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.edits.conversation_align.plan_conversation_alignment",
+        lambda project, defaults=None: ambiguous_result,
+    )
+    summary = steps.align_tracks(proj, {})
+    assert "skipped guest" in summary
 
 
 def _three_track_project(tmp_path: Path) -> EpisodeProject:

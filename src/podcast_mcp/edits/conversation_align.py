@@ -1,7 +1,8 @@
-"""Conversation-clock alignment from ASR bleed phrases and own-speech gaps.
+"""Places dialogue clips on one session timeline.
 
-Places whole-file dialogue clips on one session timeline. Does not blade or
-split media — one raw file remains one clip.
+A whole-file clip is re-placed from the file offset; a split, trimmed or rippled
+track keeps every timeline edit point and slips its source by the offset delta.
+Never blades or splits media.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import logging
 import statistics
 import subprocess
 from bisect import bisect_left
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,13 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.track_media import refresh_timeline_duration
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
-from podcast_mcp.engines.session_timeline import SessionTimeline, clip_source_to_timeline_shift
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_media_key,
+    clip_source_to_timeline_shift,
+    same_source_timeline_overlaps,
+    slip_clip_to_shift,
+)
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.transcript_align import (
     WordToken,
@@ -130,6 +137,7 @@ class ClipAlignPlan:
     same_length_prior: bool = False
     candidate_offset_sec: float | None = None
     acoustic_confirmed: bool | None = None
+    skipped_reason: str | None = None
 
 
 @dataclass
@@ -143,7 +151,9 @@ class AlignResult:
         if self.skipped_reason:
             return self.skipped_reason
         moved = [
-            p for p in self.plans if p.method not in LOCKED_METHODS and abs(p.offset_sec) > 1e-3
+            p
+            for p in self.plans
+            if p.method not in LOCKED_METHODS and abs(p.offset_sec) > 1e-3 and not p.skipped_reason
         ]
         if not moved:
             base = f"{len(self.plans)} clips; all near identity (ref={self.reference_track_id})"
@@ -165,6 +175,12 @@ class AlignResult:
                     f"{p.track_id}:{(p.candidate_offset_sec or 0.0):+.2f}s" for p in held[:6]
                 )
             )
+        skipped_reason_by_track: dict[str, str] = {}
+        for p in self.plans:
+            if p.skipped_reason and p.track_id not in skipped_reason_by_track:
+                skipped_reason_by_track[p.track_id] = p.skipped_reason
+        for track_id in sorted(skipped_reason_by_track):
+            notes.append(f"skipped {track_id} ({skipped_reason_by_track[track_id]})")
         return base if not notes else f"{base}; {'; '.join(notes)}"
 
 
@@ -1555,6 +1571,63 @@ def plan_conversation_alignment(
     return AlignResult(plans=plans, reference_track_id=ref_track.id, large_move_sec=large_move_sec)
 
 
+def _clip_media_duration(project: EpisodeProject, track: Track, clip: Clip) -> float:
+    media_dur = float(clip.source_end) if clip.source_end > clip.source_start else 0.0
+    if track.media and track.media.duration_sec:
+        media_dur = float(track.media.duration_sec)
+    if clip.source_id:
+        src = project.source_by_id(clip.source_id)
+        if src and src.duration_sec:
+            media_dur = float(src.duration_sec)
+    return media_dur
+
+
+def _is_whole_file_clip(
+    project: EpisodeProject, clip: Clip, lane: list[Clip], media_dur: float
+) -> bool:
+    """True when ``clip`` is the sole reader of its media on this lane, at the file head."""
+    key = clip_media_key(project, clip)
+    if any(c.id != clip.id and clip_media_key(project, c) == key for c in lane):
+        return False
+    if clip.source_end < media_dur - DURATION_EPS_SEC:
+        return False
+    return clip.source_start <= DURATION_EPS_SEC or clip.timeline_start <= DURATION_EPS_SEC
+
+
+def _planned_geometry(
+    project: EpisodeProject,
+    track: Track,
+    clip: Clip,
+    plan: ClipAlignPlan,
+    *,
+    lane: list[Clip],
+    ref_shift: float,
+    ref_clips: list[Clip],
+    media_dur: float,
+) -> tuple[float, float, float] | None:
+    if (
+        plan.method in (REFERENCE_METHOD, "manual")
+        or (
+            plan.method == "hold"
+            and (
+                _co_timed(clip, ref_clips)
+                or abs(clip.source_start) > 1e-9
+                or abs(clip.timeline_start) > 1e-9
+            )
+        )
+        or abs(plan.offset_sec + ref_shift) < 1e-9
+    ):
+        # Identity: reference clips (incl. sequential extras), manifest-pinned clips,
+        # held clips with existing placement (including a prior nudge), and
+        # guests whose rebased offset is zero keep their placement. A virgin
+        # identity hold is rebased onto the reference lead-in once.
+        return clip.source_start, clip.source_end, clip.timeline_start
+    if _is_whole_file_clip(project, clip, lane, media_dur):
+        return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
+    target_shift = plan.offset_sec + _reference_shift_at(clip, ref_clips)
+    return slip_clip_to_shift(clip, target_shift, media_duration=media_dur)
+
+
 def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
     """Mutate clips + meta.ingest_alignment. Returns number of clips updated."""
     if result.skipped_reason or not result.plans:
@@ -1574,6 +1647,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
     # Plans are file-time offsets against the reference file; rebase them onto the
     # reference clip's placement (an ingest lead-in keeps reference file L at timeline 0).
     ref_shift = _reference_shift(ref_clips)
+    ref_clips = [c.model_copy() for c in ref_clips]
 
     for track in project.tracks:
         if track.role != TrackRole.DIALOGUE:
@@ -1590,48 +1664,66 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             )
             project.clips.append(clip)
             clips = [clip]
+
+        staged: list[tuple[Clip, ClipAlignPlan, tuple[float, float, float] | None]] = []
+        skip: str | None = None
         for clip in clips:
             plan = by_key.get((track.id, clip.id))
             if plan is None:
                 continue
-            media_dur = float(clip.source_end) if clip.source_end > clip.source_start else 0.0
-            if track.media and track.media.duration_sec:
-                media_dur = float(track.media.duration_sec)
-            if clip.source_id:
-                src = project.source_by_id(clip.source_id)
-                if src and src.duration_sec:
-                    media_dur = float(src.duration_sec)
-            src_start, src_end, tl_start = offset_to_clip_geometry(
-                plan.offset_sec + ref_shift,
-                media_duration=media_dur,
+            media_dur = _clip_media_duration(project, track, clip)
+            geom = _planned_geometry(
+                project,
+                track,
+                clip,
+                plan,
+                lane=clips,
+                ref_shift=ref_shift,
+                ref_clips=ref_clips,
+                media_dur=media_dur,
             )
-            if (
-                plan.method in (REFERENCE_METHOD, "manual")
-                or (
-                    plan.method == "hold"
-                    and (
-                        _co_timed(clip, ref_clips)
-                        or abs(clip.source_start) > 1e-9
-                        or abs(clip.timeline_start) > 1e-9
-                    )
+            if geom is None and skip is None:
+                skip = (
+                    f"clip {clip.id!r} would leave its source file after the "
+                    f"{plan.offset_sec:+.1f}s shift"
                 )
-                or abs(plan.offset_sec + ref_shift) < 1e-9
-            ):
-                # Identity: reference clips (incl. sequential extras), manifest-pinned clips,
-                # held clips with existing placement (including a prior nudge), and
-                # guests whose rebased offset is zero keep their placement. A virgin
-                # identity hold is rebased onto the reference lead-in once.
-                src_start = clip.source_start
-                src_end = clip.source_end
-                tl_start = clip.timeline_start
-            clip.source_start = src_start
-            clip.source_end = src_end
-            clip.timeline_start = tl_start
+            staged.append((clip, plan, geom))
+
+        if not staged:
+            continue
+
+        if skip is None:
+            snap = snapshot_clip_geometry(project, clips)
+            stacks_before = {
+                tuple(sorted(s.clip_ids))
+                for s in same_source_timeline_overlaps(project, track_ids={track.id})
+            }
+            for clip, _plan, geom in staged:
+                assert geom is not None
+                clip.source_start, clip.source_end, clip.timeline_start = geom
+            new_stacks = [
+                s
+                for s in same_source_timeline_overlaps(project, track_ids={track.id})
+                if tuple(sorted(s.clip_ids)) not in stacks_before
+            ]
+            if new_stacks:
+                restore_clip_geometry(project, snap)
+                a, b = new_stacks[0].clip_ids
+                skip = f"clips {a!r} and {b!r} would stack on the same source"
+
+        if skip:
+            log.warning("align_tracks: skipping %s: %s", track.id, skip)
+            for _clip, plan, _geom in staged:
+                plan.skipped_reason = f"{skip}; track left unchanged"
+            continue
+
+        for clip, plan, _geom in staged:
             updated += 1
             if plan.method == "manual":
                 continue  # keep the manifest's pinned meta entry
-            session_start = src_start if tl_start <= 0 else 0.0
-            content = tl_start if tl_start > 0 else 0.0
+            shift = clip_source_to_timeline_shift(clip)
+            session_start = max(0.0, -shift)
+            content = max(0.0, shift)
             key = ingest_alignment_meta_key(
                 project, track, clip, multi_clip=clips_by_track.get(track.id, 1) > 1
             )
@@ -1705,6 +1797,7 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
                 "same_length_prior": p.same_length_prior,
                 "candidate_offset_sec": p.candidate_offset_sec,
                 "acoustic_confirmed": p.acoustic_confirmed,
+                "skipped_reason": p.skipped_reason,
                 **{k: (placed.get((p.track_id, p.clip_id)) or {}).get(k) for k in _PLACEMENT_KEYS},
             }
             for p in result.plans
@@ -1714,8 +1807,11 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
     return path
 
 
-def snapshot_clip_geometry(project: EpisodeProject) -> list[tuple[str, float, float, float]]:
-    return [(c.id, c.source_start, c.source_end, c.timeline_start) for c in project.clips]
+def snapshot_clip_geometry(
+    project: EpisodeProject, clips: Iterable[Clip] | None = None
+) -> list[tuple[str, float, float, float]]:
+    source = clips if clips is not None else project.clips
+    return [(c.id, c.source_start, c.source_end, c.timeline_start) for c in source]
 
 
 def restore_clip_geometry(

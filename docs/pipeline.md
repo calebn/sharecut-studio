@@ -29,7 +29,7 @@ Transcript quality runs **before** focus/tighten so search and narrative edits u
 ## Conversation align (`align_tracks` + gate)
 
 After ASR (while bleed phrases still exist in the transcript), **`align_tracks`**
-places each whole-file dialogue clip on one session clock:
+places dialogue clips on one session clock:
 
 0. **Locks first** - when every dialogue stem has the same duration (within ~50 ms; the Analyze `pre_aligned` case) each stem is held as method `hold` (a lone same-length clip in a mixed set only gets the soft `same_length_prior`); a manifest-pinned offset (the clip's own `track_id:clip_id` entry in `meta.ingest_alignment`, or the speaker-label entry when that label is unique among dialogue tracks, with `align_method: "manual"`) is kept as method `manual`, and the plan records the offset that placement represents against the reference clip it overlaps most. Locked clips keep their geometry exactly (splits, ripples, ingest placement); a `hold` clip that is not co-timed with the reference is rebased onto the reference lead-in first. Only `align.realign: true` (GUI Pipeline pane, MCP `config_json='{"align": {"realign": true}}'`, or `podcast pipeline run --realign`) re-scores them.
 1. **Bleed n-grams** - same phrase on two+ tracks gives a weighted-median Δt. Bleed counts only when at least `align.min_bleed_matches` (5) n-grams cluster **and** carry at least `align.bleed_min_share` (0.3) of the weighted matches; n-grams made only of filler/stopwords ("i don't know") count 0.2x, and repeated phrases are down-weighted by their multiplicity. Sub-second Δt (`align.bleed_identity_sec`) is confirmed with waveform xcorr before apply; identity only when acoustic lag is ~0. `align.bleed_identity_sec` is capped at `align.large_move_sec`.
@@ -41,8 +41,20 @@ places each whole-file dialogue clip on one session clock:
 
 **Large moves:** any candidate above `align.large_move_sec` (1.0 s) must be confirmed by waveform xcorr (at least 3 windows, peak at least `align.large_move_min_peak`, residual within `align.acoustic_agree_sec`). Unconfirmed candidates are held at 0 as `unconfirmed_hold`; the candidate stays in the artifact (`candidate_offset_sec`, `acoustic_confirmed`) and the step summary so a person can listen and nudge. The artifact records the `large_move_sec` the scorer ran with; `align status` / `align brief`, the unattended gate and export QC all use that value (falling back to config), so a per-run override is honoured everywhere.
 
+A whole-file clip (the only clip on its lane reading that media, sitting at the file head)
+is re-placed from the offset, same as before. A split, trimmed or rippled track instead
+keeps every clip's timeline window and slips its source range by the delta between its
+current and target shift — a head that would land before the file start trims the clip
+(timeline start moves later, source start clamps to 0), and a tail past the file end
+clamps too. When the delta would leave a piece with no audio, or applying it would newly
+stack two same-source clips on the timeline (`same_source_timeline_overlaps`, #520), the
+whole track is left unchanged: its plans get `skipped_reason` (surfaced in the step
+summary as `skipped <track> (...)` and in the artifact), while `offset_sec` is kept so the
+unattended gate still sees the move. `meta.ingest_alignment` is written from each placed
+clip's source-to-timeline shift (`session_start_in_file_sec = max(0, -shift)`,
+`content_align_sec = max(0, shift)`), which reproduces the old whole-file values exactly.
 Writes `meta.ingest_alignment`, clip geometry, and `artifacts/alignment/conversation_align.json`.
-Does **not** blade/split one WAV into multiple clips. Several raw files per speaker stay
+Never blades/splits one WAV into multiple clips. Several raw files per speaker stay
 several whole clips (`source_id`).
 
 **`require_align_accept`** blocks later steps until `podcast align done` / waive. Unattended /
@@ -52,11 +64,13 @@ pane when files are unrelated segments — the gate cascade-disables with it.
 `merge_transcript` still depends only on `transcribe_tracks` so skipping align does not
 disable ASR.
 
-**v1 limits (documented, not solved here):** one offset per whole file (no clock-drift
-piecewise sync); mixdown/stereo “everyone on one track”; Whisper silence hallucinations
+**v1 limits (documented, not solved here):** one offset per file (split pieces share it); no
+clock-drift piecewise sync; mixdown/stereo “everyone on one track”; Whisper silence hallucinations
 beyond VAD, safer decoding and the `suspect_hallucination` flag (#521; CTC scoring is #195).
 
 `export_qc.json` includes an `alignment` block. Each dialogue clip's relative drift from the reference is measured on every stretch between reference edits (slivers under 1 s ignored), so ripple cuts cancel out. Drift above the threshold is an issue when no person accepted the alignment: missing, pending or waived by `unattended`. A person's `align done` / waive records each clip's relative drift (`accepted_drift` in the status file). Once later edits make that accept stale, only a clip that moved more than the threshold from its accepted drift is an issue, and the message says the accept is stale. A locked (`hold`/`manual`) clip is exempt only while it still sits where align locked it. The artifact records each clip's source range and relative drift (`rel_drift_sec`), so split pieces keep the exemption (matched by source overlap on the same track), and a clip pinned under a later reference clip is measured against that clip. An `unconfirmed_hold` candidate above the threshold that no person accepted, and an unreadable align artifact, are issues too. All of these are warnings when `align.accept.mode: off`.
+
+`export_qc.json`'s `timebase` block also carries `stacked_clips`: any pair of clips on the same lane that read the same media file and overlap on the timeline (`same_source_timeline_overlaps`, #520) is a hard `timebase.issues` entry — the pair would play the same audio twice. `podcast doctor` reports the same stacks as warnings.
 
 CLI/MCP: `podcast align status|brief|done|waive` / `align_*_tool`. Skill: **podcast-align-audio**.
 
