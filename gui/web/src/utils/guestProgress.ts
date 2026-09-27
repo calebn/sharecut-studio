@@ -24,6 +24,14 @@ export function guestProgressToJob(
   }
   const status = event.status ?? "running";
   const terminal = isTerminalJobStatus(status);
+  // Keep the running task's headline on a null-message update/heartbeat (matches the CLI/job sinks);
+  // fall back to the label on a new task, a start frame, or after a terminal.
+  const sameRunningTask =
+    prev != null &&
+    event.kind !== "start" &&
+    !isTerminalJobStatus(prev.status) &&
+    (!event.task_id || event.task_id === prev.id);
+  const carriedMessage = sameRunningTask ? prev.message : null;
   return {
     id: event.task_id || prev?.id || "guest",
     project_path: "",
@@ -35,7 +43,8 @@ export function guestProgressToJob(
     status: terminal ? status : "running",
     current: event.current ?? prev?.current ?? null,
     total: event.total ?? prev?.total ?? null,
-    message: event.message ?? event.label ?? prev?.message ?? null,
+    message:
+      event.message ?? carriedMessage ?? event.label ?? prev?.message ?? null,
     error: status === "error" ? (event.message ?? "failed") : null,
     elapsed_sec: event.elapsed_sec ?? prev?.elapsed_sec ?? 0,
     last_progress_at: Date.now() / 1000,
