@@ -24,6 +24,7 @@ describe("useFollowUi", () => {
       guestMode: null,
       followingClientId: "a",
       activeTab: "transcript",
+      layoutMode: "default",
       auditionMode: "mix",
       viewerMute: {},
       soloTracks: {},
@@ -70,6 +71,32 @@ describe("useFollowUi", () => {
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().auditionMode).toBe("mix");
     expect(useDawStore.getState().followDegraded.audition).toBeUndefined();
+  });
+
+  it("keeps a follower's timeline layout until the leader changes tab", () => {
+    useDawStore.setState({
+      activeTab: "comments",
+      layoutMode: "timeline",
+      sessionClients: [leader({ tab: "comments" })],
+    });
+    const { rerender } = renderHook(() => useFollowUi());
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    useDawStore.setState({
+      sessionClients: [leader({ tab: "comments", audition: "fx" })],
+    });
+    rerender();
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    useDawStore.setState({
+      sessionClients: [
+        leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
+      ],
+    });
+    rerender();
+    expect(useDawStore.getState().layoutMode).toBe("timeline");
+    useDawStore.setState({ sessionClients: [leader({ tab: "transcript" })] });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(useDawStore.getState().layoutMode).toBe("default");
   });
 
   it("applies the same ui only once", () => {

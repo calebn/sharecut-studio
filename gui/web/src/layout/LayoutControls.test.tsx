@@ -41,10 +41,14 @@ describe("layout controls", () => {
   });
 
   it("names the toggle Restore layout in the text and review layouts", () => {
-    useDawStore.setState({ layoutMode: "review" });
-    renderControls();
-    expect(screen.getByRole("button", { name: "Restore layout" })).toBeTruthy();
-    useDawStore.setState({ layoutMode: "default" });
+    for (const layoutMode of ["text", "review"] as const) {
+      useDawStore.setState({ layoutMode });
+      const view = renderControls();
+      expect(
+        screen.getByRole("button", { name: "Restore layout" }),
+      ).toBeTruthy();
+      view.unmount();
+    }
   });
 
   it("shows a Restore chip only outside the default layout", async () => {
