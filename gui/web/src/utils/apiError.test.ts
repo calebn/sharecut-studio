@@ -3,6 +3,7 @@ import {
   ApiError,
   errorMessage,
   isClientRejection,
+  isPermanentRejection,
   readApiFailure,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "./apiError";
@@ -86,5 +87,18 @@ describe("readApiFailure", () => {
     const text = JSON.stringify(deep);
     const error = await readApiFailure(new Response(text, { status: 400 }));
     expect(error.message).toBe(text);
+  });
+});
+
+describe("isPermanentRejection", () => {
+  it("is true only for a 4xx other than 408 / 429", () => {
+    for (const status of [400, 403, 404, 409, 422]) {
+      expect(isPermanentRejection(new ApiError("x", null, status))).toBe(true);
+    }
+    for (const status of [408, 429, 500, 503]) {
+      expect(isPermanentRejection(new ApiError("x", null, status))).toBe(false);
+    }
+    expect(isPermanentRejection(new ApiError("x", null, null))).toBe(false);
+    expect(isPermanentRejection(new Error("offline"))).toBe(false);
   });
 });

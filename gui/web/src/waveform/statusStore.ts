@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { loadWaveformStatus } from "../api";
-import { isClientRejection, isRetryLater } from "../utils/apiError";
+import { isPermanentRejection } from "../utils/apiError";
 import { listenerSet } from "./listenerSet";
 import {
   isReady,
@@ -136,11 +136,6 @@ function schedule(poller: Poller): void {
   poller.backoffMs = Math.min(poller.backoffMs * 2, MAX_BACKOFF_MS);
 }
 
-/** A 4xx other than 408 / 429 (revoked share, deleted project): polling again will not help. */
-function permanentFailure(err: unknown): boolean {
-  return isClientRejection(err) && !isRetryLater(err);
-}
-
 function poll(poller: Poller): void {
   if (poller.inflight) {
     poller.again = true;
@@ -183,7 +178,8 @@ function poll(poller: Poller): void {
       // The failed poll answers a request made while it was in flight: a
       // permanent error would repeat, and a transient one schedules a retry below.
       poller.again = false;
-      if (permanentFailure(err)) {
+      // A 4xx other than 408 / 429 (revoked share, deleted project): polling again will not help.
+      if (isPermanentRejection(err)) {
         // Stop until a refresh, a tile 404, or a subscriber STOPPED_RETRY_MS
         // later asks again (not every mount: the error would repeat).
         poller.stoppedAt = Date.now();

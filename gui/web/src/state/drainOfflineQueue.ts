@@ -1,6 +1,6 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
-import { isClientRejection, isRetryLater } from "../utils/apiError";
+import { isPermanentRejection } from "../utils/apiError";
 import {
   hostSendDone,
   hostSendsFinished,
@@ -25,11 +25,6 @@ export interface ReplaySource {
   path: string;
   /** The persisted records, in replay order. */
   load: () => Promise<QueuedCommand[]>;
-  /**
-   * True when the submit layer already recorded and dequeued a refused
-   * replay, so later records still replay; false stops the pass to keep order.
-   */
-  consumed: (error: unknown) => boolean;
   /** Send, skip or stop at `cmd` (default: send). */
   gate?: (cmd: QueuedCommand) => Promise<ReplayGate>;
   /** Runs once when the pass ends, even after a stop, with the committed ids in order. */
@@ -39,9 +34,13 @@ export interface ReplaySource {
 /**
  * The one ordered-replay driver for both offline queues. Each record is
  * re-sent with its original identity (`command_id`, `client_id`,
- * `client_seq`) and `replaying: true`. A refusal the source reports as
- * consumed is skipped. Anything else (transport error, retry-later, a replay
- * the submit layer left queued) stops the pass so no later edit overtakes it.
+ * `client_seq`) and `replaying: true`. A permanent rejection
+ * (`isPermanentRejection`: a 4xx other than 408 / 429) is skipped. That is
+ * only safe because both submit layers (`services/commandQueue.ts`) have
+ * already recorded it as a conflict and dequeued it before they throw;
+ * `drainOfflineQueue.integration.test.ts` pins this. Anything else
+ * (transport error, 408 / 429, 5xx, a replay the submit layer left queued)
+ * stays queued and stops the pass, so no later edit overtakes it.
  */
 export async function replayQueuedCommands(
   source: ReplaySource,
@@ -68,7 +67,7 @@ export async function replayQueuedCommands(
       if (result.queued === true) break;
       completed.push(cmd.command_id);
     } catch (error) {
-      if (source.consumed(error)) continue;
+      if (isPermanentRejection(error)) continue;
       break;
     }
   }
@@ -83,10 +82,6 @@ function guestReplaySource(token: string): ReplaySource {
       [...(await loadCommandQueue(token))].sort(
         (a, b) => a.client_seq - b.client_seq,
       ),
-    // A refused replay was recorded as a conflict and dequeued, so later
-    // edits still drain. A rate limit, server or network error stays
-    // queued and keeps order until the next drain.
-    consumed: (error) => isClientRejection(error) && !isRetryLater(error),
   };
 }
 
@@ -154,9 +149,6 @@ function hostReplaySource(projectPath: string): ReplaySource {
       }
       return present && !present.has(cmd.command_id) ? "skip" : "send";
     },
-    // A 4xx was already recorded as a conflict and dequeued; later,
-    // unrelated edits must still drain. Network errors / 5xx keep order.
-    consumed: isClientRejection,
     // One persisted update replaces N full-array rewrites on a long replay.
     settle: (completed) => removeHostQueuedCommands(projectPath, completed),
   };
