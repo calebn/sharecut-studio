@@ -1098,6 +1098,11 @@ describe("PipelinePanel", () => {
         config: patched,
       });
     });
+    // Analyze is free again once its result is shown, even while the PUT is pending.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+    });
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolvePut();
     });
