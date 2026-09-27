@@ -483,6 +483,24 @@ def test_gc_pyramids_drops_legacy_json_once_the_track_has_a_pyramid(tmp_path):
     assert (peaks / "track-host.0123456789abcdef0123.wfpk").exists()
 
 
+def test_gc_pyramids_drops_legacy_json_of_a_hashed_track_id(tmp_path):
+    project_path = waveform_project(tmp_path)
+    project = load_project(project_path)
+    project.timeline.tracks.append(
+        Track(id="bad id", label="Bad", media=MediaAsset(path="raw/guest.wav"))
+    )
+    save_project(project)
+    peaks = project_path.parent / "artifacts" / "peaks"
+    peaks.mkdir(parents=True)
+    pyramid = peaks / f"{ref_slug('track', 'bad id')}.0123456789abcdef0123.wfpk"
+    pyramid.write_bytes(b"x")
+    legacy = peaks / "bad id.json"  # an older build wrote the raw track id
+    legacy.write_text("{}", encoding="utf-8")
+    assert gc_pyramids(project_path) == 1
+    assert not legacy.exists()
+    assert pyramid.exists()
+
+
 def test_episode_service_hooks_schedule_waveforms(minimal_project, sample_wav, tmp_path):
     from podcast_mcp.services.episode import EpisodeService
     from podcast_mcp.services.workspace import ProjectWorkspace
