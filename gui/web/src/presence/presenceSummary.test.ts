@@ -52,4 +52,14 @@ describe("presenceSummary", () => {
     expect(isGuestPresenceClient(c("x", "guest"))).toBe(true);
     expect(isGuestPresenceClient(c("h1", "viewer"))).toBe(false);
   });
+
+  it("treats no row as local before the local id is known", () => {
+    expect(presenceSummary([c("h1", "viewer")], null)).toBe("You + 1 host");
+    expect(
+      presenceSummary(
+        [c("h1", "viewer"), c("guest-abcd1234-x1", "viewer")],
+        null,
+      ),
+    ).toBe("You + 1 host + 1 guest");
+  });
 });
