@@ -43,7 +43,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/EnvelopeOverlay.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
   "transcript/InlineWordEditor.tsx",
-  "layout/BottomTabsSplitter.tsx",
+  "layout/BottomTabsSplitterView.tsx",
   "tracks/TrackHeader.tsx",
   "commands/governance.test.ts",
 ]);

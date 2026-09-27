@@ -44,7 +44,7 @@ Product-facing state table: [`ux/pages/brand.md`](../../ux/pages/brand.md) § Mi
 |---------|--------|
 | DAW shortcuts (Space, B, zoom, …) | [`keymap/listener.ts`](../src/keymap/listener.ts) → `execute` |
 | Overlay Escape / Tab trap / menu arrows | Library modules (`useDialogModal`, `Menu`) — allowlisted in `commands/governance.test.ts` |
-| Bottom-tabs resize (ArrowUp/Down) | [`layout/BottomTabsSplitter.tsx`](../src/layout/BottomTabsSplitter.tsx) — allowlisted separator widget |
+| Bottom-tabs resize (ArrowUp/Down) | [`layout/BottomTabsSplitterView.tsx`](../src/layout/BottomTabsSplitterView.tsx) — allowlisted separator widget (live adapter `BottomTabsSplitter`) |
 | Pointer → same actions as keys | **Command bridge** (`CommandButton`, `CommandMenuItem`) → `execute` |
 
 Do **not** add a second window shortcut listener for DAW commands. While a modal dialog is open, the keymap listener no-ops (`commandPaletteOpen` / `bounceDialogOpen` / `shareDialogOpen` with a project). Open menus set a non-reactive overlay gate so Space/`B` do not fire under the menu.
