@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -252,3 +253,55 @@ def removed_session_clients(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     monkeypatch.setattr(SessionSyncService, "remove_client", _spy_remove)
     return removed
+
+
+class FakeRichProgress:
+    """No-op fake for ``rich.progress.Progress``: records add_task/update/remove_task calls.
+
+    A real ``Progress`` spins a background auto-refresh thread against real stderr;
+    ``Progress.stop()`` does not guarantee that thread has exited before returning, so
+    under CI's heavier scheduling a late write can land inside a *different* test's
+    ``capsys`` capture (see #645). Every test that builds a ``CliProgressReporter`` with
+    ``sys.stderr.isatty`` mocked True must go through this fixture instead of the real
+    ``rich.progress`` module.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self.ctor_kwargs = kwargs
+        self.add_task_calls: list[dict[str, Any]] = []
+        self.update_calls: list[tuple[Any, dict[str, Any]]] = []
+        self.removed_tasks: list[Any] = []
+        self._next_bar = 0
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def add_task(self, label: str, total: int | float | None = 0) -> int:
+        self._next_bar += 1
+        self.add_task_calls.append({"label": label, "total": total})
+        return self._next_bar
+
+    def update(self, bar: Any, **kwargs: Any) -> None:
+        self.update_calls.append((bar, kwargs))
+
+    def remove_task(self, bar: Any) -> None:
+        self.removed_tasks.append(bar)
+
+
+@pytest.fixture
+def fake_rich_progress() -> Iterator[type[FakeRichProgress]]:
+    """Patch ``sys.modules["rich.progress"]`` so ``CliProgressReporter`` never starts a
+    real background-thread Progress. Yields the fake class for call assertions."""
+    module = MagicMock(
+        BarColumn=MagicMock(),
+        Progress=FakeRichProgress,
+        SpinnerColumn=MagicMock(),
+        TaskProgressColumn=MagicMock(),
+        TextColumn=MagicMock(),
+        TimeElapsedColumn=MagicMock(),
+    )
+    with patch.dict("sys.modules", {"rich.progress": module}):
+        yield FakeRichProgress
