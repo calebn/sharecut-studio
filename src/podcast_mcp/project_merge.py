@@ -8,6 +8,7 @@ changes (base -> ours) with what other writers committed meanwhile
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -239,11 +240,13 @@ def adopt_project_state(target: EpisodeProject, source: EpisodeProject) -> None:
 
     Not ``history.manager.apply_snapshot_to_project``: that copies only
     ``EDITABLE_FIELDS``, and a merge also changes history and ``pipeline_runs``.
+    Changed sections are deep-copied, so ``target`` never shares mutable state with
+    ``source`` (a pipeline step's private copy may outlive the publish).
     """
     for name in type(target).model_fields:
         value = getattr(source, name)
         if getattr(target, name) != value:
-            setattr(target, name, value)
+            setattr(target, name, copy.deepcopy(value))
 
 
 def publish_project_changes(
