@@ -38,6 +38,7 @@ import type {
 } from "../types/project";
 import { Button, InlineError, ToggleButton } from "../ui";
 import {
+  findTranscriptWordIn,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   scrollChildIntoParent,
@@ -59,28 +60,6 @@ import {
 const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
-
-/** The word's current text, or null when the transcript no longer has it. */
-function transcriptWordText(
-  utterances: readonly CombinedUtterance[],
-  trackId: string,
-  wordIndex: number,
-): string | null {
-  for (const u of utterances) {
-    if (u.track_id !== trackId) continue;
-    const word = (u.words ?? []).find((w) => w.word_index === wordIndex);
-    if (word) return word.text;
-  }
-  return null;
-}
-
-function transcriptWordExists(
-  utterances: readonly CombinedUtterance[],
-  trackId: string,
-  wordIndex: number,
-): boolean {
-  return transcriptWordText(utterances, trackId, wordIndex) != null;
-}
 
 type WordRef = { trackId: string; wordIndex: number };
 
@@ -232,7 +211,7 @@ export function TranscriptPanel() {
   const openWordCorrection = ({ trackId, wordIndex }: WordRef): boolean => {
     if (
       !canCorrect ||
-      !transcriptWordExists(allUtterances, trackId, wordIndex)
+      !findTranscriptWordIn(allUtterances, trackId, wordIndex)
     ) {
       return false;
     }
@@ -341,13 +320,13 @@ export function TranscriptPanel() {
   };
 
   // Close when editing becomes impossible or the word vanishes (remote edit, rehydrate).
-  // transcriptWordExists scans the episode's words, but only while an editor is
+  // findTranscriptWordIn scans the episode's words, but only while an editor is
   // open and when allUtterances changes identity (merge, mutation), never per key.
   useEffect(() => {
     if (
       inlineEdit &&
       (!canCorrect ||
-        !transcriptWordExists(
+        !findTranscriptWordIn(
           allUtterances,
           inlineEdit.trackId,
           inlineEdit.wordIndex,
@@ -358,21 +337,27 @@ export function TranscriptPanel() {
   }, [inlineEdit, canCorrect, allUtterances]);
 
   // A late failure is moot once its word's text changes by any path (inspector
-  // Apply, a later inline fix, a remote edit) or the word is gone.
+  // Apply, a later inline fix, a remote edit), the word is gone, or another
+  // project is open. Accepted gap: a later fix that leaves the word with the
+  // text it had when the failed fix was submitted (an undo back to it, or a
+  // casing / whitespace change the mapper normalizes away) keeps the failure
+  // up; Dismiss or opening another inline edit clears it.
   useEffect(() => {
     if (
       transcriptInlineEditFailure &&
-      transcriptWordText(
-        allUtterances,
-        transcriptInlineEditFailure.trackId,
-        transcriptInlineEditFailure.wordIndex,
-      ) !== transcriptInlineEditFailure.originalText
+      (transcriptInlineEditFailure.projectPath !== projectPath ||
+        findTranscriptWordIn(
+          allUtterances,
+          transcriptInlineEditFailure.trackId,
+          transcriptInlineEditFailure.wordIndex,
+        )?.text !== transcriptInlineEditFailure.originalText)
     ) {
       setTranscriptInlineEditFailure(null);
     }
   }, [
     transcriptInlineEditFailure,
     allUtterances,
+    projectPath,
     setTranscriptInlineEditFailure,
   ]);
 
@@ -824,7 +809,9 @@ export function TranscriptPanel() {
           </span>
         </>
       ) : null}
-      {transcriptInlineEditFailure ? (
+      {canCorrect &&
+      transcriptInlineEditFailure &&
+      transcriptInlineEditFailure.projectPath === projectPath ? (
         <div className="transcript-inline-failure">
           <InlineError
             role="alert"
@@ -1044,6 +1031,7 @@ export function TranscriptPanel() {
                           onBusyChange={setTranscriptInlineCommitPending}
                           onDetachedError={(message) =>
                             setTranscriptInlineEditFailure({
+                              projectPath,
                               trackId: u.track_id,
                               wordIndex,
                               originalText: w.text,
