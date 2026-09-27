@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import logging
 import platform
 import re
 import shutil
@@ -46,8 +47,15 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.process import run
-from podcast_mcp.util.project_state import project_commit_lock, render_lock, snapshot_project
+from podcast_mcp.util.project_state import (
+    RenderBusyError,
+    project_commit_lock,
+    render_lock,
+    snapshot_project,
+)
 from podcast_mcp.util.tracks import track_audio_path
+
+log = logging.getLogger(__name__)
 
 # Full-stem rebuild on --rerender is only worth it for long windows. Short
 # auditions use segment render (faster, and avoids silent stem-slice races).
@@ -57,6 +65,9 @@ _PLAY_CACHE_MIN_EVICT_AGE_SEC = 60 * 60
 _PLAY_CACHE_MAX_FILES = 512
 _PLAY_CACHE_HARD_MAX_FILES = 4096
 _PLAY_CACHE_LOCK_TIMEOUT_SEC = 30.0
+# Playback never queues behind an export or Refresh (#482): it waits this long for the
+# render lock, then plays a segment render instead of rebuilding the stem.
+_PLAY_RENDER_LOCK_TIMEOUT_SEC = 2.0
 
 
 def _wav_peak_abs(path: Path) -> float | None:
@@ -457,13 +468,19 @@ class PlayService:
         stem = stem_path(render_project, track_id)
         window = max(0.0, timeline_end - timeline_start)
 
+        use_stem = True
         if rerender:
-            self._invalidate_processed_cache(track_id)
-            # Short windows: invalidate and segment-render only. Rebuilding a
-            # multi-hour stem for a 3s audition is slow and has produced
-            # all-zero extracts when the stem slice raced the rewrite.
-            if window > _FULL_STEM_RERENDER_MIN_SEC:
-                self.ensure_stem(track_id)
+            try:
+                with render_lock(self.project, timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC):
+                    self._invalidate_processed_cache(track_id)
+                    # Short windows: invalidate and segment-render only. Rebuilding a
+                    # multi-hour stem for a 3s audition is slow and has produced
+                    # all-zero extracts when the stem slice raced the rewrite.
+                    if window > _FULL_STEM_RERENDER_MIN_SEC:
+                        self.ensure_stem(track_id)
+            except RenderBusyError:
+                log.info("render in progress; playing %s from a segment render", track_id)
+                use_stem = False
 
         # Freshness includes timeline-duration match; mismatched stems fall through
         # to segment render so timeline seconds are never treated as source offsets.
@@ -471,7 +488,7 @@ class PlayService:
         # extract must not have its bytes played under this hash (#356).
         revision = stem_revision(render_project, track_id)
         fresh = stem_is_fresh(render_project, track_id)
-        if fresh and revision is not None:
+        if use_stem and fresh and revision is not None:
             out = self._cache_path(
                 f"stem_{track_id}_{edit_hash}",
                 timeline_start,
@@ -517,6 +534,7 @@ class PlayService:
         return premix
 
     def _invalidate_processed_cache(self, track_id: str) -> None:
+        """Delete the track's stem, its hash and its play-cache extracts. Caller holds ``render_lock``."""
         import shutil
 
         stem = stem_path(self.project, track_id)

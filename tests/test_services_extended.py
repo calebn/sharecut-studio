@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -23,6 +24,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.play import PlayRequest, PlayService
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.project_state import render_lock, render_lock_held
 
 
 def _dialogue_workspace(
@@ -677,6 +679,69 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
         )
     mock_render.assert_called_once()
     assert result.tier == "stem"
+
+
+def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    monkeypatch.setattr("podcast_mcp.services.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    held, release = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with render_lock(ws.project):
+            held.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(5)
+    mock_render = MagicMock()
+
+    def _seg(_project, _track_id, _start, _end, cache, _defaults):
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(sample_wav.read_bytes())
+        return cache
+
+    started = time.monotonic()
+    try:
+        with (
+            patch.object(PlayService, "ensure_stem", mock_render),
+            patch("podcast_mcp.services.play.render_track_segment", side_effect=_seg) as seg,
+        ):
+            PlayService(ws).play(
+                PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
+                dry_run=True,
+            )
+    finally:
+        release.set()
+        holder.join(5)
+    assert time.monotonic() - started < 5
+    mock_render.assert_not_called()
+    seg.assert_called_once()
+
+
+def test_play_rerender_invalidates_the_stem_under_the_render_lock(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    seen: list[bool] = []
+    with (
+        patch.object(
+            PlayService,
+            "_invalidate_processed_cache",
+            lambda self, _tid: seen.append(render_lock_held(self.project)),
+        ),
+        patch("podcast_mcp.services.play.render_track_segment") as seg,
+    ):
+        seg.side_effect = lambda _p, _t, _s, _e, cache, _d: cache.write_bytes(
+            sample_wav.read_bytes()
+        )
+        PlayService(ws).play(
+            PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5, rerender=True),
+            dry_run=True,
+        )
+    assert seen == [True]
 
 
 def test_play_ensure_stem_unknown_track(minimal_project, sample_wav) -> None:
