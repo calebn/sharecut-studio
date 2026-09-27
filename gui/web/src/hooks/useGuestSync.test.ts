@@ -5,6 +5,7 @@ import {
   resetDocumentSeqForTests,
 } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
+import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
 import type { SessionState } from "../types/session";
@@ -26,41 +27,10 @@ vi.mock("../state/drainOfflineQueue", () => ({
   drainOfflineQueue: vi.fn(async () => undefined),
 }));
 
-class FakeWebSocket {
-  static OPEN = 1;
-  static instances: FakeWebSocket[] = [];
-  readyState = FakeWebSocket.OPEN;
-  onopen: (() => void) | null = null;
-  onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  url: string;
-  closed = false;
-  sent: string[] = [];
-
-  constructor(url: string) {
-    this.url = url;
-    FakeWebSocket.instances.push(this);
-    queueMicrotask(() => this.onopen?.());
-  }
-
-  send(data: string) {
-    this.sent.push(data);
-  }
-
-  close() {
-    this.closed = true;
-    this.onclose?.();
-  }
-
-  emit(msg: unknown) {
-    this.onmessage?.({ data: JSON.stringify(msg) });
-  }
-}
-
 describe("useGuestSync", () => {
   beforeEach(() => {
     FakeWebSocket.instances = [];
+    FakeWebSocket.autoOpen = true;
     resetDocumentSeqForTests();
     loadProject.mockReset();
     loadProjectMeta.mockReset();
@@ -417,5 +387,21 @@ describe("useGuestSync", () => {
     expect(
       pollSnapshotAlreadyApplied({ mtime_ns: 42, size: 9, server_seq: 5 }),
     ).toBe(true);
+  });
+
+  it("covers the first handshake with the fallback poll until the socket opens", async () => {
+    vi.useFakeTimers();
+    FakeWebSocket.autoOpen = false;
+    renderHook(() =>
+      useGuestSync("share:tok123", vi.fn(), null, vi.fn(), vi.fn(), true),
+    );
+    expect(loadProjectMeta).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(loadProjectMeta).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      FakeWebSocket.instances[0].open();
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(loadProjectMeta).toHaveBeenCalledTimes(1);
   });
 });
