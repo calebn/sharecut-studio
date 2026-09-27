@@ -1,0 +1,128 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../../state/dawStore";
+import { minimalProject } from "../../test/fixtures";
+import { TranscriptWordInspector } from "./TranscriptWordInspector";
+
+vi.mock("../../api", async (orig) => ({
+  ...(await orig<typeof import("../../api")>()),
+  correctTranscriptWord: vi.fn(async () => {}),
+  correctTranscriptPhrase: vi.fn(async () => {}),
+  setTranscriptWordSuppressed: vi.fn(async () => {}),
+  refreshProject: vi.fn(),
+}));
+
+vi.mock("../../commands/execute", () => ({
+  execute: vi.fn(async () => ({ status: "ok" })),
+}));
+
+import { correctTranscriptPhrase, correctTranscriptWord } from "../../api";
+
+function project() {
+  return minimalProject({
+    transcript: {
+      utterances: [
+        {
+          track_id: "host",
+          speaker: "Host",
+          start: 0,
+          end: 2,
+          text: "hello there",
+          mappable: true,
+          timeline_start: 0,
+          timeline_end: 2,
+          words: [
+            {
+              text: "hello",
+              start: 0,
+              end: 1,
+              timeline_start: 0,
+              timeline_end: 1,
+              word_index: 0,
+              confidence: 0.9,
+            },
+            {
+              text: "there",
+              start: 1,
+              end: 2,
+              timeline_start: 1,
+              timeline_end: 2,
+              word_index: 1,
+              confidence: 0.9,
+            },
+          ],
+        },
+      ],
+    },
+  });
+}
+
+describe("TranscriptWordInspector", () => {
+  beforeEach(() => {
+    vi.mocked(correctTranscriptWord).mockClear();
+    vi.mocked(correctTranscriptPhrase).mockClear();
+    useDawStore.setState({ project: project(), projectPath: "/tmp/ep" });
+  });
+
+  it("shows the timing note for a host", () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    expect(
+      screen.getByText(/audio and word timing stay as recorded/),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the timing note for a guest", () => {
+    useDawStore.setState({ projectPath: "share:tok" });
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    expect(
+      screen.queryByText(/audio and word timing stay as recorded/),
+    ).toBeNull();
+  });
+
+  it("Apply with end index = start calls correctTranscriptWord", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        "Hello",
+      );
+    });
+    expect(correctTranscriptPhrase).not.toHaveBeenCalled();
+  });
+
+  it("Apply with end index > start calls correctTranscriptPhrase", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there",
+      );
+    });
+  });
+
+  it("shows an error for empty text", () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(screen.getByText("Text cannot be empty")).toBeInTheDocument();
+    expect(correctTranscriptWord).not.toHaveBeenCalled();
+  });
+});
