@@ -58,8 +58,15 @@ function SplitterPreview(args: BottomTabsSplitterViewProps) {
       heightRem={heightRem}
       userSet={userSet}
       onResize={(rem) => {
-        // Same clamp as useTabsHeight.setHeightRem, over the fixed story shell.
-        setHeightRem(clampTabsHeightRem(rem, STORY_AVAILABLE_PX));
+        // Same clamp as useTabsHeight.setHeightRem over the fixed story shell,
+        // then bounded by the story's own min/max so aria-valuenow never
+        // leaves the aria-valuemin..aria-valuemax range the view reports.
+        setHeightRem(
+          Math.min(
+            args.maxRem,
+            Math.max(args.minRem, clampTabsHeightRem(rem, STORY_AVAILABLE_PX)),
+          ),
+        );
         setUserSet(true);
         args.onResize(rem);
       }}
@@ -111,6 +118,21 @@ export const KeyboardResize: Story = {
     await userEvent.keyboard("{Enter}");
     await expect(args.onReset).toHaveBeenCalled();
     await expect(sep).toHaveAttribute("aria-valuenow", "12.5");
+  },
+};
+
+export const KeyboardResizeCustomMax: Story = {
+  args: { heightRem: 19.5, maxRem: 20, userSet: true },
+  render: (args) => <SplitterPreview {...args} />,
+  play: async ({ args, canvasElement }) => {
+    const sep = within(canvasElement).getByRole("separator", {
+      name: "Resize editor panels",
+    });
+    sep.focus();
+    await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
+    await expect(args.onResize).toHaveBeenCalledWith(20.5);
+    await expect(sep).toHaveAttribute("aria-valuemax", "20");
+    await expect(sep).toHaveAttribute("aria-valuenow", "20");
   },
 };
 
