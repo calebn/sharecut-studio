@@ -65,6 +65,16 @@ def set_join_mode(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EditService(ws).set_join_mode(p["clip_id"], str(p["join_in_mode"]))
 
 
+def set_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    length = p.get("length_ms")
+    return EditService(ws).set_clip_join(
+        str(p["left_clip_id"]),
+        str(p["right_clip_id"]),
+        str(p["mode"]),
+        int(length) if length is not None else None,
+    )
+
+
 def apply_fade_recommendations(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = p.get("track_id")
     return EditService(ws).apply_fade_recommendations_for_track(

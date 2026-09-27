@@ -64,7 +64,12 @@ from podcast_mcp.edits.join_continuity import (
     assess_proposed_cut,
 )
 from podcast_mcp.edits.join_labels import record_label
-from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
+from podcast_mcp.edits.join_modes import (
+    crossfade_joins,
+    fade_joins,
+    set_clip_join,
+    set_clip_join_mode,
+)
 from podcast_mcp.edits.loudness import check_loudness
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
@@ -885,6 +890,27 @@ class EditService:
             lambda p: set_clip_join_mode(p, clip_id, join_in_mode),
             operation="set_clip_join_mode",
             params={"clip_id": clip_id, "join_in_mode": join_in_mode},
+        )
+
+    def set_clip_join(
+        self,
+        left_clip_id: str,
+        right_clip_id: str,
+        mode: str,
+        length_ms: int | None = None,
+    ) -> dict:
+        """Set one join's mode and fades in a single undoable step."""
+        return self.ws.mutate(
+            "before set clip join",
+            "after set clip join",
+            lambda p: set_clip_join(p, left_clip_id, right_clip_id, mode, length_ms=length_ms),
+            operation="set_clip_join",
+            params={
+                "left_clip_id": left_clip_id,
+                "right_clip_id": right_clip_id,
+                "mode": mode,
+                "length_ms": length_ms,
+            },
         )
 
     def shorten_word_gaps(

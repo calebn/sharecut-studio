@@ -1768,6 +1768,7 @@
           "crossfade_joins_tool",
           "set_clip_fade_tool",
           "set_join_mode_tool",
+          "set_clip_join_tool",
           "shorten_gaps_tool",
           "duplicate_segment_tool",
           "list_clips_tool",

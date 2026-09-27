@@ -69,6 +69,7 @@ Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_ton
 | Strip silence on speaker | `strip_silence_tool(speaker=…)` |
 | Declick cut joins | `fade_joins_tool` or `recommend_fades_tool` → `apply_fade_recommendations_tool` |
 | Overlap blend at joins (music) | `crossfade_joins_tool` |
+| One join's mode + fades (fade / crossfade / cut) | `set_clip_join_tool` (not `set_join_mode_tool`, which leaves the fades unset) |
 | Check if gate ruined words | `gate_overreach_tool(speaker=…)` after `add_effect_tool(preset="gate")` |
 | Add chapter | search → `add_chapter_tool(at_time, title)` |
 | Remove chapter | `remove_chapter_tool(title)` |

@@ -29,6 +29,7 @@ HANDLERS: dict[str, Handler] = {
     "TrimClipEdge": edits.trim_clip_edge,
     "RollClipJoin": edits.roll_clip_join,
     "SetJoinMode": edits.set_join_mode,
+    "SetClipJoin": edits.set_clip_join,
     "ApplyFadeRecommendations": edits.apply_fade_recommendations,
     "SetEffectBypass": edits.set_effect_bypass,
     **transcript.HANDLERS,

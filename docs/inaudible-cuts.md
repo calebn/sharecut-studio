@@ -36,7 +36,7 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 |-----------|-----------------|
 | Normal dialogue cuts (tighten, focus, ripple, NL) | Automatic — `join_in_mode=fade`; no extra call |
 | Cuts still clicky | `fade_joins_tool` / `podcast edit fade-joins` / Sharecut Studio clip inspector |
-| Per-clip join mode | `set_join_mode_tool` / Sharecut Studio join control (`fade` \| `crossfade` \| `cut`) |
+| Per-clip join mode **and fades** | `set_clip_join_tool` / `podcast edit set-clip-join` / Sharecut Studio join control (`fade` \| `crossfade` \| `cut`; crossfade sets left fade-out and right fade-in to `length_ms`, default `tighten.crossfade_ms`; cut zeroes both). `set_join_mode_tool` sets the mode only, so a crossfade with no fades renders as a plain join |
 | Re-render old project / fix multitrack sync | `fade_joins_tool` then `assemble_timeline` |
 | Music bed, intro/outro blend, explicit overlap soften | `crossfade_joins_tool` / `podcast edit crossfade-joins` |
 | Harsh boundaries from analyze | `recommend_fades_tool` → `apply_fade_recommendations_tool` (fade mode) |

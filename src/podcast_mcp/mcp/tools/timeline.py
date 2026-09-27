@@ -191,6 +191,24 @@ def set_join_mode_tool(
     return to_json(EditService(ws).set_join_mode(clip_id, join_in_mode))
 
 
+def set_clip_join_tool(
+    project_path: str,
+    left_clip_id: str,
+    right_clip_id: str,
+    mode: str,
+    length_ms: int | None = None,
+) -> str:
+    """Set the join between two neighbouring clips: mode plus fades (TOOL_TIMEBASE: na).
+
+    ``mode`` is fade | crossfade | cut. Crossfade sets left fade-out and right fade-in to
+    ``length_ms`` (default ``tighten.crossfade_ms``); cut zeroes both fades; fade sets both
+    (or keeps them). Prefer this over ``set_join_mode_tool``, which changes the mode only
+    and leaves a crossfade with no fades to blend.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(EditService(ws).set_clip_join(left_clip_id, right_clip_id, mode, length_ms))
+
+
 def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
@@ -689,6 +707,7 @@ def register(mcp: MCPServer) -> None:
         crossfade_joins_tool,
         set_clip_fade_tool,
         set_join_mode_tool,
+        set_clip_join_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,
@@ -723,6 +742,7 @@ def register(mcp: MCPServer) -> None:
         crossfade_joins_tool,
         set_clip_fade_tool,
         set_join_mode_tool,
+        set_clip_join_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,

@@ -5,7 +5,13 @@ from __future__ import annotations
 import math
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.clips_ops import abutting_pairs, clips_for_track
+from podcast_mcp.edits.clips_ops import (
+    abutting_pairs,
+    clips_for_track,
+    crossfade_block_reason,
+    crossfade_ms_at_join,
+    neighbour_clips,
+)
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.change_summary import change_summary
@@ -76,6 +82,75 @@ def set_clip_join_mode(
     return change_summary(project, operation="set_clip_join_mode", affected_tracks=[clip.track_id])
 
 
+def default_join_length_ms(mode: ClipJoinMode, defaults: dict | None = None) -> int:
+    """Seed length (ms) for a join in *mode*: crossfade overlap or the declick micro-fade."""
+    cfg = defaults or load_defaults()
+    if mode == ClipJoinMode.CROSSFADE:
+        return int(cfg.get("tighten", {}).get("crossfade_ms", 25))
+    if mode == ClipJoinMode.FADE:
+        return int(cfg.get("inaudible_cuts", {}).get("micro_fade_ms", 10))
+    return 0
+
+
+def set_clip_join(
+    project: EpisodeProject,
+    left_clip_id: str,
+    right_clip_id: str,
+    mode: ClipJoinMode | str,
+    *,
+    length_ms: int | None = None,
+    defaults: dict | None = None,
+) -> dict:
+    """Set the join between two neighbouring clips: mode plus the fades render reads.
+
+    ``crossfade`` sets ``left.fade_out_ms`` and ``right.fade_in_ms`` to ``length_ms``
+    (default ``tighten.crossfade_ms``; ``0`` is rejected). ``cut`` zeroes both fades.
+    ``fade`` sets both to ``length_ms``; without one it keeps the current fades, seeding
+    ``inaudible_cuts.micro_fade_ms`` when both are 0. Fades go through ``clamp_clip_fades``
+    like ``set_clip_fade``. Non-abutting neighbours are allowed; the result reports
+    ``crossfade_blocked``.
+    """
+    cfg = defaults or load_defaults()
+    left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
+    join_mode = mode if isinstance(mode, ClipJoinMode) else ClipJoinMode(mode)
+    if length_ms is not None and length_ms < 0:
+        raise ValueError("length_ms must be >= 0")
+    if join_mode == ClipJoinMode.CROSSFADE:
+        ms = length_ms if length_ms is not None else default_join_length_ms(join_mode, cfg)
+        if ms <= 0:
+            raise ValueError("crossfade length_ms must be > 0")
+        out_ms = in_ms = ms
+    elif join_mode == ClipJoinMode.CUT:
+        out_ms = in_ms = 0
+    elif length_ms is not None:
+        out_ms = in_ms = length_ms
+    elif left.fade_out_ms == 0 and right.fade_in_ms == 0:
+        out_ms = in_ms = default_join_length_ms(join_mode, cfg)
+    else:
+        out_ms, in_ms = left.fade_out_ms, right.fade_in_ms
+    right.join_in_mode = join_mode
+    left.fade_in_ms, left.fade_out_ms = clamp_clip_fades(
+        project, left, left.fade_in_ms, out_ms, cfg
+    )
+    right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(
+        project, right, in_ms, right.fade_out_ms, cfg
+    )
+    blocked = crossfade_block_reason(left, right) if join_mode == ClipJoinMode.CROSSFADE else None
+    summary = change_summary(project, operation="set_clip_join", affected_tracks=[left.track_id])
+    summary.update(
+        {
+            "left_clip_id": left.id,
+            "right_clip_id": right.id,
+            "join_in_mode": join_mode.value,
+            "left_fade_out_ms": left.fade_out_ms,
+            "right_fade_in_ms": right.fade_in_ms,
+            "crossfade_ms": crossfade_ms_at_join(left, right),
+            "crossfade_blocked": blocked,
+        }
+    )
+    return summary
+
+
 def _target_track_ids(
     project: EpisodeProject,
     *,
@@ -142,8 +217,7 @@ def crossfade_joins(
 ) -> dict:
     """Set abutting joins to crossfade mode with overlapping blend fades."""
     cfg = defaults or load_defaults()
-    default_ms = int(cfg.get("tighten", {}).get("crossfade_ms", 25))
-    ms = fade_ms if fade_ms is not None else default_ms
+    ms = fade_ms if fade_ms is not None else default_join_length_ms(ClipJoinMode.CROSSFADE, cfg)
     join_count = 0
     for tid in _target_track_ids(project, track_id=track_id, speaker=speaker):
         clips = clips_for_track(project, tid)

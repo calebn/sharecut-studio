@@ -432,6 +432,19 @@ def edit_crossfade_joins_cmd(
     )
 
 
+@edit_app.command("set-clip-join")
+def edit_set_clip_join_cmd(
+    project: Path = typer.Option(..., "--project"),
+    left: str = typer.Option(..., "--left", help="Left clip id"),
+    right: str = typer.Option(..., "--right", help="Right (next) clip id"),
+    mode: str = typer.Option(..., "--mode", help="fade | crossfade | cut"),
+    length_ms: int | None = typer.Option(None, "--length-ms"),
+) -> None:
+    """Set one join's mode and fades (crossfade needs fades to blend)."""
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EditService(ws).set_clip_join(left, right, mode, length_ms), indent=2))
+
+
 @edit_app.command("add-chapter")
 def edit_add_chapter_cmd(
     project: Path = typer.Option(..., "--project"),
