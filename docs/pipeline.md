@@ -95,7 +95,7 @@ beyond VAD, safer decoding and the `suspect_hallucination` flag (#521; CTC scori
 
 CLI/MCP: `podcast align status|brief|done|waive` / `align_*_tool`. Skill: **podcast-align-audio**.
 
-Each step returns a short human-readable **summary** (counts of tracks, cuts, suppressions, QC issues, etc.). The runner stores it on `PipelineStepLog.message` and surfaces it in CLI `--json-progress` (`Completed {step}: {summary}`) and the DAW Pipeline tab. Intra-step phases use the shared progress framework ([progress.md](progress.md)) — engines called from steps pick up the bound reporter via `resolve_progress()`.
+Each step returns a short human-readable **summary** (counts of tracks, cuts, suppressions, QC issues, etc.). The runner stores it on `PipelineStepLog.message` and surfaces it in CLI `--json-progress` (`Completed {step}: {summary}`) and the DAW Pipeline tab. `PipelineService.run()` returns a `PipelineRunResult` (`last_step`, `steps`, `export_qc`, `export_qc_path`, `ok`); CLI `pipeline run` prints one line per step plus, when this run exported, an `Export QC: ok|FAILED (…)` verdict line — see § CLI result and --strict below. Intra-step phases use the shared progress framework ([progress.md](progress.md)) — engines called from steps pick up the bound reporter via `resolve_progress()`.
 
 ## Configurable run (GUI / MCP)
 
@@ -104,7 +104,7 @@ Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled s
 - `GET`/`PUT` config and `POST` analyze — see [gui-integration.md](gui-integration.md) § Pipeline tab
 - Config payload includes `whisper_models` with per-model `cached`; GUI `transcribe.model` is a catalog picker that confirms before downloading via bootstrap (whisper-only). Pipeline `components.whisper.ok` requires the selected weights on disk. Pipeline **Run** (GUI/MCP/CLI) fails fast if `transcribe_tracks` would run and weights are missing — it never Hugging Face–pulls; use bootstrap or the picker Dialog to download.
 - MCP: `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, then `pipeline_run` (skill **podcast-pipeline-tune**)
-- CLI: `podcast pipeline run --unattended`, optional `--skip a,b,c`, `--realign` (re-score equal-length / manifest-pinned stems in `align_tracks`), and `--force` (re-runs ASR over existing transcripts for that run only; `transcribe.overwrite` in the advanced group is the persisted equivalent; `force_transcribe` on `pipeline_run` / `POST /api/pipeline/run` is run-only and never saved to the working set)
+- CLI: `podcast pipeline run --unattended`, optional `--skip a,b,c`, `--realign` (re-score equal-length / manifest-pinned stems in `align_tracks`), `--force` (re-runs ASR over existing transcripts for that run only; `transcribe.overwrite` in the advanced group is the persisted equivalent; `force_transcribe` on `pipeline_run` / `POST /api/pipeline/run` is run-only and never saved to the working set), and `--strict` (exit 1 when this run exported and QC is not ok; see § CLI result and --strict). `podcast pipeline list [--json]` shows each step's enabled / no-op / disabled state under the effective config.
 - Enabling a step expands `depends_on`; missing FFmpeg/whisper/rnnoise show as component badges (bootstrap CTAs)
 - **Analyze** proposes static knobs from diagnostics (hum, noise floor, gate, bleed, clipping, pre-aligned equal-duration dialogue); any gate-overreach finding always proposes a milder `effects.gate` (-6 dB threshold, applied once per Analyze call regardless of how many tracks are flagged), seeded from the resolved `gate` preset when the working set has none (see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)); loudness measure→target still happens inside balance/master at run time
 
@@ -121,6 +121,12 @@ podcast pipeline run --project episode.project.json --only master_loudness
 `--from reconcile_transcript` resumes at pass 1. Pass 2 reconcile is included when resuming from `assemble_timeline`.
 
 Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step parameters; `effects:` is only a by-name overlay on the FX presets built into `effects/presets.py`, see [audio-engineering.md](audio-engineering.md#effect-presets-source-of-truth)). Cut boundaries: [inaudible-cuts.md](inaudible-cuts.md). **Tuning filler/pause cuts:** [filler-cut-quality.md](filler-cut-quality.md). **Audio diagnostics and mastering QC:** [audio-engineering.md](audio-engineering.md). `config.load_defaults()` reads that file (or the one `PODCAST_MCP_PIPELINE_DEFAULTS` names) on each call but re-parses the YAML only when its contents change; each caller gets its own copy.
+
+### CLI result and --strict
+
+`pipeline run` prints, to stdout (TTY or not), one line per step (`{status} {step}`, plus `: {message}` when the step returned a summary), then — only when this run completed `export_deliverables` with status `ok` — an `Export QC: ok|FAILED (N issues), M warnings (<path>)` line with each issue listed below it. The last line stays `Pipeline complete. Last step: {last_step}`.
+
+`--strict/--no-strict` (default `--no-strict`, opt-in until the false-QC-failure fixes in #621 land) exits 1 when this run exported and the QC verdict is not ok; the failure line (`Export QC is not ok; exiting 1 (--strict).`) goes to stderr, everything else above stays on stdout. A run that never reached `export_deliverables` has no verdict, so `--strict` always passes; a QC file left over from an earlier run is never read.
 
 ## Edits during a run
 

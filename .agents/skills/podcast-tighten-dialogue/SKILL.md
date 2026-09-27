@@ -78,10 +78,13 @@ without the user signing off.
 ```bash
 podcast propose-edits --project episode.project.json
 podcast propose-edits --project episode.project.json --intensity light
+podcast propose-edits --project episode.project.json --json
 ```
 
 MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`
-(`operation` is `propose_edits`; not a bare array). Report `skip_counts`
+(`operation` is `propose_edits`; not a bare array). CLI `propose-edits --json`
+prints the same payload (`TightenProposal.to_payload()`); without `--json` it
+prints the summary text only. Report `skip_counts`
 (`discourse:like`, …) as “N discourse uses kept”, and `filler:acoustic` hits
 separately (“N acoustic, review each”).
 
