@@ -474,29 +474,43 @@ _LOUDNORM_JSON_STDERR = """
 """
 
 
-def test_measure_loudnorm_stats_parses_json(tmp_path: Path):
+_EBUR128_SUMMARY = (
+    "Summary:\n\n  Integrated loudness:\n    I:         -23.7 LUFS\n"
+    "    Threshold: -34.2 LUFS\n\n"
+    "  Loudness range:\n    LRA:        18.9 LU\n\n  True peak:\n    Peak:       -6.5 dBFS\n"
+)
+
+
+def test_loudnorm_input_stats_from_ebur128(tmp_path: Path):
     eng = FFmpegEngine()
     wav = tmp_path / "x.wav"
     wav.write_bytes(b"x")
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr=_LOUDNORM_JSON_STDERR, stdout="", returncode=0)
-        stats = eng.measure_loudnorm_stats(wav, -16.0, -1.5)
+        run.return_value = MagicMock(stderr=_EBUR128_SUMMARY, stdout="", returncode=0)
+        stats = eng.loudnorm_input_stats(wav)
     assert stats == {
-        "input_i": -23.71,
-        "input_tp": -6.54,
-        "input_lra": 18.86,
-        "input_thresh": -34.24,
-        "target_offset": -0.02,
+        "input_i": -23.7,
+        "input_tp": -6.5,
+        "input_lra": 18.9,
+        "input_thresh": -34.2,
+        "target_offset": 0.0,
     }
-
-
-def test_measure_loudnorm_stats_returns_none_on_bad_output(tmp_path: Path):
-    eng = FFmpegEngine()
-    wav = tmp_path / "x.wav"
-    wav.write_bytes(b"x")
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
-        run.return_value = MagicMock(stderr="nothing useful here", stdout="", returncode=0)
-        assert eng.measure_loudnorm_stats(wav, -16.0, -1.5) is None
+        run.return_value = MagicMock(
+            stderr=_EBUR128_SUMMARY.replace("    Threshold: -34.2 LUFS\n", ""),
+            stdout="",
+            returncode=0,
+        )
+        assert eng.loudnorm_input_stats(wav) is None
+
+
+def test_progress_seconds():
+    from podcast_mcp.engines.ffmpeg import _progress_seconds
+
+    assert _progress_seconds("out_time_us=1500000") == 1.5
+    assert _progress_seconds("out_time_ms=2000000") == 2.0
+    assert _progress_seconds("out_time_us=N/A") is None
+    assert _progress_seconds("progress=end") is None
 
 
 def test_measure_loudness_full_parses_summary(tmp_path: Path):
@@ -510,7 +524,12 @@ def test_measure_loudness_full_parses_summary(tmp_path: Path):
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         run.return_value = MagicMock(stderr=summary, stdout="", returncode=0)
         result = eng.measure_loudness_full(wav)
-    assert result == {"integrated_lufs": -16.0, "true_peak_db": -1.4, "lra": 7.0}
+    assert result == {
+        "integrated_lufs": -16.0,
+        "true_peak_db": -1.4,
+        "lra": 7.0,
+        "integrated_threshold_lufs": None,
+    }
     cmd = run.call_args[0][0]
     af = cmd[cmd.index("-af") + 1]
     assert "peak=true" in af, "ebur128 must request peak=true or no True peak section is printed"
@@ -539,17 +558,22 @@ def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):
         patch("podcast_mcp.engines.ffmpeg.run") as run,
     ):
         run.side_effect = [
+            MagicMock(stderr=_EBUR128_SUMMARY, stdout="", returncode=0),
             MagicMock(stderr=_LOUDNORM_JSON_STDERR, stdout="", returncode=0),
-            MagicMock(returncode=0),
         ]
-        eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
+        result = eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
     assert run.call_count == 2
     second_cmd = run.call_args_list[1][0][0]
     af = second_cmd[second_cmd.index("-af") + 1]
-    assert "measured_I=-23.71" in af
+    assert "measured_I=-23.7" in af
+    assert "measured_thresh=-34.2" in af
     assert "linear=true" in af
+    assert "print_format=json" in af
     assert second_cmd[second_cmd.index("-ar") + 1] == "44100"
     assert second_cmd[second_cmd.index("-ac") + 1] == "1"
+    assert result.normalization_type == "dynamic"
+    assert result.measured_input is not None
+    assert result.measured_input["input_i"] == -23.7
 
 
 def test_master_loudnorm_falls_back_when_measure_fails(tmp_path: Path):
@@ -563,17 +587,17 @@ def test_master_loudnorm_falls_back_when_measure_fails(tmp_path: Path):
             "probe",
             return_value=AudioProbe(duration_sec=1.0, sample_rate=48000, channels=2),
         ),
-        patch.object(eng, "measure_loudnorm_stats", return_value=None),
+        patch.object(eng, "loudnorm_input_stats", return_value=None),
     ):
         with patch("podcast_mcp.engines.ffmpeg.run") as run:
-            run.return_value = MagicMock(returncode=0)
-            eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
+            run.return_value = MagicMock(stderr="", returncode=0)
+            result = eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
     cmd = run.call_args[0][0]
     af = cmd[cmd.index("-af") + 1]
-    assert "measured_I" not in af
-    assert af == "loudnorm=I=-16.0:TP=-1.5:LRA=11.0"
+    assert af == "loudnorm=I=-16.0:TP=-1.5:LRA=11.0:print_format=json"
     assert cmd[cmd.index("-ar") + 1] == "48000"
     assert cmd[cmd.index("-ac") + 1] == "2"
+    assert result.normalization_type is None
 
 
 def test_build_track_filter_deesser():

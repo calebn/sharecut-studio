@@ -33,7 +33,8 @@ def test_master_and_mp3(two_wavs: tuple[Path, Path], tmp_path: Path):
     a, _ = two_wavs
     eng = FFmpegEngine()
     mastered = tmp_path / "master.wav"
-    eng.master_loudnorm(a, mastered, integrated_lufs=-16, true_peak_db=-1.5)
+    result = eng.master_loudnorm(a, mastered, integrated_lufs=-16, true_peak_db=-1.5)
+    assert result.normalization_type in {"linear", "dynamic"}
     mp3 = tmp_path / "out.mp3"
     eng.export_mp3(mastered, mp3, bitrate_kbps=128)
     assert mp3.is_file() and mp3.stat().st_size > 100
@@ -97,3 +98,37 @@ def test_measure_loudness_blocks_matches_ebur128_integrated(two_wavs: tuple[Path
     ref = eng.measure_loudness(a)
     assert got is not None and ref is not None
     assert abs(got - ref) < 0.2
+
+
+def test_master_loudnorm_reports_ffmpeg_progress(two_wavs: tuple[Path, Path], tmp_path: Path):
+    a, _ = two_wavs
+    eng = FFmpegEngine()
+    calls: list[tuple[float, float]] = []
+    out = tmp_path / "prog.wav"
+    eng.master_loudnorm(
+        a,
+        out,
+        integrated_lufs=-16,
+        true_peak_db=-1.5,
+        on_progress=lambda d, t: calls.append((d, t)),
+    )
+    probe = eng.probe(a)
+    assert calls
+    assert calls[-1][1] == pytest.approx(probe.duration_sec, abs=0.1)
+    assert calls[-1][0] >= 0.8 * calls[-1][1]
+    assert out.is_file()
+
+
+def test_run_with_progress_raises_on_ffmpeg_error(tmp_path: Path):
+    from subprocess import CalledProcessError
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    missing = tmp_path / "missing.wav"
+    with pytest.raises(CalledProcessError):
+        eng._run_with_progress(
+            [eng.ffmpeg, "-i", str(missing), "-f", "null", "-"],
+            total_sec=1.0,
+            on_progress=lambda *_: None,
+        )

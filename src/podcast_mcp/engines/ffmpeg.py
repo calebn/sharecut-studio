@@ -7,7 +7,7 @@ import re
 import shutil
 import tempfile
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
@@ -100,6 +100,25 @@ def _effect_filter(fx: ProcessingEffect) -> str | None:
             )
         case _:
             return None
+
+
+_PROGRESS_TIME_RE = re.compile(r"^out_time_(?:us|ms)=(\d+)$")  # both are microseconds
+
+
+def _progress_seconds(line: str) -> float | None:
+    m = _PROGRESS_TIME_RE.match(line.strip())
+    return int(m.group(1)) / 1_000_000 if m else None
+
+
+def _loudnorm_json(text: str) -> dict[str, Any] | None:
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 _EBUR128_BLOCK_RE = re.compile(r"\bt:\s*(\d+(?:\.\d+)?)\s+TARGET:.*?\bM:\s*(-?\d+(?:\.\d+)?)")
@@ -243,6 +262,13 @@ class AudioProbe:
     duration_sec: float
     sample_rate: int
     channels: int
+
+
+@dataclass(frozen=True)
+class LoudnormResult:
+    path: Path
+    normalization_type: str | None  # "linear" | "dynamic"; None when loudnorm printed no JSON
+    measured_input: dict[str, float] | None  # pass-1 stats fed to loudnorm (None = single pass)
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -974,32 +1000,30 @@ class FFmpegEngine:
             summed.unlink(missing_ok=True)
         return output_path
 
-    def measure_loudnorm_stats(
-        self,
-        input_path: Path,
-        integrated_lufs: float,
-        true_peak_db: float,
-        lra: float = 11.0,
-    ) -> dict[str, float] | None:
-        """Pass 1 of two-pass loudnorm: measure input stats as JSON."""
-        af = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}:print_format=json"
-        cmd = [self.ffmpeg, "-i", str(input_path), "-af", af, "-f", "null", "-"]
-        r = run(cmd, capture_output=True, text=True)
-        text = r.stderr or ""
-        m = re.search(r"\{.*\}", text, re.DOTALL)
+    def loudnorm_input_stats(self, input_path: Path) -> dict[str, float] | None:
+        """loudnorm pass-1 values from one ebur128 pass.
+
+        Much faster than a loudnorm measure pass, which resamples to 192 kHz.
+        ``target_offset`` is 0: loudnorm only uses it in dynamic mode.
+        """
+        m = self.measure_loudness_full(input_path)
         if not m:
             return None
-        try:
-            data = json.loads(m.group(0))
-            return {
-                "input_i": float(data["input_i"]),
-                "input_tp": float(data["input_tp"]),
-                "input_lra": float(data["input_lra"]),
-                "input_thresh": float(data["input_thresh"]),
-                "target_offset": float(data["target_offset"]),
-            }
-        except (json.JSONDecodeError, KeyError, ValueError):
+        i, tp, lra, thr = (
+            m.get("integrated_lufs"),
+            m.get("true_peak_db"),
+            m.get("lra"),
+            m.get("integrated_threshold_lufs"),
+        )
+        if i is None or tp is None or lra is None or thr is None:
             return None
+        return {
+            "input_i": i,
+            "input_tp": tp,
+            "input_lra": lra,
+            "input_thresh": thr,
+            "target_offset": 0.0,
+        }
 
     def measure_loudness_full(self, path: Path) -> dict[str, float | None] | None:
         """Integrated LUFS + true peak + LRA from ebur128 (for post-master QC)."""
@@ -1018,13 +1042,44 @@ class FFmpegEngine:
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
         lra_m = re.search(r"\bLRA:\s*(-?\d+\.?\d*)\s*LU", text)
+        thr_m = re.search(r"\bI:\s*-?\d+\.?\d*\s*LUFS\s+Threshold:\s*(-?\d+\.?\d*)\s*LUFS", text)
         if i_m is None:
             return None
         return {
             "integrated_lufs": float(i_m.group(1)),
             "true_peak_db": float(tp_m.group(1)) if tp_m else None,
             "lra": float(lra_m.group(1)) if lra_m else None,
+            "integrated_threshold_lufs": float(thr_m.group(1)) if thr_m else None,
         }
+
+    def _run_with_progress(
+        self,
+        argv: list[str],
+        *,
+        total_sec: float,
+        on_progress: Callable[[float, float], None],
+    ) -> str:
+        """Run ffmpeg with ``-progress pipe:1``, report (done_sec, total_sec), return stderr."""
+        cmd = [argv[0], "-nostats", "-progress", "pipe:1", *argv[1:]]
+        with tempfile.TemporaryFile() as err:
+            proc = popen(cmd, stdout=PIPE, stderr=err)
+            try:
+                if proc.stdout is None:
+                    raise RuntimeError("ffmpeg progress pipe missing")
+                for raw in proc.stdout:
+                    done = _progress_seconds(raw.decode("utf-8", "replace"))
+                    if done is not None:
+                        on_progress(min(done, total_sec), total_sec)
+                rc = proc.wait()
+            except BaseException:
+                proc.kill()
+                proc.wait()
+                raise
+            err.seek(0)
+            text = err.read().decode("utf-8", "replace")
+        if rc != 0:
+            raise CalledProcessError(rc, cmd, stderr=text)
+        return text
 
     def master_loudnorm(
         self,
@@ -1036,11 +1091,16 @@ class FFmpegEngine:
         *,
         sample_rate: int | None = None,
         channels: int | None = None,
-    ) -> Path:
+        on_progress: Callable[[float, float], None] | None = None,
+    ) -> LoudnormResult:
         """Two-pass loudnorm, then restore delivery sample rate/channels.
 
-        FFmpeg's loudnorm filter upsamples to 192 kHz for true-peak work; without
-        an explicit ``-ar``/``-ac``, that rate leaks into mastered/export WAVs.
+        Pass 1 is ebur128 (I, TP, LRA, gate threshold); pass 2 is loudnorm in linear
+        mode with those values. loudnorm falls back to dynamic mode when
+        ``TP + gain > TP target`` or ``LRA > lra`` (or the measured LRA is 0);
+        ``normalization_type`` says which ran. FFmpeg's loudnorm upsamples to 192 kHz
+        for true-peak work; without an explicit ``-ar``/``-ac`` that rate would leak
+        into mastered/export WAVs.
 
         If the premix loudness range exceeds ``lra``, loudnorm will under-shoot
         ``integrated_lufs`` to honor the LRA/TP ceilings - raise ``lra`` (or
@@ -1050,15 +1110,15 @@ class FFmpegEngine:
         probe = self.probe(input_path)
         out_rate = sample_rate if sample_rate is not None else probe.sample_rate
         out_ch = channels if channels is not None else probe.channels
-        stats = self.measure_loudnorm_stats(input_path, integrated_lufs, true_peak_db, lra)
+        stats = self.loudnorm_input_stats(input_path)
+        base = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
         if stats is None:
-            af = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
+            af = f"{base}:print_format=json"
         else:
             af = (
-                f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}:"
-                f"measured_I={stats['input_i']}:measured_TP={stats['input_tp']}:"
+                f"{base}:measured_I={stats['input_i']}:measured_TP={stats['input_tp']}:"
                 f"measured_LRA={stats['input_lra']}:measured_thresh={stats['input_thresh']}:"
-                f"offset={stats['target_offset']}:linear=true"
+                f"offset={stats['target_offset']}:linear=true:print_format=json"
             )
         cmd = [
             self.ffmpeg,
@@ -1073,8 +1133,15 @@ class FFmpegEngine:
             str(out_ch),
             str(output_path),
         ]
-        run(cmd, check=True, capture_output=True)
-        return output_path
+        if on_progress is None:
+            stderr = run(cmd, check=True, capture_output=True, text=True).stderr or ""
+        else:
+            stderr = self._run_with_progress(
+                cmd, total_sec=probe.duration_sec, on_progress=on_progress
+            )
+        report = _loudnorm_json(stderr) or {}
+        norm = report.get("normalization_type")
+        return LoudnormResult(output_path, str(norm) if norm else None, stats)
 
     def filter_audio(
         self,

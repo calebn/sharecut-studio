@@ -3,16 +3,13 @@ from __future__ import annotations
 import functools
 import json
 import logging
-<<<<<<< HEAD
-=======
 import math
-import os
->>>>>>> 288e54a7 (fix(pipeline): balance_tracks stages post-FX, speech-gated loudness)
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine
+from podcast_mcp.engines.ffmpeg import LoudnormResult
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -674,7 +671,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     raw_crest = master_cfg.get("crest_tame_af", "dynaudnorm=f=150:g=15")
     crest_tame_af = str(raw_crest).strip() if raw_crest is not None else ""
 
-    def _qc(measured: dict[str, float | None] | None) -> dict[str, Any]:
+    def _qc(measured: dict[str, float | None] | None, loudnorm: LoudnormResult) -> dict[str, Any]:
         qc: dict[str, Any] = {
             "target_integrated_lufs": target_lufs,
             "target_true_peak_db": target_tp,
@@ -698,6 +695,8 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
                 )
             qc["issues"] = issues
             qc["within_tolerance"] = not issues
+        qc["normalization_type"] = loudnorm.normalization_type
+        qc["loudnorm_input"] = loudnorm.measured_input
         return qc
 
     measured: dict[str, float | None] | None = None
@@ -709,15 +708,39 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             prefer_parent=True,
         ) as prog:
 
+            loudnorm: LoudnormResult | None = None
+
+            def _loudnorm(src: Path, dest: Path) -> LoudnormResult:
+                with prog.child("master_loudnorm", "Normalizing loudness") as sub:
+                    last = -1
+
+                    def report(done_sec: float, total_sec: float) -> None:
+                        nonlocal last
+                        whole = int(done_sec)
+                        if whole == last:
+                            return
+                        last = whole
+                        total = max(1, math.ceil(total_sec))
+                        sub.advance_to(
+                            min(whole, total), total=total, message=f"{whole} of {total} s"
+                        )
+
+                    return eng.master_loudnorm(
+                        src,
+                        dest,
+                        integrated_lufs=target_lufs,
+                        true_peak_db=target_tp,
+                        lra=target_lra,
+                        on_progress=report,
+                    )
+
             def _master_into(tmp: Path) -> None:
-                nonlocal measured, qc
-                prog.set_phase("loudnorm", "Running loudnorm…")
-                eng.master_loudnorm(
-                    premix, tmp, integrated_lufs=target_lufs, true_peak_db=target_tp, lra=target_lra
-                )
+                nonlocal measured, qc, loudnorm
+                prog.set_phase("loudnorm", "Measuring premix, then normalizing loudness…")
+                loudnorm = _loudnorm(premix, tmp)
                 prog.set_phase("measure", "Measuring loudness…")
                 measured = eng.measure_loudness_full(tmp)
-                qc = _qc(measured)
+                qc = _qc(measured, loudnorm)
                 # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
                 # Tame crest, then remaster once before writing QC.
                 if (
@@ -728,15 +751,9 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
                 ):
                     prog.set_phase("crest_tame", "Taming crest then remastering…")
                     eng.filter_audio(premix, tame_path, crest_tame_af)
-                    eng.master_loudnorm(
-                        tame_path,
-                        tmp,
-                        integrated_lufs=target_lufs,
-                        true_peak_db=target_tp,
-                        lra=target_lra,
-                    )
+                    loudnorm = _loudnorm(tame_path, tmp)
                     measured = eng.measure_loudness_full(tmp)
-                    qc = _qc(measured)
+                    qc = _qc(measured, loudnorm)
                     qc["crest_tame_af"] = crest_tame_af
 
             # Master beside it and swap in whole; its hash was already dropped above.
@@ -749,9 +766,10 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
     if measured and measured.get("integrated_lufs") is not None:
         lufs = measured["integrated_lufs"]
+        kind = (loudnorm.normalization_type if loudnorm else None) or "unknown"
         if qc["within_tolerance"]:
-            return f"mastered to {lufs} LUFS (within tolerance)"
-        return f"mastered to {lufs} LUFS ({len(qc['issues'])} QC issues)"
+            return f"mastered to {lufs} LUFS ({kind} loudnorm, within tolerance)"
+        return f"mastered to {lufs} LUFS ({kind} loudnorm, {len(qc['issues'])} QC issues)"
     return "mastered (loudness unmeasured)"
 
 
