@@ -88,6 +88,24 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
         )
 
 
+def test_peer_speech_index_falls_back_for_standalone_transcript() -> None:
+    from podcast_mcp.edits.fillers import _peer_speaking_in_gap, _peer_speech_indexes
+
+    project = _project_with_transcript([TranscriptWord(text="peer", start=2.0, end=2.4)])
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="/tmp/ws/raw/guest.wav", duration_sec=30.0),
+        )
+    )
+    indexes = _peer_speech_indexes(project)
+    assert "guest" not in indexes
+    assert _peer_speaking_in_gap(project, "guest", 2.1, 2.3, indexes)
+    assert not _peer_speaking_in_gap(project, "guest", 2.4, 2.6, indexes)
+
+
 def test_peer_speech_index_excludes_own_long_word_across_three_tracks(monkeypatch) -> None:
     from podcast_mcp.edits.fillers import (
         _peer_speaking_in_gap,
