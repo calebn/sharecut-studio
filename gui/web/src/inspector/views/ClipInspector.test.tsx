@@ -219,6 +219,29 @@ describe("ClipInspector join", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("rejects a zero crossfade length without calling the server", async () => {
+    const user = userEvent.setup();
+    render(<ClipInspector clip={{ ...second, join_in_mode: "crossfade" }} />);
+    expect(screen.getByLabelText("Join length ms")).toHaveAttribute("min", "1");
+    await user.type(screen.getByLabelText("Join length ms"), "0");
+    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("at least 1 ms");
+    expect(setClipJoin).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Join length ms")).toHaveValue(null);
+  });
+
+  it("rejects a typed 0 when switching to crossfade", async () => {
+    const user = userEvent.setup();
+    render(<ClipInspector clip={second} />);
+    await user.type(screen.getByLabelText("Join length ms"), "0");
+    await user.selectOptions(
+      screen.getByLabelText("Join mode"),
+      "Crossfade (overlap both clips)",
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("at least 1 ms");
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
   it("says why a crossfade will not blend", () => {
     render(
       <ClipInspector
