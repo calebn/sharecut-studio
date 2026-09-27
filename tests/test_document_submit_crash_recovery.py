@@ -49,12 +49,18 @@ def _submit_then_die(
     target_id: str = "crash-1",
     client_seq: int = 1,
     body: str = "crash",
+    kill_id: str | None = None,
 ) -> None:
-    """Submit ``target_id``, killing the process at ``stage`` of its journal write."""
+    """Submit ``target_id``, killing the process at ``stage`` of ``kill_id``'s journal write.
+
+    ``kill_id`` defaults to ``target_id``; pass a crash-saved command's id to kill the
+    process inside ``journal_saved_command``'s recovery write instead.
+    """
     real_append_and_apply = SyncStore.append_and_apply
+    kill = kill_id or target_id
 
     def killing_append_and_apply(self, *, command_id, **kwargs):
-        if command_id != target_id:
+        if command_id != kill:
             return real_append_and_apply(self, command_id=command_id, **kwargs)
         if stage == "after_project_commit":
             # The project commit (with document_sync.last_command) has already landed;
@@ -157,3 +163,28 @@ def test_a_second_crash_after_a_recovery_keeps_both_edits_journaled(minimal_proj
     assert retry.submit(_crash_command("crash-2", 2, "crash again"))["idempotent"] is True
     assert [c.body for c in load_project(minimal_project).comments] == ["crash", "crash again"]
     assert _journal_rows(minimal_project) == [("crash-1", None), ("crash-2", None)]
+
+
+@pytest.mark.parametrize("stage", ["after_project_commit", "after_journal_insert"])
+def test_a_crash_during_recovery_leaves_the_saved_command_recoverable(minimal_project, stage):
+    _run_crash(str(minimal_project), "after_project_commit")
+    # The next submit journals crash-1 first (its own document.db transaction); kill it
+    # there: before that write starts, or after its INSERT but before its COMMIT.
+    _run_crash(str(minimal_project), stage, "crash-2", 2, "crash again", "crash-1")
+
+    project = load_project(minimal_project)
+    # crash-2 was never applied: recovery runs before its apply.
+    assert [c.body for c in project.comments] == ["crash"]
+    saved = project.document_sync.last_command
+    assert saved is not None
+    assert saved.command_id == "crash-1"
+    # No row survives the killed recovery transaction.
+    assert _journal_rows(minimal_project) == []
+
+    retry = DocumentSyncService.open(minimal_project)
+    assert retry.submit(_crash_command("crash-2", 2, "crash again"))["ok"]
+    assert retry.submit(_crash_command())["idempotent"] is True
+    assert [c.body for c in load_project(minimal_project).comments] == ["crash", "crash again"]
+    rows = _journal_rows(minimal_project)
+    assert [command_id for command_id, _ in rows] == ["crash-1", "crash-2"]
+    assert rows[0][1] is None
