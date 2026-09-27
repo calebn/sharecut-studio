@@ -973,12 +973,9 @@ class PipelineJobManager:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
                 raise RuntimeError("A pipeline-slot job is already running")
-            if self._catalog._job is not None and self._catalog._job.status in (
-                "ok",
-                "error",
-                "cancelled",
-            ):
-                self._catalog._archive_job(self._catalog._job)
+            current = self._catalog._job
+            if current is not None and current.status in TERMINAL_JOB_STATUSES:
+                self._catalog._archive_job(current)
             job = PipelineJob(
                 id=uuid.uuid4().hex[:12],
                 project_path=str(project_path.resolve()),
