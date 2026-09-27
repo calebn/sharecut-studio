@@ -340,7 +340,12 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
    through the lane's current clips (`timeline/appliedEditTicks.ts`, #527), so
    later ripples, trims and splits move a tick to the post-edit join instead of
    drawing the record's stale pre-edit range. Records that no longer map to a
-   clip appear only in **Impact → Applied edits**. The layer clips to the canvas,
+   clip appear only in **Impact → Applied edits**. A removal binds to the adjacent
+   clip pair whose join carries its source clocks, and ties between clips that
+   share a source edge go to the record's stored `timeline_*`. Every server
+   `operation` has an explicit case (pinned by `tests/test_gui_readiness.py`).
+   Ticks carry no hover title (the layer is `pointer-events: none`); labels live
+   in Impact. The layer clips to the canvas,
    so a tick can never widen the scroll range. Pending `remove` stays hatched and
    `mute` solid (toggle)  
 4. **Markers** — chapter diamonds + social clip regions above lanes (toggle)
@@ -414,7 +419,7 @@ Pending edits and combined transcript utterances in `/api/project` include **dua
 
 **Transcript display is non-destructive:** cut-away (`mappable === false`) utterances stay in on-disk `combined.json` with source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
 
-**Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten. The lane's applied-edit ticks do not use `timeline_*` at all (#527): they come from `params.per_track_source` (`ripple_delete`/`punch_delete`), `params.split_source_by_track` (`split_clips_at`/`approve_split`), or the record's own `source_start`/`source_end`, projected through the track's current clips.
+**Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten. The lane's applied-edit ticks do not use `timeline_*` at all (#527): they come from `params.per_track_source` (`ripple_delete`/`punch_delete`/`approve_edits`/`apply_prefix_edits`), `params.split_source_by_track` (`split_clips_at`/`approve_split`), or the record's own `source_start`/`source_end`, projected through the track's current clips.
 
 `ProjectView` also includes `social_clips` (timeline-clock candidates from `social.clip_candidates`) and `envelopes` for lane-level volume curves.
 

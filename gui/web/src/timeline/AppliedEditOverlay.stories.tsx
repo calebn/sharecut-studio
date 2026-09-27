@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
@@ -101,10 +101,6 @@ const meta: Meta<typeof AppliedEditOverlay> = {
     trackId: "mira-voice",
     zoomPxPerSec: 40,
     selectedId: null,
-    onSelect: fn(),
-  },
-  argTypes: {
-    onSelect: { control: false, table: { disable: true } },
   },
 };
 
@@ -126,11 +122,8 @@ export const Visible: Story = {
 export const Selected: Story = {
   args: { selectedId: selected.id },
   play: async ({ canvasElement }) => {
-    const tick = canvasElement.querySelector(".applied-tick.selected");
-    await expect(tick).toHaveAttribute(
-      "title",
-      "Remove: Keep the entrance tight",
-    );
+    const ticks = canvasElement.querySelectorAll(".applied-tick.selected");
+    await expect(ticks).toHaveLength(1);
   },
 };
 

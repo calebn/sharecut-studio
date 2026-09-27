@@ -589,9 +589,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const onSelectTrack = useStableCallback((trackId: string) => {
     setSelection({ kind: "track", trackId });
   });
-  const onSelectApplied = useStableCallback((trackId: string, id: string) =>
-    setSelection({ kind: "applied", id, trackId }),
-  );
   const onSelectPending = useStableCallback((trackId: string, id: string) =>
     setSelection({ kind: "pending", id, trackId }),
   );
@@ -974,7 +971,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           )}
                           showStaleInvalidations={showStaleInv}
                           staleInvalidations={staleInvalidations}
-                          onSelectApplied={onSelectApplied}
                           onSelectPending={onSelectPending}
                         />
                       );
