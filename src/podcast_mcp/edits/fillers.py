@@ -578,7 +578,8 @@ def _peer_speaking_in_gap(
 
     if peer_indexes is not None:
         index = peer_indexes.get(track_id)
-        return index.overlaps(gap_start, gap_end) if index is not None else False
+        if index is not None:
+            return index.overlaps(gap_start, gap_end)
 
     for tr in project.transcripts:
         if tr.track_id == track_id:
