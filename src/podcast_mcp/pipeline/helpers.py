@@ -12,15 +12,6 @@ from podcast_mcp.models import (
     TrackRole,
 )
 
-DEFAULT_PREMIX_PEAK_CEILING_DB = -1.0
-
-
-def mix_peak_ceiling_db(defaults: dict) -> float:
-    """True-peak ceiling (dBTP) the premix / bounce sum is trimmed under."""
-    return float(
-        defaults.get("mix", {}).get("premix_peak_ceiling_db", DEFAULT_PREMIX_PEAK_CEILING_DB)
-    )
-
 
 def ffmpeg() -> FFmpegEngine:
     return FFmpegEngine()

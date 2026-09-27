@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import math
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,19 @@ def load_defaults() -> dict[str, Any]:
         apply_whisper_model_to_defaults(data)
         return data
     return {}
+
+
+DEFAULT_PREMIX_PEAK_CEILING_DB = -1.0
+
+
+def mix_peak_ceiling_db(defaults: Mapping[str, Any] | None = None) -> float:
+    """True-peak ceiling (dBTP) the premix, bounce and compose sums are trimmed under.
+
+    ``defaults`` is a pipeline config (a run's merged config); None reads ``load_defaults()``.
+    """
+    cfg = load_defaults() if defaults is None else defaults
+    mix = cfg.get("mix") or {}
+    return float(mix.get("premix_peak_ceiling_db", DEFAULT_PREMIX_PEAK_CEILING_DB))
 
 
 def bounded_float(value: Any, default: float, lo: float, hi: float) -> float:

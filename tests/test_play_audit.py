@@ -237,3 +237,5 @@ def test_mix_render_hash_includes_mix_semantics_rev(monkeypatch) -> None:
     before = mix_render_hash({"host": 0.0})
     monkeypatch.setattr(play_audit, "MIX_SEMANTICS_REV", MIX_SEMANTICS_REV + 1)
     assert mix_render_hash({"host": 0.0}) != before
+    assert mix_render_hash({"host": 0.0}, -1.0) != mix_render_hash({"host": 0.0}, -2.0)
+    assert mix_render_hash({"host": 0.0}) == mix_render_hash({"host": 0.0}, -1.0)

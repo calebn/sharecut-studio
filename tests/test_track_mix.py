@@ -298,6 +298,17 @@ def test_balance_never_touches_the_fader(minimal_project: Path) -> None:
     assert host.fader_db == -4.0
 
 
+def test_a_peak_ceiling_change_stales_the_premix(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fake_premix(ws)
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+    same = {"mix": {"premix_peak_ceiling_db": -1.0}}
+    lower = {"mix": {"premix_peak_ceiling_db": -3.0}}
+    assert premix_stale_vs_mix(ws.project, same) is False
+    assert premix_stale_vs_mix(ws.project, lower) is True
+    assert premix_is_stale(ws.project, lower) is True
+
+
 def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     minimal_project: Path,
 ) -> None:
@@ -313,7 +324,7 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     assert _kw == {"peak_ceiling_db": -1.0}
     assert inputs == [(Path(rendered["host"]), -5.0)]
     assert premix_path(project).read_bytes() == b"RIFFMIX"
-    assert read_premix_hash(project) == mix_render_hash({"host": -5.0})
+    assert read_premix_hash(project) == mix_render_hash({"host": -5.0}, -1.0)
     assert premix_stale_vs_mix(project) is False
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from podcast_mcp.config import DEFAULT_PREMIX_PEAK_CEILING_DB
 from podcast_mcp.edits.tighten_intensity import DEFAULT_TIGHTEN_INTENSITY, TIGHTEN_INTENSITIES
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, WHISPER_SIZE_ENUM
@@ -825,7 +826,7 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         label="Premix peak ceiling",
         description="True-peak ceiling the unity-sum premix is trimmed under before mastering.",
         type="number",
-        default=-1.0,
+        default=DEFAULT_PREMIX_PEAK_CEILING_DB,
         minimum=-12.0,
         maximum=0.0,
         unit="dBTP",
