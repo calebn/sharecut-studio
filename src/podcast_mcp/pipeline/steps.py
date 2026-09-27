@@ -381,7 +381,11 @@ def _saved_stem_inputs_changed(
 
 @with_render_lock
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    from podcast_mcp.engines.play_audit import publish_stem, stem_is_fresh, track_render_hash
+    from podcast_mcp.engines.play_audit import (
+        clear_invalidations_if_current,
+        publish_stem,
+        stem_is_fresh,
+    )
     from podcast_mcp.util.project_state import (
         live_project,
         project_file_revision,
@@ -428,7 +432,6 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
         return track.id, out
 
     max_workers = defaults.get("performance", {}).get("max_workers")
-    from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
 
     with resolve_progress_task(
         "render_stems",
@@ -447,8 +450,7 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             rendered[track_id] = out
             # A mutation during rendering must keep its new cause journal.
             with project_state_lock(project):
-                if track_render_hash(live, track_id) == track_render_hash(render_project, track_id):
-                    clear_invalidations_for_tracks(project, [track_id])
+                clear_invalidations_if_current(project, render_project, track_id, current=live)
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 

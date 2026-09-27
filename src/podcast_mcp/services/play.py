@@ -22,13 +22,13 @@ from podcast_mcp.edits.pending_preview import (
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
+    clear_invalidations_if_current,
     publish_stem,
     stem_is_fresh,
     stem_path,
     stem_revision,
     track_render_hash,
 )
-from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
 from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.engines.timemap import TimelineMapError, timeline_range_to_source
 from podcast_mcp.engines.transcript_gated_play import (
@@ -577,24 +577,9 @@ class PlayService:
             with project_commit_lock(self.project):
                 store = ProjectStore(self.ws.path)
                 stored_project = store.load()
-                if track_render_hash(stored_project, track_id) == track_render_hash(
-                    render_project, track_id
-                ):
-                    before = [
-                        (inv.id, tuple(inv.track_ids))
-                        for inv in stored_project.render.invalidations
-                    ]
-                    clear_invalidations_for_tracks(stored_project, [track_id])
-                    after = [
-                        (inv.id, tuple(inv.track_ids))
-                        for inv in stored_project.render.invalidations
-                    ]
-                    if after != before:
-                        store.commit(stored_project)
-                if track_render_hash(self.project, track_id) == track_render_hash(
-                    render_project, track_id
-                ):
-                    clear_invalidations_for_tracks(self.project, [track_id])
+                if clear_invalidations_if_current(stored_project, render_project, track_id):
+                    store.commit(stored_project)
+                clear_invalidations_if_current(self.project, render_project, track_id)
         schedule_stem_waveforms(self.project, [track_id])
         return out
 

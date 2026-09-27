@@ -218,6 +218,29 @@ def write_stem_hash(
     return h
 
 
+def clear_invalidations_if_current(
+    project: EpisodeProject,
+    snapshot: EpisodeProject,
+    track_id: str,
+    *,
+    current: EpisodeProject | None = None,
+) -> bool:
+    """Clear ``project``'s invalidations for ``track_id`` if a stem from ``snapshot`` is current.
+
+    Current means ``track_render_hash`` of ``current`` (default ``project``) equals the
+    snapshot's, so an edit made while the stem rendered keeps its cause journal. Returns
+    whether the journal changed.
+    """
+    from podcast_mcp.engines.render_invalidations import clear_invalidations_for_tracks
+
+    reference = current if current is not None else project
+    if track_render_hash(reference, track_id) != track_render_hash(snapshot, track_id):
+        return False
+    before = [(inv.id, tuple(inv.track_ids)) for inv in project.render.invalidations]
+    clear_invalidations_for_tracks(project, [track_id])
+    return [(inv.id, tuple(inv.track_ids)) for inv in project.render.invalidations] != before
+
+
 def expected_stem_duration_sec(project: EpisodeProject, track_id: str) -> float | None:
     """Timeline end of the last placed clip (stem length when assemble is correct)."""
     from podcast_mcp.engines.session_timeline import SessionTimeline
