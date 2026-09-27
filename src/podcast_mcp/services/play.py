@@ -14,7 +14,7 @@ from pathlib import Path
 
 from filelock import Timeout
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
     PendingPreviewWindow,
@@ -1033,7 +1033,8 @@ class PlayService:
             track = self.project.track_by_id(tid)
             segments.append((wav, _compose_gain_db(track, tier_used)))
 
-        extra = f"mix{MIX_SEMANTICS_REV}:{_mix_cache_extra(segments)}"
+        ceiling = mix_peak_ceiling_db(self._defaults)
+        extra = f"mix{MIX_SEMANTICS_REV}:tp{ceiling:g}:{_mix_cache_extra(segments)}"
         out = self._cache_path(
             f"compose_{kind}_{'-'.join(ids)}",
             start_sec,
@@ -1042,7 +1043,9 @@ class PlayService:
             extra=extra,
         )
         if not out.is_file() or rerender:
-            render_atomic(out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp))
+            render_atomic(
+                out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp, peak_ceiling_db=ceiling)
+            )
         self._mark_play_cache_used(out)
 
         cmd = None if dry_run else self._player_command(player, out)
