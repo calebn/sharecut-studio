@@ -11,17 +11,50 @@ export type KeymapOverrides = Record<string, string[]>;
 
 let memory: KeymapOverrides | null = null;
 
+/** Remaps saved under renamed command ids (#525: focus.* became layout.*); null = removed. */
+const RENAMED_COMMANDS: Readonly<Record<string, string | null>> = {
+  "focus.default": "layout.default",
+  "focus.timeline": "layout.timeline",
+  "focus.text": "layout.text",
+  "focus.review": "layout.review",
+  "focus.cycle": null,
+};
+
+/** Move renamed ids to their new id (an existing remap there wins); drop removed ones. */
+function migrateRenamed(saved: KeymapOverrides): KeymapOverrides | null {
+  let next: KeymapOverrides | null = null;
+  for (const [oldId, newId] of Object.entries(RENAMED_COMMANDS)) {
+    const keys = saved[oldId];
+    if (keys === undefined) {
+      continue;
+    }
+    next ??= { ...saved };
+    delete next[oldId];
+    if (newId && next[newId] === undefined) {
+      next[newId] = keys;
+    }
+  }
+  return next;
+}
+
 function readStorage(): KeymapOverrides {
   if (memory) {
     return memory;
   }
   const raw = readLocal(STORAGE_KEY);
+  let saved: KeymapOverrides;
   try {
-    memory = raw ? (JSON.parse(raw) as KeymapOverrides) : {};
+    saved = raw ? (JSON.parse(raw) as KeymapOverrides) : {};
   } catch {
-    memory = {};
+    saved = {};
   }
-  return memory;
+  const migrated = migrateRenamed(saved);
+  if (migrated) {
+    writeStorage(migrated);
+    return migrated;
+  }
+  memory = saved;
+  return saved;
 }
 
 function writeStorage(next: KeymapOverrides): void {
