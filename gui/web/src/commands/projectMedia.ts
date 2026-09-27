@@ -12,6 +12,7 @@ import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchTracksOrder } from "../document/projectPatch";
 import { canIngestMedia } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { withAbortTimeout } from "../utils/abortTimeout";
 import { errorMessage } from "../utils/apiError";
 import { homeUrl, projectUrl } from "../utils/projectUrl";
 import { registerCommand } from "./execute";
@@ -108,16 +109,12 @@ export function registerProjectMediaCommands(): void {
     projectNewInFlight = true;
     useDawStore.getState().announceStatus("Closing project…");
     void (async () => {
-      const controller = new AbortController();
-      const timer = setTimeout(
-        () =>
-          controller.abort(
-            new DOMException("Closing the project timed out", "TimeoutError"),
-          ),
-        PROJECT_CLOSE_TIMEOUT_MS,
-      );
       try {
-        await closeEpisodeProject(controller.signal);
+        await withAbortTimeout(
+          PROJECT_CLOSE_TIMEOUT_MS,
+          "Closing the project timed out",
+          closeEpisodeProject,
+        );
       } catch (e) {
         // Home would show while host MCP stays pinned; stay and say so.
         projectNewInFlight = false;
@@ -125,8 +122,6 @@ export function registerProjectMediaCommands(): void {
           .getState()
           .announceStatus(`New project failed: ${errorMessage(e)}`);
         return;
-      } finally {
-        clearTimeout(timer);
       }
       window.location.assign(homeUrl(window.location.href));
     })();

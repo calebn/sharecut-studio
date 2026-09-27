@@ -1,6 +1,7 @@
 /** Raw document-command HTTP transport; queue policy belongs to commandQueue. */
 import { authHeaders } from "../sessionAuth";
 import { reviewApiBase } from "../shareMode";
+import { withAbortTimeout } from "../utils/abortTimeout";
 import { type ApiError, readApiFailure } from "../utils/apiError";
 
 export async function hostFetch(
@@ -32,28 +33,22 @@ export type DocumentCommandReply =
 async function postDocumentCommand(
   send: (signal: AbortSignal) => Promise<Response>,
 ): Promise<DocumentCommandReply> {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () =>
-      controller.abort(
-        new DOMException("Document command timed out", "TimeoutError"),
-      ),
+  // Read the body inside the timeout: a stalled body must not hang.
+  return withAbortTimeout(
     DOCUMENT_COMMAND_TIMEOUT_MS,
+    "Document command timed out",
+    async (signal): Promise<DocumentCommandReply> => {
+      const res = await send(signal);
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          failure: await readApiFailure(res),
+        };
+      }
+      return { ok: true, data: (await res.json()) as Record<string, unknown> };
+    },
   );
-  try {
-    const res = await send(controller.signal);
-    // Read the body before clearing the timer: a stalled body must not hang.
-    if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        failure: await readApiFailure(res),
-      };
-    }
-    return { ok: true, data: (await res.json()) as Record<string, unknown> };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export function postGuestDocumentCommand(
