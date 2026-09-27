@@ -83,9 +83,9 @@ import {
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
-  fitLaneHeight,
   markerLaneHeight,
   markerRows,
+  resolveLaneHeight,
   TimelineGestureProvider,
   TimelineMetricsProvider,
   useGestureStable,
@@ -133,6 +133,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     stopFollow,
     setBladeHoverSec,
     setTimelineViewportWidth,
+    laneHeightMode,
+    laneHeightPx,
   } = useDawStore(
     useShallow((s) => ({
       projectPath: s.projectPath,
@@ -163,6 +165,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       stopFollow: s.stopFollow,
       setBladeHoverSec: s.setBladeHoverSec,
       setTimelineViewportWidth: s.setTimelineViewportWidth,
+      laneHeightMode: s.laneHeightMode,
+      laneHeightPx: s.laneHeightPx,
     })),
   );
   const followColorIndex = useDawStore(selectFollowColorIndex);
@@ -398,31 +402,45 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const fitInputsRef = useRef({
     trackCount,
     markerLaneHeightPx: liveMarkerLaneHeightPx,
+    mode: laneHeightMode,
+    fixedPx: laneHeightPx,
   });
   const refitLanes = useCallback(() => {
     const inputs = fitInputsRef.current;
-    const next = fitLaneHeight(
-      stageHeightRef.current -
+    const next = resolveLaneHeight({
+      mode: inputs.mode,
+      fixedPx: inputs.fixedPx,
+      availablePx:
+        stageHeightRef.current -
         RULER_HEIGHT -
         inputs.markerLaneHeightPx -
         FIT_GUTTER,
-      inputs.trackCount,
-    );
+      trackCount: inputs.trackCount,
+    });
     if (next !== fittedLaneHeightRef.current) {
       fittedLaneHeightRef.current = next;
       setFittedLaneHeight(next);
     }
   }, []);
 
-  // Tracks or marker rows changed without a resize: re-fit from the last
-  // measured stage. Declared before the observer so its inputs are current.
+  // Tracks, marker rows, or the height mode/preference changed without a
+  // resize: re-resolve from the last measured stage. Declared before the
+  // observer so its inputs are current.
   useLayoutEffect(() => {
     fitInputsRef.current = {
       trackCount,
       markerLaneHeightPx: liveMarkerLaneHeightPx,
+      mode: laneHeightMode,
+      fixedPx: laneHeightPx,
     };
     refitLanes();
-  }, [trackCount, liveMarkerLaneHeightPx, refitLanes]);
+  }, [
+    trackCount,
+    liveMarkerLaneHeightPx,
+    laneHeightMode,
+    laneHeightPx,
+    refitLanes,
+  ]);
 
   // Lane geometry as drawn: held still while a move / trim / fade / envelope
   // drag is active (children hold via useHoldTimelineMetrics).

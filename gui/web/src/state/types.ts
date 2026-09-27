@@ -9,8 +9,10 @@ import type {
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
+import type { LaneHeightMode } from "../utils/laneHeightPref";
 
 export type { AuditionMode } from "../types/session";
+export type { LaneHeightMode } from "../utils/laneHeightPref";
 
 export interface LayerVisibility {
   showEdits: boolean;
@@ -125,6 +127,8 @@ export interface DawState {
   moreDestination: MoreDestination;
   layoutMode: LayoutMode;
   sheetExpanded: boolean;
+  laneHeightMode: LaneHeightMode;
+  laneHeightPx: number;
   /** Command cheatsheet / palette open. */
   commandPaletteOpen: boolean;
   /** Mobile gestures cheatsheet open. */
@@ -254,6 +258,9 @@ export interface DawState {
   setMoreDestination: (dest: MoreDestination) => void;
   setLayoutMode: (mode: LayoutMode) => void;
   setSheetExpanded: (on: boolean) => void;
+  setLaneHeightMode: (mode: LaneHeightMode) => void;
+  toggleFitTracksHeight: () => void;
+  stepLaneHeight: (direction: "up" | "down") => void;
   setCommandPaletteOpen: (on: boolean) => void;
   setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;

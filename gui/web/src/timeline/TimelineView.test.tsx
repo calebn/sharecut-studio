@@ -130,8 +130,10 @@ describe("TimelineView follow auto-fit", () => {
   });
 
   it("flags compact lane density when lanes sit at the 72px floor", () => {
-    // jsdom measures a 0px stage, so lanes stay at LANE_HEIGHT (72px), below
-    // COMPACT_LANE_HEIGHT: headers switch to one row plus the gain strip.
+    // jsdom measures a 0px stage, so a fit-mode lane stays at LANE_HEIGHT
+    // (72px), below COMPACT_LANE_HEIGHT: headers switch to one row plus the
+    // gain strip.
+    useDawStore.setState({ laneHeightMode: "fit" });
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <TimelineView />
@@ -143,6 +145,20 @@ describe("TimelineView follow auto-fit", () => {
     );
     expect(LANE_HEIGHT).toBeLessThan(COMPACT_LANE_HEIGHT);
     expect(area.dataset.laneDensity).toBe("compact");
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+  });
+
+  it("defaults to the fixed lane height with no compact density", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    expect(area.style.getPropertyValue("--lane-height")).toBe(
+      `${COMPACT_LANE_HEIGHT}px`,
+    );
+    expect(area.dataset.laneDensity).toBeUndefined();
   });
 
   it("does not unfollow when store scroll is written to the DOM", () => {
@@ -426,13 +442,18 @@ describe("TimelineView lane fit", () => {
     vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
     stubElementSize(800, chrome + 2 * 150);
     useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject());
-    useDawStore.setState({ userZoomed: true, followingClientId: null });
+    useDawStore.setState({
+      userZoomed: true,
+      followingClientId: null,
+      laneHeightMode: "fit",
+    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
   });
 
   const laneHeightVar = (container: HTMLElement) =>
@@ -566,6 +587,44 @@ describe("TimelineView lane fit", () => {
     expect(laneHeightVar(container)).toBe("180px");
   });
 
+  it("ignores a stage resize in fixed mode", () => {
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 144 });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    expect(laneHeightVar(container)).toBe("144px");
+    const scroller = container.querySelector(".timeline-scroll") as Element;
+    const ro = RecordingResizeObserver.all.find((o) =>
+      o.targets.includes(scroller),
+    ) as RecordingResizeObserver;
+    act(() => ro.fire(800, chrome + 2 * 300));
+    expect(laneHeightVar(container)).toBe("144px");
+  });
+
+  it("re-resolves on a mode/preference change without a resize", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    expect(laneHeightVar(container)).toBe("150px");
+
+    act(() =>
+      useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 }),
+    );
+    expect(laneHeightVar(container)).toBe("104px");
+
+    act(() => useDawStore.setState({ laneHeightMode: "fit" }));
+    expect(laneHeightVar(container)).toBe("150px");
+
+    act(() =>
+      useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 144 }),
+    );
+    expect(laneHeightVar(container)).toBe("144px");
+  });
+
   describe("during a clip move", () => {
     beforeEach(() => {
       execute.mockClear();
@@ -624,6 +683,34 @@ describe("TimelineView lane fit", () => {
       expect(laneHeightVar(container)).toBe(
         `${(2 * 150 - MARKER_ROW_HEIGHT) / 2}px`,
       );
+    });
+
+    it("holds the lane height while the mode changes mid-drag", () => {
+      const withClip = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", withClip);
+      const { container, getByRole } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={withClip}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      const lane = (id: string) =>
+        container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
+      const hit = getByRole("button", { name: "Select clip c1" });
+
+      document.elementFromPoint = () => lane("guest");
+      fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
+      fireEvent.pointerMove(hit, { pointerId: 1, clientX: 140, clientY: 90 });
+      expect(laneHeightVar(container)).toBe("150px");
+
+      act(() =>
+        useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 }),
+      );
+      expect(laneHeightVar(container)).toBe("150px");
+
+      fireEvent.pointerUp(hit, { pointerId: 1, clientX: 140, clientY: 90 });
+      expect(laneHeightVar(container)).toBe("104px");
     });
   });
 });
