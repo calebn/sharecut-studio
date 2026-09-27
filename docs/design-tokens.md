@@ -33,11 +33,15 @@ do not "fix" this by cross-referencing.
 
 The light theme uses a cool sage neutral ramp: canvas `#fbfdfc`, base
 `#f7f9f8`, sunken `#eef1f0`, with muted timeline lanes at `#e9edeb`. Dark
-theme colors remain warm stone. Shared brand values have one editing source
-(`deploy/brand/brand-tokens.css`) and byte-identical copies for the Studio,
-marketing, splash, and relay bundles; `tests/test_public_sites.py` checks
-those copies. The docs site keeps its independent light roles in
-`docs-site/assets/site.css`, matched to the shared sage ink, base, and border.
+theme colors remain warm stone. Timeline text uses `#5f6e68`: the proposed
+`#5f6f68` measures 4.489:1 against the muted lane, while one darker green
+step measures 4.539:1 and clears normal-text AA.
+
+Shared brand values have one editing source (`deploy/brand/brand-tokens.css`)
+and byte-identical copies for the Studio, marketing, splash, and relay bundles;
+`tests/test_public_sites.py` checks those copies. The docs site keeps its
+independent light roles in `docs-site/assets/site.css`, matched to the shared
+sage ink, base, and border.
 
 Tier discipline is enforced by `tests/test_css_policy.py`
 (`test_primitives_are_raw_values`, `test_theme_files_use_primitives_not_raw_hex`).
