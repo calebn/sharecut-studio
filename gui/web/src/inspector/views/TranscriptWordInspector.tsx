@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  correctTranscriptPhrase,
-  correctTranscriptWord,
-  setTranscriptWordSuppressed,
-} from "../../api";
+import { setTranscriptWordSuppressed } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
+import { TRANSCRIPT_CORRECT_TIMING_NOTE } from "../../transcript/transcriptModeCopy";
+import {
+  submitWordCorrection,
+  wordCorrectionError,
+} from "../../transcript/wordCorrection";
 import {
   Button,
   DefItem,
@@ -57,28 +58,14 @@ export function TranscriptWordInspector({
 
   const applyText = async () => {
     const endIndex = Number.parseInt(endIndexStr, 10);
-    if (!Number.isFinite(endIndex) || endIndex < wordIndex) {
-      setError("End index must be an integer ≥ start word index");
+    const problem = wordCorrectionError(text, wordIndex, endIndex);
+    if (problem) {
+      setError(problem);
       return;
     }
-    const next = text.trim();
-    if (!next) {
-      setError("Text cannot be empty");
-      return;
-    }
-    await run(async () => {
-      if (endIndex === wordIndex) {
-        await correctTranscriptWord(projectPath, trackId, wordIndex, next);
-      } else {
-        await correctTranscriptPhrase(
-          projectPath,
-          trackId,
-          wordIndex,
-          endIndex,
-          next,
-        );
-      }
-    });
+    await run(() =>
+      submitWordCorrection(projectPath, trackId, wordIndex, endIndex, text),
+    );
   };
 
   const toggleSuppress = async () => {
@@ -191,6 +178,9 @@ export function TranscriptWordInspector({
           </>
         ) : null}
       </DefinitionList>
+      {editable ? (
+        <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
+      ) : null}
     </ModifierInspector>
   );
 }
