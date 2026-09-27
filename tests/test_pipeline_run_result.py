@@ -138,7 +138,7 @@ def test_format_export_qc_lines_and_job_result(tmp_path: Path) -> None:
         export_qc_path=tmp_path / "export_qc.json",
     )
     assert res.qc_report_lines() == [
-        f"Export QC: FAILED (1 issues), 1 warnings ({tmp_path / 'export_qc.json'})",
+        f"Export QC: FAILED (1 issue), 1 warning ({tmp_path / 'export_qc.json'})",
         "  - bad",
     ]
     assert res.job_result() == {
@@ -146,3 +146,7 @@ def test_format_export_qc_lines_and_job_result(tmp_path: Path) -> None:
         "export_qc_path": str(tmp_path / "export_qc.json"),
     }
     assert PipelineRunResult(last_step="x", steps=[]).job_result() is None
+    assert (
+        format_export_qc_lines({"ok": False, "issues": ["a", "b"], "warnings": []}, "qc.json")[0]
+        == "Export QC: FAILED (2 issues), 0 warnings (qc.json)"
+    )

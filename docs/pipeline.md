@@ -122,7 +122,7 @@ Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step
 
 ### CLI result and --strict
 
-`pipeline run` prints, to stdout (TTY or not), one line per step (`{status} {step}`, plus `: {message}` when the step returned a summary), then — only when this run completed `export_deliverables` with status `ok` — an `Export QC: ok|FAILED (N issues), M warnings (<path>)` line with each issue listed below it. The last line stays `Pipeline complete. Last step: {last_step}`.
+`pipeline run` prints, to stdout (TTY or not), one line per step (`{status} {step}`, plus `: {message}` when the step returned a summary), then — only when this run completed `export_deliverables` with status `ok` — an `Export QC: ok|FAILED (N issue[s]), M warning[s] (<path>)` line with each issue listed below it. The last line stays `Pipeline complete. Last step: {last_step}`.
 
 `--strict/--no-strict` (default `--no-strict`, opt-in until the false-QC-failure fixes in #621 land) exits 1 when this run exported and the QC verdict is not ok; the failure line (`Export QC is not ok; exiting 1 (--strict).`) goes to stderr, everything else above stays on stdout. A run that never reached `export_deliverables` has no verdict, so `--strict` always passes; a QC file left over from an earlier run is never read.
 
