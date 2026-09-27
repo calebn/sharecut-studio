@@ -17,12 +17,12 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.pipeline_config import (
+    analyze_working_set,
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,
     merge_pipeline_config,
     skip_steps_from_enabled,
-    suggest_pipeline_tuning,
     transcribe_run_config,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -81,15 +81,7 @@ def pipeline_analyze(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(project_path)
-    working = config_store().get(project_path)
-    result = suggest_pipeline_tuning(ws.project, base_config=working.config)
-    if req.apply:
-        config_store().put(project_path, config=result["proposed_config"])
-        result["applied"] = True
-        result["config"] = build_config_payload(project_path)
-    else:
-        result["applied"] = False
-    return result
+    return analyze_working_set(project_path, ws.project, apply=req.apply)
 
 
 @router.get("/api/pipeline/status")

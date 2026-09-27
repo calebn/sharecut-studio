@@ -333,6 +333,54 @@ def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> 
     assert payload["components"]["whisper"]["model"] == "small.en"
 
 
+def test_apply_patches_keeps_a_concurrent_edit(tmp_path) -> None:
+    proj = tmp_path / "ep-patch.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = config_store()
+    store.put(proj, reset=True)
+    store.put(proj, config={"balance": {"dialogue_lufs": -18.0}})
+    store.apply_patches(proj, {"transcribe": {"vad": {"enabled": True}}})
+    cfg = store.get(proj).config
+    assert cfg["balance"]["dialogue_lufs"] == -18.0
+    assert cfg["transcribe"]["vad"]["enabled"] is True
+
+
+def test_analyze_working_set_apply_keeps_edit_made_during_scan(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.services import pipeline_config as pc
+
+    proj = tmp_path / "ep-race.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = pc.config_store()
+    store.put(proj, reset=True)
+
+    def fake_suggest(_project, *, base_config):
+        # A GUI/MCP config edit lands while Analyze is scanning.
+        store.put(
+            proj,
+            config={
+                **base_config,
+                "balance": {**base_config["balance"], "dialogue_lufs": -18.0},
+            },
+        )
+        patches = {"transcribe": {"vad": {"enabled": True}}}
+        return {
+            "proposed_config": pc.merge_pipeline_config(patches, base=base_config),
+            "patches": patches,
+            "reasons": [],
+            "report_summary": {"track_count": 0, "reason_count": 0, "tracks": []},
+        }
+
+    monkeypatch.setattr(pc, "suggest_pipeline_tuning", fake_suggest)
+    result = pc.analyze_working_set(proj, object(), apply=True)
+    assert result["applied"] is True
+    cfg = store.get(proj).config
+    assert cfg["balance"]["dialogue_lufs"] == -18.0
+    assert cfg["transcribe"]["vad"]["enabled"] is True
+    preview = pc.analyze_working_set(proj, object(), apply=False)
+    assert preview["applied"] is False
+    store.put(proj, reset=True)
+
+
 def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     from podcast_mcp.engines import audio_audit
     from podcast_mcp.models import EpisodeProject

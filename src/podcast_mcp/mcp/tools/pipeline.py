@@ -143,22 +143,10 @@ def pipeline_set_config_tool(
 
 def pipeline_analyze_tool(project_path: str, apply: bool = False) -> str:
     """Heuristic Analyze: propose pipeline param patches from audio diagnostics."""
-    from podcast_mcp.services.pipeline_config import (
-        build_config_payload,
-        config_store,
-        suggest_pipeline_tuning,
-    )
+    from podcast_mcp.services.pipeline_config import analyze_working_set
 
     ws = ProjectWorkspace.open(project_path)
-    working = config_store().get(ws.path)
-    result = suggest_pipeline_tuning(ws.project, base_config=working.config)
-    if apply:
-        config_store().put(ws.path, config=result["proposed_config"])
-        result["applied"] = True
-        result["config"] = build_config_payload(ws.path)
-    else:
-        result["applied"] = False
-    return to_json(result)
+    return to_json(analyze_working_set(ws.path, ws.project, apply=apply))
 
 
 def set_envelope(
