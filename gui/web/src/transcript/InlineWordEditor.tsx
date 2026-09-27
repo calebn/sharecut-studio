@@ -78,7 +78,8 @@ export function InlineWordEditor({
           } else if (e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
-            onClose(true);
+            // Like blur: a commit in flight cannot be recalled, so let it settle.
+            if (!busyRef.current) onClose(true);
           }
         }}
         onBlur={() => {
