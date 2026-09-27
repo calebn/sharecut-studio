@@ -1670,6 +1670,14 @@ def test_a_reset_journal_never_journals_an_old_record(minimal_project):
     assert journal[0]["payload"]["body"] == "c"
 
 
+def test_document_server_seq_matches_the_journal(minimal_project):
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(_comment("first"))
+    assert document_server_seq(minimal_project) == 1
+
+
 def test_the_saved_command_is_not_an_undo_layer(minimal_project):
     assert "document_sync" not in ProjectStateSnapshot.model_fields
 

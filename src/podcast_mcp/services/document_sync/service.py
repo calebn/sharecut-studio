@@ -205,11 +205,11 @@ class DocumentSyncService:
 
         with document_submit_lock(self.project):
             self.project = self.ws.reload()
-            snap = self.store.get_snapshot() or {"server_seq": 0}
+            server_seq = _journal_server_seq(self.store)
             hist = HistoryService(self.ws).list_entries()
             proj = parse_view_projection(str(projection), default=ViewProjection.SHELL)
             api_snap: dict[str, Any] = {
-                "server_seq": int(snap.get("server_seq") or 0),
+                "server_seq": server_seq,
                 "comments": comments_for_view(self.project),
                 "active_version_id": self.project.review.active_version_id,
                 "history": _history_wire(hist),
@@ -432,8 +432,7 @@ def notify_document_changed(project_path: str | Path) -> None:
 def document_server_seq(project_path: str | Path) -> int:
     """Materialized document log seq, or 0 if the store is missing."""
     try:
-        snap = DocumentSyncService.open(project_path).store.get_snapshot() or {}
-        return int(snap.get("server_seq") or 0)
+        return _journal_server_seq(DocumentSyncService.open(project_path).store)
     except OSError:
         return 0
 
