@@ -533,12 +533,20 @@ def ingest_alignment_meta_key(
     return ingest_alignment_key(track, clip, per_clip=per_clip)
 
 
-def _manifest_pinned(project: EpisodeProject, track: Track, clip: Clip) -> bool:
-    """True when ingest pinned this clip's offset (its own key, else a unique speaker key)."""
+def _ingest_alignment_entry(
+    project: EpisodeProject, track: Track, clip: Clip
+) -> SpeakerIngestAlignment | None:
+    """This clip's ``meta.ingest_alignment`` entry: its own key, else a unique speaker key."""
     meta = project.meta.ingest_alignment or {}
     entry = meta.get(ingest_alignment_key(track, clip, per_clip=True))
     if entry is None and _speaker_key_unique(project, track):
         entry = meta.get(ingest_alignment_key(track, clip, per_clip=False))
+    return entry
+
+
+def _manifest_pinned(project: EpisodeProject, track: Track, clip: Clip) -> bool:
+    """True when ingest pinned this clip's offset (its own key, else a unique speaker key)."""
+    entry = _ingest_alignment_entry(project, track, clip)
     return entry is not None and entry.align_method == "manual"
 
 
@@ -1582,18 +1590,35 @@ def _clip_media_duration(project: EpisodeProject, track: Track, clip: Clip) -> f
     return media_dur
 
 
+def _at_recorded_placement(project: EpisodeProject, track: Track, clip: Clip) -> bool:
+    """True when ``clip`` still sits at the placement ``meta.ingest_alignment`` records."""
+    entry = _ingest_alignment_entry(project, track, clip)
+    if entry is None:
+        return False
+    recorded_shift = entry.content_align_sec - entry.session_start_in_file_sec
+    return abs(clip_source_to_timeline_shift(clip) - recorded_shift) <= DURATION_EPS_SEC
+
+
 def _is_whole_file_clip(
     project: EpisodeProject,
+    track: Track,
     clip: Clip,
     media_readers: collections.Counter[str],
     media_dur: float,
 ) -> bool:
-    """True when ``clip`` is the sole reader of its media on this lane, at the file head."""
+    """True when ``clip`` is the sole reader of its media on this lane and holds the whole file.
+
+    A clip from the file head is whole. One at timeline 0 with a later source start is
+    whole only at the lead-in placement ``meta.ingest_alignment`` records: a clip whose
+    head was trimmed and rippled to timeline 0 has the same geometry.
+    """
     if media_readers[clip_media_key(project, clip)] > 1:
         return False
     if clip.source_end < media_dur - DURATION_EPS_SEC:
         return False
-    return clip.source_start <= DURATION_EPS_SEC or clip.timeline_start <= DURATION_EPS_SEC
+    if clip.source_start <= DURATION_EPS_SEC:
+        return True
+    return clip.timeline_start <= DURATION_EPS_SEC and _at_recorded_placement(project, track, clip)
 
 
 def _planned_geometry(
@@ -1624,7 +1649,7 @@ def _planned_geometry(
         # guests whose rebased offset is zero keep their placement. A virgin
         # identity hold is rebased onto the reference lead-in once.
         return clip.source_start, clip.source_end, clip.timeline_start
-    if _is_whole_file_clip(project, clip, media_readers, media_dur):
+    if _is_whole_file_clip(project, track, clip, media_readers, media_dur):
         return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
     target_shift = plan.offset_sec + _reference_shift_at(clip, ref_clips)
     return slip_clip_to_shift(clip, target_shift, media_duration=media_dur)

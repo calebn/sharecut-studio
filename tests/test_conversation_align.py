@@ -1608,6 +1608,97 @@ def test_whole_file_single_clip_keeps_legacy_geometry(tmp_path: Path) -> None:
     assert (guest_a.source_start, guest_a.source_end, guest_a.timeline_start) == (0.0, 90.0, 5.0)
 
 
+def _two_track_project(
+    tmp_path: Path,
+    name: str,
+    clips: list[Clip],
+    *,
+    host_dur: float = 100.0,
+    guest_dur: float = 100.0,
+) -> EpisodeProject:
+    proj = EpisodeProject(meta=ProjectMeta(name=name, workspace_dir=str(tmp_path)))
+    for tid, dur in (("host", host_dur), ("guest", guest_dur)):
+        proj.tracks.append(
+            Track(
+                id=tid,
+                label=tid.title(),
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=dur),
+            )
+        )
+    proj.clips = clips
+    return proj
+
+
+def _host_ref(*clip_ids: str) -> list[ClipAlignPlan]:
+    return [
+        ClipAlignPlan(track_id="host", clip_id=cid, offset_sec=0.0, method=REFERENCE_METHOD)
+        for cid in clip_ids
+    ]
+
+
+def test_head_trimmed_solo_clip_slips_instead_of_whole_file(tmp_path: Path) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "head_trim",
+        [
+            Clip(
+                id="host_a", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0
+            ),
+            Clip(
+                id="guest_a",
+                track_id="guest",
+                source_start=30.0,
+                source_end=100.0,
+                timeline_start=0.0,
+            ),
+        ],
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=2.0, method="bleed"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    g = next(c for c in proj.clips if c.id == "guest_a")
+    assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((0.0, 68.0, 2.0))
+    assert g.timeline_end == pytest.approx(70.0)
+
+
+def test_recorded_lead_in_clip_is_replaced_as_whole_file(tmp_path: Path) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "lead_in",
+        [
+            Clip(
+                id="host_a", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0
+            ),
+            Clip(
+                id="guest_a",
+                track_id="guest",
+                source_start=5.0,
+                source_end=100.0,
+                timeline_start=0.0,
+            ),
+        ],
+    )
+    proj.meta.ingest_alignment = {
+        "Guest": SpeakerIngestAlignment(session_start_in_file_sec=5.0, content_align_sec=0.0)
+    }
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=-3.0, method="bleed"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    g = next(c for c in proj.clips if c.id == "guest_a")
+    assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 100.0, 0.0))
+
+
 def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
     apply_alignment_plans(proj, _plans(-35.6))

@@ -41,10 +41,11 @@ places dialogue clips on one session clock:
 
 **Large moves:** any candidate above `align.large_move_sec` (1.0 s) must be confirmed by waveform xcorr (at least 3 windows, peak at least `align.large_move_min_peak`, residual within `align.acoustic_agree_sec`). Unconfirmed candidates are held at 0 as `unconfirmed_hold`; the candidate stays in the artifact (`candidate_offset_sec`, `acoustic_confirmed`) and the step summary so a person can listen and nudge. The artifact records the `large_move_sec` the scorer ran with; `align status` / `align brief`, the unattended gate and export QC all use that value (falling back to config), so a per-run override is honoured everywhere.
 
-A whole-file clip (the only clip on its lane reading that media, sitting at the file head)
-is re-placed from the offset, same as before. A split, trimmed or rippled track instead
-keeps every clip's timeline window and slips its source range by the delta between its
-current and target shift — a head that would land before the file start trims the clip
+A whole-file clip (the only clip on its lane reading that media, starting at the file head, or
+at timeline 0 at the lead-in placement `meta.ingest_alignment` records) is re-placed from the
+offset, same as before; a head trimmed and rippled to timeline 0 takes the slip path below. A
+split, trimmed or rippled track instead keeps every clip's timeline window and slips its source
+range by the delta between its current and target shift — a head that would land before the file start trims the clip
 (timeline start moves later, source start clamps to 0), and a tail past the file end
 clamps too. When the delta would leave a piece with no audio, or applying it would newly
 stack two same-source clips on the timeline (`same_source_timeline_overlaps`, #520), the
