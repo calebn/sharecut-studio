@@ -32,6 +32,10 @@ def open_pinned_media(path: Path) -> BinaryIO:
     """Return a regular file pinned by its descriptor.
 
     Callers must first authorize and resolve the path within their own workspace root.
+    On Windows the path must already be fully resolved (``Path.resolve()``, as
+    ``project.workspace_path()`` does): an unresolved spelling such as an 8.3 short name,
+    a ``subst`` drive or a mapped network drive fails the ``realpath`` comparison and is
+    refused.
     This prevents a replacement between that check and the actual read from redirecting
     the read. POSIX walks every component no-follow through directory descriptors. Windows
     has no such walk and uses :func:`_open_verified_by_path`, which is weaker (see there).
@@ -113,7 +117,7 @@ def _open_verified_by_path(absolute: Path) -> BinaryIO:
             raise ValueError("media must be a regular file")
         _reject_link_parents(absolute)
         if os.path.normcase(os.path.realpath(absolute)) != os.path.normcase(str(absolute)):
-            raise ValueError("media path must not traverse links")
+            raise ValueError("media path must already be resolved and must not traverse links")
         return os.fdopen(fd, "rb")
     except BaseException:
         os.close(fd)

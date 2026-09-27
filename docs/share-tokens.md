@@ -20,7 +20,9 @@ device and inode, regular file), and the parent link check and a `realpath` comp
 repeated. An open file cannot be deleted or renamed on Windows. A parent swapped for a
 junction before the open and restored between those checks is not detected, and a
 filesystem that reports no file IDs (some FAT volumes and network shares) refuses these
-reads. The desktop sidecar ships Python 3.12. Every other platform without the descriptor
+reads. The path must already be resolved (`Path.resolve()`, as `project.workspace_path()`
+does): an unresolved spelling such as an 8.3 short name or a `subst` drive fails the
+`realpath` comparison and is refused. Every other platform without the descriptor
 operations fails closed. Ranged responses read with a lock-guarded seek because `os.pread`
 is missing on Windows. `PinnedFileResponse` overrides Starlette's private `FileResponse`
 hooks, so `starlette>=0.47.0` (and `fastapi>=0.116.1`, the first release that accepts it)
