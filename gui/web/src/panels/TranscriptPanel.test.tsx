@@ -387,6 +387,22 @@ describe("TranscriptPanel", () => {
       expect(container.querySelector(".transcript-mode-hint")).toBeNull();
     });
 
+    it("announces only the saving status, not mode toggles", () => {
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      expect(
+        container.querySelector(".transcript-mode-hint")?.getAttribute("role"),
+      ).toBeNull();
+      expect(q.getByRole("status").textContent).toBe("");
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      expect(q.getByRole("status").textContent).toBe("");
+      fireEvent.click(q.getByRole("button", { name: /Correct/i }));
+      fireEvent.click(q.getByRole("button", { name: /Select/i }));
+      expect(q.getByRole("status").textContent).toBe("");
+      act(() => useDawStore.setState({ transcriptInlineCommitPending: true }));
+      expect(q.getByRole("status")).toHaveTextContent(/Saving the word fix/);
+    });
+
     it("points coarse pointers at double-tap correction", () => {
       useDawStore.setState({ pointerKind: "coarse" });
       const { container } = render(<TranscriptPanel />);
