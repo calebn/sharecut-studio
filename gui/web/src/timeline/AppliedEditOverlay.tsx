@@ -3,7 +3,7 @@ import type { AppliedEditRecord, ClipRow } from "../types/project";
 import { appliedEditTicks } from "./appliedEditTicks";
 
 interface AppliedEditOverlayProps {
-  records: AppliedEditRecord[];
+  records: readonly AppliedEditRecord[];
   clips: readonly ClipRow[];
   trackId: string;
   zoomPxPerSec: number;

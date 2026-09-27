@@ -51,9 +51,9 @@ interface TrackLaneProps {
   selection: Selection;
   showLevels: boolean;
   showEdits: boolean;
-  envelopes: AutomationEnvelope[];
-  appliedRecords: AppliedEditRecord[];
-  pendingEdits: PendingEditView[];
+  envelopes: readonly AutomationEnvelope[];
+  appliedRecords: readonly AppliedEditRecord[];
+  pendingEdits: readonly PendingEditView[];
   onSeek: (clientX: number, target: HTMLElement) => void;
   /** Lane callbacks take the track id first, so the timeline passes one
    *  stable function to every lane. */

@@ -7,7 +7,7 @@ export function clampEnvelopeValue(value: number): number {
 }
 
 export function findVolumeEnvelope(
-  envelopes: AutomationEnvelope[] | undefined,
+  envelopes: readonly AutomationEnvelope[] | undefined,
   trackId: string,
 ): AutomationEnvelope | undefined {
   return envelopes?.find(
@@ -18,7 +18,7 @@ export function findVolumeEnvelope(
 }
 
 export function sortedVolumePoints(
-  envelopes: AutomationEnvelope[] | undefined,
+  envelopes: readonly AutomationEnvelope[] | undefined,
   trackId: string,
 ): AutomationPoint[] {
   const env = findVolumeEnvelope(envelopes, trackId);
@@ -71,7 +71,7 @@ export function replaceEnvelopePoint(
 }
 
 export function indexOfVolumePointAtTime(
-  envelopes: AutomationEnvelope[] | undefined,
+  envelopes: readonly AutomationEnvelope[] | undefined,
   trackId: string,
   time: number,
 ): number {

@@ -3,6 +3,7 @@ import { updatePendingEdit } from "../api";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { useDaw } from "../state/useDaw";
 import type { PendingEditView } from "../types/project";
+import { pendingEditTrackIds } from "../utils/edits";
 import {
   pendingReasonLabel,
   pendingTypeLabel,
@@ -10,7 +11,7 @@ import {
 import { pendingOverlayWidthPx } from "./pendingOverlayWidth";
 
 interface PendingEditOverlayProps {
-  edits: PendingEditView[];
+  edits: readonly PendingEditView[];
   trackId: string;
   zoomPxPerSec: number;
   selectedId: string | null;
@@ -110,10 +111,7 @@ export function PendingEditOverlay({
   return (
     <>
       {edits
-        .filter((e) => {
-          const tids = e.track_ids?.length ? e.track_ids : [e.track_id];
-          return tids.includes(trackId) && e.mappable;
-        })
+        .filter((e) => pendingEditTrackIds(e).includes(trackId) && e.mappable)
         .flatMap((edit) =>
           edit.timeline_spans.map((span, i) => {
             const isMute = edit.type === "mute";

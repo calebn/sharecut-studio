@@ -889,16 +889,35 @@ describe("TimelineView render isolation", () => {
     }
     act(() => useDawStore.getState().setProject(next));
     expect([...renders.clips].sort()).toEqual(["host-1", "host-2", "host-3"]);
-    // The edited lane re-renders and shows the new value. (Other lanes also
-    // re-render today: the snapshot carries fresh envelopes / edit records,
-    // which `reuseUnchanged` does not yet keep by identity.)
-    expect(renders.lanes).toContain("host");
+    // Only the edited lane re-renders: `reuseUnchanged` keeps the untouched
+    // envelopes/pending_edits/applied_edits identical, and the per-lane
+    // overlay slices keep every other track's slice by reference too.
+    expect(renders.lanes).toEqual(["host"]);
     const block = screen
       .getByRole("button", { name: "Select clip host-2" })
       .closest(".clip-block");
     expect(block?.querySelector(".fade-in-region")).not.toBeNull();
     // The snapshot path built new objects instead of mutating the old ones.
     expect(prev.clips.tracks.host![2]!.fade_in_ms).toBe(0);
+  });
+
+  it("re-renders only the lane whose envelope changed", () => {
+    mount();
+    const prev = useDawStore.getState().project!;
+    const fresh = structuredClone(prev);
+    fresh.envelopes = [
+      {
+        track_id: "guest",
+        parameter: "volume",
+        points: [{ id: "p1", time: 0, value: 1.2 }],
+      },
+    ];
+    const next = projectFromDocumentSnapshot(prev, { project: fresh });
+    if (!next) {
+      throw new Error("snapshot dropped the project");
+    }
+    act(() => useDawStore.getState().setProject(next));
+    expect(renders.lanes).toEqual(["guest"]);
   });
 
   it("draws the blade guide on target lanes at the pointer time", () => {
