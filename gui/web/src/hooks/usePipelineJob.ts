@@ -86,11 +86,11 @@ export function attachTargetId(st: PipelineStatusResponse): string | null {
  * events, 1s keepalive snapshots, `done`) is the only source for that job
  * while it is open; the 1s status poll runs only while the stream is down
  * (from `onerror`, or `STREAM_SILENCE_MS` without a frame, until a
- * reconnected stream delivers a frame). The 5s
- * discover poll owns activityJob / running_count for other jobs and
- * discovers in-process agent jobs started from host MCP without a prior
- * POST; a stream frame updates activityJob only when no other job is the
- * live primary.
+ * reconnected stream delivers a frame). The 5s discover poll owns
+ * activityJob / running_count for other jobs and discovers in-process agent
+ * jobs started from host MCP without a prior POST; a stream frame updates
+ * activityJob only when no other job is the live primary, so a non-attached
+ * primary's chip refreshes at the 5s discover cadence.
  */
 export function usePipelineJob(
   pipelineJob: PipelineJobSnapshot | null,
