@@ -92,6 +92,8 @@ def _run_step_published(
     return summary
 
 
+# Steps that change dialogue audio, which reconciliation measures. mix_with_music is not
+# one: it only writes music/intro/outro envelopes and stems and mixes (#621).
 AUDIO_AFFECTING_STEPS = frozenset(
     {
         "align_tracks",
@@ -102,7 +104,6 @@ AUDIO_AFFECTING_STEPS = frozenset(
         "tighten_from_transcript",
         "render_dialogue_stems",
         "assemble_timeline",
-        "mix_with_music",
     }
 )
 
