@@ -48,7 +48,8 @@ class RenderBusyError(Timeout):
     """Another render of this workspace held ``render_lock`` past the caller's timeout (#482).
 
     A ``filelock.Timeout``, so adapters that map the project-lock timeout to a busy error
-    (``project_busy``) map this one the same way.
+    (``project_busy``: the GUI audio and document routes) map this one the same way; CLI
+    and MCP adapters do not yet (#488).
     """
 
     def __str__(self) -> str:
