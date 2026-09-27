@@ -989,6 +989,27 @@ def test_document_snapshot_reports_project_file_signature(minimal_project):
     assert comments_snap["file"] == expected
 
 
+def test_document_snapshot_file_matches_project_meta(minimal_project):
+    """The client compares snapshot.file to /api/project/meta field for field (#657)."""
+    from podcast_mcp.gui.jobs import project_meta
+
+    svc = DocumentSyncService.open(minimal_project)
+    result = svc.submit(
+        DocumentCommand(
+            type="AddComment",
+            payload={"body": "x", "author": "viewer", "timeline_start": 1.0},
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    meta = project_meta(Path(minimal_project))
+    wire = {"mtime_ns": meta["mtime_ns"], "size": meta["size"]}
+
+    assert result["snapshot"]["file"] == wire
+    assert svc.document_snapshot()["file"] == wire
+
+
 def test_submit_applied_chains_file_before_across_services(minimal_project):
     import os
 
