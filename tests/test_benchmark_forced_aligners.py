@@ -154,6 +154,7 @@ def test_align_prediction_retimes_words_and_keeps_native_for_unalignable() -> No
         "failed_windows": 0,
         "aligned_words": 2,
         "unaligned_words": 1,
+        "dropped_zero_duration": 0,
     }
     assert runtime_sec >= 0
 
@@ -283,6 +284,51 @@ def test_run_suite_end_to_end_with_fakes(tmp_path) -> None:
     assert (runs_dir / "tones.agree.json").exists()
     assert (runs_dir / "summary.json").exists()
     assert summary["scored"]["onnx-base"]["items"] == 1
+
+
+def test_run_suite_drops_zero_duration_native_words(tmp_path) -> None:
+    gold_path = SYNTH / "tones.gold.json"
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+    words = list(prediction["words"])
+    words.insert(3, {"text": "uh", "start": 1.0, "end": 1.0})
+
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=gold_path, words=None, clip=None
+    )
+
+    def fake_native(audio_path, model):
+        return {"words": words, "provenance": prediction["provenance"]}
+
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    _vocab_json(model_dir / "vocab.json", {"<pad>": 0, "|": 1, "A": 2})
+    vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "A": 2})
+
+    def backend_factory(candidate, resolved_dir, threads):
+        return FakeBackend(vocab, {}, frames=1, vocab_size=3)
+
+    runs_dir = tmp_path / "runs"
+    summary = bfa.run_suite(
+        [item],
+        bfa.load_candidates(labels=["onnx-base"]),
+        runs_dir=runs_dir,
+        target="synthetic",
+        model_dirs={"onnx-base": model_dir},
+        backend_factory=backend_factory,
+        native=fake_native,
+    )
+
+    pred = json.loads((runs_dir / "tones.onnx-base.pred.json").read_text(encoding="utf-8"))
+    assert "uh" not in [w["text"] for w in pred["words"]]
+    assert pred["provenance"]["alignment_stats"]["dropped_zero_duration"] == 1
+    report = json.loads((runs_dir / "tones.onnx-base.report.json").read_text(encoding="utf-8"))
+    assert report["metrics"]["boundary_mae_ms"] == pytest.approx(45.0)
+    assert summary["agreement"]["onnx-base"]["matched_words"] == 5
+    agree = json.loads((runs_dir / "tones.agree.json").read_text(encoding="utf-8"))
+    assert agree["comparisons"]["onnx-base"]["dropped_zero_duration"] == {
+        "reference": 1,
+        "prediction": 0,
+    }
 
 
 def test_aggregate_weights_by_matched_words() -> None:
