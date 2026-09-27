@@ -79,13 +79,17 @@ describe("StatusBarView", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: /^Pending:/ }));
-    expect(onOpenTab).toHaveBeenCalledWith("impact");
+    expect(onOpenTab).toHaveBeenCalledTimes(1);
+    expect(onOpenTab).toHaveBeenLastCalledWith("impact");
     await user.click(screen.getByRole("button", { name: /^Unmapped:/ }));
-    expect(onOpenTab).toHaveBeenCalledWith("impact");
+    expect(onOpenTab).toHaveBeenCalledTimes(2);
+    expect(onOpenTab).toHaveBeenLastCalledWith("impact");
     await user.click(screen.getByRole("button", { name: /^Render:/ }));
-    expect(onOpenTab).toHaveBeenCalledWith("pipeline");
+    expect(onOpenTab).toHaveBeenCalledTimes(3);
+    expect(onOpenTab).toHaveBeenLastCalledWith("pipeline");
     await user.click(screen.getByRole("button", { name: "Open comments" }));
-    expect(onOpenTab).toHaveBeenCalledWith("comments");
+    expect(onOpenTab).toHaveBeenCalledTimes(4);
+    expect(onOpenTab).toHaveBeenLastCalledWith("comments");
   });
 
   it("hides the unmapped, social and cut items when empty", () => {
