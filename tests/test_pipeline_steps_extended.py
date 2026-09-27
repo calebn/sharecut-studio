@@ -1204,6 +1204,44 @@ def test_transcribe_tracks_reuses_silence_flags_without_decoding(
     decode.assert_not_called()
 
 
+def test_transcribe_tracks_rechecks_same_span_phrase_correction(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.transcript_correct import correct_phrase
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+
+    def _flag(words, path, *, peak_dbfs):
+        words[0].suspect_hallucination = True
+        return 1
+
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch("podcast_mcp.engines.asr_silence.flag_silent_words_in_file", side_effect=_flag),
+    ):
+        steps.transcribe_tracks(proj, load_defaults())
+    transcript = proj.transcripts[0]
+    original_fingerprint = transcript.silence_filter_fingerprint
+    assert transcript.words[0].suspect_hallucination
+
+    correct_phrase(proj, "host", 0, 0, "fixed")
+    assert (transcript.words[0].start, transcript.words[0].end) == (0.0, 0.5)
+    assert not transcript.words[0].suspect_hallucination
+    with (
+        patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as engine,
+        patch(
+            "podcast_mcp.engines.asr_silence.flag_silent_words_in_file", side_effect=_flag
+        ) as decode,
+    ):
+        steps.transcribe_tracks(proj, load_defaults())
+        steps.transcribe_tracks(proj, load_defaults())
+    engine.assert_not_called()
+    decode.assert_called_once()
+    assert transcript.words[0].suspect_hallucination
+    assert transcript.silence_filter_fingerprint == original_fingerprint
+
+
 def test_transcribe_tracks_rechecks_legacy_and_changed_word_spans(
     minimal_project, sample_wav, tmp_workspace
 ):
