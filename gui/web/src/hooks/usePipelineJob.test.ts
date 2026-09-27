@@ -38,6 +38,10 @@ class FakeEventSource {
   }
 
   emit(data: unknown) {
+    // Like a real EventSource, a closed stream dispatches nothing.
+    if (this.closed) {
+      return;
+    }
     this.onmessage?.({ data: JSON.stringify(data) } as MessageEvent);
   }
 }
@@ -247,6 +251,50 @@ describe("usePipelineJob", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2900);
       });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(n);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores an error from a stream that was already replaced", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const firstEs = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        firstEs.onerror?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      const secondEs = FakeEventSource.instances.at(-1)!;
+      expect(secondEs).not.toBe(firstEs);
+      act(() => {
+        secondEs.emit({ type: "status", job: pipe });
+      });
+      const n = loadPipelineStatus.mock.calls.length;
+
+      act(() => {
+        firstEs.onerror?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(secondEs.close).not.toHaveBeenCalled();
       expect(loadPipelineStatus).toHaveBeenCalledTimes(n);
     } finally {
       unmount();
