@@ -26,11 +26,75 @@ function wholeStoreReads(text: string): number {
  * Hot fields change every frame (playhead, scroll) or every presence frame.
  * Only leaves select them; handlers read `useDawStore.getState()`.
  */
-const HOT_FIELD_READ =
-  /\bs\.(playheadSec|scrollLeft|sessionClients|pointerTrackId|bladeHoverSec)\b/g;
+const HOT_FIELDS = [
+  "playheadSec",
+  "scrollLeft",
+  "sessionClients",
+  "pointerTrackId",
+  "bladeHoverSec",
+] as const;
+const HOT_FIELD_ALTERNATION = HOT_FIELDS.join("|");
 
+/** `s.<hot field>` anywhere: the repo's selector parameter convention. */
+const HOT_FIELD_READ = new RegExp(`\\bs\\.(${HOT_FIELD_ALTERNATION})\\b`, "g");
+
+/** A hot field's bare name, for a destructuring selector parameter. */
+const HOT_FIELD_NAME = new RegExp(`\\b(${HOT_FIELD_ALTERNATION})\\b`, "g");
+
+/**
+ * Start of an inline selector passed to `useDaw(`, `useDawStore(` or
+ * `useShallow(` (also `useDawStore(useShallow(`): an arrow whose parameter
+ * is a name (group 1) or a destructuring pattern (group 2), optionally typed.
+ */
+const SELECTOR_START =
+  /\b(?:useDaw(?:Store)?|useShallow)\(\s*(?:useShallow\(\s*)?\(?\s*(?:(\w+)|\{([^}]*)\})(?:\s*:\s*[\w.<>[\]]+)?\s*\)?\s*=>/g;
+
+/** `text` from `from` up to the `)` closing the call already open there. */
+function callBody(text: string, from: number): string {
+  let depth = 1;
+  for (let i = from; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "(") {
+      depth += 1;
+    } else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(from, i);
+      }
+    }
+  }
+  return text.slice(from);
+}
+
+/**
+ * Hot-field reads in `text`: any `s.<field>`, plus, inside an inline store
+ * selector, `<param>.<field>` for a parameter of any other name and any hot
+ * field named in a destructuring parameter (reported as `{ field }`).
+ * Handler reads (`useDawStore.getState().field`, `ctx.field`) never match.
+ */
 function hotFieldReads(text: string): string[] {
-  return [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
+  const reads = [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
+  for (const m of text.matchAll(SELECTOR_START)) {
+    const [, param, pattern] = m;
+    if (pattern !== undefined) {
+      for (const f of pattern.matchAll(HOT_FIELD_NAME)) {
+        reads.push(`{ ${f[1]} }`);
+      }
+      continue;
+    }
+    if (param === undefined || param === "s") {
+      continue; // `s.<field>` is already counted above
+    }
+    const body = callBody(text, (m.index ?? 0) + m[0].length);
+    const paramRead = new RegExp(
+      `\\b${param}\\.(${HOT_FIELD_ALTERNATION})\\b`,
+      "g",
+    );
+    for (const f of body.matchAll(paramRead)) {
+      reads.push(f[0]);
+    }
+  }
+  return reads;
 }
 
 function isTestFile(rel: string): boolean {
@@ -248,6 +312,17 @@ describe("store governance", () => {
     ],
     ["useDawStore.getState().pointerTrackId", []],
     ["useDawStore((s) => s.playheadSecs)", []],
+    ["useDawStore((state) => state.playheadSec)", ["state.playheadSec"]],
+    ["useDaw(({ sessionClients }) => sessionClients)", ["{ sessionClients }"]],
+    ["useShallow((st) => ({ p: st.scrollLeft }))", ["st.scrollLeft"]],
+    [
+      "useDawStore(useShallow((st) => ({ p: st.scrollLeft })))",
+      ["st.scrollLeft"],
+    ],
+    ["useDaw(({ playheadSec: p }: DawState) => p)", ["{ playheadSec }"]],
+    ["useDawStore((state) => state.playheadSecs)", []],
+    ["useDaw((st) => st.zoom); st.playheadSec", []],
+    ["el.scrollLeft; ctx.playheadSec", []],
   ])("finds hot field reads in %j", (text, expected) => {
     expect(hotFieldReads(text)).toEqual(expected);
   });
@@ -257,9 +332,14 @@ describe("store governance", () => {
       { rel: "timeline/TrackLane.tsx", text: "s.playheadSec" },
       { rel: "layout/TransportTimecode.tsx", text: "s.playheadSec" },
       { rel: "layout/StatusBar.test.tsx", text: "s.sessionClients" },
+      {
+        rel: "timeline/ClipBlock.tsx",
+        text: "useDawStore((state) => state.pointerTrackId)",
+      },
     ];
     expect(hotFieldOffenders(files, HOT_FIELD_ALLOWLIST)).toEqual([
       "timeline/TrackLane.tsx",
+      "timeline/ClipBlock.tsx",
     ]);
   });
 
