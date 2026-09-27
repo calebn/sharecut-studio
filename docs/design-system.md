@@ -118,6 +118,13 @@ public review page in a fullscreen canvas. DraftAndPost clears its draft after
 the story-local successful submit; ActionsAndReplies ignores blank replies
 and displays trimmed successful replies, as the public review page does.
 
+`Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
+agent-connection and mobile gesture dialogs. The agent dialog's story supplies
+a fixed loopback URL so its fields and client snippet do not depend on the
+Storybook server port; the live dialog still derives its URL from the host.
+The previews cover an open episode, the no-episode warning, keyboard-shortcut
+navigation, and a 360px phone viewport without app or network context.
+
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
 palette there and flip the theme toolbar before touching components.

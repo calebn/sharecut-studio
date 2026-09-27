@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { GesturesSheet } from "./GesturesSheet";
 
@@ -38,6 +38,19 @@ describe("GesturesSheet", () => {
       />,
     );
     expect(container.textContent).not.toContain("Two-finger tap");
+  });
+
+  it("opens keyboard shortcuts through the supplied callback", () => {
+    const onShowKeyboardShortcuts = vi.fn();
+    render(
+      <GesturesSheet
+        open
+        onClose={() => undefined}
+        onShowKeyboardShortcuts={onShowKeyboardShortcuts}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(onShowKeyboardShortcuts).toHaveBeenCalledOnce();
   });
 
   it("is axe-clean", async () => {

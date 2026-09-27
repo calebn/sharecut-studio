@@ -61,6 +61,22 @@ describe("HostMcpDialog", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("uses a fixed preview URL for both fields when supplied", () => {
+    const mcpUrl = "http://127.0.0.1:8765/mcp";
+    render(
+      <HostMcpDialog
+        open
+        onClose={() => undefined}
+        hasProject
+        mcpUrl={mcpUrl}
+      />,
+    );
+    expect(screen.getByLabelText("MCP URL")).toHaveValue(mcpUrl);
+    expect(screen.getByLabelText("Cursor snippet")).toHaveValue(
+      mcpClientSnippet(mcpUrl),
+    );
+  });
+
   it("copies the MCP URL and announces in the live region", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

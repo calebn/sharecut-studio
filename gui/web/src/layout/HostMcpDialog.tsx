@@ -11,6 +11,8 @@ type Props = {
   open: boolean;
   onClose: () => void;
   hasProject: boolean;
+  /** Fixed URL for previews; the live dialog derives the local host URL. */
+  mcpUrl?: string;
 };
 
 async function copyText(text: string): Promise<void> {
@@ -20,7 +22,7 @@ async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-export function HostMcpDialog({ open, onClose, hasProject }: Props) {
+export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
   const urlId = useId();
   const snippetId = useId();
   const [copied, setCopied] = useState<CopiedKey | null>(null);
@@ -29,7 +31,7 @@ export function HostMcpDialog({ open, onClose, hasProject }: Props) {
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generation = useRef(0);
 
-  const url = localHostMcpUrl();
+  const url = mcpUrl ?? localHostMcpUrl();
   const snippet = mcpClientSnippet(url);
 
   const clearCopiedTimer = useCallback(() => {
