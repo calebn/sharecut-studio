@@ -32,7 +32,12 @@ export function useProjectPoll(
         return;
       }
       const project = await loadProject(projectPath);
-      if (!shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())) {
+      // The socket (or this client's own command result) may have delivered this
+      // exact file while the GET was in flight (#657).
+      if (
+        pollSnapshotAlreadyApplied(meta) ||
+        !shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())
+      ) {
         return;
       }
       applyDocumentSnapshot({ project, server_seq: metaSeq }, { force: true });
