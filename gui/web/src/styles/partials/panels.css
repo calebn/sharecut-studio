@@ -434,11 +434,6 @@
   font: inherit;
 }
 
-.transcript-inline-error {
-  color: var(--danger);
-  font-size: var(--font-size-caption);
-}
-
 /*
  * Touch long-press on a word / comment opens its sheet; stop the native
  * selection handles and callout (~500 ms) from claiming the press first.

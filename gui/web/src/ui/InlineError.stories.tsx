@@ -24,3 +24,15 @@ export const Empty: Story = {
     },
   },
 };
+
+export const Inline: Story = {
+  args: { message: "Text cannot be empty", inline: true, role: "alert" },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`inline` renders a `<span>` for use inside phrasing content (e.g. the transcript inline word editor); pair `id` with the control's `aria-describedby`.",
+      },
+    },
+  },
+};

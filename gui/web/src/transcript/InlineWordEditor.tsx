@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useProjectMutation } from "../hooks/useProjectMutation";
+import { InlineError } from "../ui/InlineError";
 import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
 
 interface Props {
@@ -91,11 +92,7 @@ export function InlineWordEditor({
           if (!busyRef.current) onClose(false);
         }}
       />
-      {error ? (
-        <span id={errorId} role="alert" className="transcript-inline-error">
-          {error}
-        </span>
-      ) : null}
+      <InlineError inline id={errorId} role="alert" message={error} />
     </span>
   );
 }
