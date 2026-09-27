@@ -178,8 +178,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Zoom out",
   },
   "daw.view.fit": {
-    label: "Fit session in view",
-    tooltip: "Fit session in view",
+    label: "Fit session width",
+    tooltip: "Fit session width",
   },
   "daw.view.setTab": {
     label: "Switch editor tab",

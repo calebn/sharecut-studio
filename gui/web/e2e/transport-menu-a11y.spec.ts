@@ -43,7 +43,7 @@ test.describe("compact transport menu accessibility", () => {
     expect(paint.ring).toContain("inset");
 
     const layers = menu.getByRole("menuitemcheckbox");
-    await expect(layers).toHaveCount(4);
+    await expect(layers).toHaveCount(5);
     // Measure the settled menu: mid drop-in, the panel's fractional translate
     // puts float noise into every row's rect (43.99998px, not 44px).
     await settleAnimations(menu);

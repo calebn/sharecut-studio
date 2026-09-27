@@ -98,7 +98,7 @@ function TransportTemplate({
             <div className="transport-primary-actions">
               <Button
                 className="ui-control--compact transport-icon-btn fit-btn"
-                aria-label="Fit"
+                aria-label="Fit session width"
               >
                 <Icon name="fit" />
               </Button>

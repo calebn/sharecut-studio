@@ -18,7 +18,8 @@ export type IconName =
   | "text"
   | "more"
   | "maximize"
-  | "restore";
+  | "restore"
+  | "fitHeight";
 
 type Props = {
   name: IconName;
@@ -147,6 +148,15 @@ const PATHS: Record<IconName, ReactElement> = {
       <circle {...FILLED} cx="5" cy="10" r="1.25" stroke="none" />
       <circle {...FILLED} cx="10" cy="10" r="1.25" stroke="none" />
       <circle {...FILLED} cx="15" cy="10" r="1.25" stroke="none" />
+    </>
+  ),
+  fitHeight: (
+    <>
+      <path d="M3.5 3.5h13" />
+      <path d="M3.5 16.5h13" />
+      <path d="M10 6v8" />
+      <path d="M7.5 8 10 5.5 12.5 8" />
+      <path d="M7.5 12 10 14.5 12.5 12" />
     </>
   ),
 };

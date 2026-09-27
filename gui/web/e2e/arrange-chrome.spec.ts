@@ -37,7 +37,9 @@ test.describe("Arrange chrome", () => {
       1,
     );
 
-    await page.getByRole("button", { name: "Fit", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Fit session width", exact: true })
+      .click();
     const fitWidth = await ruler.evaluate(
       (el) => el.getBoundingClientRect().width,
     );

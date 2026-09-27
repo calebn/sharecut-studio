@@ -94,7 +94,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `=` | Zoom in (`view.zoomIn`) | Timeline focused | Timeline focused; also numpad + |
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
-| `\` | Fit session in view (`view.fit`) | Timeline focused | Timeline focused |
+| `\` | Fit session width (`view.fit`) | Timeline focused | Timeline focused |
 | `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
 | `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
 | `Alt+=` | Increase track height (`view.trackHeightIncrease`) | Timeline focused | Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px |
