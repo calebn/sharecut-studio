@@ -55,20 +55,20 @@ with its story colocated in the feature folder (for example
 `src/record/LiveComments.stories.tsx` → `Templates/LiveComments`,
 `src/record/HostUploadRoster.stories.tsx` → `Templates/HostUploadRoster`).
 
-- `dawShellStoryDecorator` (`src/layout/dawShellStoryDecorator.tsx`) renders a
-  story inside a real `.daw-shell` (or `.daw-shell daw-shell--phone` at 360px
-  with `parameters.dawShellPhone`) with a fixed `20rem` height, since
-  `.daw-shell` is `container: app / size` and size containment collapses at
-  `height: auto`, plus an empty `<main aria-label="Stage" />` sibling so the
-  banner isn't the story's only landmark.
-
 - Render the surface in its production shell and stylesheet so the story
   renders what ships. Record-room stories use `recordStoryDecorator`
   (`src/record/recordStoryDecorator.tsx`), which wraps the story in
   `cover review-shell record-shell` and loads
   `styles/partials/record-entry.css` (as `RecordApp.tsx` does); its
-  `recordMobileViewport` gives a 360px phone view. A standalone full-screen
-  surface may import the entry stylesheet directly instead.
+  `recordMobileViewport` gives a 360px phone view. DAW-shell banners use
+  `dawShellStoryDecorator` (`src/layout/dawShellStoryDecorator.tsx`), which
+  renders the story inside a real `.daw-shell` (or
+  `.daw-shell daw-shell--phone` at 360px with `parameters.dawShellPhone`) at a
+  fixed `20rem` height, since `.daw-shell` is `container: app / size` and size
+  containment collapses at `height: auto`, plus an empty
+  `<main aria-label="Stage" />` sibling so the banner isn't the story's only
+  landmark. A standalone full-screen surface may import the entry stylesheet
+  directly instead.
 - Full-viewport screens (`.cover`, `min-block-size: 100dvh`) set
   `parameters: { layout: "fullscreen" }`.
 - Use made-up fixtures only — never real share tokens, guest names, or relay
