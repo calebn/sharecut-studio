@@ -22,7 +22,7 @@ test("new project stays fresh without an audio error on desktop and phone", asyn
     await page.addInitScript(() => {
       window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     });
-    await page.goto("/");
+    await page.goto("/?home=1");
     await page.getByRole("button", { name: "New project…" }).click();
     await page.getByRole("textbox", { name: "Name" }).fill("Fresh QA");
     await page

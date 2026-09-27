@@ -5,6 +5,7 @@ import { patchTracksOrder } from "../document/projectPatch";
 import { canIngestMedia } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { errorMessage } from "../utils/apiError";
+import { homeUrl, projectUrl } from "../utils/projectUrl";
 import { registerCommand } from "./execute";
 import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
@@ -90,9 +91,15 @@ export function registerProjectMediaCommands(): void {
       useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
       return { status: "disabled", reason: PROJECT_SWITCH_BLOCKED };
     }
-    const url = new URL(window.location.href);
-    url.searchParams.delete("project");
-    window.location.assign(url.toString());
+    void (async () => {
+      try {
+        const { closeEpisodeProject } = await import("../api");
+        await closeEpisodeProject();
+      } catch {
+        /* ?home=1 still shows Home when the unpin fails */
+      }
+      window.location.assign(homeUrl(window.location.href));
+    })();
     return { status: "ok" };
   });
 
@@ -144,9 +151,9 @@ export function registerProjectMediaCommands(): void {
             useDawStore.getState().announceStatus(PROJECT_SWITCH_BLOCKED);
             return;
           }
-          const url = new URL(window.location.href);
-          url.searchParams.set("project", out.project_path);
-          window.location.assign(url.toString());
+          window.location.assign(
+            projectUrl(window.location.href, out.project_path),
+          );
         } catch (err) {
           const reason = errorMessage(err);
           useDawStore.getState().announceStatus(`Open failed: ${reason}`);

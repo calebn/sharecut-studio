@@ -105,6 +105,31 @@ describe("HomeScreen", () => {
     );
   });
 
+  it("drops ?home=1 when a created project opens", async () => {
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?home=1",
+      assign,
+    });
+    const user = userEvent.setup();
+    createMock.mockResolvedValue({
+      project_path: "/tmp/ep/episode.project.json",
+      name: "episode",
+    });
+    render(<HomeScreen />);
+    await user.click(screen.getByRole("button", { name: "New project…" }));
+    await user.type(
+      screen.getByLabelText("Workspace directory"),
+      "/tmp/workspace",
+    );
+    await user.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() => {
+      expect(assign).toHaveBeenCalled();
+    });
+    const created = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(created.searchParams.has("project")).toBe(true);
+    expect(created.searchParams.has("home")).toBe(false);
+  });
+
   it("opens a project from Open → Open", async () => {
     const user = userEvent.setup();
     openMock.mockResolvedValue({
@@ -285,16 +310,13 @@ describe("HomeScreen", () => {
     }
   });
 
-  it("opens Connect agent from home and unpins the served project", async () => {
+  it("opens Connect agent from home without unpinning the served project (#533)", async () => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
     const user = userEvent.setup();
     render(<HomeScreen />);
-    await waitFor(() => {
-      expect(closeMock).toHaveBeenCalled();
-    });
     await user.click(screen.getByRole("button", { name: "Connect agent…" }));
     expect(
       await screen.findByRole("dialog", { name: "Connect agent" }),

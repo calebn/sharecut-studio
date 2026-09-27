@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
@@ -89,15 +89,47 @@ def _accepts_html(request: Request) -> bool:
     return "text/html" in request.headers.get("accept", "").lower()
 
 
+#: ``/?home=1`` shows the host home without the pinned-project redirect
+#: (recovery page "Choose a different project", Studio New project).
+HOME_QUERY_PARAM = "home"
+
+
 def _recovery_query(request: Request, served: Path, *, include_project: bool) -> str:
     """Build recovery links from allowlisted values only."""
     query: dict[str, str] = {}
     if include_project:
         query["project"] = str(served)
+    else:
+        query[HOME_QUERY_PARAM] = "1"
     session_token = request.query_params.get("session_token")
     if session_token:
         query["session_token"] = session_token
     return urlencode(query)
+
+
+def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | None:
+    """Send a bare ``/`` to the pinned project instead of the host home (#533).
+
+    Home used to unpin on mount, so a bookmark, tab restore or preview tool
+    opening the root silently closed a CLI-pinned project. Only host-authorized
+    callers are redirected (the Location names the served path); an explicit
+    ``project``, a ``review`` share or ``home`` keeps the page as asked.
+    """
+    params = request.query_params
+    if any(key in params for key in ("project", "review", HOME_QUERY_PARAM)):
+        return None
+    if not served.is_file():
+        return None
+    try:
+        require_host(request, token=params.get("session_token"))
+    except HTTPException:
+        return None
+    target = request.url.include_query_params(project=str(served))
+    return RedirectResponse(
+        f"{target.path}?{target.query}",
+        status_code=307,
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
@@ -114,8 +146,7 @@ def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
         name = served.name
     safe_name = html.escape(name, quote=True)
     open_href = "/?" + _recovery_query(request, served, include_project=True)
-    home_query = _recovery_query(request, served, include_project=False)
-    home_href = "/?" + home_query if home_query else "/"
+    home_href = "/?" + _recovery_query(request, served, include_project=False)
     body = f"""<!doctype html>
 <html lang="en">
   <head>
@@ -234,6 +265,9 @@ def create_app(
                     index_path,
                     headers={"Cache-Control": "no-cache"},
                 )
+            redirect = _pinned_root_redirect(request, Path(served))
+            if redirect is not None:
+                return redirect
             requested = request.query_params.get("project")
             if requested and _project_mismatch(requested, Path(served)):
                 if not _accepts_html(request):

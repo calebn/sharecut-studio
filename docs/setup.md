@@ -392,6 +392,7 @@ podcast gui --project /path/to/episode.project.json
 # or background (same as MCP open_gui_tool):
 podcast gui --project /path/to/episode.project.json --background
 # loopback without --project opens New/Open home (Pass 8)
+# with a project pinned, / redirects to it; /?home=1 shows home without unpinning
 # Browse… / Mod+O use a host OS file dialog (paste path still works)
 podcast gui
 ```

@@ -8,7 +8,7 @@ test.describe("reading surfaces", () => {
     await page.addInitScript(() => {
       window.localStorage.setItem("sharecut.bootstrap.skip", "1");
     });
-    await page.goto("/");
+    await page.goto("/?home=1");
     await expect(
       page.getByRole("heading", { name: /^Sharecut Studio$/ }),
     ).toBeVisible();
