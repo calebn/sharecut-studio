@@ -6,6 +6,7 @@ import type {
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
+import { playStartPatch } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
 
 type PresenceSlice = Pick<
@@ -121,6 +122,7 @@ export const createPresenceSlice: StateCreator<
         playAbFollowup: null,
         auditionEpoch: get().auditionEpoch + 1,
         isPlaying: Boolean(state.is_playing),
+        ...playStartPatch(get(), Boolean(state.is_playing), state.playhead_sec),
         ...hear,
         ...(state.selection !== undefined ? { selection: nextSel } : {}),
         ...(state.clients ? { sessionClients: state.clients } : {}),

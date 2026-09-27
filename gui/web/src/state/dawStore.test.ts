@@ -116,6 +116,32 @@ function agentSession(partial: Partial<SessionState> = {}): SessionState {
 }
 
 describe("dawStore listen-first transport", () => {
+  it("records the play start on each start edge only", () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(10);
+    s().togglePlaying();
+    expect(s().playStartSec).toBe(10);
+    s().setPlayheadSec(25);
+    s().setIsPlaying(true);
+    expect(s().playStartSec).toBe(10);
+    s().togglePlaying();
+    expect(s().playheadSec).toBe(25);
+    expect(s().playStartSec).toBe(10);
+  });
+
+  it("beginAudition starts from the audition start", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 4, untilSec: 8 });
+    expect(useDawStore.getState().playStartSec).toBe(4);
+  });
+
+  it("an agent session that starts playback records its playhead", () => {
+    useDawStore.setState({ isPlaying: false, playStartSec: null });
+    useDawStore
+      .getState()
+      .applyAgentSession(agentSession({ playhead_sec: 7, is_playing: true }));
+    expect(useDawStore.getState().playStartSec).toBe(7);
+  });
+
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     useDawStore.setState({
@@ -154,6 +180,7 @@ describe("dawStore listen-first transport", () => {
 
   it("hydrate resets per-project transport status (#78)", () => {
     useDawStore.setState({
+      playStartSec: 12,
       audioError: "Failed to load audio (premix)",
       isPlaying: true,
       playheadSec: 42,
@@ -173,6 +200,7 @@ describe("dawStore listen-first transport", () => {
     expect(s.isPlaying).toBe(false);
     expect(s.playheadSec).toBe(0);
     expect(s.playbackRate).toBe(1);
+    expect(s.playStartSec).toBeNull();
     expect(s.viewerMute).toEqual({});
     expect(s.soloTracks).toEqual({});
     expect(s.sessionRegion).toBeNull();

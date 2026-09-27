@@ -78,6 +78,7 @@ export const createProjectSlice: StateCreator<
             audioError: null,
             isPlaying: false,
             playheadSec: 0,
+            playStartSec: null,
             viewerMute: {},
             soloTracks: {},
             sessionRegion: null,

@@ -48,8 +48,8 @@ export function TransportPlayControls({
       <button
         type="button"
         className="ui-control stop-btn"
-        // Stop halts in place (K in the J/K/L convention, and MCP's stop
-        // tool); it never promised a return to the start.
+        // Stop returns the playhead to where playback last started (DAW
+        // convention, #533); Pause keeps the position.
         title={titleWithShortcut("Stop", "transport.stop")}
         aria-label="Stop"
         disabled={disabled}
