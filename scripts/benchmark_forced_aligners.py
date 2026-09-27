@@ -179,17 +179,30 @@ def download_command(c: Candidate) -> str:
 
 def verify_candidate(c: Candidate, api: Any) -> list[str]:
     """Problems with one pinned candidate on the Hub (metadata only; never downloads weights)."""
-    from huggingface_hub.errors import HfHubHTTPError
+    import httpx
+    from huggingface_hub.errors import (
+        GatedRepoError,
+        HfHubHTTPError,
+        RepositoryNotFoundError,
+        RevisionNotFoundError,
+    )
 
+    pin = f"revision {c.revision} of {c.hf_repo}"
     try:
         info = api.model_info(c.hf_repo, revision=c.revision)
-    except HfHubHTTPError as exc:
-        # RevisionNotFoundError, RepositoryNotFoundError and GatedRepoError all
-        # subclass HfHubHTTPError; report instead of aborting the whole check.
+    except GatedRepoError as exc:
+        # GatedRepoError subclasses RepositoryNotFoundError, so match it first:
+        # the caller lacks a token or has not accepted the terms; the pin may be fine.
         return [
-            f"{c.label}: revision {c.revision} of {c.hf_repo} no longer resolves "
+            f"{c.label}: {pin} is gated: needs an HF token / accepted terms "
             f"({type(exc).__name__}: {exc})"
         ]
+    except (RevisionNotFoundError, RepositoryNotFoundError) as exc:
+        return [f"{c.label}: {pin} no longer resolves ({type(exc).__name__}: {exc})"]
+    except (HfHubHTTPError, httpx.TransportError) as exc:
+        # Rate limits (429), Hub outages (5xx), connection errors and timeouts
+        # say nothing about the pin; report without claiming drift.
+        return [f"{c.label}: could not verify {pin} ({type(exc).__name__}: {exc})"]
     problems = []
     if info.sha != c.revision:
         problems.append(f"{c.label}: revision resolves to {info.sha}, pinned {c.revision}")
