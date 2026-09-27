@@ -80,6 +80,40 @@ describe("tighten commands", () => {
     expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["e2"]);
   });
 
+  it("applyHit keeps the selection and says Still sending when the approval is queued", async () => {
+    vi.mocked(approveEdits).mockResolvedValueOnce({ queued: true });
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: "e1", trackId: "host" });
+    expect(await execute("tighten.applyHit", { id: "e1" })).toEqual({
+      status: "ok",
+    });
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "pending",
+      id: "e1",
+    });
+    const said = useDawStore.getState().statusAnnouncement;
+    expect(said).toMatch(/Still sending/);
+    expect(said).not.toMatch(/Applied/);
+  });
+
+  it("skipHit keeps the selection and says Still sending when the rejection is queued", async () => {
+    vi.mocked(rejectEdits).mockResolvedValueOnce({ queued: true });
+    useDawStore
+      .getState()
+      .setSelection({ kind: "pending", id: "e2", trackId: "host" });
+    expect(await execute("tighten.skipHit", { id: "e2" })).toEqual({
+      status: "ok",
+    });
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "pending",
+      id: "e2",
+    });
+    const said = useDawStore.getState().statusAnnouncement;
+    expect(said).toMatch(/Still sending/);
+    expect(said).not.toContain("Skipped");
+  });
+
   it("applies and skips review-required repetition and restart hits", async () => {
     useDawStore.setState({
       project: minimalProject({

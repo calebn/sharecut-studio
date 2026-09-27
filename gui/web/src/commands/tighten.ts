@@ -3,6 +3,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
+import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import {
   canSuggestSkip,
   playSuggestedRange,
@@ -62,8 +63,13 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
   tightenMutationInFlight = true;
   try {
     const projectPath = useDawStore.getState().projectPath;
-    await approveEdits(projectPath, ids);
+    const { queued } = await approveEdits(projectPath, ids);
     const next = useDawStore.getState();
+    if (queued) {
+      // Saved but not sent yet: keep the selection and say so.
+      next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+      return { status: "ok" };
+    }
     const sel = next.selection;
     if (
       sel?.kind === "pending" &&
@@ -97,8 +103,13 @@ async function runReject(id: string): Promise<ExecuteResult> {
   tightenMutationInFlight = true;
   try {
     const projectPath = useDawStore.getState().projectPath;
-    await rejectEdits(projectPath, [id]);
+    const { queued } = await rejectEdits(projectPath, [id]);
     const next = useDawStore.getState();
+    if (queued) {
+      // Saved but not sent yet: keep the selection and say so.
+      next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+      return { status: "ok" };
+    }
     if (next.selection?.kind === "pending" && next.selection.id === id) {
       next.setSelection(null);
     }
