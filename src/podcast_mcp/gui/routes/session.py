@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from podcast_mcp.gui.jobs import session_file_meta
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
 from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordAuthzError
@@ -251,7 +252,7 @@ async def session_ws(
     queue = hub.subscribe(key, loop)
     write_lock = asyncio.Lock()
     rec_queue = None
-    rec_task: asyncio.Task[None] | None = None
+    rec_tasks = WsTaskSet(f"session record ws client_id={client_id}")
     rec_svc: RecordSessionService | None = None
     attached_sid: str | None = None
     fail_until = 0.0
@@ -292,20 +293,16 @@ async def session_ws(
             await _send(filtered)
 
     async def _detach_record() -> None:
-        nonlocal rec_svc, rec_queue, rec_task, attached_sid
+        nonlocal rec_svc, rec_queue, attached_sid
         if rec_queue is not None:
             hub.unsubscribe(record_hub_key(ws_proj.project), rec_queue)
             rec_queue = None
-        if rec_task is not None:
-            rec_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await rec_task
-            rec_task = None
+        await rec_tasks.stop()
         rec_svc = None
         attached_sid = None
 
     async def _attach_record() -> None:
-        nonlocal rec_svc, rec_queue, rec_task, attached_sid, fail_until
+        nonlocal rec_svc, rec_queue, attached_sid, fail_until
         session_id = RecordSessionService.active_session_id(ws_proj.project)
         if rec_svc is not None and attached_sid == session_id and session_id:
             return
@@ -318,7 +315,7 @@ async def session_ws(
             return
         rec_svc = RecordSessionService(ws_proj.project, session_id=session_id)
         rec_queue = hub.subscribe(record_hub_key(ws_proj.project), loop)
-        rec_task = asyncio.create_task(_pump_record())
+        rec_tasks.spawn(_pump_record())
         try:
             echo, snap = rec_svc.join(
                 token="",
@@ -357,7 +354,8 @@ async def session_ws(
                 )
 
     await _attach_record()
-    hub_task = asyncio.create_task(_pump_hub())
+    hub_tasks = WsTaskSet(f"session ws client_id={client_id}")
+    hub_tasks.spawn(_pump_hub())
     try:
         while True:
             try:
@@ -407,11 +405,13 @@ async def session_ws(
             if echo is not None:
                 await _send(echo)
     finally:
-        if rec_svc is not None:
-            rec_svc.disconnect(HOST_PARTICIPANT_ID, connection_id=host_record_conn_id)
-        hub.unsubscribe(key, queue)
-        hub_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError, Exception):
-            await hub_task
-        await _detach_record()
-        svc.remove_client(client_id)
+        try:
+            if rec_svc is not None:
+                rec_svc.disconnect(HOST_PARTICIPANT_ID, connection_id=host_record_conn_id)
+            hub.unsubscribe(key, queue)
+            try:
+                await hub_tasks.stop()
+            finally:
+                await _detach_record()
+        finally:
+            svc.remove_client(client_id)

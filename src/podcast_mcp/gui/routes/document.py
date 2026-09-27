@@ -20,7 +20,7 @@ from podcast_mcp.gui.routes.deps import (
     require_authz,
     resolve_project,
 )
-from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
+from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
@@ -164,7 +164,7 @@ async def document_ws(
     key = document_hub_key(ws_proj.project)
     loop = asyncio.get_running_loop()
     queue = hub.subscribe(key, loop)
-    tasks: list[asyncio.Task[None]] = []
+    tasks = WsTaskSet(f"document ws client_id={client_id}")
     try:
         initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
         await guard.send_json(
@@ -188,7 +188,8 @@ async def document_ws(
                     await guard.close(1011, "document pump failed")
                 raise
 
-        tasks = [asyncio.create_task(_pump_hub()), asyncio.create_task(guard.recheck_loop())]
+        tasks.spawn(_pump_hub())
+        tasks.spawn(guard.recheck_loop())
         # Server→client only (#565): every send (hello Snapshot, _pump_hub, the authz
         # recheck's 4403 close) goes through guard's write lock. Inbound frames are drained
         # only to notice the disconnect; commands go through POST /api/document/command.
@@ -199,7 +200,4 @@ async def document_ws(
                 break
     finally:
         hub.unsubscribe(key, queue)
-        for task in tasks:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
+        await tasks.stop()
