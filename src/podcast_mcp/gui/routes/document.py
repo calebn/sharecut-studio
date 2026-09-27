@@ -16,7 +16,13 @@ from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
-from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    PROJECT_BUSY_CODE,
+    peer_host,
+    project_busy_error,
+    require_authz,
+    resolve_project,
+)
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
@@ -33,7 +39,6 @@ from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
 _PROJECT_BUSY = "Project is busy in another process; try again"
-_PROJECT_BUSY_CODE = "project_busy"
 
 
 def _is_project_busy(exc: BaseException) -> bool:
@@ -117,11 +122,7 @@ def post_document_command(
     except (Timeout, sqlite3.OperationalError) as exc:
         if not _is_project_busy(exc):
             raise
-        raise HTTPException(
-            status_code=503,
-            detail=_PROJECT_BUSY,
-            headers={"X-Sharecut-Error-Code": _PROJECT_BUSY_CODE},
-        ) from exc
+        raise project_busy_error(_PROJECT_BUSY) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
@@ -217,7 +218,7 @@ async def document_ws(
                 if not _is_project_busy(exc):
                     raise
                 await websocket.send_json(
-                    {"type": "Error", "detail": _PROJECT_BUSY, "code": _PROJECT_BUSY_CODE}
+                    {"type": "Error", "detail": _PROJECT_BUSY, "code": PROJECT_BUSY_CODE}
                 )
     finally:
         hub.unsubscribe(key, queue)

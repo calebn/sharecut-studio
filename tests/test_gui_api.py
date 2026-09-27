@@ -812,6 +812,17 @@ def test_api_audio_rerender_merge_conflict_is_409(minimal_project, monkeypatch) 
     assert "re-run it" in res.json()["detail"]
 
 
+def test_project_busy_error_is_a_503_with_the_shared_code() -> None:
+    pytest.importorskip("fastapi")
+    from podcast_mcp.gui.routes.deps import PROJECT_BUSY_CODE, project_busy_error
+
+    exc = project_busy_error("busy")
+    assert exc.status_code == 503
+    assert exc.detail == "busy"
+    assert exc.headers == {"X-Sharecut-Error-Code": PROJECT_BUSY_CODE}
+    assert PROJECT_BUSY_CODE == "project_busy"
+
+
 def test_api_audio_render_busy_is_503(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

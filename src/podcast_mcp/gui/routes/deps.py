@@ -15,6 +15,17 @@ from podcast_mcp.services.session_sync.authz import (
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
+PROJECT_BUSY_CODE = "project_busy"
+
+
+def project_busy_error(detail: str) -> HTTPException:
+    """HTTP 503 with ``X-Sharecut-Error-Code: project_busy`` (a project or render lock stayed busy)."""
+    return HTTPException(
+        status_code=503,
+        detail=detail,
+        headers={"X-Sharecut-Error-Code": PROJECT_BUSY_CODE},
+    )
+
 
 def peer_host(request: Request) -> str | None:
     if request.client:

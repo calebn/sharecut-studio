@@ -18,7 +18,12 @@ from podcast_mcp.gui.audio import (
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
-from podcast_mcp.gui.routes.deps import peer_host, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import (
+    peer_host,
+    project_busy_error,
+    require_host,
+    resolve_project,
+)
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import HistoryService, ProjectWorkspace
@@ -289,11 +294,7 @@ def get_audio(
     except Timeout as exc:
         # Another render or a commit holds its lock and nothing is on disk yet. Fixed text:
         # a plain filelock.Timeout names the lock file's absolute path.
-        raise HTTPException(
-            status_code=503,
-            detail=_AUDIO_BUSY_DETAIL,
-            headers={"X-Sharecut-Error-Code": "project_busy"},
-        ) from exc
+        raise project_busy_error(_AUDIO_BUSY_DETAIL) from exc
     response = audio_file_response(transport.path, request=request)
     if transport.render_busy:
         # Refresh lost the render-lock race; this is the file already on disk.
