@@ -46,7 +46,7 @@ def _ensure_wal(connection: sqlite3.Connection) -> None:
             time.sleep(_WAL_INIT_RETRY_SEC)
 
 
-def connect_session_db(db_path: Path) -> sqlite3.Connection:
+def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connection:
     """Open a session database after atomically establishing WAL mode.
 
     Record stores share ``sync.db`` but are constructed independently. SQLite
@@ -61,12 +61,19 @@ def connect_session_db(db_path: Path) -> sqlite3.Connection:
     retried every ``_WAL_INIT_RETRY_SEC`` for up to
     ``_WAL_INIT_TIMEOUT_SEC``; the connection then gets SQLite's default 5 s
     busy timeout back for its writes.
+
+    With ``create=False`` the file is opened with sqlite's ``mode=rw`` URI, so a
+    missing file raises ``sqlite3.OperationalError`` instead of being created.
+    The read-only meta polls rely on this to never recreate a store that
+    another process deleted.
     """
+    target = str(db_path) if create else f"{db_path.resolve().as_uri()}?mode=rw"
     connection = sqlite3.connect(
-        str(db_path),
+        target,
         check_same_thread=False,
         isolation_level=None,
         timeout=0,
+        uri=not create,
     )
     connection.row_factory = sqlite3.Row
     try:

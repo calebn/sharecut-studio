@@ -163,7 +163,10 @@ def _cached_sync_store(
             if not create and not path.is_file():
                 return None
             store = SyncStore(
-                path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids
+                path,
+                table_prefix=table_prefix,
+                enforce_command_ids=enforce_command_ids,
+                create=create,
             )
             _STORE_CACHE[key] = store
         elif store.enforce_command_ids != enforce_command_ids:
@@ -188,8 +191,9 @@ def cached_sync_store_if_exists(
 
     A cached store wins even when the file has since been removed, so read-only
     callers (the meta polls) see the same store writers use. The existence check
-    and the open share ``_STORE_LOCK``; a file another process deletes between the
-    two can still be recreated (closing that needs a read-only connection).
+    and the open share ``_STORE_LOCK``. The open uses sqlite ``mode=rw``, so a
+    file that another process deletes between the two raises
+    ``sqlite3.OperationalError`` (a meta read error) instead of being recreated.
     """
     return _cached_sync_store(
         path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids, create=False
@@ -212,7 +216,12 @@ class SyncStore:
     """Per-project sqlite authority store."""
 
     def __init__(
-        self, db_path: Path, *, table_prefix: str = "", enforce_command_ids: bool = False
+        self,
+        db_path: Path,
+        *,
+        table_prefix: str = "",
+        enforce_command_ids: bool = False,
+        create: bool = True,
     ) -> None:
         self.db_path = db_path
         self.enforce_command_ids = enforce_command_ids
@@ -220,11 +229,16 @@ class SyncStore:
         self._sql = _sql_bundle(self._p)
         self._lock = threading.RLock()
         self._tx_depth = 0
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = connect_session_db(db_path)
+        if create:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = connect_session_db(db_path, create=create)
         self._client_generation: dict[str, int] = {}
-        with self._lock:
-            self._conn.executescript(_schema(self._p))
+        try:
+            with self._lock:
+                self._conn.executescript(_schema(self._p))
+        except Exception:
+            self._conn.close()
+            raise
 
     def claim_client(self, client_id: str) -> int:
         with self._lock:
