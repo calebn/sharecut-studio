@@ -8,8 +8,16 @@ import { readLocal, writeLocal } from "../utils/storage";
 
 export type ThemePreference = "system" | "light" | "dark";
 
+/** Order and labels for every preference (View › Theme, Storybook toolbar). */
+export const THEME_OPTIONS: readonly { id: ThemePreference; label: string }[] =
+  [
+    { id: "system", label: "System" },
+    { id: "light", label: "Light" },
+    { id: "dark", label: "Dark" },
+  ];
+
 export function isThemePreference(v: unknown): v is ThemePreference {
-  return v === "light" || v === "dark" || v === "system";
+  return THEME_OPTIONS.some((t) => t.id === v);
 }
 
 const STORAGE_KEY = "daw_theme";
@@ -59,7 +67,6 @@ export function initTheme(): ThemePreference {
 export function useTheme(): {
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
-  cyclePreference: () => void;
 } {
   const [preference, setPreferenceState] = useState<ThemePreference>(() =>
     readStored(),
@@ -74,17 +81,5 @@ export function useTheme(): {
     setPreferenceState(p);
   }, []);
 
-  const cyclePreference = useCallback(() => {
-    setPreferenceState((prev) => {
-      if (prev === "system") {
-        return "dark";
-      }
-      if (prev === "dark") {
-        return "light";
-      }
-      return "system";
-    });
-  }, []);
-
-  return { preference, setPreference, cyclePreference };
+  return { preference, setPreference };
 }

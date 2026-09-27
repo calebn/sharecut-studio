@@ -2,7 +2,7 @@ import type { Preview } from "@storybook/react-vite";
 import { GLOBALS_UPDATED } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import "../src/styles/daw.css";
-import { applyTheme } from "../src/hooks/useTheme";
+import { applyTheme, THEME_OPTIONS } from "../src/hooks/useTheme";
 import {
   themePreferenceFromGlobals,
   updateDocsThemeGlobal,
@@ -44,11 +44,7 @@ const preview: Preview = {
       defaultValue: "system",
       toolbar: {
         icon: "paintbrush",
-        items: [
-          { value: "system", title: "System" },
-          { value: "light", title: "Light" },
-          { value: "dark", title: "Dark" },
-        ],
+        items: THEME_OPTIONS.map((t) => ({ value: t.id, title: t.label })),
         dynamicTitle: true,
       },
     },

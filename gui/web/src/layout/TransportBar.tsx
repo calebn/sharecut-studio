@@ -3,7 +3,7 @@ import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
-import { type ThemePreference, useTheme } from "../hooks/useTheme";
+import { THEME_OPTIONS, useTheme } from "../hooks/useTheme";
 import {
   ariaKeyShortcutsFor,
   displayShortcutFor,
@@ -63,12 +63,6 @@ type Props = {
   /** Desktop/tablet: layout toggle, restore chip, View › Layout radios. */
   showLayout?: boolean;
 };
-
-const THEMES: { id: ThemePreference; label: string }[] = [
-  { id: "system", label: "System" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
-];
 
 export function TransportBar({
   compact = false,
@@ -290,7 +284,7 @@ export function TransportBar({
           shell under the menu. */}
       <MenuSection label="Theme">
         <SegmentedControl role="none" className="theme-modes">
-          {THEMES.map((t) => (
+          {THEME_OPTIONS.map((t) => (
             <ToggleButton
               key={t.id}
               quiet
