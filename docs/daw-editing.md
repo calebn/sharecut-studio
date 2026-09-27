@@ -151,7 +151,7 @@ Shipped:
 
 Shipped:
 
-- Transcript toolbar **Annotate** (display density, orthogonal to Correct/Select): off = clean reading view; on = low-confidence underlines, dotted underlines on `suspect_hallucination` words (over digital silence), Descript-style **edit-boundary** glyphs at every clip join on ProjectView `edit_boundaries` (word-aligned in the turn that precedes/contains the join), and nested **Show cut away**
+- Transcript toolbar **Annotate** (display density, orthogonal to Correct/Select): off = clean reading view; on = low-confidence underlines, dotted underlines on unsuppressed `suspect_hallucination` words (over digital silence; a suppressed word shows only its strikethrough), Descript-style **edit-boundary** glyphs at every clip join on ProjectView `edit_boundaries` (word-aligned in the turn that precedes/contains the join), and nested **Show cut away**
 - Transcript toolbar **Correct** / **Select** toggles (host-only): neither = seek-on-click / double-click-word seek; **Correct** selects a word for ASR fix (`TranscriptWordInspector`); **Select** click/shift/drag builds a `transcriptRange` for Mod+C/X/V clipboard
 - Tooltip / `aria-label` copy for GUI chrome lives on capability rows (`tooltip` / `tooltip_pressed`) in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json); generated into `gui/web/src/capabilities/copy.ts` via `make schema-export`
 - Clip **trim handles** (bottom corners): front = `source_start`, back = `source_end` via `TrimClipEdge` (ripple) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API); a pointer-up under 3 px net, or a trim the snap or clamp leaves on the committed edge, saves nothing

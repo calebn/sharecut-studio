@@ -406,6 +406,25 @@ describe("TranscriptPanel", () => {
     expect(flagged[0]?.textContent).toContain("there");
   });
 
+  it("Annotate leaves suppressed suspect_hallucination words with only the strikethrough", () => {
+    const base = project();
+    const word = base.transcript?.utterances[0]?.words?.[1];
+    if (!word) throw new Error("fixture word missing");
+    word.suspect_hallucination = true;
+    word.suppressed = true;
+    useDawStore.setState({ project: base, transcriptAnnotate: false });
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(
+      within(container).getByRole("button", { name: /Annotate/i }),
+    );
+    expect(container.querySelectorAll(".suspect-hallucination")).toHaveLength(
+      0,
+    );
+    expect(
+      container.querySelector(".utterance-word.suppressed")?.textContent,
+    ).toContain("there");
+  });
+
   it("Annotate shows an edit-boundary mark for every join on transcript tracks", () => {
     useDawStore.setState({
       project: minimalProject({
