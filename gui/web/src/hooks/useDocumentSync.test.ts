@@ -1,6 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetDocumentSeqForTests } from "../document/cursor";
+import {
+  pollSnapshotAlreadyApplied,
+  resetDocumentSeqForTests,
+} from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { TrackView } from "../types/project";
@@ -172,5 +175,51 @@ describe("useDocumentSync", () => {
       unmount();
       vi.useRealTimers();
     }
+  });
+
+  it("chains file_before across an own-client Applied so the poll can skip it", async () => {
+    renderHook(() =>
+      useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
+    );
+    const F1 = { mtime_ns: 100, size: 5 };
+    const F2 = { mtime_ns: 200, size: 6 };
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Snapshot",
+        server_seq: 1,
+        snapshot: { server_seq: 1, project: minimalProject(), file: F1 },
+      });
+    });
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Applied",
+        server_seq: 2,
+        command: { client_id: "someone-else" },
+        snapshot: {
+          server_seq: 2,
+          patch: { tracks: [track("guest")] },
+          file_before: F1,
+          file: F2,
+        },
+      });
+    });
+    expect(pollSnapshotAlreadyApplied({ ...F2, server_seq: 2 })).toBe(true);
+
+    const F9 = { mtime_ns: 900, size: 9 };
+    const F3 = { mtime_ns: 300, size: 7 };
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Applied",
+        server_seq: 3,
+        command: { client_id: "someone-else" },
+        snapshot: {
+          server_seq: 3,
+          patch: { tracks: [track("guest")] },
+          file_before: F9,
+          file: F3,
+        },
+      });
+    });
+    expect(pollSnapshotAlreadyApplied({ ...F3, server_seq: 3 })).toBe(false);
   });
 });

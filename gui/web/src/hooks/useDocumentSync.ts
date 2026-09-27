@@ -6,6 +6,7 @@ import {
 } from "../document/applyDocumentUpdate";
 import {
   eventServerSeq,
+  noteDocumentFile,
   noteDocumentSeq,
   resetDocumentSeq,
   shouldApplyDocumentEvent,
@@ -41,7 +42,8 @@ type DocumentSnapshotMsg = {
 
 /**
  * Document-plane WS (server→client only): merge Applied snapshots/patches into the store.
- * Own-client HTTP Applied at the current seq is skipped. useProjectPoll remains a safety net.
+ * Own-client HTTP Applied at the current seq is skipped. useProjectPoll only refetches
+ * writes this socket did not deliver (see noteDocumentFile).
  * A 4403 close (grant revoked by the post-accept authz recheck) is terminal: the session
  * token is read once per page, so reconnecting cannot succeed until reload. A refused
  * handshake closes before accept, which the browser reports as 1006, so it keeps retrying.
@@ -80,6 +82,7 @@ export function useDocumentSync(
           if (!snap) {
             return;
           }
+          noteDocumentFile(snap);
           if (
             !shouldApplyDocumentEvent({
               server_seq: msg.server_seq,
