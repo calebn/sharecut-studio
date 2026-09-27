@@ -143,7 +143,7 @@ def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
         bfa.resolve_model_dir(candidate, None)
 
 
-def _fake_hub(candidate, *, sha=None, license=None, files=None):
+def _fake_hub(candidate, *, sha=None, license=None, files=None, error=None):
     info = SimpleNamespace(
         sha=sha or candidate.revision,
         card_data=SimpleNamespace(license=license or candidate.license),
@@ -156,7 +156,20 @@ def _fake_hub(candidate, *, sha=None, license=None, files=None):
             )
         ],
     )
-    return SimpleNamespace(model_info=lambda repo, revision: info)
+
+    def model_info(repo, revision):
+        if error is not None:
+            raise error
+        return info
+
+    return SimpleNamespace(model_info=model_info)
+
+
+def _hub_error(cls):
+    import httpx
+
+    request = httpx.Request("GET", "https://huggingface.co/api/models/x/revision/y")
+    return cls(f"{cls.__name__} for url", response=httpx.Response(404, request=request))
 
 
 def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
@@ -171,6 +184,23 @@ def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
     assert any("onnx/model.onnx" in p for p in problems)
 
 
+@pytest.mark.parametrize(
+    "error_name", ["RevisionNotFoundError", "RepositoryNotFoundError", "GatedRepoError"]
+)
+def test_verify_candidate_reports_unresolvable_revision(error_name) -> None:
+    import huggingface_hub.errors
+
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    error = _hub_error(getattr(huggingface_hub.errors, error_name))
+
+    problems = bfa.verify_candidate(candidate, _fake_hub(candidate, error=error))
+
+    assert len(problems) == 1
+    assert problems[0].startswith("onnx-base: revision ")
+    assert "no longer resolves" in problems[0]
+    assert error_name in problems[0]
+
+
 def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:
     import huggingface_hub
 
@@ -181,6 +211,22 @@ def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr(huggingface_hub, "HfApi", lambda: _fake_hub(candidate, license="mit"))
     assert bfa.main(["verify-candidates", "--candidate", "onnx-base"]) == 1
+
+    from huggingface_hub.errors import RevisionNotFoundError
+
+    capsys.readouterr()
+    monkeypatch.setattr(
+        huggingface_hub,
+        "HfApi",
+        lambda: _fake_hub(candidate, error=_hub_error(RevisionNotFoundError)),
+    )
+    assert (
+        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "torch-large"])
+        == 1
+    )
+    out = capsys.readouterr().out
+    assert "onnx-base: revision" in out
+    assert "torch-large: revision" in out
 
 
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:

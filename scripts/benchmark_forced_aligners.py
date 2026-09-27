@@ -179,7 +179,17 @@ def download_command(c: Candidate) -> str:
 
 def verify_candidate(c: Candidate, api: Any) -> list[str]:
     """Problems with one pinned candidate on the Hub (metadata only; never downloads weights)."""
-    info = api.model_info(c.hf_repo, revision=c.revision)
+    from huggingface_hub.errors import HfHubHTTPError
+
+    try:
+        info = api.model_info(c.hf_repo, revision=c.revision)
+    except HfHubHTTPError as exc:
+        # RevisionNotFoundError, RepositoryNotFoundError and GatedRepoError all
+        # subclass HfHubHTTPError; report instead of aborting the whole check.
+        return [
+            f"{c.label}: revision {c.revision} of {c.hf_repo} no longer resolves "
+            f"({type(exc).__name__}: {exc})"
+        ]
     problems = []
     if info.sha != c.revision:
         problems.append(f"{c.label}: revision resolves to {info.sha}, pinned {c.revision}")
