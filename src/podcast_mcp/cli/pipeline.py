@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -10,6 +12,20 @@ from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services import PipelineRunResult, PipelineService, ProjectWorkspace
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
+
+_SET_HELP = (
+    "Run-only config override path=value, repeatable (never saved), "
+    "e.g. --set focus.enabled=true --set transcribe.vad.enabled=true"
+)
+
+
+def _overrides(assignments: list[str] | None) -> dict[str, Any]:
+    from podcast_mcp.services.pipeline_config import parse_config_assignments
+
+    try:
+        return parse_config_assignments(assignments or [])
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--set") from exc
 
 
 @pipeline_app.command("run")
@@ -42,10 +58,15 @@ def pipeline_run(
         "--strict/--no-strict",
         help="Exit 1 when this run exported and export_qc.json is not ok (opt-in until #621)",
     ),
+    assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
 ) -> None:
+    from podcast_mcp.pipeline.meta import set_by_path
     from podcast_mcp.services.pipeline_config import transcribe_run_config
 
-    config = transcribe_run_config({"align": {"realign": True}} if realign else None, force=force)
+    overrides = _overrides(assignments)
+    if realign:
+        set_by_path(overrides, "align.realign", True)
+    config = transcribe_run_config(overrides or None, force=force)
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
     result = PipelineService(ws).run(
@@ -83,6 +104,10 @@ def pipeline_list(
     if as_json:
         typer.echo(json.dumps(rows, indent=2))
         return
+    _echo_step_states(rows)
+
+
+def _echo_step_states(rows: list[dict[str, Any]]) -> None:
     for i, row in enumerate(rows):
         if row["noop_reason"]:
             state = f"no-op ({row['noop_reason']})"
@@ -91,6 +116,90 @@ def pipeline_list(
         else:
             state = "disabled"
         typer.echo(f"{i + 1:>2}  {row['id']:<26} {row['kind']:<9} {state}")
+
+
+@pipeline_app.command("config")
+def pipeline_config_cmd(
+    assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
+    as_json: bool = typer.Option(False, "--json", help="Emit config + steps as JSON"),
+) -> None:
+    """Show the effective pipeline config: defaults + --set, params, and step states."""
+    from podcast_mcp.pipeline.meta import PARAM_FIELDS
+    from podcast_mcp.services.pipeline_config import merge_pipeline_config, pipeline_step_states
+    from podcast_mcp.util.dicts import get_by_path
+
+    overrides = _overrides(assignments)
+    cfg = merge_pipeline_config(overrides)
+    rows = pipeline_step_states(cfg)
+
+    if as_json:
+        typer.echo(json.dumps({"config": cfg, "overrides": overrides, "steps": rows}, indent=2))
+        return
+
+    _echo_step_states(rows)
+    overridden_paths = set(_config_assignments_paths(overrides))
+    for field in PARAM_FIELDS:
+        value = get_by_path(cfg, field.path)
+        marker = " *" if field.path in overridden_paths else ""
+        typer.echo(f"  {field.path} = {json.dumps(value)}{marker}")
+    if overrides:
+        typer.echo("  (* overridden by --set; pass --set again to change, run --set to apply)")
+
+
+def _config_assignments_paths(overrides: dict[str, Any]) -> list[str]:
+    from podcast_mcp.services.pipeline_config import config_assignments
+
+    return [a.split("=", 1)[0] for a in config_assignments(overrides)]
+
+
+@pipeline_app.command("analyze")
+def pipeline_analyze_cmd(
+    project: Path = typer.Option(..., "--project"),
+    assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
+    as_json: bool = typer.Option(False, "--json", help="Emit the full Analyze result as JSON"),
+) -> None:
+    """Run heuristic Analyze against the effective config and print reasons + a patch preview."""
+    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.pipeline_config import merge_pipeline_config, suggest_pipeline_tuning
+
+    base = merge_pipeline_config(_overrides(assignments))
+    ws = ProjectWorkspace.open(project)
+    result = suggest_pipeline_tuning(ws.project, base_config=base)
+
+    if as_json:
+        typer.echo(json.dumps(result, indent=2))
+        return
+
+    _echo_analyze_report(result, project)
+
+
+def _echo_analyze_report(result: dict[str, Any], project: Path) -> None:
+    from podcast_mcp.services.pipeline_config import config_assignments
+
+    reasons = result.get("reasons") or []
+    if not reasons:
+        typer.echo("Analyze: no findings.")
+    for reason in reasons:
+        typer.echo(f"  {reason['code']}: {reason['message']}")
+        evidence = reason.get("evidence") or {}
+        if evidence:
+            kv = ", ".join(f"{k}={v}" for k, v in evidence.items())
+            typer.echo(f"      evidence: {kv}")
+        for step in reason.get("suggested_skip_steps") or []:
+            typer.echo(f"      suggest: --skip {step}")
+
+    for row in (result.get("report_summary") or {}).get("tracks") or []:
+        tid = row.get("track_id", "?")
+        kv = ", ".join(f"{k}={v}" for k, v in row.items() if k != "track_id" and v is not None)
+        typer.echo(f"  track {tid}: {kv}")
+
+    patches = result.get("patches") or {}
+    if not patches:
+        typer.echo("No config changes proposed.")
+        return
+    parts = [shlex.quote(a) for a in config_assignments(patches)]
+    set_flags = " ".join(f"--set {p}" for p in parts)
+    typer.echo(f"Proposed: podcast pipeline run --project {project} {set_flags}")
 
 
 def render_preview_cmd(
