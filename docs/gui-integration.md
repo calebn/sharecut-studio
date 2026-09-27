@@ -311,7 +311,7 @@ Configurable production spine — **visible params are the source of truth for R
 | `PUT /api/transcript/vocabulary` | Body `{ path, terms, guest_names, base_revision }` — save per-project vocabulary; 409 when `base_revision` is stale (another editor saved first), 400 for invalid or prompt-overflowing vocabulary, 503 when the context lock is busy; Pipeline offers a run from `transcribe_tracks` when an existing transcript needs it |
 | `POST /api/pipeline/cancel` | Body `{ job_id? }` — cancel between steps |
 | `POST /api/pipeline/render-preview` | Body `{ path }` — background `PipelineService.render_preview` (same job queue; 409 if busy) |
-| `POST /api/export/bounce` | Body `{ path, track_ids?, start_s?, end_s?, formats? }` — starts a `kind=bounce` job (`BounceService` → `export/bounces/`); returns `{ job_id, job }` immediately (400 on validation; 409 if a pipeline-slot job is running). Paths are on the terminal snapshot `result.paths`. Host GUI seeds Activity chrome from `job` then polls (viewer already owns SSE). Cancel between bounce phases is cooperative; a cancel that lands after files are written keeps `result.paths` on the cancelled snapshot. |
+| `POST /api/export/bounce` | Body `{ path, track_ids?, start_s?, end_s?, formats? }` — starts a `kind=bounce` job (`BounceService` → `export/bounces/`); returns `{ job_id, job }` immediately (400 on validation; 409 if a pipeline-slot job is running). Paths are on the terminal snapshot `result.paths`. Host GUI seeds Activity chrome from `job` then follows that job's own SSE stream (each subscriber has its own queue). Cancel between bounce phases is cooperative; a cancel that lands after files are written keeps `result.paths` on the cancelled snapshot. |
 | `POST /api/export/deliverables` | Body `{ path, formats? }` — `kind=export` job via `PipelineService.export_audio`; `{ job_id, job }`; `result.paths` on the terminal snapshot. Guest render path is unchanged. |
 | `GET /api/shares?path=` | Host share list (presented rows + review versions). Online extension. |
 | `POST /api/shares` | Body `{ path, role?, with_mcp?, review_version_id? }` — mint a link share (`ShareService.create_for_host`; publishes a review mix if none exists) |
@@ -379,7 +379,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit) require **`timelineFocu
 | `POST /api/pipeline/run` | Start pipeline (mutates project on disk) |
 | `POST /api/pipeline/cancel` | Cancel running job between steps |
 | `POST /api/pipeline/render-preview` | Start render-preview job (stems + premix) |
-| `GET /api/pipeline/events` | SSE progress for the active/last job |
+| `GET /api/pipeline/events` | SSE progress for the active/last job: per-subscriber queue via `stream_job_events` (connect snapshot, live events, 1s keepalive snapshot, terminal `done`) |
 | `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`edit`) — starts a `PipelineJobManager` render and returns 202 with a job ID (409 if busy) |
 | `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`edit`) — polls status for this share's project; paths sanitized |
 | `POST /api/comments` | Create timeline comment (`CommentCreateRequest`) |

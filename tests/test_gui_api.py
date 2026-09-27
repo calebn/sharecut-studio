@@ -1307,6 +1307,81 @@ def test_api_pipeline_events_status_snapshots_while_running(minimal_project, mon
     assert status_events[-1]["job"]["elapsed_sec"] > status_events[0]["job"]["elapsed_sec"]
 
 
+def test_api_pipeline_events_two_subscribers_both_get_done(minimal_project, monkeypatch) -> None:
+    """Two concurrent subscribers each get their own full stream, ending in ``done``."""
+    pytest.importorskip("fastapi")
+    import json
+    import threading
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.job_events import job_listener_count
+    from podcast_mcp.gui.server import create_app
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking_run(self, **kwargs):
+        progress = kwargs.get("progress")
+        if progress is not None:
+            progress.start("pipeline", "Pipeline", total=1)
+            progress.message("pipeline", "Running long_step")
+        started.set()
+        release.wait(timeout=5)
+        if progress is not None:
+            progress.update("pipeline", 1, total=1, message="Completed long_step: ok")
+            progress.end("pipeline")
+        return "long_step"
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.run",
+        blocking_run,
+    )
+
+    with TestClient(create_app()) as client:
+        res = client.post(
+            "/api/pipeline/run",
+            json={"path": str(minimal_project)},
+        )
+        assert res.status_code == 200
+        job_id = res.json()["job"]["id"]
+        assert started.wait(timeout=2)
+
+        bodies: list[str] = []
+
+        def _stream() -> None:
+            resp = client.get("/api/pipeline/events", params={"job_id": job_id})
+            bodies.append(resp.text)
+
+        threads = [threading.Thread(target=_stream) for _ in range(2)]
+        for t in threads:
+            t.start()
+
+        deadline = time.monotonic() + 5.0
+        while job_listener_count(job_id) < 2 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert job_listener_count(job_id) == 2
+
+        release.set()
+        for t in threads:
+            t.join(timeout=5)
+
+    assert len(bodies) == 2
+    for body in bodies:
+        events = [
+            json.loads(ln.removeprefix("data: "))
+            for ln in body.splitlines()
+            if ln.startswith("data: ")
+        ]
+        assert events[-1]["type"] == "done"
+        assert events[-1]["job"]["status"] == "ok"
+        assert any(
+            ev.get("type") == "progress" and ev.get("message") == "Completed long_step: ok"
+            for ev in events
+        )
+
+
 def test_api_pipeline_render_preview(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     import time

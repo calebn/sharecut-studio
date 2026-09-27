@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator
-from queue import Empty
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -10,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import (
     PipelineAnalyzeRequest,
     PipelineCancelRequest,
@@ -222,41 +220,4 @@ def pipeline_events(
     job = _jobs(request).get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No pipeline job")
-
-    def event_stream() -> Iterator[str]:
-        jobs = _jobs(request)
-        subscribed = jobs.add_sse_subscriber_for(job)
-        try:
-            snap = job.snapshot()
-            yield f"data: {json.dumps({'type': 'status', 'job': snap})}\n\n"
-            if snap["status"] in ("ok", "error", "cancelled"):
-                yield f"data: {json.dumps({'type': 'done', 'job': snap})}\n\n"
-                return
-            while True:
-                try:
-                    item = job.events.get(timeout=1.0)
-                except Empty:
-                    late = job.snapshot()
-                    if late["status"] in ("ok", "error", "cancelled"):
-                        yield f"data: {json.dumps({'type': 'done', 'job': late})}\n\n"
-                        return
-                    yield f"data: {json.dumps({'type': 'status', 'job': late})}\n\n"
-                    continue
-                if item is None:
-                    break
-                yield f"data: {json.dumps(item)}\n\n"
-                if item.get("type") == "done":
-                    break
-        finally:
-            if subscribed:
-                jobs.remove_sse_subscriber(job)
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return job_events_response(job)

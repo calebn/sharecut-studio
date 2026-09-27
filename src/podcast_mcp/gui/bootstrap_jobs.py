@@ -1,4 +1,4 @@
-"""Background bootstrap jobs for Sharecut Studio first-run (progress via queue → SSE)."""
+"""Background bootstrap jobs for Sharecut Studio first-run (progress via per-subscriber SSE fan-out)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from queue import Queue
 from typing import Any
 
+from podcast_mcp.gui.job_events import publish_job_event
 from podcast_mcp.services.bootstrap import run_bootstrap
 from podcast_mcp.util.progress import ProgressEvent
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, resolve_whisper_model
@@ -29,7 +29,6 @@ class BootstrapJob:
     message: str | None = None
     result: dict[str, Any] | None = None
     cancel_requested: bool = False
-    events: Queue[dict[str, Any] | None] = field(default_factory=Queue)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def snapshot(self) -> dict[str, Any]:
@@ -53,10 +52,7 @@ class BootstrapJob:
             }
 
     def publish(self, event: dict[str, Any]) -> None:
-        self.events.put(event)
-
-    def close_stream(self) -> None:
-        self.events.put(None)
+        publish_job_event(self.id, event)
 
 
 class _BootstrapProgressReporter:
@@ -284,7 +280,6 @@ class BootstrapJobManager:
                 job.message = str(exc)
                 job.finished_at = time.monotonic()
         job.publish({"type": "done", "job": job.snapshot()})
-        job.close_stream()
 
 
 _SHARED: BootstrapJobManager | None = None
