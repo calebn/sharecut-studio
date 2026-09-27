@@ -34,6 +34,10 @@ The `Templates/TimelineRange` story shows the production audition and comment
 selection overlays with the prop-only `PlayheadNeedle` in a 360px timeline
 well. The live `Playhead` keeps the DAW store subscription and moves its needle
 through a direct transform update during playback.
+`Templates/TimeRuler` shows the same prop-driven ruler view used by the live
+timeline at desktop and 360px widths, including comment-anchor mode. Its live
+adapter supplies DAW position and visible chunks; the story supplies fixed
+values and a production `PlayheadNeedle` without mounting DAW state.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.

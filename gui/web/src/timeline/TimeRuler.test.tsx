@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { expectNoA11yViolations } from "../test/a11y";
+import { PlayheadNeedle } from "./PlayheadNeedle";
 import { TimeRuler } from "./TimeRuler";
+import { TimeRulerView } from "./TimeRulerView";
 
 describe("TimeRuler", () => {
   afterEach(() => {
@@ -150,5 +153,52 @@ describe("TimeRuler", () => {
     fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowLeft" });
     expect(onSeek).toHaveBeenCalledWith(2);
     act(() => useDawStore.setState({ playheadSec: 0 }));
+  });
+});
+
+describe("TimeRulerView", () => {
+  it("renders from props and uses the precise position for keyboard steps", async () => {
+    const onSeek = vi.fn();
+    const { container } = render(
+      <TimeRulerView
+        durationSec={9}
+        sessionDurationSec={8}
+        zoomPxPerSec={40}
+        valueSec={4.5}
+        getPlayheadSec={() => 4.6}
+        visibleChunks={[0, 0]}
+        playhead={<PlayheadNeedle xPx={184} height="100%" />}
+        onSeek={onSeek}
+      />,
+    );
+    const slider = screen.getByRole("slider", { name: "Timeline position" });
+    expect(slider).toHaveAttribute("aria-valuenow", "4.5");
+    expect(slider).toHaveAttribute("aria-valuemax", "8");
+    expect(container.querySelector(".playhead")).toHaveStyle({
+      transform: "translateX(184px)",
+    });
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(onSeek).toHaveBeenCalledWith(6.6);
+    await expectNoA11yViolations(container);
+  });
+
+  it("renders only the requested chunks at deep zoom", () => {
+    const { container } = render(
+      <TimeRulerView
+        durationSec={60}
+        sessionDurationSec={60}
+        zoomPxPerSec={48_000}
+        valueSec={21}
+        getPlayheadSec={() => 21}
+        visibleChunks={[488, 489]}
+        onSeek={vi.fn()}
+      />,
+    );
+    const ticks = [...container.querySelectorAll<HTMLElement>(".ruler-tick")];
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.length).toBeLessThan(100);
+    expect(
+      ticks.every((tick) => Number.parseFloat(tick.style.left) >= 488 * 2048),
+    ).toBe(true);
   });
 });
