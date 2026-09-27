@@ -32,4 +32,20 @@ describe("StaleProgressCopy", () => {
     expect(screen.getByText("last update 17s ago")).toBeTruthy();
     expect(screen.getByRole("status").textContent).not.toContain("last update");
   });
+
+  it("uses a supplied clock without ticking", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(
+      <StaleProgressCopy lastProgressAt={1000} running nowSec={1042} />,
+    );
+    expect(screen.getByText("last update 42s ago")).toBeTruthy();
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getByText("last update 42s ago")).toBeTruthy();
+
+    rerender(<StaleProgressCopy lastProgressAt={1000} running nowSec={1010} />);
+    expect(screen.queryByText(/last update/)).toBeNull();
+  });
 });

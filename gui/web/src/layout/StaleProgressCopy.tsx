@@ -7,6 +7,8 @@ type Props = {
   running: boolean;
   prefix?: string;
   announce?: boolean;
+  /** Fixed wall-clock seconds for catalog previews; omit to tick live. */
+  nowSec?: number;
 };
 
 /** Ticking stall copy owned by a tiny clock subtree — not a parent live region. */
@@ -15,8 +17,10 @@ export function StaleProgressCopy({
   running,
   prefix = "",
   announce = false,
+  nowSec: fixedNowSec,
 }: Props) {
-  const nowSec = useNowSec(running);
+  const liveNowSec = useNowSec(running && fixedNowSec === undefined);
+  const nowSec = fixedNowSec ?? liveNowSec;
   const stale = running ? staleUpdateLabel(lastProgressAt, nowSec) : null;
   const wasStale = useRef(false);
   const [live, setLive] = useState("");

@@ -90,8 +90,11 @@ the empty-project disabled state. `Templates/PipelineStatusChip` shows the
 shipped status chip in the desktop footer and the phone Listen status row
 with fictional pipeline and activity jobs. Both accept props and callbacks
 alone; the live `TransportBar` and `StatusBar` remain outside Storybook because
-they read DAW state. The running chip examples omit a progress timestamp so
-the catalog does not depend on a moving clock.
+they read DAW state. The live chip omits `nowSec` and ticks its stall copy
+once a second; most running-chip examples omit a progress timestamp entirely
+so the catalog does not depend on a moving clock, and the `Stalled` example
+instead passes a fixed `nowSec` so its "last update Ns ago" copy renders
+deterministically without ticking.
 
 `Templates/TimelineRange` previews the shipped audition range, selected
 comment span and point pin, and playhead needle in a 360px timeline well.

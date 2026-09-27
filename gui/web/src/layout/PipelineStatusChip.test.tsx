@@ -64,4 +64,18 @@ describe("PipelineStatusChip", () => {
       screen.getByText(/Pipeline: failed · Mix preview failed/),
     ).toBeTruthy();
   });
+
+  it("shows stall copy against a supplied clock", async () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <PipelineStatusChip
+        job={pipelineJobSnapshot({ last_progress_at: 1000 })}
+        nowSec={1042}
+        onClick={onClick}
+      />,
+    );
+    const chip = screen.getByRole("button", { name: /Pipeline: running/ });
+    expect(chip).toHaveTextContent("· last update 42s ago");
+    await expectNoA11yViolations(container);
+  });
 });
