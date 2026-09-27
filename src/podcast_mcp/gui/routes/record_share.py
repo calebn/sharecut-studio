@@ -309,10 +309,12 @@ async def record_ws(
             if q is not None:
                 hub.unsubscribe(hub_key, q)
             await conn.stop_tasks()
-            if participant_id is not None:
-                svc.disconnect(participant_id, connection_id=connection_id)
         finally:
-            conn.release()
+            try:
+                if participant_id is not None:
+                    svc.disconnect(participant_id, connection_id=connection_id)
+            finally:
+                conn.release()
 
 
 def _guest_upload_ctx(
