@@ -256,8 +256,10 @@ describe("Alt chords", () => {
         ?.id,
     ).toBe("view.trackHeightIncrease");
     expect(
-      matchKeymapCommand(keyEvent({ key: "≠", code: "Equal", altKey: true }))
-        ?.id,
+      matchKeymapCommand(
+        keyEvent({ key: "≠", code: "Equal", altKey: true }),
+        true,
+      )?.id,
     ).toBe("view.trackHeightIncrease");
     expect(
       matchKeymapCommand(
@@ -272,8 +274,10 @@ describe("Alt chords", () => {
         ?.id,
     ).toBe("view.trackHeightDecrease");
     expect(
-      matchKeymapCommand(keyEvent({ key: "–", code: "Minus", altKey: true }))
-        ?.id,
+      matchKeymapCommand(
+        keyEvent({ key: "–", code: "Minus", altKey: true }),
+        true,
+      )?.id,
     ).toBe("view.trackHeightDecrease");
   });
 
@@ -315,29 +319,35 @@ describe("Alt chords", () => {
     expect(
       matchKeymapCommand(
         keyEvent({ key: "’", code: "BracketRight", altKey: true }),
+        true,
       )?.id,
     ).toBe("view.trackHeightIncrease");
     expect(
       matchKeymapCommand(
         keyEvent({ key: "]", code: "BracketRight", altKey: true }),
+        true,
       )?.id,
     ).toBe("view.trackHeightIncrease");
     setKeymapOverride("view.trackHeightIncrease", ["K"]);
     expect(
-      matchKeymapCommand(keyEvent({ key: "˚", code: "KeyK", altKey: true }))
-        ?.id,
+      matchKeymapCommand(
+        keyEvent({ key: "˚", code: "KeyK", altKey: true }),
+        true,
+      )?.id,
     ).toBe("view.trackHeightIncrease");
     setKeymapOverride("view.trackHeightIncrease", ["7"]);
     expect(
-      matchKeymapCommand(keyEvent({ key: "¶", code: "Digit7", altKey: true }))
-        ?.id,
+      matchKeymapCommand(
+        keyEvent({ key: "¶", code: "Digit7", altKey: true }),
+        true,
+      )?.id,
     ).toBe("view.trackHeightIncrease");
     _resetKeymapOverridesForTests();
   });
 
   it("does not add code-derived keys without Alt", () => {
     expect(
-      matchKeymapCommands(keyEvent({ key: "≠", code: "Equal" })).map(
+      matchKeymapCommands(keyEvent({ key: "≠", code: "Equal" }), true).map(
         (c) => c.id,
       ),
     ).not.toContain("view.zoomIn");
@@ -350,6 +360,7 @@ describe("Alt chords", () => {
     expect(
       matchKeymapCommands(
         keyEvent({ key: "q", code: "KeyA", altKey: true }),
+        true,
       ).map((c) => c.id),
     ).not.toContain("view.trackHeightIncrease");
     _resetKeymapOverridesForTests();
@@ -357,6 +368,7 @@ describe("Alt chords", () => {
     expect(
       matchKeymapCommands(
         keyEvent({ key: "]", code: "Equal", altKey: true }),
+        true,
       ).map((c) => c.id),
     ).not.toContain("view.trackHeightIncrease");
   });
@@ -365,10 +377,46 @@ describe("Alt chords", () => {
     _resetKeymapOverridesForTests();
     setKeymapOverride("view.trackHeightIncrease", ["E"]);
     expect(
-      matchKeymapCommand(keyEvent({ key: "Dead", code: "KeyE", altKey: true }))
-        ?.id,
+      matchKeymapCommand(
+        keyEvent({ key: "Dead", code: "KeyE", altKey: true }),
+        true,
+      )?.id,
     ).toBe("view.trackHeightIncrease");
     _resetKeymapOverridesForTests();
+  });
+
+  it("never matches Alt rows by physical code off Apple platforms", () => {
+    _resetKeymapOverridesForTests();
+    // German QWERTZ: the physical Minus key types "ß"; "-" is on Slash.
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "ß", code: "Minus", altKey: true }),
+        false,
+      ).map((c) => c.id),
+    ).not.toContain("view.trackHeightDecrease");
+    // German dead acute on the physical Equal key.
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "Dead", code: "Equal", altKey: true }),
+        false,
+      ).map((c) => c.id),
+    ).not.toContain("view.trackHeightIncrease");
+    // Cyrillic: the physical KeyA key types "ф".
+    setKeymapOverride("view.trackHeightIncrease", ["A"]);
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "ф", code: "KeyA", altKey: true }),
+        false,
+      ).map((c) => c.id),
+    ).not.toContain("view.trackHeightIncrease");
+    _resetKeymapOverridesForTests();
+    // The layout's own ASCII key still matches.
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "-", code: "Slash", altKey: true }),
+        false,
+      )?.id,
+    ).toBe("view.trackHeightDecrease");
   });
 });
 
