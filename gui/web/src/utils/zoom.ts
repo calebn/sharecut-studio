@@ -87,6 +87,24 @@ export function anchoredZoomScroll(
   return { zoom, scrollLeft };
 }
 
+/**
+ * Client X of the playhead when it is inside the time viewport, else null.
+ * Command zoom (keys, menu, transport ±) anchors here, like Audition and Logic.
+ */
+export function visiblePlayheadClientX(input: {
+  playheadSec: number;
+  zoomPxPerSec: number;
+  scrollLeft: number;
+  rectLeft: number;
+  viewportWidthPx: number;
+}): number | null {
+  if (!(input.zoomPxPerSec > 0) || !Number.isFinite(input.playheadSec)) {
+    return null;
+  }
+  const x = input.playheadSec * input.zoomPxPerSec - input.scrollLeft;
+  return x >= 0 && x <= input.viewportWidthPx ? input.rectLeft + x : null;
+}
+
 /** Zoom that fits `durationSec` into the full `viewportWidth` (time column). */
 export function fitZoomPxPerSec(
   viewportWidth: number,

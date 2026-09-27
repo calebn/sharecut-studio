@@ -222,6 +222,7 @@ describe("applyAnchoredZoom", () => {
 
     noteZoomPointerClientX(250); // 150px into the viewport
     useDawStore.setState({
+      playheadSec: 59,
       project: { timeline_duration_sec: 60 } as never,
       zoomPxPerSec: 10,
       scrollLeft: 50,
@@ -360,5 +361,63 @@ describe("applyAnchoredZoom", () => {
       shellBreakpoint: "phone",
     });
     expect(useDawStore.getState().measureTimelineViewport()).toBe(390);
+  });
+
+  it("anchors command zoom on a visible playhead over the last pointer (#533)", () => {
+    noteZoomPointerClientX(30);
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 50,
+      playheadSec: 20, // x = 150 in a 400px view
+      userZoomed: false,
+      ...testTimelineElement(fakeTimelineEl({ left: 100 })),
+      ...testLeadPx(0),
+    });
+    useDawStore.getState().applyAnchoredZoom(10 * ZOOM_STEP);
+    const s = useDawStore.getState();
+    expect(20 * s.zoomPxPerSec - s.scrollLeft).toBeCloseTo(150, 5);
+  });
+
+  it("keeps a visible playhead on screen at fit zoom (#533)", () => {
+    const zoom = 400 / 1800;
+    noteZoomPointerClientX(5);
+    useDawStore.setState({
+      project: { timeline_duration_sec: 1800 } as never,
+      zoomPxPerSec: zoom,
+      scrollLeft: 0,
+      playheadSec: 1045,
+      userZoomed: false,
+      ...testTimelineElement(fakeTimelineEl()),
+      ...testLeadPx(0),
+    });
+    useDawStore.getState().applyAnchoredZoom(zoom * ZOOM_STEP);
+    useDawStore
+      .getState()
+      .applyAnchoredZoom(useDawStore.getState().zoomPxPerSec * ZOOM_STEP);
+    const s = useDawStore.getState();
+    const x = 1045 * s.zoomPxPerSec - s.scrollLeft;
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x).toBeLessThanOrEqual(400);
+  });
+
+  it("falls back to the pointer when the playhead is off screen", () => {
+    noteZoomPointerClientX(250);
+    useDawStore.setState({
+      project: { timeline_duration_sec: 60 } as never,
+      zoomPxPerSec: 10,
+      scrollLeft: 50,
+      playheadSec: 59,
+      userZoomed: false,
+      ...testTimelineElement(fakeTimelineEl({ left: 100 })),
+      ...testLeadPx(0),
+    });
+    const anchorSec = (250 - 100 + 50) / 10;
+    useDawStore.getState().applyAnchoredZoom(10 * ZOOM_STEP);
+    const s = useDawStore.getState();
+    expect((250 - 100 + s.scrollLeft) / s.zoomPxPerSec).toBeCloseTo(
+      anchorSec,
+      5,
+    );
   });
 });
