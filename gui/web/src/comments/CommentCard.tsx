@@ -181,6 +181,7 @@ export function CommentCard({
           <input
             value={replyDraft}
             onChange={(e) => onReplyDraftChange(e.target.value)}
+            aria-label={`Reply to ${c.author}`}
             placeholder="Reply…"
             disabled={busy}
           />

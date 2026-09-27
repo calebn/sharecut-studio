@@ -49,6 +49,7 @@ export function CommentCompose({
       <textarea
         value={body}
         onChange={(e) => onBodyChange(e.target.value)}
+        aria-label="Comment"
         placeholder={bodyPlaceholder}
         rows={3}
       />

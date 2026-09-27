@@ -81,6 +81,23 @@ describe("CommentCard", () => {
     expect(onReply).toHaveBeenCalledOnce();
   });
 
+  it("names the reply field for its comment and passes axe", async () => {
+    const { container } = render(
+      <ul>
+        <CommentCard
+          comment={sampleComment({ author: "Mira" })}
+          onReply={() => {}}
+          onReplyDraftChange={() => {}}
+          showResolve={false}
+        />
+      </ul>,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Reply to Mira" }),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
   it("selects the card when onSelect is provided", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

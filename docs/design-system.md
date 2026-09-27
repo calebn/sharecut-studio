@@ -101,6 +101,16 @@ store subscription and transform updates without React rerenders. The story
 uses fictional comments and a fixed zoom; it does not mount the live timeline
 or subscribe to the DAW store.
 
+`Templates/CommentCard`, `Templates/CommentCompose`, and
+`Templates/GhostWordChips` preview the production transcript comment card,
+comment form, and restored-word preview with fictional data. Their stories
+show open and resolved comments, action items, replies, read-only and busy
+states, editable drafts, empty ghost output, and 360px phone layouts. The
+callbacks update only story-local state; the live comment panel and transcript
+utterance rows remain outside this catalog slice. The restored-word preview
+uses the theme's unmapped text color at full opacity so its ghost styling
+remains readable in both themes.
+
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
 palette there and flip the theme toolbar before touching components.

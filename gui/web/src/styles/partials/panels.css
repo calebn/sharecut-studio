@@ -499,7 +499,6 @@
   display: inline;
   pointer-events: none;
   user-select: none;
-  opacity: 0.45;
   font-style: italic;
   color: var(--color-text-unmapped);
   border-bottom: 1px dashed var(--color-border-strong);
