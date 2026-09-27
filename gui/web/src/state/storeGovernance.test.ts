@@ -57,6 +57,51 @@ const SELECTOR_CALL =
 const TYPED_SELECTOR =
   /(?:\bfunction\b\s*\w*\s*)?\(\s*(?:\w+|\{[^)]*?\})\s*:[^)]*\bDawState\b/g;
 
+/** Index of the first non-whitespace character at or after `from`. */
+function skipSpace(text: string, from: number): number {
+  return from + (/^\s*/.exec(text.slice(from))?.[0].length ?? 0);
+}
+
+/**
+ * Index just past a string literal, template literal or comment starting at
+ * `i`, or `i` itself when none starts there, so the bracket scans below never
+ * count a bracket inside one. A template's `${...}` holes are skipped with
+ * `closeOf`, so a literal nested in a hole is skipped too. Regex literals are
+ * not recognised.
+ */
+function skipLiteral(text: string, i: number): number {
+  const ch = text[i];
+  if (ch === '"' || ch === "'") {
+    let j = i + 1;
+    while (j < text.length && text[j] !== ch && text[j] !== "\n") {
+      j += text[j] === "\\" ? 2 : 1;
+    }
+    return Math.min(j + 1, text.length);
+  }
+  if (ch === "`") {
+    let j = i + 1;
+    while (j < text.length && text[j] !== "`") {
+      if (text[j] === "\\") {
+        j += 2;
+      } else if (text.startsWith("${", j)) {
+        j = closeOf(text, j + 2, "{", "}");
+      } else {
+        j += 1;
+      }
+    }
+    return Math.min(j + 1, text.length);
+  }
+  if (text.startsWith("//", i)) {
+    const eol = text.indexOf("\n", i);
+    return eol === -1 ? text.length : eol + 1;
+  }
+  if (text.startsWith("/*", i)) {
+    const end = text.indexOf("*/", i + 2);
+    return end === -1 ? text.length : end + 2;
+  }
+  return i;
+}
+
 /** Index just past the `close` matching an `open` already open before `from`. */
 function closeOf(
   text: string,
@@ -65,7 +110,13 @@ function closeOf(
   close: string,
 ): number {
   let depth = 1;
-  for (let i = from; i < text.length; i += 1) {
+  let i = from;
+  while (i < text.length) {
+    const skipped = skipLiteral(text, i);
+    if (skipped !== i) {
+      i = skipped;
+      continue;
+    }
     if (text[i] === open) {
       depth += 1;
     } else if (text[i] === close) {
@@ -74,6 +125,7 @@ function closeOf(
         return i + 1;
       }
     }
+    i += 1;
   }
   return text.length;
 }
@@ -83,12 +135,18 @@ function closeOf(
  * running to a `,` / `;` at depth 0 or to the bracket closing an outer call.
  */
 function bodyAt(text: string, from: number): string {
-  const start = from + (/^\s*/.exec(text.slice(from))?.[0].length ?? 0);
+  const start = skipSpace(text, from);
   if (text[start] === "{") {
     return text.slice(start, closeOf(text, start + 1, "{", "}"));
   }
   let depth = 0;
-  for (let i = start; i < text.length; i += 1) {
+  let i = start;
+  while (i < text.length) {
+    const skipped = skipLiteral(text, i);
+    if (skipped !== i) {
+      i = skipped;
+      continue;
+    }
     const ch = text[i];
     if ("([{".includes(ch)) {
       depth += 1;
@@ -100,6 +158,7 @@ function bodyAt(text: string, from: number): string {
     } else if ((ch === "," || ch === ";") && depth === 0) {
       return text.slice(start, i);
     }
+    i += 1;
   }
   return text.slice(start);
 }
@@ -161,7 +220,8 @@ function selectorReads({ param, pattern, body }: Selector): string[] {
  * A store selector is an arrow or `function` expression passed inline to
  * `useDaw` / `useDawStore` / `useShallow`, or any arrow or `function` whose
  * first parameter's type names `DawState` (a hoisted selector). Handler
- * reads (`useDawStore.getState().field`, `ctx.field`) never match.
+ * reads (`useDawStore.getState().field`, `ctx.field`) never match. Brackets
+ * inside strings, template literals and comments do not end a selector early.
  */
 function hotFieldReads(text: string): string[] {
   const reads = [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
@@ -426,6 +486,14 @@ describe("store governance", () => {
     ['const p = (st: Pick<DawState, "zoom">) => st.zoom; st.playheadSec', []],
     ["useDaw((st) => st.zoom, (a, b) => a === b); st.playheadSec", []],
     ["useDaw(pick)", []],
+    ['useDaw((st) => st.mode === ")" || st.scrollLeft > 0)', ["st.scrollLeft"]],
+    ["useDaw((st) => `${st.mode})` + st.bladeHoverSec)", ["st.bladeHoverSec"]],
+    ["useDaw((st) => /* ) */ st.pointerTrackId)", ["st.pointerTrackId"]],
+    [
+      "useDaw((st) => {\n  // }\n  return st.sessionClients;\n})",
+      ["st.sessionClients"],
+    ],
+    ['useDaw((st) => st.zoom + ")"); st.playheadSec', []],
   ])("finds hot field reads in %j", (text, expected) => {
     expect(hotFieldReads(text)).toEqual(expected);
   });
