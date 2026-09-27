@@ -1,12 +1,8 @@
 import { useDawStore } from "../state/dawStore";
 import type { DawTab, MobileMode, MoreDestination } from "../state/types";
-import { discreteZoomFactor } from "../utils/zoom";
+import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
 import { registerCommand } from "./execute";
 
-function formatAmp(amp: number): string {
-  const rounded = Math.round(amp * 100) / 100;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
-}
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
@@ -85,7 +81,7 @@ export function registerViewCommands(): void {
     }
     s.nudgeWaveformAmp("in");
     const amp = useDawStore.getState().waveformAmpZoom;
-    s.announceStatus(`Waveform amplitude ×${formatAmp(amp)}`);
+    s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
     return { status: "ok" };
   });
 
@@ -96,7 +92,7 @@ export function registerViewCommands(): void {
     }
     s.nudgeWaveformAmp("out");
     const amp = useDawStore.getState().waveformAmpZoom;
-    s.announceStatus(`Waveform amplitude ×${formatAmp(amp)}`);
+    s.announceStatus(`Waveform amplitude ×${formatWaveformAmp(amp)}`);
     return { status: "ok" };
   });
 

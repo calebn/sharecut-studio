@@ -10,6 +10,7 @@ import type {
   ViewerSessionSnapshot,
 } from "../types/session";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
+import type { WaveformScaleMode } from "../waveform/types";
 
 export type { AuditionMode } from "../types/session";
 export type { LaneHeightMode } from "../utils/laneHeightPref";
@@ -19,6 +20,8 @@ export interface LayerVisibility {
   showLevels: boolean;
   showMarkers: boolean;
   showComments: boolean;
+  showSilence: boolean;
+  showSnapPoints: boolean;
 }
 
 /** A failed inline word fix whose editor had already closed. */
@@ -89,6 +92,10 @@ export interface DawState {
   playheadSec: number;
   zoomPxPerSec: number;
   waveformAmpZoom: number;
+  /** Waveform scale: auto (dialogue in dB), linear or log; remembered per project. */
+  waveformScale: WaveformScaleMode;
+  /** Draw waveforms scaled by each track's output gain (gain_db + fader_db). */
+  waveformPostFader: boolean;
   pointerTrackId: string | null;
   /** Blade-mode pointer time (s) over the lanes; null when not hovering. */
   bladeHoverSec: number | null;
@@ -256,6 +263,8 @@ export interface DawState {
   applyAnchoredZoom: (nextZoom: number, clientX?: number) => void;
   setWaveformAmpZoom: (amp: number) => void;
   nudgeWaveformAmp: (direction: "in" | "out") => void;
+  setWaveformScale: (mode: WaveformScaleMode) => void;
+  setWaveformPostFader: (on: boolean) => void;
   setPointerTrackId: (trackId: string | null) => void;
   setBladeHoverSec: (sec: number | null) => void;
   /** Stores a measured width; 0 or less stores the shell estimate instead. */

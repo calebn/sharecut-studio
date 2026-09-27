@@ -14,6 +14,10 @@ import {
   viewportCenterOffsetPx,
 } from "../utils/timelineViewport";
 import {
+  DEFAULT_WAVEFORM_VIEW_PREF,
+  writeWaveformViewPref,
+} from "../utils/waveformViewPref";
+import {
   anchoredZoomScroll,
   clampWaveformAmp,
   clampZoomPxPerSec,
@@ -90,6 +94,15 @@ function revealTab(
   };
 }
 
+/** Save the waveform view of the open project (per browser). */
+function persistWaveformView(s: DawStore): void {
+  writeWaveformViewPref(s.projectPath, {
+    scale: s.waveformScale,
+    amp: s.waveformAmpZoom,
+    postFader: s.waveformPostFader,
+  });
+}
+
 type UiSlice = Pick<
   DawStore,
   | "highlightStaleRender"
@@ -104,6 +117,8 @@ type UiSlice = Pick<
   | "announceStatus"
   | "zoomPxPerSec"
   | "waveformAmpZoom"
+  | "waveformScale"
+  | "waveformPostFader"
   | "pointerTrackId"
   | "setPointerTrackId"
   | "bladeHoverSec"
@@ -140,6 +155,8 @@ type UiSlice = Pick<
   | "setZoomPxPerSec"
   | "setWaveformAmpZoom"
   | "nudgeWaveformAmp"
+  | "setWaveformScale"
+  | "setWaveformPostFader"
   | "setScrollLeft"
   | "setSelection"
   | "selectClip"
@@ -214,6 +231,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
 
     zoomPxPerSec: 40,
     waveformAmpZoom: 1,
+    waveformScale: DEFAULT_WAVEFORM_VIEW_PREF.scale,
+    waveformPostFader: DEFAULT_WAVEFORM_VIEW_PREF.postFader,
     pointerTrackId: null as string | null,
     setPointerTrackId: (pointerTrackId) => set({ pointerTrackId }),
     bladeHoverSec: null as number | null,
@@ -246,6 +265,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       showLevels: true,
       showMarkers: true,
       showComments: true,
+      showSilence: true,
+      showSnapPoints: true,
     } satisfies LayerVisibility,
     commentMode: false,
     commentDraft: null as CommentDraft | null,
@@ -274,8 +295,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({
         zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())),
       }),
-    setWaveformAmpZoom: (waveformAmpZoom) =>
-      set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) }),
+    setWaveformAmpZoom: (waveformAmpZoom) => {
+      set({ waveformAmpZoom: clampWaveformAmp(waveformAmpZoom) });
+      persistWaveformView(get());
+    },
     nudgeWaveformAmp: (direction) => {
       const cur = get().waveformAmpZoom;
       const next =
@@ -287,6 +310,15 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           Math.min(MAX_WAVEFORM_AMP, Math.max(MIN_WAVEFORM_AMP, next)),
         ),
       });
+      persistWaveformView(get());
+    },
+    setWaveformScale: (waveformScale) => {
+      set({ waveformScale });
+      persistWaveformView(get());
+    },
+    setWaveformPostFader: (waveformPostFader) => {
+      set({ waveformPostFader });
+      persistWaveformView(get());
     },
     setScrollLeft: (scrollLeft) => set({ scrollLeft }),
     setSelection: (selection) =>

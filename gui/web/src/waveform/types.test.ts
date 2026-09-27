@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isReady, refKind } from "./types";
+import { isReady, refKind, resolveWaveformScale } from "./types";
 
 describe("waveform types", () => {
   it("maps refs to the status kind that lists them", () => {
@@ -24,5 +24,22 @@ describe("waveform types", () => {
         levels: [{ spp: 64, bins: 0 }],
       }),
     ).toBe(true);
+  });
+});
+
+describe("resolveWaveformScale", () => {
+  it("draws dialogue in dB under auto", () => {
+    expect(resolveWaveformScale("auto", "dialogue")).toBe("log");
+  });
+
+  it("draws every other role linear under auto", () => {
+    expect(resolveWaveformScale("auto", "music")).toBe("linear");
+    expect(resolveWaveformScale("auto", "sfx")).toBe("linear");
+    expect(resolveWaveformScale("auto", "")).toBe("linear");
+  });
+
+  it("forces one scale on every lane when not auto", () => {
+    expect(resolveWaveformScale("linear", "dialogue")).toBe("linear");
+    expect(resolveWaveformScale("log", "music")).toBe("log");
   });
 });

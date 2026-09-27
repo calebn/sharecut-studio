@@ -53,6 +53,23 @@ export type Envelope = {
 /** How a render tile is reduced: pyramid bins, host PCM, or PCM as a line. */
 export type RasterMode = "pyramid" | "pcm" | "line";
 
+/** How amplitude maps to lane height: linear, or dB above `log_floor_db`. */
+export type WaveformScale = "linear" | "log";
+
+/** The View setting: `auto` draws dialogue in dB and every other role linear. */
+export type WaveformScaleMode = "auto" | WaveformScale;
+
+/** The scale a lane of `role` draws with under `mode`. */
+export function resolveWaveformScale(
+  mode: WaveformScaleMode,
+  role: string,
+): WaveformScale {
+  if (mode !== "auto") {
+    return mode;
+  }
+  return role === "dialogue" ? "log" : "linear";
+}
+
 /** Straight-alpha RGBA, 0..1 per channel. */
 export type Rgba = Float32Array;
 
@@ -84,7 +101,10 @@ export type RasterJob = {
   frameStart: number;
   /** Media frames per device column. */
   sppDev: number;
+  /** Display gain: the View amplitude × the post-fader gain (1 when off). */
   ampZoom: number;
+  /** Amplitude mapping (`shade.ts` `displayAmplitude`). */
+  scale: WaveformScale;
   core: Rgba;
   edge: Rgba;
   source: RasterSource;

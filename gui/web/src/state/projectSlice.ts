@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { zoomReclampPatch } from "./storeMath";
 import type { DawStore } from "./types";
@@ -90,6 +91,7 @@ export const createProjectSlice: StateCreator<
             auditionEpoch: 0,
             highlightStaleRender: false,
             renderPreviewBusy: false,
+            ...waveformViewState(projectPath),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),
     });
