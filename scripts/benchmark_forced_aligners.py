@@ -32,7 +32,7 @@ from podcast_mcp.engines.word_boundary_metrics import (
     matched_word_pairs,
     measure_word_boundaries,
 )
-from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.atomic_json import write_bytes_atomic, write_json_atomic
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
 
@@ -210,7 +210,7 @@ def load_audio(path: Path, clip: tuple[float, float] | None) -> np.ndarray:
 
 def write_wav16(path: Path, samples: np.ndarray) -> None:
     data = (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
-    path.write_bytes(pcm_wav_header(len(data), sample_rate=SAMPLE_RATE) + data)
+    write_bytes_atomic(path, pcm_wav_header(len(data), sample_rate=SAMPLE_RATE) + data)
 
 
 class Backend(Protocol):

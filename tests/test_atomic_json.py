@@ -11,6 +11,7 @@ from podcast_mcp.util import atomic_json
 from podcast_mcp.util.atomic_json import (
     copy_file_atomic,
     load_json_object,
+    write_bytes_atomic,
     write_json_atomic,
     write_text_atomic,
 )
@@ -33,6 +34,15 @@ def test_write_text_atomic_removes_temp_on_failure(tmp_path: Path) -> None:
     ):
         write_text_atomic(target, "x")
     assert list(tmp_path.glob(".context.yaml.*.tmp")) == []
+
+
+def test_write_bytes_atomic_replaces_whole_file(tmp_path: Path) -> None:
+    target = tmp_path / "nested" / "clip.wav"
+    target.parent.mkdir()
+    target.write_bytes(b"old-and-longer")
+    write_bytes_atomic(target, b"RIFF\x00")
+    assert target.read_bytes() == b"RIFF\x00"
+    assert list(target.parent.glob(".clip.wav.*.tmp")) == []
 
 
 def test_write_json_atomic_roundtrip(tmp_path: Path) -> None:
