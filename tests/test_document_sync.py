@@ -1709,19 +1709,26 @@ def test_an_unknown_commit_outcome_does_not_keep_a_failed_command(minimal_projec
     assert [row["payload"]["body"] for row in _journal(svc)] == ["first", "second"]
 
 
-def test_a_reset_journal_never_journals_an_old_record(minimal_project):
+def test_a_reset_journal_never_journals_an_old_record(minimal_project, caplog):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("a", seq=1, client_id="a"))
-    svc.submit(_comment("b", seq=1, client_id="b"))
+    b = _comment("b", seq=1, client_id="b")
+    svc.submit(b)
     assert len(_journal(svc)) == 2
 
     svc.store.reset({"server_seq": 0})
 
     svc2 = DocumentSyncService.open(minimal_project)
-    svc2.submit(_comment("c", seq=1, client_id="c"))
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.document_sync.service"):
+        svc2.submit(_comment("c", seq=1, client_id="c"))
+        svc2.submit(_comment("d", seq=1, client_id="d"))
     journal = _journal(svc2)
-    assert len(journal) == 1
-    assert journal[0]["payload"]["body"] == "c"
+    assert [row["payload"]["body"] for row in journal] == ["c", "d"]
+    skipped = [
+        r.getMessage() for r in caplog.records if "Skipped saved document command" in r.getMessage()
+    ]
+    assert len(skipped) == 1
+    assert b.command_id in skipped[0]
 
 
 def test_document_server_seq_matches_the_journal(minimal_project):

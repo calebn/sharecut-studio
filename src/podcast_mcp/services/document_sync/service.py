@@ -159,7 +159,17 @@ def journal_saved_command(store: SyncStore, project: EpisodeProject) -> dict[str
     saved = project.document_sync.last_command
     if saved is None:
         return None
-    if _journal_server_seq(store) != saved.base_server_seq:
+    server_seq = _journal_server_seq(store)
+    if server_seq != saved.base_server_seq:
+        if store.find_by_command_id(saved.command_id) is None:
+            log.warning(
+                "Skipped saved document command %s: it is not in the journal, which stands "
+                "at server_seq %d instead of its base_server_seq %d (document.db reset, "
+                "restored or deleted since it was saved) (#575)",
+                saved.command_id,
+                server_seq,
+                saved.base_server_seq,
+            )
         return None
     if store.find_by_command_id(saved.command_id) is not None:
         return None
