@@ -11,6 +11,7 @@ from podcast_mcp.pipeline.meta import (
     expand_enable,
     ordered_step_metas,
     param_fields_payload,
+    step_noop_reason,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
 from podcast_mcp.services.pipeline_config import (
@@ -19,6 +20,7 @@ from podcast_mcp.services.pipeline_config import (
     deep_merge,
     default_enabled_steps,
     merge_pipeline_config,
+    pipeline_step_states,
     reconcile_enabled_steps,
     skip_steps_from_enabled,
     suggest_pipeline_tuning,
@@ -665,3 +667,23 @@ def test_asr_options_for_reads_staged_config(tmp_path):
         assert asr_options_for(proj).vad_enabled is False
     finally:
         config_store()._by_path.pop(config_store()._key(proj), None)
+
+
+def test_step_noop_reason():
+    cfg = load_defaults()
+    assert step_noop_reason("analyze_focus_cuts", cfg) == "focus.enabled=false"
+    assert step_noop_reason("focus_from_transcript", cfg) == "focus.auto_apply=false"
+    assert step_noop_reason("analyze_fillers_pauses", cfg) == "tighten.enabled=false"
+    assert step_noop_reason("tighten_from_transcript", cfg) == "tighten.enabled=false"
+    assert step_noop_reason("ingest_tracks", cfg) is None
+    on_cfg = deep_merge(cfg, {"focus": {"enabled": True}})
+    assert step_noop_reason("analyze_focus_cuts", on_cfg) is None
+
+
+def test_pipeline_step_states_rows():
+    rows = pipeline_step_states()
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["analyze_focus_cuts"]["enabled"] is False
+    assert by_id["analyze_focus_cuts"]["noop_reason"] == "focus.enabled=false"
+    assert by_id["ingest_tracks"]["enabled"] is True
+    assert by_id["ingest_tracks"]["noop_reason"] is None

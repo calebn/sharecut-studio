@@ -25,6 +25,7 @@ class StepMeta:
     requires_components: tuple[str, ...] = ()
     param_sections: tuple[str, ...] = ()
     enabled_by_default: bool = True
+    noop_unless: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("require_transcript_refine",),
         param_sections=("focus",),
         enabled_by_default=False,
+        noop_unless="focus.enabled",
     ),
     "focus_from_transcript": StepMeta(
         id="focus_from_transcript",
@@ -138,6 +140,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("analyze_focus_cuts",),
         param_sections=("focus",),
         enabled_by_default=False,
+        noop_unless="focus.auto_apply",
     ),
     "analyze_fillers_pauses": StepMeta(
         id="analyze_fillers_pauses",
@@ -148,6 +151,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("require_transcript_refine",),
         param_sections=("tighten", "inaudible_cuts", "join_continuity"),
         enabled_by_default=False,
+        noop_unless="tighten.enabled",
     ),
     "tighten_from_transcript": StepMeta(
         id="tighten_from_transcript",
@@ -158,6 +162,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("analyze_fillers_pauses",),
         param_sections=("tighten", "inaudible_cuts", "render"),
         enabled_by_default=False,
+        noop_unless="tighten.enabled",
     ),
     "clean_audio": StepMeta(
         id="clean_audio",
@@ -1013,6 +1018,19 @@ def step_meta(step_id: str) -> StepMeta:
     if step_id not in _STEP_DEFS:
         raise KeyError(step_id)
     return _STEP_DEFS[step_id]
+
+
+def step_noop_reason(step_id: str, config: dict[str, Any]) -> str | None:
+    """Why ``step_id`` is a no-op under ``config``, or None when it actually runs work."""
+    from podcast_mcp.util.dicts import get_by_path
+
+    meta = step_meta(step_id)
+    path = meta.noop_unless
+    if path is None:
+        return None
+    if not get_by_path(config, path):
+        return f"{path}=false"
+    return None
 
 
 def ordered_step_metas() -> list[dict[str, Any]]:
