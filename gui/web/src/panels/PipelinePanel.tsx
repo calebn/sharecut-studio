@@ -235,6 +235,7 @@ export function PipelinePanel() {
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const persistSeq = useRef(0);
+  const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
     (isPipelineSlotJob(activityJob) ? activityJob : null) ??
@@ -324,9 +325,12 @@ export function PipelinePanel() {
     return next;
   };
 
-  const toggleStep = async (stepId: string, enabled: boolean) => {
+  const toggleStep = async (
+    stepId: string,
+    enabled: boolean,
+  ): Promise<boolean> => {
     if (!cfg) {
-      return;
+      return false;
     }
     setError(null);
     const set = new Set(cfg.enabled_steps);
@@ -359,8 +363,17 @@ export function PipelinePanel() {
     }
     try {
       await persist(patch);
+      return true;
     } catch (e) {
       setError(errorMessage(e));
+      return false;
+    }
+  };
+
+  const uncheckSuggestedStep = async (stepId: string) => {
+    if (await toggleStep(stepId, false)) {
+      // The Uncheck button unmounts once the step is off; keep keyboard focus in place.
+      stepCheckboxes.current.get(stepId)?.focus();
     }
   };
 
@@ -669,17 +682,17 @@ export function PipelinePanel() {
                         </div>
                       )}
                       {skips.map((stepId) => (
-                        <button
+                        <Button
                           key={stepId}
-                          type="button"
+                          variant="link"
                           className="pipeline-reason-skip"
                           disabled={running || starting || !cfg}
-                          onClick={() => void toggleStep(stepId, false)}
+                          onClick={() => void uncheckSuggestedStep(stepId)}
                         >
                           Uncheck{" "}
                           {cfg?.steps.find((s) => s.id === stepId)?.title ??
                             stepId}
-                        </button>
+                        </Button>
                       ))}
                     </li>
                   );
@@ -738,6 +751,13 @@ export function PipelinePanel() {
                       disabled={running || starting || !cfg}
                       aria-label={`Enable ${s.title}`}
                       onChange={(e) => void toggleStep(s.id, e.target.checked)}
+                      ref={(el) => {
+                        if (el) {
+                          stepCheckboxes.current.set(s.id, el);
+                        } else {
+                          stepCheckboxes.current.delete(s.id);
+                        }
+                      }}
                     />
                     <button
                       type="button"

@@ -880,6 +880,11 @@ describe("PipelinePanel", () => {
       applied: true,
       config: withAlign,
     });
+    putPipelineConfig.mockImplementation(async (_path, body) => ({
+      ...structuredClone(withAlign),
+      config: body.config ?? withAlign.config,
+      enabled_steps: body.enabled_steps ?? withAlign.enabled_steps,
+    }));
     const { container } = render(<PipelinePanel />);
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
@@ -903,6 +908,17 @@ describe("PipelinePanel", () => {
       enabled_steps: string[];
     };
     expect(body.enabled_steps).not.toContain("align_tracks");
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", { name: "Enable Align tracks" }),
+      ).toHaveFocus();
+    });
+    expect(
+      screen.getByRole("checkbox", { name: "Enable Align tracks" }),
+    ).not.toBeChecked();
+    expect(
+      screen.queryByRole("button", { name: "Uncheck Align tracks" }),
+    ).not.toBeInTheDocument();
   });
 
   it("formatAnalyzeFields skips nulls and a given key", () => {
