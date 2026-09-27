@@ -668,6 +668,47 @@ def test_master_loudness_qc_flags_out_of_tolerance(minimal_project, sample_wav, 
     assert qc.get("crest_tame_af")
 
 
+def test_master_loudness_reports_both_passes_on_one_bar(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.util import progress as progress_mod
+    from podcast_mcp.util.progress import RecordingProgress, bind_progress
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+
+    t = [0.0]
+
+    def _tick() -> float:
+        t[0] += progress_mod.PROGRESS_UPDATE_MIN_INTERVAL_SEC
+        return t[0]
+
+    rec = RecordingProgress()
+    with patch.object(progress_mod, "_update_clock", _tick), bind_progress(rec):
+        steps.master_loudness(proj, defaults)
+
+    loudnorm_updates = [
+        e for e in rec.events if e.task_id == "master_loudnorm" and e.kind == "update"
+    ]
+    assert loudnorm_updates
+    currents = [e.current for e in loudnorm_updates]
+    assert currents == sorted(currents)
+    totals = {e.total for e in loudnorm_updates if e.total is not None}
+    assert len(totals) == 1
+    (total,) = totals
+    assert total % 2 == 0
+    assert currents[-1] == total
+    messages = [e.message or "" for e in loudnorm_updates]
+    assert any(m.startswith("Measuring") for m in messages)
+    assert any(m.startswith("Normalizing") for m in messages)
+
+    qc_updates = [e for e in rec.events if e.task_id == "master_qc_measure" and e.kind == "update"]
+    assert qc_updates
+
+
 def test_master_loudness_skips_crest_tame_when_disabled(minimal_project, sample_wav, tmp_workspace):
     eng = FFmpegEngine()
     if not eng.check_available()[0]:

@@ -136,8 +136,10 @@ recommend:
    `print_format=json`. loudnorm falls back to **dynamic** mode when `TP + gain` would
    exceed the TP target or the LRA exceeds `master.lra` (or the measured LRA is 0); the
    printed `normalization_type` (`linear` / `dynamic`) says which ran.
-   Pass 2 runs with `-progress pipe:1` and reports seconds processed on a
-   `master_loudnorm` child progress task.
+   Both passes run with `-progress pipe:1` and share one `master_loudnorm`
+   child bar in media seconds: pass 1 fills the first half, pass 2 the
+   second. The post-master QC measure reports on a `master_qc_measure`
+   child.
    This produces a static (non-pumping) gain instead of single-pass `loudnorm`'s
    dynamic/frame-by-frame correction, and lands much closer to the target LUFS (typically
    within a few tenths of a LU, versus 1-2+ LU drift from single-pass).
