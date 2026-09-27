@@ -147,7 +147,6 @@ def _render_markdown(schema: dict[str, Any]) -> str:
         "|---------|------------------|",
         "| Host HTTP `POST /api/document/command` | FastAPI body = `DocumentCommandBody` |",
         "| Guest HTTP `POST /api/review/{token}/daw/document/command` | Same models + share caps |",
-        "| Document WS `/api/document/ws` | `parse_document_command` on each `Command` frame |",
         "| Host MCP / CLI helpers | `validate_payload` / typed submit |",
         "| Guest MCP `guest_submit_document_command` | `inputSchema` = this schema |",
         "",

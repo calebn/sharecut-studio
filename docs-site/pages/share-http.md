@@ -23,7 +23,7 @@ Full narrative: [docs/host-online-relay.md](https://github.com/calebn/sharecut-s
 | `mcp` | Capability-scoped remote MCP at `/mcp/{token}/mcp` |
 
 Comments: prefer [document commands](#/document-commands) (`AddComment`, …) when also
-using MCP/WS; REST `/comments*` remains for ReviewApp-style clients.
+using MCP; REST `/comments*` remains for ReviewApp-style clients.
 
 <!-- share-http-routes:generated -->
 

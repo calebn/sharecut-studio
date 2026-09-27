@@ -39,7 +39,7 @@ curl -sS -X POST "$HOST/api/review/$TOKEN/comments" \
   }'
 ```
 
-Prefer document commands when you also use MCP/WS (same schema everywhere):
+Prefer document commands when you also use MCP (same schema everywhere):
 
 ```bash
 curl -sS -X POST "$HOST/api/review/$TOKEN/daw/document/command" \

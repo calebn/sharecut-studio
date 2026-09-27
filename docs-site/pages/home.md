@@ -41,11 +41,9 @@ flowchart LR
   models[Pydantic payloads]
   schema[document-commands.schema.json]
   http[Host and guest HTTP]
-  ws[Document WS]
   mcp[Host and guest MCP]
   models --> schema
   models --> http
-  models --> ws
   models --> mcp
 ```
 

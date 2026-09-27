@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from urllib.parse import quote
 from uuid import uuid4
@@ -40,151 +39,11 @@ from podcast_mcp.models import (
 runner = CliRunner()
 
 
-def _recv_until(ws, type_name: str, limit: int = 20) -> dict:
-    for _ in range(limit):
-        msg = ws.receive_json()
-        if msg.get("type") == type_name:
-            return msg
-    raise AssertionError(f"did not receive type={type_name!r}")
-
-
-@pytest.mark.parametrize("error", ["project-lock", "sqlite-busy"])
-def test_document_ws_reports_a_busy_project_and_stays_open(minimal_project, monkeypatch, error):
-    from filelock import Timeout
-
-    from podcast_mcp.services.document_sync import DocumentSyncService
-
-    real = DocumentSyncService.submit
-    calls = {"n": 0}
-
-    def busy_once(self, command, **kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            if error == "project-lock":
-                raise Timeout("episode.project.json.lock")
-            raise sqlite3.OperationalError("database is locked")
-        return real(self, command, **kwargs)
-
-    monkeypatch.setattr(DocumentSyncService, "submit", busy_once)
-    client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-busy&role=viewer"
-    msg = {
-        "type": "Command",
-        "command_type": "AddComment",
-        "payload": {"body": "retry me", "author": "ws", "timeline_start": 1.0},
-        "client_seq": 1,
-        "command_id": uuid4().hex,
-    }
-    with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
-        ws.send_json(msg)
-        err = _recv_until(ws, "Error")
-        assert err["code"] == "project_busy"
-        ws.send_json(msg)
-        assert _recv_until(ws, "Echo")["ok"] is True
-
-
-@pytest.mark.parametrize("seq", ["omitted", None])
-def test_document_ws_without_client_seq_gets_a_server_assigned_sequence(minimal_project, seq):
-    client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-noseq&role=viewer"
-    msg = {
-        "type": "Command",
-        "command_type": "AddComment",
-        "payload": {"body": "no seq", "author": "ws", "timeline_start": 1.0},
-    }
-    if seq != "omitted":
-        msg["client_seq"] = seq
-    with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
-        ws.send_json(msg)
-        echo = _recv_until(ws, "Echo")
-        assert echo["command"]["client_seq"] == -1
-
-
-def test_document_ws_rejects_client_seq_zero(minimal_project):
-    client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-zero&role=viewer"
-    with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "AddComment",
-                "payload": {"body": "zero", "author": "ws", "timeline_start": 1.0},
-                "client_seq": 0,
-            }
-        )
-        err = _recv_until(ws, "Error")
-        assert "client_seq" in err["detail"]
-    assert load_project(minimal_project).comments == []
-
-
-def test_document_ws_snapshot_command_and_error(minimal_project):
-    client = TestClient(create_app())
-    url = (
-        f"/api/document/ws?path={quote(str(minimal_project))}"
-        "&client_id=ws-doc&role=viewer&label=Doc"
-    )
-    with client.websocket_connect(url) as ws:
-        first = ws.receive_json()
-        assert first["type"] == "Snapshot"
-        assert first["plane"] == "document"
-        assert "comments" in first["snapshot"]
-
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "AddComment",
-                "payload": {
-                    "body": "from ws",
-                    "author": "ws",
-                    "timeline_start": 1.25,
-                },
-                "client_seq": 1,
-                "command_id": uuid4().hex,
-            }
-        )
-        echo = _recv_until(ws, "Echo")
-        assert echo.get("ok") is True
-
-        # non-Command messages are ignored
-        ws.send_json({"type": "Ping"})
-
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "AddReply",
-                "payload": {
-                    "comment_id": "missing",
-                    "body": "nope",
-                    "author": "ws",
-                },
-                "client_seq": 2,
-            }
-        )
-        err = _recv_until(ws, "Error")
-        assert "detail" in err
-
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "NotACommand",
-                "payload": {},
-                "client_seq": 3,
-            }
-        )
-        err2 = _recv_until(ws, "Error")
-        assert "unknown" in err2["detail"].lower() or "detail" in err2
-
-
-def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
+def test_document_ws_snapshot_runs_off_event_loop(minimal_project, monkeypatch):
     from podcast_mcp.gui.routes import document as document_route
     from podcast_mcp.services.document_sync import DocumentSyncService
 
     thread_ids: dict[str, int] = {}
-    original_parse = document_route.parse_document_command
-    original_submit = DocumentSyncService.submit
     original_auth = document_route.authorize_client
     original_snapshot = DocumentSyncService.document_snapshot
 
@@ -192,37 +51,16 @@ def test_document_ws_submit_runs_off_event_loop(minimal_project, monkeypatch):
         thread_ids["loop"] = threading.get_ident()
         return original_auth(*args, **kwargs)
 
-    def parse_in_worker(*args, **kwargs):
-        thread_ids["parse"] = threading.get_ident()
-        return original_parse(*args, **kwargs)
-
     def snapshot_in_worker(self, *args, **kwargs):
         thread_ids.setdefault("snapshot", threading.get_ident())
         return original_snapshot(self, *args, **kwargs)
 
-    def submit_in_worker(self, *args, **kwargs):
-        thread_ids["submit"] = threading.get_ident()
-        return original_submit(self, *args, **kwargs)
-
     monkeypatch.setattr(document_route, "authorize_client", authorize_on_loop)
-    monkeypatch.setattr(document_route, "parse_document_command", parse_in_worker)
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", snapshot_in_worker)
-    monkeypatch.setattr(DocumentSyncService, "submit", submit_in_worker)
     client = TestClient(create_app())
     url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-worker&role=viewer"
     with client.websocket_connect(url) as ws:
         assert ws.receive_json()["type"] == "Snapshot"
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "AddComment",
-                "payload": {"body": "worker submit", "author": "ws", "timeline_start": 1.25},
-                "client_seq": 1,
-            }
-        )
-        assert _recv_until(ws, "Echo")["ok"] is True
-    assert thread_ids["submit"] != thread_ids["loop"]
-    assert thread_ids["parse"] == thread_ids["submit"]
     assert thread_ids["snapshot"] != thread_ids["loop"]
 
 
@@ -256,6 +94,47 @@ def test_document_ws_subscribes_before_initial_snapshot(minimal_project, monkeyp
     with client.websocket_connect(url) as ws:
         assert ws.receive_json()["type"] == "Snapshot"
         assert ws.receive_json()["server_seq"] == 999
+
+
+def test_document_ws_is_server_to_client_only(minimal_project):
+    from podcast_mcp.services.document_sync.service import document_hub_key
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    client = TestClient(create_app())
+    url = (
+        f"/api/document/ws?path={quote(str(minimal_project))}"
+        "&client_id=ws-doc&role=viewer&label=Doc"
+    )
+    with client.websocket_connect(url) as ws:
+        first = ws.receive_json()
+        assert first["type"] == "Snapshot"
+        assert first["plane"] == "document"
+        assert "comments" in first["snapshot"]
+
+        ws.send_json(
+            {
+                "type": "Command",
+                "command_type": "AddComment",
+                "payload": {"body": "from ws", "author": "ws", "timeline_start": 1.25},
+                "client_seq": 1,
+                "command_id": uuid4().hex,
+            }
+        )
+        ws.send_text("not json")
+        ws.send_bytes(b"\x00")
+
+        get_hub().publish(
+            document_hub_key(load_project(minimal_project)),
+            {
+                "type": "Applied",
+                "plane": "document",
+                "server_seq": 7,
+                "snapshot": {"server_seq": 7},
+            },
+        )
+        applied = ws.receive_json()
+        assert applied["server_seq"] == 7
+    assert load_project(minimal_project).comments == []
 
 
 def test_document_ws_guest_denied(minimal_project):
