@@ -145,6 +145,8 @@ If a published version's MP3 is missing, retry encoding writes a temporary MP3 b
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
 resolved review directory so a symlink retarget cannot redirect the output or cleanup.
+FFmpeg receives a private snapshot copied from a no-follow, descriptor-pinned WAV read;
+it never reopens the workspace source path during a retry.
 Before a retry creates its temporary file, it inspects up to 32 matching `.mix-*.mp3` names in
 that version's directory and removes regular files older than 24 hours. The age threshold protects
 fresh concurrent retries; symlinks, the published `mix.mp3`, and `mix.wav` are excluded. Cleanup is
@@ -166,6 +168,11 @@ There is no WAV fallback when `mp3_relpath` is bad. Paths written by `stage_vers
 pass the check, and `./`-prefixed or absolute in-root spellings are still accepted; the
 `artifacts/review/` directory itself may be a symlink. See
 `util/workspace_paths.resolve_within`.
+Once authorized, host and guest review reads walk the resolved path with no-follow
+directory descriptors and stream from the pinned regular file. HTTP ranges and HEAD
+use that descriptor, and object-store uploads use a pinned MP3 file object. A later
+workspace symlink swap cannot redirect bytes to an outside file; unsupported
+descriptor-relative platforms refuse the read.
 
 ## Remap after ripple deletes
 

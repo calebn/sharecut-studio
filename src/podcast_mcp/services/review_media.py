@@ -23,6 +23,7 @@ from podcast_mcp.util.object_store import (
     load_object_store_config,
     resolve_object_store_client,
 )
+from podcast_mcp.util.pinned_media import open_pinned_media
 
 log = logging.getLogger(__name__)
 
@@ -115,7 +116,8 @@ def upload_review_version_to_object_store(
         # Already uploaded for this version - skip re-upload.
         return ver.object_store_key
 
-    client.upload_file(mp3, key, content_type="audio/mpeg")
+    with open_pinned_media(mp3) as source:
+        client.upload_fileobj(source, key, content_type="audio/mpeg")
     uploaded_at = _now_iso()
 
     def mutate(p: EpisodeProject) -> dict[str, Any]:

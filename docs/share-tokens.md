@@ -8,6 +8,13 @@ Uniqueness and reuse are enforced by a **host sqlite registry** with two pools.
 Episode-bound metadata (capabilities, review version, workspace) stays in the
 project sidecar `artifacts/review/shares.json`. See also [persistence.md](persistence.md).
 
+Local host and guest review media responses open the authorized file through
+no-follow directory descriptors before streaming. Byte ranges, HEAD, and cache
+headers use that pinned file, so a later symlink swap cannot redirect a read.
+Review MP3 retries give FFmpeg a private copy from the pinned WAV descriptor;
+object-store uploads pass the pinned MP3 file object to the client. Platforms
+without descriptor-relative no-follow opens refuse these reads.
+
 ## State diagram
 
 ```mermaid

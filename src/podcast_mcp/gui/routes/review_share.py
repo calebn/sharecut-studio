@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
@@ -20,6 +20,7 @@ from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import audio_cache_headers
+from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GUEST_SHARE_RECHECK_ON_FRAME_S,
@@ -143,8 +144,13 @@ def _release_audio_slot(slot: BackgroundTask | None) -> None:
 
 
 def _audio_file_response(token: str, path, **kwargs: Any):
-    """FileResponse that holds audio concurrency until the response completes."""
-    return FileResponse(path, background=_audio_slot(token), **kwargs)
+    """Pin authorized media before returning; hold the slot until streaming ends."""
+    slot = _audio_slot(token)
+    try:
+        return PinnedFileResponse(path, background=slot, **kwargs)
+    except BaseException:
+        _release_audio_slot(slot)
+        raise
 
 
 def _map_share_exc(exc: Exception) -> HTTPException:

@@ -35,18 +35,18 @@ class _FakeObjectStore:
         self.deleted: list[str] = []
         self.bucket = "test-bucket"
 
-    def upload_file(
+    def upload_fileobj(
         self,
-        local_path: Path,
+        source,
         object_key: str,
         *,
         content_type: str = "audio/mpeg",
         acl: str = "private",
     ) -> None:
-        assert local_path.is_file()
+        assert source.read(1)
         assert content_type == "audio/mpeg"
         assert acl in {"private", "public-read"}
-        self.uploaded.append((str(local_path), object_key))
+        self.uploaded.append((source.name, object_key))
 
     def presigned_get_url(self, object_key: str, *, expires_in: int) -> str:
         assert expires_in >= 3600
@@ -304,6 +304,9 @@ def test_object_store_client_upload_presign_delete_and_cdn(tmp_path, monkeypatch
         def upload_file(self, *args, **kwargs):
             calls["upload"] = (args, kwargs)
 
+        def upload_fileobj(self, source, *args, **kwargs):
+            calls["upload_obj"] = (source.read(), args, kwargs)
+
         def generate_presigned_url(self, op, Params=None, ExpiresIn=None):
             calls["presign"] = (op, Params, ExpiresIn)
             return "https://example-bucket.s3.example.test/review/a.mp3?X-Amz=1"
@@ -347,6 +350,9 @@ def test_object_store_client_upload_presign_delete_and_cdn(tmp_path, monkeypatch
     local.write_bytes(b"id3")
     client.upload_file(local, "review/v/mix.mp3")
     assert "upload" in calls
+    with local.open("rb") as source:
+        client.upload_fileobj(source, "review/v/mix.mp3")
+    assert calls["upload_obj"][0] == b"id3"
     url = client.presigned_get_url("review/v/mix.mp3", expires_in=3600)
     assert url.startswith("https://cdn.example/review/a.mp3")
     assert "X-Amz=1" in url

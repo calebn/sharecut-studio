@@ -1661,6 +1661,21 @@ def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_
     )
     token = share["token"]
 
+    # Host and guest review streams retain byte ranges on the pinned source.
+    ranged = TestClient(create_app()).get(
+        f"/api/review/{token}/daw/audio?kind=review",
+        headers={"Range": "bytes=0-3"},
+    )
+    assert ranged.status_code == 206
+    assert ranged.content == sample_wav.read_bytes()[:4]
+    host_ranged = TestClient(create_app()).get(
+        "/api/audio",
+        params={"path": str(minimal_project), "kind": f"review:{ver['id']}"},
+        headers={"Range": "bytes=0-3"},
+    )
+    assert host_ranged.status_code == 206
+    assert host_ranged.content == sample_wav.read_bytes()[:4]
+
     outside = tmp_workspace.parent / "outside.wav"
     outside.write_bytes(sample_wav.read_bytes())
 

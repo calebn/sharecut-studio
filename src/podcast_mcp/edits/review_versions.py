@@ -33,6 +33,7 @@ from podcast_mcp.engines.play_audit import (
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
+from podcast_mcp.util.pinned_media import open_pinned_media
 from podcast_mcp.util.project_state import project_commit_lock
 from podcast_mcp.util.workspace_paths import resolve_within
 
@@ -613,7 +614,13 @@ def encode_version_mp3(
     ) as temporary:
         temporary_path = Path(temporary.name)
     try:
-        engine.export_mp3(wav, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
+        # FFmpeg accepts a path, so give it a private copy of the pinned source.
+        # A workspace symlink swap after resolution cannot change its input.
+        with tempfile.TemporaryDirectory(prefix="review-source-") as source_dir:
+            snapshot = Path(source_dir) / "mix.wav"
+            with open_pinned_media(wav) as source_file, snapshot.open("xb") as snapshot_file:
+                shutil.copyfileobj(source_file, snapshot_file)
+            engine.export_mp3(snapshot, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
         if review_root.resolve(strict=True) != resolved_root:
             raise RuntimeError("review artifacts directory changed during MP3 retry")
         os.replace(temporary_path, mp3_path)

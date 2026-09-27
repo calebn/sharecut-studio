@@ -9,8 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 
+from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.play import PlayService, TransportPath
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -64,17 +65,25 @@ def audio_file_response(
     *,
     filename: str | None = None,
     request: Request | None = None,
-) -> FileResponse | Response:
+) -> PinnedFileResponse | Response:
     """Stream a file with Range + ETag so waveform byte ranges can be cached."""
-    headers = audio_cache_headers(path)
-    if request is not None:
-        inm = request.headers.get("if-none-match")
-        if inm is not None and headers["ETag"] in inm:
-            return Response(status_code=304, headers=headers)
-    return FileResponse(
+    response = PinnedFileResponse(
         path,
         media_type="audio/wav",
         filename=filename or path.name,
         content_disposition_type="inline",
-        headers=headers,
     )
+    st = response.stat_result
+    assert st is not None
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "private, max-age=0, must-revalidate",
+        "ETag": f'"{st.st_mtime_ns}-{st.st_size}"',
+    }
+    if request is not None:
+        inm = request.headers.get("if-none-match")
+        if inm is not None and headers["ETag"] in inm:
+            response._source.close()
+            return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return response
