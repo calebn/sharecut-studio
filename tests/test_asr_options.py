@@ -96,3 +96,10 @@ def test_engine_default_options_follow_pipeline_yaml(monkeypatch, tmp_path):
     monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
     assert TranscriptionEngine().options.vad_enabled is False
     assert TranscriptionEngine(options=AsrOptions()).options.vad_enabled is True
+
+
+def test_transcribe_kwargs_are_accepted_by_installed_faster_whisper():
+    fw = pytest.importorskip("faster_whisper")
+    params = set(inspect.signature(fw.WhisperModel.transcribe).parameters)
+    for opts in (AsrOptions(), AsrOptions(condition_on_previous_text=False)):
+        assert set(opts.transcribe_kwargs("vocab")) <= params
