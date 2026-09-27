@@ -13,7 +13,13 @@ no-follow directory descriptors before streaming. Byte ranges, HEAD, and cache
 headers use that pinned file, so a later symlink swap cannot redirect a read.
 Review MP3 retries give FFmpeg a private, separate-inode clone or copy from the pinned WAV descriptor;
 object-store uploads pass the pinned MP3 file object to the client. Platforms
-without descriptor-relative no-follow opens refuse these reads.
+without descriptor-relative no-follow opens (Windows) use a portable fallback in
+`util/pinned_media.py`: the path must not traverse a symlink or junction, and after opening
+the descriptor's `fstat` must match the path's `lstat` (same device and inode, regular file).
+An open file cannot be deleted or renamed on Windows, so the checked file stays the one read;
+ranged responses read with a lock-guarded seek because `os.pread` is missing there.
+`PinnedFileResponse` overrides Starlette's private `FileResponse` hooks, so `starlette>=0.47.0`
+is required and a signature-drift test in `tests/test_pinned_media.py` fails on the next change.
 
 ## State diagram
 

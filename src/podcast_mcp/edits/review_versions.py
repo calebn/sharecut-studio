@@ -593,7 +593,7 @@ def _clone_pinned_wav(source_fd: int, snapshot: Path) -> bool:
             clone = libc.fclonefileat
             clone.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32)
             clone.restype = ctypes.c_int
-            directory_fd = os.open(snapshot.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            directory_fd = _open_pinned_dir(snapshot.parent)
             try:
                 if clone(source_fd, directory_fd, os.fsencode(snapshot.name), 0) != 0:
                     raise OSError(ctypes.get_errno(), "fclonefileat failed")
