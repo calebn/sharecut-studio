@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from filelock import Timeout
 
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch
@@ -24,7 +26,7 @@ from podcast_mcp.models import (
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.play import PlayRequest, PlayService
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.project_state import render_lock, render_lock_held
+from podcast_mcp.util.project_state import RenderBusyError, render_lock, render_lock_held
 
 
 def _dialogue_workspace(
@@ -718,6 +720,107 @@ def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
         holder.join(5)
     assert time.monotonic() - started < 5
     mock_render.assert_not_called()
+    seg.assert_called_once()
+
+
+@contextmanager
+def _render_lock_held_elsewhere(ws, monkeypatch):
+    monkeypatch.setattr("podcast_mcp.services.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    held, release = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with render_lock(ws.project):
+            held.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(5)
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        release.set()
+        holder.join(5)
+    assert time.monotonic() - started < 5
+
+
+def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_the_lock(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    premix = ws.project.artifacts_dir() / "premix.wav"
+    premix.parent.mkdir(parents=True, exist_ok=True)
+    premix.write_bytes(sample_wav.read_bytes())
+    with (
+        _render_lock_held_elsewhere(ws, monkeypatch),
+        patch("podcast_mcp.services.play.rerender_preview", MagicMock()) as rerender,
+    ):
+        assert PlayService(ws)._ensure_premix(rerender=True) == premix
+    rerender.assert_not_called()
+
+
+def test_premix_rerender_with_no_premix_raises_busy_while_another_render_holds_the_lock(
+    minimal_project, monkeypatch
+) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    with (
+        _render_lock_held_elsewhere(ws, monkeypatch),
+        pytest.raises(RenderBusyError),
+    ):
+        PlayService(ws)._ensure_premix(rerender=True)
+
+
+def test_transport_stem_build_streams_the_existing_stem_while_another_render_holds_the_lock(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes(sample_wav.read_bytes())
+    with (
+        _render_lock_held_elsewhere(ws, monkeypatch),
+        patch("podcast_mcp.services.play.publish_stem", MagicMock()) as publish,
+    ):
+        tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
+    assert tp.path == stem.resolve()
+    assert tp.tier == "stem"
+    publish.assert_not_called()
+
+
+def test_transport_stem_build_with_no_stem_raises_busy_while_another_render_holds_the_lock(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with (
+        _render_lock_held_elsewhere(ws, monkeypatch),
+        pytest.raises(RenderBusyError),
+    ):
+        PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
+
+
+def test_play_rerender_segment_renders_when_the_project_lock_is_busy(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+
+    def _seg(_project, _track_id, _start, _end, cache, _defaults):
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(sample_wav.read_bytes())
+        return cache
+
+    with (
+        patch.object(
+            PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
+        ) as ensure,
+        patch("podcast_mcp.services.play.render_track_segment", side_effect=_seg) as seg,
+    ):
+        result = PlayService(ws).play(
+            PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
+            dry_run=True,
+        )
+    assert result.tier == "segment_render"
+    ensure.assert_called_once()
     seg.assert_called_once()
 
 

@@ -13,6 +13,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
+from filelock import Timeout
+
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
@@ -48,7 +50,7 @@ from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
-    RenderBusyError,
+    RENDER_LOCK_TIMEOUT_SEC,
     project_commit_lock,
     render_lock,
     snapshot_project,
@@ -65,8 +67,9 @@ _PLAY_CACHE_MIN_EVICT_AGE_SEC = 60 * 60
 _PLAY_CACHE_MAX_FILES = 512
 _PLAY_CACHE_HARD_MAX_FILES = 4096
 _PLAY_CACHE_LOCK_TIMEOUT_SEC = 30.0
-# Playback never queues behind an export or Refresh (#482): it waits this long for the
-# render lock, then plays a segment render instead of rebuilding the stem.
+# Playback never queues behind an export or Refresh (#482): processed segment play,
+# premix rerender and transport stem builds wait this long for the render lock, then
+# play a segment render or the premix/stem already on disk instead of rebuilding.
 _PLAY_RENDER_LOCK_TIMEOUT_SEC = 2.0
 
 
@@ -279,7 +282,13 @@ class PlayService:
             if self.project.track_by_id(track_id) is None:
                 raise KeyError(f"unknown track {track_id!r}")
             if rerender or build_stem:
-                path = self.ensure_stem(track_id)
+                try:
+                    path = self.ensure_stem(track_id, lock_timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC)
+                except Timeout:
+                    path = stem_path(self.project, track_id)
+                    if not path.is_file():
+                        raise
+                    log.info("render or project busy; streaming the existing %s stem", track_id)
             else:
                 path = stem_path(self.project, track_id)
                 if not path.is_file():
@@ -478,8 +487,9 @@ class PlayService:
                     # all-zero extracts when the stem slice raced the rewrite.
                     if window > _FULL_STEM_RERENDER_MIN_SEC:
                         self.ensure_stem(track_id)
-            except RenderBusyError:
-                log.info("render in progress; playing %s from a segment render", track_id)
+            except Timeout:
+                # RenderBusyError, or the commit-lock timeout from ensure_stem's invalidation clear.
+                log.info("render or project busy; playing %s from a segment render", track_id)
                 use_stem = False
 
         # Freshness includes timeline-duration match; mismatched stems fall through
@@ -525,10 +535,17 @@ class PlayService:
     def _ensure_premix(self, *, rerender: bool) -> Path:
         premix = self.project.artifacts_dir() / "premix.wav"
         if rerender or not premix.is_file():
-            # A render takes seconds: merge the save so an edit committed meanwhile survives.
-            self.project = self.ws.checkpoint()
-            rerender_preview(self.project)
-            self.ws.save_merged()
+            try:
+                # Bounded wait; rerender_preview's own @with_render_lock re-enters this hold.
+                with render_lock(self.project, timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC):
+                    # A render takes seconds: merge the save so an edit committed meanwhile survives.
+                    self.project = self.ws.checkpoint()
+                    rerender_preview(self.project)
+                    self.ws.save_merged()
+            except Timeout:
+                if not premix.is_file():
+                    raise
+                log.info("render or project busy; playing the existing premix")
         if not premix.is_file():
             raise FileNotFoundError("premix.wav not found; run render-preview or pipeline first")
         return premix
@@ -557,11 +574,14 @@ class PlayService:
                 else:
                     p.unlink(missing_ok=True)
 
-    def ensure_stem(self, track_id: str) -> Path:
-        """Render full processed stem (assemble_timeline for one track)."""
+    def ensure_stem(self, track_id: str, *, lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC) -> Path:
+        """Render full processed stem (assemble_timeline for one track).
+
+        ``lock_timeout`` bounds the render-lock wait (playback passes 2 s).
+        """
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
-        with render_lock(self.project):
+        with render_lock(self.project, timeout=lock_timeout):
             render_project = snapshot_project(self.project)
             track = render_project.track_by_id(track_id)
             if not track:

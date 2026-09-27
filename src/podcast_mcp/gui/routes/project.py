@@ -4,6 +4,7 @@ import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from filelock import Timeout
 from pydantic import BaseModel
 
 from podcast_mcp.gui.assembler import (
@@ -281,6 +282,13 @@ def get_audio(
     except ProjectMergeConflict as exc:
         # The premix re-render's save collided with a concurrent edit; nothing was saved.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Timeout as exc:
+        # Another render (export/Refresh) holds the render lock and nothing is on disk yet.
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": "project_busy"},
+        ) from exc
     return audio_file_response(audio_path, request=request)
 
 
