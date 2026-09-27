@@ -1,5 +1,6 @@
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
+import type { LayerVisibility } from "../state/types";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   AppliedEditRecord,
@@ -177,6 +178,21 @@ export function recordSnapshot(
     take_index: 0,
     participants: [],
     caps: { recorded: 4, producers: 2 },
+    ...overrides,
+  };
+}
+
+/** All timeline layers visible, for tests and prop-only chrome stories. */
+export function layerVisibility(
+  overrides: Partial<LayerVisibility> = {},
+): LayerVisibility {
+  return {
+    showEdits: true,
+    showLevels: true,
+    showMarkers: true,
+    showComments: true,
+    showSilence: true,
+    showSnapPoints: true,
     ...overrides,
   };
 }

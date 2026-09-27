@@ -7,7 +7,7 @@ import {
 } from "../ui";
 import { formatWaveformAmp } from "../utils/zoom";
 import type { WaveformScaleMode } from "../waveform/types";
-import { LegendCheckbox } from "./OverlayLegend";
+import { LegendCheckbox } from "./OverlayLegendView";
 
 const SCALES: { id: WaveformScaleMode; label: string; title: string }[] = [
   {
