@@ -452,7 +452,10 @@ def test_sigkill_at_each_handoff_loses_no_edit_and_applies_a_retry_once(
         # The dead commit appended to the index; the saved history is its prefix.
         assert seen["index_history"][: len(seen["saved_history"])] == seen["saved_history"]
     if point == MID_PUBLISH:
-        assert seen["published_seq"] == 2  # Applied carried the row's seq before COMMIT
+        # Applied carried the row's seq before COMMIT. Safe only because the project commit
+        # saved this command as last_command first: the restart re-journals the same
+        # command at the same seq (the retry below), never a different one.
+        assert seen["published_seq"] == 2
 
     # Restart: the kill left exactly what the handoff held, and undo stays usable.
     assert _bodies(seeded_project) == seen["bodies"]
