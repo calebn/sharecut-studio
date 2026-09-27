@@ -50,6 +50,16 @@ export async function drainHostOfflineQueue(
   let finishedSeen = hostSendsFinished(projectPath);
   const queue = await loadHostCommandQueue(projectPath);
   const completed: string[] = [];
+  // Live sends use fresh command ids, so a live send can dequeue only a
+  // snapshot record it was already sending. Live edits made during a long
+  // replay append after the snapshot and never force a re-read.
+  const sentLive = new Set(
+    queue
+      .map((c) => c.command_id)
+      .filter((id) => hostSendDone(projectPath, id) !== null),
+  );
+  // A send that finished while the snapshot loaded may have dequeued any record.
+  let recheckAll = hostSendsFinished(projectPath) !== finishedSeen;
   let present: Set<string> | null = null;
   for (const cmd of queue) {
     // This tab is still POSTing it live: replaying now would send it twice.
@@ -65,10 +75,14 @@ export async function drainHostOfflineQueue(
       }
       break;
     }
-    // A live send that finished since the last read may have dequeued this
-    // record. Re-read only then: each read loads every queued payload.
-    if (hostSendsFinished(projectPath) !== finishedSeen) {
+    // Re-read only when a live send that may have removed this record has
+    // finished since the last read: each read loads every queued payload.
+    if (
+      (recheckAll || sentLive.has(cmd.command_id)) &&
+      hostSendsFinished(projectPath) !== finishedSeen
+    ) {
       finishedSeen = hostSendsFinished(projectPath);
+      recheckAll = false;
       try {
         present = new Set(
           (await loadHostCommandQueue(projectPath)).map((c) => c.command_id),

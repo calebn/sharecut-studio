@@ -303,15 +303,15 @@ describe("drainHostOfflineQueue", () => {
   it("still removes replayed records when a queue re-read fails", async () => {
     const path = "/projects/episode.project.json";
     const { beginHostSend } = await import("./hostSendOrder");
-    const other = beginHostSend(path, "other");
+    const liveB = beginHostSend(path, "b");
     let unreadable = false;
     hostQueue.mockImplementation(async () => {
       if (unreadable) throw new Error("idb");
       return [cmd("a"), cmd("b")];
     });
     submit.mockImplementationOnce(async () => {
-      // A live send finishes while "a" replays, then IndexedDB fails.
-      other.finish();
+      // The live send of "b" finishes while "a" replays, then IndexedDB fails.
+      liveB.finish();
       unreadable = true;
       return { ok: true };
     });
@@ -319,6 +319,39 @@ describe("drainHostOfflineQueue", () => {
     await expect(drainHostOfflineQueue(path)).resolves.toBeUndefined();
     expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a"]);
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["a"]);
+  });
+
+  it("does not re-read the queue for live sends that began after the snapshot", async () => {
+    const path = "/projects/steady.project.json";
+    const { beginHostSend } = await import("./hostSendOrder");
+    hostQueue.mockResolvedValue([cmd("x"), cmd("y"), cmd("z")]);
+    submit.mockImplementation(async () => {
+      beginHostSend(path, `new-${submit.mock.calls.length}`).finish();
+      return { ok: true };
+    });
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue(path);
+    expect(hostQueue).toHaveBeenCalledTimes(1);
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
+      "x",
+      "y",
+      "z",
+    ]);
+  });
+
+  it("re-reads when a live send finished while the snapshot loaded", async () => {
+    const path = "/projects/during-load.project.json";
+    const { beginHostSend } = await import("./hostSendOrder");
+    const liveA = beginHostSend(path, "a");
+    hostQueue
+      .mockImplementationOnce(async () => {
+        liveA.finish();
+        return [cmd("a"), cmd("b")];
+      })
+      .mockImplementation(async () => [cmd("b")]);
+    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
+    await drainHostOfflineQueue(path);
+    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["b"]);
   });
 
   it("replays another tab's in-flight record with its original identity", async () => {
