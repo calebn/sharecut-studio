@@ -212,7 +212,6 @@ export function useGuestSync(
             const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
             if (
               !shouldApplyDocumentEvent({
-                type: msg.type,
                 server_seq: msg.server_seq,
                 snapshot: snap as DocumentSnapshot,
                 command: (msg as { command?: { client_id?: string } }).command,

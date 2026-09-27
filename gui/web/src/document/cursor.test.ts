@@ -9,33 +9,24 @@ import {
 } from "./cursor";
 
 describe("document cursor", () => {
-  it("applies non-echo snapshots at the current seq", () => {
+  it("applies peer snapshots at the current seq", () => {
     resetDocumentSeqForTests();
     noteDocumentSeq(3);
     expect(
       shouldApplyDocumentEvent({
-        type: "Applied",
         server_seq: 3,
         snapshot: { server_seq: 3 },
       }),
     ).toBe(true);
   });
 
-  it("skips strictly older seq and Echo", () => {
+  it("skips strictly older seq", () => {
     resetDocumentSeqForTests();
     noteDocumentSeq(3);
     expect(
       shouldApplyDocumentEvent({
-        type: "Applied",
         server_seq: 2,
         snapshot: { server_seq: 2 },
-      }),
-    ).toBe(false);
-    expect(
-      shouldApplyDocumentEvent({
-        type: "Echo",
-        server_seq: 4,
-        snapshot: { server_seq: 4 },
       }),
     ).toBe(false);
   });
@@ -46,7 +37,6 @@ describe("document cursor", () => {
     const own = documentClientId();
     expect(
       shouldApplyDocumentEvent({
-        type: "Applied",
         server_seq: 3,
         command: { client_id: own },
       }),
@@ -59,7 +49,6 @@ describe("document cursor", () => {
     const own = documentClientId();
     expect(
       shouldApplyDocumentEvent({
-        type: "Applied",
         server_seq: 3,
         snapshot: { server_seq: 3, resync: true },
         command: { client_id: own },
@@ -73,9 +62,7 @@ describe("document cursor", () => {
     expect(currentDocumentSeq()).toBe(40);
     resetDocumentSeqForTests();
     expect(currentDocumentSeq()).toBe(0);
-    expect(shouldApplyDocumentEvent({ type: "Applied", server_seq: 3 })).toBe(
-      true,
-    );
+    expect(shouldApplyDocumentEvent({ server_seq: 3 })).toBe(true);
   });
 
   it("reloads poll snapshots when seq is equal or zero", () => {
