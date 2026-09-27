@@ -2590,7 +2590,7 @@ def test_index_project_mismatch_returns_recovery_page(minimal_project, tmp_path)
     assert "isn&rsquo;t served by this server" in res.text
     assert "Choose a different project" in res.text
     assert f"/?{urlencode({'project': str(minimal_project)})}" in res.text
-    assert 'href="/"' in res.text
+    assert 'href="/?home=1"' in res.text
 
 
 def test_index_project_mismatch_keeps_json_for_non_html_accept(minimal_project, tmp_path) -> None:
@@ -2651,7 +2651,7 @@ def test_index_project_mismatch_requires_remote_token_and_preserves_it(
     assert res.status_code == 403
     open_query = urlencode({"project": str(minimal_project), "session_token": "recovery-token"})
     assert f'href="/?{open_query}"' in res.text
-    assert 'href="/?session_token=recovery-token"' in res.text
+    assert 'href="/?home=1&session_token=recovery-token"' in res.text
     assert "ignored=no" not in res.text
 
 
@@ -2696,6 +2696,59 @@ def test_index_served_project_param_serves_app(minimal_project, tmp_path) -> Non
     assert "text/html" in res.headers["content-type"]
     res = client.get("/")
     assert res.status_code == 200
+
+
+def _root_client(tmp_path, served):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    return TestClient(create_app(static_dir=_recovery_static_root(tmp_path), served_project=served))
+
+
+def test_index_bare_root_redirects_to_pinned_project(minimal_project, tmp_path) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    served = Path(minimal_project).resolve()
+    client = _root_client(tmp_path, minimal_project)
+    res = client.get("/", params={"theme": "dark"}, follow_redirects=False)
+    assert res.status_code == 307
+    parts = urlsplit(res.headers["location"])
+    assert parts.path == "/"
+    assert parse_qs(parts.query) == {"theme": ["dark"], "project": [str(minimal_project)]}
+    assert Path(client.app.state.served_project).resolve() == served
+    assert "no-store" in res.headers["cache-control"]
+
+
+def test_index_home_param_skips_pinned_redirect(minimal_project, tmp_path) -> None:
+    client = _root_client(tmp_path, minimal_project)
+    res = client.get("/", params={"home": "1"}, follow_redirects=False)
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+    assert "location" not in res.headers
+    res = client.get("/", params={"review": "tok"}, follow_redirects=False)
+    assert res.status_code == 200
+
+
+def test_index_bare_root_redirect_refuses_relayed_request(minimal_project, tmp_path) -> None:
+    client = _root_client(tmp_path, minimal_project)
+    res = client.get("/", headers={"X-Sharecut-Relayed": "1"}, follow_redirects=False)
+    assert res.status_code != 307
+    assert str(minimal_project) not in res.headers.get("location", "")
+
+
+def test_index_bare_root_skips_redirect_when_pinned_file_is_gone(tmp_path) -> None:
+    client = _root_client(tmp_path, tmp_path / "gone" / "episode.project.json")
+    res = client.get("/", follow_redirects=False)
+    assert res.status_code == 200
+
+
+def test_index_bare_root_without_pin_serves_home(tmp_path) -> None:
+    client = _root_client(tmp_path, None)
+    res = client.get("/", follow_redirects=False)
+    assert res.status_code == 200
+    assert "location" not in res.headers
 
 
 def test_api_project_mismatch_still_json_403(minimal_project, tmp_path) -> None:

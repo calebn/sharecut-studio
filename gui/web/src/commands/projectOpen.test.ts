@@ -14,11 +14,13 @@ vi.mock("../api", async (importOriginal) => {
     ...actual,
     pickEpisodeProject: vi.fn(),
     openEpisodeProject: vi.fn(),
+    closeEpisodeProject: vi.fn(),
   };
 });
 
 const pickMock = vi.mocked(api.pickEpisodeProject);
 const openMock = vi.mocked(api.openEpisodeProject);
+const closeMock = vi.mocked(api.closeEpisodeProject);
 
 describe("project.open", () => {
   const assign = vi.fn();
@@ -30,6 +32,8 @@ describe("project.open", () => {
     registerDawCommands();
     pickMock.mockReset();
     openMock.mockReset();
+    closeMock.mockReset();
+    closeMock.mockResolvedValue(undefined);
     assign.mockReset();
     prompt.mockReset();
     vi.stubGlobal("location", {
@@ -79,6 +83,7 @@ describe("project.open", () => {
     });
     expect((await execute("project.new")).status).toBe("disabled");
     expect(assign).not.toHaveBeenCalled();
+    expect(closeMock).not.toHaveBeenCalled();
   });
 
   it("navigates to a new project without dropping unrelated URL state", async () => {
@@ -87,9 +92,23 @@ describe("project.open", () => {
       assign,
     });
     expect((await execute("project.new")).status).toBe("ok");
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(closeMock.mock.invocationCallOrder[0]).toBeLessThan(
+      assign.mock.invocationCallOrder[0] ?? 0,
+    );
     const destination = new URL(String(assign.mock.calls[0]?.[0]));
     expect(destination.searchParams.has("project")).toBe(false);
+    expect(destination.searchParams.get("home")).toBe("1");
     expect(destination.searchParams.get("theme")).toBe("dark");
+  });
+
+  it("New still opens home when unpinning fails", async () => {
+    closeMock.mockRejectedValue(new Error("403"));
+    expect((await execute("project.new")).status).toBe("ok");
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    const destination = new URL(String(assign.mock.calls[0]?.[0]));
+    expect(destination.searchParams.get("home")).toBe("1");
   });
 
   it("blocks Open before showing a picker while the guard is armed", async () => {

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
-  closeEpisodeProject,
   createEpisodeProject,
   openEpisodeProject,
   pickEpisodeProject,
@@ -9,6 +8,7 @@ import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { HostMcpDialog } from "../layout/HostMcpDialog";
 import { Button, Field } from "../ui";
 import { errorMessage } from "../utils/apiError";
+import { projectUrl } from "../utils/projectUrl";
 import { readLocal, writeLocal } from "../utils/storage";
 import { BootstrapWizard } from "./BootstrapWizard";
 import { HelpDialog } from "./HelpDialog";
@@ -16,9 +16,7 @@ import { HelpDialog } from "./HelpDialog";
 const SKIP_KEY = "sharecut.bootstrap.skip";
 
 function navigateToProject(path: string): void {
-  const url = new URL(window.location.href);
-  url.searchParams.set("project", path);
-  window.location.assign(url.toString());
+  window.location.assign(projectUrl(window.location.href, path));
 }
 
 function bootstrapSkipped(): boolean {
@@ -38,15 +36,6 @@ export function HomeScreen() {
   const [mcpOpen, setMcpOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const busy = busyAction !== null;
-
-  useEffect(() => {
-    if (desktopCloseGuardArmed()) {
-      return;
-    }
-    void closeEpisodeProject().catch(() => {
-      /* home still works if unpin fails */
-    });
-  }, []);
 
   const markReady = useCallback(() => {
     setSetupDone(true);
