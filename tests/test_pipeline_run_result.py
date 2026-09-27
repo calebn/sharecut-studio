@@ -109,6 +109,24 @@ def test_ok_qc_gives_ok_true(minimal_project: Path, monkeypatch) -> None:
     assert result.export_qc == {"ok": True, "issues": [], "warnings": []}
 
 
+def test_write_export_qc_writes_atomically(minimal_project: Path, monkeypatch) -> None:
+    import podcast_mcp.util.atomic_json as atomic_json
+    from podcast_mcp.config import load_defaults
+
+    project = load_project(minimal_project)
+    calls: list[Path] = []
+    real = atomic_json.write_json_atomic
+
+    def spy(path, payload, **kwargs):
+        calls.append(path)
+        return real(path, payload, **kwargs)
+
+    monkeypatch.setattr(atomic_json, "write_json_atomic", spy)
+    qc = pipeline_steps.write_export_qc(project, defaults=load_defaults())
+    assert calls == [pipeline_steps.export_qc_path(project)]
+    assert pipeline_steps.read_export_qc(project) == qc
+
+
 def test_format_export_qc_lines_and_job_result(tmp_path: Path) -> None:
     from podcast_mcp.services.pipeline import PipelineRunResult, format_export_qc_lines
 

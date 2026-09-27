@@ -999,6 +999,7 @@ def write_export_qc(
         "issues": issues,
         "ok": not issues,
     }
-    qc_path = export_qc_path(project)
-    qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
+    from podcast_mcp.util.atomic_json import write_json_atomic
+
+    write_json_atomic(export_qc_path(project), qc)
     return qc
