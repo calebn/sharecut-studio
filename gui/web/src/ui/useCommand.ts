@@ -4,6 +4,28 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import type { CommandDef, ExecuteResult } from "../commands/types";
 import { useDawStore } from "../state/dawStore";
+import type { TrackView } from "../types/project";
+
+/**
+ * `tracks.map(id).join(",")`, cached per `tracks` array. `useCommand`'s
+ * selector runs on every store change (it must, to detect when-clause
+ * inputs changing), so recomputing this join every time would scan every
+ * track on every unrelated store update.
+ */
+const trackIdsKeyCache = new WeakMap<readonly TrackView[], string>();
+
+export function trackIdsKey(tracks: readonly TrackView[] | undefined): string {
+  if (!tracks) {
+    return "";
+  }
+  const cached = trackIdsKeyCache.get(tracks);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const key = tracks.map((track) => track.id).join(",");
+  trackIdsKeyCache.set(tracks, key);
+  return key;
+}
 
 export type UseCommandResult = {
   def: CommandDef | undefined;
@@ -25,7 +47,7 @@ export function useCommand(commandId: string): UseCommandResult {
   // Stable primitive — reading it re-renders when when-clause inputs change.
   useDawStore(
     (s) =>
-      `${s.timelineFocused}|${s.activeTab}|${s.commentMode}|${s.projectPath}|${s.guestMode}|${s.selection?.kind ?? "none"}|${s.selection?.kind === "track" ? s.selection.trackId : ""}|${s.project != null}|${s.project?.tracks.map((track) => track.id).join(",") ?? ""}`,
+      `${s.timelineFocused}|${s.activeTab}|${s.commentMode}|${s.projectPath}|${s.guestMode}|${s.selection?.kind ?? "none"}|${s.selection?.kind === "track" ? s.selection.trackId : ""}|${s.project != null}|${trackIdsKey(s.project?.tracks)}`,
   );
 
   const def = COMMANDS[commandId];
