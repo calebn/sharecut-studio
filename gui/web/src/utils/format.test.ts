@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capitalize, plural } from "./format";
+import { capitalize, overflowLabel, plural } from "./format";
 
 describe("plural", () => {
   it("returns the singular form when count is 1", () => {
@@ -14,6 +14,13 @@ describe("plural", () => {
   it("uses an explicit plural form when given one", () => {
     expect(plural(2, "child", "children")).toBe("children");
     expect(plural(1, "child", "children")).toBe("child");
+  });
+});
+
+describe("overflowLabel", () => {
+  it("prefixes the hidden count with + and ends with more", () => {
+    expect(overflowLabel(1)).toBe("+1 more");
+    expect(overflowLabel(12)).toBe("+12 more");
   });
 });
 

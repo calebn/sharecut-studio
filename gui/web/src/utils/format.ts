@@ -7,6 +7,11 @@ export function plural(
   return count === 1 ? singular : pluralForm;
 }
 
+/** Label for items collapsed out of a capped list (`3` → `"+3 more"`). */
+export function overflowLabel(count: number): string {
+  return `+${count} more`;
+}
+
 /** `text` with its first character upper-cased (`"medium"` → `"Medium"`). */
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
