@@ -195,6 +195,25 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** baseConfig plus a visible Master LUFS field under Balance tracks, so Analyze highlights can be asserted. */
+function withMasterLufsParam() {
+  const cfg = structuredClone(baseConfig);
+  cfg.params.push({
+    path: "master.integrated_lufs",
+    label: "Master LUFS",
+    description: "Master integrated loudness",
+    type: "number",
+    default: -16,
+    minimum: -24,
+    maximum: -9,
+    unit: "LUFS",
+    group: "common",
+    section: "master",
+    affects: ["balance_tracks"],
+  });
+  return cfg;
+}
+
 describe("PipelinePanel", () => {
   it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
     const user = userEvent.setup();
@@ -1055,12 +1074,12 @@ describe("PipelinePanel", () => {
 
   it("shows the server config when a param PUT resolves after the Analyze response", async () => {
     const user = userEvent.setup();
-    const serverAfterPut = structuredClone(baseConfig);
+    const serverAfterPut = withMasterLufsParam();
     serverAfterPut.config.balance.dialogue_lufs = -18;
-    const patched = structuredClone(baseConfig);
+    const patched = withMasterLufsParam();
     patched.config.master.integrated_lufs = -14;
     loadPipelineConfig
-      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(withMasterLufsParam())
       .mockResolvedValueOnce(structuredClone(serverAfterPut));
     let resolveAnalyze!: (v: unknown) => void;
     analyzePipeline.mockImplementation(
@@ -1112,6 +1131,13 @@ describe("PipelinePanel", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
     });
+    // The PUT replaced Analyze's master patch, so that field is not highlighted.
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-16);
+    });
+    expect(
+      screen.getByLabelText(/Master LUFS/i).closest("label"),
+    ).not.toHaveClass("pipeline-param-highlight");
     await user.click(screen.getByRole("button", { name: "Run pipeline" }));
     await waitFor(() => {
       expect(startPipelineRun).toHaveBeenCalled();
@@ -1123,11 +1149,11 @@ describe("PipelinePanel", () => {
 
   it("re-reads the config when a param PUT resolves before the Analyze response", async () => {
     const user = userEvent.setup();
-    const merged = structuredClone(baseConfig);
+    const merged = withMasterLufsParam();
     merged.config.balance.dialogue_lufs = -18;
     merged.config.master.integrated_lufs = -14;
     loadPipelineConfig
-      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(withMasterLufsParam())
       .mockResolvedValueOnce(structuredClone(merged));
     let resolveAnalyze!: (v: unknown) => void;
     analyzePipeline.mockImplementation(
@@ -1165,6 +1191,11 @@ describe("PipelinePanel", () => {
       expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
     });
     expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
+    // The server kept Analyze's master patch, so that field stays highlighted.
+    expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-14);
+    expect(screen.getByLabelText(/Master LUFS/i).closest("label")).toHaveClass(
+      "pipeline-param-highlight",
+    );
     await user.click(screen.getByRole("button", { name: "Run pipeline" }));
     await waitFor(() => {
       expect(startPipelineRun).toHaveBeenCalled();
