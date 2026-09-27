@@ -65,7 +65,7 @@ Cross-backend agreement (mean symmetric WER): **93%** overall (rehana 33%, vicky
 
 ## Silence hallucinations
 
-The whisper.cpp adapter is benchmark-only and does not use the VAD / decode options of `transcribe.vad` / `transcribe.decode` (faster-whisper only, #521); whisper-cli's VAD needs a separate ggml VAD model.
+The whisper.cpp adapter is benchmark-only and does not use the VAD / decode options of `transcribe.vad` / `transcribe.decode` (faster-whisper only, #521); whisper-cli's VAD needs a separate ggml VAD model. With the shipped defaults (VAD on, temperatures `[0, 0.2, 0.4]`) the faster-whisper ASR cache key changes, and the legacy `{track}_{audio}.json` cache is only read for faster-whisper's own defaults. The first ASR after upgrading therefore re-runs Whisper once per track.
 
 ## Code
 
