@@ -65,14 +65,18 @@ def test_play_cache_eviction_keeps_recent_and_skips_other_files(
 
 
 def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> None:
+    import time
+
     from podcast_mcp.services import play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
     cache.mkdir(parents=True)
     for index in range(5):
-        (cache / f"compose_{index}.wav").write_bytes(b"x")
-    monkeypatch.setattr(play_module, "_PLAY_CACHE_MAX_FILES", 2)
+        path = cache / f"compose_{index}.wav"
+        path.write_bytes(b"x")
+        os.utime(path, (time.time() - 7200, time.time() - 7200))
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_MAX_FILES", 3)
     monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 3)
     service._play_cache_dir()
     assert len(list(cache.glob("*.wav"))) == 3
@@ -90,10 +94,94 @@ def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> N
     another = cache / "compose_another.wav"
     for path in (first, second, extra, another):
         path.write_bytes(b"x")
+    import time
+
+    for path in (extra, another):
+        os.utime(path, (time.time() - 7200, time.time() - 7200))
     monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 1)
     service._ab_concat_path(first, second, 0.4)
     assert first.exists() and second.exists()
     assert sum(path.exists() for path in (extra, another)) == 1
+
+
+def test_play_cache_recent_outputs_survive_hard_file_pressure(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services import play as play_module
+
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    cache = service.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True)
+    paths = [cache / f"compose_{index}.wav" for index in range(5)]
+    for path in paths:
+        path.write_bytes(b"x")
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 1)
+    service._play_cache_dir()
+    assert all(path.exists() for path in paths)
+
+
+def test_play_serves_cached_wav_and_refreshes_its_retention(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    import time
+
+    from podcast_mcp.services import play as play_module
+
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    premix = service.project.artifacts_dir() / "premix.wav"
+    premix.parent.mkdir(parents=True, exist_ok=True)
+    premix.write_bytes(sample_wav.read_bytes())
+    cached = service._cache_path("premix", 0, 0.5, premix)
+    cached.write_bytes(sample_wav.read_bytes())
+    old_time = time.time() - 7200
+    os.utime(cached, (old_time, old_time))
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 0)
+
+    result = service.play(
+        PlayRequest(source="premix", start_sec=0, end_sec=0.5),
+        dry_run=True,
+        publish_audition=False,
+    )
+    assert result.wav_path == cached
+    assert cached.stat().st_atime > old_time
+    assert cached.stat().st_mtime == pytest.approx(old_time, abs=1)
+    service._play_cache_dir()
+    assert cached.is_file()
+
+
+def test_play_cache_eviction_waits_for_concurrent_serve(minimal_project, monkeypatch) -> None:
+    import threading
+    import time
+
+    from podcast_mcp.services import play as play_module
+
+    service = PlayService(ProjectWorkspace.open(minimal_project))
+    cache = service.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True)
+    selected = cache / "selected.wav"
+    selected.write_bytes(b"x")
+    old_time = time.time() - 7200
+    os.utime(selected, (old_time, old_time))
+    monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 0)
+    touched = threading.Event()
+    release = threading.Event()
+    original_utime = os.utime
+
+    def slow_touch(path, *args, **kwargs):
+        if path == selected and "ns" in kwargs:
+            touched.set()
+            assert release.wait(timeout=5)
+        original_utime(path, *args, **kwargs)
+
+    monkeypatch.setattr(play_module.os, "utime", slow_touch)
+    serve = threading.Thread(target=service._mark_play_cache_used, args=(selected,))
+    evict = threading.Thread(target=service._play_cache_dir)
+    serve.start()
+    assert touched.wait(timeout=5)
+    evict.start()
+    release.set()
+    serve.join(timeout=5)
+    evict.join(timeout=5)
+    assert not serve.is_alive() and not evict.is_alive()
+    assert selected.is_file()
 
 
 def test_timeline_to_source_with_clip(minimal_project, sample_wav, tmp_workspace) -> None:

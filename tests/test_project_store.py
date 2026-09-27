@@ -110,7 +110,7 @@ def test_commit_prunes_history_after_canonical_replace(minimal_project, monkeypa
     entries = []
     for i in range(HISTORY_ENTRY_LIMIT // 2 + 2):
         for prefix in ("before", "after"):
-            entry_id = f"{prefix}-{i}"
+            entry_id = f"{len(entries):012x}"
             path = snapshots / f"{entry_id}.json"
             path.write_text("{}")
             entries.append(
@@ -204,6 +204,87 @@ def test_rollback_history_restores_the_index_and_drops_only_new_snapshots(tmp_pa
 
 def test_history_snapshot_ids_is_empty_without_a_snapshot_dir(tmp_path):
     assert history_snapshot_ids(tmp_path / "history" / "index.json") == set()
+
+
+def test_history_pruning_skips_untrusted_snapshot_id_after_commit(minimal_project, caplog) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    outside = project.workspace_path().parent / "outside.json"
+    outside.write_text('{"keep": true}', encoding="utf-8")
+    malicious = "../../../outside"
+    ids = [malicious, *(f"{index:012x}" for index in range(HISTORY_ENTRY_LIMIT))]
+    project.history = ProjectHistory(
+        cursor=len(ids) - 1,
+        entries=[
+            HistoryEntry(
+                id=entry_id, label="edit", snapshot_file=f"history/snapshots/{entry_id}.json"
+            )
+            for entry_id in ids
+        ],
+    )
+
+    with caplog.at_level("WARNING"):
+        store.commit(project)
+
+    assert outside.read_text(encoding="utf-8") == '{"keep": true}'
+    assert "Skipping unsafe pruned history snapshot id" in caplog.text
+    assert len(store.load().history.entries) == HISTORY_ENTRY_LIMIT
+
+
+def test_history_pruning_skips_snapshot_symlink_outside_directory(minimal_project, caplog) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    outside = project.workspace_path().parent / "outside.json"
+    outside.write_text('{"keep": true}', encoding="utf-8")
+    snapshots = history_snapshots_dir(history_index_path(project))
+    snapshots.mkdir(parents=True)
+    (snapshots / "000000000000.json").symlink_to(outside)
+    ids = [f"{index:012x}" for index in range(HISTORY_ENTRY_LIMIT + 1)]
+    project.history = ProjectHistory(
+        cursor=len(ids) - 1,
+        entries=[
+            HistoryEntry(
+                id=entry_id, label="edit", snapshot_file=f"history/snapshots/{entry_id}.json"
+            )
+            for entry_id in ids
+        ],
+    )
+
+    with caplog.at_level("WARNING"):
+        store.commit(project)
+
+    assert outside.read_text(encoding="utf-8") == '{"keep": true}'
+    assert "Skipping pruned history snapshot outside" in caplog.text
+
+
+def test_history_pruning_skips_snapshot_directory_symlink_outside_workspace(
+    minimal_project, caplog
+) -> None:
+    store = ProjectStore(minimal_project)
+    project = store.load()
+    snapshots = history_snapshots_dir(history_index_path(project))
+    outside = project.workspace_path().parent / "outside_snapshots"
+    outside.mkdir()
+    outside_snapshot = outside / "000000000000.json"
+    outside_snapshot.write_text('{"keep": true}', encoding="utf-8")
+    snapshots.parent.mkdir(parents=True, exist_ok=True)
+    snapshots.symlink_to(outside, target_is_directory=True)
+    ids = [f"{index:012x}" for index in range(HISTORY_ENTRY_LIMIT + 1)]
+    project.history = ProjectHistory(
+        cursor=len(ids) - 1,
+        entries=[
+            HistoryEntry(
+                id=entry_id, label="edit", snapshot_file=f"history/snapshots/{entry_id}.json"
+            )
+            for entry_id in ids
+        ],
+    )
+
+    with caplog.at_level("WARNING"):
+        store.commit(project)
+
+    assert outside_snapshot.read_text(encoding="utf-8") == '{"keep": true}'
+    assert "Skipping pruned history snapshots outside project workspace" in caplog.text
 
 
 def _index(*ids: str) -> dict:
