@@ -748,6 +748,107 @@ def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> No
     assert not any(r["code"] == "digital_silence" for r in result["reasons"])
 
 
+def test_suggest_reports_health_then_silence_progress(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+    from podcast_mcp.util.progress import (
+        RecordingProgress,
+        current_progress_task,
+        progress_task,
+        resolve_progress_task,
+    )
+
+    def fake_analyze(project, *, policy=None, progress=None):
+        task = current_progress_task()
+        assert task is not None
+        assert task.task_id == "analyze_health"
+        with resolve_progress_task(
+            "analyze-cleanup", "Running cleanup analysis", total=2, prefer_parent=True
+        ) as inner:
+            inner.advance(1)
+            inner.advance(1)
+        return {"tracks": []}
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.asr_silence.digital_silence_fraction",
+        lambda path, *, peak_dbfs: 0.2,
+    )
+
+    host_wav = tmp_path / "host.wav"
+    guest_wav = tmp_path / "guest.wav"
+    host_wav.write_bytes(b"\x00")
+    guest_wav.write_bytes(b"\x00")
+
+    project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+    for tid, path in (
+        ("host", host_wav),
+        ("guest", guest_wav),
+        ("missing", tmp_path / "missing.wav"),
+    ):
+        project.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=str(path), duration_sec=10.0),
+            )
+        )
+
+    rec = RecordingProgress()
+    with progress_task("pipeline_analyze_tool", "Pipeline analyze", reporter=rec):
+        suggest_pipeline_tuning(project)
+
+    phases = [
+        e.phase
+        for e in rec.events
+        if e.kind == "message" and e.task_id == "pipeline_analyze_tool" and e.phase
+    ]
+    assert phases == ["health", "digital_silence"]
+
+    def _first(task_id: str, kind: str) -> int:
+        return next(i for i, e in enumerate(rec.events) if e.task_id == task_id and e.kind == kind)
+
+    health_start = _first("analyze_health", "start")
+    health_end = _first("analyze_health", "end")
+    silence_start = _first("analyze_silence", "start")
+    silence_end = _first("analyze_silence", "end")
+    assert health_start < health_end < silence_start < silence_end
+
+    health_updates = [e for e in rec.events if e.task_id == "analyze_health" and e.kind == "update"]
+    assert health_updates[-1].current == 2
+    assert health_updates[-1].total == 2
+
+    silence_updates = [
+        e for e in rec.events if e.task_id == "analyze_silence" and e.kind == "update"
+    ]
+    assert silence_updates[-1].current == 3
+    assert silence_updates[-1].total == 3
+    assert silence_updates[-1].message == "Scanned missing (3/3)"
+
+
+def test_suggest_progress_standalone_without_parent(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+    from podcast_mcp.util.progress import RecordingProgress, bind_progress
+
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_cleanup",
+        lambda project, *, policy=None, progress=None: {"tracks": []},
+    )
+    project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+
+    rec = RecordingProgress()
+    with bind_progress(rec):
+        suggest_pipeline_tuning(project)
+
+    starts = [e.task_id for e in rec.events if e.kind == "start"]
+    ends = [e.task_id for e in rec.events if e.kind == "end"]
+    assert "pipeline_analyze" in starts
+    assert "pipeline_analyze" in ends
+
+
 @pytest.mark.parametrize("field", PARAM_FIELDS, ids=lambda f: f.path)
 def test_param_field_default_matches_yaml(field) -> None:
     assert get_by_path(load_defaults(), field.path) == field.default
