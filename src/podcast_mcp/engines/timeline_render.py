@@ -19,7 +19,9 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # fade/crossfade semantics, gap handling). ``track_render_hash`` includes it so
 # cached stems and play segments rendered under older rules go stale.
 # 2: sub-tolerance (<= JOIN_GAP_TOLERANCE_SEC) gaps on CROSSFADE joins now crossfade.
-RENDER_SEMANTICS_REV = 2
+# 3: a cut is per join; the next clip's cut drops the left clip's fade-out (a clip's
+#    own cut join no longer drops its fade-out).
+RENDER_SEMANTICS_REV = 3
 
 
 def resolve_clip_audio_path(
