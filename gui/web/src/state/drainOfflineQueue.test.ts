@@ -24,6 +24,17 @@ const cmd = (id: string): QueuedCommand => ({
 });
 
 describe("drainHostOfflineQueue", () => {
+  it("requestHostDrain publishes its run until it settles", async () => {
+    const path = "/projects/published.project.json";
+    hostQueue.mockResolvedValue([]);
+    const { requestHostDrain } = await import("./drainOfflineQueue");
+    const { activeHostDrain } = await import("./hostSendOrder");
+    const run = requestHostDrain(path);
+    expect(activeHostDrain(path)).toBe(run);
+    await run;
+    await vi.waitFor(() => expect(activeHostDrain(path)).toBeNull());
+  });
+
   it("stops at this tab's in-flight send and drains again once it settles", async () => {
     const path = "/projects/episode.project.json";
     const { beginHostSend } = await import("./hostSendOrder");

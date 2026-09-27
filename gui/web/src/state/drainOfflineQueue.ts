@@ -1,7 +1,11 @@
 import { submitDocumentCommand } from "../api";
 import { shareProjectKey } from "../shareMode";
 import { isClientRejection, isRetryLater } from "../utils/apiError";
-import { hostSendDone, hostSendsFinished } from "./hostSendOrder";
+import {
+  hostSendDone,
+  hostSendsFinished,
+  trackHostDrain,
+} from "./hostSendOrder";
 import {
   loadCommandQueue,
   loadHostCommandQueue,
@@ -126,5 +130,6 @@ export function requestHostDrain(projectPath: string): Promise<void> {
       hostDrainRuns.delete(projectPath);
     }
   })();
+  trackHostDrain(projectPath, run.done);
   return run.done;
 }

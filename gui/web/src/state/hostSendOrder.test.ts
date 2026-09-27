@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  activeHostDrain,
   beginHostSend,
   hostSendDone,
   hostSendsFinished,
+  trackHostDrain,
 } from "./hostSendOrder";
 
 describe("hostSendOrder", () => {
@@ -35,6 +37,42 @@ describe("hostSendOrder", () => {
       await expect(within).resolves.toBe(false);
       first.finish();
       second.finish();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("earlierWithin also waits for the host drain run in progress", async () => {
+    let finishDrain!: () => void;
+    trackHostDrain(
+      "/d",
+      new Promise<void>((r) => {
+        finishDrain = r;
+      }),
+    );
+    const send = beginHostSend("/d", "a");
+    let settled = false;
+    const within = send.earlierWithin(1000).then((v) => {
+      settled = true;
+      return v;
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(settled).toBe(false);
+    finishDrain();
+    await expect(within).resolves.toBe(true);
+    expect(activeHostDrain("/d")).toBeNull();
+    send.finish();
+  });
+
+  it("earlierWithin gives up on a drain that outlasts ms", async () => {
+    vi.useFakeTimers();
+    try {
+      trackHostDrain("/e", new Promise<void>(() => undefined));
+      const send = beginHostSend("/e", "a");
+      const within = send.earlierWithin(1000);
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(within).resolves.toBe(false);
+      send.finish();
     } finally {
       vi.useRealTimers();
     }
