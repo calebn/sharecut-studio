@@ -453,7 +453,11 @@ describe("TimelineView lane fit", () => {
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
-    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+    useDawStore.setState({
+      laneHeightMode: "fixed",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: null,
+    });
   });
 
   const laneHeightVar = (container: HTMLElement) =>
@@ -473,6 +477,23 @@ describe("TimelineView lane fit", () => {
       ro.targets.includes(scroller as Element),
     );
     expect(watching).toHaveLength(1);
+  });
+
+  it("publishes the drawn lane height and clears it on unmount", () => {
+    const { unmount } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    expect(useDawStore.getState().drawnLaneHeightPx).toBe(150);
+
+    act(() =>
+      useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 }),
+    );
+    expect(useDawStore.getState().drawnLaneHeightPx).toBe(104);
+
+    unmount();
+    expect(useDawStore.getState().drawnLaneHeightPx).toBeNull();
   });
 
   it("renders the stage edges after the scroller, over the lane floor (#387)", () => {

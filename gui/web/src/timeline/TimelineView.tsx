@@ -417,6 +417,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         FIT_GUTTER,
       trackCount: inputs.trackCount,
     });
+    useDawStore.getState().setDrawnLaneHeightPx(next);
     if (next !== fittedLaneHeightRef.current) {
       fittedLaneHeightRef.current = next;
       setFittedLaneHeight(next);
@@ -523,10 +524,15 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setTimelineViewportWidth,
   ]);
 
-  // Unmounting (shell switch, project close) drops the measured width, so the
-  // next timeline's first render uses the shell estimate, not a stale width.
+  // Unmounting (shell switch, project close) drops the measured width and
+  // drawn lane height, so the next timeline's first render uses the shell
+  // estimate and a height step falls back to the saved fixed px.
   useLayoutEffect(
-    () => () => useDawStore.getState().resetTimelineViewportWidth(),
+    () => () => {
+      const s = useDawStore.getState();
+      s.resetTimelineViewportWidth();
+      s.setDrawnLaneHeightPx(null);
+    },
     [],
   );
 
