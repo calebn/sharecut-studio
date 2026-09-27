@@ -91,6 +91,8 @@ beyond VAD, safer decoding and the `suspect_hallucination` flag (#521; CTC scori
 
 `export_qc.json`'s `timebase` block also carries `stacked_clips`: any pair of clips on the same lane that read the same media file and overlap on the timeline (`same_source_timeline_overlaps`, #520) is a hard `timebase.issues` entry — the pair would play the same audio twice. `podcast doctor` reports the same stacks as warnings.
 
+`timebase` counts words outside every clip's source range as `unmapped_words`, a hard issue. Whisper's zero-length words (`end <= start`) map as points. Those that land on the timeline are `zero_length_words` with a `timebase.warnings` entry (an ASR timing flag that does not flip `ok`, #621). Plain `max_drift_sec` after ripple cuts is a warning. Misalignment between tracks is the `alignment` block's hard issue (#519), and same-source stacks are hard issues (#520).
+
 CLI/MCP: `podcast align status|brief|done|waive` / `align_*_tool`. Skill: **podcast-align-audio**.
 
 Each step returns a short human-readable **summary** (counts of tracks, cuts, suppressions, QC issues, etc.). The runner stores it on `PipelineStepLog.message` and surfaces it in CLI `--json-progress` (`Completed {step}: {summary}`) and the DAW Pipeline tab. Intra-step phases use the shared progress framework ([progress.md](progress.md)) — engines called from steps pick up the bound reporter via `resolve_progress()`.

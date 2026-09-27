@@ -363,6 +363,7 @@ def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, w
             track_id="host",
             words=[
                 TranscriptWord(text="hello", start=0.0, end=0.4),
+                TranscriptWord(text="uh", start=0.5, end=0.5),  # Whisper zero-duration word
             ],
         )
     ]
@@ -377,6 +378,8 @@ def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, w
     assert qc["reconciliation"]["stale"] is False
     assert qc["issues"] == []
     assert qc["ok"] is True
+    assert qc["timebase"]["tracks"]["host"]["zero_length_words"] == 1
+    assert "unmapped_words" not in qc["timebase"]["tracks"]["host"]
 
 
 def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):

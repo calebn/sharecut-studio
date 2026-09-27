@@ -377,7 +377,17 @@ class SessionTimeline:
 
     def source_to_timeline(self, track_id: str, sec: SourceSec) -> TimelineSec | None:
         """Timeline position of a source second, or None if the material was cut."""
+        return self._source_point(self._index(track_id), sec)
+
+    def map_source_points(
+        self, track_id: str, secs: Sequence[SourceSec]
+    ) -> list[TimelineSec | None]:
+        """Map a snapshot batch of source points against one fresh clip index."""
         idx = self._index(track_id)
+        return [self._source_point(idx, sec) for sec in secs]
+
+    @staticmethod
+    def _source_point(idx: _TrackIndex | None, sec: SourceSec) -> TimelineSec | None:
         if idx is None:
             return TimelineSec(float(sec))
         best: float | None = None
@@ -584,9 +594,11 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
     """Per-track drift, unmapped transcript words and stacked clips for export/doctor QC.
 
     Source/timeline drift after cuts is expected on edited episodes - reported as
-    ``warnings``, not a ship-blocker. Unmapped transcript words (wrong clock or
-    cut-away) and same-source timeline stacks (stacked copies play twice, see #520)
-    remain hard ``issues``.
+    ``warnings``, not a ship-blocker. Zero-length ASR words (``end <= start``, common in
+    Whisper output) map as points; ones that land on the timeline are counted as
+    ``zero_length_words`` with a warning (ASR timing flag, #621). Unmapped transcript
+    words (wrong clock or cut-away) and same-source timeline stacks (stacked copies play
+    twice, see #520) remain hard ``issues``.
     """
     st = SessionTimeline(project)
     tracks: dict[str, dict[str, float | int]] = {}
@@ -607,17 +619,24 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
             )
 
     for tr in project.transcripts:
-        unmapped = 0
         words = [w for w in tr.words if not w.suppressed]
+        spans = [w for w in words if w.end > w.start + _EPS]
+        points = [w for w in words if w.end <= w.start + _EPS]
         mapped = st.map_source_spans(
-            tr.track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
+            tr.track_id, [(SourceSec(w.start), SourceSec(w.end)) for w in spans]
         )
-        for spans in mapped:
-            if not spans:
-                unmapped += 1
+        point_hits = st.map_source_points(tr.track_id, [SourceSec(w.start) for w in points])
+        unmapped = sum(1 for m in mapped if not m) + sum(1 for p in point_hits if p is None)
+        zero_length = sum(1 for p in point_hits if p is not None)
+        tinfo = tracks.setdefault(tr.track_id, {"max_drift_sec": st.max_drift(tr.track_id)})
+        if zero_length:
+            tinfo["zero_length_words"] = zero_length
+            warnings.append(
+                f"Track {tr.track_id!r}: {zero_length} transcript word(s) have zero ASR "
+                "duration (end <= start); mapped as points - an ASR timing flag, not unmapped"
+            )
         if unmapped:
-            tracks.setdefault(tr.track_id, {"max_drift_sec": st.max_drift(tr.track_id)})
-            tracks[tr.track_id]["unmapped_words"] = unmapped
+            tinfo["unmapped_words"] = unmapped
             issues.append(
                 f"Track {tr.track_id!r}: {unmapped} transcript word(s) fall outside "
                 "clip source ranges (may be cut away or stored in wrong clock)"

@@ -65,13 +65,15 @@ pipeline) and before telling the user the episode is ready.** If `ok` is `false`
   with reconciliation enabled) and re-export; see
   [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md).
 - A `master_qc` issue — see the loudness QC section above.
-- Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words.
+- Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words. (Whisper's zero-length words are not unmapped: they appear as `timebase.tracks.<id>.zero_length_words` with a warning and do not flip `ok`.)
 - A stacked-clip issue in `timebase.issues` (`timebase.stacked_clips`) — two clips on the same lane read the same source and overlap on the timeline, so it plays twice; delete or trim one of the pair, or re-run `align_tracks` (#520).
 - An `alignment` issue - a clip sits more than the align threshold off the reference clock, an `unconfirmed_hold` candidate is still pending, or the align artifact is unreadable, and no person accepted the alignment (after a stale accept, only clips that moved more than the threshold since `align done` count). Use `podcast-align-audio`: listen, nudge, `align done`.
 
 Plain source/timeline **drift** after edits is expected; it appears under `warnings` /
-`timebase.warnings` and does **not** flip `ok` by itself. Relative align drift above
-`align.large_move_sec` without a person's accept is an issue (`alignment.issues`).
+`timebase.warnings` and does **not** flip `ok` by itself. Zero-length ASR words that map
+onto the timeline are also a `timebase.warnings` entry (`zero_length_words`), not a drift
+issue. Relative align drift above `align.large_move_sec` without a person's accept is an
+issue (`alignment.issues`).
 
 This check is non-blocking by design (matches `master_qc.json`) — it reports, it
 doesn't raise, so an agent decides whether to re-run steps or ship as-is.

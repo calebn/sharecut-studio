@@ -296,6 +296,92 @@ def test_timebase_qc_unmapped_words(tmp_path):
     assert any("outside clip source" in i for i in report["issues"])
 
 
+def test_timebase_qc_zero_length_words_are_timing_flags(tmp_path):
+    p = _project(
+        tmp_path,
+        [
+            Clip(
+                id="c1",
+                track_id="host",
+                source_start=0.0,
+                source_end=60.0,
+                timeline_start=0.0,
+            ),
+            Clip(
+                id="c2",
+                track_id="host",
+                source_start=90.0,
+                source_end=200.0,
+                timeline_start=60.0,
+            ),
+        ],
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=10.0, end=10.0),  # kept, zero-length
+                TranscriptWord(text="b", start=95.0, end=94.9),  # kept, inverted
+                TranscriptWord(text="c", start=70.0, end=70.0),  # zero-length in cut gap
+            ],
+        )
+    ]
+    report = timebase_qc_report(p)
+    host = report["tracks"]["host"]
+    assert host["zero_length_words"] == 2
+    assert host["unmapped_words"] == 1
+    assert any("zero ASR duration" in w for w in report["warnings"])
+    assert sum("outside clip source" in i for i in report["issues"]) == 1
+
+
+def test_timebase_qc_zero_length_words_alone_stay_ok(tmp_path):
+    p = _project(
+        tmp_path,
+        [
+            Clip(
+                id="c1",
+                track_id="host",
+                source_start=0.0,
+                source_end=60.0,
+                timeline_start=0.0,
+            )
+        ],
+    )
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="uh", start=5.0, end=5.0)])
+    ]
+    report = timebase_qc_report(p)
+    assert report["ok"] is True
+    assert "unmapped_words" not in report["tracks"]["host"]
+    assert report["tracks"]["host"]["zero_length_words"] == 1
+
+
+def test_map_source_points_matches_source_to_timeline(tmp_path):
+    p = _project(
+        tmp_path,
+        [
+            Clip(
+                id="c1",
+                track_id="host",
+                source_start=0.0,
+                source_end=60.0,
+                timeline_start=0.0,
+            ),
+            Clip(
+                id="c2",
+                track_id="host",
+                source_start=90.0,
+                source_end=200.0,
+                timeline_start=60.0,
+            ),
+        ],
+    )
+    st = SessionTimeline(p)
+    secs = [SourceSec(10.0), SourceSec(70.0), SourceSec(95.0)]
+    assert st.map_source_points("host", secs) == [st.source_to_timeline("host", s) for s in secs]
+    assert st.map_source_points("host", secs)[1] is None
+
+
 def test_indexes_parked_clip_by_origin_media(tmp_path):
     p = EpisodeProject.create("st_origin", str(tmp_path / "ws"))
     p.timeline.tracks = [
