@@ -94,8 +94,10 @@ into the limiter.
 `FFmpegEngine.mix_tracks(..., peak_ceiling_db=...)` sums to a 32-bit float temp file,
 measures its true peak, and trims the whole mix down (never up) so it peaks at or below
 `mix.premix_peak_ceiling_db` (default -1.0 dBTP). `bounce` shares the ceiling.
-`play_compose` and `audition_eval` sum at unity with no trim, so a preview window does
-not change level from window to window.
+`play_compose` uses the same ceiling on its own window, so a hot window is trimmed rather
+than clipped; a window that peaks under the ceiling plays at unity, the same as the premix
+before its whole-mix trim. `audition_eval.inject_hum_span` sums at unity on purpose (see
+its docstring).
 
 Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
 `mix_render_hash`.

@@ -906,8 +906,10 @@ def test_play_compose_adds_unbaked_gain_and_writes_atomic(
 
     mix_dests: list[str] = []
     gains: list[float] = []
+    ceilings: list[float | None] = []
 
-    def fake_mix(self, segments, dest):
+    def fake_mix(self, segments, dest, *, peak_ceiling_db=None):
+        ceilings.append(peak_ceiling_db)
         mix_dests.append(dest.name)
         gains.extend(g for _, g in segments)
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -920,6 +922,7 @@ def test_play_compose_adds_unbaked_gain_and_writes_atomic(
         ["host"], 0.0, 1.0, tier="processed", dry_run=True, publish_audition=False
     )
     assert gains == [6.0]
+    assert ceilings[0] == -1.0
     assert mix_dests and "partial" in mix_dests[0]
     assert "partial" not in result.wav_path.name
     assert result.wav_path.is_file()
