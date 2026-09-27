@@ -64,7 +64,7 @@ describe("GuestAttentionBannerView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("lists only the first 5 of 7 conflicts", () => {
+  it("lists only the first 5 of 7 conflicts plus a +2 more item", () => {
     const conflicts = Array.from({ length: 7 }, (_, i) =>
       offlineConflict({ command: { command_id: `cmd-${i}` } }),
     );
@@ -75,7 +75,25 @@ describe("GuestAttentionBannerView", () => {
         onDismissAll={vi.fn()}
       />,
     );
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(6);
+    expect(items[5]).toHaveTextContent("+2 more");
+    expect(screen.getByText("7 conflicts")).toBeInTheDocument();
+  });
+
+  it("shows no more item when exactly 5 conflicts fit", () => {
+    const conflicts = Array.from({ length: 5 }, (_, i) =>
+      offlineConflict({ command: { command_id: `cmd-${i}` } }),
+    );
+    render(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={conflicts}
+        onDismissAll={vi.fn()}
+      />,
+    );
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    expect(screen.queryByText(/more$/)).not.toBeInTheDocument();
   });
 
   it("uses the singular form for a single conflict", () => {

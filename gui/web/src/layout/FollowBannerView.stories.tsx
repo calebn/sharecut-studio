@@ -70,14 +70,25 @@ export const PhoneLongName: Story = {
   globals: recordMobileViewport.globals,
   args: { name: "Ada Lovelace Very Long Name" },
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelector(".daw-shell")).toHaveStyle({
-      width: "360px",
+    const shell = canvasElement.querySelector<HTMLElement>(".daw-shell");
+    const text = canvasElement.querySelector<HTMLElement>(
+      ".follow-banner-text",
+    );
+    const stop = within(canvasElement).getByRole("button", {
+      name: "Stop following",
     });
-    await expect(
-      canvasElement.querySelector(".follow-banner-text"),
-    ).toBeInTheDocument();
-    await expect(
-      within(canvasElement).getByRole("button", { name: "Stop following" }),
-    ).toBeInTheDocument();
+    await expect(shell).toBeInTheDocument();
+    await expect(text).toBeInTheDocument();
+    if (!shell || !text) return;
+    // jsdom (src/test/allStories.test.tsx) has no layout engine, so the
+    // truncation and fit checks only run in a real Storybook browser.
+    const shellRect = shell.getBoundingClientRect();
+    if (shellRect.width === 0) return;
+    // The long name truncates (ellipsis) instead of widening the banner…
+    await expect(text.scrollWidth).toBeGreaterThan(text.clientWidth);
+    // …so Stop following stays inside the 360px shell.
+    await expect(stop.getBoundingClientRect().right).toBeLessThanOrEqual(
+      shellRect.right,
+    );
   },
 };
