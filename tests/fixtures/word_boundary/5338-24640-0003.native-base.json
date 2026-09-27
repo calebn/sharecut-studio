@@ -1,0 +1,84 @@
+{
+  "fixture_id": "5338-24640-0003",
+  "audio_sha256": "d2b567b7853955bea08f40f19fcf258eeaed9b4c95a3848065356dcf3ef53f87",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 7",
+  "prediction_source": "faster-whisper:base",
+  "runtime_sec": 1.8348982910392806,
+  "metrics": {
+    "reference_words": 15,
+    "predicted_words": 13,
+    "matched_words": 11,
+    "missed_reference_words": 4,
+    "extra_predicted_words": 2,
+    "boundary_mae_ms": 102.7272727272726,
+    "words_over_150ms": 3,
+    "words_over_150ms_fraction": 0.2727272727272727
+  },
+  "words": [
+    {
+      "text": "Mr.",
+      "start": 0.0,
+      "end": 0.78
+    },
+    {
+      "text": "Morton",
+      "start": 0.88,
+      "end": 1.1
+    },
+    {
+      "text": "seemed",
+      "start": 1.1,
+      "end": 1.32
+    },
+    {
+      "text": "particularly",
+      "start": 1.32,
+      "end": 2.06
+    },
+    {
+      "text": "struck",
+      "start": 2.06,
+      "end": 2.58
+    },
+    {
+      "text": "with",
+      "start": 2.58,
+      "end": 2.8
+    },
+    {
+      "text": "the",
+      "start": 2.8,
+      "end": 2.94
+    },
+    {
+      "text": "account",
+      "start": 2.94,
+      "end": 3.2
+    },
+    {
+      "text": "of",
+      "start": 3.2,
+      "end": 3.44
+    },
+    {
+      "text": "Waverly's",
+      "start": 3.44,
+      "end": 4.0
+    },
+    {
+      "text": "visit",
+      "start": 4.0,
+      "end": 4.28
+    },
+    {
+      "text": "to",
+      "start": 4.28,
+      "end": 4.5
+    },
+    {
+      "text": "Donald",
+      "start": 4.5,
+      "end": 4.84
+    }
+  ]
+}

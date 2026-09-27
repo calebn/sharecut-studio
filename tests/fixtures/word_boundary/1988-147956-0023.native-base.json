@@ -1,0 +1,79 @@
+{
+  "fixture_id": "1988-147956-0023",
+  "audio_sha256": "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 2",
+  "prediction_source": "faster-whisper:base",
+  "runtime_sec": 19.52734604210127,
+  "metrics": {
+    "reference_words": 12,
+    "predicted_words": 12,
+    "matched_words": 11,
+    "missed_reference_words": 1,
+    "extra_predicted_words": 1,
+    "boundary_mae_ms": 78.63636363636361,
+    "words_over_150ms": 5,
+    "words_over_150ms_fraction": 0.45454545454545453
+  },
+  "words": [
+    {
+      "text": "Antonya",
+      "start": 0.5399999999999996,
+      "end": 1.02
+    },
+    {
+      "text": "pointed",
+      "start": 1.02,
+      "end": 1.26
+    },
+    {
+      "text": "up",
+      "start": 1.26,
+      "end": 1.48
+    },
+    {
+      "text": "to",
+      "start": 1.48,
+      "end": 1.68
+    },
+    {
+      "text": "the",
+      "start": 1.68,
+      "end": 1.8
+    },
+    {
+      "text": "sky",
+      "start": 1.8,
+      "end": 2.08
+    },
+    {
+      "text": "and",
+      "start": 2.08,
+      "end": 2.5
+    },
+    {
+      "text": "questioned",
+      "start": 2.5,
+      "end": 2.86
+    },
+    {
+      "text": "me",
+      "start": 2.86,
+      "end": 3.1
+    },
+    {
+      "text": "with",
+      "start": 3.1,
+      "end": 3.26
+    },
+    {
+      "text": "her",
+      "start": 3.26,
+      "end": 3.36
+    },
+    {
+      "text": "glance.",
+      "start": 3.36,
+      "end": 3.62
+    }
+  ]
+}

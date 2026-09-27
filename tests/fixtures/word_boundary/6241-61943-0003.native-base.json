@@ -1,0 +1,124 @@
+{
+  "fixture_id": "6241-61943-0003",
+  "audio_sha256": "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 6",
+  "prediction_source": "faster-whisper:base",
+  "runtime_sec": 2.597821707953699,
+  "metrics": {
+    "reference_words": 21,
+    "predicted_words": 21,
+    "matched_words": 20,
+    "missed_reference_words": 1,
+    "extra_predicted_words": 1,
+    "boundary_mae_ms": 72.99999999999996,
+    "words_over_150ms": 7,
+    "words_over_150ms_fraction": 0.35
+  },
+  "words": [
+    {
+      "text": "My",
+      "start": 0.0,
+      "end": 0.52
+    },
+    {
+      "text": "uncle",
+      "start": 0.52,
+      "end": 0.74
+    },
+    {
+      "text": "was",
+      "start": 0.74,
+      "end": 0.96
+    },
+    {
+      "text": "delighted.",
+      "start": 0.96,
+      "end": 1.36
+    },
+    {
+      "text": "For",
+      "start": 1.9,
+      "end": 2.02
+    },
+    {
+      "text": "myself,",
+      "start": 2.02,
+      "end": 2.38
+    },
+    {
+      "text": "Moody",
+      "start": 2.98,
+      "end": 3.22
+    },
+    {
+      "text": "and",
+      "start": 3.22,
+      "end": 3.38
+    },
+    {
+      "text": "dissatisfied,",
+      "start": 3.38,
+      "end": 4.06
+    },
+    {
+      "text": "I",
+      "start": 4.54,
+      "end": 4.68
+    },
+    {
+      "text": "appeared",
+      "start": 4.68,
+      "end": 4.92
+    },
+    {
+      "text": "almost",
+      "start": 4.92,
+      "end": 5.24
+    },
+    {
+      "text": "to",
+      "start": 5.24,
+      "end": 5.48
+    },
+    {
+      "text": "expect",
+      "start": 5.48,
+      "end": 5.78
+    },
+    {
+      "text": "that",
+      "start": 5.78,
+      "end": 6.0
+    },
+    {
+      "text": "glimpse",
+      "start": 6.0,
+      "end": 6.2
+    },
+    {
+      "text": "of",
+      "start": 6.2,
+      "end": 6.38
+    },
+    {
+      "text": "the",
+      "start": 6.38,
+      "end": 6.48
+    },
+    {
+      "text": "ghost",
+      "start": 6.48,
+      "end": 6.72
+    },
+    {
+      "text": "of",
+      "start": 6.72,
+      "end": 6.92
+    },
+    {
+      "text": "Hamlet.",
+      "start": 6.92,
+      "end": 7.28
+    }
+  ]
+}

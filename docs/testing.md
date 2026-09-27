@@ -601,3 +601,34 @@ Rate limits (host + relay): `tests/test_rate_limit.py`.
 ## Lowering the threshold
 
 Only change `fail_under` in `pyproject.toml` with team agreement. Prefer adding tests over lowering the bar.
+## Word-boundary benchmark
+
+The real-speech reference fixture and its attribution are in
+`tests/fixtures/word_boundary/README.md`. Three LibriSpeech `dev-clean` clips
+have published MFA-generated word boundaries. They are a consistent reference,
+not manually audited ground truth. Run the native baseline for each `*.gold.json`
+with the locally cached faster-whisper `base` model:
+
+```bash
+.venv/bin/python scripts/benchmark_word_boundaries.py \
+  --gold tests/fixtures/word_boundary/1988-147956-0023.gold.json \
+  --native-model base --output /tmp/1988-native.json
+```
+
+Use `--prediction candidate.json` instead of `--native-model base` for another
+aligner on the **same** audio; the candidate file contains the audio SHA-256
+and an ordered `words` array of text/start/end objects. The script checks both
+the gold fixture and candidate hashes against the audio
+SHA-256, preserves predicted words and provenance in the report, and never
+downloads a model. Scores count only normalized matching words in sequence.
+Report missed/extra words alongside boundary MAE (mean absolute start and end
+error) and the fraction of matched words with either boundary off by >150 ms.
+
+The checked-in `*.native-base.json` reports measured 42 matching words across
+48 reference words: 82.3 ms boundary MAE, 15/42 (35.7%) over 150 ms, six
+missed and four extra words. The 24.0 s combined wall time includes three
+separate Python/model-start processes on the local CPU and is not a normalized
+inference-speed comparison. Before choosing a forced aligner, run at least two
+FOSS CPU candidates on these exact clips, record model/license/download size,
+CPU time and memory, and repeat on hand-audited conversational podcast speech.
+The benchmark does not alter production ASR timestamps or the pipeline.
