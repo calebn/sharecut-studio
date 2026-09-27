@@ -38,7 +38,7 @@ import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
-import { OverlayLegend } from "./OverlayLegend";
+import { LegendCheckbox, OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
 import { TransportFrame, TransportZone } from "./TransportFrame";
 import { TransportPlayControls } from "./TransportPlayControls";
@@ -88,6 +88,7 @@ export function TransportBar({
     setHighlightStaleRender,
     renderPreviewBusy,
     ingestBusy,
+    laneHeightMode,
   } = useDaw((s) => ({
     project: s.project,
     playheadSec: s.playheadSec,
@@ -106,7 +107,9 @@ export function TransportBar({
     setHighlightStaleRender: s.setHighlightStaleRender,
     renderPreviewBusy: s.renderPreviewBusy,
     ingestBusy: s.ingestBusy,
+    laneHeightMode: s.laneHeightMode,
   }));
+  const fitTracks = laneHeightMode === "fit";
   const { preference, setPreference } = useTheme();
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
@@ -250,9 +253,34 @@ export function TransportBar({
             Zoom +
           </CommandMenuItem>
         </div>
+        <div className="transport-controls" role="none">
+          <CommandMenuItem
+            commandId="view.trackHeightDecrease"
+            showShortcut={false}
+          >
+            Track height −
+          </CommandMenuItem>
+          <CommandMenuItem
+            commandId="view.trackHeightIncrease"
+            showShortcut={false}
+          >
+            Track height +
+          </CommandMenuItem>
+        </div>
+        <div className="overlay-legend" role="none">
+          <LegendCheckbox
+            menu
+            checked={fitTracks}
+            onChange={() =>
+              void execute("view.fitTracksHeight", {}, { skipWhen: true })
+            }
+          >
+            Fit tracks to window height
+          </LegendCheckbox>
+        </div>
         {!showFit ? (
           <CommandMenuItem commandId="view.fit" onSelect={close}>
-            Fit to window
+            Fit session width
           </CommandMenuItem>
         ) : null}
       </MenuSection>
@@ -415,10 +443,26 @@ export function TransportBar({
               bare
               commandId="view.fit"
               className="ui-control--compact transport-icon-btn fit-btn"
-              title="Fit session in view"
-              aria-label="Fit"
+              title="Fit session width"
+              aria-label="Fit session width"
             >
               <Icon name="fit" />
+            </CommandButton>
+          ) : null}
+          {showFit && !collapsed ? (
+            <CommandButton
+              bare
+              commandId="view.fitTracksHeight"
+              className="ui-control--compact transport-icon-btn fit-btn"
+              title={
+                fitTracks
+                  ? "Use a fixed track height"
+                  : "Fit tracks to window height"
+              }
+              aria-label="Fit tracks to window height"
+              aria-pressed={fitTracks}
+            >
+              <Icon name="fitHeight" />
             </CommandButton>
           ) : null}
           {showLayout ? <LayoutToggle /> : null}
@@ -432,7 +476,7 @@ export function TransportBar({
               className="transport-overflow ui-menu-root"
               trigger={menuTrigger(
                 "View",
-                "Layers, zoom, layout, and theme",
+                "Layers, zoom, track height, layout, and theme",
                 "layers",
               )}
             >

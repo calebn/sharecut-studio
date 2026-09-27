@@ -454,7 +454,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "view.fit",
     category: "view",
-    label: "Fit session in view",
+    label: "Fit session width",
     keys: ["\\"],
     bareKey: true,
     when: "timelineFocused",

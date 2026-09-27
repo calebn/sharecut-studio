@@ -259,7 +259,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "view.fit": {
     id: "view.fit",
     category: "view",
-    label: "Fit session in view",
+    label: "Fit session width",
     when: "timelineFocused",
     notes: "\\: timeline focused",
     breaksFollow: true,

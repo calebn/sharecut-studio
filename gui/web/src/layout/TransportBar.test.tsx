@@ -104,7 +104,9 @@ describe("TransportBar collapsed", () => {
     );
 
     expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Fit" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Fit session width" }),
+    ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
     const timecode = document.querySelector(".timecode");
     expect(timecode?.textContent).toBeTruthy();
@@ -126,13 +128,26 @@ describe("TransportBar collapsed", () => {
         <TransportBar compact showFit={false} />
       </DawProvider>,
     );
-    expect(screen.queryByRole("button", { name: "Fit" })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
-      within(screen.getByRole("menu")).getByRole("menuitem", {
-        name: "Fit to window",
+      screen.queryByRole("button", { name: "Fit session width" }),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", {
+        name: "Fit session width",
       }),
     ).toBeTruthy();
+    expect(
+      within(menu).queryByRole("button", {
+        name: "Fit tracks to window height",
+      }),
+    ).toBeNull();
+    expect(
+      within(menu).getByRole("menuitemcheckbox", {
+        name: "Fit tracks to window height",
+      }),
+    ).toHaveAttribute("aria-checked", "false");
   });
 
   it("keeps the open overflow menu accessible", async () => {
@@ -382,6 +397,78 @@ describe("TransportBar wide layout", () => {
 
   afterEach(() => {
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+  });
+
+  it("shows the track-height toggle following Fit, with aria-pressed and title from the mode", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    const { container } = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    const toggle = screen.getByRole("button", {
+      name: "Fit tracks to window height",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(toggle).toHaveAttribute("title", "Fit tracks to window height");
+
+    act(() => useDawStore.getState().toggleFitTracksHeight());
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveAttribute("title", "Use a fixed track height");
+    await expectNoA11yViolations(container);
+  });
+
+  it("checking the View-menu Fit tracks checkbox sets fit mode", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    const view = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    const checkbox = within(menu).getByRole("menuitemcheckbox", {
+      name: "Fit tracks to window height",
+    });
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+    await expectNoA11yViolations(view.container);
+    await userEvent.click(checkbox);
+    expect(useDawStore.getState().laneHeightMode).toBe("fit");
+    expect(
+      within(screen.getByRole("menu", { name: "View menu" })).getByRole(
+        "menuitemcheckbox",
+        { name: "Fit tracks to window height" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("Track height + steps the fixed height", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    await userEvent.click(
+      within(menu).getByRole("menuitem", { name: "Track height +" }),
+    );
+    expect(useDawStore.getState().laneHeightMode).toBe("fixed");
+    expect(useDawStore.getState().laneHeightPx).toBe(144);
   });
 
   it("groups the bar into start, center, and end zones", () => {

@@ -33,4 +33,10 @@ describe("Icon", () => {
       }
     },
   );
+
+  it("renders the fitHeight glyph", () => {
+    const { container } = render(<Icon name="fitHeight" />);
+    const svg = container.querySelector("svg");
+    expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
+  });
 });

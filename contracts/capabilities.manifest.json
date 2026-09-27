@@ -974,7 +974,7 @@
     },
     {
       "id": "daw.view.fit",
-      "label": "Fit session in view",
+      "label": "Fit session width",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -989,7 +989,7 @@
         "keyboard": "\\"
       },
       "omit": {},
-      "tooltip": "Fit session in view",
+      "tooltip": "Fit session width",
       "presence": {
         "cursor": "none",
         "follow": "look"

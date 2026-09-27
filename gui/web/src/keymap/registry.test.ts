@@ -303,7 +303,6 @@ describe("Alt chords", () => {
 
   it("displays and formats Alt+= / Alt+-", () => {
     const increase = keymapCommandById("view.trackHeightIncrease")!;
-    const decrease = keymapCommandById("view.trackHeightDecrease")!;
     expect(formatShortcutKeys(increase)).toBe("Alt+=");
     expect(displayShortcutKeys(increase, true)).toBe("⌥=");
     expect(displayShortcutKeys(increase, false)).toBe("Alt+=");

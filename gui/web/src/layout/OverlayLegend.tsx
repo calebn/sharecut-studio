@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { addChapter } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import type { LayerVisibility } from "../state/types";
@@ -10,6 +11,32 @@ const TOGGLES: { key: keyof LayerVisibility; label: string }[] = [
   { key: "showMarkers", label: "Markers" },
   { key: "showComments", label: "Comments" },
 ];
+
+/** A layer/legend checkbox row, shared by the overlay legend and menu-hosted toggles like Fit tracks to window height. */
+export function LegendCheckbox({
+  menu,
+  checked,
+  onChange,
+  children,
+}: {
+  menu?: boolean;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="overlay-legend-item">
+      <input
+        type="checkbox"
+        role={menu ? "menuitemcheckbox" : undefined}
+        aria-checked={menu ? checked : undefined}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      {children}
+    </label>
+  );
+}
 
 export function OverlayLegend({ menu = false }: { menu?: boolean }) {
   const { layers, setLayerVisible, projectPath, playheadSec, setSelection } =
@@ -29,16 +56,14 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
       aria-label={menu ? undefined : "Timeline layers"}
     >
       {TOGGLES.map(({ key, label }) => (
-        <label key={key} className="overlay-legend-item">
-          <input
-            type="checkbox"
-            role={menu ? "menuitemcheckbox" : undefined}
-            aria-checked={menu ? layers[key] : undefined}
-            checked={layers[key]}
-            onChange={(e) => setLayerVisible(key, e.target.checked)}
-          />
+        <LegendCheckbox
+          key={key}
+          menu={menu}
+          checked={layers[key]}
+          onChange={(checked) => setLayerVisible(key, checked)}
+        >
           {label}
-        </label>
+        </LegendCheckbox>
       ))}
       {hostEditable && layers.showMarkers && (
         <Button

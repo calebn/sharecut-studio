@@ -71,7 +71,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
 | Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |
-| Fit session in view | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |
+| Fit session width | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |
 | Switch editor tab | `view.setTab` | — (not industry-standard; tab click) | `tabBar` | — | — | — | — | anchor · look |
 | Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | `mobileNav` | — | — | — | — | anchor · look |
 | Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform` | — | — | — | — | time · look |
