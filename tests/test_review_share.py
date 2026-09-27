@@ -727,7 +727,7 @@ def test_guest_render_preview_returns_before_render_finishes(
     started = threading.Event()
     release = threading.Event()
 
-    def slow_preview(self, *, rerender=True, progress=None):
+    def slow_preview(self, *, rerender=True, progress=None, cancel_check=None):
         started.set()
         release.wait(timeout=5)
         return {"ok": True}
