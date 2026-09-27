@@ -41,11 +41,14 @@ The separate history index and transcript caches are rewritten only when their d
 contents differ; a missing or damaged mirror is repaired on the next commit. A project
 whose saved history is empty (never recorded, or a legacy `"history": null`) adopts
 `history/index.json` on load and commit only when the index's current entry snapshots the
-project's editable state (`project_store.history_matches_project`). An index whose current
+project's editable state (`project_store.match_history_to_project`). An index whose current
 entry holds other state was left by a commit that never landed, for example a process
 killed between `record(after)` and `save_project` (#576). It is ignored with a warning, the
 next commit rewrites it from the project's history, and its snapshots stay behind as
-harmless orphans.
+harmless orphans. The warning names the reason: a current entry that holds other state (a
+commit that never landed), a current snapshot that is missing or unreadable (damage or an
+out-of-band delete), or no current entry. Snapshots are compared in their saved JSON form
+(`project_store.snapshots_equal`).
 
 Pipeline run logs stay on the project file and are not reverted by undo (only editable layers).
 
