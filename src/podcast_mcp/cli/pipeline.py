@@ -7,8 +7,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.pipeline import PIPELINE_STEPS
-from podcast_mcp.services import PipelineService, ProjectWorkspace
+from podcast_mcp.services import PipelineRunResult, PipelineService, ProjectWorkspace
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
 
@@ -38,13 +37,18 @@ def pipeline_run(
         "--force",
         help="Re-run ASR even when transcripts exist (edited ones need an attended run)",
     ),
+    strict: bool = typer.Option(
+        False,
+        "--strict/--no-strict",
+        help="Exit 1 when this run exported and export_qc.json is not ok (opt-in until #621)",
+    ),
 ) -> None:
     from podcast_mcp.services.pipeline_config import transcribe_run_config
 
     config = transcribe_run_config({"align": {"realign": True}} if realign else None, force=force)
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
-    step = PipelineService(ws).run(
+    result = PipelineService(ws).run(
         from_step=from_step,
         only_step=only,
         skip_steps=skip_steps,
@@ -52,13 +56,50 @@ def pipeline_run(
         unattended=unattended,
         config=config,
     )
-    typer.echo(f"Pipeline complete. Last step: {step}")
+    _echo_run_report(result)
+    if strict and not result.ok:
+        typer.echo("Export QC is not ok; exiting 1 (--strict).", err=True)
+        raise typer.Exit(1)
+
+
+def _echo_run_report(result: PipelineRunResult) -> None:
+    for log in result.steps:
+        line = f"  {log.status:<5} {log.step}"
+        if log.message:
+            line = f"{line}: {log.message}"
+        typer.echo(line)
+    if result.export_qc is not None:
+        qc = result.export_qc
+        verdict = "ok" if qc.get("ok") else "FAILED"
+        issues = qc.get("issues") or []
+        warnings = qc.get("warnings") or []
+        typer.echo(
+            f"Export QC: {verdict} ({len(issues)} issues), "
+            f"{len(warnings)} warnings ({result.export_qc_path})"
+        )
+        for issue in issues:
+            typer.echo(f"  - {issue}")
+    typer.echo(f"Pipeline complete. Last step: {result.last_step}")
 
 
 @pipeline_app.command("list")
-def pipeline_list() -> None:
-    for name, _ in PIPELINE_STEPS:
-        typer.echo(name)
+def pipeline_list(
+    as_json: bool = typer.Option(False, "--json", help="Emit step states as JSON"),
+) -> None:
+    from podcast_mcp.services.pipeline_config import pipeline_step_states
+
+    rows = pipeline_step_states()
+    if as_json:
+        typer.echo(json.dumps(rows, indent=2))
+        return
+    for i, row in enumerate(rows):
+        if row["noop_reason"]:
+            state = f"no-op ({row['noop_reason']})"
+        elif row["enabled"]:
+            state = "enabled"
+        else:
+            state = "disabled"
+        typer.echo(f"{i + 1:>2}  {row['id']:<26} {row['kind']:<9} {state}")
 
 
 def render_preview_cmd(
