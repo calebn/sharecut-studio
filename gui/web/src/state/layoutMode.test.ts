@@ -19,7 +19,7 @@ describe("layoutMode store", () => {
     expect(st().activeTab).toBe("impact");
   });
 
-  it("opening a tab from the timeline layout restores the default layout", () => {
+  it("opening a tab the layout does not show restores the default layout", () => {
     const st = () => useDawStore.getState();
     st().hydrate("/tmp/p.json", minimalProject());
     st().setLayoutMode("timeline");
@@ -27,8 +27,42 @@ describe("layoutMode store", () => {
     expect(st().layoutMode).toBe("default");
     expect(st().activeTab).toBe("history");
     st().setLayoutMode("text");
-    st().setActiveTab("impact");
+    st().setActiveTab("transcript");
     expect(st().layoutMode).toBe("text");
+    st().setActiveTab("impact");
+    expect(st().layoutMode).toBe("default");
+    expect(st().activeTab).toBe("impact");
+    st().setLayoutMode("review");
+    st().setActiveTab("comments");
+    expect(st().layoutMode).toBe("review");
+    st().setActiveTab("pipeline");
+    expect(st().layoutMode).toBe("default");
+    expect(st().activeTab).toBe("pipeline");
+  });
+
+  it("leaving the timeline layout for a tab clears timeline focus", () => {
+    const st = () => useDawStore.getState();
+    st().hydrate("/tmp/p.json", minimalProject());
+    st().setLayoutMode("timeline");
+    expect(st().timelineFocused).toBe(true);
+    st().setActiveTab("history");
+    expect(st().timelineFocused).toBe(false);
+    expect(st().layoutMode).toBe("default");
+  });
+
+  it("entering comment mode restores a layout that hides Comments", () => {
+    const st = () => useDawStore.getState();
+    st().hydrate("/tmp/p.json", minimalProject());
+    useDawStore.setState({ commentMode: false });
+    st().setLayoutMode("text");
+    st().toggleCommentMode();
+    expect(st().activeTab).toBe("comments");
+    expect(st().layoutMode).toBe("default");
+    st().toggleCommentMode();
+    st().setLayoutMode("review");
+    st().toggleCommentMode();
+    expect(st().layoutMode).toBe("review");
+    st().toggleCommentMode();
     st().setLayoutMode("default");
   });
 

@@ -26,6 +26,13 @@ describe("layout and tab commands", () => {
     expect(useDawStore.getState().activeTab).toBe("comments");
   });
 
+  it("view.setTab keeps a layout that already shows the tab", async () => {
+    useDawStore.getState().setLayoutMode("review");
+    await execute("view.setTab", { tab: "comments" });
+    expect(useDawStore.getState().layoutMode).toBe("review");
+    useDawStore.getState().setLayoutMode("default");
+  });
+
   it("layout commands are disabled on the phone shell", async () => {
     useDawStore.setState({ shellBreakpoint: "phone" });
     const result = await execute("layout.timeline");
