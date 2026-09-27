@@ -44,12 +44,13 @@ import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ListenHero } from "./ListenHero";
-import { ListenScrubber, ListenTimecode } from "./ListenPlayhead";
+import { ListenScrubber } from "./ListenPlayhead";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
 import { TransportPlayControls } from "./TransportPlayControls";
+import { TransportTimecode } from "./TransportTimecode";
 import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
 
@@ -210,7 +211,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             {...transportPlayHandlers}
           />
         }
-        timecode={<ListenTimecode durationSec={duration} />}
+        timecode={<TransportTimecode durationSec={duration} />}
         scrubber={<ListenScrubber durationSec={duration} />}
         skipBack={
           <button

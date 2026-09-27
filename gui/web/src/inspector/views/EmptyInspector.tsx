@@ -1,6 +1,7 @@
 import { suggestPendingEdit } from "../../api";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
 import { canSuggestOrNudge } from "../../shareMode";
+import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
 import { Button } from "../../ui";
@@ -13,21 +14,14 @@ export function EmptyInspector({
   unmappable: PendingEditView[];
   onSelectPending: (edit: PendingEditView) => void;
 }) {
-  const {
-    project,
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    playheadSec,
-    sessionRegion,
-  } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-    playheadSec: s.playheadSec,
-    sessionRegion: s.sessionRegion,
-  }));
+  const { project, projectPath, guestMode, shareCapabilities, sessionRegion } =
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      sessionRegion: s.sessionRegion,
+    }));
   const canSuggest = canSuggestOrNudge(
     projectPath,
     guestMode,
@@ -42,6 +36,7 @@ export function EmptyInspector({
       return;
     }
     const clips = clipsForTrack(project.clips.tracks, dialogueTrack);
+    const playheadSec = useDawStore.getState().playheadSec;
     const tlStart = sessionRegion?.start_sec ?? Math.max(0, playheadSec);
     const tlEnd =
       sessionRegion?.end_sec ?? Math.max(tlStart + 1, playheadSec + 2);

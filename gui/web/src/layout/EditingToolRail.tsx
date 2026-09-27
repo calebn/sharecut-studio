@@ -8,21 +8,14 @@ import { ToolModeToggle } from "./ToolModeToggle";
 
 /** Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
 export function EditingToolRail() {
-  const {
-    toolMode,
-    commentMode,
-    playheadSec,
-    projectPath,
-    guestMode,
-    shareCapabilities,
-  } = useDaw((s) => ({
-    toolMode: s.toolMode,
-    commentMode: s.commentMode,
-    playheadSec: s.playheadSec,
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-  }));
+  const { toolMode, commentMode, projectPath, guestMode, shareCapabilities } =
+    useDaw((s) => ({
+      toolMode: s.toolMode,
+      commentMode: s.commentMode,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    }));
   const { allowed, busy, error, bladeConfirmSec, trackIdsForCut } =
     useBladeCut();
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
@@ -48,7 +41,6 @@ export function EditingToolRail() {
         {allowed && toolMode === "blade" && !commentMode ? (
           <CommandButton
             commandId="edit.bladeCut"
-            args={{ atTime: playheadSec }}
             disabled={busy}
             title="Split selected tracks at playhead"
           >
