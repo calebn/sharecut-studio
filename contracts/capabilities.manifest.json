@@ -1768,7 +1768,6 @@
           "crossfade_joins_tool",
           "set_clip_fade_tool",
           "set_join_mode_tool",
-          "set_clip_join_tool",
           "shorten_gaps_tool",
           "duplicate_segment_tool",
           "list_clips_tool",
@@ -2277,6 +2276,33 @@
       },
       "omit": {
         "keyboard_reason": "pointer fade handle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.setClipJoin",
+      "label": "Set clip join",
+      "tooltip": "How this clip meets the previous one: cut, fade or crossfade, with its length",
+      "service": "Sharecut Studio \u2192 SetClipJoin document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "command": "edit.setClipJoin",
+        "gui": [
+          "inspector.clip.joinMode"
+        ],
+        "mcp": [
+          "set_clip_join_tool"
+        ],
+        "cli": "podcast edit set-clip-join"
+      },
+      "omit": {
+        "keyboard_reason": "inspector select; no industry-standard key"
       },
       "presence": {
         "cursor": "time",

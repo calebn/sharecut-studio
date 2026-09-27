@@ -9,7 +9,7 @@ from typing import Literal
 
 import numpy as np
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -28,7 +28,7 @@ class InaudibleCutConfig:
     search_window_ms: int = 40
     max_shift_ms: int = 80
     min_word_margin_ms: int = 5
-    micro_fade_ms: int = 10
+    micro_fade_ms: int = DEFAULT_MICRO_FADE_MS
     weight_energy: float = 0.65
     weight_zero_cross: float = 0.2
     weight_continuity: float = 0.15
@@ -49,14 +49,15 @@ class InaudibleCutConfig:
 
     @classmethod
     def from_defaults(cls) -> InaudibleCutConfig:
-        cfg = load_defaults().get("inaudible_cuts", {})
+        defaults = load_defaults()
+        cfg = defaults.get("inaudible_cuts", {})
         w = cfg.get("weights", {})
         return cls(
             enabled=bool(cfg.get("enabled", True)),
             search_window_ms=int(cfg.get("search_window_ms", 40)),
             max_shift_ms=int(cfg.get("max_shift_ms", 80)),
             min_word_margin_ms=int(cfg.get("min_word_margin_ms", 5)),
-            micro_fade_ms=int(cfg.get("micro_fade_ms", 10)),
+            micro_fade_ms=join_micro_fade_ms(defaults),
             weight_energy=float(w.get("energy", 0.65)),
             weight_zero_cross=float(w.get("zero_cross", 0.2)),
             weight_continuity=float(w.get("continuity", 0.15)),

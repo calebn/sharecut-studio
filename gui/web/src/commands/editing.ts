@@ -319,6 +319,13 @@ export function registerClipMoveCommands(): void {
     };
   });
 
+  registerCommand("edit.setClipJoin", () => {
+    return {
+      status: "disabled",
+      reason: "Use the Join control in the clip inspector",
+    };
+  });
+
   registerCommand("edit.moveClips", async (args) => {
     return enqueueTrackMutate(async () => {
       const s = useDawStore.getState();

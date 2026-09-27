@@ -166,7 +166,7 @@ An Approve click made while another live host command from the same tab (or this
 
 ### Clip join fields
 
-`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector sets a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only.
+`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector sets a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
 
 ### Layout (Reaper-style)
 

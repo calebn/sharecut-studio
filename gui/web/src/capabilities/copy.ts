@@ -369,6 +369,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Set clip fade",
     tooltip: "Drag to set fade length (distinct from trim)",
   },
+  "daw.edit.setClipJoin": {
+    label: "Set clip join",
+    tooltip:
+      "How this clip meets the previous one: cut, fade or crossfade, with its length",
+  },
   "daw.view.editBoundary": {
     label: "Edit boundary",
     tooltip: "Edit boundary glyph (Annotate)",
@@ -426,6 +431,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
+  "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "transcript.cutAwayWord": "daw.view.cutAwayWord",
 };
 

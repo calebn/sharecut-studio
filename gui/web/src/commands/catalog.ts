@@ -491,6 +491,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes: "Pointer fade handles on clip blocks",
   },
+  "edit.setClipJoin": {
+    id: "edit.setClipJoin",
+    category: "edit",
+    label: "Set clip join",
+    when: "canApplyPass12",
+    paletteRunnable: false,
+    notes: "Join mode select and Apply length in the clip inspector",
+  },
   "edit.moveClips": {
     id: "edit.moveClips",
     category: "edit",
