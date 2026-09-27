@@ -304,11 +304,13 @@ def _track_media_path(project: EpisodeProject, track: Track) -> Path:
     return path if path.is_absolute() else project.workspace_path() / path
 
 
-def _kept_speech_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float, float]]:
+def _kept_speech_intervals(
+    project: EpisodeProject, track_id: str
+) -> list[tuple[float, float]] | None:
     """The track's non-suppressed word spans that its own-media clips keep on the timeline.
 
-    Words in material focus/tighten cut don't count. With no clips (or no overlap) every
-    word counts.
+    Words in material focus/tighten cut don't count. With no words or no own-media clips
+    every word counts. None when the clips keep none of its words: nothing to stage.
     """
     from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.engines.transcript_gated_play import source_word_intervals
@@ -320,9 +322,9 @@ def _kept_speech_intervals(project: EpisodeProject, track_id: str) -> list[tuple
         for c in clips_for_track(project, track_id)
         if not c.source_id and c.source_end > c.source_start
     ]
-    if not kept:
+    if not speech or not kept:
         return speech
-    return intersect_intervals(speech, kept) or speech
+    return intersect_intervals(speech, kept) or None
 
 
 def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
@@ -330,7 +332,8 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 
     Measures the media through the track's processing chain (what the stem renders),
     gated to the track's non-suppressed transcript words that its clips keep, so bleed,
-    silence and cut material don't count.
+    silence and cut material don't count. A track whose clips keep none of its words
+    keeps its ``gain_db``.
     """
     from podcast_mcp.util.loudness import speech_gated_lufs
 
@@ -348,10 +351,15 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     ) as prog:
         prog.set_phase("measure", f"Measuring {len(jobs)} tracks after FX…")
         for done, (track, path) in enumerate(jobs, start=1):
+            speech = _kept_speech_intervals(project, track.id)
+            if speech is None:  # every word it spoke was cut: nothing on the timeline to stage
+                skipped.append(track.id)
+                prog.advance(1, message=f"Skipped {track.id}: no kept speech ({done}/{len(jobs)})")
+                continue
             chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
             # Envelope left out: its times are stem-clock mix automation, not level.
             blocks = eng.measure_loudness_blocks(path, eng.build_track_filter(chain, None))
-            measured = speech_gated_lufs(blocks, _kept_speech_intervals(project, track.id))
+            measured = speech_gated_lufs(blocks, speech)
             prog.advance(1, message=f"Measured {track.id} ({done}/{len(jobs)})")
             if measured.lufs is None:
                 skipped.append(track.id)
