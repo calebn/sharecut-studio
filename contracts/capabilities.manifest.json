@@ -1057,7 +1057,7 @@
         "command": "view.waveformZoomIn",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitude"
+          "transport.viewMenu.waveformAmplitudeIn"
         ],
         "keyboard": "ArrowUp"
       },
@@ -1081,7 +1081,7 @@
         "command": "view.waveformZoomOut",
         "gui": [
           "timeline.waveform",
-          "transport.viewMenu.waveformAmplitude"
+          "transport.viewMenu.waveformAmplitudeOut"
         ],
         "keyboard": "ArrowDown"
       },
