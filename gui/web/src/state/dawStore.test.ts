@@ -129,6 +129,16 @@ describe("dawStore listen-first transport", () => {
     expect(s().playStartSec).toBe(10);
   });
 
+  it("a seek while paused clears the play start", () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(10);
+    s().togglePlaying();
+    s().togglePlaying();
+    expect(s().playStartSec).toBe(10);
+    s().setPlayheadSec(30);
+    expect(s().playStartSec).toBeNull();
+  });
+
   it("beginAudition starts from the audition start", () => {
     useDawStore.getState().beginAudition({ playheadSec: 4, untilSec: 8 });
     expect(useDawStore.getState().playStartSec).toBe(4);

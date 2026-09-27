@@ -44,6 +44,21 @@ export function playStartPatch(
   return playing && !s.isPlaying ? { playStartSec: atSec } : {};
 }
 
+/** Where Stop leaves the playhead: the play start, clamped to the current timeline. */
+export function stopTargetSec(
+  s: Pick<DawStore, "playStartSec" | "playheadSec" | "project">,
+): number {
+  if (s.playStartSec == null) {
+    return s.playheadSec;
+  }
+  const end = s.project?.timeline_duration_sec;
+  const capped =
+    end != null && Number.isFinite(end)
+      ? Math.min(s.playStartSec, Math.max(0, end))
+      : s.playStartSec;
+  return Math.max(0, capped);
+}
+
 export const createTransportSlice: StateCreator<
   DawStore,
   [],
@@ -64,7 +79,11 @@ export const createTransportSlice: StateCreator<
   playAbFollowup: null as PlayAbFollowup | null,
   auditionEpoch: 0,
   audioError: null as string | null,
-  setPlayheadSec: (playheadSec) => set({ playheadSec }),
+  // A seek while stopped or paused is a new start: Stop no longer rewinds past it.
+  setPlayheadSec: (playheadSec) =>
+    set((s) =>
+      s.isPlaying ? { playheadSec } : { playheadSec, playStartSec: null },
+    ),
   setIsPlaying: (isPlaying) =>
     set((s) => ({
       isPlaying,
@@ -90,7 +109,8 @@ export const createTransportSlice: StateCreator<
   stopPlayback: () =>
     set((s) => ({
       isPlaying: false,
-      playheadSec: s.playStartSec ?? s.playheadSec,
+      playheadSec: stopTargetSec(s),
+      playStartSec: null,
     })),
   setAuditionMode: (auditionMode) =>
     set((s) => ({
