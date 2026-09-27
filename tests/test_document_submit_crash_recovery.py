@@ -1,5 +1,6 @@
 """A crash between the project commit and the journal INSERT/COMMIT still gets
-journaled by the next submit (#575)."""
+journaled by the next submit (#575). The kill is SIGKILL on POSIX and TerminateProcess
+on win32."""
 
 from __future__ import annotations
 
@@ -16,7 +17,15 @@ from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import document_db_path
 from podcast_mcp.services.session_sync.log import SyncStore
 
-pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="SIGKILL is not available on win32")
+# win32 has no SIGKILL: os.kill with any signal but CTRL_C/CTRL_BREAK_EVENT calls
+# TerminateProcess there (no Python cleanup either), with the signal number as exit code.
+_KILL = signal.SIGTERM if sys.platform == "win32" else signal.SIGKILL
+_KILLED_EXIT = int(_KILL) if sys.platform == "win32" else -int(_KILL)
+
+
+def _die() -> None:
+    os.kill(os.getpid(), _KILL)
+
 
 _CTX = mp.get_context("spawn")
 
@@ -50,13 +59,13 @@ def _submit_then_die(
         if stage == "after_project_commit":
             # The project commit (with document_sync.last_command) has already landed;
             # die before the journal write even starts.
-            os.kill(os.getpid(), signal.SIGKILL)
+            _die()
 
         real_apply_fn = kwargs["apply_fn"]
 
         def killing_apply_fn(snap, appended):
             # The INSERT has run inside the open transaction; die before COMMIT.
-            os.kill(os.getpid(), signal.SIGKILL)
+            _die()
             return real_apply_fn(snap, appended)  # pragma: no cover - never reached
 
         return real_append_and_apply(
@@ -72,7 +81,7 @@ def _run_crash(*args: object) -> None:
     proc = _CTX.Process(target=_submit_then_die, args=args)
     proc.start()
     proc.join(60)
-    assert proc.exitcode == -signal.SIGKILL
+    assert proc.exitcode == _KILLED_EXIT
 
 
 def _journal_rows(project_path) -> list[tuple[str, object]]:
