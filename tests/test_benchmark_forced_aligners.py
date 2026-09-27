@@ -165,11 +165,11 @@ def _fake_hub(candidate, *, sha=None, license=None, files=None, error=None):
     return SimpleNamespace(model_info=model_info)
 
 
-def _hub_error(cls):
+def _hub_error(cls, status=404):
     import httpx
 
     request = httpx.Request("GET", "https://huggingface.co/api/models/x/revision/y")
-    return cls(f"{cls.__name__} for url", response=httpx.Response(404, request=request))
+    return cls(f"{cls.__name__} for url", response=httpx.Response(status, request=request))
 
 
 def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
@@ -185,20 +185,45 @@ def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
 
 
 @pytest.mark.parametrize(
-    "error_name", ["RevisionNotFoundError", "RepositoryNotFoundError", "GatedRepoError"]
+    ("error_name", "status", "wording"),
+    [
+        ("RevisionNotFoundError", 404, "no longer resolves"),
+        ("RepositoryNotFoundError", 404, "no longer resolves"),
+        ("GatedRepoError", 401, "is gated: needs an HF token"),
+        ("HfHubHTTPError", 503, "could not verify"),
+        ("HfHubHTTPError", 429, "could not verify"),
+    ],
 )
-def test_verify_candidate_reports_unresolvable_revision(error_name) -> None:
+def test_verify_candidate_reports_hub_errors_by_kind(error_name, status, wording) -> None:
     import huggingface_hub.errors
 
     candidate = bfa.load_candidates(labels=["onnx-base"])[0]
-    error = _hub_error(getattr(huggingface_hub.errors, error_name))
+    error = _hub_error(getattr(huggingface_hub.errors, error_name), status=status)
 
     problems = bfa.verify_candidate(candidate, _fake_hub(candidate, error=error))
 
     assert len(problems) == 1
-    assert problems[0].startswith("onnx-base: revision ")
-    assert "no longer resolves" in problems[0]
+    assert problems[0].startswith("onnx-base: ")
+    assert wording in problems[0]
     assert error_name in problems[0]
+    if wording != "no longer resolves":
+        assert "no longer resolves" not in problems[0]
+
+
+def test_verify_candidate_reports_network_failures_without_aborting() -> None:
+    import httpx
+
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    request = httpx.Request("GET", "https://huggingface.co/api/models/x")
+    for error in (
+        httpx.ConnectError("refused", request=request),
+        httpx.ReadTimeout("slow", request=request),
+    ):
+        problems = bfa.verify_candidate(candidate, _fake_hub(candidate, error=error))
+        assert len(problems) == 1
+        assert "could not verify" in problems[0]
+        assert "no longer resolves" not in problems[0]
+        assert type(error).__name__ in problems[0]
 
 
 def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:

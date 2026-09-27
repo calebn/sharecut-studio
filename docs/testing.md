@@ -673,8 +673,11 @@ Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
 (Hugging Face repo + pinned revision + license). Nothing in CI checks those
 pins; run `uv run python scripts/benchmark_forced_aligners.py verify-candidates`
 (network, metadata only — no weights) before relying on them. It exits 1 and
-lists each candidate whose revision no longer resolves, whose model-card
-license differs, or whose pinned files are missing. The harness resolves each
+lists each candidate whose revision or repo no longer resolves, whose repo is
+gated (needs an HF token / accepted terms), whose model-card license differs,
+or whose pinned files are missing; a rate limit, Hub outage, timeout or
+connection error is reported as "could not verify" (the pin may be fine —
+retry) rather than as drift. The harness resolves each
 model with `snapshot_download(..., local_files_only=True)` and **never
 downloads**: an uncached model (a Hugging Face `LocalEntryNotFoundError`)
 raises `FileNotFoundError` naming the exact download command, which
