@@ -1,8 +1,9 @@
-import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { PresenceOverlayView } from "./PresenceOverlayView";
+import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
 /** Fixed instant so a Live/Stale story doesn't depend on the clock. */
 const NOW_MS = 1_800_000_000_000;
@@ -50,30 +51,20 @@ const project = minimalProject({
   },
 });
 
-/** Two production lanes stacked, so a remote cursor/selection has real rows to land on. */
-const presenceTwoLaneDecorator: Decorator = (Story, context) => {
-  const width = context.parameters.phoneWidth ? "360px" : "40rem";
-  return (
-    <main className="timeline-area" aria-label="Presence overlay preview">
-      <div className="lane-row" data-track-id="mira-voice" style={{ width }}>
-        <div
-          className="lane-inner"
-          style={{ width: "100%", position: "relative" }}
-        >
-          <Story />
-        </div>
-      </div>
-      <div className="lane-row" data-track-id="ari-voice" style={{ width }} />
-    </main>
-  );
-};
-
 const meta: Meta<typeof PresenceOverlayView> = {
   title: "Templates/PresenceOverlay",
   component: PresenceOverlayView,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
-  decorators: [presenceTwoLaneDecorator],
+  parameters: {
+    layout: "fullscreen",
+    lanePreviewLabel: "Presence overlay preview",
+    // Two lanes, so a remote cursor/selection has real rows to land on.
+    laneTrackIds: ["mira-voice", "ari-voice"],
+    // Room above the first lane for the playhead avatar chip, as the live
+    // ruler and marker rows give it.
+    reserveRulerRoom: true,
+  },
+  decorators: [timelineLaneStoryDecorator],
   args: {
     localClientId: "me",
     nowMs: NOW_MS,
@@ -115,6 +106,12 @@ export const PlayheadAndCursor: Story = {
     await expect(
       canvasElement.querySelector(".presence-cursor-tag"),
     ).toHaveTextContent("Ada");
+    await expect(
+      canvasElement.querySelector(".presence-playhead-chip"),
+    ).not.toBeNull();
+    await expect(
+      canvasElement.querySelector("[data-story-ruler-room]"),
+    ).not.toBeNull();
   },
 };
 
