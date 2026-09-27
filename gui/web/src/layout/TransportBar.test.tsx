@@ -441,6 +441,16 @@ describe("TransportBar wide layout", () => {
     expect(
       within(theme).getByRole("menuitemradio", { name: "System" }),
     ).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(
+      within(theme).getByRole("menuitemradio", { name: "Light" }),
+    );
+    expect(screen.getByRole("menu", { name: "View menu" })).toBeTruthy();
+    expect(
+      within(theme).getByRole("menuitemradio", { name: "Light" }),
+    ).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(
+      within(theme).getByRole("menuitemradio", { name: "System" }),
+    );
     expect(within(view).queryByRole("group", { name: "Layout" })).toBeNull();
     await userEvent.keyboard("{Escape}");
 

@@ -285,6 +285,9 @@ export function TransportBar({
           </SegmentedControl>
         </MenuSection>
       ) : null}
+      {/* Theme radios keep the menu open to compare themes in place (like the
+          audition radios); layout radios close it because they rearrange the
+          shell under the menu. */}
       <MenuSection label="Theme">
         <SegmentedControl role="none" className="theme-modes">
           {THEMES.map((t) => (
