@@ -91,6 +91,9 @@ hands off to the live shortcuts owner; the story does not render that owner.
 view the live `ShareDialog` adapter renders. Stories use fictional
 `hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
 clipboard, `window.confirm` and the record-panel handoff.
+`Templates/BounceDialog` renders `BounceDialogView`, the same view the live
+`BounceDialog` adapter renders; the adapter keeps the bounce job start/follow
+and DAW selection state.
 
 `Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
 screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and

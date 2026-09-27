@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { followExportJob, startBounceJob } from "../api";
 import { seedStudioJob } from "../state/seedStudioJob";
 import { useDaw } from "../state/useDaw";
-import { Button, Dialog, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
-
-type SourceMode = "entire" | "selected" | "soloed";
+import { BounceDialogView, type BounceSourceMode } from "./BounceDialogView";
 
 /**
  * Host bounce dialog — same params as MCP ``bounce_audio`` / CLI ``pipeline bounce``.
@@ -30,7 +28,7 @@ export function BounceDialog() {
     sessionRegion: s.sessionRegion,
     announceStatus: s.announceStatus,
   }));
-  const [source, setSource] = useState<SourceMode>("entire");
+  const [source, setSource] = useState<BounceSourceMode>("entire");
   const [includeMp3, setIncludeMp3] = useState(false);
   const [useRegion, setUseRegion] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -104,71 +102,21 @@ export function BounceDialog() {
   }
 
   return (
-    <Dialog
+    <BounceDialogView
       open={bounceDialogOpen && !!project}
       onClose={() => setBounceDialogOpen(false)}
-      title="Bounce…"
-      panelClassName="bounce-dialog-panel"
-    >
-      <fieldset className="bounce-dialog-fieldset">
-        <legend>Source</legend>
-        <label>
-          <input
-            type="radio"
-            name="bounce-source"
-            checked={source === "entire"}
-            onChange={() => setSource("entire")}
-          />
-          Entire mix
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="bounce-source"
-            checked={source === "selected"}
-            onChange={() => setSource("selected")}
-          />
-          Selected tracks ({selectedCount})
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="bounce-source"
-            checked={source === "soloed"}
-            onChange={() => setSource("soloed")}
-          />
-          Soloed tracks ({soloCount})
-        </label>
-      </fieldset>
-      <label className="bounce-dialog-check">
-        <input
-          type="checkbox"
-          checked={useRegion}
-          disabled={!region}
-          onChange={(e) => setUseRegion(e.target.checked)}
-        />
-        Limit to session region
-        {!region ? " (no region set)" : ""}
-      </label>
-      <label className="bounce-dialog-check">
-        <input
-          type="checkbox"
-          checked={includeMp3}
-          onChange={(e) => setIncludeMp3(e.target.checked)}
-        />
-        Also write MP3
-      </label>
-      <InlineError message={error} />
-      <div className="bounce-dialog-actions">
-        <Button
-          variant="primary"
-          type="button"
-          disabled={busy}
-          onClick={() => void onBounce()}
-        >
-          {busy ? "Bouncing…" : "Bounce"}
-        </Button>
-      </div>
-    </Dialog>
+      source={source}
+      onSourceChange={setSource}
+      selectedCount={selectedCount}
+      soloCount={soloCount}
+      hasRegion={region != null}
+      useRegion={useRegion}
+      onUseRegionChange={setUseRegion}
+      includeMp3={includeMp3}
+      onIncludeMp3Change={setIncludeMp3}
+      busy={busy}
+      error={error}
+      onBounce={() => void onBounce()}
+    />
   );
 }
