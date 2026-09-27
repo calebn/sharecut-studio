@@ -23,6 +23,7 @@ describe("useFollowTransport", () => {
       followingClientId: "a",
       playheadSec: 1,
       isPlaying: false,
+      playStartSec: 1,
       sessionClients: [
         {
           client_id: "a",
@@ -40,6 +41,9 @@ describe("useFollowTransport", () => {
       ],
     });
     renderHook(() => useFollowTransport());
+    expect(useDawStore.getState().playheadSec).toBe(8);
+    expect(useDawStore.getState().playStartSec).toBeNull();
+    useDawStore.getState().stopPlayback();
     expect(useDawStore.getState().playheadSec).toBe(8);
   });
 

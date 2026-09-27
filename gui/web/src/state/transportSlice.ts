@@ -36,13 +36,22 @@ type TransportSlice = Pick<
   | "clearSessionRegion"
 >;
 
-/** On a not-playing → playing edge, remember where playback starts (Stop returns there). */
+/**
+ * How `playStartSec` changes when the transport becomes `playing` at `atSec`.
+ * A not-playing → playing edge records the start (Stop returns there). A
+ * playhead move while already stopped or paused (a seek, a seek link,
+ * following someone, an agent seek) is a new start, so Stop no longer rewinds
+ * past it. Pause, and a write of the same playhead while paused, keep it.
+ */
 export function playStartPatch(
-  s: Pick<DawStore, "isPlaying">,
+  s: Pick<DawStore, "isPlaying" | "playheadSec">,
   playing: boolean,
   atSec: number,
 ): Partial<Pick<DawStore, "playStartSec">> {
-  return playing && !s.isPlaying ? { playStartSec: atSec } : {};
+  if (playing) {
+    return s.isPlaying ? {} : { playStartSec: atSec };
+  }
+  return !s.isPlaying && atSec !== s.playheadSec ? { playStartSec: null } : {};
 }
 
 /** Where Stop leaves the playhead: the play start, clamped to the current timeline. */
@@ -78,11 +87,11 @@ export const createTransportSlice: StateCreator<
   playAbFollowup: null as PlayAbFollowup | null,
   auditionEpoch: 0,
   audioError: null as string | null,
-  // A seek while stopped or paused is a new start: Stop no longer rewinds past it.
   setPlayheadSec: (playheadSec) =>
-    set((s) =>
-      s.isPlaying ? { playheadSec } : { playheadSec, playStartSec: null },
-    ),
+    set((s) => ({
+      playheadSec,
+      ...playStartPatch(s, s.isPlaying, playheadSec),
+    })),
   setIsPlaying: (isPlaying) =>
     set((s) => ({
       isPlaying,

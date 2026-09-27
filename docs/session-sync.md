@@ -101,7 +101,7 @@ The viewer publish adapter reads the authority once to compare durable fields, t
 | Other `viewer` `SetPlaying` / playhead | No — each tab owns its clock |
 | Other `viewer` selection / mode / mute | Yes (discrete UI sync) |
 
-Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Local DAW **Stop** (button / **K**) returns the playhead to where local playback last started (a seek while stopped or paused becomes the new start; a seek during playback does not). Agent/CLI stop (`stop_session_tool`, `podcast session stop`, `SessionControlService.stop`) pauses in place and clears the region, and an agent stop applied through `applyAgentSession` leaves the playhead where it is. Prefer `clients[]` playhead for “what am I hearing?” while transport is rolling.
+Local DAW **Play** clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Local DAW **Stop** (button / **K**) returns the playhead to where local playback last started (any playhead move while stopped or paused, including following someone and an agent seek applied through `applyAgentSession`, becomes the new start; a seek during playback, or an agent pause, does not). Agent/CLI stop (`stop_session_tool`, `podcast session stop`, `SessionControlService.stop`) pauses in place and clears the region, and an agent stop applied through `applyAgentSession` leaves the playhead where it is. Prefer `clients[]` playhead for “what am I hearing?” while transport is rolling.
 
 ## Presence plane
 

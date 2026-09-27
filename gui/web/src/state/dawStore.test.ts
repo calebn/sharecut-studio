@@ -152,6 +152,48 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().playStartSec).toBe(7);
   });
 
+  it("an agent seek while paused becomes the new start", () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(10);
+    s().togglePlaying();
+    s().setPlayheadSec(20);
+    s().togglePlaying();
+    expect(s().playStartSec).toBe(10);
+    s().applyAgentSession(
+      agentSession({
+        playhead_sec: 100,
+        is_playing: false,
+        last_role: "agent",
+      }),
+    );
+    expect(s().playheadSec).toBe(100);
+    expect(s().playStartSec).toBeNull();
+    s().stopPlayback();
+    expect(s().playheadSec).toBe(100);
+  });
+
+  it("an agent pause keeps the play start", () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(10);
+    s().togglePlaying();
+    s().setPlayheadSec(25);
+    s().applyAgentSession(
+      agentSession({ playhead_sec: 26, is_playing: false, last_role: "agent" }),
+    );
+    expect(s().isPlaying).toBe(false);
+    expect(s().playStartSec).toBe(10);
+  });
+
+  it("re-writing the same playhead while paused keeps the start", () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(10);
+    s().togglePlaying();
+    s().setPlayheadSec(25);
+    s().togglePlaying();
+    s().setPlayheadSec(25);
+    expect(s().playStartSec).toBe(10);
+  });
+
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     useDawStore.setState({
