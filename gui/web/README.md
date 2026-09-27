@@ -58,6 +58,11 @@ They do not mount the live comment panel.
 `TranscriptPanel` for mapped, selected, annotated, cut-away and 360px long-turn
 examples. The panel retains DAW state, gestures, presence, and virtualization;
 stories pass fixture props and local callbacks only.
+`Templates/InspectorSeekFooter` shows the production `InspectorSeekFooterView`
+shared by the modifier inspectors: seek and play actions, seek-only footers,
+preview modes with a blocked-skip reason, and a 360px footer. The live
+`InspectorSeekFooter` keeps the DAW store and audition wiring; stories pass
+props and local callbacks.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live

@@ -18,6 +18,10 @@ export { Icon, type IconName } from "./Icon";
 export { InlineError } from "./InlineError";
 export { InspectorSeekFooter } from "./InspectorSeekFooter";
 export {
+  InspectorSeekFooterView,
+  type InspectorSeekFooterViewProps,
+} from "./InspectorSeekFooterView";
+export {
   LevelMeter,
   type LevelMeterOrientation,
   type LevelMeterProps,

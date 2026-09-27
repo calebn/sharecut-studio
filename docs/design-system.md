@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, HostMcpDialog, GesturesSheet |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, GesturesSheet |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -146,6 +146,14 @@ props for mapped, active/selected, suppressed/low-confidence, cut-away, and
 boundaries may appear in the live row, but there is no pending-edit row state
 to preview yet.
 
+`Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
+that every modifier inspector's footer uses. Fixed props cover the quiet-link
+and full-button actions, seek-only footers, the Current/Suggested/A/B preview
+modes, the blocked-skip reason, and a 360px phone footer. The live
+`InspectorSeekFooter` adapter reads the DAW store and chooses the audition
+(timeline range, suggested skip or A/B) on Play; the story's callbacks only
+update local preview-mode state.
+
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
@@ -174,8 +182,7 @@ checkbox so it can ship as its own PR:
   rail, tool mode toggle and command palette: `EditingToolRail`,
   `ToolModeToggle`, `CommandPalette`
 - **E** ([#612](https://github.com/calebn/sharecut-studio/issues/612)) —
-  inspector seek footer and tabs splitter: `InspectorSeekFooter`,
-  `BottomTabsSplitter`
+  tabs splitter: `BottomTabsSplitter`
 - **F** ([#614](https://github.com/calebn/sharecut-studio/issues/614)) —
   timeline editing surfaces: `ClipBlock`, `MarkerLane`,
   `PendingEditOverlay`, `EditBoundaryMark`
@@ -312,6 +319,8 @@ that store or simulate command execution.
 
 ## Changelog
 
+- 2026-09-27 — Added `Templates/InspectorSeekFooter` over the extracted
+  props-only `InspectorSeekFooterView` (#612).
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
   the `UndoToast` and `FocusPull` stories, and the Catalog boundary section
