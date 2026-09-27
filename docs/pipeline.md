@@ -139,7 +139,7 @@ Defaults: `.agents/defaults/pipeline.yaml` (tighten, mix, export, and other step
 
 `pipeline run` prints, to stdout (TTY or not), one line per step (`{status} {step}`, plus `: {message}` when the step returned a summary), then — only when this run completed `export_deliverables` with status `ok` — an `Export QC: ok|FAILED (N issue[s]), M warning[s] (<path>)` line with each issue listed below it. The last line stays `Pipeline complete. Last step: {last_step}`.
 
-The default has been `--strict` since #628; it was opt-in before because of the false QC failures fixed in #621. It exits 1 when this run exported and the QC verdict is not ok; the failure line on stderr is `Export QC is not ok; exiting 1 (pass --no-strict to exit 0).`. `--no-strict` prints the same report and exits 0. A run that never reached `export_deliverables` always passes, so partial runs such as `--only ingest_tracks` in scripts need no flag. A QC file left over from an earlier run is never read.
+The default has been `--strict` since #628; it was opt-in before because of the false QC failures fixed in #621. It exits 1 when this run exported and the QC verdict is not ok; it prints `Export QC is not ok; exiting 1 (pass --no-strict to exit 0).` to stderr. `--no-strict` prints the same report and exits 0. A run that never reached `export_deliverables` always passes, so partial runs such as `--only ingest_tracks` in scripts need no flag. A QC file left over from an earlier run is never read.
 
 ## Edits during a run
 
