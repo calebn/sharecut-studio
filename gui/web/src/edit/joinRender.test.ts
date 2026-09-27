@@ -74,8 +74,16 @@ describe("join mode helpers", () => {
   });
 
   it("classifies join modes", () => {
-    expect(isCutJoin({ join_in_mode: "cut" })).toBe(true);
-    expect(isCutJoin({ join_in_mode: "fade" })).toBe(false);
+    expect(isCutJoin({ join_in_mode: "cut", join_left_clip_id: "c1" })).toBe(
+      true,
+    );
+    expect(isCutJoin({ join_in_mode: "fade", join_left_clip_id: "c1" })).toBe(
+      false,
+    );
+    expect(isCutJoin({ join_in_mode: "cut", join_left_clip_id: null })).toBe(
+      false,
+    );
+    expect(isCutJoin({ join_in_mode: "cut" })).toBe(false);
     expect(isCrossfadeJoin({ join_in_mode: "crossfade" })).toBe(true);
     expect(isCrossfadeJoin({ join_in_mode: "cut" })).toBe(false);
   });

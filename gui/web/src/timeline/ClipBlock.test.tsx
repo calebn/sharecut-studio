@@ -157,7 +157,7 @@ describe("ClipBlock waveform", () => {
     rerender(
       <ClipBlock
         {...base}
-        clip={{ ...faded, join_in_mode: "cut" }}
+        clip={{ ...faded, join_in_mode: "cut", join_left_clip_id: "c0" }}
         prevClip={prev}
       />,
     );
@@ -171,12 +171,33 @@ describe("ClipBlock waveform", () => {
         {...base}
         clip={faded}
         prevClip={prev}
-        nextClip={{ ...clip, id: "c2", join_in_mode: "cut" }}
+        nextClip={{
+          ...clip,
+          id: "c2",
+          join_in_mode: "cut",
+          join_left_clip_id: "c1",
+        }}
       />,
     );
     expect(container.querySelector(".fade-out-region")).toBeNull();
     expect(container.querySelector(".fade-in-region")).not.toBeNull();
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
+  });
+
+  it("keeps a first clip's fade-in when its leftover mode is cut", () => {
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        clip={{
+          ...clip,
+          fade_in_ms: 20,
+          join_in_mode: "cut",
+          join_left_clip_id: null,
+        }}
+        prevClip={null}
+      />,
+    );
+    expect(container.querySelector(".fade-in-region")).not.toBeNull();
   });
 
   describe("fade handle drags", () => {

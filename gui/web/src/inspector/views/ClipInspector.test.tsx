@@ -242,6 +242,22 @@ describe("ClipInspector join", () => {
     expect(screen.getByText(/hard cut/)).toBeInTheDocument();
   });
 
+  it("keeps a first clip's fade-in editable when its leftover mode is cut", () => {
+    render(
+      <ClipInspector
+        clip={{
+          ...clip,
+          join_left_clip_id: null,
+          join_in_mode: "cut",
+          fade_in_ms: 20,
+        }}
+      />,
+    );
+    expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
+    expect(screen.queryByText(/Fade in ignored/)).toBeNull();
+    expect(screen.queryByLabelText("Join mode")).toBeNull();
+  });
+
   it("disables the fade-out when the next join is a cut", () => {
     const third: ClipRow = {
       ...second,
