@@ -115,6 +115,14 @@ def ripple_delete(
     use_inaudible_opt: bool | None = None,
     record_log: bool = True,
 ) -> dict:
+    """Ripple-remove ``[timeline_start, timeline_end)`` on every dialogue track.
+
+    The returned change summary echoes the (possibly inaudible-optimized)
+    ``timeline_start``/``timeline_end`` and ``per_track_source``
+    (``{track_id: [pre, post]}`` seam clocks from :func:`seam_source_by_track`),
+    even with ``record_log=False``: approve/prefix removals archive them from
+    this report. Add the key to any schema or typed output built over it.
+    """
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
     tracks = dialogue_track_ids(project)
@@ -191,7 +199,12 @@ def punch_delete(
     use_inaudible_opt: bool | None = None,
     record_log: bool = True,
 ) -> dict:
-    """Remove audio on one track only; leave a silence hole (no peer ripple)."""
+    """Remove audio on one track only; leave a silence hole (no peer ripple).
+
+    Like :func:`ripple_delete`, the returned summary echoes the optimized
+    ``timeline_start``/``timeline_end`` and ``per_track_source`` (seam clocks)
+    even with ``record_log=False``.
+    """
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
     opt = optimize_timeline_cut_range(
