@@ -23,6 +23,8 @@ export interface LayerVisibility {
 
 /** A failed inline word fix whose editor had already closed. */
 export interface TranscriptInlineEditFailure {
+  /** Project the fix was submitted to; a failure from another project is dropped. */
+  projectPath: string;
   trackId: string;
   wordIndex: number;
   /** Word text when the fix was submitted; different text means it was fixed since. */

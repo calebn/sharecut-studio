@@ -757,11 +757,15 @@ describe("TranscriptPanel", () => {
         ).toHaveTextContent("Could not fix “hello”: server said no"),
       );
       expect(useDawStore.getState().transcriptInlineCommitPending).toBe(false);
+      expect(
+        useDawStore.getState().transcriptInlineEditFailure?.projectPath,
+      ).toBe("/tmp/ep");
     });
 
-    it("dismisses a late inline fix failure", () => {
+    it("dismisses a late inline fix failure", async () => {
       useDawStore.setState({
         transcriptInlineEditFailure: {
+          projectPath: "/tmp/ep",
           trackId: "host",
           wordIndex: 0,
           originalText: "hello",
@@ -773,6 +777,7 @@ describe("TranscriptPanel", () => {
       expect(container.querySelector(".inline-error")).toHaveTextContent(
         "Could not fix “hello”: server said no",
       );
+      await expectNoA11yViolations(container);
       fireEvent.click(q.getByRole("button", { name: "Dismiss" }));
       expect(container.querySelector(".inline-error")).toBeNull();
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
@@ -781,6 +786,7 @@ describe("TranscriptPanel", () => {
     it("clears a late failure once the word's text changes, not before", () => {
       useDawStore.setState({
         transcriptInlineEditFailure: {
+          projectPath: "/tmp/ep",
           trackId: "host",
           wordIndex: 0,
           originalText: "hello",
@@ -796,6 +802,21 @@ describe("TranscriptPanel", () => {
       words[0] = { ...words[0], text: "Hello" };
       act(() => useDawStore.setState({ project: fixed }));
       expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    });
+
+    it("drops a late failure from another project", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          projectPath: "/tmp/other",
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          message: "Could not fix “hello”: server said no",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      expect(container.querySelector(".transcript-inline-failure")).toBeNull();
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     });
   });

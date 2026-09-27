@@ -638,6 +638,7 @@ describe("dawStore transcript inline edit", () => {
     expect(useDawStore.getState().transcriptInlineCommitPending).toBe(true);
 
     const failure = {
+      projectPath: "/tmp/ep",
       trackId: "host",
       wordIndex: 0,
       originalText: "hello",
