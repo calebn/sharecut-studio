@@ -676,7 +676,9 @@ export function ClipBlockView({
   const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
   const moveTip = capabilityTooltip("daw.edit.moveClips");
-  const showHandles = editable && interactive;
+  // Render ignores both fades of a clip whose incoming join is a cut.
+  const isCut = clip.join_in_mode === "cut";
+  const showHandles = editable && interactive && !isCut;
 
   return (
     <div
@@ -759,7 +761,7 @@ export function ClipBlockView({
           />
         </span>
       ) : null}
-      {fadeInW > 0 && (
+      {!isCut && fadeInW > 0 && (
         <span className="fade-region fade-in-region" style={{ width: fadeInW }}>
           {showHandles && (
             <button
@@ -774,7 +776,7 @@ export function ClipBlockView({
           )}
         </span>
       )}
-      {fadeOutW > 0 && (
+      {!isCut && fadeOutW > 0 && (
         <span
           className="fade-region fade-out-region"
           style={{ width: fadeOutW }}

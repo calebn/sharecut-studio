@@ -146,6 +146,17 @@ describe("ClipBlock waveform", () => {
     }
   });
 
+  it("hides fade regions and handles on a cut join", () => {
+    const faded = { ...clip, fade_in_ms: 20, fade_out_ms: 20 };
+    const { container, rerender } = render(
+      <ClipBlock {...base} clip={faded} />,
+    );
+    expect(container.querySelectorAll(".fade-region")).toHaveLength(2);
+    rerender(<ClipBlock {...base} clip={{ ...faded, join_in_mode: "cut" }} />);
+    expect(container.querySelector(".fade-region")).toBeNull();
+    expect(container.querySelector(".fade-handle")).toBeNull();
+  });
+
   describe("fade handle drags", () => {
     const dragIn = (
       dxPx: number,

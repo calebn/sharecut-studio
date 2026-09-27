@@ -8,7 +8,7 @@ import { Inspector } from "./Inspector";
 vi.mock("../api", () => ({
   applyFadeRecommendations: vi.fn(),
   setClipFade: vi.fn(),
-  setJoinMode: vi.fn(),
+  setClipJoin: vi.fn(),
   setEnvelope: vi.fn(),
 }));
 

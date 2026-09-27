@@ -164,6 +164,10 @@ document commands.
 
 An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `HOST_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector, the Impact panel and the Tighten Apply / Skip commands show a **Still sending** status instead of treating it as done (it clears once the project's command queue is empty), and a refusal of the later replay appears in the **Needs attention** banner.
 
+### Clip join fields
+
+`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector sets a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only.
+
 ### Layout (Reaper-style)
 
 | Region | Content |

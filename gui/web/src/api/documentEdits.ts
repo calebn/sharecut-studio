@@ -153,14 +153,19 @@ export async function moveClips(
   await submitDocumentCommand(projectPath, "MoveClips", { clips });
 }
 
-export async function setJoinMode(
+/** Set a join's mode and both edge fades in one undo step. */
+export async function setClipJoin(
   projectPath: string,
-  clipId: string,
-  joinInMode: string,
+  leftClipId: string,
+  rightClipId: string,
+  mode: string,
+  lengthMs?: number | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "SetJoinMode", {
-    clip_id: clipId,
-    join_in_mode: joinInMode,
+  await submitDocumentCommand(projectPath, "SetClipJoin", {
+    left_clip_id: leftClipId,
+    right_clip_id: rightClipId,
+    mode,
+    ...(lengthMs == null ? {} : { length_ms: lengthMs }),
   });
 }
 

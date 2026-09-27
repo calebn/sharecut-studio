@@ -21,6 +21,8 @@ type Props = {
   onPreviewModeChange?: (mode: PreviewMode) => void;
   suggestDisabled?: boolean;
   suggestDisabledReason?: string | null;
+  /** Seek and play buttons: quiet links (default) or full buttons. */
+  actionVariant?: "link" | "default";
 };
 
 const PREVIEW_MODES: { id: PreviewMode; label: string }[] = [
@@ -42,6 +44,7 @@ export function InspectorSeekFooter({
   onPreviewModeChange,
   suggestDisabled = false,
   suggestDisabledReason,
+  actionVariant = "link",
 }: Props) {
   const { setPlayheadSec, setPlayUntilSec, setIsPlaying, beginAudition } =
     useDaw((s) => ({
@@ -84,11 +87,11 @@ export function InspectorSeekFooter({
 
   return (
     <div className="modifier-footer-actions">
-      <Button variant="link" onClick={() => setPlayheadSec(seekSec)}>
+      <Button variant={actionVariant} onClick={() => setPlayheadSec(seekSec)}>
         {seekLabel}
       </Button>
       {showPlay ? (
-        <Button variant="link" onClick={play}>
+        <Button variant={actionVariant} onClick={play}>
           {playLabel}
         </Button>
       ) : null}

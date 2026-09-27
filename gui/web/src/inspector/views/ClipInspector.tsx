@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
-import { setClipFade, setJoinMode } from "../../api";
+import { setClipFade, setClipJoin } from "../../api";
 import { execute } from "../../commands/execute";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
+import {
+  JOIN_MODE_OPTIONS,
+  joinModeLabel,
+  joinRenderNote,
+} from "../../edit/joinRender";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -17,8 +22,6 @@ import {
 import { formatTime } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
 
-const JOIN_MODES = ["fade", "crossfade", "cut"] as const;
-
 export function ClipInspector({ clip }: { clip: ClipRow }) {
   const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -28,6 +31,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const { busy, error, setError, run } = useProjectMutation();
   const [fadeInStr, setFadeInStr] = useState(String(clip.fade_in_ms));
   const [fadeOutStr, setFadeOutStr] = useState(String(clip.fade_out_ms));
+  const [joinLengthStr, setJoinLengthStr] = useState("");
   const [clamped, setClamped] = useState<{
     inMs: number;
     outMs: number;
@@ -41,6 +45,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
 
   useEffect(() => {
     setClamped(null);
+    setJoinLengthStr("");
   }, [clip.id]);
 
   // undefined: the clip's track is not in the view yet (cap unknown);
@@ -101,12 +106,23 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     }
   };
 
-  const commitJoinMode = async (mode: string) => {
-    if (mode === clip.join_in_mode) {
+  const leftClipId = clip.join_left_clip_id ?? null;
+  const isCut = clip.join_in_mode === "cut";
+  const joinNote = joinRenderNote(clip);
+
+  // Empty length lets the server pick the mode's default.
+  const commitJoin = async (mode: string, lengthStr: string) => {
+    if (leftClipId === null) {
+      return;
+    }
+    const trimmed = lengthStr.trim();
+    const length = trimmed === "" ? null : Number(trimmed);
+    if (length !== null && !(Number.isInteger(length) && length >= 0)) {
+      setError("Join length must be a non-negative integer (ms)");
       return;
     }
     await run(async () => {
-      await setJoinMode(projectPath, clip.id, mode);
+      await setClipJoin(projectPath, leftClipId, clip.id, mode, length);
     });
   };
 
@@ -162,6 +178,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           padSec={0.75}
           seekLabel="Seek join"
           playLabel="Play across join"
+          actionVariant="default"
         />
       }
     >
@@ -182,7 +199,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeInStr}
-                disabled={busy}
+                disabled={busy || isCut}
                 aria-label="Fade in ms"
                 onChange={(e) => setFadeInStr(e.target.value)}
               />
@@ -193,18 +210,20 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeOutStr}
-                disabled={busy}
+                disabled={busy || isCut}
                 aria-label="Fade out ms"
                 onChange={(e) => setFadeOutStr(e.target.value)}
               />
               <span>ms out</span>
               {capKnown ? (
                 <span className="ui-field-hint" role="status">
-                  {clampNotice ?? `max ${fadeLimitMs} ms`}
+                  {isCut
+                    ? "Ignored: this join is a cut"
+                    : (clampNotice ?? `max ${fadeLimitMs} ms`)}
                 </span>
               ) : null}
               <Button
-                disabled={busy || !capKnown}
+                disabled={busy || !capKnown || isCut}
                 onClick={() => void commitFades()}
               >
                 Apply fades
@@ -216,24 +235,58 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             </>
           )}
         </DefItem>
-        <DefItem label="Join">
-          {editable ? (
-            <select
-              value={clip.join_in_mode}
-              disabled={busy}
-              aria-label="Join mode"
-              onChange={(e) => void commitJoinMode(e.target.value)}
-            >
-              {JOIN_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          ) : (
-            clip.join_in_mode
-          )}
-        </DefItem>
+        {leftClipId !== null ? (
+          <DefItem label="Join">
+            {editable ? (
+              <FieldRow>
+                <select
+                  value={clip.join_in_mode}
+                  disabled={busy}
+                  aria-label="Join mode"
+                  onChange={(e) =>
+                    void commitJoin(e.target.value, joinLengthStr)
+                  }
+                >
+                  {JOIN_MODE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                {isCut ? null : (
+                  <>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={joinLengthStr}
+                      placeholder="default"
+                      disabled={busy}
+                      aria-label="Join length ms"
+                      onChange={(e) => setJoinLengthStr(e.target.value)}
+                    />
+                    <span>ms</span>
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void commitJoin(clip.join_in_mode, joinLengthStr)
+                      }
+                    >
+                      Apply length
+                    </Button>
+                  </>
+                )}
+              </FieldRow>
+            ) : (
+              joinModeLabel(clip.join_in_mode)
+            )}
+            {joinNote ? (
+              <span className="ui-field-hint" role="status">
+                {joinNote}
+              </span>
+            ) : null}
+          </DefItem>
+        ) : null}
         {clip.source_id ? (
           <DefItem label="Source ID">{clip.source_id}</DefItem>
         ) : null}
