@@ -10,11 +10,12 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, load_project, project_file_path
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_store import (
     ProjectStore,
     commit_landed,
+    history_index_adoptable,
     history_index_path,
     history_index_to_restore,
     read_history_index,
@@ -94,7 +95,7 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
         log.warning(
             "Could not roll back %s after a failed mutation", checkpoint.index_path, exc_info=True
         )
-        project.history = _history_on_disk(checkpoint)
+        project.history = _history_on_disk(project, checkpoint)
         # Without the lock a changed revision may be another writer's commit, not this one.
         landed = _commit_landed(project, checkpoint)
         return RollbackOutcome.KEPT if landed is False else RollbackOutcome.UNKNOWN
@@ -166,12 +167,17 @@ def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
         project.history = checkpoint.history_before
         return RollbackOutcome.RESTORED
     log.warning("%s changed during a failed mutation; keeping its entries", checkpoint.index_path)
-    project.history = _history_on_disk(checkpoint)
+    project.history = _history_on_disk(project, checkpoint)
     return RollbackOutcome.KEPT
 
 
-def _history_on_disk(checkpoint: HistoryCheckpoint) -> ProjectHistory:
-    """``history/index.json`` as read now; ``history_before`` when absent or unreadable."""
+def _history_on_disk(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> ProjectHistory:
+    """``history/index.json`` as read now; ``history_before`` when absent or unreadable.
+
+    From an empty ``history_before`` the index is kept only when its current entry matches
+    the saved project, the rule ``ProjectStore.adopt_history_index`` applies on load, so an
+    index a dead commit left ahead of the saved project (#576) never lands in memory.
+    """
     try:
         history = read_history_index(checkpoint.index_path)
     except ValueError:  # includes pydantic.ValidationError
@@ -181,4 +187,16 @@ def _history_on_disk(checkpoint: HistoryCheckpoint) -> ProjectHistory:
             exc_info=True,
         )
         return checkpoint.history_before
-    return checkpoint.history_before if history is None else history
+    if history is None:
+        return checkpoint.history_before
+    if checkpoint.history_before.is_empty() and not history.is_empty():
+        try:
+            saved = load_project(project_file_path(project.workspace_path()))
+        except (OSError, ValueError):  # ValueError includes pydantic.ValidationError
+            log.warning(
+                "Could not read the saved project to check %s", checkpoint.index_path, exc_info=True
+            )
+            return checkpoint.history_before
+        if not history_index_adoptable(saved, history, checkpoint.index_path):
+            return checkpoint.history_before
+    return history

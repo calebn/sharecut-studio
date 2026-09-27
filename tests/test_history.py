@@ -5,10 +5,13 @@ import shutil
 import threading
 from pathlib import Path
 
+import filelock
 import pytest
 
 from podcast_mcp.history import HistoryManager, record_if_changed
-from podcast_mcp.history.manager import snapshot_from_project, write_snapshot
+from podcast_mcp.history import rollback as rollback_mod
+from podcast_mcp.history.manager import record_and_commit, snapshot_from_project, write_snapshot
+from podcast_mcp.history.session import run_mutation
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
@@ -429,6 +432,47 @@ def test_retry_after_a_dead_first_commit_records_no_phantom_entry(minimal_projec
     assert [e.label for e in saved.history.entries] == ["before add comment", "after add comment"]
     assert [c.body for c in saved.comments] == ["retry"]
     assert read_history_index(history_index_path(saved)) == saved.history
+
+
+def _no_lock(_project):
+    raise filelock.Timeout("lock")
+
+
+def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
+    minimal_project, monkeypatch, caplog
+):
+    _dead_first_commit(minimal_project)
+    proj = load_project(minimal_project)
+    phantom = read_history_index(history_index_path(proj))
+
+    def save_index(_self, _project):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(HistoryManager, "_save_index", save_index)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
+        run_mutation(
+            minimal_project, proj, "before add comment", "after add comment", lambda p: None
+        )
+
+    assert proj.history.is_empty()
+    assert _not_adopting(caplog)
+    assert read_history_index(history_index_path(proj)) == phantom  # left for the next commit
+
+
+def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_project):
+    proj = load_project(minimal_project)
+
+    def other_writer_commits_then_fail(_p):
+        store = ProjectStore(minimal_project)
+        record_and_commit(store, store.load(), "other writer", force=True)
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        run_mutation(minimal_project, proj, "before", "after", other_writer_commits_then_fail)
+
+    assert proj.history == load_project(minimal_project).history
+    assert proj.history.entries[-1].label == "other writer"
 
 
 @pytest.mark.parametrize(
