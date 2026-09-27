@@ -7,9 +7,9 @@ export function requestHostDrainLazy(projectPath: string): void {
     .catch(() => undefined);
 }
 
-/** Replay this share guest's queued commands. */
+/** Replay this share guest's queued commands (coalesced with a replay in progress). */
 export function requestGuestDrainLazy(token: string): void {
   void import("./drainOfflineQueue")
-    .then(({ drainOfflineQueue }) => drainOfflineQueue(token))
+    .then(({ requestGuestDrain }) => requestGuestDrain(token))
     .catch(() => undefined);
 }

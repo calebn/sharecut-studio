@@ -427,4 +427,26 @@ describe("drainOfflineQueue (guest)", () => {
       expect(call[3]).toMatchObject({ replaying: true });
     }
   });
+
+  it("requestGuestDrain coalesces overlapping requests into one more pass", async () => {
+    guestQueue.mockResolvedValue([queued("a", 1)]);
+    let release: () => void = () => undefined;
+    submit.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ ok: true });
+        }),
+    );
+    const { requestGuestDrain } = await import("./drainOfflineQueue");
+    const first = requestGuestDrain("tok");
+    await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    const second = requestGuestDrain("tok");
+    const third = requestGuestDrain("tok");
+    expect(second).toBe(first);
+    expect(third).toBe(first);
+    release();
+    await first;
+    expect(guestQueue).toHaveBeenCalledTimes(2);
+    expect(submit).toHaveBeenCalledTimes(2);
+  });
 });

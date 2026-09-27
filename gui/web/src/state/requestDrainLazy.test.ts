@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 const requestHostDrain = vi.fn();
-const drainOfflineQueue = vi.fn();
-vi.mock("./drainOfflineQueue", () => ({ requestHostDrain, drainOfflineQueue }));
+const requestGuestDrain = vi.fn();
+vi.mock("./drainOfflineQueue", () => ({ requestHostDrain, requestGuestDrain }));
 
 describe("lazy drain requests", () => {
   it("requests a host drain for the project", async () => {
@@ -26,20 +26,20 @@ describe("lazy drain requests", () => {
   });
 
   it("replays the guest queue for the token", async () => {
-    drainOfflineQueue.mockResolvedValue(undefined);
+    requestGuestDrain.mockResolvedValue(undefined);
     const { requestGuestDrainLazy } = await import("./requestDrainLazy");
     requestGuestDrainLazy("tok");
     await vi.waitFor(() =>
-      expect(drainOfflineQueue).toHaveBeenCalledWith("tok"),
+      expect(requestGuestDrain).toHaveBeenCalledWith("tok"),
     );
   });
 
   it("swallows a failed guest drain", async () => {
-    drainOfflineQueue.mockReset().mockRejectedValue(new Error("boom"));
+    requestGuestDrain.mockReset().mockRejectedValue(new Error("boom"));
     const { requestGuestDrainLazy } = await import("./requestDrainLazy");
     expect(() => requestGuestDrainLazy("tok2")).not.toThrow();
     await vi.waitFor(() =>
-      expect(drainOfflineQueue).toHaveBeenCalledWith("tok2"),
+      expect(requestGuestDrain).toHaveBeenCalledWith("tok2"),
     );
   });
 });
