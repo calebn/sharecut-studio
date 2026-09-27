@@ -27,6 +27,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from multiprocessing.process import BaseProcess
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,22 @@ def _die(**_ignored: Any) -> None:
 
 
 _CTX = mp.get_context("spawn")
+
+
+def _reap(proc: BaseProcess, timeout: float) -> bool:
+    """Join ``proc``; kill and reap it if it still runs after ``timeout``.
+
+    Returns True when it exited on its own. A child killed here also exits with
+    ``_KILLED_EXIT``, so callers assert this result, not only the exit code. A child stuck
+    holding the project lock or a ``document.db`` handle must not outlive its test.
+    """
+    proc.join(timeout)
+    if not proc.is_alive():
+        return True
+    proc.kill()
+    proc.join()
+    return False
+
 
 BEFORE_PROJECT_COMMIT = "before_project_commit"
 AFTER_PROJECT_COMMIT = "after_project_commit"
@@ -166,7 +183,7 @@ def _submit_then_die(
 def _run_crash(*args: object) -> None:
     proc = _CTX.Process(target=_submit_then_die, args=args)
     proc.start()
-    proc.join(60)
+    assert _reap(proc, 60), "the child hung before its kill point and was killed"
     assert proc.exitcode == _KILLED_EXIT
 
 
@@ -369,14 +386,25 @@ def _submit_then_die_at(project_path: str, point: str, marker: str, reached=None
     raise AssertionError(f"kill point {point} never fired")
 
 
-def _submit_waiting_on_the_lock(project_path: str, ready, results) -> None:
+def _submit_waiting_on_the_lock(project_path: str, locking, results) -> None:
+    from podcast_mcp.services import workspace
     from podcast_mcp.util import project_state
 
     # Bounded: a lock the killed writer kept would surface as filelock.Timeout (the
     # routes' 503 project_busy) instead of hanging for the default 30 s.
     project_state.PROJECT_COMMIT_LOCK_TIMEOUT_SEC = WAITER_LOCK_TIMEOUT_SEC
     svc = DocumentSyncService.open(project_path)
-    ready.set()
+    real_commit_lock = workspace.project_commit_lock
+
+    @contextmanager
+    def announce_then_lock(project: Any) -> Iterator[None]:
+        # Set right before the lock acquire, so the parent's "blocked" check does not
+        # rest on spawn or import timing.
+        locking.set()
+        with real_commit_lock(project):
+            yield
+
+    workspace.project_commit_lock = announce_then_lock  # type: ignore[assignment]
     started = time.monotonic()
     try:
         result = svc.submit(_crash_command(WAITER_ID, 3, "second"))
@@ -408,7 +436,7 @@ def test_sigkill_at_each_handoff_loses_no_edit_and_applies_a_retry_once(
     seeded_project, tmp_path, point
 ):
     proc, marker, _reached = _start_crash_at(seeded_project, point, tmp_path)
-    proc.join(120)
+    assert _reap(proc, 120), f"{point} never fired: the child hung and was killed"
     assert proc.exitcode == _KILLED_EXIT, f"{point} never fired (exit {proc.exitcode})"
     expect = HANDOFFS[point]
 
@@ -456,24 +484,27 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
 ):
     go = _CTX.Event()
     crasher, _marker, reached = _start_crash_at(seeded_project, point, tmp_path, go=go)
-    ready, results = _CTX.Event(), _CTX.Queue()
+    locking, results = _CTX.Event(), _CTX.Queue()
     waiter = _CTX.Process(
-        target=_submit_waiting_on_the_lock, args=(str(seeded_project), ready, results)
+        target=_submit_waiting_on_the_lock, args=(str(seeded_project), locking, results)
     )
     try:
         assert reached.wait(60), "the crasher never reached its kill point"
         waiter.start()
-        assert ready.wait(60)
+        assert locking.wait(60), "the waiter never reached the project lock"
         time.sleep(0.5)
         assert waiter.is_alive(), "the waiter should block on the holder's project lock"
+        go.set()
+        # Drain before joining: a child with queued data blocks at exit until it is read.
+        outcome, server_seq, waited = results.get(timeout=60)
     finally:
         go.set()
-        crasher.join(60)
-        if waiter.pid is not None:
-            waiter.join(60)
+        crasher_exited = _reap(crasher, 60)
+        waiter_exited = waiter.pid is None or _reap(waiter, 60)
+    assert crasher_exited, "the crasher outlived its kill point and was killed"
+    assert waiter_exited, "the waiter hung after the holder died and was killed"
     assert crasher.exitcode == _KILLED_EXIT
     assert waiter.exitcode == 0
-    outcome, server_seq, waited = results.get(timeout=10)
     # Not filelock.Timeout, which the routes turn into 503 project_busy.
     assert outcome == "ok"
     assert waited < WAITER_LOCK_TIMEOUT_SEC
@@ -489,7 +520,7 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
 def test_a_crash_before_the_first_commit_adopts_no_phantom_history(minimal_project, tmp_path):
     """A project saved without history ignores the index a killed first commit wrote (#576)."""
     proc, marker, _reached = _start_crash_at(minimal_project, BEFORE_PROJECT_COMMIT, tmp_path)
-    proc.join(120)
+    assert _reap(proc, 120), "the kill point never fired: the child hung and was killed"
     assert proc.exitcode == _KILLED_EXIT
     seen = json.loads(marker.read_text())
     assert seen["saved_history"] == []
