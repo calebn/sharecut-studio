@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { SessionClient } from "../types/session";
-import { isGuestPresenceClient, presenceSummary } from "./presenceSummary";
+import {
+  isGuestPresenceClient,
+  presenceSummary,
+  selectAgentPresent,
+} from "./presenceSummary";
 
 const c = (client_id: string, role: string) =>
   ({ client_id, role }) as SessionClient;
@@ -61,5 +65,17 @@ describe("presenceSummary", () => {
         null,
       ),
     ).toBe("You + 1 host + 1 guest");
+  });
+
+  it("selectAgentPresent is true only while an agent is in the roster", () => {
+    expect(selectAgentPresent({ sessionClients: [] })).toBe(false);
+    expect(selectAgentPresent({ sessionClients: [c("h1", "viewer")] })).toBe(
+      false,
+    );
+    expect(
+      selectAgentPresent({
+        sessionClients: [c("h1", "viewer"), c("a1", "agent")],
+      }),
+    ).toBe(true);
   });
 });
