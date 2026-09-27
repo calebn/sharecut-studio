@@ -1137,4 +1137,34 @@ describe("TranscriptPanel virtualization", () => {
     });
     expect(turnEl(container, 0)).toBeTruthy();
   });
+
+  it("keeps the inline-edited turn mounted while its commit runs", async () => {
+    let resolve: () => void = () => {};
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+    const { container } = render(<TranscriptPanel />);
+    const turn3 = turnEl(container, 3)!;
+    fireEvent.doubleClick(
+      within(turn3).getByRole("button", { name: "turn 3" }),
+    );
+    const input = within(container).getByRole("textbox", { name: /turn 3/ });
+    fireEvent.change(input, { target: { value: "Turn 3" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    fireEvent.focusOut(input, { relatedTarget: document.body });
+    act(() => {
+      useDawStore.getState().setTranscriptScrollRequest("transcript:turn:1199");
+    });
+    expect(turnEl(container, 3)).toBeTruthy();
+    expect(
+      within(container).getByRole("textbox", { name: /turn 3/ }),
+    ).toHaveValue("Turn 3");
+    await act(async () => {
+      resolve();
+    });
+  });
 });
