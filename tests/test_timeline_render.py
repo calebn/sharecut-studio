@@ -1224,3 +1224,9 @@ def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
     fades = [(s.fade_in_sec, s.fade_out_sec) for s in placed]
     # a->b is a cut: a's fade-out and b's fade-in go; b->c is a fade: both stay.
     assert fades == [(0.0, 0.0), (0.0, pytest.approx(0.03)), (pytest.approx(0.03), 0.0)]
+
+
+def test_render_semantics_rev_bumped_for_per_join_cut() -> None:
+    from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
+
+    assert RENDER_SEMANTICS_REV >= 3
