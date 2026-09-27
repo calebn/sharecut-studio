@@ -134,6 +134,12 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("Join length must be a non-negative integer (ms)");
       return;
     }
+    if (mode === "crossfade" && length === 0) {
+      // A crossfade needs an overlap; drop the 0 so the next mode change does not resend it.
+      setJoinLengthStr("");
+      setError("Crossfade length must be at least 1 ms");
+      return;
+    }
     const saved = await run(async () => {
       await setClipJoin(projectPath, leftClipId, clip.id, mode, length);
       return true;
@@ -276,7 +282,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                   <>
                     <input
                       type="number"
-                      min={0}
+                      min={clip.join_in_mode === "crossfade" ? 1 : 0}
                       step={1}
                       value={joinLengthStr}
                       placeholder="default"
