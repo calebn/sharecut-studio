@@ -189,18 +189,27 @@ describe("usePipelineJob", () => {
       });
       expect(FakeEventSource.instances.length).toBeGreaterThan(0);
       const es = FakeEventSource.instances.at(-1)!;
+      // The server sends a keepalive snapshot every second.
+      for (let i = 0; i < 4; i += 1) {
+        act(() => {
+          es.emit({ type: "status", job: pipe });
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+      }
       act(() => {
         es.emit({ type: "status", job: pipe });
       });
-      expect(loadPipelineStatus).toHaveBeenCalledTimes(1);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(4900);
+        await vi.advanceTimersByTimeAsync(900);
       });
       expect(loadPipelineStatus).toHaveBeenCalledTimes(1);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(100);
       });
       expect(loadPipelineStatus).toHaveBeenCalledTimes(2);
+      expect(es.close).not.toHaveBeenCalled();
     } finally {
       unmount();
       vi.useRealTimers();
@@ -252,6 +261,53 @@ describe("usePipelineJob", () => {
         await vi.advanceTimersByTimeAsync(2900);
       });
       expect(loadPipelineStatus).toHaveBeenCalledTimes(n);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats a stream that stays open but goes silent as down: polls and reconnects", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const silentEs = FakeEventSource.instances.at(-1)!;
+      act(() => {
+        silentEs.emit({ type: "status", job: pipe });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4999);
+      });
+      expect(silentEs.close).not.toHaveBeenCalled();
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(1);
+
+      // 5s without a frame: close, one status re-check, 1s poll, reconnect.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(silentEs.close).toHaveBeenCalled();
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(3); // re-check + discover
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(FakeEventSource.instances.length).toBe(2);
+      expect(FakeEventSource.instances.at(-1)?.url).toContain("pipe-1");
     } finally {
       unmount();
       vi.useRealTimers();
