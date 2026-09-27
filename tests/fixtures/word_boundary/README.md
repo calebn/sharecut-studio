@@ -25,8 +25,8 @@ The model must already be cached (`podcast bootstrap --component whisper
 --model base`); the benchmark never downloads it implicitly. To compare
 another aligner, save its audio SHA-256, nonempty provenance metadata, and
 ordered words as `{"audio_sha256": "...", "provenance": {"model": "...",
-"version": "...", "runtime_sec": 0.5}, "words": [{"text": ..., "start": ...,
-"end": ...}]}`
+"version": "...", "settings": {}, "license": "...", "runtime_sec": 0.5},
+"words": [{"text": "...", "start": 0.0, "end": 0.2}]}`
 to JSON and pass `--prediction` in place of `--native-model`. Match coverage
 and the omitted/extra counts must accompany MAE: an aligner cannot appear
 accurate by leaving difficult words unmatched.

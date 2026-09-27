@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -244,6 +245,15 @@ def test_benchmark_rejects_incomplete_candidate_provenance(tmp_path, provenance)
     benchmark = load_script("benchmark_word_boundaries")
     with pytest.raises(ValueError, match="provenance needs"):
         benchmark.benchmark(gold, prediction_path=prediction, native_model=None)
+
+
+def test_fixture_readme_candidate_example_has_required_provenance() -> None:
+    readme = Path(__file__).parent / "fixtures" / "word_boundary" / "README.md"
+    example = re.search(r"ordered words as `(.+?)`", readme.read_text(encoding="utf-8"), re.S)
+    assert example is not None
+    payload = json.loads(example.group(1))
+    assert all(payload["provenance"].get(field) for field in ("model", "version", "license"))
+    assert isinstance(payload["provenance"].get("settings"), dict)
 
 
 def test_checked_in_native_reports_match_reference_fixture() -> None:
