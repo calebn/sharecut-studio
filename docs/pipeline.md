@@ -54,7 +54,8 @@ whole track is left unchanged: its plans get `skipped_reason` (naming each newly
 pair, up to six; surfaced in the step summary as `skipped <track> (...)` and in the artifact),
 while `offset_sec` is kept so the
 unattended gate still sees the move. `meta.ingest_alignment` is written from each placed
-clip's source-to-timeline shift (`session_start_in_file_sec = max(0, -shift)`,
+clip's source-to-timeline shift via `SpeakerIngestAlignment.from_source_to_timeline_shift`
+(readers use its `source_to_timeline_shift_sec` property); (`session_start_in_file_sec = max(0, -shift)`,
 `content_align_sec = max(0, shift)`), which reproduces the old whole-file values exactly.
 Writes `meta.ingest_alignment`, clip geometry, and `artifacts/alignment/conversation_align.json`.
 Never blades/splits one WAV into multiple clips. Several raw files per speaker stay

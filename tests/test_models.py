@@ -11,11 +11,24 @@ from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
     MediaAsset,
+    SpeakerIngestAlignment,
     Track,
     TrackRole,
     load_project,
     save_project,
 )
+
+
+def test_speaker_ingest_alignment_shift_round_trip():
+    raw = SpeakerIngestAlignment(session_start_in_file_sec=4.0, content_align_sec=1.5)
+    assert raw.source_to_timeline_shift_sec == pytest.approx(-2.5)
+    late = SpeakerIngestAlignment.from_source_to_timeline_shift(3.0, align_method="gap")
+    assert (late.session_start_in_file_sec, late.content_align_sec) == (0.0, 3.0)
+    assert late.align_method == "gap"
+    lead = SpeakerIngestAlignment.from_source_to_timeline_shift(-2.5, align_method="bleed")
+    assert (lead.session_start_in_file_sec, lead.content_align_sec) == (2.5, 0.0)
+    assert lead.source_to_timeline_shift_sec == pytest.approx(-2.5)
+    assert "source_to_timeline_shift_sec" not in lead.model_dump()
 
 
 def test_automation_point_id_is_stable():

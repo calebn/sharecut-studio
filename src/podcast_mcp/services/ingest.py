@@ -399,11 +399,13 @@ class IngestService:
 
                         dur = float(FFmpegEngine().probe(src_path).duration_sec)
                     durations.append(dur)
+                recorded = SpeakerIngestAlignment(
+                    session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
+                    content_align_sec=result.cross_speaker_offsets.get(name, 0.0),
+                    align_method=result.cross_speaker_align_method.get(name, "unknown"),
+                )
                 placement_sec = (
-                    None
-                    if result.session_trimmed
-                    else result.cross_speaker_offsets.get(name, 0.0)
-                    - result.session_start_in_file_sec.get(name, 0.0)
+                    None if result.session_trimmed else recorded.source_to_timeline_shift_sec
                 )
                 placed = place_ingest_sources(name, durations, placement_sec=placement_sec)
                 warnings.extend(placed.warnings)
@@ -420,18 +422,10 @@ class IngestService:
                     )
                     clips.append(clip)
                     meta_key = ingest_alignment_meta_key(p, track, clip, multi_clip=multi)
-                    align_meta[meta_key] = SpeakerIngestAlignment(
-                        session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
-                        content_align_sec=result.cross_speaker_offsets.get(name, 0.0),
-                        align_method=result.cross_speaker_align_method.get(name, "unknown"),
-                    )
+                    align_meta[meta_key] = recorded.model_copy()
                 if not clips:
                     apply_full_span_media(p, track, store_path=rel, audio_path=wav)
-                    align_meta[name] = SpeakerIngestAlignment(
-                        session_start_in_file_sec=result.session_start_in_file_sec.get(name, 0.0),
-                        content_align_sec=result.cross_speaker_offsets.get(name, 0.0),
-                        align_method=result.cross_speaker_align_method.get(name, "unknown"),
-                    )
+                    align_meta[name] = recorded.model_copy()
                 else:
                     set_track_clips(p, tid, clips)
                     refresh_timeline_duration(p)
