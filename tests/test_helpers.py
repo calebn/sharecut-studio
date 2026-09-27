@@ -80,3 +80,16 @@ def test_replace_effect_collapses_duplicates():
     result = replace_effect(effects, new)
     assert [e.effect for e in result] == ["acompressor", "highpass"]
     assert result[0].params["ratio"] == 5
+
+
+def test_replace_effect_leaves_other_types_untouched():
+    effects = [
+        ProcessingEffect(effect="equalizer", params={"f": 250}),
+        ProcessingEffect(effect="acompressor", params={"ratio": 2}),
+        ProcessingEffect(effect="equalizer", params={"f": 4000}),
+    ]
+    result = replace_effect(effects, ProcessingEffect(effect="acompressor", params={"ratio": 4}))
+    assert [e.effect for e in result] == ["equalizer", "acompressor", "equalizer"]
+    assert result[0].params == {"f": 250}
+    assert result[2].params == {"f": 4000}
+    assert effects[1].params == {"ratio": 2}
