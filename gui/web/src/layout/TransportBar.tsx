@@ -43,6 +43,7 @@ import { TransportFrame, TransportZone } from "./TransportFrame";
 import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { transportPlayHandlers } from "./transportPlay";
+import { WaveformViewSections } from "./WaveformViewSections";
 
 const MODES: { id: AuditionMode; label: string; title: string }[] = [
   { id: "mix", label: "Mix", title: "Full premix (all tracks)" },
@@ -241,6 +242,7 @@ export function TransportBar({
       <MenuSection label="Layers">
         <OverlayLegend menu />
       </MenuSection>
+      <WaveformViewSections />
       <MenuSection label="View">
         <div className="transport-controls" role="none">
           <CommandMenuItem commandId="view.zoomOut" showShortcut={false}>

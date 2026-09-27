@@ -679,6 +679,7 @@
 .overlay-legend {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-4);
   font-size: var(--font-size-caption);
   color: var(--text-dim);
@@ -690,6 +691,22 @@
   gap: var(--space-1);
   cursor: pointer;
   user-select: none;
+}
+
+.overlay-legend-swatch {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--color-waveform-quiet);
+}
+
+/* A snap point is a 1px line in the lane; the swatch is a thin bar of its colour. */
+.overlay-legend-swatch--snap {
+  inline-size: 0.1875rem;
+  border: 0;
+  background: var(--color-waveform-snap);
 }
 
 .track-header-row {

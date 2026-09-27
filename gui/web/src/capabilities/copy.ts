@@ -424,6 +424,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   tabBar: "daw.view.setTab",
   mobileNav: "daw.view.setMobileMode",
   "timeline.waveform": "daw.view.waveformZoomOut",
+  "transport.viewMenu.waveformAmplitude": "daw.view.waveformZoomOut",
   "transport.fitTracksHeight": "daw.view.fitTracksHeight",
   "transport.viewMenu.fitTracksHeight": "daw.view.fitTracksHeight",
   historyPanel: "daw.history.redo",

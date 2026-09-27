@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
+import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 
@@ -12,6 +13,8 @@ type LayerProps = {
   clipWidthCss: number;
   zoom: number;
   colorVar: string;
+  role: string;
+  gainDb: number;
 };
 
 const layers = vi.hoisted(() => [] as LayerProps[][]);
@@ -21,6 +24,7 @@ vi.mock("../api", async (importOriginal) => ({
   rollClipJoin: vi.fn(async () => undefined),
   trimClipEdge: vi.fn(async () => undefined),
   setClipFade: vi.fn(async () => undefined),
+  loadWaveformSnap: vi.fn(async () => ({ ticks: [0.5] })),
 }));
 
 // The layer is tested in WaveformLayer.test.tsx; here, what the clip gives it.
@@ -105,6 +109,8 @@ describe("ClipBlock waveform", () => {
       clipWidthCss: 100,
       zoom: 50,
       colorVar: "var(--clip-dialogue-0)",
+      role: "dialogue",
+      gainDb: 0,
     });
   });
 
@@ -130,6 +136,19 @@ describe("ClipBlock waveform", () => {
       kind: "stem",
       mediaStartSec: 1,
     });
+  });
+
+  it("passes the track output gain to the waveform layer", () => {
+    render(<ClipBlock {...base} gainDb={-4} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({
+      role: "dialogue",
+      gainDb: -4,
+    });
+  });
+
+  it("defaults the waveform layer gain to 0 dB", () => {
+    render(<ClipBlock {...base} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: 0 });
   });
 
   it("gives zero-length fade handles no contradictory start/end class", () => {
@@ -726,5 +745,78 @@ describe("ClipBlock waveform", () => {
       await new Promise((r) => setTimeout(r, 0));
       expect(rollClipJoin).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ClipBlock snap points", () => {
+  beforeEach(() => {
+    layers.push([]);
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      fillStyle: "",
+    })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  });
+
+  const base = {
+    clip,
+    trackId: "host",
+    role: "dialogue",
+    zoomPxPerSec: 50,
+    color: "var(--clip-dialogue-0)",
+    selected: false,
+    mediaRef: "track:host",
+    prevClip: null,
+    nextClip: null,
+    neighborSourceLo: 0,
+    neighborSourceHi: 10,
+    leftNeighborSourceEnd: 0,
+    mediaDurationSec: 10,
+    rollPreview: null,
+    onRollPreview: vi.fn(),
+    onSelect: vi.fn(),
+    onHit: vi.fn(),
+    onSelectClip: vi.fn(),
+    onMovePreview: vi.fn(),
+    onMoveCommit: vi.fn(),
+    onMoveCancel: vi.fn(),
+  } as const;
+
+  function setSnapStore(overrides: { showSnapPoints?: boolean } = {}) {
+    const { showSnapPoints = true } = overrides;
+    useDawStore.setState({
+      projectPath: "/tmp/p.json",
+      guestMode: null,
+      isPlaying: false,
+      playheadSec: 1,
+      bladeHoverSec: null,
+      layers: { ...useDawStore.getState().layers, showSnapPoints },
+    });
+  }
+
+  it("loads ticks for the paused playhead but does not draw them in select mode", async () => {
+    setSnapStore();
+    const { container } = render(<ClipBlock {...base} />);
+    const { loadWaveformSnap } = await import("../api");
+    await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
+    expect(container.querySelector(".clip-waveform-snap")).toBeNull();
+  });
+
+  it("draws ticks in blade mode", async () => {
+    setSnapStore();
+    const { container } = render(<ClipBlock {...base} bladeMode />);
+    await waitFor(() =>
+      expect(container.querySelectorAll(".clip-waveform-snap").length).toBe(1),
+    );
+  });
+
+  it("does not draw ticks in blade mode when Snap points is off", async () => {
+    setSnapStore({ showSnapPoints: false });
+    const { container } = render(<ClipBlock {...base} bladeMode />);
+    const { loadWaveformSnap } = await import("../api");
+    await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
+    expect(container.querySelector(".clip-waveform-snap")).toBeNull();
   });
 });

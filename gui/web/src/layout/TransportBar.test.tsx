@@ -9,6 +9,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, recordSnapshot } from "../test/fixtures";
+import { readWaveformViewPref } from "../utils/waveformViewPref";
 import { TransportBar } from "./TransportBar";
 
 const TRACKS = ["a", "b", "c"].map((id) => ({
@@ -387,6 +388,7 @@ describe("TransportBar guest Mix lock", () => {
 
 describe("TransportBar wide layout", () => {
   beforeEach(() => {
+    localStorage.clear();
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ tracks: TRACKS }));
@@ -668,5 +670,109 @@ describe("TransportBar wide layout", () => {
     const play = screen.getByRole("button", { name: "Play" });
     expect(play).toBeDisabled();
     expect(play).toHaveAttribute("title", "Import audio to play");
+  });
+
+  it("offers waveform scale radios, Auto by default", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    const view = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    const radios = within(menu).getAllByRole("menuitemradio");
+    const scaleRadios = radios.filter((r) =>
+      ["Auto", "Linear", "Log (dB)"].includes(r.textContent ?? ""),
+    );
+    expect(scaleRadios).toHaveLength(3);
+    const auto = within(menu).getByRole("menuitemradio", { name: "Auto" });
+    expect(auto).toHaveAttribute("aria-checked", "true");
+    await expectNoA11yViolations(view.container);
+    await userEvent.click(
+      within(menu).getByRole("menuitemradio", { name: "Log (dB)" }),
+    );
+    expect(useDawStore.getState().waveformScale).toBe("log");
+    expect(screen.getByRole("menu", { name: "View menu" })).toBeInTheDocument();
+    expect(readWaveformViewPref("/tmp/p.json").scale).toBe("log");
+  });
+
+  it("amplitude + steps the waveform amplitude", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    await userEvent.click(
+      within(menu).getByRole("menuitem", { name: /Amplitude \+/ }),
+    );
+    expect(useDawStore.getState().waveformAmpZoom).toBeCloseTo(1.25);
+    expect(
+      within(screen.getByRole("menu", { name: "View menu" })).getByText(
+        "×1.25",
+      ),
+    ).toBeTruthy();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Waveform amplitude ×1.25",
+    );
+  });
+
+  it("post-fader checkbox toggles the store", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    const checkbox = within(menu).getByRole("menuitemcheckbox", {
+      name: "Show waveforms post-fader",
+    });
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(checkbox);
+    expect(useDawStore.getState().waveformPostFader).toBe(true);
+  });
+
+  it("offers Silence shading and Snap points layer toggles", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "View" }));
+    const menu = screen.getByRole("menu", { name: "View menu" });
+    const silence = within(menu).getByRole("menuitemcheckbox", {
+      name: "Silence shading",
+    });
+    const snap = within(menu).getByRole("menuitemcheckbox", {
+      name: "Snap points",
+    });
+    expect(silence).toHaveAttribute("aria-checked", "true");
+    expect(snap).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(silence);
+    expect(useDawStore.getState().layers.showSilence).toBe(false);
+    await userEvent.click(snap);
+    expect(useDawStore.getState().layers.showSnapPoints).toBe(false);
   });
 });
