@@ -33,6 +33,10 @@ from podcast_mcp.util.dicts import deep_merge, get_by_path
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep only ``ALLOWED_CONFIG_TOP_KEYS``. MCP ``config_json`` / GUI config PUT use this
+    filter only; ``effects`` may name custom presets. CLI ``--set`` validates further
+    (``parse_config_assignments``).
+    """
     if not overrides:
         return {}
     return {k: v for k, v in overrides.items() if k in ALLOWED_CONFIG_TOP_KEYS}
