@@ -116,7 +116,7 @@ keep on the timeline (words in material focus/tighten cut don't count), then app
 -70 LUFS absolute and -10 LU relative gates. Bleed and silence therefore don't count. With no
 transcript or under 3 s of speech it falls back to ungated BS.1770 and reports `ungated`.
 `gain_db = target - measured`; `gain_db` is applied only in the mix, never baked into stems.
-A track whose loudness can't be measured (ffmpeg error, no momentary blocks) keeps its
+A track whose loudness can't be measured (ffmpeg error, no momentary blocks), or whose clips keep none of its words, keeps its
 `gain_db` and is listed as `not measured, gain kept` in the summary. Gains are applied only
 after every track is measured, so a cancel changes nothing. `gain_db` reflects the FX chain
 at measurement time: re-run `balance_tracks` after adding, removing, bypassing or retuning

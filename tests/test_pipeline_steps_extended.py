@@ -1096,3 +1096,19 @@ def test_balance_gates_to_words_the_clips_keep(minimal_project, sample_wav, tmp_
         summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
     assert proj.track_by_id("host").gain_db == 0.0  # the cut -30 LUFS words don't count
     assert "speech-gated" in summary
+
+
+def test_balance_keeps_gain_when_every_word_is_cut(minimal_project, sample_wav, tmp_workspace):
+    proj = _words_project(minimal_project, sample_wav, tmp_workspace)  # words 1.0-6.0
+    proj.track_by_id("host").gain_db = 3.0
+    proj.clips = [
+        Clip(id="c_host", track_id="host", source_start=20.0, source_end=30.0, timeline_start=0.0)
+    ]
+    with patch.object(
+        FFmpegEngine, "measure_loudness_blocks", return_value=_blocks(-30.0)
+    ) as measure:
+        summary = steps.balance_tracks(proj, {"balance": {"dialogue_lufs": -20.0}})
+    measure.assert_not_called()
+    assert proj.track_by_id("host").gain_db == 3.0
+    assert "not measured, gain kept: host" in summary
+    assert "speech-gated" not in summary
