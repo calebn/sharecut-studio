@@ -388,9 +388,10 @@ def test_json_progress_cancel_and_fail_unknown_task():
     assert "cancel" in kinds
 
 
-def test_cli_progress_fail_and_cancel(capsys):
+def test_cli_progress_fail_and_cancel(monkeypatch, capsys):
     from podcast_mcp.util.progress import CliProgressReporter
 
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: False)
     reporter = CliProgressReporter(enabled=True)
     reporter.start("t", "Task", total=2)
     reporter.update("t", 1, message="mid", phase="p")
@@ -401,7 +402,7 @@ def test_cli_progress_fail_and_cancel(capsys):
     reporter.cancel("gone")
     reporter.close()
     err = capsys.readouterr().err
-    assert "boom" in err or "failed" in err or "nope" in err or "cancelled" in err
+    assert "boom" in err and "nope" in err
 
 
 @pytest.mark.asyncio
@@ -520,16 +521,17 @@ def test_install_cli_progress_skips_null_callback_and_double_wrap():
     assert first() == "ok"
 
 
-def test_cli_progress_message_and_end(capsys):
+def test_cli_progress_message_and_end(monkeypatch, capsys):
     from podcast_mcp.util.progress import CliProgressReporter
 
+    monkeypatch.setattr(sys.stderr, "isatty", lambda: False)
     reporter = CliProgressReporter(enabled=True)
     reporter.start("t", "Task", total=None)
     reporter.message("t", "phase headline", phase="p1")
     reporter.end("t", message="all done")
     reporter.close()
     err = capsys.readouterr().err
-    assert "phase headline" in err or "all done" in err or "Task" in err
+    assert "phase headline" in err and "all done" in err
 
 
 def test_progress_task_advance_without_message():
@@ -540,30 +542,28 @@ def test_progress_task_advance_without_message():
     assert any(e.kind == "update" for e in rec.events)
 
 
-def test_cli_progress_rich_fail_cancel(monkeypatch, fake_rich_progress):
-    # A real rich.progress.Progress starts a background auto-refresh thread
-    # against real stderr; stop() does not guarantee it has fully exited
-    # before returning, so a late write can land in a *different* test's
-    # capsys capture under CI's heavier scheduling load (see #645). The
-    # fake_rich_progress fixture (tests/conftest.py) covers the whole test,
-    # not just the constructor, so a future lazy re-import of rich.progress
-    # inside start()/update()/etc. still can't reach the real module.
-    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
+def test_cli_progress_rich_fail_cancel(fake_rich_progress, capsys):
     reporter = CliProgressReporter(enabled=True)
-    reporter.start("t", "Task", total=3)
-    reporter.update("t", 1)
-    reporter.message("t", "heading", phase="p")
-    reporter.fail("t", message="rich-fail")
-    reporter.start("u", "Other", total=2)
-    reporter.cancel("u", message="rich-cancel")
-    # Heartbeat path with total set
-    reporter.start("v", "HB", total=5)
-    reporter._emit_heartbeat("v", reporter._tasks["v"], 12.0)
     fake = reporter._progress
     assert isinstance(fake, fake_rich_progress)
+    reporter.start("t", "Task", total=3)
+    bar_t = reporter._bars["t"]
+    reporter.update("t", 1)
+    reporter.message("t", "heading", phase="p")
+    assert fake.update_calls == [(bar_t, {"completed": 1}), (bar_t, {"description": "heading"})]
+    reporter.fail("t", message="rich-fail")
+    reporter.start("u", "Other", total=2)
+    bar_u = reporter._bars["u"]
+    reporter.cancel("u", message="rich-cancel")
+    assert fake.remove_task_calls == [bar_t, bar_u]
+    # The rich view owns elapsed time, so the heartbeat neither updates a bar nor writes a line.
+    reporter.start("v", "HB", total=5)
+    updates_before = len(fake.update_calls)
+    reporter._emit_heartbeat("v", reporter._tasks["v"], 12.0)
+    assert len(fake.update_calls) == updates_before
     reporter.close()
-    assert len(fake.add_task_calls) == 3  # t, u, v each got a bar
-    assert fake.removed_tasks  # fail()/end-of-cancel() removed at least one
+    assert fake.stopped
+    assert capsys.readouterr().err == "rich-fail\nrich-cancel\n"
 
 
 def test_current_progress_task_and_resolve_prefer_parent():

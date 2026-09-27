@@ -304,7 +304,7 @@ def test_progress_task_fail_then_runtime_error_skips_second_fail() -> None:
     assert sum(1 for e in rec.events if e.kind == "fail") == 1
 
 
-def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch) -> None:
+def test_cli_progress_disabled_and_rich_end_without_total(fake_rich_progress) -> None:
     from podcast_mcp.util.progress import CliProgressReporter
 
     disabled = CliProgressReporter(enabled=False)
@@ -314,15 +314,19 @@ def test_cli_progress_disabled_and_rich_end_without_total(monkeypatch) -> None:
     disabled.end("t")
     disabled.close()
 
-    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
     rich = CliProgressReporter(enabled=True)
+    fake = rich._progress
     rich.start("u", "Indeterminate", total=None)
+    bar_u = rich._bars["u"]
     rich.end("u")  # rich bar present, but no state.total → skip completed= update
+    assert fake.update_calls == []
     rich.start("v", "Gone")
+    bar_v = rich._bars["v"]
     rich._finish_task("v")  # leave bar entry without task state
     rich.fail("v", message="orphan")
     rich.cancel("w", message="never started")
     rich.close()
+    assert fake.remove_task_calls == [bar_u, bar_v]
 
 
 def test_cli_progress_heartbeat(monkeypatch) -> None:

@@ -43,6 +43,7 @@ Results and structured command output remain on **stdout**. Progress never write
 - `total` is omitted (`null`) when unknown — never invent a percent
 - Piped / `PODCAST_PROGRESS=0` → `default_progress_enabled()` is false and the consumer is `NullProgress`
 - TTY Rich output is best-effort; tests assert JSON + stderr/stdout separation, not escape sequences
+- Rich-mode tests use the `fake_rich_progress` fixture (`tests/conftest.py`, fake in `tests/progress_helpers.py`) and never build a real `rich.progress.Progress`: its daemon refresh thread writes to whatever `sys.stderr` is live, so an unclosed reporter leaks escape codes into later tests' capture. Tests of the plain-stderr path pin `sys.stderr.isatty` to `False`.
 
 ## Determinate vs indeterminate
 

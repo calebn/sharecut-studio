@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Iterator
+import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -18,6 +18,7 @@ from podcast_mcp.services import ProjectWorkspace, ReviewService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media
+from progress_helpers import RecordingFakeProgress, fake_rich_progress_module
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -255,53 +256,21 @@ def removed_session_clients(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return removed
 
 
-class FakeRichProgress:
-    """No-op fake for ``rich.progress.Progress``: records add_task/update/remove_task calls.
-
-    A real ``Progress`` spins a background auto-refresh thread against real stderr;
-    ``Progress.stop()`` does not guarantee that thread has exited before returning, so
-    under CI's heavier scheduling a late write can land inside a *different* test's
-    ``capsys`` capture (see #645). Every test that builds a ``CliProgressReporter`` with
-    ``sys.stderr.isatty`` mocked True must go through this fixture instead of the real
-    ``rich.progress`` module.
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self.ctor_kwargs = kwargs
-        self.add_task_calls: list[dict[str, Any]] = []
-        self.update_calls: list[tuple[Any, dict[str, Any]]] = []
-        self.removed_tasks: list[Any] = []
-        self._next_bar = 0
-
-    def start(self) -> None:
-        return None
-
-    def stop(self) -> None:
-        return None
-
-    def add_task(self, label: str, total: int | float | None = 0) -> int:
-        self._next_bar += 1
-        self.add_task_calls.append({"label": label, "total": total})
-        return self._next_bar
-
-    def update(self, bar: Any, **kwargs: Any) -> None:
-        self.update_calls.append((bar, kwargs))
-
-    def remove_task(self, bar: Any) -> None:
-        self.removed_tasks.append(bar)
-
-
 @pytest.fixture
-def fake_rich_progress() -> Iterator[type[FakeRichProgress]]:
-    """Patch ``sys.modules["rich.progress"]`` so ``CliProgressReporter`` never starts a
-    real background-thread Progress. Yields the fake class for call assertions."""
-    module = MagicMock(
-        BarColumn=MagicMock(),
-        Progress=FakeRichProgress,
-        SpinnerColumn=MagicMock(),
-        TaskProgressColumn=MagicMock(),
-        TextColumn=MagicMock(),
-        TimeElapsedColumn=MagicMock(),
-    )
-    with patch.dict("sys.modules", {"rich.progress": module}):
-        yield FakeRichProgress
+def fake_rich_progress(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> type[RecordingFakeProgress]:
+    """Put ``CliProgressReporter`` on its rich TTY path against a recording fake.
+
+    Patches ``isatty`` on ``type(sys.stderr)`` rather than the instance:
+    ``capsys`` installs a fresh ``CaptureIO`` per test phase (setup/call/
+    teardown), so an instance-level patch made here, in fixture setup, would
+    not be in effect once the test body (the call phase) runs. Patching the
+    class covers every instance capsys swaps in. Uses ``monkeypatch.setitem``
+    so the fake ``rich.progress`` stays installed for the whole test, not
+    just the ctor.
+    """
+    del capsys
+    monkeypatch.setattr(type(sys.stderr), "isatty", lambda self: True)
+    monkeypatch.setitem(sys.modules, "rich.progress", fake_rich_progress_module())
+    return RecordingFakeProgress

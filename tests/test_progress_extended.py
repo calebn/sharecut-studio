@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from podcast_mcp.util.progress import (
     CliProgressReporter,
@@ -49,13 +49,10 @@ def test_cli_progress_reporter_non_tty_fallback():
     reporter.close()
 
 
-def test_make_progress_reporter_cli_default(monkeypatch, fake_rich_progress):
-    # fake_rich_progress (tests/conftest.py) keeps this from starting a real
-    # background-thread rich.progress.Progress that this test never closes
-    # (see #645 — that's exactly the shape of leak that flaked CI).
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+def test_make_progress_reporter_cli_default(fake_rich_progress):
     reporter = make_progress_reporter(enabled=True, json_mode=False)
     assert isinstance(reporter, CliProgressReporter)
+    assert isinstance(reporter._progress, fake_rich_progress)
     reporter.close()
 
 
@@ -121,87 +118,8 @@ def test_json_progress_heartbeat_loop():
     reporter.close()
 
 
-class _RecordingFakeProgress:
-    """Fake rich Progress that records add_task/update calls and ctor kwargs."""
-
-    _bar_seq = 0
-
-    def __init__(self, *args, **kwargs):
-        self.ctor_kwargs = kwargs
-        self.add_task_calls: list[dict] = []
-        self.update_calls: list[tuple] = []
-        self._bars: dict = {}
-
-    def start(self):
-        return None
-
-    def stop(self):
-        return None
-
-    def add_task(self, label, total=0):
-        type(self)._bar_seq += 1
-        bar = type(self)._bar_seq
-        self.add_task_calls.append({"label": label, "total": total})
-        return bar
-
-    def update(self, bar, **kwargs):
-        self.update_calls.append((bar, kwargs))
-        return None
-
-    def remove_task(self, bar):
-        return None
-
-
-def _patched_rich_progress_module():
-    return MagicMock(
-        BarColumn=MagicMock(),
-        Progress=_RecordingFakeProgress,
-        SpinnerColumn=MagicMock(),
-        TaskProgressColumn=MagicMock(),
-        TextColumn=MagicMock(),
-        TimeElapsedColumn=MagicMock(),
-    )
-
-
-def test_cli_progress_reporter_rich_mode(monkeypatch):
-    fake_bar = object()
-    fake_progress = MagicMock()
-    fake_progress.add_task.return_value = fake_bar
-
-    class FakeProgress:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def start(self):
-            return None
-
-        def stop(self):
-            return None
-
-        def add_task(self, label, total=0):
-            return fake_bar
-
-        def update(self, bar, **kwargs):
-            return None
-
-        def remove_task(self, bar):
-            return None
-
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    with patch.dict(
-        "sys.modules",
-        {
-            "rich.progress": MagicMock(
-                BarColumn=MagicMock(),
-                Progress=FakeProgress,
-                SpinnerColumn=MagicMock(),
-                TaskProgressColumn=MagicMock(),
-                TextColumn=MagicMock(),
-                TimeElapsedColumn=MagicMock(),
-            )
-        },
-    ):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_progress_reporter_rich_mode(fake_rich_progress):
+    reporter = CliProgressReporter(enabled=True)
     reporter.start("rich", "Rich job", total=4)
     reporter.update("rich", 2, total=4, message="half")
     reporter.message("rich", "status line")
@@ -210,10 +128,8 @@ def test_cli_progress_reporter_rich_mode(monkeypatch):
     reporter.close()
 
 
-def test_cli_rich_indeterminate_row_pulses(monkeypatch):
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_rich_indeterminate_row_pulses(fake_rich_progress):
+    reporter = CliProgressReporter(enabled=True)
     reporter.start("w", "Wrap")
     reporter.start("p", "Pipeline", total=4)
     fake = reporter._progress
@@ -222,10 +138,8 @@ def test_cli_rich_indeterminate_row_pulses(monkeypatch):
     reporter.close()
 
 
-def test_cli_rich_message_updates_row_not_stderr(monkeypatch, capsys):
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_rich_message_updates_row_not_stderr(fake_rich_progress, capsys):
+    reporter = CliProgressReporter(enabled=True)
     reporter.start("p", "Pipeline", total=4)
     fake = reporter._progress
     reporter.message("p", "Running align")
@@ -234,11 +148,9 @@ def test_cli_rich_message_updates_row_not_stderr(monkeypatch, capsys):
     reporter.close()
 
 
-def test_cli_rich_bar_id_zero_updates_and_is_removed(monkeypatch):
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    monkeypatch.setattr(_RecordingFakeProgress, "_bar_seq", -1)
-    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_rich_bar_id_zero_updates_and_is_removed(fake_rich_progress, monkeypatch):
+    monkeypatch.setattr(fake_rich_progress, "_bar_seq", -1)
+    reporter = CliProgressReporter(enabled=True)
     reporter.start("p", "Pipeline", total=4)
     fake = reporter._progress
     reporter.update("p", 2, total=4)
@@ -252,20 +164,16 @@ def test_cli_rich_bar_id_zero_updates_and_is_removed(monkeypatch):
     reporter.close()
 
 
-def test_cli_rich_heartbeat_is_silent(monkeypatch, capsys):
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_rich_heartbeat_is_silent(fake_rich_progress, capsys):
+    reporter = CliProgressReporter(enabled=True)
     reporter.start("p", "Pipeline", total=4)
     reporter._emit_heartbeat("p", reporter._tasks["p"], 30.0)  # type: ignore[attr-defined]
     assert capsys.readouterr().err == ""
     reporter.close()
 
 
-def test_cli_rich_renders_on_stderr(monkeypatch):
-    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
-    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
-        reporter = CliProgressReporter(enabled=True)
+def test_cli_rich_renders_on_stderr(fake_rich_progress):
+    reporter = CliProgressReporter(enabled=True)
     console = reporter._progress.ctor_kwargs["console"]
     assert console.stderr is True
     reporter.close()
@@ -306,7 +214,8 @@ def test_cli_progress_heartbeat_with_total(monkeypatch):
     reporter.close()
 
 
-def test_cli_progress_update_unknown_task():
+def test_cli_progress_update_unknown_task(monkeypatch):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: False)
     reporter = CliProgressReporter(enabled=True)
     reporter.update("missing", 1)
     reporter.close()
