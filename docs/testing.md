@@ -622,11 +622,15 @@ runtime), and an ordered `words` array of text/start/end objects. The script che
 the gold fixture and candidate hashes against the audio
 SHA-256, preserves predicted words and provenance in the report, and never
 downloads a model. Scores count only normalized matching words in sequence.
+Each gold and prediction transcript may contain at most 256 words; this
+benchmark targets short clips and rejects longer inputs before alignment.
 Report missed/extra words alongside boundary MAE (mean absolute start and end
 error) and the fraction of matched words with either boundary off by >150 ms.
 If no words match, MAE and the >150 ms fraction are `null`; missed/extra counts
-still show the failed coverage. Matching uses a bounded monotone alignment
-that prefers lower timing error when repeated words create equal text matches.
+still show the failed coverage. Exact monotone matching prefers lower timing
+error when repeated words create equal text matches. The 256-word limit bounds
+matching time and traceback memory even when a candidate inserts or omits a
+long contiguous span.
 
 The checked-in `*.native-base.json` reports measured 42 matching words across
 48 reference words: 82.3 ms boundary MAE, 15/42 (35.7%) over 150 ms, six

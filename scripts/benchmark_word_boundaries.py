@@ -48,8 +48,14 @@ def benchmark(
         if supplied.get("audio_sha256") != observed_sha:
             raise ValueError("prediction audio_sha256 does not match gold fixture")
         provenance = supplied.get("provenance")
-        if not isinstance(provenance, dict) or not provenance:
-            raise ValueError("prediction needs nonempty provenance metadata")
+        if not isinstance(provenance, dict):
+            raise ValueError("prediction needs provenance metadata")
+        for field in ("model", "version", "license"):
+            value = provenance.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"prediction provenance needs nonempty {field}")
+        if not isinstance(provenance.get("settings"), dict):
+            raise ValueError("prediction provenance needs settings object")
         runtime_sec = provenance.get("runtime_sec")
         if runtime_sec is not None and (
             isinstance(runtime_sec, bool)

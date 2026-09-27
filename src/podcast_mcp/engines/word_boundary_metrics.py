@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
-from math import ceil, isfinite
+from math import isfinite
 from typing import Any
+
+MAX_BENCHMARK_WORDS = 256
 
 
 def _key(text: str) -> str:
@@ -34,10 +36,14 @@ def measure_word_boundaries(
 
     ``boundary_mae_ms`` averages the absolute start and end errors. A word is
     over 150 ms when either boundary is off by strictly more than 150 ms.
-    Banded monotone sequence matching first maximizes matched text and then
-    minimizes total boundary error. This resolves repeated-word ambiguity
-    without comparing every word with every other word in long transcripts.
+    Exact monotone sequence matching first maximizes matched text and then
+    minimizes total boundary error. The benchmark accepts short clips of at
+    most 256 words per side to bound alignment time and traceback memory.
     """
+    if len(reference) > MAX_BENCHMARK_WORDS or len(prediction) > MAX_BENCHMARK_WORDS:
+        raise ValueError(
+            f"word-boundary benchmark supports at most {MAX_BENCHMARK_WORDS} words per side"
+        )
     for words in (reference, prediction):
         for word in words:
             if not isinstance(word.get("text"), str) or not _key(word["text"]):
@@ -81,43 +87,41 @@ def _matched_pairs(
         return []
     ref_keys = [_key(word["text"]) for word in reference]
     pred_keys = [_key(word["text"]) for word in prediction]
-    # The diagonal follows the relative transcript lengths. The bounded band
-    # permits local insertions/deletions while keeping the cost linear in the
-    # length of ordinary episode transcripts.
-    band = 64 + ceil(max(n / m, m / n))
-    previous: dict[int, tuple[int, float]] = {}
-    back: dict[tuple[int, int], tuple[int, int, bool]] = {}
+    # A short-clip limit bounds this exact DP to 65,536 cells. One byte per
+    # cell records the chosen predecessor: up, left, or matching diagonal.
+    stride = m + 1
+    back = bytearray((n + 1) * stride)
+    previous = [(0, 0.0)] * stride
+    for j in range(1, stride):
+        back[j] = 2
     for i in range(n + 1):
-        center = round(i * m / n)
-        current: dict[int, tuple[int, float]] = {}
-        for j in range(max(0, center - band), min(m, center + band) + 1):
-            if i == j == 0:
-                current[j] = (0, 0.0)
-                continue
-            options: list[tuple[tuple[int, float], tuple[int, int, bool]]] = []
-            if i and j in previous:
-                options.append((previous[j], (i - 1, j, False)))
-            if j and j - 1 in current:
-                options.append((current[j - 1], (i, j - 1, False)))
-            if i and j and ref_keys[i - 1] == pred_keys[j - 1] and j - 1 in previous:
+        if i == 0:
+            continue
+        current = [(0, 0.0)] * stride
+        back[i * stride] = 1
+        for j in range(1, stride):
+            options = [(previous[j], 1), (current[j - 1], 2)]
+            if ref_keys[i - 1] == pred_keys[j - 1]:
                 ref, pred = reference[i - 1], prediction[j - 1]
                 cost = abs(ref["start"] - pred["start"]) + abs(ref["end"] - pred["end"])
                 count, error = previous[j - 1]
-                options.append(((count + 1, error + cost), (i - 1, j - 1, True)))
-            if options:
-                score, predecessor = max(options, key=lambda item: (item[0][0], -item[0][1]))
-                current[j] = score
-                back[i, j] = predecessor
+                options.append(((count + 1, error + cost), 3))
+            score, direction = max(options, key=lambda item: (item[0][0], -item[0][1]))
+            current[j] = score
+            back[i * stride + j] = direction
         previous = current
 
-    if m not in previous:
-        raise ValueError("word sequences exceed the supported alignment band")
     matched: list[tuple[dict[str, Any], dict[str, Any]]] = []
     i, j = n, m
     while i or j:
-        parent_i, parent_j, is_match = back[i, j]
-        if is_match:
+        direction = back[i * stride + j]
+        if direction == 3:
             matched.append((reference[i - 1], prediction[j - 1]))
-        i, j = parent_i, parent_j
+            i -= 1
+            j -= 1
+        elif direction == 1:
+            i -= 1
+        else:
+            j -= 1
     matched.reverse()
     return matched

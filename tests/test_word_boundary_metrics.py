@@ -79,14 +79,43 @@ def test_zero_matches_reports_coverage_without_inventing_accuracy() -> None:
     assert result.words_over_150ms_fraction is None
 
 
-def test_long_repeated_transcript_keeps_monotone_matches() -> None:
-    reference = [word("the" if i % 2 else "and", i * 0.2, i * 0.2 + 0.1) for i in range(4000)]
+def test_repeated_short_clip_keeps_monotone_matches() -> None:
+    reference = [word("the" if i % 2 else "and", i * 0.2, i * 0.2 + 0.1) for i in range(256)]
     prediction = reference[1:]
 
     result = measure_word_boundaries(reference, prediction)
 
-    assert result.matched_words == 3999
+    assert result.matched_words == 255
     assert result.boundary_mae_ms == 0
+
+
+def test_long_leading_insertion_preserves_exact_suffix_matches() -> None:
+    reference = [word(f"w{i}", i + 80, i + 80.1) for i in range(180)]
+    prediction = [word(f"x{i}", i, i + 0.1) for i in range(80)] + reference[:100]
+
+    result = measure_word_boundaries(reference, prediction)
+
+    assert (result.matched_words, result.missed_reference_words, result.extra_predicted_words) == (
+        100,
+        80,
+        80,
+    )
+    assert result.boundary_mae_ms == 0
+
+
+def test_long_leading_omission_preserves_exact_suffix_matches() -> None:
+    reference = [word(f"w{i}", i, i + 0.1) for i in range(256)]
+
+    result = measure_word_boundaries(reference, reference[120:])
+
+    assert result.matched_words == 136
+    assert result.boundary_mae_ms == 0
+
+
+def test_benchmark_rejects_transcripts_beyond_short_clip_limit() -> None:
+    reference = [word(f"w{i}", i, i + 0.1) for i in range(257)]
+    with pytest.raises(ValueError, match="at most 256 words"):
+        measure_word_boundaries(reference, reference)
 
 
 def test_benchmark_cli_accepts_same_audio_prediction_and_rejects_wrong_hash(tmp_path) -> None:
@@ -158,7 +187,12 @@ def test_benchmark_streams_audio_hash_and_preserves_report_on_publish_failure(tm
         json.dumps(
             {
                 "audio_sha256": stored["audio_sha256"],
-                "provenance": {"model": "candidate"},
+                "provenance": {
+                    "model": "candidate",
+                    "version": "1",
+                    "settings": {},
+                    "license": "MIT",
+                },
                 "words": stored["words"],
             }
         ),
@@ -180,6 +214,36 @@ def test_benchmark_streams_audio_hash_and_preserves_report_on_publish_failure(tm
         )
     assert json.loads(output.read_text(encoding="utf-8")) == {"previous": True}
     assert list(tmp_path.glob(".report.json.*.tmp")) == []
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {"model": "candidate"},
+        {"model": " ", "version": "1", "settings": {}, "license": "MIT"},
+        {"model": "candidate", "version": "1", "settings": [], "license": "MIT"},
+        {"model": "candidate", "version": "1", "settings": {}, "license": ""},
+    ],
+)
+def test_benchmark_rejects_incomplete_candidate_provenance(tmp_path, provenance) -> None:
+    fixture = Path(__file__).parent / "fixtures" / "word_boundary"
+    gold = fixture / "1988-147956-0023.gold.json"
+    stored = json.loads(gold.read_text(encoding="utf-8"))
+    prediction = tmp_path / "prediction.json"
+    prediction.write_text(
+        json.dumps(
+            {
+                "audio_sha256": stored["audio_sha256"],
+                "provenance": provenance,
+                "words": stored["words"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    benchmark = load_script("benchmark_word_boundaries")
+    with pytest.raises(ValueError, match="provenance needs"):
+        benchmark.benchmark(gold, prediction_path=prediction, native_model=None)
 
 
 def test_checked_in_native_reports_match_reference_fixture() -> None:
