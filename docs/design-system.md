@@ -105,6 +105,11 @@ position and visible-chunk props at desktop and 360px widths, plus comment
 anchor mode. The live `TimeRuler` adapter reads those values from DAW state
 and supplies the store-driven `Playhead`, preserving its per-frame transform.
 Storybook supplies `PlayheadNeedle` at a fixed position instead.
+`Templates/AppliedEditOverlay` renders the shipped applied-edit ticks in a
+production timeline lane. Fictional prop records cover visible and selected
+edits, densely spaced short cuts, and filtered and empty 360px lanes. The
+ticks remain decorative and non-interactive; selection belongs to the live
+Impact panel. The story does not mount the DAW store or alter edit behavior.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
