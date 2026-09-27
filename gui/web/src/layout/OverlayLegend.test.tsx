@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addChapter } from "../api";
@@ -17,6 +17,7 @@ describe("OverlayLegend", () => {
   beforeEach(() => {
     addChapterMock.mockClear();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    useDawStore.setState({ statusAnnouncement: "", selection: null });
   });
 
   it("adds a chapter at the playhead time current when clicked, not when rendered", async () => {
@@ -34,5 +35,48 @@ describe("OverlayLegend", () => {
       12,
       "Chapter 12.0s",
     );
+  });
+
+  it("ignores repeat clicks while an add is in flight", async () => {
+    let resolveAdd: () => void = () => {};
+    addChapterMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        }),
+    );
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <OverlayLegend />
+      </DawProvider>,
+    );
+    const button = screen.getByRole("button", { name: "+ Chapter" });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(addChapterMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveAdd();
+    });
+    await userEvent.click(button);
+    expect(addChapterMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("announces a failed add and does not select a chapter", async () => {
+    addChapterMock.mockRejectedValueOnce(new Error("boom"));
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <OverlayLegend />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "+ Chapter" }));
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Add chapter failed: boom",
+      ),
+    );
+    expect(useDawStore.getState().selection).toBeNull();
+    // The guard is released after a failure, so a retry goes through.
+    await userEvent.click(screen.getByRole("button", { name: "+ Chapter" }));
+    expect(addChapterMock).toHaveBeenCalledTimes(2);
   });
 });
