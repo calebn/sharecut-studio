@@ -163,14 +163,64 @@ function bodyAt(text: string, from: number): string {
   return text.slice(start);
 }
 
+/**
+ * Where a function's body starts, given the index just past its parameter
+ * list: past the `=>` of an arrow, or at the `{` of a `function` block,
+ * after skipping an optional return-type annotation (`: number`,
+ * `: { a: number }`, `: Pick<DawState, "a">`). `undefined` when neither
+ * follows (the parentheses were not a parameter list).
+ */
+function bodyStartAfter(text: string, paramsEnd: number): number | undefined {
+  let i = skipSpace(text, paramsEnd);
+  if (text[i] === ":") {
+    const typeStart = i + 1;
+    let depth = 0;
+    i = typeStart;
+    while (i < text.length) {
+      const skipped = skipLiteral(text, i);
+      if (skipped !== i) {
+        i = skipped;
+        continue;
+      }
+      const ch = text[i];
+      if (text.startsWith("=>", i)) {
+        if (depth === 0) {
+          break;
+        }
+        i += 2; // a function type's arrow, e.g. `: Array<() => void>`
+        continue;
+      }
+      if (depth === 0 && ch === "{" && text.slice(typeStart, i).trim() !== "") {
+        break; // a `function` block after a non-empty return type
+      }
+      if ("([{<".includes(ch)) {
+        depth += 1;
+      } else if (")]}>".includes(ch)) {
+        depth -= 1;
+        if (depth < 0) {
+          return undefined;
+        }
+      } else if (depth === 0 && (ch === ";" || ch === ",")) {
+        return undefined;
+      }
+      i += 1;
+    }
+  }
+  if (text.startsWith("=>", i)) {
+    return i + 2;
+  }
+  return text[i] === "{" ? i : undefined;
+}
+
 /** A parsed selector: its first parameter's name or destructuring pattern, and its body. */
 type Selector = { param?: string; pattern?: string; body: string };
 
 /**
  * The arrow or `function` expression starting at `from` (after optional
  * whitespace). A destructuring pattern is taken with balanced braces, so a
- * nested pattern stays whole; a type annotation is skipped with the rest of
- * the parameter list. `undefined` when no function starts there (e.g. a
+ * nested pattern stays whole; a parameter type annotation is skipped with
+ * the rest of the parameter list, and a return-type annotation by
+ * `bodyStartAfter`. `undefined` when no function starts there (e.g. a
  * named selector, `useDaw(pick)`).
  */
 function selectorAt(text: string, from: number): Selector | undefined {
@@ -185,11 +235,11 @@ function selectorAt(text: string, from: number): Selector | undefined {
   }
   const paramsStart = from + head[0].length;
   const paramsEnd = closeOf(text, paramsStart, "(", ")");
-  const arrow = /^\s*(?:=>|(?=\{))/.exec(text.slice(paramsEnd));
-  if (!arrow) {
+  const bodyStart = bodyStartAfter(text, paramsEnd);
+  if (bodyStart === undefined) {
     return undefined;
   }
-  const body = bodyAt(text, paramsEnd + arrow[0].length);
+  const body = bodyAt(text, bodyStart);
   if (text[paramsStart] === "{") {
     const patternEnd = closeOf(text, paramsStart + 1, "{", "}");
     return { pattern: text.slice(paramsStart, patternEnd), body };
@@ -486,6 +536,19 @@ describe("store governance", () => {
     ['const p = (st: Pick<DawState, "zoom">) => st.zoom; st.playheadSec', []],
     ["useDaw((st) => st.zoom, (a, b) => a === b); st.playheadSec", []],
     ["useDaw(pick)", []],
+    [
+      "function pick(st: DawState): number { return st.scrollLeft; }",
+      ["st.scrollLeft"],
+    ],
+    [
+      "const pick = (st: DawState): number => st.playheadSec;",
+      ["st.playheadSec"],
+    ],
+    ["useDaw((st): number => st.playheadSec)", ["st.playheadSec"]],
+    [
+      "useDaw((st): { p: number } => ({ p: st.playheadSec }))",
+      ["st.playheadSec"],
+    ],
     ['useDaw((st) => st.mode === ")" || st.scrollLeft > 0)', ["st.scrollLeft"]],
     ["useDaw((st) => `${st.mode})` + st.bladeHoverSec)", ["st.bladeHoverSec"]],
     ["useDaw((st) => /* ) */ st.pointerTrackId)", ["st.pointerTrackId"]],
