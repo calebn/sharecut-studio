@@ -162,7 +162,8 @@ def pipeline_analyze_cmd(
     from podcast_mcp.services import ProjectWorkspace
     from podcast_mcp.services.pipeline_config import merge_pipeline_config, suggest_pipeline_tuning
 
-    base = merge_pipeline_config(_overrides(assignments))
+    overrides = _overrides(assignments)
+    base = merge_pipeline_config(overrides)
     ws = ProjectWorkspace.open(project)
     result = suggest_pipeline_tuning(ws.project, base_config=base)
 
@@ -170,11 +171,12 @@ def pipeline_analyze_cmd(
         typer.echo(json.dumps(result, indent=2))
         return
 
-    _echo_analyze_report(result, project)
+    _echo_analyze_report(result, project, overrides)
 
 
-def _echo_analyze_report(result: dict[str, Any], project: Path) -> None:
+def _echo_analyze_report(result: dict[str, Any], project: Path, overrides: dict[str, Any]) -> None:
     from podcast_mcp.services.pipeline_config import config_assignments
+    from podcast_mcp.util.dicts import deep_merge
 
     reasons = result.get("reasons") or []
     if not reasons:
@@ -197,9 +199,11 @@ def _echo_analyze_report(result: dict[str, Any], project: Path) -> None:
     if not patches:
         typer.echo("No config changes proposed.")
         return
-    parts = [shlex.quote(a) for a in config_assignments(patches)]
+    # base already holds the analyze --set overrides, so patches omit them; the run
+    # line must carry both or it would run a different config than was analyzed.
+    parts = [shlex.quote(a) for a in config_assignments(deep_merge(overrides, patches))]
     set_flags = " ".join(f"--set {p}" for p in parts)
-    typer.echo(f"Proposed: podcast pipeline run --project {project} {set_flags}")
+    typer.echo(f"Proposed: podcast pipeline run --project {shlex.quote(str(project))} {set_flags}")
 
 
 def render_preview_cmd(
