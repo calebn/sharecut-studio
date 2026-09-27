@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -226,6 +226,11 @@ fixtures and local callbacks, covering empty, live review and agent links, a
 record room, a missing producer link, busy, clipboard error, and a 360px
 phone.
 
+`Templates/BounceDialog` renders `BounceDialogView`. The live `BounceDialog`
+keeps selection and solo resolution, `startBounceJob` / `followExportJob`,
+abort-on-close and the status announcement. Stories cover ready, no region,
+bouncing, a nothing-selected error and 360px.
+
 ### Catalog boundary (store-bound components)
 
 Per sync rule 6 (#172/#173), a component that cannot render from props alone
@@ -233,8 +238,6 @@ gets a refactor issue, not a story. These remaining store-bound surfaces are
 tracked as grouped follow-up issues, one per cluster, each component its own
 checkbox so it can ship as its own PR:
 
-- **A** ([#608](https://github.com/calebn/sharecut-studio/issues/608)) — share
-  and bounce dialogs: `BounceDialog` (`ShareDialog` done)
 - **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
   rail, tool mode toggle and command palette: `EditingToolRail`,
   `ToolModeToggle`, `CommandPalette`
@@ -253,8 +256,8 @@ and `MenuItem`, which already have stories; they are not on this list and get
 no separate refactor issue. A component leaves this list only once its
 production view is extracted into a props-only `XView` rendered by the live
 adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
-`FollowBannerView`, `GuestAttentionBannerView` and `ShareDialogView` already
-were.
+`FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView` and
+`BounceDialogView` already were.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -401,8 +404,9 @@ that store or simulate command execution.
   Catalog boundary follow-up list; the conflict list now ends with a "+N
   more" item when more than 5 conflicts are queued.
 
-- 2026-09-27 — Added `Templates/ShareDialog` with the props-only
-  `ShareDialogView` rendered by the live `ShareDialog` (#608).
+- 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
+  with the props-only `ShareDialogView` and `BounceDialogView` rendered by
+  their live adapters, closing #608.
 
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
