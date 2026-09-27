@@ -308,6 +308,40 @@ describe("Alt chords", () => {
     expect(displayShortcutKeys(increase, false)).toBe("Alt+=");
     expect(ariaKeyShortcutsFor("view.trackHeightDecrease")).toContain("Alt");
   });
+
+  it("matches a remapped Alt row by physical code on macOS", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("view.trackHeightIncrease", ["]"]);
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "’", code: "BracketRight", altKey: true }),
+      )?.id,
+    ).toBe("view.trackHeightIncrease");
+    expect(
+      matchKeymapCommand(
+        keyEvent({ key: "]", code: "BracketRight", altKey: true }),
+      )?.id,
+    ).toBe("view.trackHeightIncrease");
+    setKeymapOverride("view.trackHeightIncrease", ["K"]);
+    expect(
+      matchKeymapCommand(keyEvent({ key: "˚", code: "KeyK", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightIncrease");
+    setKeymapOverride("view.trackHeightIncrease", ["7"]);
+    expect(
+      matchKeymapCommand(keyEvent({ key: "¶", code: "Digit7", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightIncrease");
+    _resetKeymapOverridesForTests();
+  });
+
+  it("does not add code-derived keys without Alt", () => {
+    expect(
+      matchKeymapCommands(keyEvent({ key: "≠", code: "Equal" })).map(
+        (c) => c.id,
+      ),
+    ).not.toContain("view.zoomIn");
+  });
 });
 
 describe("displayShortcutKeys", () => {
