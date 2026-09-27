@@ -147,6 +147,9 @@ def _empty_journal_snapshot() -> dict[str, Any]:
 def journal_saved_command(store: SyncStore, project: EpisodeProject) -> dict[str, Any] | None:
     """Reconcile a command a crash saved to the project without its journal row (#575).
 
+    The row keeps the saved command's own client_id/role/causation_id (whichever client
+    submits next triggers it) and its ts_ns is the recovery time; payload.result is None.
+
     Returns the recovered journal row, or ``None`` when there is nothing to
     reconcile (no saved command, the journal has moved past its
     ``base_server_seq``, or it is already journaled).
