@@ -733,7 +733,8 @@ def project_file_path(workspace: Path) -> Path:
     return workspace / EPISODE_PROJECT_FILENAME
 
 
-def workspace_artifacts_dir(workspace: Path) -> Path:
+def workspace_artifacts_dir(workspace: Path | str) -> Path:
+    """``artifacts/`` under a workspace dir: the single definition of that layout."""
     return Path(workspace) / "artifacts"
 
 

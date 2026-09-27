@@ -38,6 +38,7 @@ from podcast_mcp.models import (
     SpeakerIngestAlignment,
     Track,
     TrackRole,
+    workspace_artifacts_dir,
 )
 from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -460,7 +461,7 @@ def suggest_alignment_for_manifest(
 
     ref_start = _manual_session_start(manifest, ref_name)
     candidates_raw = _frange(sweep_start_min, sweep_start_max, sweep_step)
-    out_dir = diag_dir or (audio_dir.parent / "artifacts" / "alignment")
+    out_dir = diag_dir or (workspace_artifacts_dir(audio_dir.parent) / "alignment")
 
     session_starts: dict[str, float] = {ref_name: ref_start}
     content_offsets: dict[str, float] = {ref_name: 0.0}

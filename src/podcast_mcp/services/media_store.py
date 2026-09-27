@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.body_limits import env_max_bytes
 
 ALLOWED_AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".m4a", ".flac", ".aiff", ".aif", ".ogg"})
@@ -67,15 +68,19 @@ def unique_raw_path(workspace_dir: Path, filename: str) -> Path:
         i += 1
 
 
+def _uploads_root(workspace_dir: Path) -> Path:
+    return workspace_artifacts_dir(workspace_dir) / ".uploads"
+
+
 def uploads_dir(workspace_dir: Path) -> Path:
-    d = workspace_dir / "artifacts" / ".uploads"
+    d = _uploads_root(workspace_dir)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
 def sweep_stale_uploads(workspace_dir: Path, *, ttl_sec: int = _UPLOAD_TTL_SEC) -> int:
     """Remove incomplete upload dirs older than *ttl_sec*. Returns count removed."""
-    root = workspace_dir / "artifacts" / ".uploads"
+    root = _uploads_root(workspace_dir)
     if not root.is_dir():
         return 0
     now = time.time()
@@ -94,7 +99,7 @@ def sweep_stale_uploads(workspace_dir: Path, *, ttl_sec: int = _UPLOAD_TTL_SEC) 
 
 
 def pending_upload_bytes(workspace_dir: Path) -> int:
-    root = workspace_dir / "artifacts" / ".uploads"
+    root = _uploads_root(workspace_dir)
     if not root.is_dir():
         return 0
     total = 0

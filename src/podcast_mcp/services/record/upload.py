@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
@@ -1000,7 +1000,7 @@ class RecordUploadStore:
 
 def record_artifacts_dir(workspace_dir: Path | str) -> Path:
     """``artifacts/record/`` in a workspace: keeper uploads, ACKed WAVs and land locks."""
-    return Path(workspace_dir) / "artifacts" / "record"
+    return workspace_artifacts_dir(workspace_dir) / "record"
 
 
 class RecordUploadService:

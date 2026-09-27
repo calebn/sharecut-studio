@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -141,3 +143,16 @@ def test_edit_segments():
     assert len(segs) == 2
     assert segs[0].start == 0.0 and segs[0].end == 0.5
     assert segs[1].start == 0.8 and segs[1].end == 2.0
+
+
+def test_workspace_artifacts_dir_is_the_only_artifacts_join() -> None:
+    src = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
+    pattern = re.compile(r'/\s*"artifacts"')
+    offenders = [
+        f"{path.relative_to(src)}:{lineno}"
+        for path in sorted(src.rglob("*.py"))
+        if path.name != "episode.py" or path.parent.name != "models"
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if pattern.search(line)
+    ]
+    assert offenders == [], "use models.workspace_artifacts_dir: " + ", ".join(offenders)
