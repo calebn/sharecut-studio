@@ -2708,17 +2708,30 @@ def _root_client(tmp_path, served):
 
 
 def test_index_bare_root_redirects_to_pinned_project(minimal_project, tmp_path) -> None:
-    from urllib.parse import parse_qs, urlsplit
+    from urllib.parse import parse_qs, urljoin, urlsplit
 
     served = Path(minimal_project).resolve()
     client = _root_client(tmp_path, minimal_project)
     res = client.get("/", params={"theme": "dark"}, follow_redirects=False)
     assert res.status_code == 307
-    parts = urlsplit(res.headers["location"])
+    location = res.headers["location"]
+    assert location.startswith("?")
+    parts = urlsplit(urljoin("http://testserver/", location))
     assert parts.path == "/"
     assert parse_qs(parts.query) == {"theme": ["dark"], "project": [str(minimal_project)]}
     assert Path(client.app.state.served_project).resolve() == served
     assert "no-store" in res.headers["cache-control"]
+
+
+def test_index_bare_root_redirect_keeps_the_desktop_close_guard(minimal_project, tmp_path) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    client = _root_client(tmp_path, minimal_project)
+    res = client.get("/", params={"sc_close_guard": "host"}, follow_redirects=False)
+    assert res.status_code == 307
+    query = parse_qs(urlsplit(res.headers["location"]).query)
+    assert query["sc_close_guard"] == ["host"]
+    assert query["project"] == [str(minimal_project)]
 
 
 def test_index_home_param_skips_pinned_redirect(minimal_project, tmp_path) -> None:
