@@ -1583,11 +1583,13 @@ def _clip_media_duration(project: EpisodeProject, track: Track, clip: Clip) -> f
 
 
 def _is_whole_file_clip(
-    project: EpisodeProject, clip: Clip, lane: list[Clip], media_dur: float
+    project: EpisodeProject,
+    clip: Clip,
+    media_readers: collections.Counter[str],
+    media_dur: float,
 ) -> bool:
     """True when ``clip`` is the sole reader of its media on this lane, at the file head."""
-    key = clip_media_key(project, clip)
-    if any(c.id != clip.id and clip_media_key(project, c) == key for c in lane):
+    if media_readers[clip_media_key(project, clip)] > 1:
         return False
     if clip.source_end < media_dur - DURATION_EPS_SEC:
         return False
@@ -1600,7 +1602,7 @@ def _planned_geometry(
     clip: Clip,
     plan: ClipAlignPlan,
     *,
-    lane: list[Clip],
+    media_readers: collections.Counter[str],
     ref_shift: float,
     ref_clips: list[Clip],
     media_dur: float,
@@ -1622,7 +1624,7 @@ def _planned_geometry(
         # guests whose rebased offset is zero keep their placement. A virgin
         # identity hold is rebased onto the reference lead-in once.
         return clip.source_start, clip.source_end, clip.timeline_start
-    if _is_whole_file_clip(project, clip, lane, media_dur):
+    if _is_whole_file_clip(project, clip, media_readers, media_dur):
         return offset_to_clip_geometry(plan.offset_sec + ref_shift, media_duration=media_dur)
     target_shift = plan.offset_sec + _reference_shift_at(clip, ref_clips)
     return slip_clip_to_shift(clip, target_shift, media_duration=media_dur)
@@ -1665,6 +1667,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             project.clips.append(clip)
             clips = [clip]
 
+        media_readers = collections.Counter(clip_media_key(project, c) for c in clips)
         staged: list[tuple[Clip, ClipAlignPlan, tuple[float, float, float] | None]] = []
         skip: str | None = None
         for clip in clips:
@@ -1677,7 +1680,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
                 track,
                 clip,
                 plan,
-                lane=clips,
+                media_readers=media_readers,
                 ref_shift=ref_shift,
                 ref_clips=ref_clips,
                 media_dur=media_dur,
