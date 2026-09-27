@@ -77,6 +77,7 @@ Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pip
 
 ```bash
 podcast pipeline list
+podcast pipeline list --json
 podcast pipeline run --project episode.project.json
 podcast pipeline run --project episode.project.json --unattended
 podcast pipeline run --project episode.project.json --from precorrect_transcript
@@ -84,9 +85,12 @@ podcast pipeline run --project episode.project.json --from tighten_from_transcri
 podcast pipeline run --project episode.project.json --from assemble_timeline
 podcast pipeline run --project episode.project.json --only transcribe_tracks
 podcast pipeline run --project episode.project.json --force   # re-run ASR over existing transcripts
+podcast pipeline run --project episode.project.json --strict  # exit 1 if this run exported and QC is not ok
 ```
 
 Existing transcripts are reused (a second run does not call Whisper). On seeded projects use `--from merge_transcript` or rely on the skip. `--force` / MCP `force_transcribe=true` re-transcribes; if a hand-edited transcript would be replaced (forced, or its audio changed) and the run is unattended, it fails with `TranscriptOverwriteRefused` naming each track and reason — rerun attended, or have the user click Studio Re-transcribe and accept its replace prompt (the only path that confirms replacing edits in Batch mode).
+
+`pipeline list` shows each step's enabled / no-op / disabled state under the effective config; `--json` for scripting. After `pipeline run`, read the `Export QC:` line on stdout (ok/FAILED, issue count, path) before treating an export as shippable — `--strict` is opt-in until #621, so a non-strict run still exits 0 on a failed verdict.
 
 ## After automation
 
