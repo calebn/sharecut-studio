@@ -225,6 +225,11 @@ repo `effects:` overlay is empty. The proposed config is a per-project working
 set, not a repo-tracked defaults YAML, so carrying a `gate` entry there does
 not violate the no-redefine rule above.
 
+Analyze's `digital_silence` check reuses `engines.asr_silence.peak_envelope` — the
+same per-10 ms peak envelope the ASR silence filter streams — and flags a dialogue
+track whose source audio is mostly below `transcribe.silence_filter.peak_dbfs`
+(-60 dBFS by default) as a likely gated stem worth transcribing with VAD on.
+
 ## RNNoise noise reduction (`noise_reduction_rnnoise`)
 
 An alternate to `afftdn` using FFmpeg's `arnndn` filter (a small recurrent-network
