@@ -7,6 +7,8 @@ interface Props {
   wordIndex: number;
   initialText: string;
   onClose: (restoreFocus: boolean) => void;
+  /** True when a commit starts, false once it settles (also after unmount). */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 /** In-place word text fix: Enter commits (one undo step), Esc / blur cancel. */
@@ -15,6 +17,7 @@ export function InlineWordEditor({
   wordIndex,
   initialText,
   onClose,
+  onBusyChange,
 }: Props) {
   const { busy, error, setError, run, projectPath } = useProjectMutation();
   const [text, setText] = useState(initialText);
@@ -39,6 +42,7 @@ export function InlineWordEditor({
       return;
     }
     busyRef.current = true;
+    onBusyChange?.(true);
     const ok = await run(async () => {
       await submitWordCorrection(
         projectPath,
@@ -50,6 +54,7 @@ export function InlineWordEditor({
       return true;
     });
     busyRef.current = false;
+    onBusyChange?.(false);
     if (ok) onClose(true);
     else inputRef.current?.focus();
   };
