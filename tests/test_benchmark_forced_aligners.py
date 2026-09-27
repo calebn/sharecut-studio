@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -139,6 +140,12 @@ def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
 
     with pytest.raises(PermissionError, match="not readable"):
         bfa.resolve_model_dir(candidate, None)
+
+
+def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
+    monkeypatch.setitem(sys.modules, "onnxruntime", None)
+    with pytest.raises(RuntimeError, match="onnxruntime"):
+        bfa.OnnxBackend(tmp_path, "onnx/model.onnx", 1)
 
 
 def test_align_prediction_retimes_words_and_keeps_native_for_unalignable() -> None:
