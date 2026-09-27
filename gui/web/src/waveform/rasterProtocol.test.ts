@@ -59,6 +59,12 @@ describe("rasterParityValue", () => {
   });
 });
 
+describe("parityJob", () => {
+  it("builds a linear-scale job, so GL and CPU compare on the same geometry", () => {
+    expect(parityJob().scale).toBe("linear");
+  });
+});
+
 describe("handleRasterMessage", () => {
   it("announces the backend it will use", () => {
     expect(readyMessage(engine(null))).toEqual({

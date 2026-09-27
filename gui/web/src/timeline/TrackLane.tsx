@@ -21,6 +21,7 @@ import type {
   Selection,
   TrackView,
 } from "../types/project";
+import { trackOutputGainDb } from "../utils/audio";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
@@ -286,6 +287,7 @@ export function TrackLaneView({
               onSelectClip={selectClip}
               canMove={canMoveClips}
               bladeMode={bladeMode}
+              gainDb={trackOutputGainDb(track)}
               previewTimelineStart={previewStartById[clip.id] ?? null}
               previewHidden={hideClipIds?.has(clip.id) ?? false}
               moving={Boolean(
@@ -310,6 +312,7 @@ export function TrackLaneView({
             role={track.role}
             zoomPxPerSec={zoomPxPerSec}
             color={laneColor(track.role, ghost.trackIndex)}
+            gainDb={trackOutputGainDb(track)}
             selected={selectedClipIds.includes(ghost.clip.id)}
             mediaRef={clipMediaRef(ghost.clip, track, "raw")}
             prevClip={null}

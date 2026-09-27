@@ -124,6 +124,8 @@ export const WAVEFORM_LAYER_PROPS = {
   clipWidthCss: 2000,
   zoom: 100,
   colorVar: "var(--clip-dialogue-0)",
+  role: "music",
+  gainDb: 0,
 };
 
 /** The DOM stubs a `WaveformLayer` needs in jsdom. */

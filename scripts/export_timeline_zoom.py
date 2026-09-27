@@ -30,6 +30,9 @@ WAVEFORM_EXPORTS: tuple[tuple[str, str], ...] = (
     ("quiet_amp", "QUIET_AMP"),
     ("quiet_min_duration_sec", "QUIET_MIN_DURATION_SEC"),
     ("quiet_wash_min_zoom_px_per_sec", "QUIET_WASH_MIN_ZOOM_PX_PER_SEC"),
+    ("log_floor_db", "WAVEFORM_LOG_FLOOR_DB"),
+    ("coarse_column_sec", "COARSE_COLUMN_SEC"),
+    ("coarse_peak_alpha", "COARSE_PEAK_ALPHA"),
 )
 
 

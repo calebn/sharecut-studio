@@ -20,7 +20,7 @@ function geometry(rows: number) {
     e.rms[c] = rms;
     e.has[c] = 1;
   });
-  return columnGeometry(e, 1.3, rows, "pyramid");
+  return columnGeometry(e, 1.3, rows, "pyramid", "linear");
 }
 
 describe("rasterCpu", () => {

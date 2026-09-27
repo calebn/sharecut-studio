@@ -147,6 +147,8 @@ describe("WaveformLayer", () => {
       scrollLeft: 0,
       timelineViewportWidth: 800,
       waveformAmpZoom: 1,
+      waveformScale: "auto",
+      waveformPostFader: false,
     });
   });
 
@@ -282,6 +284,14 @@ describe("WaveformLayer", () => {
     ).toHaveLength(0);
   });
 
+  it("hides the quiet wash when Silence shading is off", () => {
+    useDawStore.setState({
+      layers: { ...useDawStore.getState().layers, showSilence: false },
+    });
+    const { container } = mount({ zoom: 100 });
+    expect(container.querySelectorAll(".clip-waveform-quiet")).toHaveLength(0);
+  });
+
   it("does not rebuild a tile's job while its render is queued or in flight", () => {
     mount();
     const sent = rasters().length;
@@ -336,5 +346,38 @@ describe("WaveformLayer", () => {
     act(() => useDawStore.setState({ waveformAmpZoom: 2 }));
     expect(onRender).toHaveBeenCalled();
     expect(quiet.calls).toBe(before);
+  });
+
+  it("draws dialogue lanes in dB under Auto, and other roles linear", () => {
+    mount({ role: "dialogue" });
+    const dialogueKey = rasters()[0]!.job.scale;
+    expect(dialogueKey).toBe("log");
+    state.rasters = [];
+    mount({ role: "music" });
+    expect(rasters()[0]!.job.scale).toBe("linear");
+  });
+
+  it("forces the store scale on every role", () => {
+    useDawStore.setState({ waveformScale: "linear" });
+    mount({ role: "dialogue" });
+    expect(rasters()[0]!.job.scale).toBe("linear");
+  });
+
+  it("scales post-fader gain into the job amplitude, only when the flag is on", () => {
+    mount({ gainDb: -6 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(1, 5);
+    state.rasters = [];
+    useDawStore.setState({ waveformPostFader: true });
+    mount({ gainDb: -6 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (-6 / 20), 5);
+  });
+
+  it("dims the peak edge at coarse zoom, keeps it at fine zoom", () => {
+    mount({ zoom: 10 });
+    const coarseAlpha = rasters()[0]!.job.edge[3];
+    state.rasters = [];
+    mount({ zoom: 100 });
+    const fineAlpha = rasters()[0]!.job.edge[3];
+    expect(coarseAlpha).toBeLessThan(fineAlpha!);
   });
 });

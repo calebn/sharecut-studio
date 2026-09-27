@@ -88,6 +88,8 @@ interface ClipBlockProps {
   /** Host or share `edit` — not the host-only handle check. */
   canMove?: boolean;
   bladeMode?: boolean;
+  /** Track output gain (dB), for post-fader waveforms. */
+  gainDb?: number;
   /** Live body-drag timeline_start; null uses the committed clip. */
   previewTimelineStart?: number | null;
   previewHidden?: boolean;
@@ -219,6 +221,7 @@ export function ClipBlockView({
   onSelectClip,
   canMove = false,
   bladeMode = false,
+  gainDb = 0,
   previewTimelineStart = null,
   previewHidden = false,
   moving = false,
@@ -682,6 +685,11 @@ export function ClipBlockView({
   const cutIn = isCutJoin(clip);
   const cutOut = nextClip != null && isCutJoin(nextClip);
   const showHandles = editable && interactive;
+  const showSnapPoints = useDawStore((s) => s.layers.showSnapPoints);
+  // Ticks still load for the paused playhead (a body move magnets to them),
+  // but draw only where they explain an edit: trimming or in blade mode.
+  const drawTicks =
+    showSnapPoints && (trimPreview != null || bladeMode) && ticks.length > 0;
 
   return (
     <div
@@ -761,6 +769,8 @@ export function ClipBlockView({
             clipWidthCss={ghostExtraPx}
             zoom={zoomPxPerSec}
             colorVar={color}
+            role={role}
+            gainDb={gainDb}
           />
         </span>
       ) : null}
@@ -854,8 +864,10 @@ export function ClipBlockView({
         clipWidthCss={width}
         zoom={zoomPxPerSec}
         colorVar={color}
+        role={role}
+        gainDb={gainDb}
       />
-      {ticks.length > 0 ? (
+      {drawTicks ? (
         <span className="clip-waveform-overlays" aria-hidden>
           {ticks.map((t) => (
             <span

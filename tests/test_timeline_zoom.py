@@ -66,6 +66,9 @@ def test_waveform_contract_keys():
         "quiet_amp": 0.04,
         "quiet_min_duration_sec": 0.12,
         "quiet_wash_min_zoom_px_per_sec": 8,
+        "log_floor_db": -54,
+        "coarse_column_sec": 0.05,
+        "coarse_peak_alpha": 0.35,
     }
 
 

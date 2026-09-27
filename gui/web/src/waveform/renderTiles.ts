@@ -6,7 +6,12 @@ import {
   RENDER_TILE_CSS_PX,
 } from "../utils/timelineZoom.generated";
 import { binRangeForFrames, levelFor } from "./pyramidMath";
-import type { PyramidMeta, RasterMode, WaveformStyle } from "./types";
+import type {
+  PyramidMeta,
+  RasterMode,
+  WaveformScale,
+  WaveformStyle,
+} from "./types";
 
 /**
  * Client tile model and geometry (S5), all pure. Render tiles are anchored
@@ -113,9 +118,15 @@ export function heightDevice(heightCss: number, d: number): number {
   return Math.round(heightCss * d);
 }
 
-/** Core and edge RGBA joined: tiles re-render when the look changes. */
-export function styleKey(style: WaveformStyle): string {
-  return [...style.core, ...style.edge].map((v) => v.toFixed(4)).join(",");
+/** Bumped when shading changes what the same inputs draw (#530: log scale, coarse peaks). */
+export const SHADE_VERSION = 2;
+
+/** Shading version, scale, then core and edge RGBA: tiles re-render when the look changes. */
+export function styleKey(style: WaveformStyle, scale: WaveformScale): string {
+  const tint = [...style.core, ...style.edge]
+    .map((v) => v.toFixed(4))
+    .join(",");
+  return `v${SHADE_VERSION}|${scale}|${tint}`;
 }
 
 export type TileIdentity = {

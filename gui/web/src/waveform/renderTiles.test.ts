@@ -137,12 +137,14 @@ describe("keys and modes", () => {
     expect(tileKey(id, 7)).toBe("abc|40.1234568|2|144|s|1.5|7");
     expect(tileGroup(id)).toBe("abc|s|144|2|1.5");
     expect(heightDevice(71.6, 1.5)).toBe(107);
-    expect(
-      styleKey({
-        core: new Float32Array([1, 0.5, 0, 1]),
-        edge: new Float32Array([1, 0.5, 0, 0.6]),
-      }),
-    ).toBe("1.0000,0.5000,0.0000,1.0000,1.0000,0.5000,0.0000,0.6000");
+    const style = {
+      core: new Float32Array([1, 0.5, 0, 1]),
+      edge: new Float32Array([1, 0.5, 0, 0.6]),
+    };
+    expect(styleKey(style, "linear")).toBe(
+      "v2|linear|1.0000,0.5000,0.0000,1.0000,1.0000,0.5000,0.0000,0.6000",
+    );
+    expect(styleKey(style, "log")).not.toBe(styleKey(style, "linear"));
   });
 
   it("picks pyramid, pcm or line by samples per device px", () => {
