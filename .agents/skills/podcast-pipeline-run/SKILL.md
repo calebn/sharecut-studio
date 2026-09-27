@@ -107,6 +107,8 @@ Existing transcripts are reused (a second run does not call Whisper). On seeded 
 Agents can call `pipeline_run`, `render_preview`, and `render_final` with the project path.
 To edit visible steps/params (same as Sharecut Studio Pipeline pane), use **podcast-pipeline-tune**
 (`pipeline_get_config_tool` → optional `pipeline_analyze_tool` → `pipeline_set_config_tool` → `pipeline_run`).
+CLI equivalents: `podcast pipeline analyze --project P [--set k=v ...]`, `podcast pipeline config [--set k=v ...]`,
+and `podcast pipeline run ... --set k=v` (repeatable, run-only override never saved — e.g. `--set focus.enabled=true`).
 
 ## Episode workspace layout
 
