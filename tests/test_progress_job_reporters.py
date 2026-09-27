@@ -369,6 +369,35 @@ def test_elapsed_mixin_heartbeat_drops_finished_task(monkeypatch) -> None:
     assert probe.emitted == ["t"]
 
 
+def test_elapsed_mixin_heartbeat_does_not_stamp_reregistered_task(monkeypatch) -> None:
+    import threading
+    import time
+
+    from podcast_mcp.util.progress import ElapsedProgressMixin
+
+    class Probe(ElapsedProgressMixin):
+        def __init__(self) -> None:
+            super().__init__()
+            self._heartbeat_sec = 0.01
+
+        def _emit_heartbeat(self, task_id: str, state, elapsed_sec: float) -> None:
+            # Old task ends and a retry registers the same id in the gap.
+            self._register_task(task_id, "Retry", None)
+            with self._lock:
+                self._tasks[task_id].last_emit = 12345.0
+
+    probe = Probe()
+    probe._register_task("master_loudnorm", "Loudnorm", None)
+    with probe._lock:
+        probe._tasks["master_loudnorm"].last_emit = time.monotonic() - 10
+    probe._stop = threading.Event()
+    waits = iter([False, True])
+    monkeypatch.setattr(probe._stop, "wait", lambda _timeout: next(waits))
+    probe._heartbeat_loop()
+    assert probe._tasks["master_loudnorm"].last_emit == 12345.0
+    assert probe._tasks["master_loudnorm"].label == "Retry"
+
+
 def test_mixin_heartbeats_only_the_innermost_task(monkeypatch) -> None:
     import threading
     import time

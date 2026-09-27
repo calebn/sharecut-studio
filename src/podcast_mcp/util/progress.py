@@ -941,7 +941,13 @@ class _TaskState:
 
 
 class ElapsedProgressMixin:
-    """Emit elapsed time on stderr when updates stall."""
+    """Emit elapsed time when updates stall: one heartbeat per sink, innermost task.
+
+    Assumes the open tasks on one reporter form a single nested (LIFO) stack, as
+    with nested ``with progress_task(...)`` blocks and one reporter per GUI job.
+    Two concurrent sibling tasks on one shared reporter are not supported: only the
+    most recently registered one is heartbeated.
+    """
 
     def __init__(self, *, heartbeat_sec: float = 5.0) -> None:
         self._heartbeat_sec = heartbeat_sec
@@ -993,11 +999,15 @@ class ElapsedProgressMixin:
             tid, st = target
             self._emit_heartbeat(tid, st, now - st.started_at)
             with self._lock:
-                if tid in self._tasks:
-                    self._tasks[tid].last_emit = now
+                # The task may have ended and a new one registered under the same id.
+                if self._tasks.get(tid) is st:
+                    st.last_emit = now
 
     def _heartbeat_target_locked(self, now: float) -> tuple[str, _TaskState] | None:
-        """Innermost open task when no task on this sink emitted for ``heartbeat_sec``."""
+        """Innermost (last-registered) open task when no task on this sink emitted for ``heartbeat_sec``.
+
+        Relies on the LIFO stack assumption in the class docstring.
+        """
         if not self._tasks:
             return None
         if now - max(st.last_emit for st in self._tasks.values()) < self._heartbeat_sec:
