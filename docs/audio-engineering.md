@@ -138,7 +138,8 @@ recommend:
    printed `normalization_type` (`linear` / `dynamic`) says which ran.
    Both passes run with `-progress pipe:1` and share one `master_loudnorm`
    child bar in media seconds: pass 1 fills the first half, pass 2 the
-   second. The post-master QC measure reports on a `master_qc_measure`
+   second. Both passes use the one input probe for their length. The
+   post-master QC measure reports on a `master_qc_measure`
    child.
    This produces a static (non-pumping) gain instead of single-pass `loudnorm`'s
    dynamic/frame-by-frame correction, and lands much closer to the target LUFS (typically
