@@ -1,5 +1,9 @@
 /** Session token for host GUI when PODCAST_SESSION_AUTHZ=strict (LAN bind). */
 
+// Read once per page load. hooks/useDocumentSync treats a 4403 WS close as terminal
+// because a retry would reuse this same token; if the token can ever refresh
+// mid-session (re-auth, rotation), reconnect with the fresh token there instead.
+// Pinned by sessionAuth.test.ts.
 let _cached: string | null | undefined;
 
 export function sessionTokenFromQuery(): string | null {
