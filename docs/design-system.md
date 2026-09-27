@@ -106,10 +106,17 @@ or subscribe to the DAW store.
 comment form, and restored-word preview with fictional data. Their stories
 show open and resolved comments, action items, replies, read-only and busy
 states, editable drafts, empty ghost output, and 360px phone layouts. The
-callbacks update only story-local state; the live comment panel and transcript
-utterance rows remain outside this catalog slice. The restored-word preview
+callbacks update only story-local state; the live comment panel remains outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.
+
+`Templates/TranscriptTurn` renders the same `TranscriptTurnView` used by the
+live `TranscriptPanel`. The panel owns seeking, selection, touch gestures,
+presence anchors, edit-boundary placement and virtualization; the view paints
+props for mapped, active/selected, suppressed/low-confidence, cut-away, and
+360px long-turn examples. Story callbacks use local state only. Applied edit
+boundaries may appear in the live row, but there is no pending-edit row state
+to preview yet.
 Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
 and DraftAndPost exercise the controls separately; Empty passes an explicit
 disabled prop rather than adding validation to the shared form. GuestFeedback
