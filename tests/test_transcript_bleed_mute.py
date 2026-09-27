@@ -9,6 +9,7 @@ from podcast_mcp.edits.transcript_bleed_mute import _track_duration, apply_trans
 from podcast_mcp.engines.play_audit import (
     read_stem_hash,
     stem_hash_path,
+    stem_is_fresh,
     track_render_hash,
     write_stem_hash,
 )
@@ -263,6 +264,39 @@ def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
     assert result["applied_count"] == 1
     assert read_stem_hash(project, "host") == track_render_hash(project, "host")
     assert project.track_by_id("host").transcript_gate is True
+    assert list(tracks.glob("*.partial*")) == []
+
+
+def test_apply_bleed_mute_hash_failure_after_swap_restores_the_gate_and_leaves_the_stem_stale(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    project = _project_with_stem(tmp_path, sample_wav)
+    write_stem_hash(project, "host")
+
+    def _gate(_src, _intervals, dest, **_kwargs) -> None:
+        Path(dest).write_bytes(b"gated")
+
+    with (
+        patch("podcast_mcp.edits.transcript_bleed_mute.gate_stem_window", side_effect=_gate),
+        patch(
+            "podcast_mcp.edits.transcript_bleed_mute.probe_stem_duration_sec",
+            return_value=2.0,
+        ),
+        patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
+        patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
+        patch(
+            "podcast_mcp.engines.play_audit.write_stem_hash",
+            side_effect=OSError("disk full"),
+        ),
+        render_lock(project),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        apply_transcript_bleed_mute(project, dry_run=False)
+    tracks = project.artifacts_dir() / "tracks"
+    assert (tracks / "host.wav").read_bytes() == b"gated"
+    assert read_stem_hash(project, "host") is None
+    assert not stem_is_fresh(project, "host")
+    assert not project.track_by_id("host").transcript_gate
     assert list(tracks.glob("*.partial*")) == []
 
 
