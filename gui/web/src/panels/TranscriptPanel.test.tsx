@@ -681,6 +681,30 @@ describe("TranscriptPanel", () => {
       fireEvent.doubleClick(hello);
       await expectNoA11yViolations(container);
     });
+
+    it("leaves an untimed word as plain text with no inline editor", () => {
+      const base = project();
+      const words = base.transcript?.utterances[0]?.words;
+      if (!words) throw new Error("fixture words missing");
+      words[0] = { ...words[0], timeline_start: null, timeline_end: null };
+      useDawStore.setState({ project: base });
+      const { container } = render(<TranscriptPanel />);
+      expect(
+        within(container).queryByRole("button", { name: "hello" }),
+      ).toBeNull();
+      const hello = within(container).getByText("hello");
+      fireEvent.doubleClick(hello);
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+      expect(hello.getAttribute("title") ?? "").not.toMatch(/fix text/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      expect(
+        within(container).getByRole("button", { name: "hello" }),
+      ).toBeTruthy();
+    });
   });
 
   it("Select mode builds a transcript range", () => {

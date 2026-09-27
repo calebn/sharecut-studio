@@ -912,11 +912,13 @@ export function TranscriptPanel() {
                     ((intent === "correct" || intent === "select") &&
                       wordIndex != null) ||
                     wSeek != null;
+                  // Same gate as a navigate-mode chip button (wSeek implies mappable):
+                  // an untimed word stays plain text; Correct mode still fixes it.
                   const inlineEditable =
                     canCorrect &&
                     intent === "navigate" &&
                     wordIndex != null &&
-                    w.mappable !== false;
+                    wSeek != null;
                   const editingThis =
                     inlineEditable &&
                     inlineEdit?.trackId === u.track_id &&
@@ -1111,7 +1113,7 @@ export function TranscriptPanel() {
                             }
                           },
                           onDoubleClick:
-                            inlineEditable || wSeek != null
+                            wSeek != null
                               ? (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
