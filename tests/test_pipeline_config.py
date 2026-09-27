@@ -702,12 +702,50 @@ def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
     tracks_by_id = {t["track_id"]: t for t in result["report_summary"]["tracks"]}
     assert tracks_by_id["host"]["digital_silence_fraction"] == 0.85
     assert tracks_by_id["guest"]["digital_silence_fraction"] == 0.2
+    assert tracks_by_id["missing"]["digital_silence_fraction"] is None
+    assert tracks_by_id["missing"]["digital_silence_skipped"] == "missing_audio"
+    assert "digital_silence_skipped" not in tracks_by_id["host"]
 
     off_result = suggest_pipeline_tuning(
         build(), base_config=merge_pipeline_config({"transcribe": {"vad": {"enabled": False}}})
     )
     assert off_result["patches"]["transcribe"]["vad"]["enabled"] is True
     assert off_result["proposed_config"]["transcribe"]["vad"]["enabled"] is True
+
+
+def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_cleanup",
+        lambda project, *, policy=None, progress=None: {"tracks": []},
+    )
+
+    host_wav = tmp_path / "host.wav"
+    host_wav.write_bytes(b"\x00")
+
+    p = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+    p.tracks.append(
+        Track(
+            id="host",
+            label="host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=str(host_wav), duration_sec=10.0),
+        )
+    )
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.asr_silence.digital_silence_fraction",
+        lambda path, *, peak_dbfs: None,
+    )
+
+    result = suggest_pipeline_tuning(p)
+    tracks_by_id = {t["track_id"]: t for t in result["report_summary"]["tracks"]}
+    assert tracks_by_id["host"]["digital_silence_fraction"] is None
+    assert tracks_by_id["host"]["digital_silence_skipped"] == "decode_failed"
+    assert not any(r["code"] == "digital_silence" for r in result["reasons"])
 
 
 @pytest.mark.parametrize("field", PARAM_FIELDS, ids=lambda f: f.path)
