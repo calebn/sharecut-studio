@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { capabilityTooltip } from "../capabilities/copy";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
@@ -420,6 +421,10 @@ describe("TransportBar wide layout", () => {
     act(() => useDawStore.getState().toggleFitTracksHeight());
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toHaveAttribute("title", "Use a fixed track height");
+    expect(toggle).toHaveAttribute(
+      "title",
+      capabilityTooltip("daw.view.fitTracksHeight", { pressed: true }),
+    );
     await expectNoA11yViolations(container);
   });
 
