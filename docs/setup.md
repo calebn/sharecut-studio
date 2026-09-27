@@ -96,8 +96,8 @@ podcast doctor
 | *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), mcp, … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
-| `gui` | fastapi, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
-| `relay` | fastapi, uvicorn, websockets ≥14 | `podcast-relay` edge process |
+| `gui` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
+| `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
 | `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings |
