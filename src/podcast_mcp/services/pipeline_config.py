@@ -21,6 +21,7 @@ from podcast_mcp.pipeline.meta import (
     param_fields_payload,
     set_by_path,
     step_meta,
+    step_noop_reason,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
 from podcast_mcp.util.dicts import deep_merge, get_by_path
@@ -82,6 +83,24 @@ def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
             ordered.append(name)
             seen.add(name)
     return ordered
+
+
+def pipeline_step_states(config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """`ordered_step_metas()` rows plus `enabled` and `noop_reason` under `config`."""
+    cfg = config if config is not None else load_defaults()
+    enabled_ids = set(default_enabled_steps(cfg))
+    rows = ordered_step_metas()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        step_id = row["id"]
+        out.append(
+            {
+                **row,
+                "enabled": step_id in enabled_ids,
+                "noop_reason": step_noop_reason(step_id, cfg),
+            }
+        )
+    return out
 
 
 FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")

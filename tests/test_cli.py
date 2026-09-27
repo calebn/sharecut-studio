@@ -22,6 +22,19 @@ def test_pipeline_list():
     assert result.exit_code == 0
     assert "ingest_tracks" in result.stdout
     assert "export_deliverables" in result.stdout
+    focus_line = next(line for line in result.stdout.splitlines() if "analyze_focus_cuts" in line)
+    assert "no-op (focus.enabled=false)" in focus_line
+
+
+def test_pipeline_list_json():
+    result = runner.invoke(app, ["pipeline", "list", "--json"])
+    assert result.exit_code == 0
+    rows = json.loads(result.stdout)
+    by_id = {row["id"]: row for row in rows}
+    assert by_id["analyze_focus_cuts"]["noop_reason"] == "focus.enabled=false"
+    assert by_id["analyze_focus_cuts"]["enabled"] is False
+    assert by_id["ingest_tracks"]["enabled"] is True
+    assert by_id["ingest_tracks"]["noop_reason"] is None
 
 
 def test_track_add(tmp_path, sample_wav):
@@ -226,6 +239,32 @@ def test_propose_edits_command_without_discourse_skips(tmp_path):
     assert result.exit_code == 0
     assert "proposed" in result.stdout
     assert "discourse kept" not in result.stdout
+
+
+def test_propose_edits_json(tmp_path):
+    from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
+
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project_path = ws / "episode.project.json"
+    proj = load_project(project_path)
+    proj.transcripts.append(
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.2, confidence=0.95),
+                TranscriptWord(text="world", start=0.25, end=0.5, confidence=0.95),
+            ],
+        )
+    )
+    save_project(proj, project_path)
+    result = runner.invoke(app, ["propose-edits", "--project", str(project_path), "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["operation"] == "propose_edits"
+    assert "edits" in payload
+    assert "skip_counts" in payload
+    assert "summary" in payload
 
 
 def test_edit_suggest_handoff_cut_command(tmp_path):
