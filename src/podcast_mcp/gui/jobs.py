@@ -1418,17 +1418,12 @@ def project_meta(project_path: Path) -> dict[str, Any]:
 
     Stats the project file directly and reads ``document_server_seq``, which
     itself is stat + one row on document.db. Neither parses the project, and
-    neither creates document.db.
+    neither creates document.db. ``server_seq`` is omitted when document.db
+    cannot be read.
     """
-    from podcast_mcp.services.document_sync.service import document_server_seq
+    from podcast_mcp.services.document_sync.service import document_poll_meta
 
-    stat = project_path.stat()
-    return {
-        "path": str(project_path.resolve()),
-        "mtime_ns": stat.st_mtime_ns,
-        "size": stat.st_size,
-        "server_seq": document_server_seq(project_path),
-    }
+    return {"path": str(project_path.resolve()), **document_poll_meta(project_path)}
 
 
 def session_file_meta(project_path: Path) -> dict[str, Any]:

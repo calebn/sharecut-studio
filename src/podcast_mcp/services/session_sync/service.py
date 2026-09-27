@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import errno
 import itertools
 import json
 import logging
 import sqlite3
+import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.project_io import resolve_project_path
@@ -42,6 +45,60 @@ log = logging.getLogger(__name__)
 SYNC_META_READ_ERRORS: tuple[type[Exception], ...] = (OSError, sqlite3.DatabaseError)
 """Errors the parse-free meta helpers treat as "store unavailable" (best-effort poll)."""
 
+_T = TypeVar("_T")
+_CORRUPT_META_WARNED: set[str] = set()
+_CORRUPT_META_WARNED_LOCK = threading.Lock()
+
+
+def meta_workspace_dir(project_path: str | Path) -> Path:
+    """Workspace dir for ``project_path`` (file or dir), for the parse-free meta reads.
+
+    ``Path.resolve()`` raises ``RuntimeError`` on a symlink loop before CPython 3.13
+    (``OSError(ELOOP)`` from 3.13). Re-raise it as ``OSError`` so it falls under
+    ``SYNC_META_READ_ERRORS`` without catching every ``RuntimeError``.
+    """
+    try:
+        return resolve_project_path(project_path).parent
+    except RuntimeError as exc:
+        raise OSError(errno.ELOOP, str(exc)) from exc
+
+
+def _is_corrupt_store_error(exc: BaseException) -> bool:
+    """A sqlite error that means a bad file, not a transient lock or I/O hiccup."""
+    return isinstance(exc, sqlite3.DatabaseError) and not isinstance(exc, sqlite3.OperationalError)
+
+
+def _first_corrupt_warning(key: str) -> bool:
+    with _CORRUPT_META_WARNED_LOCK:
+        if key in _CORRUPT_META_WARNED:
+            return False
+        _CORRUPT_META_WARNED.add(key)
+        return True
+
+
+def best_effort_meta(read: Callable[[], _T], default: _T, *, what: str, path: str | Path) -> _T:
+    """Run a parse-free meta ``read``; on ``SYNC_META_READ_ERRORS`` return ``default``.
+
+    The meta polls are best-effort, so a read error never fails the request. A
+    transient error (``OSError``, ``sqlite3.OperationalError``: locked, disk I/O)
+    logs at debug. A corrupt store (any other ``sqlite3.DatabaseError``, e.g. "file
+    is not a database") logs one warning per ``what`` + path per process, so a
+    broken sync.db / document.db shows up without a log line on every poll.
+    """
+    try:
+        return read()
+    except SYNC_META_READ_ERRORS as exc:
+        if _is_corrupt_store_error(exc) and _first_corrupt_warning(f"{what}|{path}"):
+            log.warning(
+                "%s unreadable for %s (corrupt sqlite store?); reporting it as missing",
+                what,
+                path,
+                exc_info=True,
+            )
+        else:
+            log.debug("%s unavailable for %s", what, path, exc_info=True)
+        return default
+
 
 def session_dir_for_workspace(workspace: Path) -> Path:
     return workspace_artifacts_dir(workspace) / "session"
@@ -59,16 +116,20 @@ def sync_db_path(project: EpisodeProject) -> Path:
     return sync_db_path_for_workspace(project.workspace_path())
 
 
-def _store_at(path: Path, *, create: bool = False) -> SyncStore | None:
-    """Return the store for ``path``. Does not create the file until ``create``."""
-    if create:
-        return cached_sync_store(path, table_prefix="", enforce_command_ids=True)
+def _open_store(path: Path) -> SyncStore:
+    """Cached sync.db store at ``path``; creates the file."""
+    return cached_sync_store(path, table_prefix="", enforce_command_ids=True)
+
+
+def _existing_store_at(path: Path) -> SyncStore | None:
+    """Cached sync.db store at ``path`` without creating it (meta reads)."""
     return cached_sync_store_if_exists(path, table_prefix="", enforce_command_ids=True)
 
 
 def _store_for(project: EpisodeProject, *, create: bool = False) -> SyncStore | None:
     """Return the project store. Does not create sync.db until ``create``."""
-    return _store_at(sync_db_path(project), create=create)
+    path = sync_db_path(project)
+    return _open_store(path) if create else _existing_store_at(path)
 
 
 def next_client_seq() -> int:
@@ -110,7 +171,7 @@ def _missing_session_meta(path: str) -> dict[str, Any]:
 
 def _read_session_meta(db_path: Path) -> dict[str, Any]:
     path = str(db_path.resolve())
-    store = _store_at(db_path, create=False)
+    store = _existing_store_at(db_path)
     snap = store.get_snapshot() if store is not None else None
     if _is_empty_authority(snap):
         return _missing_session_meta(path)
@@ -137,15 +198,16 @@ def session_meta_at(db_path: Path) -> dict[str, Any]:
     row (not the file size), for the same reason: a WAL checkpoint that lands
     presence-only writes grows the main file without a commit.
 
-    Read errors (``SYNC_META_READ_ERRORS``) report the missing meta, the same
-    policy as ``document_server_seq``. The caller must pass a path it has already
-    authorized; this helper does no authz.
+    Read errors go through ``best_effort_meta`` and report the missing meta.
+    The caller must pass a path it has already authorized; this helper does no
+    authz.
     """
-    try:
-        return _read_session_meta(db_path)
-    except SYNC_META_READ_ERRORS:
-        log.debug("session meta unavailable for %s", db_path, exc_info=True)
-        return _missing_session_meta(str(db_path))
+    return best_effort_meta(
+        lambda: _read_session_meta(db_path),
+        _missing_session_meta(str(db_path)),
+        what="session meta",
+        path=db_path,
+    )
 
 
 def session_meta(project_path: str | Path) -> dict[str, Any]:
@@ -154,12 +216,12 @@ def session_meta(project_path: str | Path) -> dict[str, Any]:
     The caller must pass a project path it has already authorized (the GUI route
     runs ``resolve_project`` + host auth first); this helper does no authz.
     """
-    try:
-        workspace = resolve_project_path(project_path).parent
-    except OSError:
-        log.debug("session meta unavailable for %s", project_path, exc_info=True)
-        return _missing_session_meta(str(project_path))
-    return session_meta_at(sync_db_path_for_workspace(workspace))
+    return best_effort_meta(
+        lambda: _read_session_meta(sync_db_path_for_workspace(meta_workspace_dir(project_path))),
+        _missing_session_meta(str(project_path)),
+        what="session meta",
+        path=project_path,
+    )
 
 
 class SessionSyncService:

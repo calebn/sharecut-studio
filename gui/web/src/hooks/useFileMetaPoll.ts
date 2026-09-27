@@ -12,6 +12,8 @@ const DEFAULT_POLL_MS = 1500;
 /**
  * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.
  * First successful meta read only baselines — does not fire onChange.
+ * server_seq counts only between two readings: a response without it (the
+ * server could not read document.db) is ignored for the seq comparison.
  */
 export function useFileMetaPoll(
   enabled: boolean,
@@ -52,6 +54,7 @@ export function useFileMetaPoll(
           (meta.mtime_ns !== mtimeRef.current ||
             (meta.size !== undefined && meta.size !== sizeRef.current) ||
             (meta.server_seq !== undefined &&
+              seqRef.current !== undefined &&
               meta.server_seq !== seqRef.current));
         mtimeRef.current = meta.mtime_ns;
         if (meta.size !== undefined) {
@@ -76,7 +79,9 @@ export function useFileMetaPoll(
         if (!cancelled && meta.exists !== false) {
           mtimeRef.current = meta.mtime_ns;
           sizeRef.current = meta.size;
-          seqRef.current = meta.server_seq;
+          if (meta.server_seq !== undefined) {
+            seqRef.current = meta.server_seq;
+          }
         }
       })
       .catch(() => undefined);

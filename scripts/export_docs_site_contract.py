@@ -39,7 +39,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ("GET", "/api/review/{token}/features"): ("view", "Extension / feature manifest"),
     ("GET", "/api/review/{token}/audio"): ("play", "ReviewApp frozen mix"),
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
-    ("GET", "/api/review/{token}/daw/meta"): ("view", "mtime/size for poll reload"),
+    ("GET", "/api/review/{token}/daw/meta"): (
+        "view",
+        "mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable)",
+    ),
     ("GET", "/api/review/{token}/daw/waveform/status"): (
         "view",
         "Waveform pyramid status (raw media)",

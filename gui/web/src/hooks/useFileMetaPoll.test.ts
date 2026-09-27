@@ -106,4 +106,80 @@ describe("useFileMetaPoll", () => {
 
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("ignores a tick without server_seq (document.db read error)", async () => {
+    const baseline: FileMeta = { mtime_ns: 1, size: 10, server_seq: 5 };
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValueOnce(baseline);
+    const onChange = vi.fn();
+
+    renderHook(() => useFileMetaPoll(true, fetchMeta, onChange, 100));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fetchMeta.mockResolvedValueOnce({ mtime_ns: 1, size: 10 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    fetchMeta.mockResolvedValueOnce({ mtime_ns: 1, size: 10, server_seq: 5 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still fires on a real seq change after a read-error tick", async () => {
+    const baseline: FileMeta = { mtime_ns: 1, size: 10, server_seq: 5 };
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValueOnce(baseline);
+    const onChange = vi.fn();
+
+    renderHook(() => useFileMetaPoll(true, fetchMeta, onChange, 100));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fetchMeta.mockResolvedValueOnce({ mtime_ns: 1, size: 10 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    const next: FileMeta = { mtime_ns: 1, size: 10, server_seq: 6 };
+    fetchMeta.mockResolvedValueOnce(next);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(next);
+  });
+
+  it("baselines server_seq from the first reading that has it", async () => {
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValueOnce({ mtime_ns: 1, size: 10 });
+    const onChange = vi.fn();
+
+    renderHook(() => useFileMetaPoll(true, fetchMeta, onChange, 100));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    fetchMeta.mockResolvedValueOnce({ mtime_ns: 1, size: 10, server_seq: 5 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    fetchMeta.mockResolvedValueOnce({ mtime_ns: 1, size: 10, server_seq: 5 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

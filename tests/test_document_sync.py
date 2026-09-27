@@ -1937,12 +1937,12 @@ def test_document_server_seq_does_not_create_document_db(minimal_project):
 
 
 def test_document_server_seq_reuses_the_service_store(minimal_project):
-    from podcast_mcp.services.document_sync.service import _store_at, document_db_path
+    from podcast_mcp.services.document_sync.service import _open_store, document_db_path
 
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("first"))
     db_path = document_db_path(svc.project)
-    assert _store_at(db_path) is svc.store
+    assert _open_store(db_path) is svc.store
 
 
 def test_document_server_seq_reads_the_cached_store_when_the_file_check_fails(

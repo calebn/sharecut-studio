@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import sqlite3
 
 import pytest
@@ -362,7 +363,7 @@ def test_project_meta_includes_server_seq(minimal_project) -> None:
 
 
 @pytest.mark.parametrize("exc", [OSError("nope"), sqlite3.DatabaseError("malformed")])
-def test_document_server_seq_read_errors_return_zero(tmp_path, exc) -> None:
+def test_document_server_seq_read_errors_return_none(tmp_path, exc) -> None:
     from unittest.mock import patch
 
     from podcast_mcp.services.document_sync.service import document_server_seq
@@ -376,19 +377,37 @@ def test_document_server_seq_read_errors_return_zero(tmp_path, exc) -> None:
         "podcast_mcp.services.document_sync.service._existing_store_at",
         side_effect=exc,
     ):
-        assert document_server_seq(project_path) == 0
+        assert document_server_seq(project_path) is None
 
     assert document_server_seq("/missing.json") == 0
 
 
-def test_document_server_seq_path_resolution_error_returns_zero(monkeypatch) -> None:
-    from podcast_mcp.services.document_sync import service as document_service
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(errno.ELOOP, "Too many levels of symbolic links"),
+        RuntimeError("Symlink loop from '/loop'"),
+    ],
+)
+def test_document_server_seq_path_resolution_error_is_unreadable(monkeypatch, exc) -> None:
+    from podcast_mcp.services.document_sync.service import document_server_seq
+    from podcast_mcp.services.session_sync import service as session_service
 
     def _boom(_path):
-        raise OSError("symlink loop")
+        raise exc
 
-    monkeypatch.setattr(document_service, "resolve_project_path", _boom)
-    assert document_service.document_server_seq("/loop/episode.project.json") == 0
+    monkeypatch.setattr(session_service, "resolve_project_path", _boom)
+    assert document_server_seq("/loop/episode.project.json") is None
+
+
+def test_document_server_seq_never_raises_on_a_real_symlink_loop(tmp_path) -> None:
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.symlink_to(b)
+    b.symlink_to(a)
+    # 3.11/3.12 raise on resolve (-> None); 3.13+ resolve non-strictly (-> no db, 0).
+    assert document_server_seq(a / "episode.project.json") in (0, None)
 
 
 def test_track_views_expose_fade_cap(minimal_project, monkeypatch) -> None:

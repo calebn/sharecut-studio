@@ -2230,6 +2230,32 @@ def test_project_meta_helper(minimal_project) -> None:
     assert not document_db.exists()
 
 
+def test_project_meta_omits_server_seq_when_document_db_is_unreadable(
+    minimal_project, monkeypatch
+) -> None:
+    import sqlite3
+
+    from podcast_mcp.gui.jobs import project_meta
+    from podcast_mcp.services.document_sync import service as document_service
+
+    def _locked(_path):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(document_service, "_existing_store_at", _locked)
+    meta = project_meta(minimal_project)
+    assert "server_seq" not in meta
+    assert meta["mtime_ns"] > 0 and meta["size"] > 0
+
+
+def test_project_meta_on_a_corrupt_document_db_omits_server_seq(minimal_project) -> None:
+    from podcast_mcp.gui.jobs import project_meta
+
+    db = minimal_project.parent / "artifacts" / "session" / "document.db"
+    db.parent.mkdir(parents=True, exist_ok=True)
+    db.write_bytes(b"not a sqlite database\x00" * 512)
+    assert "server_seq" not in project_meta(minimal_project)
+
+
 def test_resolve_viewer_audio_premix(tmp_path) -> None:
     from podcast_mcp.gui.audio import resolve_viewer_audio, resolve_viewer_transport
     from podcast_mcp.services import ProjectWorkspace
