@@ -122,6 +122,8 @@ describe("TranscriptPanel", () => {
       transcriptFollowPlayhead: false,
       layoutMode: "default",
       pointerKind: "fine",
+      transcriptInlineCommitPending: false,
+      transcriptInlineEditFailure: null,
     });
   });
 
@@ -383,7 +385,6 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({ projectPath: "share:tok" });
       const { container } = render(<TranscriptPanel />);
       expect(container.querySelector(".transcript-mode-hint")).toBeNull();
-      expect(container.querySelector(".transcript-inline-status")).toBeNull();
     });
 
     it("points coarse pointers at double-tap correction", () => {
@@ -660,8 +661,9 @@ describe("TranscriptPanel", () => {
       expect(q.getByRole("textbox", { name: /hello/ })).toHaveValue("Hello");
       expect(q.queryByRole("textbox", { name: /there/ })).toBeNull();
       expect(
-        container.querySelector(".transcript-inline-status"),
+        container.querySelector(".transcript-mode-hint"),
       ).toHaveTextContent(/Saving the word fix/);
+      expect(container.querySelectorAll("[role=status]")).toHaveLength(1);
       await act(async () => {
         resolve();
       });
@@ -669,8 +671,8 @@ describe("TranscriptPanel", () => {
         expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull(),
       );
       expect(
-        container.querySelector(".transcript-inline-status")?.textContent,
-      ).toBe("");
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/Double-click a word to fix its text/);
       fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
       expect(q.getByRole("textbox", { name: /there/ })).toHaveFocus();
     });
@@ -704,6 +706,81 @@ describe("TranscriptPanel", () => {
       expect(
         within(container).getByRole("button", { name: "hello" }),
       ).toBeTruthy();
+    });
+
+    it("keeps the lock and shows a late failure after the panel remounts", async () => {
+      let reject: (e: Error) => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((_r, rej) => {
+            reject = rej;
+          }),
+      );
+      const first = render(<TranscriptPanel />);
+      const q1 = within(first.container);
+      fireEvent.doubleClick(q1.getByRole("button", { name: "hello" }));
+      const input = q1.getByRole("textbox", { name: /Correct word/ });
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      first.unmount();
+      expect(useDawStore.getState().transcriptInlineCommitPending).toBe(true);
+      const second = render(<TranscriptPanel />);
+      const q2 = within(second.container);
+      fireEvent.doubleClick(q2.getByRole("button", { name: "there" }));
+      expect(q2.queryByRole("textbox", { name: /Correct word/ })).toBeNull();
+      expect(
+        second.container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/Saving the word fix/);
+      await act(async () => {
+        reject(new Error("server said no"));
+      });
+      await vi.waitFor(() =>
+        expect(
+          second.container.querySelector(".inline-error"),
+        ).toHaveTextContent("Could not fix “hello”: server said no"),
+      );
+      expect(useDawStore.getState().transcriptInlineCommitPending).toBe(false);
+    });
+
+    it("dismisses a late inline fix failure", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          message: "Could not fix “hello”: server said no",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      expect(container.querySelector(".inline-error")).toHaveTextContent(
+        "Could not fix “hello”: server said no",
+      );
+      fireEvent.click(q.getByRole("button", { name: "Dismiss" }));
+      expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    });
+
+    it("clears a late failure once the word's text changes, not before", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          message: "Could not fix “hello”: server said no",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      act(() => useDawStore.setState({ project: project() }));
+      expect(container.querySelector(".inline-error")).not.toBeNull();
+      const fixed = project();
+      const words = fixed.transcript?.utterances[0]?.words;
+      if (!words) throw new Error("fixture words missing");
+      words[0] = { ...words[0], text: "Hello" };
+      act(() => useDawStore.setState({ project: fixed }));
+      expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     });
   });
 

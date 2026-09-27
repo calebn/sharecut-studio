@@ -41,6 +41,7 @@ import type {
   PointerKind,
   ShellBreakpoint,
   ToolMode,
+  TranscriptInlineEditFailure,
 } from "./types";
 
 function clipTrackId(
@@ -118,6 +119,8 @@ type UiSlice = Pick<
   | "commentMode"
   | "commentDraft"
   | "transcriptFollowPlayhead"
+  | "transcriptInlineCommitPending"
+  | "transcriptInlineEditFailure"
   | "transcriptAnnotate"
   | "showCutAwayUtterances"
   | "timelineFocused"
@@ -143,6 +146,8 @@ type UiSlice = Pick<
   | "setActiveTab"
   | "setTranscriptFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
+  | "setTranscriptInlineCommitPending"
+  | "setTranscriptInlineEditFailure"
   | "setTranscriptAnnotate"
   | "toggleTranscriptAnnotate"
   | "setShowCutAwayUtterances"
@@ -245,6 +250,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     commentMode: false,
     commentDraft: null as CommentDraft | null,
     transcriptFollowPlayhead: true,
+    transcriptInlineCommitPending: false,
+    transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     transcriptAnnotate: false,
     showCutAwayUtterances: false,
     timelineFocused: true,
@@ -342,6 +349,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
+    setTranscriptInlineCommitPending: (transcriptInlineCommitPending) =>
+      set({ transcriptInlineCommitPending }),
+    setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>
+      set({ transcriptInlineEditFailure }),
     setTranscriptAnnotate: (transcriptAnnotate) => {
       set({
         transcriptAnnotate,

@@ -618,3 +618,32 @@ describe("lane height preference", () => {
     expect(useDawStore.getState().drawnLaneHeightPx).toBeNull();
   });
 });
+
+describe("dawStore transcript inline edit", () => {
+  afterEach(() =>
+    useDawStore.setState({
+      transcriptInlineCommitPending: false,
+      transcriptInlineEditFailure: null,
+    }),
+  );
+
+  it("starts with no pending commit and no failure", () => {
+    const initial = useDawStore.getInitialState();
+    expect(initial.transcriptInlineCommitPending).toBe(false);
+    expect(initial.transcriptInlineEditFailure).toBeNull();
+  });
+
+  it("reflects setter calls in getState()", () => {
+    useDawStore.getState().setTranscriptInlineCommitPending(true);
+    expect(useDawStore.getState().transcriptInlineCommitPending).toBe(true);
+
+    const failure = {
+      trackId: "host",
+      wordIndex: 0,
+      originalText: "hello",
+      message: "m",
+    };
+    useDawStore.getState().setTranscriptInlineEditFailure(failure);
+    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual(failure);
+  });
+});
