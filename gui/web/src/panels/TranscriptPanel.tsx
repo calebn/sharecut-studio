@@ -687,9 +687,10 @@ export function TranscriptPanel() {
     return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
   }
 
-  // One polite region under the toolbar: the saving status replaces the mode
-  // hint while an inline fix is pending, so no line is inserted and the list
-  // never shifts under the pointer.
+  // The saving status replaces the visible mode hint while an inline fix is
+  // pending, so no line is inserted and the list never shifts under the
+  // pointer. Only the saving status is live (the visually hidden role=status
+  // below), so mode toggles and pointer changes are not announced.
   let toolbarHint = TRANSCRIPT_MODE_HINT[intent];
   if (intent === "navigate" && pointerKind === "coarse") {
     toolbarHint = TRANSCRIPT_NAVIGATE_TOUCH_HINT;
@@ -814,9 +815,14 @@ export function TranscriptPanel() {
         </div>
       </div>
       {canCorrect ? (
-        <p className="transcript-mode-hint" role="status">
-          {toolbarHint}
-        </p>
+        <>
+          <p className="transcript-mode-hint">{toolbarHint}</p>
+          <span className="sr-only" role="status">
+            {transcriptInlineCommitPending
+              ? TRANSCRIPT_INLINE_SAVING_STATUS
+              : ""}
+          </span>
+        </>
       ) : null}
       {transcriptInlineEditFailure ? (
         <div className="transcript-inline-failure">
