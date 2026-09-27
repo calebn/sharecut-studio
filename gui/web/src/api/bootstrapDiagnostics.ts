@@ -1,6 +1,6 @@
 import { hostFetch } from "../api/documentTransport";
 import { readApiError } from "../utils/apiError";
-import { JOB_STREAM_RECHECK_MS } from "./pipeline";
+import { isTerminalJobStatus, startJobStatusRecheck } from "./pipeline";
 
 export type BootstrapComponentStatus = {
   ok: boolean;
@@ -179,26 +179,8 @@ export function waitForBootstrapJob(
     let settled = false;
     const es = new EventSource(bootstrapEventsUrl(jobId));
 
-    // Backstop only: a non-terminal re-check must not roll back newer SSE progress.
-    const recheck = window.setInterval(() => {
-      void fetchBootstrapJob(jobId)
-        .then((job) => {
-          if (
-            job &&
-            (job.status === "ok" ||
-              job.status === "error" ||
-              job.status === "cancelled")
-          ) {
-            consider(job);
-          }
-        })
-        .catch(() => {
-          /* ignore transient */
-        });
-    }, JOB_STREAM_RECHECK_MS);
-
     const cleanup = () => {
-      window.clearInterval(recheck);
+      stopRecheck();
       es.close();
     };
 
@@ -233,6 +215,16 @@ export function waitForBootstrapJob(
         );
       }
     };
+
+    // Backstop only: a non-terminal re-check must not roll back newer SSE progress.
+    const stopRecheck = startJobStatusRecheck(
+      () => fetchBootstrapJob(jobId),
+      (job) => {
+        if (isTerminalJobStatus(job.status)) {
+          consider(job);
+        }
+      },
+    );
 
     es.onmessage = (ev) => {
       try {

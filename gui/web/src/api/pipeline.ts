@@ -248,6 +248,34 @@ export async function followExportJob(
 /** Slow status re-check while a job SSE stream is open: backstop for a stream that stays OPEN but goes silent (buffering proxy, half-open socket, backgrounded webview). */
 export const JOB_STREAM_RECHECK_MS = 15_000;
 
+/** True for a job status that ends a wait (mirrors backend `TERMINAL_JOB_STATUSES`). */
+export function isTerminalJobStatus(status: string): boolean {
+  return status === "ok" || status === "error" || status === "cancelled";
+}
+
+/**
+ * Re-check a job every `JOB_STREAM_RECHECK_MS` while its SSE stream is open
+ * (backstop for a stream that stays open but goes silent). Transient fetch
+ * errors are ignored; null results are skipped. Returns a stop function.
+ */
+export function startJobStatusRecheck<T>(
+  check: () => Promise<T | null | undefined>,
+  onResult: (result: T) => void,
+): () => void {
+  const id = window.setInterval(() => {
+    void check()
+      .then((result) => {
+        if (result != null) {
+          onResult(result);
+        }
+      })
+      .catch(() => {
+        /* ignore transient */
+      });
+  }, JOB_STREAM_RECHECK_MS);
+  return () => window.clearInterval(id);
+}
+
 /**
  * Wait until a Studio job reaches ok|error|cancelled.
  *
@@ -275,13 +303,8 @@ export async function waitForPipelineJob(
       (job): job is PipelineJobSnapshot => job != null,
     );
     return (
-      rows.find(
-        (job) =>
-          job.id === jobId &&
-          (job.status === "ok" ||
-            job.status === "error" ||
-            job.status === "cancelled"),
-      ) ?? null
+      rows.find((job) => job.id === jobId && isTerminalJobStatus(job.status)) ??
+      null
     );
   };
 
@@ -307,7 +330,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
-      window.clearInterval(recheck);
+      stopRecheck();
       es.close();
       signal?.removeEventListener("abort", onAbort);
       resolve(job);
@@ -319,7 +342,7 @@ export async function waitForPipelineJob(
       }
       settled = true;
       window.clearTimeout(timeout);
-      window.clearInterval(recheck);
+      stopRecheck();
       es.close();
       signal?.removeEventListener("abort", onAbort);
       reject(err);
@@ -333,17 +356,7 @@ export async function waitForPipelineJob(
       fail(new Error("Timed out waiting for job"));
     }, timeoutMs);
 
-    const recheck = window.setInterval(() => {
-      void fromStatus()
-        .then((job) => {
-          if (job) {
-            finish(job);
-          }
-        })
-        .catch(() => {
-          /* ignore transient */
-        });
-    }, JOB_STREAM_RECHECK_MS);
+    const stopRecheck = startJobStatusRecheck(fromStatus, finish);
 
     signal?.addEventListener("abort", onAbort);
     if (signal?.aborted) {
@@ -354,12 +367,7 @@ export async function waitForPipelineJob(
       try {
         const data = JSON.parse(ev.data) as PipelineEvent;
         const job = data.job;
-        if (
-          job?.id === jobId &&
-          (job.status === "ok" ||
-            job.status === "error" ||
-            job.status === "cancelled")
-        ) {
+        if (job?.id === jobId && isTerminalJobStatus(job.status)) {
           finish(job);
         }
       } catch {
