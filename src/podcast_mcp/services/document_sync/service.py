@@ -407,7 +407,7 @@ class DocumentSyncService:
             base_server_seq=_journal_server_seq(store),
         )
         try:
-            return self._apply(
+            result = self._apply(
                 command,
                 capabilities=capabilities,
                 structural_mode=structural_mode,
@@ -434,6 +434,19 @@ class DocumentSyncService:
                     )
                 self.project = self.ws.project
             raise
+        # Invariant: the handler commits the same in-memory ``self.ws.project`` this record
+        # was set on (ws.mutate / run_mutation / ProjectStore.commit, ws.save,
+        # record_and_commit, HistoryManager undo/redo, save_merged). A handler that commits a
+        # copy or replaces ``ws.project`` would drop the record without an error. Log it:
+        # raising here would fail an edit that is already saved and skip its journal row.
+        kept = self.ws.project.document_sync.last_command
+        if kept is None or kept.command_id != command.command_id:
+            log.error(
+                "Document command %s was applied without its document_sync.last_command "
+                "record; a crash before its journal row cannot be recovered (#575)",
+                command.command_id,
+            )
+        return result
 
 
 def notify_document_changed(project_path: str | Path) -> None:
