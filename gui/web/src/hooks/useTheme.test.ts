@@ -4,6 +4,7 @@ import {
   isThemePreference,
   PREFERS_LIGHT_QUERY,
   resolvedDocumentTheme,
+  THEME_OPTIONS,
   type ThemePreference,
 } from "./useTheme";
 
@@ -55,6 +56,11 @@ describe("useTheme initTheme", () => {
 });
 
 describe("isThemePreference", () => {
+  it("accepts exactly the THEME_OPTIONS ids", () => {
+    expect(THEME_OPTIONS.map((t) => t.id)).toEqual(["system", "light", "dark"]);
+    for (const t of THEME_OPTIONS) expect(isThemePreference(t.id)).toBe(true);
+  });
+
   it("accepts the three valid preferences", () => {
     expect(isThemePreference("system")).toBe(true);
     expect(isThemePreference("light")).toBe(true);
