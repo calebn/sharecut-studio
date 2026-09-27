@@ -4,6 +4,7 @@ import { capabilityTooltip } from "../../capabilities/copy";
 import { execute } from "../../commands/execute";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
 import {
+  clipIdsBeforeCut,
   cutFadeHint,
   isCutJoin,
   JOIN_MODE_OPTIONS,
@@ -79,8 +80,8 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   // incoming join is a cut, its fade-out when the next clip's join is.
   const cutIn = isCutJoin(clip);
   const cutOut = useDawStore((s) =>
-    Object.values(s.project?.clips?.tracks ?? {}).some((rows) =>
-      rows.some((c) => c.join_left_clip_id === clip.id && isCutJoin(c)),
+    clipIdsBeforeCut(s.project?.clips?.tracks?.[clip.track_id] ?? []).has(
+      clip.id,
     ),
   );
   const commitFades = async () => {
