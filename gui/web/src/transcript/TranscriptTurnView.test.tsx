@@ -109,4 +109,29 @@ describe("TranscriptTurnView", () => {
     expect(within(container).queryByRole("button")).toBeNull();
     await expectNoA11yViolations(container);
   });
+
+  it("renders a word's editor slot instead of its chip", () => {
+    const { container, queryByRole, getByLabelText } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                {
+                  ...props.segments[0].words[0],
+                  editor: <input aria-label="edit hello" />,
+                },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    expect(getByLabelText("edit hello")).toBeInTheDocument();
+    expect(queryByRole("button", { name: "hello" })).toBeNull();
+    expect(container).toBeTruthy();
+  });
 });

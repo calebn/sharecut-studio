@@ -19,11 +19,16 @@ import {
   type PlacementTurn,
   placeEditBoundaries,
 } from "../transcript/editBoundaryPlacement";
+import { InlineWordEditor } from "../transcript/InlineWordEditor";
 import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
   TranscriptTurnView,
 } from "../transcript/TranscriptTurnView";
+import {
+  TRANSCRIPT_MODE_HINT,
+  type TranscriptIntent,
+} from "../transcript/transcriptModeCopy";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -52,8 +57,6 @@ import {
 const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
-
-type TranscriptIntent = "navigate" | "correct" | "select";
 
 function transcriptWordExists(
   utterances: readonly CombinedUtterance[],
@@ -176,11 +179,16 @@ export function TranscriptPanel() {
     next: TranscriptIntent | ((prev: TranscriptIntent) => TranscriptIntent),
   ) => {
     cancelQueuedSeek();
+    setInlineEdit(null);
     setIntentState(next);
   };
   const lastTouchTapRef = useRef<(WordRef & { at: number }) | null>(null);
   const correctedTouchAtRef = useRef(-Infinity);
   const pendingCorrectionRef = useRef<WordRef | null>(null);
+  /** Word being edited in place (navigate intent, host, hydrated). */
+  const [inlineEdit, setInlineEdit] = useState<WordRef | null>(null);
+  /** Word chip to refocus after Enter / Esc closes the inline editor. */
+  const inlineFocusRestoreRef = useRef<WordRef | null>(null);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
   const longPressReleasedRef = useRef(false);
@@ -282,6 +290,54 @@ export function TranscriptPanel() {
     cancelQueuedSeek();
     setPlayheadSec(sec);
   };
+
+  const openInlineEdit = (ref: WordRef) => {
+    cancelQueuedSeek();
+    setInlineEdit(ref);
+  };
+  const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
+    if (restoreFocus) inlineFocusRestoreRef.current = ref;
+    setInlineEdit((cur) =>
+      cur && cur.trackId === ref.trackId && cur.wordIndex === ref.wordIndex
+        ? null
+        : cur,
+    );
+  };
+
+  // Close when editing becomes impossible or the word vanishes (remote edit, rehydrate).
+  useEffect(() => {
+    if (
+      inlineEdit &&
+      (!canCorrect ||
+        !transcriptWordExists(
+          allUtterances,
+          inlineEdit.trackId,
+          inlineEdit.wordIndex,
+        ))
+    ) {
+      setInlineEdit(null);
+    }
+  }, [inlineEdit, canCorrect, allUtterances]);
+
+  // Keyboard close (Enter / Esc) returns focus to the word chip.
+  useEffect(() => {
+    const target = inlineFocusRestoreRef.current;
+    if (inlineEdit != null || !target) return;
+    inlineFocusRestoreRef.current = null;
+    const chips =
+      listRef.current?.querySelectorAll<HTMLElement>(
+        "[data-transcript-word]",
+      ) ?? [];
+    for (const chip of chips) {
+      if (
+        chip.dataset.trackId === target.trackId &&
+        Number(chip.dataset.wordIndex) === target.wordIndex
+      ) {
+        chip.focus();
+        break;
+      }
+    }
+  }, [inlineEdit]);
 
   const setRange = (trackId: string, a: number, b: number) => {
     setSelection({
@@ -611,7 +667,11 @@ export function TranscriptPanel() {
             </ToggleButton>
           )}
           {hostEditable && (
-            <>
+            <div
+              className="transcript-mode-group"
+              role="group"
+              aria-label="Transcript mode"
+            >
               <ToggleButton
                 pressed={intent === "correct"}
                 disabled={!wordsHydrated}
@@ -651,7 +711,7 @@ export function TranscriptPanel() {
               >
                 Select
               </ToggleButton>
-            </>
+            </div>
           )}
           <ToggleButton
             pressed={transcriptFollowPlayhead}
@@ -667,6 +727,9 @@ export function TranscriptPanel() {
           </ToggleButton>
         </div>
       </div>
+      {canCorrect ? (
+        <p className="transcript-mode-hint">{TRANSCRIPT_MODE_HINT[intent]}</p>
+      ) : null}
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
@@ -798,6 +861,15 @@ export function TranscriptPanel() {
                     ((intent === "correct" || intent === "select") &&
                       wordIndex != null) ||
                     wSeek != null;
+                  const inlineEditable =
+                    canCorrect &&
+                    intent === "navigate" &&
+                    wordIndex != null &&
+                    w.mappable !== false;
+                  const editingThis =
+                    inlineEditable &&
+                    inlineEdit?.trackId === u.track_id &&
+                    inlineEdit.wordIndex === wordIndex;
                   const wordAnchor = presenceAnchorProps(
                     transcriptWordAnchor(
                       turnIndex,
@@ -820,7 +892,9 @@ export function TranscriptPanel() {
                           ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
                           : undefined
                         : wSeek != null
-                          ? `Double-click: ${wSeek.toFixed(1)}s`
+                          ? inlineEditable
+                            ? `Click: seek ${wSeek.toFixed(1)}s · Double-click: fix text`
+                            : `Double-click: ${wSeek.toFixed(1)}s`
                           : undefined
                     : undefined;
                   return {
@@ -844,6 +918,21 @@ export function TranscriptPanel() {
                       afterWordIndex,
                       turn.trackId,
                     ),
+                    editor:
+                      editingThis && wordIndex != null ? (
+                        <InlineWordEditor
+                          key={`${u.track_id}:${wordIndex}`}
+                          trackId={u.track_id}
+                          wordIndex={wordIndex}
+                          initialText={w.text}
+                          onClose={(restore) =>
+                            closeInlineEdit(
+                              { trackId: u.track_id, wordIndex },
+                              restore,
+                            )
+                          }
+                        />
+                      ) : undefined,
                     buttonProps: wordInteractive
                       ? {
                           onMouseDown: (e) => {
@@ -966,7 +1055,7 @@ export function TranscriptPanel() {
                             }
                           },
                           onDoubleClick:
-                            wSeek != null
+                            inlineEditable || wSeek != null
                               ? (e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
@@ -977,7 +1066,16 @@ export function TranscriptPanel() {
                                   ) {
                                     return;
                                   }
-                                  seekWordNow(wSeek);
+                                  if (inlineEditable && wordIndex != null) {
+                                    openInlineEdit({
+                                      trackId: u.track_id,
+                                      wordIndex,
+                                    });
+                                    return;
+                                  }
+                                  if (wSeek != null) {
+                                    seekWordNow(wSeek);
+                                  }
                                 }
                               : undefined,
                         }
