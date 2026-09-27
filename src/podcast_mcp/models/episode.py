@@ -475,6 +475,12 @@ class SavedDocumentCommand(BaseModel):
     Recording the command here, inside the same atomic commit as the
     project mutation it produced, lets the next ``submit`` reconcile the
     journal before applying anything else. See #575.
+
+    ``payload`` is the command payload as sent, unredacted. Guests never see it
+    (``ProjectView`` is an allowlist and ``sanitize_guest_project_view`` has no
+    ``document_sync`` branch). Any new path that dumps ``EpisodeProject`` for another
+    audience (an export, a backup, a debug endpoint) must drop ``document_sync`` or
+    reduce it the way ``sanitize_guest_document_event`` reduces ``command`` to ``{type}``.
     """
 
     command_id: str
