@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import logging
+import os
 import platform
 import re
 import shutil
 import time
 import wave
-from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -1010,7 +1009,7 @@ class PlayService:
             extra=extra,
         )
         if not out.is_file() or rerender:
-            self._render_atomic(out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp))
+            render_atomic(out, lambda tmp: FFmpegEngine().mix_tracks(segments, tmp))
         self._mark_play_cache_used(out)
 
         cmd = None if dry_run else self._player_command(player, out)
@@ -1061,9 +1060,7 @@ class PlayService:
         gap = max(0.0, float(gap_sec))
         out = self._ab_concat_path(path_a, path_b, gap)
         if not out.is_file():
-            self._render_atomic(
-                out, lambda tmp: self._write_ab_concat(path_a, path_b, tmp, gap_sec=gap)
-            )
+            render_atomic(out, lambda tmp: self._write_ab_concat(path_a, path_b, tmp, gap_sec=gap))
         self._mark_play_cache_used(out)
 
         cmd = None if dry_run else self._player_command(player, out)
