@@ -167,6 +167,37 @@ async function followUntilLeaderPlayheadMirrors(
   throw new Error("no Follow peer mirrored the leader playhead");
 }
 
+/**
+ * Zooms the timeline in past fit, so it has a real horizontal scroll range.
+ * At fit zoom the scroller overflows by at most a few px (playhead, chips),
+ * so a scroll there can clamp to the current value and fire no event.
+ */
+async function zoomInPastFit(page: Page): Promise<void> {
+  const scroller = page.locator(".timeline-scroll");
+  await scroller.click();
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press("=");
+  }
+  await expect
+    .poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(200);
+}
+
+/** A person's horizontal scroll of `px`, away from the nearer end of the range. */
+async function scrollTimelineBy(page: Page, px: number): Promise<void> {
+  const scroller = page.locator(".timeline-scroll");
+  await expect
+    .poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeGreaterThan(2 * px);
+  await scroller.evaluate((el, delta) => {
+    const max = el.scrollWidth - el.clientWidth;
+    el.scrollLeft =
+      el.scrollLeft + delta <= max
+        ? el.scrollLeft + delta
+        : el.scrollLeft - delta;
+  }, px);
+}
+
 async function withTwoStudioPages<T>(
   browser: Pick<Browser, "newContext">,
   viewport: { width: number; height: number },
@@ -253,6 +284,7 @@ test.describe("presence follow desktop", () => {
     browser,
   }) => {
     await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
+      await zoomInPastFit(pageA);
       await followUntilLeaderPlayheadMirrors(pageB, pageA);
       await expect(
         pageB.locator(".timeline-area[data-following]"),
@@ -260,9 +292,7 @@ test.describe("presence follow desktop", () => {
       await expect(pageB.locator(".presence-overlay")).toBeAttached();
       await expectPageAxeClean(pageB);
 
-      await pageB.locator(".timeline-scroll").evaluate((el) => {
-        el.scrollLeft = 80;
-      });
+      await scrollTimelineBy(pageB, 80);
       await expect(pageB.locator(".follow-banner")).toHaveCount(0);
       await expect(pageB.locator(".timeline-area[data-following]")).toHaveCount(
         0,
