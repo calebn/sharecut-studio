@@ -162,8 +162,10 @@ custom-height, keyboard-resize and 360px examples. The view owns the pointer
 and keyboard gestures (arrows, Shift+arrows, Home/End, Enter and double-click
 reset). The live `BottomTabsSplitter` adapter supplies `useTabsHeight`, which
 persists `sharecut.tabsHeight` and sets the root `--tabs-height`; the story
-clamps story-local state instead and never touches localStorage or the root
-variable.
+clamps story-local state with the production `clampTabsHeightRem` over a
+fixed 640px shell (24rem max) and never touches localStorage or the root
+variable. As in production, `onResize` receives the unclamped request and the
+owner clamps it.
 
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
@@ -256,7 +258,12 @@ that store or simulate command execution.
    component module directly (`./ConsentGate`, `./Declined`).
 4. Keep stories state-local (`useState` in the story) — no app providers, no
    network. Components that need DAW context don't get stories until they can
-   render standalone.
+   render standalone. For interactive stories, a small story-local controlled
+   wrapper mirrors the callback into `useState` and still forwards it to the
+   `fn()` spy (`UndoToastPreview`, `PreviewModesPreview`, `SplitterPreview`).
+   Keep these wrappers inside the story file while their state shapes differ;
+   if a fourth story needs the same "local state + forward to spy" wiring,
+   extract a helper and register it in `STORY_SUPPORT_MODULES`.
 5. Render in production context: if the app mounts the component inside a
    shell class (e.g. `review-shell record-shell`), use a decorator with those
    classes so shell-scoped type and heading styles apply. For Templates, follow
