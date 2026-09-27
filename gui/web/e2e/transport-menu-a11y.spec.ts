@@ -6,7 +6,7 @@ import { settleAnimations } from "./motion";
 test.describe("compact transport menu accessibility", () => {
   test.use({ viewport: { width: 800, height: 844 } });
 
-  test("has accessible audition, layer and action rows with touch targets", async ({
+  test("has accessible audition, layer, waveform and action rows with touch targets", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -43,13 +43,33 @@ test.describe("compact transport menu accessibility", () => {
     expect(paint.ring).toContain("inset");
 
     const layers = menu.getByRole("menuitemcheckbox");
-    await expect(layers).toHaveCount(5);
+    const checkboxNames = [
+      "Edits",
+      "Levels",
+      "Markers",
+      "Comments",
+      "Silence shading",
+      "Snap points",
+      "Show waveforms post-fader",
+      "Fit tracks to window height",
+    ];
+    for (const name of checkboxNames) {
+      await expect(
+        menu.getByRole("menuitemcheckbox", { name, exact: true }),
+      ).toBeVisible();
+    }
+    await expect(layers).toHaveCount(checkboxNames.length);
+    const scales = menu
+      .getByRole("group", { name: "Waveform scale" })
+      .getByRole("menuitemradio");
+    await expect(scales).toHaveCount(3);
     // Measure the settled menu: mid drop-in, the panel's fractional translate
     // puts float noise into every row's rect (43.99998px, not 44px).
     await settleAnimations(menu);
     const controls = [
       ...(await menu.getByRole("menuitem").all()),
       ...(await radios.all()),
+      ...(await scales.all()),
       ...(await layers.all()),
     ];
     for (const control of controls) {
