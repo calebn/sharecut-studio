@@ -1786,6 +1786,45 @@ def test_hold_co_timed_uses_overlapping_reference_piece(tmp_path: Path) -> None:
     assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 40.0, 0.0))
 
 
+def test_stack_skip_reason_lists_every_new_pair(tmp_path: Path, monkeypatch) -> None:
+    host = Clip(
+        id="host_a", track_id="host", source_start=0.0, source_end=500.0, timeline_start=0.0
+    )
+    pieces = [
+        Clip(
+            id=f"g{i}",
+            track_id="guest",
+            source_start=100.0 * i,
+            source_end=100.0 * (i + 1),
+            timeline_start=100.0 * i,
+        )
+        for i in range(5)
+    ]
+    proj = _two_track_project(
+        tmp_path, "many_stacks", [host, *pieces], host_dur=500.0, guest_dur=500.0
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.edits.conversation_align.slip_clip_to_shift",
+        lambda clip, target_shift, *, media_duration: (0.0, media_duration, 0.0),
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a"),
+            *(
+                ClipAlignPlan(track_id="guest", clip_id=c.id, offset_sec=-35.6, method="bleed")
+                for c in pieces
+            ),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    reason = next(p.skipped_reason for p in result.plans if p.track_id == "guest")
+    assert reason is not None
+    assert "'g0'/'g1'" in reason and "'g1'/'g3'" in reason
+    assert "'g3'/'g4'" not in reason
+    assert "+4 more" in reason
+
+
 def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
     apply_alignment_plans(proj, _plans(-35.6))
