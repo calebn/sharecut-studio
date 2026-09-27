@@ -113,7 +113,7 @@ def _mapped_word_index(
     tr = project.transcript_for_track(track_id)
     words = tr.words if tr is not None else []
     source_spans = [word_source_span(w.start, w.end) for w in words]
-    mapped = timeline.map_source_spans(track_id, source_spans)
+    mapped = timeline.map_word_spans(track_id, [(w.start, w.end) for w in words])
     views = [
         _word_view(timeline, track_id, i, w, spans)
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
@@ -312,6 +312,8 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     w_end = float(word_source_span(word.start, word.end)[1])
                     if w_end <= cutaway_start or float(word.start) >= cutaway_end:
                         continue
+                    if word.end <= word.start and float(word.start) <= cutaway_start + 1e-9:
+                        continue  # zero-length word at the left clip's end stays on it
                     cutaway_word_ids.append(
                         {
                             "track_id": track_id,

@@ -359,6 +359,33 @@ def test_timebase_qc_zero_length_words_alone_stay_ok(tmp_path):
     assert report["tracks"]["host"]["zero_length_words"] == 1
 
 
+def test_timebase_qc_zero_length_word_at_clip_source_end_maps(tmp_path):
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+            Clip(id="c2", track_id="host", source_start=12.0, source_end=20.0, timeline_start=10.0),
+        ],
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=10.0, end=10.0),  # cut begins at the word
+                TranscriptWord(text="b", start=11.0, end=11.0),  # inside the cut gap
+            ],
+        )
+    ]
+    report = timebase_qc_report(p)
+    host = report["tracks"]["host"]
+    assert host["zero_length_words"] == 1
+    assert host["unmapped_words"] == 1
+    mapped = SessionTimeline(p).map_word_spans("host", [(10.0, 10.0), (11.0, 11.0), (12.0, 12.0)])
+    assert mapped[0] == [(pytest.approx(9.999), pytest.approx(10.0))]
+    assert mapped[1] == []
+    assert mapped[2] == [(pytest.approx(10.0), pytest.approx(10.001))]
+
+
 def test_word_source_span_pads_zero_length_words():
     assert word_source_span(1.0, 2.0) == (SourceSec(1.0), SourceSec(2.0))
     for end in (5.0, 4.99):

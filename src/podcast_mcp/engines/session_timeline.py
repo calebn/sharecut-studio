@@ -394,16 +394,21 @@ class SessionTimeline:
 
     def source_to_timeline(self, track_id: str, sec: SourceSec) -> TimelineSec | None:
         """Timeline position of a source second, or None if the material was cut."""
-        idx = self._index(track_id)
+        best = self._source_point(self._index(track_id), float(sec))
+        return TimelineSec(best) if best is not None else None
+
+    @staticmethod
+    def _source_point(idx: _TrackIndex | None, sec: float) -> float | None:
+        """Earliest timeline position of source ``sec`` (a clip's ``source_end`` counts)."""
         if idx is None:
-            return TimelineSec(float(sec))
+            return sec
         best: float | None = None
-        for span in _candidates_source(idx, float(sec), float(sec)):
+        for span in _candidates_source(idx, sec, sec):
             if span.source_start - _EPS <= sec < span.source_end + _EPS:
-                tl = span.timeline_start + (float(sec) - span.source_start)
+                tl = span.timeline_start + (sec - span.source_start)
                 if best is None or tl < best:
                     best = tl
-        return TimelineSec(best) if best is not None else None
+        return best
 
     def timeline_to_source(self, track_id: str, sec: TimelineSec) -> SourceSec | None:
         """Source position of a timeline second, or None if it falls in a gap."""
@@ -434,6 +439,33 @@ class SessionTimeline:
         """Map a snapshot batch against one fresh clip index."""
         idx = self._index(track_id)
         return [self._map_source_span(idx, start, end) for start, end in spans]
+
+    def map_word_spans(
+        self, track_id: str, words: Sequence[tuple[float, float]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        """Timeline intervals for ASR words given as ``(start, end)`` source seconds.
+
+        Words map by ``word_source_span``. A zero-length word (``end <= start``) whose
+        forward 1 ms pad misses because a kept clip ends exactly at ``start`` (a cut that
+        begins at the word) maps as the 1 ms before ``start`` when that point survives,
+        so a boundary word is not reported unmapped (#621). Shared by export/doctor
+        timebase QC and the GUI word views.
+        """
+        idx = self._index(track_id)
+        out: list[list[tuple[TimelineSec, TimelineSec]]] = []
+        for start, end in words:
+            src_start, src_end = word_source_span(start, end)
+            mapped = self._map_source_span(idx, src_start, src_end)
+            if (
+                not mapped
+                and end <= start
+                and self._source_point(idx, float(src_start)) is not None
+            ):
+                mapped = self._map_source_span(
+                    idx, SourceSec(float(src_start) - ZERO_LENGTH_WORD_PAD_SEC), src_start
+                )
+            out.append(mapped)
+        return out
 
     @staticmethod
     def _map_source_span(
@@ -602,7 +634,8 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
 
     Source/timeline drift after cuts is expected on edited episodes - reported as
     ``warnings``, not a ship-blocker. Zero-length ASR words (``end <= start``, common in
-    Whisper output) map by ``word_source_span``; ones that land on the timeline are
+    Whisper output) map by ``SessionTimeline.map_word_spans`` (1 ms pad; a word at a kept
+    clip's source end maps onto that clip); ones that land on the timeline are
     counted as ``zero_length_words`` with a warning (ASR timing flag, #621). Words that
     end more than ``_INVERTED_WORD_TOL_SEC`` before they start are ``inverted_words``, a
     hard issue (corrupt timing). Unmapped transcript words (wrong clock or cut-away) and
@@ -631,7 +664,7 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
         words = [w for w in tr.words if not w.suppressed]
         inverted = sum(1 for w in words if w.end < w.start - _INVERTED_WORD_TOL_SEC)
         timed = [w for w in words if w.end >= w.start - _INVERTED_WORD_TOL_SEC]
-        mapped = st.map_source_spans(tr.track_id, [word_source_span(w.start, w.end) for w in timed])
+        mapped = st.map_word_spans(tr.track_id, [(w.start, w.end) for w in timed])
         unmapped = sum(1 for m in mapped if not m)
         zero_length = sum(1 for w, m in zip(timed, mapped, strict=True) if m and w.end <= w.start)
         tinfo = tracks.setdefault(tr.track_id, {"max_drift_sec": st.max_drift(tr.track_id)})

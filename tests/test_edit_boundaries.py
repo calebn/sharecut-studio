@@ -63,6 +63,33 @@ def test_map_edit_boundaries_includes_cutaway_words(minimal_project):
     assert not any(w["text"] == "keep" for w in join["cutaway_word_ids"])
 
 
+def test_map_edit_boundaries_keeps_zero_length_word_at_left_clip_end(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=40.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=15.0, source_end=25.0, timeline_start=5.0),
+    ]
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="edge", start=5.0, end=5.0),  # maps onto c1's end
+                TranscriptWord(text="gone", start=8.0, end=8.0),
+            ],
+        )
+    ]
+    (join,) = map_edit_boundaries(ws.project)
+    assert [w["text"] for w in join["cutaway_word_ids"]] == ["gone"]
+
+
 def test_map_edit_boundaries_skips_track_end_without_neighbor(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [

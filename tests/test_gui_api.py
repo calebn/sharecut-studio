@@ -244,13 +244,13 @@ def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypat
         ]
     }
     calls: list[int] = []
-    original = SessionTimeline.map_source_spans
+    original = SessionTimeline.map_word_spans
 
-    def counted(self, track_id, spans):
-        calls.append(len(spans))
-        return original(self, track_id, spans)
+    def counted(self, track_id, words):
+        calls.append(len(words))
+        return original(self, track_id, words)
 
-    monkeypatch.setattr(SessionTimeline, "map_source_spans", counted)
+    monkeypatch.setattr(SessionTimeline, "map_word_spans", counted)
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
     assert [[w["text"] for w in row["words"]] for row in mapped["utterances"]] == [
@@ -282,6 +282,29 @@ def test_transcript_word_index_preserves_zero_width_boundary_rules() -> None:
     ]
     rows = _words_for_utterance(project, SessionTimeline(project), "host", 1.1, 1.8)
     assert [row["text"] for row in rows] == ["after", "at-start", "long"]
+
+
+def test_word_view_maps_zero_length_word_at_clip_source_end() -> None:
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.gui.mapper import _mapped_word_index
+
+    project = _minimal()
+    project.timeline.clips[1] = Clip(
+        id="c2", track_id="host", source_start=7.0, source_end=10.0, timeline_start=5.0
+    )
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="edge", start=5.0, end=5.0),  # cut [5, 7) starts here
+                TranscriptWord(text="gone", start=6.0, end=6.0),
+            ],
+        )
+    ]
+    views = _mapped_word_index(project, SessionTimeline(project), "host").views
+    assert views[0]["mappable"] is True
+    assert views[0]["timeline_end"] == pytest.approx(5.0)
+    assert views[1]["mappable"] is False
 
 
 def test_map_transcript_includes_suppressed_within_utterance() -> None:
