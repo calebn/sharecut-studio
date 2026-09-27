@@ -196,6 +196,24 @@ def journal_saved_command(store: SyncStore, project: EpisodeProject) -> dict[str
     return row
 
 
+def log_if_saved_command_dropped(project: EpisodeProject, command_id: str) -> None:
+    """Log when a handler's commit did not keep ``command_id`` as ``document_sync.last_command``.
+
+    Invariant (#575): every handler commits the same in-memory ``ws.project`` the record
+    was set on (ws.mutate / run_mutation / ProjectStore.commit, ws.save,
+    record_and_commit, HistoryManager undo/redo, save_merged). A handler that commits a
+    copy or replaces ``ws.project`` drops the record without an error. This logs rather
+    than raises: raising would fail an edit that is already saved and skip its journal row.
+    """
+    kept = project.document_sync.last_command
+    if kept is None or kept.command_id != command_id:
+        log.error(
+            "Document command %s was applied without its document_sync.last_command "
+            "record; a crash before its journal row cannot be recovered (#575)",
+            command_id,
+        )
+
+
 class DocumentSyncService:
     """Submit → handler registry → append document log → fanout Applied."""
 
@@ -447,18 +465,7 @@ class DocumentSyncService:
                     )
                 self.project = self.ws.project
             raise
-        # Invariant: the handler commits the same in-memory ``self.ws.project`` this record
-        # was set on (ws.mutate / run_mutation / ProjectStore.commit, ws.save,
-        # record_and_commit, HistoryManager undo/redo, save_merged). A handler that commits a
-        # copy or replaces ``ws.project`` would drop the record without an error. Log it:
-        # raising here would fail an edit that is already saved and skip its journal row.
-        kept = self.ws.project.document_sync.last_command
-        if kept is None or kept.command_id != command.command_id:
-            log.error(
-                "Document command %s was applied without its document_sync.last_command "
-                "record; a crash before its journal row cannot be recovered (#575)",
-                command.command_id,
-            )
+        log_if_saved_command_dropped(self.ws.project, command.command_id)
         return result
 
 
