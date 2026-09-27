@@ -1,0 +1,68 @@
+{
+  "id": "1988-147956-0023",
+  "audio": "1988-147956-0023.wav",
+  "audio_sha256": "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 2",
+  "words": [
+    {
+      "text": "antonia",
+      "start": 0.49,
+      "end": 1.04
+    },
+    {
+      "text": "pointed",
+      "start": 1.04,
+      "end": 1.42
+    },
+    {
+      "text": "up",
+      "start": 1.42,
+      "end": 1.59
+    },
+    {
+      "text": "to",
+      "start": 1.59,
+      "end": 1.69
+    },
+    {
+      "text": "the",
+      "start": 1.69,
+      "end": 1.81
+    },
+    {
+      "text": "sky",
+      "start": 1.81,
+      "end": 2.27
+    },
+    {
+      "text": "and",
+      "start": 2.36,
+      "end": 2.53
+    },
+    {
+      "text": "questioned",
+      "start": 2.53,
+      "end": 3.0
+    },
+    {
+      "text": "me",
+      "start": 3.0,
+      "end": 3.11
+    },
+    {
+      "text": "with",
+      "start": 3.11,
+      "end": 3.27
+    },
+    {
+      "text": "her",
+      "start": 3.27,
+      "end": 3.36
+    },
+    {
+      "text": "glance",
+      "start": 3.36,
+      "end": 3.9
+    }
+  ]
+}

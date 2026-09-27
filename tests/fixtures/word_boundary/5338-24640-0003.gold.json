@@ -1,0 +1,83 @@
+{
+  "id": "5338-24640-0003",
+  "audio": "5338-24640-0003.wav",
+  "audio_sha256": "d2b567b7853955bea08f40f19fcf258eeaed9b4c95a3848065356dcf3ef53f87",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 7",
+  "words": [
+    {
+      "text": "mister",
+      "start": 0.54,
+      "end": 0.8
+    },
+    {
+      "text": "morton",
+      "start": 0.8,
+      "end": 1.16
+    },
+    {
+      "text": "seemed",
+      "start": 1.16,
+      "end": 1.46
+    },
+    {
+      "text": "particularly",
+      "start": 1.56,
+      "end": 2.38
+    },
+    {
+      "text": "struck",
+      "start": 2.38,
+      "end": 2.69
+    },
+    {
+      "text": "with",
+      "start": 2.69,
+      "end": 2.83
+    },
+    {
+      "text": "the",
+      "start": 2.83,
+      "end": 2.95
+    },
+    {
+      "text": "account",
+      "start": 2.95,
+      "end": 3.34
+    },
+    {
+      "text": "of",
+      "start": 3.34,
+      "end": 3.42
+    },
+    {
+      "text": "waverley's",
+      "start": 3.42,
+      "end": 4.01
+    },
+    {
+      "text": "visit",
+      "start": 4.01,
+      "end": 4.39
+    },
+    {
+      "text": "to",
+      "start": 4.39,
+      "end": 4.52
+    },
+    {
+      "text": "donald",
+      "start": 4.52,
+      "end": 5.01
+    },
+    {
+      "text": "bean",
+      "start": 5.01,
+      "end": 5.51
+    },
+    {
+      "text": "lean",
+      "start": 5.51,
+      "end": 5.96
+    }
+  ]
+}

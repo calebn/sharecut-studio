@@ -73,6 +73,20 @@ Word times stay in **source-media seconds** at every layer — reconcile, precor
 
 **ASR timing flags:** After `transcribe_tracks`, words longer than `analysis.heuristics.max_word_audibility_sec` (default **2.0 s**) are soft-marked `audibility_status: deferred` and listed in `artifacts/transcript_timing.json`. Timestamps are **not** clamped — a stretched Whisper token often covers real under-transcribed speech. Precorrect copies those into `deferred_queue` (`kind: anomalous_word_duration`) for refine/audition.
 
+**Word-boundary benchmark:** `scripts/benchmark_word_boundaries.py` compares native
+Whisper or supplied candidate timestamps against the same real-audio reference
+fixture under `tests/fixtures/word_boundary/`. The reference times are published
+MFA alignments, not hand-checked truth. Only matching normalized words are
+scored; the report also counts missed reference and extra predicted words.
+Boundary MAE averages absolute start and end errors over matched words. The
+`words_over_150ms_fraction` counts a word when either boundary differs by more
+than 150 ms. The initial three-clip faster-whisper `base` CPU/int8 baseline is
+**82.3 ms** MAE over 42/48 reference words, with **15/42 (35.7%)** matched
+words over 150 ms; six reference words were missed and four predictions were
+extra. This read-speech baseline cannot establish accuracy on conversational
+podcast audio. See [testing.md](testing.md#word-boundary-benchmark) for the
+reproduction command and fixture provenance.
+
 **Does not fix:**
 
 - ASR mishearings on words still marked `audible` (e.g. “Budapest” for “Puro Pinché Party”)

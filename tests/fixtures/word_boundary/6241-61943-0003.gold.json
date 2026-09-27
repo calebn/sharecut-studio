@@ -1,0 +1,113 @@
+{
+  "id": "6241-61943-0003",
+  "audio": "6241-61943-0003.wav",
+  "audio_sha256": "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 6",
+  "words": [
+    {
+      "text": "my",
+      "start": 0.38,
+      "end": 0.53
+    },
+    {
+      "text": "uncle",
+      "start": 0.53,
+      "end": 0.79
+    },
+    {
+      "text": "was",
+      "start": 0.79,
+      "end": 0.97
+    },
+    {
+      "text": "delighted",
+      "start": 0.97,
+      "end": 1.56
+    },
+    {
+      "text": "for",
+      "start": 1.89,
+      "end": 2.04
+    },
+    {
+      "text": "myself",
+      "start": 2.04,
+      "end": 2.65
+    },
+    {
+      "text": "moody",
+      "start": 2.9,
+      "end": 3.27
+    },
+    {
+      "text": "and",
+      "start": 3.27,
+      "end": 3.37
+    },
+    {
+      "text": "dissatisfied",
+      "start": 3.37,
+      "end": 4.23
+    },
+    {
+      "text": "i",
+      "start": 4.48,
+      "end": 4.71
+    },
+    {
+      "text": "appeared",
+      "start": 4.71,
+      "end": 5.07
+    },
+    {
+      "text": "almost",
+      "start": 5.07,
+      "end": 5.39
+    },
+    {
+      "text": "to",
+      "start": 5.39,
+      "end": 5.5
+    },
+    {
+      "text": "expect",
+      "start": 5.5,
+      "end": 5.9
+    },
+    {
+      "text": "a",
+      "start": 5.9,
+      "end": 5.99
+    },
+    {
+      "text": "glimpse",
+      "start": 5.99,
+      "end": 6.31
+    },
+    {
+      "text": "of",
+      "start": 6.31,
+      "end": 6.39
+    },
+    {
+      "text": "the",
+      "start": 6.39,
+      "end": 6.49
+    },
+    {
+      "text": "ghost",
+      "start": 6.49,
+      "end": 6.79
+    },
+    {
+      "text": "of",
+      "start": 6.79,
+      "end": 6.89
+    },
+    {
+      "text": "hamlet",
+      "start": 6.89,
+      "end": 7.44
+    }
+  ]
+}
