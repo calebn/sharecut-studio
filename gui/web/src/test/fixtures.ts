@@ -9,6 +9,7 @@ import type {
   TimelineComment,
   TrackView,
 } from "../types/project";
+import type { SessionClient } from "../types/session";
 import type { RenderInvalidationView } from "../utils/staleRender";
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
@@ -193,6 +194,18 @@ export function layerVisibility(
     showComments: true,
     showSilence: true,
     showSnapPoints: true,
+    ...overrides,
+  };
+}
+
+/** A single session-roster entry for tests and prop-only chrome stories. */
+export function sessionClient(
+  overrides: Partial<SessionClient> = {},
+): SessionClient {
+  return {
+    client_id: "sample-client",
+    role: "viewer",
+    meta: { display_name: "Sample viewer", color_index: 0 },
     ...overrides,
   };
 }
