@@ -1,7 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { setEnvelope } from "../api";
 import { isShareProjectKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type {
   AutomationEnvelope,
@@ -16,11 +15,9 @@ import {
   sortedVolumePoints,
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
-import {
-  VIEWPORT_CHUNK_PX,
-  viewportChunkRange,
-} from "../utils/timelineViewport";
+import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
 import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
+import { useVisibleChunks } from "./useVisibleChunks";
 
 interface EnvelopeOverlayProps {
   envelopes: readonly AutomationEnvelope[];
@@ -68,15 +65,7 @@ export function EnvelopeOverlay({
   );
   const { laneHeight } = useTimelineMetrics();
   // Only the chunks on screen: the lane can be millions of px wide.
-  const chunks = useDawStore(
-    useCallback(
-      (s: { scrollLeft: number; timelineViewportWidth: number }) =>
-        viewportChunkRange(s.scrollLeft, s.timelineViewportWidth, width).join(
-          ":",
-        ),
-      [width],
-    ),
-  );
+  const [c0, c1] = useVisibleChunks(width);
   const editable = !isShareProjectKey(projectPath);
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   // Kept mounted outside the chunk range: unmounting would drop pointer
@@ -101,7 +90,6 @@ export function EnvelopeOverlay({
 
   const height = laneHeight;
   const sorted = draft ?? base;
-  const [c0 = 0, c1 = 0] = chunks.split(":").map(Number);
   const x0 = c0 * VIEWPORT_CHUNK_PX;
   const x1 = Math.min(width, (c1 + 1) * VIEWPORT_CHUNK_PX);
   const xOf = (p: AutomationPoint) => p.time * zoomPxPerSec;

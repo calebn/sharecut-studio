@@ -401,10 +401,6 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     reason: "leaf that reads the live playhead itself",
   },
   {
-    file: "timeline/EnvelopeOverlay.tsx",
-    reason: "reads the current scroll position to draw only the visible chunk",
-  },
-  {
     file: "timeline/Playhead.tsx",
     reason: "leaf that reads the live playhead itself",
   },
@@ -414,7 +410,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   },
   {
     file: "timeline/TimeRuler.tsx",
-    reason: "leaf that reads the live playhead and scroll position itself",
+    reason: "leaf that reads the live playhead itself",
   },
   {
     file: "timeline/TimelineLeaves.tsx",
@@ -428,6 +424,10 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   {
     file: "timeline/followTarget.ts",
     reason: "derives the follow target from the presence roster",
+  },
+  {
+    file: "timeline/useVisibleChunks.ts",
+    reason: "reads the current scroll position to draw only the visible chunk",
   },
 ];
 

@@ -1,11 +1,8 @@
-import { useCallback, useMemo } from "react";
 import { useDawStore } from "../state/dawStore";
-import {
-  MIN_TIMELINE_WIDTH_PX,
-  viewportChunkRange,
-} from "../utils/timelineViewport";
+import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
 import { Playhead } from "./Playhead";
 import { TimeRulerView, type TimeRulerViewProps } from "./TimeRulerView";
+import { useVisibleChunks } from "./useVisibleChunks";
 
 type TimeRulerProps = Omit<
   TimeRulerViewProps,
@@ -30,19 +27,7 @@ export function TimeRuler({ hidePlayhead = false, ...props }: TimeRulerProps) {
     props.durationSec * props.zoomPxPerSec,
     MIN_TIMELINE_WIDTH_PX,
   );
-  const chunkRange = useDawStore(
-    useCallback(
-      (s: { scrollLeft: number; timelineViewportWidth: number }) =>
-        viewportChunkRange(s.scrollLeft, s.timelineViewportWidth, width).join(
-          ":",
-        ),
-      [width],
-    ),
-  );
-  const visibleChunks = useMemo(() => {
-    const [start = 0, end = 0] = chunkRange.split(":").map(Number);
-    return [start, end] as const;
-  }, [chunkRange]);
+  const visibleChunks = useVisibleChunks(width);
 
   return (
     <TimeRulerView
