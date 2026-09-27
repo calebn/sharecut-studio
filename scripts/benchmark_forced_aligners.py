@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -174,6 +175,22 @@ def download_command(c: Candidate) -> str:
         'uv run python -c "from huggingface_hub import snapshot_download as d; '
         f"print(d('{c.hf_repo}', revision='{c.revision}', allow_patterns={list(c.allow_patterns)!r}))\""
     )
+
+
+def verify_candidate(c: Candidate, api: Any) -> list[str]:
+    """Problems with one pinned candidate on the Hub (metadata only; never downloads weights)."""
+    info = api.model_info(c.hf_repo, revision=c.revision)
+    problems = []
+    if info.sha != c.revision:
+        problems.append(f"{c.label}: revision resolves to {info.sha}, pinned {c.revision}")
+    card_license = getattr(info.card_data, "license", None)
+    if card_license != c.license:
+        problems.append(f"{c.label}: model card license {card_license!r}, pinned {c.license!r}")
+    names = [s.rfilename for s in (info.siblings or [])]
+    for pattern in c.allow_patterns:
+        if not any(fnmatch(name, pattern) for name in names):
+            problems.append(f"{c.label}: no file matches {pattern!r} at {c.revision}")
+    return problems
 
 
 def resolve_model_dir(c: Candidate, override: Path | None) -> Path:
@@ -625,6 +642,9 @@ def main(argv: list[str] | None = None) -> int:
     dl_cmd = sub.add_parser("download-commands")
     dl_cmd.add_argument("--candidate", action="append", dest="candidates")
 
+    verify_cmd = sub.add_parser("verify-candidates")
+    verify_cmd.add_argument("--candidate", action="append", dest="candidates")
+
     args = parser.parse_args(argv)
 
     if args.command == "plan":
@@ -671,6 +691,21 @@ def main(argv: list[str] | None = None) -> int:
         for c in candidates:
             print(download_command(c))
         return 0
+
+    if args.command == "verify-candidates":
+        from huggingface_hub import HfApi
+
+        api = HfApi()
+        problems = [
+            problem
+            for c in load_candidates(labels=args.candidates)
+            for problem in verify_candidate(c, api)
+        ]
+        for problem in problems:
+            print(problem)
+        if not problems:
+            print("all candidates verified")
+        return 1 if problems else 0
 
     return 1
 

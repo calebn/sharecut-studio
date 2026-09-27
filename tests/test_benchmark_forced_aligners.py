@@ -143,6 +143,46 @@ def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
         bfa.resolve_model_dir(candidate, None)
 
 
+def _fake_hub(candidate, *, sha=None, license=None, files=None):
+    info = SimpleNamespace(
+        sha=sha or candidate.revision,
+        card_data=SimpleNamespace(license=license or candidate.license),
+        siblings=[
+            SimpleNamespace(rfilename=name)
+            for name in (
+                files
+                if files is not None
+                else ["vocab.json", "config.json", "preprocessor_config.json", "onnx/model.onnx"]
+            )
+        ],
+    )
+    return SimpleNamespace(model_info=lambda repo, revision: info)
+
+
+def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    assert bfa.verify_candidate(candidate, _fake_hub(candidate)) == []
+
+    problems = bfa.verify_candidate(
+        candidate, _fake_hub(candidate, sha="f" * 40, license="mit", files=["vocab.json"])
+    )
+    assert any("revision resolves" in p for p in problems)
+    assert any("license" in p for p in problems)
+    assert any("onnx/model.onnx" in p for p in problems)
+
+
+def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:
+    import huggingface_hub
+
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    monkeypatch.setattr(huggingface_hub, "HfApi", lambda: _fake_hub(candidate))
+    assert bfa.main(["verify-candidates", "--candidate", "onnx-base"]) == 0
+    assert "all candidates verified" in capsys.readouterr().out
+
+    monkeypatch.setattr(huggingface_hub, "HfApi", lambda: _fake_hub(candidate, license="mit"))
+    assert bfa.main(["verify-candidates", "--candidate", "onnx-base"]) == 1
+
+
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
     monkeypatch.setitem(sys.modules, "onnxruntime", None)
     with pytest.raises(RuntimeError, match="onnxruntime"):
