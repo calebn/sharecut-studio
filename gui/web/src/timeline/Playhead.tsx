@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { useDawStore } from "../state/dawStore";
+import { PlayheadNeedle } from "./PlayheadNeedle";
 
 interface PlayheadProps {
   /** Lane-stack px, or `"100%"` inside the ruler. */
@@ -36,5 +37,12 @@ export function Playhead({ height }: PlayheadProps) {
       }
     });
   }, []);
-  return <div ref={ref} className="playhead" style={{ height }} />;
+  const { playheadSec, zoomPxPerSec } = useDawStore.getState();
+  return (
+    <PlayheadNeedle
+      ref={ref}
+      height={height}
+      xPx={playheadSec * zoomPxPerSec}
+    />
+  );
 }

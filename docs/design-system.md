@@ -43,8 +43,8 @@ check it composed, then check it in a real screen.
 Domain components get stories only when they are **props in, UI out** (scope
 rule from #172/#173): renderable from a pure prop contract alone — no store,
 socket, AudioContext or router. Domain components that still need live app,
-session or sync context (`timeline/`, `inspector/`, the live `TransportBar`,
-the full DAW page) stay out of the catalog: they compose the library (see
+session or sync context (the live `TimelineView`, `inspector/`, the live
+`TransportBar`, the full DAW page) stay out of the catalog: they compose the library (see
 `gui/web/docs/ui-library.md`), stories for them would couple the catalog to app
 state, and their integration is covered by Playwright. A domain screen that
 renders fully state-local — per the rules under [Adding a story](#adding-a-story):
@@ -92,6 +92,14 @@ with fictional pipeline and activity jobs. Both accept props and callbacks
 alone; the live `TransportBar` and `StatusBar` remain outside Storybook because
 they read DAW state. The running chip examples omit a progress timestamp so
 the catalog does not depend on a moving clock.
+
+`Templates/TimelineRange` previews the shipped audition range, selected
+comment span and point pin, and playhead needle in a 360px timeline well.
+The range overlays already take props alone. `PlayheadNeedle` is the
+prop-only paint used by the live `Playhead`, which retains its direct DAW
+store subscription and transform updates without React rerenders. The story
+uses fictional comments and a fixed zoom; it does not mount the live timeline
+or subscribe to the DAW store.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -204,6 +212,9 @@ both themes, in story mode and on its docs page, before merging.
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-09-27 — Added `Templates/TimelineRange` with production audition,
+  comment selection, and prop-only playhead paint at a 360px viewport.
 
 - 2026-09-21 — Scaffolded Storybook 10 (react-vite) with theme toolbar, 11
   story files across Atoms/Molecules/Organisms, and GitHub Pages deploy
