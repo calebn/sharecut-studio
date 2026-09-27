@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -275,7 +276,7 @@ export function TransportBar({
               void execute("view.fitTracksHeight", {}, { skipWhen: true })
             }
           >
-            Fit tracks to window height
+            {capabilityLabel("daw.view.fitTracksHeight")}
           </LegendCheckbox>
         </div>
         {!showFit ? (
@@ -443,8 +444,8 @@ export function TransportBar({
               bare
               commandId="view.fit"
               className="ui-control--compact transport-icon-btn fit-btn"
-              title="Fit session width"
-              aria-label="Fit session width"
+              title={capabilityTooltip("daw.view.fit")}
+              aria-label={capabilityLabel("daw.view.fit")}
             >
               <Icon name="fit" />
             </CommandButton>
@@ -454,12 +455,10 @@ export function TransportBar({
               bare
               commandId="view.fitTracksHeight"
               className="ui-control--compact transport-icon-btn fit-btn"
-              title={
-                fitTracks
-                  ? "Use a fixed track height"
-                  : "Fit tracks to window height"
-              }
-              aria-label="Fit tracks to window height"
+              title={capabilityTooltip("daw.view.fitTracksHeight", {
+                pressed: fitTracks,
+              })}
+              aria-label={capabilityLabel("daw.view.fitTracksHeight")}
               aria-pressed={fitTracks}
             >
               <Icon name="fitHeight" />
