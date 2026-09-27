@@ -803,11 +803,10 @@ def test_play_cli_requires_project(monkeypatch):
 
 
 def test_play_cli_paths_cover_misses(tmp_path, monkeypatch):
-    from types import SimpleNamespace
-
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.play import play_app
+    from podcast_mcp.services.play import PlayResult
 
     project = tmp_path / "episode.project.json"
     project.write_text("{}")
@@ -822,13 +821,13 @@ def test_play_cli_paths_cover_misses(tmp_path, monkeypatch):
             pass
 
         def play(self, req, dry_run=False, player=None):
-            return SimpleNamespace(
+            return PlayResult(
                 wav_path=tmp_path / "x.wav",
+                player_cmd=["afplay"],
                 source_label="premix",
-                tier="premix",
                 start_sec=0.0,
                 end_sec=10.0,
-                player_cmd=["afplay"],
+                tier="premix",
                 compare_segments=[{"track": "host"}],
             )
 
