@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -1729,6 +1730,33 @@ def test_document_server_seq_matches_the_journal(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(_comment("first"))
     assert document_server_seq(minimal_project) == 1
+
+
+def test_a_handler_that_drops_the_saved_command_is_logged(minimal_project, caplog):
+    from podcast_mcp.services.document_sync.handlers import HANDLERS
+
+    real = HANDLERS["AddComment"]
+
+    def dropping(ws, payload):
+        result = real(ws, payload)
+        ws.project.document_sync.last_command = None
+        return result
+
+    svc = DocumentSyncService.open(minimal_project)
+    logger = "podcast_mcp.services.document_sync.service"
+    with (
+        patch.dict(HANDLERS, {"AddComment": dropping}),
+        caplog.at_level(logging.ERROR, logger=logger),
+    ):
+        assert svc.submit(_comment("x"))["ok"]
+    assert any("without its document_sync.last_command" in r.getMessage() for r in caplog.records)
+
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger=logger):
+        assert svc.submit(_comment("y", seq=2))["ok"]
+    assert not any(
+        "without its document_sync.last_command" in r.getMessage() for r in caplog.records
+    )
 
 
 def test_the_saved_command_is_not_an_undo_layer(minimal_project):
