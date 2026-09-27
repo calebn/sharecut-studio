@@ -342,6 +342,34 @@ describe("Alt chords", () => {
       ),
     ).not.toContain("view.zoomIn");
   });
+
+  it("ignores the physical code when Alt types a printable ASCII key", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("view.trackHeightIncrease", ["A"]);
+    // AZERTY: the physical KeyA key types "q".
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "q", code: "KeyA", altKey: true }),
+      ).map((c) => c.id),
+    ).not.toContain("view.trackHeightIncrease");
+    _resetKeymapOverridesForTests();
+    // Windows Dvorak: the physical Equal key types "]".
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "]", code: "Equal", altKey: true }),
+      ).map((c) => c.id),
+    ).not.toContain("view.trackHeightIncrease");
+  });
+
+  it("matches a macOS dead-key Alt chord by physical code", () => {
+    _resetKeymapOverridesForTests();
+    setKeymapOverride("view.trackHeightIncrease", ["E"]);
+    expect(
+      matchKeymapCommand(keyEvent({ key: "Dead", code: "KeyE", altKey: true }))
+        ?.id,
+    ).toBe("view.trackHeightIncrease");
+    _resetKeymapOverridesForTests();
+  });
 });
 
 describe("displayShortcutKeys", () => {
