@@ -274,6 +274,9 @@ export function useSessionSync(
           return;
         }
         sendRef.current = null;
+        // Unechoed ViewerState frames are not lost: setWsReady(false) below
+        // re-runs the debounced publish effect (wsReady is in its deps), which
+        // republishes the latest snapshot over HTTP since sendRef is now null.
         stopViewerStateWait(viewerStateWaitRef.current);
         bindRecordHostSend(null);
         setWsReady(false);
@@ -371,7 +374,8 @@ export function useSessionSync(
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // wsReady: a (re)connect republishes over the new socket; a drop republishes over HTTP.
+    // wsReady: a (re)connect republishes over the new socket; a drop republishes
+    // over HTTP. onclose relies on this to recover unechoed ViewerState frames.
   }, [projectPath, suppressPublish, publishKey, enabled, wsReady]);
 
   useEffect(() => {

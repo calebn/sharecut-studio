@@ -659,6 +659,54 @@ describe("useSessionSync presence", () => {
     }
   });
 
+  it("republishes over HTTP once when the socket drops with a ViewerState unechoed", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = FakeWebSocket.instances[0].sent.filter((s) =>
+        s.includes('"ViewerState"'),
+      );
+      expect(frames).toHaveLength(1);
+      expect(postSessionState).not.toHaveBeenCalled();
+
+      await act(async () => {
+        FakeWebSocket.instances[0].close();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps a newer WebSocket cursor when an older HTTP publish finishes", async () => {
     FakeWebSocket.autoOpen = false;
     vi.useFakeTimers({
