@@ -5,7 +5,7 @@ from itertools import pairwise
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.edit_log import archive_decision, source_envelope_by_track
+from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
@@ -25,7 +25,6 @@ from podcast_mcp.models import (
     EpisodeProject,
 )
 from podcast_mcp.util.review import reject_by_id
-from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 # How close a clip edge must sit to a pad point to receive the pad fades. This
@@ -52,19 +51,6 @@ def _mapped_edit_to_timeline_range(
 
 def _edit_to_timeline_range(project: EpisodeProject, edit: EditDecision) -> tuple[float, float]:
     return _mapped_edit_to_timeline_range(project, edit) or (edit.start, edit.end)
-
-
-def _per_track_source_for_timeline(
-    project: EpisodeProject, timeline_start: float, timeline_end: float
-) -> dict[str, list[float]]:
-    """Map a timeline hole to each dialogue track's source range (pre-ripple)."""
-    st = SessionTimeline(project)
-    return source_envelope_by_track(
-        {
-            tid: st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
-            for tid in dialogue_track_ids(project)
-        }
-    )
 
 
 def apply_join_fades_from_decisions(
@@ -221,7 +207,7 @@ def _apply_remove_edit(
             edit.replace_gap_sec = None
 
     if scope == "track":
-        punch_delete(
+        report = punch_delete(
             project,
             edit.track_id,
             tl_start,
@@ -229,18 +215,18 @@ def _apply_remove_edit(
             use_inaudible_opt=use_inaudible_opt,
             record_log=record_log,
         )
+        per_track = report["per_track_source"]
         track_ids = [edit.track_id]
-        per_track = _per_track_source_for_timeline(project, tl_start, tl_end)
     else:
-        per_track = _per_track_source_for_timeline(project, tl_start, tl_end)
-        track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-        ripple_delete(
+        report = ripple_delete(
             project,
             tl_start,
             tl_end,
             use_inaudible_opt=use_inaudible_opt,
             record_log=record_log,
         )
+        per_track = report["per_track_source"]
+        track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
         _apply_replace_gap_pad(project, edit, tl_start)
     return (
         tl_start,

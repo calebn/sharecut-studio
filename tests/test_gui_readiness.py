@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.history.diff import diff_snapshots
@@ -15,6 +17,8 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.models.history import ProjectStateSnapshot
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _project_with_two_clips() -> EpisodeProject:
@@ -135,10 +139,134 @@ def test_split_clips_at_records_split_source_by_track() -> None:
     assert records[-1].params["split_source_by_track"] == {"host": pytest.approx(1.0)}
 
 
-def test_source_envelope_by_track_skips_empty() -> None:
-    from podcast_mcp.edits.edit_log import source_envelope_by_track
+def test_seam_source_by_track_skips_tracks_without_material() -> None:
+    from podcast_mcp.edits.edit_log import seam_source_by_track
 
-    assert source_envelope_by_track({"a": [(1.0, 2.0), (3.0, 4.0)], "b": []}) == {"a": [1.0, 4.0]}
+    p = _project_with_two_clips()
+    assert seam_source_by_track({"host": p.clips, "empty": [], "gap": [p.clips[1]]}, 0.5, 1.5) == {
+        "host": [0.5, 1.5]
+    }
+
+
+def test_seam_source_by_track_falls_back_to_removed_span_in_a_gap() -> None:
+    from podcast_mcp.edits.edit_log import seam_source_by_track
+
+    clip = Clip(id="c", track_id="host", source_start=4.0, source_end=8.0, timeline_start=3.0)
+    assert seam_source_by_track({"host": [clip]}, 1.0, 5.0) == {"host": [4.0, 6.0]}
+
+
+def _project_with_moved_clip() -> EpisodeProject:
+    """W src[0,5]@0, X src[10,20]@5, Z src[30,40]@18; Y src[5,8] parked at 30."""
+    p = _project_with_two_clips()
+    p.timeline.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=60.0)
+    p.timeline.clips = [
+        Clip(id="w", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="x", track_id="host", source_start=10.0, source_end=20.0, timeline_start=5.0),
+        Clip(id="z", track_id="host", source_start=30.0, source_end=40.0, timeline_start=18.0),
+        Clip(id="y", track_id="host", source_start=5.0, source_end=8.0, timeline_start=30.0),
+    ]
+    return p
+
+
+def test_ripple_across_a_moved_clip_records_the_seam_not_the_source_envelope() -> None:
+    import pytest
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.timeline_ops import move_clips
+
+    p = _project_with_moved_clip()
+    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    ripple_delete(p, 10.0, 21.0, use_inaudible_opt=False)
+    record = list_applied_edits(p)[-1]
+    assert record.operation == "ripple_delete"
+    # Merged source spans sort to [5, 33]; the cut actually joins X@15 to Z@33.
+    assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
+    clips = clips_for_track(p, "host")
+    left = next(c for c in clips if c.source_end == pytest.approx(15.0))
+    right = next(c for c in clips if c.source_start == pytest.approx(33.0))
+    assert left.timeline_end == pytest.approx(10.0)
+    assert right.timeline_start == pytest.approx(10.0)
+
+
+def test_punch_across_a_moved_clip_records_the_seam() -> None:
+    import pytest
+
+    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.timeline_ops import move_clips, punch_delete
+
+    p = _project_with_moved_clip()
+    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    punch_delete(p, "host", 10.0, 21.0, use_inaudible_opt=False)
+    record = list_applied_edits(p, track_id="host")[-1]
+    assert record.params["per_track_source"] == {"host": [pytest.approx(15.0), pytest.approx(33.0)]}
+
+
+def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
+    """Recorded clocks stay within the GUI's APPLIED_EDGE_EPS_SEC through ripple/split/trim/roll."""
+    import re
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.edit_log import list_applied_edits
+    from podcast_mcp.edits.timeline_ops import roll_clip_join, split_clips_at, trim_clip_edge
+
+    ticks_ts = (ROOT / "gui/web/src/timeline/appliedEditTicks.ts").read_text(encoding="utf-8")
+    match = re.search(r"export const APPLIED_EDGE_EPS_SEC = ([\d.e-]+);", ticks_ts)
+    assert match
+    eps = float(match.group(1))
+
+    p = _project_with_two_clips()
+    p.timeline.tracks[0].media = MediaAsset(path="raw/host.wav", duration_sec=60.0)
+    p.timeline.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=10.0, source_end=20.0, timeline_start=10.0),
+    ]
+    ripple_delete(p, 2.1, 3.37, use_inaudible_opt=False)
+    first = list_applied_edits(p)[-1]
+    split_clips_at(p, 6.123)
+    clips = clips_for_track(p, "host")
+    trim_clip_edge(p, clips[-1].id, "out", 19.5)
+    clips = clips_for_track(p, "host")
+    roll_clip_join(p, clips[1].id, clips[2].id, 0.237)
+    ripple_delete(p, 0.5, 1.1, use_inaudible_opt=False)
+
+    pre, post = first.params["per_track_source"]["host"]
+    clips = clips_for_track(p, "host")
+    left = [c for c in clips if abs(c.source_end - pre) <= eps]
+    right = [c for c in clips if abs(c.source_start - post) <= eps]
+    assert len(left) == 1 and len(right) == 1
+    assert abs(left[0].timeline_end - right[0].timeline_start) <= eps
+
+
+def _edit_log_operations() -> set[str]:
+    """Every literal ``operation=`` passed to an ``edit_log`` archive writer under ``src/``."""
+    import ast
+
+    writers = {"archive_timeline_op", "archive_decision"}
+    ops: set[str] = set()
+    for path in (ROOT / "src/podcast_mcp").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+            if name not in writers:
+                continue
+            for kw in node.keywords:
+                if kw.arg == "operation" and isinstance(kw.value, ast.Constant):
+                    ops.add(str(kw.value.value))
+    return ops
+
+
+def test_every_edit_log_operation_has_an_applied_tick_case() -> None:
+    """The GUI's ``recordAnchors`` names each server operation; none rides the default (#527)."""
+    import re
+
+    ticks_ts = (ROOT / "gui/web/src/timeline/appliedEditTicks.ts").read_text(encoding="utf-8")
+    cases = set(re.findall(r'case "([a-z_]+)":', ticks_ts))
+    ops = _edit_log_operations()
+    assert {"ripple_delete", "approve_edits", "trim_clip_edge"} <= ops
+    assert ops - cases == set()
 
 
 def test_history_diff_detects_clip_change() -> None:

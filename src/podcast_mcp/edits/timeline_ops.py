@@ -30,7 +30,7 @@ from podcast_mcp.edits.clips_ops import (
     trim_clip_edge as trim_clip_edge_bounds,
 )
 from podcast_mcp.edits.comment_remap import remap_review_anchors_for_cuts
-from podcast_mcp.edits.edit_log import archive_timeline_op, source_envelope_by_track
+from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
@@ -158,6 +158,7 @@ def ripple_delete(
     apply_source_transcript_removes(project, removes_by_track)
     remap_review_anchors_for_cuts(project, [(timeline_start, timeline_end)])
     update_timeline_duration(project)
+    per_track_source = seam_source_by_track(clips_before, timeline_start, timeline_end)
     if record_log:
         archive_timeline_op(
             project,
@@ -167,7 +168,7 @@ def ripple_delete(
             timeline_end=timeline_end,
             params={
                 "use_inaudible_opt": use_inaudible_opt,
-                "per_track_source": source_envelope_by_track(removes_by_track),
+                "per_track_source": per_track_source,
             },
         )
     return change_summary(
@@ -177,6 +178,7 @@ def ripple_delete(
         timeline_start=timeline_start,
         timeline_end=timeline_end,
         use_inaudible_opt=use_inaudible_opt,
+        per_track_source=per_track_source,
     )
 
 
@@ -217,6 +219,7 @@ def punch_delete(
     else:
         rebuild_combined(project)
     update_timeline_duration(project)
+    per_track_source = seam_source_by_track({track_id: clips_before}, timeline_start, timeline_end)
     if record_log:
         archive_timeline_op(
             project,
@@ -227,7 +230,7 @@ def punch_delete(
             params={
                 "use_inaudible_opt": use_inaudible_opt,
                 "scope": "track",
-                "per_track_source": source_envelope_by_track({track_id: src_ranges}),
+                "per_track_source": per_track_source,
             },
         )
     return change_summary(
@@ -237,6 +240,7 @@ def punch_delete(
         timeline_start=timeline_start,
         timeline_end=timeline_end,
         use_inaudible_opt=use_inaudible_opt,
+        per_track_source=per_track_source,
     )
 
 

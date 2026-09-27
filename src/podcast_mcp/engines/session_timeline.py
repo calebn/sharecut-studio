@@ -201,6 +201,46 @@ def clip_source_to_timeline_shift(clip: SourcePlacement) -> float:
     return clip.timeline_start - clip.source_start
 
 
+def seam_source_clocks_over_clips(
+    clips: Sequence[Clip],
+    timeline_start: float,
+    timeline_end: float,
+) -> tuple[SourceSec, SourceSec] | None:
+    """Source clocks on either side of removing ``[timeline_start, timeline_end)``.
+
+    ``pre`` is the source second at ``timeline_start`` on the clip that runs **into**
+    the cut; ``post`` is the source second at ``timeline_end`` on the clip that runs
+    **out of** it. Both come from ``clips`` in timeline order, so a span that crosses a
+    clip moved out of source order still yields the joins the cut makes (the merged
+    source spans from :func:`map_timeline_spans_over_clips` are source-sorted). A side
+    that falls in a gap keeps the removed material's first start / last end. Returns
+    ``None`` when no clip material lies in the span.
+    """
+    if not clips:
+        return None
+    spans = map_timeline_spans_over_clips(clips, [(timeline_start, timeline_end)])
+    if not spans:
+        return None
+    ordered = sorted(clips, key=lambda c: c.timeline_start)
+    pre = next(
+        (
+            timeline_start - clip_source_to_timeline_shift(c)
+            for c in ordered
+            if c.timeline_start + _MERGE_EPS < timeline_start <= c.timeline_end + _MERGE_EPS
+        ),
+        float(spans[0][0]),
+    )
+    post = next(
+        (
+            timeline_end - clip_source_to_timeline_shift(c)
+            for c in ordered
+            if c.timeline_start - _MERGE_EPS <= timeline_end < c.timeline_end - _MERGE_EPS
+        ),
+        float(spans[-1][1]),
+    )
+    return SourceSec(pre), SourceSec(post)
+
+
 SAME_SOURCE_OVERLAP_TOLERANCE_SEC = 0.05
 _MIN_SLIP_SEC = 0.01
 
