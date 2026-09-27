@@ -683,7 +683,7 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
     assert result.tier == "stem"
 
 
-def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
+def test_play_rerender_segment_renders_without_render_busy_while_another_render_holds_the_lock(
     minimal_project, sample_wav, monkeypatch
 ) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
@@ -719,7 +719,8 @@ def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
         release.set()
         holder.join(5)
     assert time.monotonic() - started < 5
-    assert result.render_busy is True
+    assert result.tier == "segment_render"
+    assert result.render_busy is False
     mock_render.assert_not_called()
     seg.assert_called_once()
 
@@ -758,9 +759,8 @@ def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_th
         patch("podcast_mcp.services.play.rerender_preview", MagicMock()) as rerender,
     ):
         svc = PlayService(ws)
-        assert svc._ensure_premix(rerender=True) == premix
+        assert svc._ensure_premix(rerender=True) == (premix, True)
     rerender.assert_not_called()
-    assert svc.render_busy is True
 
 
 def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample_wav) -> None:
@@ -775,7 +775,7 @@ def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample
 
     svc = PlayService(ws)
     with patch("podcast_mcp.services.play.rerender_preview", side_effect=boom):
-        assert svc._ensure_premix(rerender=True) == premix
+        assert svc._ensure_premix(rerender=True) == (premix, False)
     assert ws.project.name == load_project(minimal_project).name
     assert svc.project.name != "partial"
 
@@ -818,6 +818,56 @@ def test_transport_stem_build_with_no_stem_raises_busy_while_another_render_hold
         pytest.raises(RenderBusyError),
     ):
         PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
+
+
+def test_transport_stem_build_commit_lock_timeout_serves_the_fresh_stem_without_render_busy(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    stem = ws.project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    stem.write_bytes(sample_wav.read_bytes())
+    with patch.object(
+        PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
+    ):
+        tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
+    assert tp.path == stem.resolve()
+    assert tp.render_busy is False
+
+
+def test_a_reused_play_service_reports_render_busy_per_call(
+    minimal_project, sample_wav, monkeypatch
+) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    premix = ws.project.artifacts_dir() / "premix.wav"
+    premix.parent.mkdir(parents=True, exist_ok=True)
+    premix.write_bytes(sample_wav.read_bytes())
+    svc = PlayService(ws)
+    with patch("podcast_mcp.services.play.rerender_preview", MagicMock()):
+        with _render_lock_held_elsewhere(ws, monkeypatch):
+            busy = svc.resolve_transport_path("premix", rerender=True)
+        again = svc.resolve_transport_path("premix", rerender=True)
+    assert busy.render_busy is True
+    assert again.render_busy is False
+
+
+def test_play_compare_reports_render_busy_from_its_premix_leg(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    cache = ws.project.artifacts_dir() / "play_cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    wav = cache / "leg.wav"
+    wav.write_bytes(sample_wav.read_bytes())
+
+    def resolve(_self, source, start, end, *, rerender):
+        return wav, "premix" if source == "premix" else "raw", start, end, source == "premix"
+
+    with patch.object(PlayService, "_resolve_audio", resolve):
+        result = PlayService(ws).play(
+            PlayRequest(source="premix", start_sec=0.0, end_sec=0.5, compare=True, rerender=True),
+            dry_run=True,
+        )
+    assert result.tier == "compare"
+    assert result.render_busy is True
 
 
 def test_play_rerender_segment_renders_when_the_project_lock_is_busy(
