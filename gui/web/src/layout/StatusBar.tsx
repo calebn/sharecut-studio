@@ -8,6 +8,8 @@ import {
   pipelineKindLabel,
   pipelineStatusLabel,
 } from "../utils/pipelineProgress";
+import { timelineCut } from "../utils/projectMedia";
+import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 
 export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
@@ -77,6 +79,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
   }
 
   const { edit_impact, pending_edits, social_clips } = project;
+  const cut = timelineCut(project);
   const unmappable = selectUnmappedPending(pending_edits).length;
   const narrow = shellBreakpoint === "phone" || shellBreakpoint === "tablet";
   const reconcileHighlight = highlightStaleRender && render.reconcileStale;
@@ -112,9 +115,14 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
           Unmapped: {unmappable}
         </button>
       )}
-      <span className={narrow ? "status-bar-secondary" : undefined}>
-        Removed: {edit_impact.total_removed_sec.toFixed(1)}s
-      </span>
+      {cut && (
+        <span
+          className={narrow ? "status-bar-secondary" : undefined}
+          title={`Timeline ${formatTimeShort(cut.timelineSec)} from ${formatTimeShort(cut.sourceSec)} of source audio`}
+        >
+          Cut {formatTimeShort(cut.cutSec)} of {formatTimeShort(cut.sourceSec)}
+        </span>
+      )}
       {(social_clips?.length ?? 0) > 0 && (
         <span className={narrow ? "status-bar-secondary" : undefined}>
           Social: {social_clips.length}
