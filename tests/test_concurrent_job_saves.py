@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.gui.jobs import _gui_fail_message
@@ -514,7 +515,7 @@ def test_save_merged_invalid_merge_rolls_back_history(minimal_project, monkeypat
     history_before = ws.project.history.model_copy(deep=True)
     snaps_before = _snapshots(ws)
     monkeypatch.setattr(
-        workspace_mod,
+        project_merge_mod,
         "merge_project_data",
         lambda _base, _ours, theirs, **_advice: {**theirs, "history": 5},
     )
@@ -723,7 +724,7 @@ def test_history_move_rerender_cursor_clash_says_to_check_history_status(
     def cursor_clash(_base, _ours, _theirs, *, advice):
         raise ProjectMergeConflict([HISTORY_CURSOR_CONFLICT], advice=advice)
 
-    monkeypatch.setattr(workspace_mod, "merge_project_data", cursor_clash)
+    monkeypatch.setattr(project_merge_mod, "merge_project_data", cursor_clash)
 
     def fake_render(_project):
         _other_sets_volume(minimal_project)  # the file moves, so save_merged merges
