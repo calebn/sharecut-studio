@@ -56,8 +56,10 @@ export function InlineWordEditor({
     });
     busyRef.current = false;
     onBusyChange?.(false);
-    if (ok) onClose(true);
-    else inputRef.current?.focus();
+    // Leave focus wherever the user moved it while the request ran (e.g. the
+    // comment composer). Only a still-focused input hands focus back to the chip.
+    const hadFocus = document.activeElement === inputRef.current;
+    if (ok) onClose(hadFocus);
   };
 
   return (
