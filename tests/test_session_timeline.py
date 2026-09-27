@@ -5,10 +5,13 @@ import pytest
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     _build_index,
+    clip_media_key,
     clip_timeline_overlap_to_source,
     clip_timeline_point_to_source,
     map_timeline_spans_over_clips,
     origin_track_id_for_clip,
+    same_source_timeline_overlaps,
+    slip_clip_to_shift,
     timebase_qc_report,
 )
 from podcast_mcp.models import (
@@ -447,3 +450,108 @@ def test_clip_relative_drift_visits_only_overlapping_reference_spans(tmp_path, m
     monkeypatch.setattr(timeline, "_candidates_timeline", bounded)
     assert abs(SessionTimeline(p).clip_relative_drift(guest, "host")) == pytest.approx(5.0)
     assert visited and max(visited) <= 2
+
+
+def test_same_source_overlaps_flags_stacked_split_copies(tmp_path) -> None:
+    host = [Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0)]
+    guest = [
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="c2", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+    ]
+    p = _drift_project(tmp_path, "stacked", host, guest)
+    stacks = same_source_timeline_overlaps(p)
+    assert len(stacks) == 1
+    assert stacks[0].clip_ids == ("c1", "c2")
+    assert stacks[0].overlap_sec == pytest.approx(100.0)
+
+
+def test_same_source_overlaps_ignores_abutting_and_tolerance(tmp_path) -> None:
+    host = [Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0)]
+    abutting = [
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=50.0, timeline_start=0.0),
+        Clip(id="c2", track_id="guest", source_start=50.0, source_end=100.0, timeline_start=50.0),
+    ]
+    p = _drift_project(tmp_path, "abut", host, abutting)
+    assert same_source_timeline_overlaps(p) == []
+
+    slightly = [
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=50.03, timeline_start=0.0),
+        Clip(id="c2", track_id="guest", source_start=50.0, source_end=100.0, timeline_start=50.0),
+    ]
+    p2 = _drift_project(tmp_path, "tol", host, slightly)
+    assert same_source_timeline_overlaps(p2) == []
+
+
+def test_same_source_overlaps_ignores_different_media(tmp_path) -> None:
+    p = EpisodeProject.create("diff_media", str(tmp_path / "diff_media"))
+    p.timeline.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=300.0)),
+        Track(
+            id="guest", label="Guest", media=MediaAsset(path="raw/guest.wav", duration_sec=300.0)
+        ),
+    ]
+    p.sources = [SourceRecording(id="other", path="raw/other.wav", duration_sec=300.0)]
+    p.timeline.clips = [
+        Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(
+            id="c2",
+            track_id="guest",
+            source_start=0.0,
+            source_end=100.0,
+            timeline_start=0.0,
+            source_id="other",
+        ),
+    ]
+    assert same_source_timeline_overlaps(p) == []
+    assert same_source_timeline_overlaps(p, track_ids={"host"}) == []
+
+
+def test_clip_media_key_source_and_primary(tmp_path) -> None:
+    p = EpisodeProject.create("media_key", str(tmp_path / "media_key"))
+    p.timeline.tracks = [
+        Track(
+            id="guest", label="Guest", media=MediaAsset(path="raw/guest.wav", duration_sec=300.0)
+        ),
+    ]
+    p.sources = [SourceRecording(id="src_guest", path="raw/guest.wav", duration_sec=300.0)]
+    plain = Clip(id="c1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    sourced = Clip(
+        id="c2",
+        track_id="guest",
+        source_start=0.0,
+        source_end=10.0,
+        timeline_start=10.0,
+        source_id="src_guest",
+    )
+    assert clip_media_key(p, plain) == clip_media_key(p, sourced) == "raw/guest.wav"
+
+
+def test_slip_clip_to_shift() -> None:
+    blade_a = Clip(
+        id="a", track_id="guest", source_start=1045.55, source_end=1689.58, timeline_start=1045.55
+    )
+    assert slip_clip_to_shift(blade_a, 35.6, media_duration=1689.58) == pytest.approx(
+        (1009.95, 1653.98, 1045.55)
+    )
+
+    whole = Clip(id="b", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0)
+    assert slip_clip_to_shift(whole, 5.0, media_duration=100.0) == pytest.approx((0.0, 95.0, 5.0))
+    assert slip_clip_to_shift(whole, -5.0, media_duration=100.0) == pytest.approx((5.0, 100.0, 0.0))
+
+    tail = Clip(id="c", track_id="guest", source_start=90.0, source_end=100.0, timeline_start=10.0)
+    assert slip_clip_to_shift(tail, -100.0, media_duration=100.0) is None
+
+
+def test_timebase_qc_report_flags_stacked_clips(tmp_path) -> None:
+    host = [Clip(id="h", track_id="host", source_start=0.0, source_end=100.0, timeline_start=0.0)]
+    guest = [
+        Clip(id="c1", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+        Clip(id="c2", track_id="guest", source_start=0.0, source_end=100.0, timeline_start=0.0),
+    ]
+    p = _drift_project(tmp_path, "qc_stack", host, guest)
+    report = timebase_qc_report(p)
+    assert report["ok"] is False
+    assert any("stacked copies" in i for i in report["issues"])
+    assert report["tracks"]["guest"]["stacked_clips"] == 1
+    assert len(report["stacked_clips"]) == 1

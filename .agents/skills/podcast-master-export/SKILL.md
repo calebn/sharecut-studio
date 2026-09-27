@@ -66,6 +66,7 @@ pipeline) and before telling the user the episode is ready.** If `ok` is `false`
   [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md).
 - A `master_qc` issue — see the loudness QC section above.
 - Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words.
+- A stacked-clip issue in `timebase.issues` (`timebase.stacked_clips`) — two clips on the same lane read the same source and overlap on the timeline, so it plays twice; delete or trim one of the pair, or re-run `align_tracks` (#520).
 - An `alignment` issue - a clip sits more than the align threshold off the reference clock, an `unconfirmed_hold` candidate is still pending, or the align artifact is unreadable, and no person accepted the alignment (after a stale accept, only clips that moved more than the threshold since `align done` count). Use `podcast-align-audio`: listen, nudge, `align done`.
 
 Plain source/timeline **drift** after edits is expected; it appears under `warnings` /
