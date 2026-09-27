@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail a commit when Sharecut Studio UX surfaces change without UX pack updates.
 
-Trigger paths (GUI shells, mobile/integration/share/session docs, episode schema)
+Trigger paths (GUI shells, UI philosophy, mobile/integration/share/session docs, episode schema)
 should ship with matching updates under ``ux/pages/`` (and often the demo fixture / screens).
 
 Bypass (rare): ``UX_PACK_SKIP=1`` or commit message containing ``[skip ux-pack]``.
@@ -21,6 +21,7 @@ TRIGGER_PREFIXES = (
     "gui/web/src/keymap/",
     "gui/web/src/commands/catalog.ts",
     "docs/gui-mobile.md",
+    "docs/ui-philosophy.md",
     "docs/gui-integration.md",
     "docs/daw-editing.md",
     "docs/host-online-relay.md",

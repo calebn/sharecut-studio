@@ -2,6 +2,9 @@
 
 Shareable product framing for UX partners. Engineer detail lives in repo `docs/`; this pack stays in product language.
 
+The [trust-first UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-philosophy.md) sets beta design
+requirements for reviewable edits, recovery, export, and a free core workflow.
+
 ---
 
 ## What this product is
@@ -75,7 +78,11 @@ Propose tighten/focus/transcript fixes via host MCP/CLI → same project file th
 - Agent proposals show up in the same inspectors humans use (no “shadow” edit world).
 - Non-destructive history: undo never deletes raw audio.
 
-**Measurable (targets to instrument)**
+**Future evaluation ideas (outside beta scope)**
+
+These are design questions, not a beta instrumentation or user-study plan. The
+beta does not collect interaction telemetry or run user-testing studies; see
+the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-philosophy.md#scope-and-implementation).
 
 | Metric | Target |
 |--------|--------|
@@ -160,6 +167,7 @@ See [Screen inventory](#/screens), [Guest journeys](#/journeys), [Domain glossar
 
 ## Related engineer docs
 
+- [ui-philosophy.md](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-philosophy.md) — trust-first beta design requirements
 - [gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md) — responsive shells (implementation)
 - [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md) — project file truth
 - [daw-editing.md](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md) — modifier / document-command model

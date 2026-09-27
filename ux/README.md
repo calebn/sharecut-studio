@@ -4,6 +4,10 @@ Shareable UX docs for Podcast MCP / Sharecut Studio, published at **https://ux.s
 
 API & contracts (document commands, share HTTP, remote MCP): **https://docs.sharecut.studio/** ([`docs-site/`](../docs-site/README.md)).
 
+The beta's trust-first design requirements are in the
+[UI philosophy](../docs/ui-philosophy.md); the pages here describe product
+surfaces and should stay consistent with it.
+
 ## Live site
 
 **https://ux.sharecut.studio/**
@@ -49,7 +53,7 @@ cd ux && python3 -m http.server 8766
 
 ## Keeping docs accurate (anti-drift)
 
-When Sharecut Studio shells, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
+When Sharecut Studio shells, the UI philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
 2. Pre-commit hook **`ux-pack-sync`** (`.pre-commit-config.yaml`) fails the commit if trigger paths change without a staged UX pack update.
