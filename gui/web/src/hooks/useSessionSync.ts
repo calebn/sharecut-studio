@@ -29,7 +29,14 @@ const FALLBACK_POLL_MS = 1500;
 const PLAYHEAD_HEARTBEAT_MS = 200;
 const DISCRETE_DEBOUNCE_MS = 50;
 
-/** No own-client `ViewerState` Echo within this window: republish over HTTP. */
+/**
+ * No own-client `ViewerState` Echo within this window of the oldest unechoed
+ * send: republish over HTTP. Fixed, not RTT-scaled: on a live socket slower
+ * than this (high-latency relay/tunnel) the Echo lands after the fallback and
+ * each debounced change costs one redundant `POST /api/session/state`. That is
+ * harmless because `publish_viewer_snapshot` re-diffs and journals only changed
+ * fields.
+ */
 const VIEWER_STATE_ECHO_TIMEOUT_MS = 1500;
 
 /** `ViewerState` frames sent and not yet echoed, and the echo-wait timer. */
