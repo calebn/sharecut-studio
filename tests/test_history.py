@@ -460,6 +460,39 @@ def test_unlocked_rollback_does_not_adopt_an_index_a_dead_commit_left_ahead(
     assert read_history_index(history_index_path(proj)) == phantom  # left for the next commit
 
 
+@pytest.mark.parametrize("error", [OSError("unreadable"), ValueError("invalid")])
+def test_unlocked_rollback_keeps_empty_history_when_the_saved_project_is_unreadable(
+    minimal_project, monkeypatch, caplog, error: Exception
+):
+    _dead_first_commit(minimal_project)
+    proj = load_project(minimal_project)
+    phantom = read_history_index(history_index_path(proj))
+
+    def save_index(_self, _project):
+        raise RuntimeError("boom")
+
+    def unreadable(_path):
+        raise error
+
+    monkeypatch.setattr(HistoryManager, "_save_index", save_index)
+    monkeypatch.setattr(rollback_mod, "project_commit_lock", _no_lock)
+    monkeypatch.setattr(rollback_mod, "load_project", unreadable)
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="boom"):
+        run_mutation(
+            minimal_project, proj, "before add comment", "after add comment", lambda p: None
+        )
+
+    assert proj.history.is_empty()
+    assert any(
+        r.getMessage().startswith("Could not read the saved project to check")
+        for r in caplog.records
+    )
+    # checkpoint + record each adopt once; the rollback fallback returns before a third
+    # history_index_adoptable check, unlike the sibling test where load_project succeeds.
+    assert len(_not_adopting(caplog)) == 2
+    assert read_history_index(history_index_path(proj)) == phantom  # left for the next commit
+
+
 def test_failed_first_mutation_keeps_an_index_another_writer_committed(minimal_project):
     proj = load_project(minimal_project)
 
