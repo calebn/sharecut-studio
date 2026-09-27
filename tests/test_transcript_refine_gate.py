@@ -429,6 +429,31 @@ def test_brief_reads_precorrect_report_and_low_conf(minimal_project):
 
 
 @pytest.mark.refine_gate
+def test_brief_limits_suspect_record_materialization(minimal_project, monkeypatch):
+    from podcast_mcp.edits import transcript_correct
+    from podcast_mcp.edits.transcript_refine_status import build_refine_brief
+    from podcast_mcp.models import TranscriptWord
+
+    proj = _with_words(minimal_project)
+    proj.transcripts[0].words = [
+        TranscriptWord(text=str(i), start=float(i), end=float(i + 1), suspect_hallucination=True)
+        for i in range(25)
+    ]
+    original = transcript_correct.transcript_word_record
+    called = []
+
+    def record(transcript, index):
+        called.append(index)
+        return original(transcript, index)
+
+    monkeypatch.setattr(transcript_correct, "transcript_word_record", record)
+    brief = build_refine_brief(proj)
+    assert brief["suspect_hallucination_open_words"] == 25
+    assert len(brief["suspect_hallucination_sample"]) == 10
+    assert called == list(range(10))
+
+
+@pytest.mark.refine_gate
 def test_service_assert_clear_and_cli(minimal_project):
     from typer.testing import CliRunner
 

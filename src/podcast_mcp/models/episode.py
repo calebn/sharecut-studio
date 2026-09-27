@@ -160,6 +160,8 @@ class Transcript(BaseModel):
     # Size and mtime (ns) of that media when audio_sha256 was taken; both matching skips re-hashing.
     audio_size: int | None = None
     audio_mtime_ns: int | None = None
+    # Fingerprint of media, silence filter settings and word spans last used to set flags.
+    silence_filter_fingerprint: str | None = None
     # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
 

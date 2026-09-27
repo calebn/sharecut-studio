@@ -116,7 +116,17 @@ export function TranscriptTurnView({
                     data-word-index={item.word.word_index}
                     {...item.anchorProps}
                     title={item.title}
-                    aria-label={item.ariaLabel}
+                    aria-label={
+                      item.suspectHallucination
+                        ? [
+                            item.word.text,
+                            item.ariaLabel,
+                            "Possible transcription over silence",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : item.ariaLabel
+                    }
                     {...item.buttonProps}
                   >
                     {item.word.text}
@@ -129,6 +139,12 @@ export function TranscriptTurnView({
                     {...item.anchorProps}
                   >
                     {item.word.text}
+                    {item.suspectHallucination && (
+                      <span className="sr-only">
+                        {" "}
+                        Possible transcription over silence
+                      </span>
+                    )}
                   </span>
                 )}
                 {item.boundaryAfter}

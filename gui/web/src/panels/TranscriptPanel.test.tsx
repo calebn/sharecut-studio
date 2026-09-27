@@ -404,6 +404,13 @@ describe("TranscriptPanel", () => {
     );
     expect(flagged).toHaveLength(1);
     expect(flagged[0]?.textContent).toContain("there");
+    expect(flagged[0]).toHaveAttribute(
+      "title",
+      expect.stringContaining("Possible transcription over silence"),
+    );
+    expect(flagged[0]).toHaveAccessibleName(
+      "there · Possible transcription over silence",
+    );
   });
 
   it("Annotate leaves suppressed suspect_hallucination words with only the strikethrough", () => {

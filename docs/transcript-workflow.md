@@ -132,13 +132,13 @@ ASR, each word whose own-track peak (native sample rate, all channels) is below
 `transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets `suspect_hallucination: true`. ASR
 cache files store unflagged words; the flags are recomputed from the current
 `transcribe.silence_filter` settings after every ASR run or cache read, so the filter is not
-a cache input. `transcribe_tracks` also re-flags transcripts it reuses by `audio_sha256` (only a peak envelope is decoded; Whisper does not re-run), so a new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its flags stay cleared, a warning is logged,
+a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings or word spans differ from its stored `silence_filter_fingerprint` (only a peak envelope is decoded; Whisper does not re-run). Unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. A new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its flags stay cleared, a warning is logged,
 and the step summary adds "silence filter skipped on N track(s)".
 
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
 treat a flagged word like any other (reconcile's inaudible pass often suppresses it anyway).
 Review flagged words with `transcript_refine_brief_tool` (`suspect_hallucination_open_words`,
-`suspect_hallucination_sample`) or Studio's Annotate view (dotted underline on unsuppressed flagged words), and suppress real
+`suspect_hallucination_sample`, limited to the first ten records) or Studio's Annotate view (dotted underline, tooltip and screen reader status on unsuppressed flagged words), and suppress real
 hallucinations with `set_word_suppressed_tool`. If a track still loops, set
 `transcribe.decode.condition_on_previous_text: false`.
 

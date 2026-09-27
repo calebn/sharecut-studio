@@ -224,6 +224,10 @@
           "type": ["integer", "null"],
           "description": "Media mtime (ns) when audio_sha256 was taken; with audio_size, a match skips re-hashing."
         },
+        "silence_filter_fingerprint": {
+          "type": ["string", "null"],
+          "description": "Fingerprint of media, silence filter policy and word spans last used to set suspect hallucination flags; null requires rechecking."
+        },
         "user_edited": {
           "type": "boolean",
           "default": false,
