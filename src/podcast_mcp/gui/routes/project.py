@@ -14,7 +14,7 @@ from podcast_mcp.gui.assembler import (
 )
 from podcast_mcp.gui.audio import (
     audio_file_response,
-    resolve_viewer_audio,
+    resolve_viewer_transport,
 )
 from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
 from podcast_mcp.gui.jobs import project_meta
@@ -267,7 +267,7 @@ def get_audio(
         transport_kind = f"review:{review_version_id}"
         transport_track = None
     try:
-        audio_path = resolve_viewer_audio(
+        transport = resolve_viewer_transport(
             ws,
             kind=transport_kind,
             track_id=transport_track,
@@ -289,7 +289,11 @@ def get_audio(
             detail=str(exc),
             headers={"X-Sharecut-Error-Code": "project_busy"},
         ) from exc
-    return audio_file_response(audio_path, request=request)
+    response = audio_file_response(transport.path, request=request)
+    if transport.render_busy:
+        # Refresh lost the render-lock race; this is the file already on disk.
+        response.headers["X-Sharecut-Render-Busy"] = "1"
+    return response
 
 
 @router.get("/api/history/diff")
