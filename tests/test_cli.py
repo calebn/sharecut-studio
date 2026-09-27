@@ -301,3 +301,25 @@ def test_info_command(tmp_path):
     )
     assert result.exit_code == 0
     assert "episode" in result.stdout
+
+
+def test_info_command_omits_document_sync(tmp_path):
+    from podcast_mcp.models import SavedDocumentCommand, load_project, save_project
+
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    project_path = ws / "episode.project.json"
+    proj = load_project(project_path)
+    proj.document_sync.last_command = SavedDocumentCommand(
+        command_id="cmd-1",
+        client_id="c1",
+        role="viewer",
+        type="AddComment",
+        payload={"body": "secret-payload"},
+        base_server_seq=0,
+    )
+    save_project(proj, project_path)
+    result = runner.invoke(app, ["info", "--project", str(project_path)])
+    assert result.exit_code == 0
+    assert "document_sync" not in result.stdout
+    assert "secret-payload" not in result.stdout
