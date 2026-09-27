@@ -58,10 +58,11 @@ const FALLBACK_POLL_MS = 1500;
 
 /**
  * Guest dual-plane WS: session + document fanout; guests may send Presence frames.
- * When the socket is down, HTTP project poll keeps document state fresh.
- * Returns whether the guest socket is currently open, so DawApp can run
- * useProjectPoll only while it is live (useGuestSync polls on its own while it
- * is down), giving a guest one project poll at a time (#657).
+ * Until the socket first opens and whenever it is down, an HTTP project poll keeps
+ * document state fresh.
+ * Returns whether the guest socket is currently open, so useGuestSyncAndProjectPoll
+ * can run useProjectPoll only while it is live (useGuestSync polls on its own while
+ * it is down), giving a guest one project poll at a time (#657).
  */
 export function useGuestSync(
   projectPath: string,
@@ -129,12 +130,16 @@ export function useGuestSync(
         .catch(() => undefined);
     };
 
-    const startPoll = () => {
-      if (pollId != null || closed) {
+    const startPoll = ({ immediate = true }: { immediate?: boolean } = {}) => {
+      if (closed) {
         return;
       }
-      pollId = setInterval(pollProject, FALLBACK_POLL_MS);
-      pollProject();
+      if (pollId == null) {
+        pollId = setInterval(pollProject, FALLBACK_POLL_MS);
+      }
+      if (immediate) {
+        pollProject();
+      }
     };
 
     const stopPoll = () => {
@@ -274,6 +279,9 @@ export function useGuestSync(
       };
     };
     connect();
+    // Until the socket first opens (onopen stops it), cover the handshake with the
+    // fallback poll; no immediate tick, bootstrap just loaded the project (#657).
+    startPoll({ immediate: false });
     const onOnline = () => requestGuestDrainLazy(token);
     window.addEventListener("online", onOnline);
     return () => {
