@@ -282,6 +282,85 @@ describe("appliedEditTicks", () => {
     });
     expect(appliedEditTicks([ripple], TRACK, clips)).toEqual([]);
   });
+
+  it("binds a seam to the adjacent clip pair when the same source edge repeats", () => {
+    // "dup" reuses material ending at source 5 earlier in the episode; the cut's
+    // join is c1 (ends at 5) -> c2 (starts at 9), not dup's end.
+    const clips = [
+      clipRow({
+        id: "dup",
+        source_start: 2,
+        source_end: 5,
+        timeline_start: 0,
+        timeline_end: 3,
+      }),
+      clipRow({
+        id: "c1",
+        source_start: 0,
+        source_end: 5,
+        timeline_start: 3,
+        timeline_end: 8,
+      }),
+      clipRow({
+        id: "c2",
+        source_start: 9,
+        source_end: 20,
+        timeline_start: 8,
+        timeline_end: 19,
+      }),
+    ];
+    const ripple = appliedEditRecord({
+      id: "ripple",
+      operation: "ripple_delete",
+      timeline_start: null,
+      timeline_end: null,
+      source_start: null,
+      source_end: null,
+      params: { per_track_source: { [TRACK]: [5, 9] } },
+    });
+    const ticks = appliedEditTicks([ripple], TRACK, clips);
+    expect(ticks.map((t) => t.sec)).toEqual([8]);
+  });
+
+  it("breaks a single-edge tie by the record's stored timeline clock", () => {
+    const clips = [
+      clipRow({
+        id: "first",
+        source_start: 0,
+        source_end: 6,
+        timeline_start: 0,
+        timeline_end: 6,
+      }),
+      clipRow({
+        id: "copy",
+        source_start: 0,
+        source_end: 6,
+        timeline_start: 20,
+        timeline_end: 26,
+      }),
+    ];
+    const trim = appliedEditRecord({
+      id: "trim",
+      operation: "trim_clip_edge",
+      timeline_start: 20,
+      timeline_end: 26,
+      source_start: 0,
+      source_end: 6,
+      params: { edge: "out" },
+    });
+    const ticks = appliedEditTicks([trim], TRACK, clips);
+    expect(ticks.map((t) => t.sec)).toEqual([26]);
+  });
+
+  it("draws nothing for delete_clips, which records no source clocks", () => {
+    const clips = [clipRow({ source_start: 2, source_end: 3 })];
+    const del = appliedEditRecord({
+      id: "del",
+      operation: "delete_clips",
+      params: { clip_ids: ["gone"], ripple: false },
+    });
+    expect(appliedEditTicks([del], TRACK, clips)).toEqual([]);
+  });
 });
 
 describe("appliedEditTitle", () => {

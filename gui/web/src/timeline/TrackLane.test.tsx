@@ -57,7 +57,6 @@ const baseProps = {
   appliedRecords: [],
   pendingEdits: [],
   onSelectTrack: vi.fn(),
-  onSelectApplied: vi.fn(),
   onSelectPending: vi.fn(),
 };
 

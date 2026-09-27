@@ -63,7 +63,6 @@ interface TrackLaneProps {
     mods?: ClipSelectMods,
   ) => void;
   onSelectTrack: (trackId: string) => void;
-  onSelectApplied: (trackId: string, id: string) => void;
   onSelectPending: (trackId: string, id: string) => void;
   bladeHighlight?: boolean;
   /** When true, clip hits seek/blade via lane-seek underlay (not select). */
@@ -100,7 +99,6 @@ export function TrackLaneView({
   onSeek,
   onSelectClip,
   onSelectTrack,
-  onSelectApplied,
   onSelectPending,
   bladeHighlight = false,
   bladeMode = false,
@@ -160,10 +158,6 @@ export function TrackLaneView({
   const selectTrack = useCallback(
     () => onSelectTrack(trackId),
     [onSelectTrack, trackId],
-  );
-  const selectApplied = useCallback(
-    (id: string) => onSelectApplied(trackId, id),
-    [onSelectApplied, trackId],
   );
   const selectPending = useCallback(
     (id: string) => onSelectPending(trackId, id),
@@ -349,7 +343,6 @@ export function TrackLaneView({
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
               selectedId={selection?.kind === "applied" ? selection.id : null}
-              onSelect={selectApplied}
             />
             <PendingEditOverlay
               edits={pendingEdits}

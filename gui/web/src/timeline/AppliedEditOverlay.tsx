@@ -8,7 +8,6 @@ interface AppliedEditOverlayProps {
   trackId: string;
   zoomPxPerSec: number;
   selectedId: string | null;
-  onSelect: (id: string) => void;
 }
 
 /**
@@ -16,7 +15,9 @@ interface AppliedEditOverlayProps {
  * (#527) so later ripples move them to the post-edit join instead of the stale
  * pre-edit range. Records that no longer map to a clip appear only in the
  * Impact panel's Applied edits list. Dense cut stacks cannot meet WCAG 2.5.8 as
- * individual 24px buttons, so ticks are non-interactive; select via Impact panel.
+ * individual 24px buttons, so ticks are non-interactive and carry no hover title
+ * (the layer is `pointer-events: none` and `aria-hidden`); labels and selection
+ * live in Impact → Applied edits.
  */
 export function AppliedEditOverlay({
   records,
@@ -43,7 +44,6 @@ export function AppliedEditOverlay({
             selectedId === t.recordId ? " selected" : ""
           }`}
           style={{ left: t.sec * zoomPxPerSec }}
-          title={t.title}
         />
       ))}
     </div>

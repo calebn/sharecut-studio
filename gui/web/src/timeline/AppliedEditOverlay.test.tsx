@@ -1,10 +1,9 @@
-import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { render } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 
 describe("AppliedEditOverlay", () => {
-  const onSelect = vi.fn();
   const clips = [
     clipRow({
       id: "c1",
@@ -40,7 +39,6 @@ describe("AppliedEditOverlay", () => {
         trackId="mira-voice"
         zoomPxPerSec={20}
         selectedId="ripple"
-        onSelect={onSelect}
       />,
     );
     const layer = container.querySelector(".applied-edit-layer");
@@ -70,14 +68,13 @@ describe("AppliedEditOverlay", () => {
         trackId="mira-voice"
         zoomPxPerSec={20}
         selectedId={null}
-        onSelect={onSelect}
       />,
     );
     expect(container.querySelector(".applied-edit-layer")).toBeNull();
     expect(container.querySelectorAll(".applied-tick")).toHaveLength(0);
   });
 
-  it("uses a humanized title when the reason is empty (no more 'op: ')", () => {
+  it("carries no hover title, since the layer never receives pointer events", () => {
     const { container } = render(
       <AppliedEditOverlay
         records={[
@@ -94,15 +91,14 @@ describe("AppliedEditOverlay", () => {
         trackId="mira-voice"
         zoomPxPerSec={20}
         selectedId={null}
-        onSelect={onSelect}
       />,
     );
     const tick = container.querySelector(".applied-tick");
-    expect(tick).toHaveAttribute("title", "Ripple delete");
+    expect(tick).not.toBeNull();
+    expect(tick).not.toHaveAttribute("title");
   });
 
-  it("keeps ticks decorative and does not select on click", () => {
-    onSelect.mockClear();
+  it("keeps ticks decorative: no focus stop and no button role", () => {
     const { container, queryByRole } = render(
       <AppliedEditOverlay
         records={[
@@ -118,13 +114,10 @@ describe("AppliedEditOverlay", () => {
         trackId="mira-voice"
         zoomPxPerSec={20}
         selectedId={null}
-        onSelect={onSelect}
       />,
     );
     const tick = container.querySelector<HTMLElement>(".applied-tick");
     expect(tick).not.toHaveAttribute("tabindex");
     expect(queryByRole("button")).toBeNull();
-    fireEvent.click(tick!);
-    expect(onSelect).not.toHaveBeenCalled();
   });
 });

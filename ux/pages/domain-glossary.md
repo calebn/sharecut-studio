@@ -55,7 +55,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Clip** | Kept audio placed on the session | `timeline.clips` | Timeline lanes, body-drag move, fade/join inspector |
 | **Fade / join** | Soft edge between kept regions | `fade_*_ms`, `join_in_mode` | Clip edges, inspector |
 | **Pending edit** | Suggested remove/mute not yet approved | `editorial.edit_decisions` | Impact (host), Tighten (host filler/pause/repetition/restart), edit overlay, inspector |
-| **Applied edit** | Committed cut provenance | `editorial.edit_log` | Impact/history context, “why was this cut?” |
+| **Applied edit** | Committed cut provenance; its timeline tick tracks the adjacent clip pair as later edits move it, and the tick has no hover label (Impact carries the description) | `editorial.edit_log` | Impact/history context, “why was this cut?” |
 | **Transcript word** | Timed text + confidence / suppress / `suspect_hallucination` (over digital silence, flag only; Annotate underlines unsuppressed words and names the warning for screen readers) | `transcripts.per_track[].words[]` | Text mode, word inspector |
 | **Edited transcript** | A transcript whose words a person or agent corrected, suppressed or verified through an edit tool (automated passes do not count); re-transcribing it is protected (Studio Re-transcribe names edited tracks and asks first) | `transcripts.per_track[].user_edited`, `audio_sha256`, `audio_size`, `audio_mtime_ns` | Text mode, Re-transcribe |
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
