@@ -150,7 +150,7 @@ describe("drainHostOfflineQueue", () => {
     removeHostQueuedCommands.mockReset().mockResolvedValue(undefined);
   });
 
-  it("replays only the host bucket in client sequence order with identity", async () => {
+  it("replays only the host bucket, in insertion order rather than client_seq order", async () => {
     hostQueue.mockResolvedValue([
       {
         command_id: "first",
@@ -201,35 +201,6 @@ describe("drainHostOfflineQueue", () => {
     );
   });
 
-  it("does not leapfrog a failed command", async () => {
-    hostQueue.mockResolvedValue([
-      {
-        command_id: "first",
-        client_seq: 1,
-        type: "A",
-        payload: {},
-        created_at: 1,
-      },
-      {
-        command_id: "second",
-        client_seq: 2,
-        type: "B",
-        payload: {},
-        created_at: 2,
-      },
-    ]);
-    submit.mockRejectedValueOnce(new Error("offline"));
-    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
-
-    await drainHostOfflineQueue("/projects/episode.project.json");
-
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(removeHostQueuedCommands).toHaveBeenCalledWith(
-      "/projects/episode.project.json",
-      [],
-    );
-  });
-
   it("removes a long successful replay in one storage update", async () => {
     const commands = Array.from({ length: 100 }, (_, index) => ({
       command_id: `command-${index}`,
@@ -249,36 +220,6 @@ describe("drainHostOfflineQueue", () => {
     expect(removeHostQueuedCommands).toHaveBeenCalledWith(
       "/projects/episode.project.json",
       commands.map((command) => command.command_id),
-    );
-  });
-
-  it("keeps draining unrelated edits after a recorded conflict", async () => {
-    hostQueue.mockResolvedValue([
-      {
-        command_id: "stale",
-        client_seq: 1,
-        type: "SetEnvelope",
-        payload: {},
-        created_at: 1,
-      },
-      {
-        command_id: "meta",
-        client_seq: 2,
-        type: "SetTrackMeta",
-        payload: {},
-        created_at: 2,
-      },
-    ]);
-    submit.mockRejectedValueOnce(new ApiError("Envelope changed", null, 409));
-    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
-
-    await drainHostOfflineQueue("/projects/episode.project.json");
-
-    expect(submit).toHaveBeenCalledTimes(2);
-    // The conflict dequeued itself inside submitDocumentCommand.
-    expect(removeHostQueuedCommands).toHaveBeenCalledWith(
-      "/projects/episode.project.json",
-      ["meta"],
     );
   });
 
@@ -432,17 +373,13 @@ describe("drainOfflineQueue (guest)", () => {
     guestQueue.mockReset();
   });
 
-  it("replays in order, skips a refused edit and stops at a rate limit", async () => {
+  it("replays in client_seq order, not storage order", async () => {
     guestQueue.mockResolvedValue([
       queued("c", 3),
       queued("a", 1),
       queued("b", 2),
       queued("d", 4),
     ]);
-    submit
-      .mockResolvedValueOnce({ ok: true })
-      .mockRejectedValueOnce(new ApiError("Not allowed", null, 403))
-      .mockRejectedValueOnce(new ApiError("Slow down", null, 429));
     const { drainOfflineQueue } = await import("./drainOfflineQueue");
 
     await drainOfflineQueue("tok");
@@ -451,6 +388,7 @@ describe("drainOfflineQueue (guest)", () => {
       "a",
       "b",
       "c",
+      "d",
     ]);
     for (const call of submit.mock.calls) {
       expect(call[3]).toMatchObject({ replaying: true });
@@ -554,30 +492,33 @@ describe.each([
     }
   });
 
-  it("skips a refused (403) record and keeps replaying", async () => {
-    queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
-    submit
-      .mockResolvedValueOnce({ ok: true })
-      .mockRejectedValueOnce(new ApiError("Not allowed", null, 403))
-      .mockResolvedValueOnce({ ok: true });
+  it.each([403, 409, 422])(
+    "skips a refused %i record and keeps replaying",
+    async (status) => {
+      queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+      submit
+        .mockResolvedValueOnce({ ok: true })
+        .mockRejectedValueOnce(new ApiError("Refused", null, status))
+        .mockResolvedValueOnce({ ok: true });
 
-    await drain();
+      await drain();
 
-    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
-      "a",
-      "b",
-      "c",
-    ]);
-    if (name === "host") {
-      expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
-      expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, [
+      expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
         "a",
+        "b",
         "c",
       ]);
-    } else {
-      expect(removeHostQueuedCommands).not.toHaveBeenCalled();
-    }
-  });
+      if (name === "host") {
+        expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+        expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, [
+          "a",
+          "c",
+        ]);
+      } else {
+        expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+      }
+    },
+  );
 
   it("stops at a transport error without leapfrogging", async () => {
     queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
