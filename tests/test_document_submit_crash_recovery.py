@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import multiprocessing as mp
 import os
+import queue
 import signal
 import sqlite3
 import sys
@@ -499,7 +500,10 @@ def test_writer_blocked_on_the_project_lock_proceeds_when_the_holder_is_killed(
         assert waiter.is_alive(), "the waiter should block on the holder's project lock"
         go.set()
         # Drain before joining: a child with queued data blocks at exit until it is read.
-        outcome, server_seq, waited = results.get(timeout=60)
+        try:
+            outcome, server_seq, waited = results.get(timeout=60)
+        except queue.Empty:
+            pytest.fail("the waiter never reported a submit result after the holder died")
     finally:
         go.set()
         crasher_exited = _reap(crasher, 60)
