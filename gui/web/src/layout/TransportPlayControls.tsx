@@ -1,3 +1,4 @@
+import { capabilityTooltip } from "../capabilities/copy";
 import { titleWithShortcut } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { Icon } from "../ui";
@@ -50,7 +51,10 @@ export function TransportPlayControls({
         className="ui-control stop-btn"
         // Stop returns the playhead to where playback last started (DAW
         // convention, #533); Pause keeps the position.
-        title={titleWithShortcut("Stop", "transport.stop")}
+        title={titleWithShortcut(
+          capabilityTooltip("transport.stop"),
+          "transport.stop",
+        )}
         aria-label="Stop"
         disabled={disabled}
         onClick={onStop}

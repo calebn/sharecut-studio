@@ -162,6 +162,17 @@ describe("TransportBar collapsed", () => {
     ).toBeTruthy();
   });
 
+  it("Stop's tooltip says it returns to the play start (#533)", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Stop" }).getAttribute("title"),
+    ).toMatch(/^Stop and return to where playback started/);
+  });
+
   it("disables host project menu items until a project loads", async () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);
     render(
