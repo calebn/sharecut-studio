@@ -16,11 +16,13 @@ from podcast_mcp.pipeline.meta import (
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
 from podcast_mcp.services.pipeline_config import (
     asr_options_for,
+    config_assignments,
     config_store,
     deep_merge,
     default_enabled_steps,
     editorial_enabled_flags,
     merge_pipeline_config,
+    parse_config_assignments,
     pipeline_step_states,
     reconcile_enabled_steps,
     skip_steps_from_enabled,
@@ -392,6 +394,19 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     assert result["proposed_config"]["compression"]["makeup_db"] == 0.0
     assert result["report_summary"]["reason_count"] == len(result["reasons"])
 
+    by_code = {r["code"]: r for r in result["reasons"]}
+    assert by_code["noise_floor"]["evidence"] == {
+        "noise_floor_db": -40.0,
+        "threshold_db": -50.0,
+    }
+    assert by_code["gate_overreach"]["evidence"]["risk"] == "high"
+    assert by_code["gate_overreach"]["evidence"]["issue_count"] == 1
+    assert by_code["clipping"]["evidence"]["flat_factor"] == 2.0
+    assert "dominant_frequency" in by_code["hum"]["evidence"]
+    tracks = result["report_summary"]["tracks"]
+    assert [t["track_id"] for t in tracks] == ["host", "guest"]
+    assert tracks[0]["noise_floor_db"] == -40.0
+
     from podcast_mcp.effects.presets import get_preset
 
     default_fx = result_defaults["proposed_config"].get("effects") or {}
@@ -443,6 +458,7 @@ def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatc
             "code": "gate_overreach",
             "track_id": "host",
             "message": "host: gate overreach findings - proposed a milder gate threshold (-6 dB)",
+            "evidence": {"risk": "high", "issue_count": 1, "issues_sample": ["over-gate"]},
         }
     ]
 
@@ -579,9 +595,118 @@ def test_suggest_flags_equal_duration_dialogue(monkeypatch) -> None:
         return p
 
     same = suggest_pipeline_tuning(build(1689.58))
-    assert any(r["code"] == "pre_aligned" for r in same["reasons"])
+    pre_reasons = [r for r in same["reasons"] if r["code"] == "pre_aligned"]
+    assert len(pre_reasons) == 1
+    assert pre_reasons[0]["evidence"] == {
+        "track_ids": ["guest", "host"],
+        "duration_sec": 1689.58,
+        "tolerance_sec": 0.05,
+    }
+    assert pre_reasons[0]["suggested_skip_steps"] == ["align_tracks"]
+    assert "align" not in same["patches"]
     diff = suggest_pipeline_tuning(build(1600.0))
     assert not any(r["code"] == "pre_aligned" for r in diff["reasons"])
+
+
+def test_suggest_reports_track_evidence_without_reasons(monkeypatch) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+
+    def fake_analyze(project, *, policy=None, progress=None):
+        return {
+            "tracks": [
+                {
+                    "track_id": "host",
+                    "health": {"noise_floor_db": -70.0, "peak_level_db": -6.0, "flat_factor": 0.0},
+                    "gate_analysis": {"risk": "none", "issues": []},
+                    "bleed_ratio": 0.01,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
+    project = EpisodeProject.create(name="t", workspace_dir="/tmp")
+
+    result = suggest_pipeline_tuning(project)
+
+    assert result["reasons"] == []
+    assert result["patches"] == {}
+    tracks = result["report_summary"]["tracks"]
+    assert len(tracks) == 1
+    assert tracks[0]["noise_floor_db"] == -70.0
+    assert tracks[0]["peak_level_db"] == -6.0
+    assert tracks[0]["bleed_ratio"] == 0.01
+
+
+def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_cleanup",
+        lambda project, *, policy=None, progress=None: {"tracks": []},
+    )
+
+    host_wav = tmp_path / "host.wav"
+    guest_wav = tmp_path / "guest.wav"
+    host_wav.write_bytes(b"\x00")
+    guest_wav.write_bytes(b"\x00")
+
+    def build() -> EpisodeProject:
+        p = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+        p.tracks.append(
+            Track(
+                id="host",
+                label="host",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=str(host_wav), duration_sec=10.0),
+            )
+        )
+        p.tracks.append(
+            Track(
+                id="guest",
+                label="guest",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=str(guest_wav), duration_sec=10.0),
+            )
+        )
+        p.tracks.append(
+            Track(
+                id="missing",
+                label="missing",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=str(tmp_path / "missing.wav"), duration_sec=10.0),
+            )
+        )
+        return p
+
+    fractions = {"host": 0.85, "guest": 0.2}
+
+    def fake_fraction(path, *, peak_dbfs):
+        return fractions[path.stem]
+
+    monkeypatch.setattr("podcast_mcp.engines.asr_silence.digital_silence_fraction", fake_fraction)
+
+    result = suggest_pipeline_tuning(build())
+    silence_reasons = [r for r in result["reasons"] if r["code"] == "digital_silence"]
+    assert len(silence_reasons) == 1
+    reason = silence_reasons[0]
+    assert reason["track_id"] == "host"
+    assert reason["evidence"]["silent_fraction"] == 0.85
+    assert reason["evidence"]["threshold_fraction"] == 0.8
+    assert reason["evidence"]["peak_dbfs"] == -60.0
+    assert reason["evidence"]["vad_enabled"] is True
+    assert "transcribe" not in result["patches"]
+    tracks_by_id = {t["track_id"]: t for t in result["report_summary"]["tracks"]}
+    assert tracks_by_id["host"]["digital_silence_fraction"] == 0.85
+    assert tracks_by_id["guest"]["digital_silence_fraction"] == 0.2
+
+    off_result = suggest_pipeline_tuning(
+        build(), base_config=merge_pipeline_config({"transcribe": {"vad": {"enabled": False}}})
+    )
+    assert off_result["patches"]["transcribe"]["vad"]["enabled"] is True
+    assert off_result["proposed_config"]["transcribe"]["vad"]["enabled"] is True
 
 
 @pytest.mark.parametrize("field", PARAM_FIELDS, ids=lambda f: f.path)
@@ -679,6 +804,46 @@ def test_step_noop_reason():
     assert step_noop_reason("ingest_tracks", cfg) is None
     on_cfg = deep_merge(cfg, {"focus": {"enabled": True}})
     assert step_noop_reason("analyze_focus_cuts", on_cfg) is None
+
+
+def test_parse_config_assignments_types_and_nesting() -> None:
+    result = parse_config_assignments(
+        [
+            "focus.enabled=true",
+            "focus.episode_promise=null",
+            "transcribe.decode.temperature=[0.0, 0.2]",
+            'effects.gate=[{"type": "gate", "params": {"threshold_db": -30}}]',
+        ]
+    )
+    assert result["focus"]["enabled"] is True
+    assert result["focus"]["episode_promise"] is None
+    assert result["transcribe"]["decode"]["temperature"] == [0.0, 0.2]
+    assert result["effects"]["gate"] == [{"type": "gate", "params": {"threshold_db": -30}}]
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    [
+        "no-equals-sign",
+        "=1",
+        "bogus_top_level.thing=1",
+        "focus.not_a_real_key=1",
+        "focus..enabled=1",
+        "focus.enabled=[unclosed",
+    ],
+)
+def test_parse_config_assignments_rejects(assignment: str) -> None:
+    with pytest.raises(ValueError):
+        parse_config_assignments([assignment])
+
+
+def test_config_assignments_round_trips() -> None:
+    patches = {"focus": {"enabled": True}, "transcribe": {"vad": {"enabled": False}}}
+    assignments = config_assignments(patches)
+    assert set(assignments) == {"focus.enabled=true", "transcribe.vad.enabled=false"}
+    round_tripped = parse_config_assignments(assignments)
+    assert round_tripped == patches
+    assert config_assignments({}) == []
 
 
 def test_pipeline_step_states_rows():

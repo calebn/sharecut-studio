@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import copy
+import json
 import threading
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.audio_audit import clipping_indicated
+from podcast_mcp.engines.asr_silence import PEAK_BLOCK_SEC
+from podcast_mcp.engines.audio_audit import CLIPPING_PEAK_LEVEL_DB, clipping_indicated
 from podcast_mcp.pipeline.meta import (
     ALLOWED_CONFIG_TOP_KEYS,
     PARAM_FIELDS,
@@ -61,6 +66,14 @@ def transcribe_run_config(
 
 FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
 TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
+
+# Analyze flags a track whose astats noise floor is above this (dBFS).
+NOISE_FLOOR_WARN_DB = -50.0
+
+# Analyze flags a dialogue source whose share of digital-silence blocks (from
+# engines.asr_silence.peak_envelope) is at or above this as a gated stem, and
+# argues for turning transcribe.vad.enabled on.
+DIGITAL_SILENCE_VAD_FRACTION = 0.8
 
 
 def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
@@ -382,88 +395,168 @@ def build_config_payload(project_path: Path | str) -> dict[str, Any]:
     }
 
 
+def _reason(
+    code: str,
+    message: str,
+    evidence: dict[str, Any],
+    *,
+    track_id: str | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """One Analyze reason: what was found, why (``evidence``: measured values + thresholds)."""
+    out: dict[str, Any] = {"code": code, "message": message, "evidence": evidence}
+    if track_id is not None:
+        out["track_id"] = track_id
+    out.update(extra)
+    return out
+
+
+def _track_evidence(row: dict[str, Any]) -> dict[str, Any]:
+    """Per-track numbers from one ``analyze_cleanup`` row (kept even when no reason fires)."""
+    health = row.get("health") or {}
+    hum_val = health.get("hum")
+    hum: dict[str, Any] = hum_val if isinstance(hum_val, dict) else {}
+    gate = row.get("gate_analysis") or {}
+    return {
+        "track_id": row.get("track_id", "?"),
+        "noise_floor_db": health.get("noise_floor_db"),
+        "peak_level_db": health.get("peak_level_db"),
+        "rms_level_db": health.get("rms_level_db"),
+        "flat_factor": health.get("flat_factor"),
+        "dynamic_range_db": health.get("dynamic_range_db"),
+        "hum_detected": bool(hum.get("hum_detected")),
+        "gate_risk": gate.get("risk"),
+        "gate_issue_count": len(gate.get("issues") or []),
+        "bleed_ratio": row.get("bleed_ratio"),
+    }
+
+
+def _dialogue_silence_fractions(project: Any, *, peak_dbfs: float) -> dict[str, tuple[Path, float]]:
+    """Digital-silence fraction of each dialogue track's source audio (skips missing/undecodable)."""
+    from podcast_mcp.engines.asr_silence import digital_silence_fraction
+    from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+
+    out: dict[str, tuple[Path, float]] = {}
+    for tid in dialogue_track_ids(project):
+        try:
+            path = track_audio_path(project, tid)
+        except ValueError:
+            continue
+        if not path.is_file():
+            continue
+        frac = digital_silence_fraction(path, peak_dbfs=peak_dbfs)
+        if frac is None:
+            continue
+        out[tid] = (path, frac)
+    return out
+
+
 def suggest_pipeline_tuning(
     project: Any,
     *,
     base_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Heuristic Analyze: propose config patches from cleanup/health signals."""
-    from podcast_mcp.edits.conversation_align import equal_duration_dialogue
+    from podcast_mcp.edits.conversation_align import DURATION_EPS_SEC, equal_duration_dialogue
     from podcast_mcp.engines.audio_audit import AnalysisPolicy, analyze_cleanup
 
     defaults = load_defaults()
     base = copy.deepcopy(base_config) if base_config is not None else copy.deepcopy(defaults)
-    report = analyze_cleanup(project, policy=AnalysisPolicy.from_defaults(defaults))
+    policy = AnalysisPolicy.from_defaults(defaults)
+    report = analyze_cleanup(project, policy=policy)
     proposed = copy.deepcopy(base)
-    reasons: list[dict[str, str]] = []
+    reasons: list[dict[str, Any]] = []
     effects = dict(proposed.get("effects") or {})
     base_effects = dict(base.get("effects") or {})
     presets = resolve_presets(defaults)
     gate_overreach = False
+    track_rows: dict[str, dict[str, Any]] = {}
 
     for row in report.get("tracks") or []:
         tid = row.get("track_id", "?")
+        track_rows[tid] = _track_evidence(row)
         health = row.get("health") or {}
         hum_val = health.get("hum")
         hum: dict[str, Any] = hum_val if isinstance(hum_val, dict) else {}
         if hum.get("hum_detected"):
             reasons.append(
-                {
-                    "code": "hum",
-                    "track_id": tid,
-                    "message": (
+                _reason(
+                    "hum",
+                    (
                         f"{tid}: mains hum detected - prefer noise_reduction / higher HPF; "
                         f"{hum.get('recommendation') or ''}"
                     ).strip(),
-                }
+                    {
+                        "dominant_frequency": hum.get("dominant_frequency"),
+                        "energy_ratios": hum.get("energy_ratios"),
+                        "threshold_ratio": hum.get("threshold_ratio"),
+                    },
+                    track_id=tid,
+                )
             )
             if "noise_reduction" not in effects:
                 effects["noise_reduction"] = copy.deepcopy(presets["noise_reduction"])
 
         noise_floor = health.get("noise_floor_db")
-        if isinstance(noise_floor, (int, float)) and noise_floor > -50:
+        if isinstance(noise_floor, (int, float)) and noise_floor > NOISE_FLOOR_WARN_DB:
             reasons.append(
-                {
-                    "code": "noise_floor",
-                    "track_id": tid,
-                    "message": (
+                _reason(
+                    "noise_floor",
+                    (
                         f"{tid}: elevated noise floor ({noise_floor} dB) - "
                         "consider noise_reduction or rnnoise preset"
                     ),
-                }
+                    {"noise_floor_db": noise_floor, "threshold_db": NOISE_FLOOR_WARN_DB},
+                    track_id=tid,
+                )
             )
 
         gate = row.get("gate_analysis") or {}
         gate_issues = gate.get("issues") or []
         if gate_issues or gate.get("risk") in ("high", "medium"):
             reasons.append(
-                {
-                    "code": "gate_overreach",
-                    "track_id": tid,
-                    "message": f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)",
-                }
+                _reason(
+                    "gate_overreach",
+                    f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)",
+                    {
+                        "risk": gate.get("risk"),
+                        "issue_count": len(gate_issues),
+                        "issues_sample": gate_issues[:3],
+                    },
+                    track_id=tid,
+                )
             )
             gate_overreach = True
 
         if row.get("high_bleed_warning"):
             reasons.append(
-                {
-                    "code": "bleed",
-                    "track_id": tid,
-                    "message": row["high_bleed_warning"],
-                }
+                _reason(
+                    "bleed",
+                    row["high_bleed_warning"],
+                    {
+                        "bleed_ratio": row.get("bleed_ratio"),
+                        "bleed_count": row.get("bleed_count"),
+                        "warn_ratio": policy.bleed_ratio_warn_threshold,
+                    },
+                    track_id=tid,
+                )
             )
 
         if clipping_indicated(health):
             reasons.append(
-                {
-                    "code": "clipping",
-                    "track_id": tid,
-                    "message": (
+                _reason(
+                    "clipping",
+                    (
                         f"{tid}: clipping indicators - keep compression.makeup_db at 0 "
                         "(balance_tracks stages level after compression)"
                     ),
-                }
+                    {
+                        "peak_level_db": health.get("peak_level_db"),
+                        "flat_factor": health.get("flat_factor"),
+                        "peak_limit_db": CLIPPING_PEAK_LEVEL_DB,
+                    },
+                    track_id=tid,
+                )
             )
             set_by_path(proposed, "compression.makeup_db", 0.0)
 
@@ -471,15 +564,48 @@ def suggest_pipeline_tuning(
     if pre is not None:
         ids, dur = pre
         reasons.append(
-            {
-                "code": "pre_aligned",
-                "message": (
-                    f"Dialogue tracks {', '.join(ids)} all run {dur:.2f}s - likely pre-aligned "
-                    "(e.g. Zoom per-person stems); align_tracks holds them at identity, "
-                    "or uncheck Align tracks."
-                ),
-            }
+            _reason(
+                "pre_aligned",
+                f"Dialogue tracks {', '.join(ids)} all run {dur:.2f}s - likely pre-aligned "
+                "(e.g. Zoom per-person stems); uncheck Align tracks (align_tracks holds them "
+                "at identity if it runs).",
+                {
+                    "track_ids": ids,
+                    "duration_sec": round(dur, 3),
+                    "tolerance_sec": DURATION_EPS_SEC,
+                },
+                suggested_skip_steps=["align_tracks"],
+            )
         )
+
+    asr = AsrOptions.from_defaults(base)
+    silence = _dialogue_silence_fractions(project, peak_dbfs=asr.silence_peak_dbfs)
+    for tid, (path, frac) in silence.items():
+        track_rows.setdefault(tid, {"track_id": tid})["digital_silence_fraction"] = round(frac, 3)
+        if frac >= DIGITAL_SILENCE_VAD_FRACTION:
+            reasons.append(
+                _reason(
+                    "digital_silence",
+                    f"{tid}: {frac:.0%} of the source audio is digital silence (peak below "
+                    f"{asr.silence_peak_dbfs:g} dBFS; a gated stem) - "
+                    + (
+                        "VAD at transcribe is on - keep it"
+                        if asr.vad_enabled
+                        else "proposed transcribe.vad.enabled=true so Whisper skips it"
+                    ),
+                    {
+                        "silent_fraction": round(frac, 3),
+                        "threshold_fraction": DIGITAL_SILENCE_VAD_FRACTION,
+                        "peak_dbfs": asr.silence_peak_dbfs,
+                        "block_sec": PEAK_BLOCK_SEC,
+                        "audio": path.name,
+                        "vad_enabled": asr.vad_enabled,
+                    },
+                    track_id=tid,
+                )
+            )
+            if not asr.vad_enabled:
+                set_by_path(proposed, "transcribe.vad.enabled", True)
 
     if gate_overreach:
         # effects.gate is one global chain: lower it by 6 dB once per Analyze
@@ -510,5 +636,62 @@ def suggest_pipeline_tuning(
         "report_summary": {
             "track_count": len(report.get("tracks") or []),
             "reason_count": len(reasons),
+            "tracks": list(track_rows.values()),
         },
     }
+
+
+def _defaults_have_path(defaults: Mapping[str, Any], path: str) -> bool:
+    """True when the dotted ``path`` exists (as a key, not just a non-None value) in ``defaults``."""
+    cur: Any = defaults
+    for part in path.split("."):
+        if not isinstance(cur, Mapping) or part not in cur:
+            return False
+        cur = cur[part]
+    return True
+
+
+def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
+    """Parse ``path=value`` CLI/agent overrides (``--set``) into a nested override dict.
+
+    ``value`` is parsed as a YAML scalar or flow value (``true``, ``-36``, ``[0.0, 0.2]``,
+    ``null``, JSON arrays/objects all parse as YAML). The top-level key must be one of
+    ``ALLOWED_CONFIG_TOP_KEYS``; outside ``effects`` (whose preset names are free-form),
+    the dotted path must already exist in the shipped defaults, so a typo raises instead
+    of silently doing nothing.
+    """
+    defaults = load_defaults()
+    out: dict[str, Any] = {}
+    for assignment in assignments:
+        if "=" not in assignment:
+            raise ValueError(f"expected path=value, got {assignment!r}")
+        path, _, raw_value = assignment.partition("=")
+        path = path.strip()
+        if not path:
+            raise ValueError(f"empty config key in {assignment!r}")
+        parts = path.split(".")
+        if not all(parts):
+            raise ValueError(f"empty path segment in {assignment!r}")
+        top = parts[0]
+        if top not in ALLOWED_CONFIG_TOP_KEYS:
+            raise ValueError(f"unknown pipeline config key: {top!r} (in {assignment!r})")
+        if top != "effects" and not _defaults_have_path(defaults, path):
+            raise ValueError(f"unknown pipeline config key: {path!r}")
+        try:
+            value = yaml.safe_load(raw_value) if raw_value else None
+        except yaml.YAMLError as exc:
+            raise ValueError(f"invalid value for {path!r}: {raw_value!r} ({exc})") from exc
+        set_by_path(out, path, value)
+    return out
+
+
+def config_assignments(patches: Mapping[str, Any], prefix: str = "") -> list[str]:
+    """Flatten a nested patch dict into ``path=json_value`` assignments (inverse of parsing)."""
+    out: list[str] = []
+    for key, value in patches.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, Mapping) and value:
+            out.extend(config_assignments(value, path))
+        else:
+            out.append(f"{path}={json.dumps(value)}")
+    return out
