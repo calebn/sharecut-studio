@@ -1,5 +1,5 @@
 import type { OfflineConflict } from "../state/offlineStore";
-import { plural } from "../utils/format";
+import { overflowLabel, plural } from "../utils/format";
 
 /** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
@@ -54,10 +54,9 @@ export function GuestAttentionBannerView({
           </li>
         ))}
         {hiddenConflicts > 0 && (
-          <li
-            key="more"
-            className="guest-attention-more"
-          >{`+${hiddenConflicts} more`}</li>
+          <li key="more" className="guest-attention-more">
+            {overflowLabel(hiddenConflicts)}
+          </li>
         )}
       </ul>
     </div>

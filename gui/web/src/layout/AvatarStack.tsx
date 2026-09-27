@@ -10,6 +10,7 @@ import { useDawStore } from "../state/dawStore";
 import type { SessionClient } from "../types/session";
 import { Avatar } from "../ui/Avatar";
 import { Menu, MenuItem, MenuSection } from "../ui/Menu";
+import { overflowLabel } from "../utils/format";
 
 type Props = {
   variant?: "inline" | "menu";
@@ -147,7 +148,7 @@ export function AvatarStack({ variant = "inline" }: Props) {
               type="button"
               className="ui-control avatar-stack-more"
               {...t}
-              aria-label={`+${overflow.length} more`}
+              aria-label={overflowLabel(overflow.length)}
             >
               +{overflow.length}
             </button>
