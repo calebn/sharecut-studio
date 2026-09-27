@@ -125,13 +125,19 @@ def _arm_kill(point: str, kill_id: str, die: Callable[..., None]) -> None:
     elif point == AFTER_JOURNAL_COMMIT:
         real_immediate_transaction = sync_log.immediate_transaction
 
+        def has_kill_row(conn: sqlite3.Connection) -> bool:
+            row = conn.execute("SELECT 1 FROM commands WHERE command_id = ?", (kill_id,))
+            return row.fetchone() is not None
+
         @contextmanager
         def commit_then_die(conn: sqlite3.Connection) -> Iterator[None]:
+            # Only the transaction that commits kill_id's row, not a later one that
+            # finds it already there.
+            had_row = has_kill_row(conn)
             with real_immediate_transaction(conn):
                 yield
             # COMMIT ran; the project lock is still held.
-            row = conn.execute("SELECT 1 FROM commands WHERE command_id = ?", (kill_id,))
-            if row.fetchone() is not None:
+            if not had_row and has_kill_row(conn):
                 die()
 
         sync_log.immediate_transaction = commit_then_die
