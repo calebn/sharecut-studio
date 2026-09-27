@@ -73,6 +73,12 @@ live `FollowBanner` and `GuestAttentionBanner` adapters, which keep the
 roster/store lookups, IndexedDB polling, and share-vs-host token resolution.
 Both stories share the `dawShellStoryDecorator` `.daw-shell` frame at desktop
 and 360px widths.
+`Templates/StatusBar`, `Templates/AvatarStack` and `Templates/OverlayLegend`
+show the production `StatusBarView`, `AvatarStackView` and `OverlayLegendView`
+used by the live `StatusBar`, `AvatarStack` and `OverlayLegend` adapters,
+including the `PresenceStatusView` presence slot, desktop/phone/menu-hosted
+variants, and stale-render, loading and overflow states built from the same
+fixtures as the app.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
