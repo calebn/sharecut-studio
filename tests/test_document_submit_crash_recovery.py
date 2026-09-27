@@ -35,7 +35,7 @@ import pytest
 from podcast_mcp.models import load_project
 from podcast_mcp.project_store import (
     history_index_path,
-    history_snapshot_path,
+    history_snapshot_ids,
     read_history_index,
 )
 from podcast_mcp.services import ProjectWorkspace
@@ -50,7 +50,8 @@ _KILL = signal.SIGTERM if sys.platform == "win32" else signal.SIGKILL
 _KILLED_EXIT = int(_KILL) if sys.platform == "win32" else -int(_KILL)
 
 
-def _die() -> None:
+def _die(**_ignored: Any) -> None:
+    """Kill this process; ignores the details ``record_and_die`` records (``published_seq``)."""
     os.kill(os.getpid(), _KILL)
 
 
@@ -425,9 +426,8 @@ def test_sigkill_at_each_handoff_loses_no_edit_and_applies_a_retry_once(
     assert document_server_seq(seeded_project) == len(seen["journal"])
     ws = ProjectWorkspace.open(seeded_project)
     assert [entry.id for entry in ws.project.history.entries] == seen["saved_history"]
-    index_path = history_index_path(ws.project)
-    for entry in ws.project.history.entries:
-        assert history_snapshot_path(index_path, entry.id).is_file()
+    saved_ids = {entry.id for entry in ws.project.history.entries}
+    assert saved_ids <= history_snapshot_ids(history_index_path(ws.project))
 
     # The client never got a reply, so it retries the same command.
     retry = DocumentSyncService.open(seeded_project).submit(_handoff_command())
