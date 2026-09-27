@@ -859,8 +859,8 @@ def test_api_audio_render_busy_fallback_sets_header(
 
 def test_api_audio_project_lock_timeout_hides_the_lock_path(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
-    from filelock import Timeout
     from fastapi.testclient import TestClient
+    from filelock import Timeout
 
     from podcast_mcp.gui.server import create_app
 
