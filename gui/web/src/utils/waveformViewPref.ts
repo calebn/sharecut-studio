@@ -81,6 +81,13 @@ export function readWaveformViewPref(projectPath: string): WaveformViewPref {
   return entry ? entry : { ...DEFAULT_WAVEFORM_VIEW_PREF };
 }
 
+/**
+ * Saves `pref` as `projectPath`'s entry, most recent last, and trims the map
+ * to `WAVEFORM_VIEW_MAX_PROJECTS`. It rewrites the whole map with no version
+ * check, so across tabs the last writer wins (as with `sharecut.laneHeight`):
+ * two tabs saving at once can drop the other's entry. The cost is a
+ * forgotten view preference, never project content, so this is intended.
+ */
 export function writeWaveformViewPref(
   projectPath: string,
   pref: WaveformViewPref,

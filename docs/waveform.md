@@ -494,7 +494,8 @@ at most once per half dB, in every audition mode. The scale,
 amplitude and post-fader flag are remembered per project, per browser, in
 `localStorage` (`sharecut.waveformView`, `utils/waveformViewPref.ts`, 32
 most-recent projects) — a convenience like `sharecut.laneHeight`, not a
-durable project store. `renderTiles.ts` `styleKey` is bumped to
+durable project store. Tabs share the map; the last write wins.
+`renderTiles.ts` `styleKey` is bumped to
 `v${SHADE_VERSION}|${scale}|${tints}` (`v2|scale|tints`) so tiles re-render
 when the scale or the shading version changes.
 
