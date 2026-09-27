@@ -857,8 +857,13 @@ def shorten_word_gaps(
         else:
             merged.append((start, end))
 
-    if merged:
-        batch_ripple_delete(project, merged, use_inaudible_opt=use_inaudible_opt)
+    for start, end in reversed(merged):
+        ripple_delete(
+            project,
+            start,
+            end,
+            use_inaudible_opt=use_inaudible_opt,
+        )
 
     return change_summary(
         project,
