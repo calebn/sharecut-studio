@@ -102,6 +102,9 @@ def _effect_filter(fx: ProcessingEffect) -> str | None:
             return None
 
 
+_EBUR128_BLOCK_RE = re.compile(r"\bt:\s*(\d+(?:\.\d+)?)\s+TARGET:.*?\bM:\s*(-?\d+(?:\.\d+)?)")
+
+
 def headroom_trim_db(true_peak_db: float | None, ceiling_db: float) -> float:
     """Gain (<= 0 dB) that brings a mix's true peak down to ``ceiling_db``; never boosts."""
     if true_peak_db is None:
@@ -1150,6 +1153,28 @@ class FFmpegEngine:
             bitrate_kbps=bitrate_kbps,
             metadata=metadata,
         )
+
+    def measure_loudness_blocks(
+        self, path: Path, af: str | None = None
+    ) -> list[tuple[float, float]]:
+        """(t, momentary LUFS) every 100 ms from ebur128, after the optional filter chain ``af``."""
+        chain = (
+            "ebur128=framelog=info" if not af or af == "anull" else f"{af},ebur128=framelog=info"
+        )
+        cmd = [
+            self.ffmpeg,
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(path),
+            "-af",
+            chain,
+            "-f",
+            "null",
+            "-",
+        ]
+        r = run(cmd, capture_output=True, text=True)
+        return [(float(t), float(m)) for t, m in _EBUR128_BLOCK_RE.findall(r.stderr or "")]
 
     def measure_loudness(self, path: Path) -> float | None:
         cmd = [

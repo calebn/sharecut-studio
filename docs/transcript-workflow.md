@@ -30,8 +30,8 @@ focus_from_transcript
 analyze_fillers_pauses
 tighten_from_transcript
 clean_audio
-balance_tracks
 compress_tracks
+balance_tracks
 assemble_timeline              # final stems (edits + FX)
 reconcile_transcript           # pass 2 — post-FX audibility refresh
 mix_with_music

@@ -267,3 +267,13 @@ def test_runner_does_not_refresh_stale_unattended_waiver_after_cancellation(
         )
 
     assert load_status(proj)["precorrect_fingerprint"] == stale_fingerprint
+
+
+def test_balance_runs_after_compress() -> None:
+    from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES as order
+
+    idx = [
+        order.index(n)
+        for n in ("clean_audio", "compress_tracks", "balance_tracks", "assemble_timeline")
+    ]
+    assert idx == sorted(idx)

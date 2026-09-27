@@ -16,8 +16,8 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
 13. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
 14. `clean_audio` — HPF per dialogue track
-15. `balance_tracks` — LUFS gain staging
-16. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0 after balance)
+15. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0; balance measures after it)
+16. `balance_tracks` — gain staging from **post-FX, speech-gated** loudness (the track's chain, own non-suppressed transcript words; ungated without a transcript); the summary reports the achieved level per track
 17. `assemble_timeline` — Final stems after edits + FX
 18. `reconcile_transcript` — Pass 2: post-FX audibility refresh
 19. `mix_with_music` — Intro/outro/bed + ducking envelopes

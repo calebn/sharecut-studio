@@ -15,9 +15,9 @@ From `.agents/defaults/pipeline.yaml`:
 - Threshold: -18 dB
 - Ratio: 3:1
 - Attack / release: 15 ms / 150 ms
-- Makeup: **0 dB** by default — `balance_tracks` already stages dialogue to
-  `dialogue_lufs` (-20). Non-zero makeup after gain staging often clips peaks.
-  Raise makeup only on unbalanced stems, or when you intentionally skip balance.
+- Makeup: **0 dB** by default — `balance_tracks` runs after compression and
+  measures the compressed signal, so makeup is compensated by gain staging.
+  Non-zero makeup only risks clipping the stem before the mix gain.
 
 ## Workflow
 

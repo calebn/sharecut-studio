@@ -284,7 +284,7 @@ def test_balance_never_touches_the_fader(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     ws.project.track_by_id("host").fader_db = -4.0
     eng = MagicMock()
-    eng.measure_loudness.return_value = -26.0
+    eng.measure_loudness_blocks.return_value = [(0.1 * i, -26.0) for i in range(1, 60)]
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
     host = ws.project.track_by_id("host")

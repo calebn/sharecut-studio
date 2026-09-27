@@ -91,7 +91,7 @@ Registration hub: `src/podcast_mcp/mcp/server.py`. CLI mirrors MCP via `src/podc
 
 ## Pipeline steps (18)
 
-`ingest_tracks` → `transcribe_tracks` → `merge_transcript` → `render_dialogue_stems` → `reconcile_transcript` → `precorrect_transcript` → `require_transcript_refine` → `analyze_focus_cuts` → `focus_from_transcript` → `analyze_fillers_pauses` → `tighten_from_transcript` → `clean_audio` → `balance_tracks` → `compress_tracks` → `assemble_timeline` → `reconcile_transcript` → `mix_with_music` → `master_loudness` → `export_deliverables`
+`ingest_tracks` → `transcribe_tracks` → `merge_transcript` → `render_dialogue_stems` → `reconcile_transcript` → `precorrect_transcript` → `require_transcript_refine` → `analyze_focus_cuts` → `focus_from_transcript` → `analyze_fillers_pauses` → `tighten_from_transcript` → `clean_audio` → `compress_tracks` → `balance_tracks` → `assemble_timeline` → `reconcile_transcript` → `mix_with_music` → `master_loudness` → `export_deliverables`
 
 Hard agent gate: **`require_transcript_refine`** (skill **podcast-transcript-refine**). See [transcript-workflow.md](transcript-workflow.md).
 

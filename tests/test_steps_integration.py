@@ -37,7 +37,11 @@ def _dialogue_project(minimal_project, sample_wav, tmp_workspace):
 def test_balance_tracks_with_mock_loudness(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     steps.ingest_tracks(proj, load_defaults())
-    with patch.object(FFmpegEngine, "measure_loudness", return_value=-24.0):
+    with patch.object(
+        FFmpegEngine,
+        "measure_loudness_blocks",
+        return_value=[(0.1 * i, -24.0) for i in range(1, 60)],
+    ):
         steps.balance_tracks(proj, load_defaults())
     assert proj.track_by_id("host").gain_db != 0.0
 

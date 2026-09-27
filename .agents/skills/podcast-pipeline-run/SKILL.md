@@ -28,8 +28,8 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 12. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
 13. tighten_from_transcript (no-op unless `tighten.enabled: true`)
 14. clean_audio
-15. balance_tracks
-16. compress_tracks
+15. compress_tracks
+16. balance_tracks
 17. assemble_timeline — final stems (edits + FX)
 18. reconcile_transcript — **pass 2** (post-FX audibility refresh)
 19. mix_with_music
