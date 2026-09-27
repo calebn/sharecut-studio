@@ -1,3 +1,4 @@
+import { isCrossfadeJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
 import { originTrackId } from "../utils/timebase";
 
@@ -54,7 +55,7 @@ function clipSlices(
   let timelineCursor = clip.timeline_start;
   const fadeInSec = Math.max(0, clip.fade_in_ms) / 1000;
   const fadeOutSec = Math.max(0, clip.fade_out_ms) / 1000;
-  const equalPower = clip.join_in_mode === "crossfade";
+  const equalPower = isCrossfadeJoin(clip);
   const firstIdx = chunkIndexForSource(clip.source_start, chunkSec);
   const lastIdx = chunkIndexForSource(
     Math.max(clip.source_start, clip.source_end - 1e-9),

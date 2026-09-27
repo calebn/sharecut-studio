@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ClipRow } from "../types/project";
-import { JOIN_MODE_OPTIONS, joinModeLabel, joinRenderNote } from "./joinRender";
+import {
+  cutFadeHint,
+  isCrossfadeJoin,
+  isCutJoin,
+  JOIN_MODE_OPTIONS,
+  joinModeLabel,
+  joinRenderNote,
+} from "./joinRender";
 
 const clip: ClipRow = {
   id: "c2",
@@ -32,8 +39,8 @@ describe("joinRender", () => {
 
   it("describes what render does", () => {
     expect(joinRenderNote({ ...clip, join_left_clip_id: null })).toBeNull();
-    expect(joinRenderNote({ ...clip, join_in_mode: "cut" })).toMatch(
-      /hard cut/,
+    expect(joinRenderNote({ ...clip, join_in_mode: "cut" })).toBe(
+      "Renders as a hard cut: the fades at this join are ignored.",
     );
     expect(joinRenderNote(clip)).toMatch(/fade at the join/);
     expect(
@@ -51,5 +58,21 @@ describe("joinRender", () => {
         join_crossfade_blocked: "no_fade_in",
       }),
     ).toMatch(/no fade-in/);
+  });
+});
+
+describe("join mode helpers", () => {
+  it("classifies join modes", () => {
+    expect(isCutJoin({ join_in_mode: "cut" })).toBe(true);
+    expect(isCutJoin({ join_in_mode: "fade" })).toBe(false);
+    expect(isCrossfadeJoin({ join_in_mode: "crossfade" })).toBe(true);
+    expect(isCrossfadeJoin({ join_in_mode: "cut" })).toBe(false);
+  });
+
+  it("words the cut-fade hint per edge", () => {
+    expect(cutFadeHint(false, false)).toBeNull();
+    expect(cutFadeHint(true, false)).toMatch(/Fade in ignored/);
+    expect(cutFadeHint(false, true)).toMatch(/Fade out ignored/);
+    expect(cutFadeHint(true, true)).toMatch(/both joins/);
   });
 });

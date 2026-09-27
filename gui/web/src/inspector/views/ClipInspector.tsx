@@ -3,6 +3,8 @@ import { setClipFade, setClipJoin } from "../../api";
 import { execute } from "../../commands/execute";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
 import {
+  cutFadeHint,
+  isCutJoin,
   JOIN_MODE_OPTIONS,
   joinModeLabel,
   joinRenderNote,
@@ -107,10 +109,18 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   };
 
   const leftClipId = clip.join_left_clip_id ?? null;
-  const isCut = clip.join_in_mode === "cut";
+  // Render ignores the fades at a cut join: this clip's fade-in when its
+  // incoming join is a cut, its fade-out when the next clip's join is.
+  const cutIn = isCutJoin(clip);
+  const cutOut = useDawStore((s) =>
+    Object.values(s.project?.clips?.tracks ?? {}).some((rows) =>
+      rows.some((c) => c.join_left_clip_id === clip.id && isCutJoin(c)),
+    ),
+  );
+  const fadeHint = cutFadeHint(cutIn, cutOut);
   const joinNote = joinRenderNote(clip);
 
-  // Empty length lets the server pick the mode's default.
+  // Empty length lets the server pick the mode's default; a typed length is used once.
   const commitJoin = async (mode: string, lengthStr: string) => {
     if (leftClipId === null) {
       return;
@@ -121,9 +131,14 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       setError("Join length must be a non-negative integer (ms)");
       return;
     }
-    await run(async () => {
+    const saved = await run(async () => {
       await setClipJoin(projectPath, leftClipId, clip.id, mode, length);
+      return true;
     });
+    if (saved) {
+      // A typed length applies once; the next mode change uses the default.
+      setJoinLengthStr("");
+    }
   };
 
   const runDelete = async (ripple: boolean) => {
@@ -199,7 +214,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeInStr}
-                disabled={busy || isCut}
+                disabled={busy || cutIn}
                 aria-label="Fade in ms"
                 onChange={(e) => setFadeInStr(e.target.value)}
               />
@@ -210,20 +225,18 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                 max={capKnown ? fadeLimitMs : undefined}
                 step={1}
                 value={fadeOutStr}
-                disabled={busy || isCut}
+                disabled={busy || cutOut}
                 aria-label="Fade out ms"
                 onChange={(e) => setFadeOutStr(e.target.value)}
               />
               <span>ms out</span>
               {capKnown ? (
                 <span className="ui-field-hint" role="status">
-                  {isCut
-                    ? "Ignored: this join is a cut"
-                    : (clampNotice ?? `max ${fadeLimitMs} ms`)}
+                  {fadeHint ?? clampNotice ?? `max ${fadeLimitMs} ms`}
                 </span>
               ) : null}
               <Button
-                disabled={busy || !capKnown || isCut}
+                disabled={busy || !capKnown || (cutIn && cutOut)}
                 onClick={() => void commitFades()}
               >
                 Apply fades
@@ -253,7 +266,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                     </option>
                   ))}
                 </select>
-                {isCut ? null : (
+                {cutIn ? null : (
                   <>
                     <input
                       type="number"
@@ -267,7 +280,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                     />
                     <span>ms</span>
                     <Button
-                      disabled={busy}
+                      disabled={busy || joinLengthStr.trim() === ""}
                       onClick={() =>
                         void commitJoin(clip.join_in_mode, joinLengthStr)
                       }

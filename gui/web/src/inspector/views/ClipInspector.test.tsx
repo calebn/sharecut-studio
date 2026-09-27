@@ -171,6 +171,7 @@ describe("ClipInspector join", () => {
   it("sets mode and fades together with the typed length", async () => {
     const user = userEvent.setup();
     const { container } = render(<ClipInspector clip={second} />);
+    expect(screen.getByRole("button", { name: "Apply length" })).toBeDisabled();
     await user.selectOptions(
       screen.getByLabelText("Join mode"),
       "Crossfade (overlap both clips)",
@@ -191,6 +192,7 @@ describe("ClipInspector join", () => {
       "fade",
       30,
     );
+    expect(screen.getByRole("button", { name: "Apply length" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Seek join" }).className,
     ).not.toMatch(/link/);
@@ -210,13 +212,65 @@ describe("ClipInspector join", () => {
     expect(screen.getByText(/no fade-in/)).toBeInTheDocument();
   });
 
-  it("disables fades on a cut join", () => {
+  it("disables only the fade at a cut join", () => {
     render(<ClipInspector clip={{ ...second, join_in_mode: "cut" }} />);
     expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
-    expect(screen.getByLabelText("Fade out ms")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Apply fades" })).toBeDisabled();
+    expect(screen.getByLabelText("Fade out ms")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Apply fades" })).toBeEnabled();
+    expect(screen.getByText(/Fade in ignored/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Join length ms")).toBeNull();
     expect(screen.getByText(/hard cut/)).toBeInTheDocument();
+  });
+
+  it("disables the fade-out when the next join is a cut", () => {
+    const third: ClipRow = {
+      ...second,
+      id: "c3",
+      timeline_start: 4,
+      timeline_end: 6,
+      join_left_clip_id: "c2",
+      join_in_mode: "cut",
+    };
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [sampleTrack()],
+        clips: { tracks: { host: [clip, second, third] }, clip_count: 3 },
+      }),
+    );
+    render(<ClipInspector clip={second} />);
+    expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
+    expect(screen.getByLabelText("Fade out ms")).toBeDisabled();
+    expect(screen.getByText(/Fade out ignored/)).toBeInTheDocument();
+  });
+
+  it("uses a typed length once, then the mode default", async () => {
+    const user = userEvent.setup();
+    render(<ClipInspector clip={second} />);
+    await user.type(screen.getByLabelText("Join length ms"), "40");
+    await user.selectOptions(
+      screen.getByLabelText("Join mode"),
+      "Crossfade (overlap both clips)",
+    );
+    expect(setClipJoin).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "crossfade",
+      40,
+    );
+    expect(screen.getByLabelText("Join length ms")).toHaveValue(null);
+    await user.selectOptions(
+      screen.getByLabelText("Join mode"),
+      "Cut (no fade)",
+    );
+    expect(setClipJoin).toHaveBeenLastCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "cut",
+      null,
+    );
   });
 
   it("rejects a bad length without calling the server", async () => {
