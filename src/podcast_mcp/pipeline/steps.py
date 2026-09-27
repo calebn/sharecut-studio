@@ -383,12 +383,15 @@ def _saved_stem_inputs_changed(
 def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import publish_stem, stem_is_fresh, track_render_hash
     from podcast_mcp.util.project_state import (
+        live_project,
         project_file_revision,
         project_state_lock,
         snapshot_project_with_revision,
     )
 
     render_project, initial_revision = snapshot_project_with_revision(project)
+    # A pipeline step renders its private copy; concurrent edits land on the live project (#357).
+    live = live_project(project)
     render_roles = {
         TrackRole.DIALOGUE,
         TrackRole.MUSIC,
@@ -442,15 +445,13 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             rendered[track_id] = out
             # A mutation during rendering must keep its new cause journal.
             with project_state_lock(project):
-                if track_render_hash(project, track_id) == track_render_hash(
-                    render_project, track_id
-                ):
+                if track_render_hash(live, track_id) == track_render_hash(render_project, track_id):
                     clear_invalidations_for_tracks(project, [track_id])
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
     with project_state_lock(project):
-        if _stem_inputs_changed(project, render_project, rendered, render_roles) or (
+        if _stem_inputs_changed(live, render_project, rendered, render_roles) or (
             project_file_revision(project) != initial_revision
             and _saved_stem_inputs_changed(project, render_project, rendered, render_roles)
         ):

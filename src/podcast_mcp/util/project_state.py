@@ -6,6 +6,7 @@ import functools
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from threading import Lock, RLock
 from typing import Concatenate, ParamSpec, TypeVar
@@ -26,6 +27,11 @@ RENDER_LOCK_TIMEOUT_SEC = 3600.0
 log = logging.getLogger(__name__)
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
+
+# (private step copy, live project it was copied from) for the running pipeline step (#357).
+_step_copy: ContextVar[tuple[EpisodeProject, EpisodeProject] | None] = ContextVar(
+    "pipeline_step_copy", default=None
+)
 
 
 def _workspace_key(project: EpisodeProject) -> str:
@@ -79,6 +85,29 @@ def snapshot_project_with_revision(
     """Capture in-memory render state and the workspace's durable revision together."""
     with project_state_lock(project):
         return project.model_copy(deep=True), project_file_revision(project)
+
+
+@contextmanager
+def step_copy(live: EpisodeProject, work: EpisodeProject) -> Iterator[None]:
+    """Mark ``work`` as a pipeline step's private copy of ``live`` for this context (#357)."""
+    token = _step_copy.set((work, live))
+    try:
+        yield
+    finally:
+        _step_copy.reset(token)
+
+
+def live_project(project: EpisodeProject) -> EpisodeProject:
+    """The live project ``project`` was copied from for a pipeline step, else ``project``.
+
+    Guards that must notice concurrent in-memory edits (the stem render's "project changed
+    during rendering" check) compare against this, not against the step's private copy,
+    which nothing else mutates.
+    """
+    pair = _step_copy.get()
+    if pair is not None and pair[0] is project:
+        return pair[1]
+    return project
 
 
 @contextmanager

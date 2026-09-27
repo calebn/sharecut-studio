@@ -26,7 +26,9 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline import steps
+from podcast_mcp.pipeline.runner import PipelineRunner
 from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.util.project_state import project_state_lock
 
 
 def _dialogue_project(minimal_project: Path, sample_wav: Path, tmp_workspace: Path):
@@ -151,6 +153,34 @@ def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
     assert read_stem_hash(proj, "host") == before_hash
     assert track_render_hash(proj, "host") != before_hash
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
+
+
+def test_runner_stem_step_rejects_live_in_memory_edit_during_render(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.tracks = proj.tracks[:1]
+    proj.clips = [
+        Clip(id="host-clip", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0)
+    ]
+
+    class MutatingEngine:
+        def render_dialogue_track(self, _snapshot, _track, out, _defaults):
+            # Uncommitted edit to the live project while the step renders its private copy.
+            with project_state_lock(proj):
+                proj.clips[0].source_end = 0.5
+            out.write_bytes(b"old cut")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    monkeypatch.setattr(steps, "schedule_stem_waveforms", lambda *_a, **_k: None)
+    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+        PipelineRunner(defaults={"performance": {"max_workers": 2}}).run(
+            proj, only_step="assemble_timeline"
+        )
+    assert proj.clips[0].source_end == 0.5
+    assert not (proj.artifacts_dir() / "track_outputs.json").exists()
+    assert proj.pipeline_runs[-1].steps[-1].status == "error"
 
 
 def test_stem_rejects_other_workspace_commit_during_render(

@@ -38,7 +38,12 @@ from podcast_mcp.services import history as history_service_mod
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
-from podcast_mcp.util.project_state import project_state_lock, snapshot_project
+from podcast_mcp.util.project_state import (
+    live_project,
+    project_state_lock,
+    snapshot_project,
+    step_copy,
+)
 
 
 def _two_tracks(minimal_project: Path) -> ProjectWorkspace:
@@ -824,3 +829,13 @@ def test_a_failed_step_still_publishes_its_partial_changes(minimal_project, monk
     with pytest.raises(RuntimeError):
         PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
     assert ws.project.track_by_id("host").gain_db == 3.0
+
+
+def test_live_project_resolves_only_the_marked_step_copy(minimal_project):
+    live = load_project(minimal_project)
+    work = live.model_copy(deep=True)
+    assert live_project(work) is work
+    with step_copy(live, work):
+        assert live_project(work) is live
+        assert live_project(live) is live
+    assert live_project(work) is work
