@@ -235,6 +235,7 @@ export function PipelinePanel() {
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const persistSeq = useRef(0);
+  const analyzeSeq = useRef(0);
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
@@ -249,6 +250,13 @@ export function PipelinePanel() {
   const agentRecent = sessionClients.some((c) => c.role === "agent");
 
   useEffect(() => {
+    // A project switch drops in-flight writes and the previous project's Analyze results.
+    persistSeq.current += 1;
+    analyzeSeq.current += 1;
+    setAnalyzing(false);
+    setReasons([]);
+    setTrackRows([]);
+    setHighlightPaths(new Set());
     let cancelled = false;
     void loadPipelineConfig(projectPath)
       .then((data) => {
@@ -406,8 +414,12 @@ export function PipelinePanel() {
   const onAnalyze = async () => {
     setError(null);
     setAnalyzing(true);
+    const seq = ++analyzeSeq.current;
     try {
       const result = await analyzePipeline(projectPath, { apply: true });
+      if (seq !== analyzeSeq.current) {
+        return;
+      }
       setReasons(result.reasons);
       setTrackRows(result.report_summary?.tracks ?? []);
       const paths = new Set<string>();
@@ -423,15 +435,21 @@ export function PipelinePanel() {
       };
       walk(result.patches ?? {}, "");
       setHighlightPaths(paths);
-      if (result.config) {
-        setCfg(result.config);
-      } else {
-        setCfg(await loadPipelineConfig(projectPath));
+      const next = result.config ?? (await loadPipelineConfig(projectPath));
+      if (seq !== analyzeSeq.current) {
+        return;
       }
+      // Analyze's config is the newest server state: older in-flight persists must not overwrite it.
+      persistSeq.current += 1;
+      setCfg(next);
     } catch (e) {
-      setError(errorMessage(e));
+      if (seq === analyzeSeq.current) {
+        setError(errorMessage(e));
+      }
     } finally {
-      setAnalyzing(false);
+      if (seq === analyzeSeq.current) {
+        setAnalyzing(false);
+      }
     }
   };
 

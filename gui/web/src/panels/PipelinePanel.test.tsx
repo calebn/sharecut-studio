@@ -226,6 +226,7 @@ describe("PipelinePanel", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState.projectPath = "/tmp/ep.project.json";
     dawState.pipelineJob = null;
     dawState.activityJob = null;
     loadPipelineConfig.mockResolvedValue(structuredClone(baseConfig));
@@ -919,6 +920,61 @@ describe("PipelinePanel", () => {
     expect(
       screen.queryByRole("button", { name: "Uncheck Align tracks" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("drops an Analyze result that resolves after the project changed", async () => {
+    const user = userEvent.setup();
+    let resolveAnalyze!: (v: unknown) => void;
+    analyzePipeline.mockImplementation(
+      () =>
+        new Promise((r) => {
+          resolveAnalyze = r;
+        }),
+    );
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    mockState.projectPath = "/tmp/other.project.json";
+    rerender(<PipelinePanel />);
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenLastCalledWith(
+        "/tmp/other.project.json",
+      );
+    });
+    const staleConfig = structuredClone(baseConfig);
+    staleConfig.enabled_steps = ["ingest_tracks"];
+    await act(async () => {
+      resolveAnalyze({
+        proposed_config: {},
+        patches: {},
+        reasons: [
+          {
+            code: "hum",
+            message: "host: mains hum from project A",
+            evidence: {},
+          },
+        ],
+        report_summary: {
+          track_count: 1,
+          reason_count: 1,
+          tracks: [{ track_id: "host" }],
+        },
+        applied: true,
+        config: staleConfig,
+      });
+    });
+    expect(
+      screen.queryByText("host: mains hum from project A"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Per-track measurements/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Enable Balance tracks" }),
+    ).toBeChecked();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
   });
 
   it("formatAnalyzeFields skips nulls and a given key", () => {
