@@ -86,7 +86,8 @@ flowchart TD
 
 1. Offline edits queue silently.
 2. Structural ops may demote to **propose** when policy requires.
-3. Conflicts surface as **Needs attention** (dismissible list) — not a cryptic error toast.
+3. Conflicts surface as **Needs attention** (dismissible list, capped at 5 items
+   with a trailing "+N more" once more are queued) — not a cryptic error toast.
 
 ---
 

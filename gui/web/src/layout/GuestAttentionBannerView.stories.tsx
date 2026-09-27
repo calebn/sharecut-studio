@@ -81,8 +81,8 @@ export const PhoneManyConflicts: Story = {
     ),
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getAllByRole("listitem")).toHaveLength(
-      5,
-    );
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByRole("listitem")).toHaveLength(6);
+    await expect(canvas.getByText("+2 more")).toBeInTheDocument();
   },
 };

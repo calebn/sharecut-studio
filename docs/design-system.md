@@ -183,7 +183,8 @@ renders the production `GuestAttentionBannerView` used by the live
 `GuestAttentionBanner`, which polls IndexedDB every 2s for pending host
 edits and host/guest 409 conflicts and resolves the share-token vs.
 host-project path; the view renders the pending/conflict summary, the
-truncated (5-item) conflict list, and the dismiss control from props alone.
+conflict list (first 5 items, then a "+N more" item), and the dismiss
+control from props alone.
 Both stories share `dawShellStoryDecorator` for a real `.daw-shell` frame at
 desktop and 360px widths.
 
@@ -361,7 +362,8 @@ that store or simulate command execution.
   `GuestAttentionBannerView` from `FollowBanner` and `GuestAttentionBanner`,
   added `Templates/FollowBanner` and `Templates/GuestAttentionBanner` with
   the shared `dawShellStoryDecorator`, and removed cluster **B** from the
-  Catalog boundary follow-up list.
+  Catalog boundary follow-up list; the conflict list now ends with a "+N
+  more" item when more than 5 conflicts are queued.
 
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,

@@ -1,7 +1,7 @@
 import type { OfflineConflict } from "../state/offlineStore";
 import { plural } from "../utils/format";
 
-/** Conflict list items shown before the rest are truncated. */
+/** Conflict list items shown before the rest collapse into a "+N more" item. */
 export const ATTENTION_LISTED_CONFLICTS = 5;
 
 export interface GuestAttentionBannerViewProps {
@@ -20,6 +20,11 @@ export function GuestAttentionBannerView({
   if (conflicts.length === 0 && pending === 0) {
     return null;
   }
+
+  const hiddenConflicts = Math.max(
+    0,
+    conflicts.length - ATTENTION_LISTED_CONFLICTS,
+  );
 
   return (
     <div className="guest-attention" role="alert">
@@ -48,6 +53,9 @@ export function GuestAttentionBannerView({
             <code>{c.command.type}</code>: {c.reason}
           </li>
         ))}
+        {hiddenConflicts > 0 && (
+          <li key="more">{`+${hiddenConflicts} more`}</li>
+        )}
       </ul>
     </div>
   );
