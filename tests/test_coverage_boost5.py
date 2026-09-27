@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from urllib.parse import quote
 from uuid import uuid4
@@ -135,6 +136,52 @@ def test_document_ws_is_server_to_client_only(minimal_project):
         applied = ws.receive_json()
         assert applied["server_seq"] == 7
     assert load_project(minimal_project).comments == []
+
+
+def test_document_ws_closes_4403_when_authz_revoked_mid_session(minimal_project, monkeypatch):
+    from podcast_mcp.gui.routes import document as document_route
+    from podcast_mcp.services.session_sync.authz import AuthzDecision
+
+    calls = {"n": 0}
+
+    def _auth(**_kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return AuthzDecision(allowed=True)
+        return AuthzDecision(allowed=False, reason="revoked")
+
+    monkeypatch.setattr(document_route, "authorize_client", _auth)
+    monkeypatch.setattr(document_route, "DOCUMENT_WS_AUTHZ_RECHECK_S", 0.01)
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-revoke&role=viewer"
+    with client.websocket_connect(url) as ws:
+        assert ws.receive_json()["type"] == "Snapshot"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_json()
+    assert closed.value.code == 4403
+    assert closed.value.reason == "authorization revoked"
+    assert calls["n"] >= 2
+
+
+def test_document_ws_closes_1011_and_logs_when_pump_fails(minimal_project, caplog):
+    from podcast_mcp.services.document_sync.service import document_hub_key
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    client = TestClient(create_app())
+    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-pump&role=viewer"
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.document"),
+        client.websocket_connect(url) as ws,
+    ):
+        assert ws.receive_json()["type"] == "Snapshot"
+        get_hub().publish(
+            document_hub_key(load_project(minimal_project)),
+            {"type": "Applied", "plane": "document", "unserializable": object()},
+        )
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_json()
+    assert closed.value.code == 1011
+    assert "document pump failed" in caplog.text
 
 
 def test_document_ws_guest_denied(minimal_project):

@@ -21,7 +21,7 @@ async def guest_ws_reject(websocket: WebSocket, code: int, reason: str) -> None:
 
 
 class GuestWsGuard:
-    """Write lock, malformed counter, and periodic share recheck."""
+    """Write lock, malformed counter, and periodic re-authorization (share guests and the owner ``/api/document/ws``)."""
 
     def __init__(
         self,
@@ -32,10 +32,12 @@ class GuestWsGuard:
         on_frame: float = GUEST_SHARE_RECHECK_ON_FRAME_S,
         malformed_limit: int = GUEST_MALFORMED_LIMIT,
         send_gate: Callable[[], bool] | None = None,
+        revoked_reason: str = "share revoked or expired",
     ) -> None:
         self.websocket = websocket
         self._still_valid = still_valid
         self._send_gate = send_gate
+        self._revoked_reason = revoked_reason
         self.interval = interval
         self.on_frame = on_frame
         self.malformed_limit = malformed_limit
@@ -68,7 +70,7 @@ class GuestWsGuard:
         while True:
             await asyncio.sleep(self.interval)
             if not self._still_valid():
-                await self.close(4403, "share revoked or expired")
+                await self.close(4403, self._revoked_reason)
                 return
 
     def share_ok_on_frame(self) -> bool:

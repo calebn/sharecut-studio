@@ -194,7 +194,7 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 |----------|---------|
 | `GET /api/document/comments` | Document snapshot (`server_seq`, `comments`, `history` groups) |
 | `POST /api/document/command` | Typed commands (see table below) |
-| `WS /api/document/ws` | Server→client only: hello shell `Snapshot`, then fanout `Applied`. Inbound frames are ignored; commands use `POST /api/document/command` |
+| `WS /api/document/ws` | Server→client only: hello shell `Snapshot`, then fanout `Applied`. Inbound frames are ignored; commands use `POST /api/document/command`. `authorize_client` runs on connect and every 30 s (`DOCUMENT_WS_AUTHZ_RECHECK_S`); a revoked grant closes `4403`; a failed fan-out pump is logged and closes `1011` so the client reconnects and resyncs |
 
 ### Command identity and retries
 

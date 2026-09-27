@@ -1177,6 +1177,7 @@ async def test_guest_ws_guard_recheck_and_malformed():
     await guard.send_json({"ok": True})
     await guard.recheck_loop()
     assert any(code == 4403 for code, _reason in ws.closed)
+    assert (4403, "share revoked or expired") in ws.closed
     assert guard.closed is True
     await guard.close(4403, "already closed")
     await guard.send_json({"ignored": True})

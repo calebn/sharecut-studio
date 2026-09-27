@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import sqlite3
 from typing import Any
 
@@ -19,19 +20,23 @@ from podcast_mcp.gui.routes.deps import (
     require_authz,
     resolve_project,
 )
+from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import document_command_from_body
 from podcast_mcp.services.document_sync.service import document_hub_key
-from podcast_mcp.services.session_sync.authz import authorize_client
+from podcast_mcp.services.session_sync.authz import AuthzDecision, authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
 _PROJECT_BUSY = "Project is busy in another process; try again"
+log = logging.getLogger(__name__)
+# The socket has no inbound frames to hook, so authorize_client re-runs on a timer.
+DOCUMENT_WS_AUTHZ_RECHECK_S = 30.0
 
 
 def _is_project_busy(exc: BaseException) -> bool:
@@ -113,6 +118,9 @@ async def document_ws(
     """Server→client document fan-out: hello shell ``Snapshot``, then hub ``Applied``.
 
     Commands use ``POST /api/document/command``; inbound frames are ignored (#565).
+    ``authorize_client`` runs on connect and every ``DOCUMENT_WS_AUTHZ_RECHECK_S``;
+    a revoked grant closes ``4403`` and a failed hub pump closes ``1011`` (client
+    reconnects and resyncs).
     """
     denied = websocket_host_binding_denied(websocket)
     if denied is not None:
@@ -121,14 +129,18 @@ async def document_ws(
     project_path = resolve_project(path, websocket)  # type: ignore[arg-type]
     peer = websocket.client.host if websocket.client else None
     relayed = is_relayed_request(websocket.headers)
-    decision = authorize_client(
-        client_id=client_id,
-        role=role,
-        peer_host=peer,
-        token=token,
-        display_name=label,
-        relayed=relayed,
-    )
+
+    def _authorize() -> AuthzDecision:
+        return authorize_client(
+            client_id=client_id,
+            role=role,
+            peer_host=peer,
+            token=token,
+            display_name=label,
+            relayed=relayed,
+        )
+
+    decision = _authorize()
     if not decision.allowed:
         await websocket.close(code=4403, reason=decision.reason[:120])
         return
@@ -140,14 +152,20 @@ async def document_ws(
 
     ws_proj, svc = await run_in_threadpool(open_document)
     await websocket.accept()
+    guard = GuestWsGuard(
+        websocket,
+        lambda: _authorize().allowed,
+        interval=DOCUMENT_WS_AUTHZ_RECHECK_S,
+        revoked_reason="authorization revoked",
+    )
     hub = get_hub()
     key = document_hub_key(ws_proj.project)
     loop = asyncio.get_running_loop()
     queue = hub.subscribe(key, loop)
-    hub_task: asyncio.Task[None] | None = None
+    tasks: list[asyncio.Task[None]] = []
     try:
         initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
-        await websocket.send_json(
+        await guard.send_json(
             {
                 "type": "Snapshot",
                 "plane": "document",
@@ -156,22 +174,30 @@ async def document_ws(
         )
 
         async def _pump_hub() -> None:
-            while True:
-                event = await queue.get()
-                await websocket.send_json(event)
+            try:
+                while True:
+                    event = await queue.get()
+                    await guard.send_json(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("document pump failed client_id=%s", client_id)
+                with contextlib.suppress(Exception):
+                    await guard.close(1011, "document pump failed")
+                raise
 
-        hub_task = asyncio.create_task(_pump_hub())
-        # Server→client only (#565): the hello Snapshot above and _pump_hub (started after
-        # it) are this socket's only senders and never overlap, so sends need no lock.
-        # Inbound frames are drained only to notice the disconnect; commands go through
-        # POST /api/document/command.
+        tasks = [asyncio.create_task(_pump_hub()), asyncio.create_task(guard.recheck_loop())]
+        # Server→client only (#565): every send (hello Snapshot, _pump_hub, the authz
+        # recheck's 4403 close) goes through guard's write lock. Inbound frames are drained
+        # only to notice the disconnect; commands go through POST /api/document/command.
+        # Raw receive(), not receive_text(): a binary frame must not raise KeyError.
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
                 break
     finally:
         hub.unsubscribe(key, queue)
-        if hub_task is not None:
-            hub_task.cancel()
+        for task in tasks:
+            task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
-                await hub_task
+                await task
