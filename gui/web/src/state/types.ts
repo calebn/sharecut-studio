@@ -96,7 +96,7 @@ export interface DawState {
   activityJob: PipelineJobSnapshot | null;
   activityRunningCount: number;
   isPlaying: boolean;
-  /** Playhead when playback last started; Stop returns here (null: never started). */
+  /** Playhead when playback last started; Stop returns here. A seek while not playing and Stop itself reset it to null. */
   playStartSec: number | null;
   auditionMode: AuditionMode;
   viewerMute: Record<string, boolean>;
@@ -196,7 +196,7 @@ export interface DawState {
   setActivityRunningCount: (count: number) => void;
   setIsPlaying: (playing: boolean) => void;
   togglePlaying: () => void;
-  /** Stop: halt and return to `playStartSec` (Pause keeps the position). */
+  /** Stop: halt and return to playStartSec clamped to the timeline, then forget it (Pause keeps the position). */
   stopPlayback: () => void;
   setAuditionMode: (mode: AuditionMode) => void;
   toggleViewerMute: (trackId: string) => void;
