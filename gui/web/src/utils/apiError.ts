@@ -29,22 +29,18 @@ export function isRetryLater(error: unknown): boolean {
   return error.status === 408 || error.status === 429 || error.status >= 500;
 }
 
-/** True for any 4xx the server answered (including 408 / 429). */
-export function isClientRejection(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status !== null &&
-    error.status >= 400 &&
-    error.status < 500
-  );
-}
-
 /**
  * A 4xx other than 408 / 429: the server refused this request for good
  * (validation, auth, conflict, revoked share), so retrying it cannot help.
  */
 export function isPermanentRejection(error: unknown): boolean {
-  return isClientRejection(error) && !isRetryLater(error);
+  return (
+    error instanceof ApiError &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    !isRetryLater(error)
+  );
 }
 
 const HOST_OFFLINE_MESSAGE =
