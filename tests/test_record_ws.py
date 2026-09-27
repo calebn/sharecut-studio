@@ -754,6 +754,42 @@ def test_rejoin_after_leave_same_client_seq_reconnects(
         assert person["consented"] is None
 
 
+def test_record_ws_cleanup_runs_when_stop_tasks_raises(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import contextlib
+
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsConnection
+    from podcast_mcp.services.remote_mcp.limits import (
+        get_host_limiters,
+        reset_host_limiters_for_tests,
+    )
+
+    monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
+    reset_host_limiters_for_tests()
+    real_stop = GuestWsConnection.stop_tasks
+
+    async def _stop_then_raise(self):
+        await real_stop(self)
+        raise RuntimeError("stop_tasks boom")
+
+    monkeypatch.setattr(GuestWsConnection, "stop_tasks", _stop_then_raise)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with contextlib.suppress(RuntimeError):
+        with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as sock:
+            _join(sock, name="Ava")
+            echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    ava = next(
+        p for p in svc.snapshot()["participants"] if p["participant_id"] == echo["participant_id"]
+    )
+    assert ava["connected"] is False
+    lim = get_host_limiters()
+    assert lim.guest_ws_concurrent.try_enter(token).allowed  # slot was released
+    lim.guest_ws_concurrent.exit(token)
+
+
 def test_record_http_state_and_command_errors(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
