@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -54,6 +54,13 @@ with its story colocated in the feature folder (for example
 `src/record/ConsentGate.stories.tsx` → `Templates/ConsentGate`,
 `src/record/LiveComments.stories.tsx` → `Templates/LiveComments`,
 `src/record/HostUploadRoster.stories.tsx` → `Templates/HostUploadRoster`).
+
+- `dawShellStoryDecorator` (`src/layout/dawShellStoryDecorator.tsx`) renders a
+  story inside a real `.daw-shell` (or `.daw-shell daw-shell--phone` at 360px
+  with `parameters.dawShellPhone`) with a fixed `20rem` height, since
+  `.daw-shell` is `container: app / size` and size containment collapses at
+  `height: auto`, plus an empty `<main aria-label="Stage" />` sibling so the
+  banner isn't the story's only landmark.
 
 - Render the surface in its production shell and stylesheet so the story
   renders what ships. Record-room stories use `recordStoryDecorator`
@@ -167,6 +174,19 @@ fixed 640px shell (24rem max) and never touches localStorage or the root
 variable. As in production, `onResize` receives the unclamped request and the
 owner clamps it.
 
+`Templates/FollowBanner` renders the production `FollowBannerView` used by
+the live `FollowBanner`. The adapter looks up the followed client's display
+name and roster role and dispatches `presence.unfollow`; the view computes
+the host-only-tab and audition-degrade detail text and the guest
+"Listening in Mix" hint from props alone. `Templates/GuestAttentionBanner`
+renders the production `GuestAttentionBannerView` used by the live
+`GuestAttentionBanner`, which polls IndexedDB every 2s for pending host
+edits and host/guest 409 conflicts and resolves the share-token vs.
+host-project path; the view renders the pending/conflict summary, the
+truncated (5-item) conflict list, and the dismiss control from props alone.
+Both stories share `dawShellStoryDecorator` for a real `.daw-shell` frame at
+desktop and 360px widths.
+
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
@@ -186,9 +206,6 @@ checkbox so it can ship as its own PR:
 
 - **A** ([#608](https://github.com/calebn/sharecut-studio/issues/608)) — share
   and bounce dialogs: `ShareDialog`, `BounceDialog`
-- **B** ([#609](https://github.com/calebn/sharecut-studio/issues/609)) —
-  follow and guest-attention banners: `FollowBanner`,
-  `GuestAttentionBanner`
 - **C** ([#610](https://github.com/calebn/sharecut-studio/issues/610)) —
   status-bar chrome: `StatusBar`, `AvatarStack`, `OverlayLegend`
 - **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
@@ -208,8 +225,8 @@ checkbox so it can ship as its own PR:
 and `MenuItem`, which already have stories; they are not on this list and get
 no separate refactor issue. A component leaves this list only once its
 production view is extracted into a props-only `XView` rendered by the live
-adapter, the way `TrackHeaderView`, `TimeRulerView` and `TranscriptTurnView`
-already were.
+adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
+`FollowBannerView` and `GuestAttentionBannerView` already were.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -339,6 +356,13 @@ that store or simulate command execution.
   props-only `InspectorSeekFooterView`, and `Templates/BottomTabsSplitter`
   over `BottomTabsSplitterView`; the blocked-skip reason uses a `useId()` id;
   follow-up E leaves the catalog boundary list (#612).
+
+- 2026-09-27 — Closed #609: extracted props-only `FollowBannerView` and
+  `GuestAttentionBannerView` from `FollowBanner` and `GuestAttentionBanner`,
+  added `Templates/FollowBanner` and `Templates/GuestAttentionBanner` with
+  the shared `dawShellStoryDecorator`, and removed cluster **B** from the
+  Catalog boundary follow-up list.
+
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
   the `UndoToast` and `FocusPull` stories, and the Catalog boundary section

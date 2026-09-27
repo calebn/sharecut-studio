@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { offlineConflict } from "../test/fixtures";
 import { dawShellStoryDecorator } from "./dawShellStoryDecorator";
@@ -51,7 +51,7 @@ export const Conflicts: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await canvas.getByRole("button", { name: "Dismiss all" }).click();
+    await userEvent.click(canvas.getByRole("button", { name: "Dismiss all" }));
     await expect(args.onDismissAll).toHaveBeenCalledTimes(1);
   },
 };

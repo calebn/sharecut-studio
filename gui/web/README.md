@@ -67,6 +67,12 @@ props and local callbacks.
 separator with keyboard resize and a 360px band. The live `BottomTabsSplitter`
 keeps the `useTabsHeight` preference (localStorage and the root
 `--tabs-height`); stories use local state only.
+`Templates/FollowBanner` and `Templates/GuestAttentionBanner` use the
+production `FollowBannerView` and `GuestAttentionBannerView` shared with the
+live `FollowBanner` and `GuestAttentionBanner` adapters, which keep the
+roster/store lookups, IndexedDB polling, and share-vs-host token resolution.
+Both stories share the `dawShellStoryDecorator` `.daw-shell` frame at desktop
+and 360px widths.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
