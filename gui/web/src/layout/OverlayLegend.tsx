@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { addChapter } from "../api";
 import { isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import type { LayerVisibility } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { Button } from "../ui";
@@ -39,14 +40,14 @@ export function LegendCheckbox({
 }
 
 export function OverlayLegend({ menu = false }: { menu?: boolean }) {
-  const { layers, setLayerVisible, projectPath, playheadSec, setSelection } =
-    useDaw((s) => ({
+  const { layers, setLayerVisible, projectPath, setSelection } = useDaw(
+    (s) => ({
       layers: s.layers,
       setLayerVisible: s.setLayerVisible,
       projectPath: s.projectPath,
-      playheadSec: s.playheadSec,
       setSelection: s.setSelection,
-    }));
+    }),
+  );
   const hostEditable = !isShareProjectKey(projectPath);
 
   return (
@@ -72,6 +73,7 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
           title="Add chapter marker at playhead"
           onClick={() => {
             void (async () => {
+              const playheadSec = useDawStore.getState().playheadSec;
               const title = `Chapter ${playheadSec.toFixed(1)}s`;
               await addChapter(projectPath, playheadSec, title);
               setSelection({

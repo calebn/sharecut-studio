@@ -31,11 +31,9 @@ import {
   Pill,
   pillClassName,
   SegmentedControl,
-  Timecode,
   ToggleButton,
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
-import { transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
@@ -43,6 +41,7 @@ import { LegendCheckbox, OverlayLegend } from "./OverlayLegend";
 import { ToolModeToggle } from "./ToolModeToggle";
 import { TransportFrame, TransportZone } from "./TransportFrame";
 import { TransportPlayControls } from "./TransportPlayControls";
+import { TransportTimecode } from "./TransportTimecode";
 import { transportPlayHandlers } from "./transportPlay";
 
 const MODES: { id: AuditionMode; label: string; title: string }[] = [
@@ -73,7 +72,6 @@ export function TransportBar({
 }: Props) {
   const {
     project,
-    playheadSec,
     isPlaying,
     auditionMode,
     audioError,
@@ -92,7 +90,6 @@ export function TransportBar({
     laneHeightMode,
   } = useDaw((s) => ({
     project: s.project,
-    playheadSec: s.playheadSec,
     isPlaying: s.isPlaying,
     auditionMode: s.auditionMode,
     audioError: s.audioError,
@@ -146,7 +143,6 @@ export function TransportBar({
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mayManage = canManageProjects(projectPath);
   const duration = project?.timeline_duration_sec ?? 0;
-  const timecode = transportTimecode(playheadSec, duration);
 
   const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
@@ -350,11 +346,7 @@ export function TransportBar({
           />
         </div>
         {showRecordingChip ? <RecordTransportChip /> : null}
-        <Timecode
-          current={timecode.current}
-          total={collapsed ? undefined : timecode.total}
-          title={timecode.title}
-        />
+        <TransportTimecode durationSec={duration} showTotal={!collapsed} />
         {!collapsed ? auditionGroup() : null}
       </TransportZone>
       <TransportZone position="end">
@@ -418,7 +410,6 @@ export function TransportBar({
                 <CommandButton
                   bare
                   commandId="edit.bladeCut"
-                  args={{ atTime: playheadSec }}
                   className="ui-control--compact transport-icon-btn"
                   title="Split selected tracks at playhead"
                   aria-label="Cut at playhead"
