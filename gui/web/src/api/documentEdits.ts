@@ -41,11 +41,15 @@ export async function redoHistory(
   });
 }
 
+/** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
 export async function approveEdits(
   projectPath: string,
   ids: string[],
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "ApproveEdits", { ids });
+): Promise<{ queued: boolean }> {
+  const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
+    ids,
+  });
+  return { queued: result.queued === true };
 }
 
 export async function waiveTranscriptRefine(
@@ -62,11 +66,15 @@ export async function waiveTranscriptRefine(
   }
 }
 
+/** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
 export async function rejectEdits(
   projectPath: string,
   ids: string[],
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "RejectEdits", { ids });
+): Promise<{ queued: boolean }> {
+  const result = await submitDocumentCommand(projectPath, "RejectEdits", {
+    ids,
+  });
+  return { queued: result.queued === true };
 }
 
 export async function updatePendingEdit(

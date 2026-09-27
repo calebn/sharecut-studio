@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { approveEdits, rejectEdits } from "../api";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import {
@@ -9,6 +10,7 @@ import { useDaw } from "../state/useDaw";
 import { Button, InlineError } from "../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending } from "../utils/edits";
+import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 
 export function ImpactPanel() {
   const { project, projectPath, setSelection } = useDaw((s) => ({
@@ -17,6 +19,7 @@ export function ImpactPanel() {
     setSelection: s.setSelection,
   }));
   const { busy, error, errorCode, setError, run } = useProjectMutation();
+  const [sendingNotice, setSendingNotice] = useState(false);
 
   if (!project) {
     return null;
@@ -30,12 +33,13 @@ export function ImpactPanel() {
     if (ids.length === 0) {
       return;
     }
+    setSendingNotice(false);
     await run(async () => {
-      if (action === "approve") {
-        await approveEdits(projectPath, ids);
-      } else {
-        await rejectEdits(projectPath, ids);
-      }
+      const { queued } =
+        action === "approve"
+          ? await approveEdits(projectPath, ids)
+          : await rejectEdits(projectPath, ids);
+      setSendingNotice(queued);
       setSelection(null);
     });
   };
@@ -113,6 +117,11 @@ export function ImpactPanel() {
             : error
         }
       />
+      {sendingNotice ? (
+        <p className="ui-field-hint" role="status">
+          {PENDING_REVIEW_QUEUED_MESSAGE}
+        </p>
+      ) : null}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery
           key={reviewRequired.map((edit) => edit.id).join(",")}

@@ -11,8 +11,8 @@ import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
 
 vi.mock("../api", () => ({
-  approveEdits: vi.fn(),
-  rejectEdits: vi.fn(),
+  approveEdits: vi.fn(async () => ({ queued: false })),
+  rejectEdits: vi.fn(async () => ({ queued: false })),
   waiveTranscriptRefine: vi.fn(),
 }));
 
@@ -50,7 +50,7 @@ function project() {
 
 describe("ImpactPanel transcript refine recovery", () => {
   beforeEach(() => {
-    vi.mocked(approveEdits).mockReset();
+    vi.mocked(approveEdits).mockReset().mockResolvedValue({ queued: false });
     vi.mocked(waiveTranscriptRefine).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
@@ -65,6 +65,20 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(
       screen.getByRole("button", { name: /filler:um · host/ }),
     ).toHaveAttribute("data-pending-id", "e1");
+  });
+
+  it("says a bulk approval that is still sending is not done yet", async () => {
+    const user = userEvent.setup();
+    vi.mocked(approveEdits).mockResolvedValue({ queued: true });
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /Approve all/ }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Still sending/,
+    );
   });
 
   it("offers a waiver after bulk approval is blocked without retrying approval", async () => {

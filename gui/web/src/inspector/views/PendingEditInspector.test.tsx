@@ -26,7 +26,7 @@ vi.mock("../../api", () => ({
   refreshProject: (...args: unknown[]) => refreshProject(...args),
   approveEdits: (...args: unknown[]) => approveEdits(...args),
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
-  rejectEdits: vi.fn(),
+  rejectEdits: vi.fn(async () => ({ queued: false })),
   updatePendingEdit: (...args: unknown[]) => updatePendingEdit(...args),
 }));
 
@@ -56,7 +56,7 @@ describe("PendingEditInspector", () => {
     createComment.mockReset();
     patchComment.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
-    approveEdits.mockReset();
+    approveEdits.mockReset().mockResolvedValue({ queued: false });
     waiveTranscriptRefine.mockReset();
     waiveTranscriptRefine.mockResolvedValue(undefined);
     refreshProject.mockResolvedValue(
@@ -66,6 +66,18 @@ describe("PendingEditInspector", () => {
       ...minimalProject(),
       pending_edits: [sessionCut],
     });
+  });
+
+  it("says an approval that is still sending is not done yet", async () => {
+    const user = userEvent.setup();
+    approveEdits.mockResolvedValue({ queued: true });
+    const { container } = render(<PendingEditInspector edit={sessionCut} />);
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Still sending/,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    await expectNoA11yViolations(container);
   });
 
   it("defaults to Suggested preview for a session remove", async () => {

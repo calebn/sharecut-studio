@@ -27,6 +27,7 @@ import {
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import { loadCommentAuthor } from "../../utils/commentAuthor";
 import {
+  PENDING_REVIEW_QUEUED_MESSAGE,
   pendingReasonLabel,
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
@@ -56,6 +57,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
+  const [sendingNotice, setSendingNotice] = useState(false);
   const isSplit = edit.type === "split";
   const skipOk = canSuggestSkip(edit);
   const skipReason = suggestDisabledReason(edit);
@@ -87,6 +89,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
 
   useEffect(() => {
     setError(null);
+    setSendingNotice(false);
   }, [edit.id, setError]);
 
   useEffect(() => {
@@ -119,11 +122,16 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   ]);
 
   const runAction = async (action: "approve" | "reject") => {
+    setSendingNotice(false);
     await run(async () => {
-      if (action === "approve") {
-        await approveEdits(projectPath, [edit.id]);
-      } else {
-        await rejectEdits(projectPath, [edit.id]);
+      const { queued } =
+        action === "approve"
+          ? await approveEdits(projectPath, [edit.id])
+          : await rejectEdits(projectPath, [edit.id]);
+      if (queued) {
+        // Saved but not sent yet: keep the edit selected and say so.
+        setSendingNotice(true);
+        return;
       }
       const next = useDawStore.getState().project;
       const stillThere = next?.pending_edits.some((e) => e.id === edit.id);
@@ -340,6 +348,11 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           <DefItem label="Confidence">{edit.cut_confidence.toFixed(2)}</DefItem>
         ) : null}
       </DefinitionList>
+      {sendingNotice ? (
+        <p className="ui-field-hint" role="status">
+          {PENDING_REVIEW_QUEUED_MESSAGE}
+        </p>
+      ) : null}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery
           key={edit.id}
