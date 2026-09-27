@@ -123,8 +123,11 @@ def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
 
     Cached in-process per resolved path, ``file_revision`` (device, inode, size, mtime)
     and ``peak_dbfs``, so a re-run Analyze (GUI button, MCP) does not decode an unchanged
-    file again; an atomic replace misses the cache. An in-place rewrite that keeps inode,
-    size and mtime is not detected until the process restarts.
+    file again. On filesystems with stable inode numbers an atomic replace misses the
+    cache. Where ``st_ino`` is 0 or unstable (some network mounts, some Windows setups), or
+    an inode is reused after delete and recreate, a replace that keeps size and mtime is
+    not detected, and neither is an in-place rewrite that keeps inode, size and mtime,
+    until the process restarts.
     ``None`` (a warning is logged) when the media cannot be read or decoded; failures
     are not cached.
     """

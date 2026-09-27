@@ -219,8 +219,11 @@ Analyze's digital-silence fraction (`engines/asr_silence.digital_silence_fractio
 cached in-process per (resolved path, `file_revision` — device, inode, size, mtime — and
 `peak_dbfs`), so re-running Analyze from the GUI or MCP server does not re-decode
 unchanged dialogue stems; each CLI `podcast pipeline analyze` is a fresh process and
-decodes once. An atomic replace (new inode) re-measures; an in-place rewrite that keeps
-inode, size and mtime keeps the cached value until the GUI/MCP process restarts.
+decodes once. On filesystems with stable inode numbers an atomic replace (new inode)
+re-measures. Where `st_ino` is 0 or unstable (some network mounts, some Windows setups),
+or an inode is reused after delete and recreate, a replace that keeps size and mtime
+keeps the cached value, as does an in-place rewrite that keeps inode, size and mtime,
+until the GUI/MCP process restarts.
 
 Stem workers read one deep project snapshot captured before dispatch. Each
 worker renders and writes its cache hash from that snapshot. If an edit changes
