@@ -98,7 +98,9 @@ export function useFollowUi(): void {
     const s = useDawStore.getState();
     withProgrammaticUi(() => {
       if (ui && uiChanged && plan) {
-        if (plan.apply.tab) {
+        // Only a real tab change: setActiveTab leaves the timeline layout, and
+        // audition/anchor ticks must not undo a follower's own layout.
+        if (plan.apply.tab && plan.apply.tab !== s.activeTab) {
           s.setActiveTab(plan.apply.tab);
         }
         if (plan.apply.mobile) {

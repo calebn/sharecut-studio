@@ -1,4 +1,4 @@
-import { displayShortcutFor } from "../keymap/registry";
+import { titleWithShortcut } from "../keymap/registry";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { Icon } from "../ui";
 
@@ -24,10 +24,6 @@ export function TransportPlayControls({
   onTogglePlay,
   onStop,
 }: Props) {
-  const playKey = displayShortcutFor("transport.togglePlay");
-  const stopKey = displayShortcutFor("transport.stop");
-  const withKey = (label: string, key: string | undefined) =>
-    key ? `${label} (${key})` : label;
   return (
     <>
       <button
@@ -37,7 +33,10 @@ export function TransportPlayControls({
         title={
           disabled
             ? disabledTitle
-            : withKey(playing ? "Pause" : "Play", playKey)
+            : titleWithShortcut(
+                playing ? "Pause" : "Play",
+                "transport.togglePlay",
+              )
         }
         aria-label={playing ? "Pause" : "Play"}
         disabled={disabled}
@@ -51,7 +50,7 @@ export function TransportPlayControls({
         className="ui-control stop-btn"
         // Stop halts in place (K in the J/K/L convention, and MCP's stop
         // tool); it never promised a return to the start.
-        title={withKey("Stop", stopKey)}
+        title={titleWithShortcut("Stop", "transport.stop")}
         aria-label="Stop"
         disabled={disabled}
         onClick={onStop}
