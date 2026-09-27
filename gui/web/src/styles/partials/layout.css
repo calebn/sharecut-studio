@@ -300,6 +300,20 @@
   flex: 0 1 auto;
 }
 
+.transcript-mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.transcript-mode-hint {
+  flex: 0 0 auto;
+  margin: 0 0 var(--space-3);
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+}
+
 .track-headers-chrome {
   display: flex;
   align-items: flex-end;
