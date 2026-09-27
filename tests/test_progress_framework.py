@@ -4,11 +4,13 @@ import asyncio
 import json
 import sys
 from io import StringIO
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from podcast_mcp.util.progress import (
     CancelledProgress,
+    CliProgressReporter,
     JsonProgressReporter,
     McpNotificationProgress,
     MultiProgress,
@@ -539,11 +541,53 @@ def test_progress_task_advance_without_message():
     assert any(e.kind == "update" for e in rec.events)
 
 
-def test_cli_progress_rich_fail_cancel(monkeypatch):
-    from podcast_mcp.util.progress import CliProgressReporter
+class _FakeRichProgress:
+    """No-op fake rich Progress: a real one spins a background auto-refresh
+    thread that can outlive stop() by a beat and write a stray clear-line
+    escape to whatever test is capturing stderr next (see test_progress_extended's
+    _RecordingFakeProgress for the shared convention this mirrors)."""
 
+    def __init__(self, *args, **kwargs):
+        self._bars: dict = {}
+        self._next_bar = 0
+
+    def start(self):
+        return None
+
+    def stop(self):
+        return None
+
+    def add_task(self, label, total=0):
+        self._next_bar += 1
+        return self._next_bar
+
+    def update(self, bar, **kwargs):
+        return None
+
+    def remove_task(self, bar):
+        return None
+
+
+def _fake_rich_progress_module():
+    return MagicMock(
+        BarColumn=MagicMock(),
+        Progress=_FakeRichProgress,
+        SpinnerColumn=MagicMock(),
+        TaskProgressColumn=MagicMock(),
+        TextColumn=MagicMock(),
+        TimeElapsedColumn=MagicMock(),
+    )
+
+
+def test_cli_progress_rich_fail_cancel(monkeypatch):
     monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
-    reporter = CliProgressReporter(enabled=True)
+    # A real rich.progress.Progress starts a background auto-refresh thread
+    # against real stderr; stop() does not guarantee it has fully exited
+    # before returning, so a late write can land in a *different* test's
+    # capsys capture under CI's heavier scheduling load. Every other
+    # rich-mode test in this suite fakes rich.progress for the same reason.
+    with patch.dict("sys.modules", {"rich.progress": _fake_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
     reporter.start("t", "Task", total=3)
     reporter.update("t", 1)
     reporter.message("t", "heading", phase="p")
