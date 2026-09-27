@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -129,6 +129,24 @@ decorative and hidden from the accessibility tree; the live stale-status
 controls communicate render state. Both overlay stories share the production
 lane shell through `timelineLaneStoryDecorator` so desktop and phone widths
 stay aligned while retaining each surface's accessible landmark name.
+
+`Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
+`Templates/CommentPlaybackBubble` (#615) render the shipped live-timeline
+overlays as props-only views. Each adapter (`EnvelopeOverlay.tsx`,
+`PresenceOverlay.tsx`, `CommentPlaybackBubble.tsx`) keeps every store, API and
+context read — `useDaw`/`useDawStore` selectors, `setEnvelope`, the session
+roster and server clock offset, the join/leave announcer, and
+`useTimelineMetrics`/`useHoldTimelineMetrics` — while its view takes plain
+props (`points`/`clients`/`comment`, geometry, callbacks) and keeps only local
+UI state: the envelope drag draft, the focused point id, and the presence
+cursor's rAF easing. `PresenceOverlayView` takes a fixed `nowMs` instead of
+reading the server clock itself, so its stories and tests never depend on the
+wall clock. All three views ship a 360px story (`PhoneEmpty`,
+`PhoneStaleClient`) alongside their desktop ones. A guard test
+(`timeline/liveOverlayViews.test.ts`) checks each view's own imports never
+reach the store, the API layer, or `timelineMetrics` directly — `followSync`
+still reaches the store transitively through `clock.ts`, which the guard does
+not follow.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
@@ -249,9 +267,6 @@ checkbox so it can ship as its own PR:
 - **F** ([#614](https://github.com/calebn/sharecut-studio/issues/614)) —
   timeline editing surfaces: `ClipBlock`, `MarkerLane`,
   `PendingEditOverlay`, `EditBoundaryMark`
-- **G** ([#615](https://github.com/calebn/sharecut-studio/issues/615)) — live
-  timeline overlays: `EnvelopeOverlay`, `PresenceOverlay`,
-  `CommentPlaybackBubble`
 - **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
   fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
   desktop, blocked by D and the remaining `TransportBar` pieces
@@ -393,6 +408,12 @@ that store or simulate command execution.
 
 ## Changelog
 
+- 2026-09-27 — Closed #615: extracted `EnvelopeOverlayView`,
+  `PresenceOverlayView` and `CommentPlaybackBubbleView` as props-only
+  production views, catalogued as `Templates/EnvelopeOverlay`,
+  `Templates/PresenceOverlay` and `Templates/CommentPlaybackBubble`, and
+  added `timeline/useVisibleChunks.ts` shared by `TimeRuler` and
+  `EnvelopeOverlay`.
 - 2026-09-27 — Closed #610: extracted props-only `StatusBarView`,
   `AvatarStackView`, `OverlayLegendView` and `PresenceStatusView` from their
   live adapters and added `Templates/StatusBar`, `Templates/AvatarStack` and
