@@ -186,7 +186,11 @@ def set_join_mode_tool(
     clip_id: str,
     join_in_mode: str,
 ) -> str:
-    """Set join_in_mode on one clip: fade | crossfade | cut (TOOL_TIMEBASE: na)."""
+    """Set join_in_mode on one clip: fade | crossfade | cut (TOOL_TIMEBASE: na).
+
+    Mode only: fades are untouched, so a crossfade with no fades renders as a plain
+    join; the result's ``join_crossfade_blocked`` says why. Prefer ``set_clip_join_tool``.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).set_join_mode(clip_id, join_in_mode))
 

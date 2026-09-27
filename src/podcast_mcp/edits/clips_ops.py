@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import Any, Literal
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import join_micro_fade_ms
 from podcast_mcp.edits.mute_regions import intersect_mute_regions
 from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.engines.session_timeline import (
@@ -54,7 +54,7 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
     if timeline_time <= clip.timeline_start + 1e-9 or timeline_time >= tl_end - 1e-9:
         raise ValueError("split time must be strictly inside clip timeline bounds")
     source_split = clip_timeline_point_to_source(clip, timeline_time)
-    fade = int(load_defaults().get("inaudible_cuts", {}).get("micro_fade_ms", 10))
+    fade = join_micro_fade_ms()
     before = clip.model_copy(
         update={
             "id": new_clip_id(),
@@ -281,7 +281,7 @@ def trim_clip_edge(
         raise ValueError(f"unknown clip_id: {clip_id!r}")
 
     track_clips = clips_for_track(project, clip.track_id)
-    idx = next(i for i, c in enumerate(track_clips) if c.id == clip_id)
+    idx = clip_index(track_clips, clip_id)
     prev = track_clips[idx - 1] if idx > 0 else None
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
 
@@ -375,6 +375,14 @@ def join_render_fields(prev: Clip | None, clip: Clip) -> dict[str, Any]:
     }
 
 
+def clip_index(track_clips: Sequence[Clip], clip_id: str) -> int:
+    """Index of ``clip_id`` in ``track_clips``; ``ValueError`` when it is not there."""
+    idx = next((i for i, c in enumerate(track_clips) if c.id == clip_id), None)
+    if idx is None:
+        raise ValueError(f"unknown clip_id: {clip_id!r}")
+    return idx
+
+
 def neighbour_clips(
     project: EpisodeProject,
     left_clip_id: str,
@@ -393,7 +401,7 @@ def neighbour_clips(
     if left.track_id != right.track_id:
         raise ValueError("join requires clips on the same track")
     track_clips = clips_for_track(project, left.track_id)
-    left_idx = next(i for i, c in enumerate(track_clips) if c.id == left_clip_id)
+    left_idx = clip_index(track_clips, left_clip_id)
     if left_idx + 1 >= len(track_clips) or track_clips[left_idx + 1].id != right_clip_id:
         raise ValueError("right clip must be the next clip after left on the track")
     return left, right, track_clips, left_idx

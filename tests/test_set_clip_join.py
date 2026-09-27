@@ -11,8 +11,12 @@ from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.clips_ops import crossfade_ms_at_join
-from podcast_mcp.edits.join_modes import default_join_length_ms, set_clip_join
+from podcast_mcp.edits.clips_ops import crossfade_ms_at_join, roll_clip_join
+from podcast_mcp.edits.join_modes import (
+    default_join_length_ms,
+    set_clip_join,
+    set_clip_join_mode,
+)
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.render_invalidations import reason_for_operation
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
@@ -267,3 +271,51 @@ def test_cli_set_clip_join(tmp_path):
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {"operation": "set_clip_join"}
     service.return_value.set_clip_join.assert_called_once_with("a", "b", "crossfade", 30)
+
+
+def test_cross_track_join_rejected_with_shared_message():
+    p = _project()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=4.0, timeline_start=4.0)
+    )
+    with pytest.raises(ValueError, match="join requires clips on the same track"):
+        set_clip_join(p, "c1", "g1", "cut")
+    with pytest.raises(ValueError, match="join requires clips on the same track"):
+        roll_clip_join(p, "c1", "g1", 0.1)
+
+
+def test_cut_then_fade_reseeds_the_default():
+    p = _project()
+    set_clip_join(p, "c1", "c2", "fade", length_ms=30)
+    set_clip_join(p, "c1", "c2", "cut")
+    set_clip_join(p, "c1", "c2", "fade")
+    assert (p.clips[0].fade_out_ms, p.clips[1].fade_in_ms) == (10, 10)
+
+
+def test_clamped_crossfade_reports_the_shorter_overlap():
+    p = _project(dur=0.05)  # two 50 ms clips
+    p.clips[0].fade_in_ms = 30  # leaves 20 ms for the left fade-out
+    out = set_clip_join(p, "c1", "c2", "crossfade", length_ms=25)
+    assert p.clips[0].fade_out_ms == 20
+    assert p.clips[1].fade_in_ms == 25
+    assert out["crossfade_ms"] == 20  # max(min(20, 25), 25 // 2)
+    assert out["crossfade_blocked"] is None
+
+
+def test_mode_only_crossfade_reports_why_it_will_not_blend():
+    p = _project()
+    out = set_clip_join_mode(p, "c2", "crossfade")
+    assert out["join_left_clip_id"] == "c1"
+    assert out["join_crossfade_blocked"] == "no_fade_out"
+    assert out["join_crossfade_ms"] == 0
+    first = set_clip_join_mode(p, "c1", "crossfade")
+    assert first["join_left_clip_id"] is None
+    assert first["join_crossfade_blocked"] is None

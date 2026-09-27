@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.clips_ops import (
+    clip_index,
     crossfade_block_reason,
     crossfade_ms_at_join,
     join_render_fields,
@@ -85,3 +86,10 @@ def test_neighbour_clips_errors():
         neighbour_clips(p, "a", "c")
     with pytest.raises(ValueError, match="next clip"):
         neighbour_clips(p, "c", "a")
+
+
+def test_clip_index_raises_value_error_for_missing_clip():
+    clips = [_clip("a", 0, 1), _clip("b", 1, 2)]
+    assert clip_index(clips, "b") == 1
+    with pytest.raises(ValueError, match="unknown clip_id"):
+        clip_index(clips, "zz")

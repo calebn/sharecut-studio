@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 
 from podcast_mcp.config import (
+    DEFAULT_MICRO_FADE_MS,
     cache_dir,
+    join_micro_fade_ms,
     load_defaults,
     repo_root,
     whisper_cache_dir,
@@ -107,3 +109,9 @@ def test_load_defaults_rereads_a_same_size_edit_with_unchanged_mtime(tmp_path, m
     os.utime(cfg, ns=(st.st_atime_ns, st.st_mtime_ns))
     assert cfg.stat().st_size == st.st_size
     assert load_defaults()["render"]["join_fade_max_ms"] == 45
+
+
+def test_join_micro_fade_ms_reads_inaudible_cuts_with_default():
+    assert join_micro_fade_ms({}) == DEFAULT_MICRO_FADE_MS == 10
+    assert join_micro_fade_ms({"inaudible_cuts": {"micro_fade_ms": 7}}) == 7
+    assert join_micro_fade_ms() == int(load_defaults()["inaudible_cuts"]["micro_fade_ms"])

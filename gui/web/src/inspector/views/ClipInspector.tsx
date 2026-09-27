@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { setClipFade, setClipJoin } from "../../api";
+import { capabilityTooltip } from "../../capabilities/copy";
 import { execute } from "../../commands/execute";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
 import {
@@ -256,6 +257,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                   value={clip.join_in_mode}
                   disabled={busy}
                   aria-label="Join mode"
+                  title={capabilityTooltip("daw.edit.setClipJoin")}
                   onChange={(e) =>
                     void commitJoin(e.target.value, joinLengthStr)
                   }

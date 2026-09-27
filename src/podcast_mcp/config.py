@@ -90,6 +90,18 @@ def mix_peak_ceiling_db(defaults: Mapping[str, Any] | None = None) -> float:
     return float(mix.get("premix_peak_ceiling_db", DEFAULT_PREMIX_PEAK_CEILING_DB))
 
 
+DEFAULT_MICRO_FADE_MS = 10
+
+
+def join_micro_fade_ms(defaults: Mapping[str, Any] | None = None) -> int:
+    """Declick micro-fade (ms) at a join: ``inaudible_cuts.micro_fade_ms``.
+
+    ``defaults`` is a pipeline config; None reads ``load_defaults()``.
+    """
+    cfg = load_defaults() if defaults is None else defaults
+    return int((cfg.get("inaudible_cuts") or {}).get("micro_fade_ms", DEFAULT_MICRO_FADE_MS))
+
+
 def bounded_float(value: Any, default: float, lo: float, hi: float) -> float:
     """Parse a numeric config value, clamped to ``[lo, hi]``; ``default`` if invalid."""
     try:
