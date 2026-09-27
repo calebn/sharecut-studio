@@ -17,6 +17,7 @@ from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     RenderBusyError,
     project_commit_lock,
+    project_state_lock,
     render_cancel_scope,
     render_lock,
     render_lock_held,
@@ -127,3 +128,15 @@ def test_publish_stem_on_a_worker_of_the_holder_never_waits_for_the_render_lock(
             clear_invalidations=False,
         )
         assert future.result(timeout=5) == stem_path(project, "host")
+
+
+def test_project_commit_lock_holds_the_state_lock(minimal_project) -> None:
+    project = load_project(minimal_project)
+    got: list[bool] = []
+    with project_commit_lock(project):
+        t = threading.Thread(
+            target=lambda: got.append(project_state_lock(project).acquire(timeout=0.1))
+        )
+        t.start()
+        t.join(5)
+    assert got == [False]

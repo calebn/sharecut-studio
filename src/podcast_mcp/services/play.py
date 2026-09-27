@@ -593,6 +593,8 @@ class PlayService:
                 ),
                 clear_invalidations=False,
             )
+            # project_commit_lock takes project_state_lock first, so the live-project clear
+            # below is serialized with snapshots and pipeline step publishes.
             with project_commit_lock(self.project):
                 store = ProjectStore(self.ws.path)
                 stored_project = store.load()
