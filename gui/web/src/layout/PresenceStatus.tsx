@@ -1,6 +1,6 @@
 import { memo } from "react";
-import { presenceSummary } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
+import { PresenceStatusView } from "./PresenceStatusView";
 
 /**
  * Status-bar presence chip leaf. Selects the raw client roster itself, so a
@@ -15,20 +15,11 @@ export const PresenceStatus = memo(function PresenceStatus({
     sessionClients: s.sessionClients,
     localClientId: s.localClientId,
   }));
-  if (sessionClients.length === 0) {
-    return null;
-  }
   return (
-    <span
-      className={narrow ? "status-bar-secondary" : undefined}
-      title={sessionClients
-        .map(
-          (c) =>
-            `${c.meta?.display_name || c.label || c.client_id} (${c.role})`,
-        )
-        .join(", ")}
-    >
-      Presence: {presenceSummary(sessionClients, localClientId)}
-    </span>
+    <PresenceStatusView
+      narrow={narrow}
+      clients={sessionClients}
+      localClientId={localClientId}
+    />
   );
 });
