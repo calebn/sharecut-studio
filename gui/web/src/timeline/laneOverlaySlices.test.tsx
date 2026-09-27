@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { StrictMode } from "react";
+import { StrictMode, Suspense } from "react";
 import { describe, expect, it } from "vitest";
 import type { AppliedEditRecord, AutomationEnvelope } from "../types/project";
 import {
@@ -91,6 +91,37 @@ describe("useByTrack", () => {
     expect(result.current.host).toBe(hostSlice);
     expect(result.current.guest).not.toBe(hostSlice);
     expect(result.current.guest).toEqual([guest2]);
+  });
+
+  it("diffs against the committed slices, not a render React discarded", () => {
+    const host = envelope("host");
+    const guest = envelope("guest");
+    const never = new Promise<never>(() => {});
+    const { result, rerender } = renderHook(
+      ({
+        items,
+        suspend,
+      }: {
+        items: AutomationEnvelope[];
+        suspend: boolean;
+      }) => {
+        const slices = useByTrack(items, envelopeTrackIds);
+        if (suspend) {
+          throw never; // discards this render; the committed tree is kept
+        }
+        return slices;
+      },
+      {
+        initialProps: { items: [host, guest], suspend: false },
+        wrapper: ({ children }) => (
+          <Suspense fallback={null}>{children}</Suspense>
+        ),
+      },
+    );
+    const committedHost = result.current.host;
+    rerender({ items: [envelope("host"), guest], suspend: true });
+    rerender({ items: [host, envelope("guest")], suspend: false });
+    expect(result.current.host).toBe(committedHost);
   });
 
   it("keeps an unaffected track's slice under StrictMode double renders", () => {
