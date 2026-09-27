@@ -812,6 +812,25 @@ def test_api_audio_rerender_merge_conflict_is_409(minimal_project, monkeypatch) 
     assert "re-run it" in res.json()["detail"]
 
 
+def test_api_audio_render_busy_is_503(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.util.project_state import RenderBusyError
+
+    def busy(*_args: object, **_kwargs: object) -> None:
+        raise RenderBusyError("render.lock")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_audio", busy)
+    res = TestClient(create_app()).get(
+        "/api/audio", params={"path": str(minimal_project), "rerender": "true"}
+    )
+    assert res.status_code == 503
+    assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "another render" in res.json()["detail"]
+
+
 def test_api_health() -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
