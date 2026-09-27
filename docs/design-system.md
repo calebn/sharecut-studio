@@ -109,6 +109,13 @@ states, editable drafts, empty ghost output, and 360px phone layouts. The
 callbacks update only story-local state; the live comment panel remains outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.
+Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
+and DraftAndPost exercise the controls separately; Empty passes an explicit
+disabled prop rather than adding validation to the shared form. GuestFeedback
+and MobileGuestFeedback use the same review shell and compose classes as the
+public review page in a fullscreen canvas. DraftAndPost clears its draft after
+the story-local successful submit; ActionsAndReplies ignores blank replies
+and displays trimmed successful replies, as the public review page does.
 
 `Templates/TranscriptTurn` renders the same `TranscriptTurnView` used by the
 live `TranscriptPanel`. The panel owns seeking, selection, touch gestures,
@@ -117,13 +124,6 @@ props for mapped, active/selected, suppressed/low-confidence, cut-away, and
 360px long-turn examples. Story callbacks use local state only. Applied edit
 boundaries may appear in the live row, but there is no pending-edit row state
 to preview yet.
-Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
-and DraftAndPost exercise the controls separately; Empty passes an explicit
-disabled prop rather than adding validation to the shared form. GuestFeedback
-and MobileGuestFeedback use the same review shell and compose classes as the
-public review page in a fullscreen canvas. DraftAndPost clears its draft after
-the story-local successful submit; ActionsAndReplies ignores blank replies
-and displays trimmed successful replies, as the public review page does.
 
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
