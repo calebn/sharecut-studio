@@ -606,9 +606,10 @@ def _reference_shift_at(clip: Clip, ref_clips: list[Clip]) -> float:
 
 
 def _co_timed(clip: Clip, ref_clips: list[Clip]) -> bool:
-    """True when a reference clip shares this clip's source-to-timeline shift."""
-    shift = clip_source_to_timeline_shift(clip)
-    return any(abs(clip_source_to_timeline_shift(r) - shift) < 1e-6 for r in ref_clips)
+    """True when the reference clip ``clip`` overlaps most shares its source-to-timeline shift."""
+    if not ref_clips:
+        return False
+    return abs(clip_source_to_timeline_shift(clip) - _reference_shift_at(clip, ref_clips)) < 1e-6
 
 
 def dialogue_align_units(
