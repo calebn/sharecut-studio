@@ -401,6 +401,24 @@ describe("host document command queue", () => {
       expect(removeQueuedCommand).not.toHaveBeenCalled();
     });
 
+    it("rethrows a replay whose request never arrived, rather than returning queued", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("network down");
+        }),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader, {
+          replaying: true,
+        }),
+      ).rejects.toThrow("network down");
+      expect(removeQueuedCommand).not.toHaveBeenCalled();
+      expect(addConflict).not.toHaveBeenCalled();
+    });
+
     it("doesn't apply a reply after the guest switched projects", async () => {
       vi.stubGlobal(
         "fetch",

@@ -454,6 +454,11 @@ describe("drainOfflineQueue (guest)", () => {
 
 const HOST_PATH = "/projects/parity.project.json";
 
+// These rows pin the shared driver contract through a mocked
+// submitDocumentCommand. They cannot see the submit layers' asymmetry: a host
+// replay transport failure or 5xx returns `{queued: true}`, while a guest
+// replay throws. drainOfflineQueue.integration.test.ts and
+// api.documentCommand.test.ts cover the real submit layers.
 describe.each([
   {
     name: "host",
@@ -582,6 +587,8 @@ describe.each([
   );
 
   it("stops when the submit layer leaves a replay queued", async () => {
+    // Driver contract only for the guest row: the real guest submit layer
+    // throws on a failed replay and never returns `queued`.
     queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
     submit.mockResolvedValueOnce({ ok: true, queued: true });
 
