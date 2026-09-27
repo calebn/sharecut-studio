@@ -27,6 +27,11 @@ export function isPipelineRunning(
   return job?.status === "running" || job?.status === "queued";
 }
 
+/** True for a job status that ends a wait (mirrors backend `TERMINAL_JOB_STATUSES`). */
+export function isTerminalJobStatus(status: string): boolean {
+  return status === "ok" || status === "error" || status === "cancelled";
+}
+
 /** True when a slot job occupies the shared pipeline lock. */
 export function isPipelineSlotBusy(
   job: PipelineJobSnapshot | null | undefined,

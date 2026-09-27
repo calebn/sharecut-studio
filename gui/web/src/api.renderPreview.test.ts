@@ -47,4 +47,25 @@ describe("guest render preview", () => {
       "Render preview failed",
     );
   });
+
+  it("reports a cancelled job as a failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ job: { id: "job-3" } }), {
+            status: 202,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ job: { status: "cancelled", error: null } }),
+          ),
+        ),
+    );
+    await expect(startRenderPreview("share:token-1")).rejects.toThrow(
+      "Render preview failed",
+    );
+  });
 });

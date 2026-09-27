@@ -1,4 +1,5 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { isTerminalJobStatus } from "./pipeline";
 
 export type GuestProgressEvent = {
   type?: string;
@@ -22,8 +23,7 @@ export function guestProgressToJob(
     return prev ?? null;
   }
   const status = event.status ?? "running";
-  const terminal =
-    status === "ok" || status === "error" || status === "cancelled";
+  const terminal = isTerminalJobStatus(status);
   return {
     id: event.task_id || prev?.id || "guest",
     project_path: "",
