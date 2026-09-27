@@ -1,0 +1,33 @@
+{
+  "id": "tones",
+  "audio": "tones.wav",
+  "audio_sha256": "343628837eaca7ffd550b449597320047105ac956e21f616600d512469aea9d0",
+  "reference": "hand-authored synthetic tone bursts; boundaries exact by construction",
+  "words": [
+    {
+      "text": "one",
+      "start": 0.2,
+      "end": 0.5
+    },
+    {
+      "text": "two",
+      "start": 0.6,
+      "end": 0.9
+    },
+    {
+      "text": "three",
+      "start": 1.0,
+      "end": 1.4
+    },
+    {
+      "text": "four",
+      "start": 1.5,
+      "end": 1.8
+    },
+    {
+      "text": "five",
+      "start": 1.9,
+      "end": 2.2
+    }
+  ]
+}

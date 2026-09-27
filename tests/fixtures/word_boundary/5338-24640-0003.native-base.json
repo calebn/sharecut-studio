@@ -11,6 +11,8 @@
     "missed_reference_words": 4,
     "extra_predicted_words": 2,
     "boundary_mae_ms": 102.7272727272726,
+    "mean_start_error_ms": -88.18181818181804,
+    "mean_end_error_ms": -99.09090909090897,
     "words_over_150ms": 3,
     "words_over_150ms_fraction": 0.2727272727272727
   },
