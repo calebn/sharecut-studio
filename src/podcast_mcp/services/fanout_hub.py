@@ -1,7 +1,9 @@
 """Thread-safe keyed fan-out for in-process WebSocket subscribers.
 
 Session document/presence and guest progress each keep their own instance so
-planes cannot mix. Overflow policy is injected per hub.
+planes cannot mix. Overflow policy is injected per hub. Subscribers of one key
+may live on different event loops; each queue is fed on the loop it
+subscribed with.
 """
 
 from __future__ import annotations
@@ -9,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import threading
-from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
 
@@ -39,8 +40,8 @@ class FanoutHub:
         self._overflow = overflow or drop_oldest_overflow
         self._on_unsubscribed = on_unsubscribed
         self._lock = threading.Lock()
-        self._subs: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
-        self._loops: dict[str, asyncio.AbstractEventLoop] = {}
+        # Each queue remembers the loop it was subscribed on; delivery runs on that loop.
+        self._subs: dict[str, dict[asyncio.Queue[dict[str, Any]], asyncio.AbstractEventLoop]] = {}
 
     def listener_count(self, key: str) -> int:
         with self._lock:
@@ -49,8 +50,7 @@ class FanoutHub:
     def subscribe(self, key: str, loop: asyncio.AbstractEventLoop) -> asyncio.Queue[dict[str, Any]]:
         q: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self._queue_maxsize)
         with self._lock:
-            self._subs[key].add(q)
-            self._loops[key] = loop
+            self._subs.setdefault(key, {})[q] = loop
         return q
 
     def unsubscribe(self, key: str, q: asyncio.Queue[dict[str, Any]]) -> None:
@@ -59,33 +59,34 @@ class FanoutHub:
             subs = self._subs.get(key)
             if not subs:
                 return
-            subs.discard(q)
+            subs.pop(q, None)
             if not subs:
                 self._subs.pop(key, None)
-                self._loops.pop(key, None)
                 emptied = True
         if emptied and self._on_unsubscribed is not None:
             self._on_unsubscribed(key)
 
     def publish(self, key: str, event: dict[str, Any]) -> None:
-        """Schedule delivery of *event* on the subscribers' loop and return at once.
+        """Schedule delivery of *event* on each subscriber's own loop and return at once.
 
         Must stay non-blocking: document submit publishes while holding the project lock and
         the document.db write lock. Queue puts and overflow run on the loop, never here.
         """
+        by_loop: dict[asyncio.AbstractEventLoop, list[asyncio.Queue[dict[str, Any]]]] = {}
         with self._lock:
-            subs = list(self._subs.get(key, ()))
-            loop = self._loops.get(key)
-        if not subs or loop is None:
+            for queue, loop in self._subs.get(key, {}).items():
+                by_loop.setdefault(loop, []).append(queue)
+        if not by_loop:
             return
         overflow = self._overflow
 
-        def _put() -> None:
-            for queue in subs:
+        def _put(queues: list[asyncio.Queue[dict[str, Any]]]) -> None:
+            for queue in queues:
                 try:
                     queue.put_nowait(event)
                 except asyncio.QueueFull:
                     overflow(queue, event)
 
-        with contextlib.suppress(RuntimeError):
-            loop.call_soon_threadsafe(_put)
+        for loop, queues in by_loop.items():
+            with contextlib.suppress(RuntimeError):  # loop already closed
+                loop.call_soon_threadsafe(_put, queues)
