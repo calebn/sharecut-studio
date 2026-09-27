@@ -23,7 +23,7 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 7. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
 8. precorrect_transcript — glossary, cross-track sync, report
 9. require_transcript_refine — hard agent gate (`refine-done` / waive; auto-waive if `--unattended`)
-10. analyze_focus_cuts (`focus.enabled` in pipeline.yaml)
+10. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
 11. focus_from_transcript (no-op unless `focus.auto_apply: true`)
 12. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
 13. tighten_from_transcript (no-op unless `tighten.enabled: true`)
@@ -42,6 +42,28 @@ Human review for focus cuts: after `analyze_focus_cuts`, use `list_edit_decision
 `approve_edits_tool` (see **podcast-focus-episode**), then resume `--from analyze_fillers_pauses`.
 
 Resume notes: `--from reconcile_transcript` starts at **pass 1**. For pass 2 only, use `--from assemble_timeline`.
+
+## Long raw sessions: content cut before tighten
+
+The default pipeline cuts no content: focus and tighten are off, so a raw session exports at full length. Before any tighten on a long raw session:
+
+1. **Content cut** (after sign-off; it usually exceeds the 15% guard). Remove the dead start, off-topic runs and meta talk on every dialogue track with **podcast-edit-natural-language**. Work from the end of the episode toward the start:
+   ```bash
+   podcast edit search --project episode.project.json --query "<first kept line>"   # timeline_start
+   podcast edit ripple-delete --project episode.project.json --start 0 --end <timeline_start-0.5>
+   podcast edit suggest-handoff-cut --project episode.project.json --track <id> --keep-left-end <L> --keep-right-start <R>
+   podcast edit ripple-delete --project episode.project.json --start <cut_start> --end <cut_end> --no-inaudible-opt
+   ```
+   MCP: `search_transcript_tool`, `suggest_handoff_cut_tool`, `ripple_delete_tool`.
+2. **Re-clear the refine gate after each ripple.** Dropped words make the waive stale: `podcast transcript refine-status` shows `"stale": true`, and the next edit raises `TranscriptRefineRequiredError`.
+   ```bash
+   podcast transcript refine-waive --project episode.project.json --reason "content cut: structural edit"
+   ```
+   MCP: `transcript_refine_waive_tool` (or `refine-done` / `transcript_refine_done_tool` after a real refine pass).
+3. **Tighten the kept range:** `podcast propose-edits --project episode.project.json` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`).
+4. `analyze_focus_cuts` is an outline, not a cut list (see step 10 above). Use **podcast-focus-episode** for the editorial judgment.
+
+Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
 `podcast pipeline run` and `podcast render-preview` report progress automatically (stderr / `--json-progress`). MCP tools inherit the same progress framework — relay tool headlines to the user; do not invent status. Spec: [docs/progress.md](../../docs/progress.md).
 

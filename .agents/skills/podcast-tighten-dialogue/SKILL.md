@@ -72,6 +72,7 @@ without the user signing off.
 
 1. Ensure per-track transcripts exist (`podcast transcribe --project ...`).
 2. Clear the transcript refine gate (**podcast-transcript-refine** → `refine-done`) if status is pending.
+   **Long raw session?** Do the content cut **first** (dead start, off-topic runs, meta talk) with **podcast-edit-natural-language**. Use `podcast edit ripple-delete --start 0 --end <first kept line − 0.5>` / `ripple_delete_tool`. Mid-episode runs use `suggest_handoff_cut_tool`, then `ripple_delete_tool(use_inaudible_opt=false)`. Every ripple drops words and makes the refine waive stale, so re-clear it before step 3: `podcast transcript refine-waive --project … --reason "content cut: structural edit"` / `transcript_refine_waive_tool`. Proposals then fall only in the kept range; there is no range argument. Reject tighten hits proposed before the cut (`podcast edit reject --ids …`). Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 3. Propose (does not apply):
 
 ```bash
@@ -106,6 +107,7 @@ Tightening changes are non-destructive. Snapshots are taken before `propose-edit
 
 ## Rules for agents
 
+- On a long raw session, never run `propose-edits` before the content cut (see Workflow step 2). Proposals in material you later remove are wasted review.
 - Never bulk-apply (`apply_edits` / pipeline from `tighten_from_transcript`) on a production episode without explicit user sign-off.
 - Do not remove more than ~15% of total duration without explicit user approval.
 - Prefer cutting fillers and dead air over cutting substantive words.
