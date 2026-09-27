@@ -5,9 +5,10 @@
  * otherwise, so a caller can fall back to an HTTP publish when the socket is
  * down (or not yet open).
  */
-export function bindWsSender(
-  ws: WebSocket | null,
-): (frame: Record<string, unknown>) => boolean {
+/** Sends one frame; `true` when the socket was open and the frame went out. */
+export type WsSender = (frame: Record<string, unknown>) => boolean;
+
+export function bindWsSender(ws: WebSocket | null): WsSender {
   return (frame) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(frame));
