@@ -434,6 +434,11 @@
   font: inherit;
 }
 
+/* Caption size keeps the error inside the word chip's line box. */
+.transcript-inline-editor .inline-error {
+  font-size: var(--font-size-caption);
+}
+
 /*
  * Touch long-press on a word / comment opens its sheet; stop the native
  * selection handles and callout (~500 ms) from claiming the press first.
