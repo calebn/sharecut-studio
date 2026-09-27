@@ -36,6 +36,8 @@ router = APIRouter()
 _PROJECT_BUSY = "Project is busy in another process; try again"
 log = logging.getLogger(__name__)
 # The socket has no inbound frames to hook, so authorize_client re-runs on a timer.
+# Owner session-authz interval, deliberately independent of guest_ws_common's
+# GUEST_SHARE_RECHECK_S (guest share validity) even though both are 30 s today.
 DOCUMENT_WS_AUTHZ_RECHECK_S = 30.0
 
 
