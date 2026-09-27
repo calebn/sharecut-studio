@@ -1175,6 +1175,8 @@ class JsonProgressReporter(ElapsedProgressMixin):
 
 
 class CliProgressReporter(ElapsedProgressMixin):
+    """Rich bars (TTY) or plain stderr lines; ``_bars`` is guarded by the mixin ``_lock``."""
+
     def __init__(self, *, enabled: bool = True) -> None:
         super().__init__()
         self._enabled = enabled
@@ -1207,13 +1209,22 @@ class CliProgressReporter(ElapsedProgressMixin):
             except ImportError:
                 self._rich = False
 
+    def _bar(self, task_id: str) -> Any | None:
+        with self._lock:
+            return self._bars.get(task_id)
+
+    def _pop_bar(self, task_id: str) -> Any | None:
+        with self._lock:
+            return self._bars.pop(task_id, None)
+
     def start(self, task_id: str, label: str, total: int | None = None) -> None:
         self._register_task(task_id, label, total)
         if not self._enabled:
             return
         if self._progress is not None:
             bar = self._progress.add_task(label, total=total)
-            self._bars[task_id] = bar
+            with self._lock:
+                self._bars[task_id] = bar
         else:
             sys.stderr.write(f"{label}…\n")
             sys.stderr.flush()
@@ -1230,13 +1241,14 @@ class CliProgressReporter(ElapsedProgressMixin):
         state = self._touch_task(task_id, current, total, phase=phase)
         if state is None or not self._enabled:
             return
-        if self._progress is not None and task_id in self._bars:
+        bar = self._bar(task_id)
+        if self._progress is not None and bar is not None:
             kwargs: dict[str, Any] = {"completed": current}
             if total is not None:
                 kwargs["total"] = total
             if message:
                 kwargs["description"] = message
-            self._progress.update(self._bars[task_id], **kwargs)
+            self._progress.update(bar, **kwargs)
 
     def message(self, task_id: str, text: str, *, phase: str | None = None) -> None:
         with self._lock:
@@ -1247,8 +1259,9 @@ class CliProgressReporter(ElapsedProgressMixin):
                 state.last_emit = time.monotonic()
         if not self._enabled:
             return
-        if self._progress is not None and task_id in self._bars:
-            self._progress.update(self._bars[task_id], description=text)
+        bar = self._bar(task_id)
+        if self._progress is not None and bar is not None:
+            self._progress.update(bar, description=text)
             return
         sys.stderr.write(f"{text}\n")
         sys.stderr.flush()
@@ -1256,10 +1269,11 @@ class CliProgressReporter(ElapsedProgressMixin):
     def end(self, task_id: str, *, message: str | None = None) -> None:
         with self._lock:
             state = self._tasks.get(task_id)
-        if self._progress is not None and task_id in self._bars:
+            bar = self._bars.pop(task_id, None)
+        if self._progress is not None and bar is not None:
             if state and state.total:
-                self._progress.update(self._bars[task_id], completed=state.total)
-            self._progress.remove_task(self._bars.pop(task_id))
+                self._progress.update(bar, completed=state.total)
+            self._progress.remove_task(bar)
         elif self._enabled and state:
             elapsed = time.monotonic() - state.started_at
             mins, secs = divmod(int(elapsed), 60)
@@ -1275,16 +1289,18 @@ class CliProgressReporter(ElapsedProgressMixin):
         message: str | None = None,
         phase: str | None = None,
     ) -> None:
-        if self._progress is not None and task_id in self._bars:
-            self._progress.remove_task(self._bars.pop(task_id))
+        bar = self._pop_bar(task_id)
+        if self._progress is not None and bar is not None:
+            self._progress.remove_task(bar)
         if self._enabled:
             sys.stderr.write(f"{message or 'failed'}\n")
             sys.stderr.flush()
         self._finish_task(task_id)
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
-        if self._progress is not None and task_id in self._bars:
-            self._progress.remove_task(self._bars.pop(task_id))
+        bar = self._pop_bar(task_id)
+        if self._progress is not None and bar is not None:
+            self._progress.remove_task(bar)
         if self._enabled:
             sys.stderr.write(f"{message or 'cancelled'}\n")
             sys.stderr.flush()
