@@ -515,7 +515,17 @@ def _saved_stem_inputs_changed(
 
 
 @with_render_lock
-def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+def _render_track_stems(
+    project: EpisodeProject,
+    defaults: dict[str, Any],
+    *,
+    waveforms: bool = True,
+) -> StepSummary:
+    """Render fresh per-track stems, publishing each and queuing its waveform pyramid.
+
+    ``waveforms=False`` queues no stem pyramids (pass 1: those stems are superseded by
+    ``assemble_timeline``).
+    """
     from podcast_mcp.engines.play_audit import (
         clear_invalidations_if_current,
         publish_stem,
@@ -600,14 +610,19 @@ def _render_track_stems(project: EpisodeProject, defaults: dict[str, Any]) -> St
             json.dumps({k: str(v) for k, v in rendered.items()}, indent=2),
             encoding="utf-8",
         )
-    schedule_stem_waveforms(project, list(rendered))
+    if waveforms:
+        schedule_stem_waveforms(project, list(rendered))
     cached = len(rendered) - len(to_render)
     return f"{len(to_render)} rendered, {cached} cached ({len(rendered)} total)"
 
 
 def render_dialogue_stems(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    """Render per-track stems before FX/edits for pass-1 audibility reconciliation."""
-    return _render_track_stems(project, defaults)
+    """Render per-track stems before FX/edits for pass-1 audibility reconciliation.
+
+    Queues no waveform pyramids: ``assemble_timeline`` renders the final stems and queues
+    theirs (#530).
+    """
+    return _render_track_stems(project, defaults, waveforms=False)
 
 
 def assemble_timeline(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

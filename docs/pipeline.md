@@ -7,7 +7,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 3. `align_tracks` — Conversation-clock placement (bleed phrases / own-speech gaps); default on; uncheck for unrelated clips
 4. `require_align_accept` — Gate until align done/waived (`align.accept.mode`; auto-waive with `--unattended`, but never moves above `align.large_move_sec`)
 5. `merge_transcript` — Combined time-ordered script
-6. `render_dialogue_stems` — Pass-1 per-track stems for audibility
+6. `render_dialogue_stems` — Pass-1 per-track stems for audibility (queues no waveform pyramids; `assemble_timeline` does)
 7. `reconcile_transcript` — Pass 1: audibility/bleed suppress
 8. `precorrect_transcript` — Glossary and cross-track sync
 9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)

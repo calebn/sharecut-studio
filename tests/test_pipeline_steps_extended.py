@@ -797,6 +797,20 @@ def test_render_stems_skips_track_without_media(minimal_project, sample_wav, tmp
     assert waveforms.call_args.args[1] == ["host"]
 
 
+def test_pass_one_stems_queue_no_waveform_pyramids(minimal_project, sample_wav, tmp_workspace):
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with (
+        patch("podcast_mcp.pipeline.steps.ffmpeg") as ff,
+        patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms") as waveforms,
+    ):
+        ff.return_value.render_dialogue_track = MagicMock(
+            side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
+        )
+        steps.render_dialogue_stems(proj, load_defaults())
+    assert ff.return_value.render_dialogue_track.call_count >= 1
+    waveforms.assert_not_called()
+
+
 def test_mix_with_music_skips_music_without_media(minimal_project, sample_wav, tmp_workspace):
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
