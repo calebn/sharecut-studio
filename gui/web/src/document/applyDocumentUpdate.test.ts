@@ -4,10 +4,16 @@ import { minimalProject } from "../test/fixtures";
 import { documentClientId } from "../utils/documentClient";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
+  applyDocumentResult,
   applyDocumentSnapshot,
   applyDocumentSnapshotWithResync,
 } from "./applyDocumentUpdate";
-import { resetDocumentSeqForTests } from "./cursor";
+import {
+  noteDocumentFile,
+  noteDocumentSeq,
+  pollSnapshotAlreadyApplied,
+  resetDocumentSeqForTests,
+} from "./cursor";
 
 const track = (id: string) => ({
   id,
@@ -125,5 +131,32 @@ describe("applyDocumentSnapshot", () => {
       async () => shell,
     );
     expect(useDawStore.getState().project?.tracks[0]?.id).toBe("fresh");
+  });
+});
+
+describe("applyDocumentResult", () => {
+  it("records the result's file so the poll skips this client's own edit, before or after the WS echo", () => {
+    resetDocumentSeqForTests();
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    noteDocumentSeq(1);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    const snapshot = {
+      server_seq: 2,
+      comments: [],
+      file_before: { mtime_ns: 100, size: 5 },
+      file: { mtime_ns: 200, size: 6 },
+    };
+    applyDocumentResult({
+      command: { client_id: documentClientId() },
+      snapshot,
+    });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
+    ).toBe(true);
+    // The WS echo of the same commit arrives afterwards.
+    noteDocumentFile(snapshot);
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
+    ).toBe(true);
   });
 });

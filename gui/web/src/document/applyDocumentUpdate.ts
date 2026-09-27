@@ -3,6 +3,7 @@ import type { ProjectView, TimelineComment } from "../types/project";
 import { sessionSecOf } from "../utils/zoom";
 import {
   currentDocumentSeq,
+  noteDocumentFile,
   noteDocumentSeq,
   shouldApplyDocumentEvent,
 } from "./cursor";
@@ -124,6 +125,9 @@ export function applyDocumentResult(
     cmd && typeof cmd === "object" && "client_id" in cmd
       ? String((cmd as { client_id?: string }).client_id ?? "")
       : undefined;
+  // Same bookkeeping as the WS handlers, so the meta poll does not refetch this
+  // client's own edit before its echo arrives, or while the socket is down (#657).
+  noteDocumentFile(snap);
   return applyDocumentSnapshot(snap, { commandClientId: clientId });
 }
 
