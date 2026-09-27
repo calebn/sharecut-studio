@@ -46,6 +46,10 @@ values and a production `PlayheadNeedle` without mounting DAW state.
 the timeline lane with fictional visible, selected, dense, filtered and empty
 records, including 360px variants. The ticks are decorative and cannot select
 an edit; the live Impact panel owns selection.
+`Templates/StaleInvalidationOverlay` previews the production stale-render
+regions, including overlapping causes, minimum-width spans, right-edge clipping,
+and filtered or empty 360px lanes. These bands are decorative; the live stale
+status controls explain the render state.
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` show the shipped comment and transcript preview
 components with fictional, local-only state, including 360px phone variants.

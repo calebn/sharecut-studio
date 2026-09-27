@@ -110,6 +110,12 @@ production timeline lane. Fictional prop records cover visible and selected
 edits, densely spaced short cuts, and filtered and empty 360px lanes. The
 ticks remain decorative and non-interactive; selection belongs to the live
 Impact panel. The story does not mount the DAW store or alter edit behavior.
+`Templates/StaleInvalidationOverlay` renders the same diagnostic bands used in
+the live track lane. Fictional regional, overlapping, short, clipped, filtered,
+and empty states show how render invalidations appear at desktop and 360px
+widths. Whole-track invalidations have no regional band. The bands remain
+decorative and hidden from the accessibility tree; the live stale-status
+controls communicate render state.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
