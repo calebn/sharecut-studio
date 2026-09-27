@@ -69,11 +69,20 @@ def test_peer_speech_index_matches_direct_gap_scan() -> None:
                 TranscriptWord(text="late", start=3.0, end=3.4),
                 TranscriptWord(text="muted", start=1.0, end=1.3, suppressed=True),
                 TranscriptWord(text="early", start=2.0, end=2.2),
+                TranscriptWord(text="point", start=1.4, end=1.4),
             ],
         )
     )
     indexes = _peer_speech_indexes(project)
-    for start, end in ((0, 1.1), (1.5, 2.1), (2.2, 3.1), (3.4, 4.0)):
+    for start, end in (
+        (0, 1.1),
+        (1.3, 1.5),
+        (1.4, 1.5),
+        (1.3, 1.4),
+        (1.5, 2.1),
+        (2.2, 3.1),
+        (3.4, 4.0),
+    ):
         assert _peer_speaking_in_gap(project, "host", start, end, indexes) == (
             _peer_speaking_in_gap(project, "host", start, end)
         )
