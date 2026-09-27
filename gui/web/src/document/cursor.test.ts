@@ -171,4 +171,17 @@ describe("document file signature", () => {
     resetDocumentSeqForTests();
     expect(pollSnapshotAlreadyApplied({ mtime_ns: 1, size: 1 })).toBe(false);
   });
+
+  it("keeps the held file when a snapshot announces it again", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(2);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
+    noteDocumentFile({
+      file_before: { mtime_ns: 50, size: 4 },
+      file: { mtime_ns: 100, size: 5 },
+    });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 100, size: 5, server_seq: 2 }),
+    ).toBe(true);
+  });
 });

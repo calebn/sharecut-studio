@@ -88,13 +88,15 @@ function sameFile(
   );
 }
 
-/** Track the file identity the document socket has delivered so far (#657).
+/** Track the file identity this client has applied so far — from the document
+socket or its own command's HTTP result (#657).
 
 Adopts `snap.file` outright when the snapshot carries a whole `project`
 (shell/full — the same content a poll GET returns). Otherwise it only
 advances when `snap.file_before` chains onto the file already held, so a
 patch this client never saw the predecessor of does not silently claim a
-newer file. `resync` or a missing/invalid `file` clears it to unknown. */
+newer file. A snapshot whose file is the one already held leaves it unchanged.
+`resync` or a missing/invalid `file` clears it to unknown. */
 export function noteDocumentFile(snap: {
   file?: unknown;
   file_before?: unknown;
@@ -104,6 +106,11 @@ export function noteDocumentFile(snap: {
   const file = wireFile(snap.file);
   if (snap.resync || !file) {
     appliedFile = null;
+    return;
+  }
+  if (sameFile(file, appliedFile)) {
+    // The same file announced again (own HTTP result and its WS echo, in either
+    // order, or an idempotent retry): already held.
     return;
   }
   if (snap.project) {
