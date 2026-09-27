@@ -56,8 +56,10 @@ with resolve_progress_task("transcribe", "Transcribing tracks", total=n, prefer_
 
 `advance` / `advance_to` coalesce to **at most 4 updates/s per task**
 (`PROGRESS_UPDATE_MIN_INTERVAL_SEC = 0.25`), with the latest value and the latest non-`None`
-message winning over anything skipped in between (a `None` message means "keep the current
-headline" for every reporter, so it never clears a pending one). The first update, a `total`
+message winning over anything skipped in between (a `None` message never clears a pending
+one: the CLI / JSON / job / guest WS sinks keep the current headline on a `None` message,
+while the MCP sinks — `McpNotificationProgress` and the remote MCP bridge — fall back to the
+task label, because every MCP notification carries a full message). The first update, a `total`
 change, and reaching `total` always emit immediately. A pending coalesced update is
 flushed before `set_phase` / `message` / `child` / the terminal `end` / `fail`
 / `cancel`, so those always see the final count. Coalescing therefore relies on the task being
