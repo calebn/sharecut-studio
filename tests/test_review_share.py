@@ -1236,7 +1236,8 @@ def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, mo
     )
 
     class _Fake:
-        def upload_file(self, *a, **k):
+        def upload_fileobj(self, source, *a, **k):
+            assert source.read(1)
             return None
 
         def presigned_get_url(self, object_key, *, expires_in):
