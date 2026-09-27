@@ -1166,7 +1166,7 @@ class PipelineJobManager:
         if job.kind == "render_preview":
             if job.cancel_requested:
                 raise CancelledProgress(_cancelled_copy(job.kind))
-            info = svc.render_preview(rerender=True, progress=reporter)
+            info = svc.render_preview(rerender=True, progress=reporter, cancel_check=cancel_check)
             if isinstance(info, dict) and not info.get("ok", True):
                 raise RuntimeError(
                     str(info.get("error") or "Render preview failed (premix missing)")
