@@ -110,6 +110,33 @@ describe("StatusBar live region", () => {
     vi.useRealTimers();
   });
 
+  it("counts only share guests in presence (#533)", () => {
+    useDawStore.setState({
+      localClientId: "h1",
+      sessionClients: [{ client_id: "h1", role: "viewer" }],
+    } as never);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    expect(screen.getByText("Presence: You")).toBeTruthy();
+    expect(screen.queryByText(/guest/)).toBeNull();
+    act(() => {
+      useDawStore.setState({
+        sessionClients: [
+          { client_id: "h1", role: "viewer" },
+          { client_id: "guest-abcd1234-g1", role: "viewer" },
+          { client_id: "a1", role: "agent" },
+        ],
+      } as never);
+    });
+    expect(screen.getByText("Presence: You + 1 guest · 1 agent")).toBeTruthy();
+    act(() => {
+      useDawStore.setState({ localClientId: null, sessionClients: [] });
+    });
+  });
+
   it("exposes polite status announcements for assistive tech", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
