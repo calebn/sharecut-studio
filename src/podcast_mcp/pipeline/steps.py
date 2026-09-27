@@ -95,6 +95,7 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.pipeline_unattended import is_unattended
     from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
+    from podcast_mcp.engines.asr_options import AsrOptions
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
@@ -118,6 +119,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         lambda: TranscriptionEngine(
             model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
             device="cpu",
+            options=AsrOptions.from_defaults(defaults),
         ),
         use_cache=not overwrite,
         language=cfg.get("language", "en"),

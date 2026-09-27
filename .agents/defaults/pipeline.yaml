@@ -202,6 +202,26 @@ transcribe:
   # Run-only: CLI --force, MCP/GUI force_transcribe. Changed audio re-runs, except
   # edited transcripts in unattended runs, which are refused.
   overwrite: false
+  # Whisper invents text over silence (#521). faster-whisper's built-in Silero VAD
+  # (same model as tighten.vad) skips non-speech before decoding.
+  vad:
+    enabled: true
+    threshold: 0.4
+    min_silence_duration_ms: 500
+    speech_pad_ms: 300
+  decode:
+    temperature: [0.0, 0.2, 0.4]
+    no_speech_threshold: 0.6
+    log_prob_threshold: -1.0
+    compression_ratio_threshold: 2.4
+    # false = the vocabulary prompt is sent as hotwords (every window) instead.
+    condition_on_previous_text: true
+    # Skip silent gaps longer than this (s) when a hallucination is suspected; 0 = off.
+    hallucination_silence_threshold: 2.0
+  # Flag (never delete) words whose own-track peak is below peak_dbfs (suspect_hallucination).
+  silence_filter:
+    enabled: true
+    peak_dbfs: -60.0
 
 align:
   # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.

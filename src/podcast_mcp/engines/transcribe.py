@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import whisper_cache_dir
+from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
     DEFAULT_MAX_WORD_DURATION_SEC,
@@ -207,9 +208,15 @@ def collect_anomalous_asr_duration_flags(
 
 
 class TranscriptionEngine:
-    def __init__(self, model_size: str = DEFAULT_WHISPER_MODEL, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        model_size: str = DEFAULT_WHISPER_MODEL,
+        device: str = "cpu",
+        options: AsrOptions | None = None,
+    ) -> None:
         self.model_size = validate_whisper_model(model_size)
         self.device = device
+        self.options = options or AsrOptions()
         self._model = None
 
     def _get_model(self):
@@ -238,7 +245,12 @@ class TranscriptionEngine:
     ) -> Path:
         audio_key = (audio_sha256 or sha256_file(audio_path))[:16]
         inputs = json.dumps(
-            {"model": self.model_size, "language": language, "initial_prompt": initial_prompt},
+            {
+                "model": self.model_size,
+                "language": language,
+                "initial_prompt": initial_prompt,
+                "decode": self.options.decode_key(),
+            },
             sort_keys=True,
         )
         inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
@@ -258,9 +270,8 @@ class TranscriptionEngine:
         kwargs: dict = {
             "language": language,
             "word_timestamps": True,
+            **self.options.transcribe_kwargs(initial_prompt),
         }
-        if initial_prompt:
-            kwargs["initial_prompt"] = initial_prompt
         segments, info = model.transcribe(str(audio_path), **kwargs)
         duration = _info_duration(info)
         total = math.ceil(duration) if duration else None
@@ -324,8 +335,9 @@ class TranscriptionEngine:
         if use_cache:
             transcript = _read_cache(cache)
             # The legacy name does not encode model or prompt, so it is only
-            # trusted when no prompt shaped the words.
-            if transcript is None and not initial_prompt:
+            # trusted when no prompt shaped the words and decoding matches
+            # faster-whisper's own defaults (VAD / temperature change the words).
+            if transcript is None and not initial_prompt and self.options.is_faster_whisper_default:
                 transcript = _read_cache(legacy_cache_path(project, job.cache_id, sha))
         fresh = transcript is None
         if transcript is None:
