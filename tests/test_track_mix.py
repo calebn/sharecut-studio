@@ -103,7 +103,7 @@ def _fake_rendered_stems(project) -> dict[str, str]:
 def _mixing_engine() -> MagicMock:
     """An ffmpeg stand-in whose mix writes the file it's asked for."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out: out.write_bytes(b"RIFFMIX") or out
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
     return eng
 
 
@@ -119,7 +119,7 @@ def _fresh_stems(project) -> dict[str, str]:
 def _mastering_engine() -> MagicMock:
     """Mix writes the track ids it mixed; master copies the premix; loudness unmeasured."""
     eng = MagicMock()
-    eng.mix_tracks.side_effect = lambda inputs, out: out.write_text(
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_text(
         json.dumps(sorted(Path(p).stem for p, _gain in inputs))
     )
     eng.master_loudnorm.side_effect = lambda src, dst, **_kw: shutil.copyfile(src, dst)
@@ -304,6 +304,7 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(project, load_defaults())
     (inputs, _out), _kw = eng.mix_tracks.call_args
+    assert _kw == {"peak_ceiling_db": -1.0}
     assert inputs == [(Path(rendered["host"]), -5.0)]
     assert premix_path(project).read_bytes() == b"RIFFMIX"
     assert read_premix_hash(project) == mix_render_hash({"host": -5.0})

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import re
 import shutil
 import tempfile
@@ -36,6 +37,13 @@ PCM_WINDOW_TIMEOUT_SEC = 30.0
 PCM_STDERR_TAIL_BYTES = 2048
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
+
+
+log = logging.getLogger(__name__)
+
+# Bump when mix_tracks' summing changes, so premixes mixed the old way re-mix.
+# 2: amix normalize=0 (unity sum) + optional true-peak headroom trim (#523).
+MIX_SEMANTICS_REV = 2
 
 
 def _escape_filter_value(value: str) -> str:
@@ -92,6 +100,13 @@ def _effect_filter(fx: ProcessingEffect) -> str | None:
             )
         case _:
             return None
+
+
+def headroom_trim_db(true_peak_db: float | None, ceiling_db: float) -> float:
+    """Gain (<= 0 dB) that brings a mix's true peak down to ``ceiling_db``; never boosts."""
+    if true_peak_db is None:
+        return 0.0
+    return min(0.0, round(ceiling_db - true_peak_db, 2))
 
 
 def _concat_list_entry(path: Path) -> str:
@@ -886,31 +901,74 @@ class FFmpegEngine:
         run(cmd, check=True, capture_output=True)
         return output_path
 
+    def _sum_tracks(
+        self,
+        track_wavs: list[tuple[Path, float]],
+        output_path: Path,
+        *,
+        codec_args: tuple[str, ...] = (),
+    ) -> None:
+        """Each input at its gain, summed at unity (amix normalize=0, not 1/N)."""
+        inputs: list[str] = []
+        filters: list[str] = []
+        n = len(track_wavs)
+        for i, (wav, gain_db) in enumerate(track_wavs):
+            inputs.extend(["-i", str(wav)])
+            label = "[out]" if n == 1 else f"[a{i}]"
+            filters.append(f"[{i}:a]volume={gain_db}dB{label}")
+        if n > 1:
+            mix_inputs = "".join(f"[a{i}]" for i in range(n))
+            filters.append(f"{mix_inputs}amix=inputs={n}:duration=longest:normalize=0[out]")
+        cmd = [
+            self.ffmpeg,
+            "-y",
+            *inputs,
+            "-filter_complex",
+            ";".join(filters),
+            "-map",
+            "[out]",
+            *codec_args,
+            str(output_path),
+        ]
+        run(cmd, check=True, capture_output=True)
+
     def mix_tracks(
         self,
         track_wavs: list[tuple[Path, float]],
         output_path: Path,
+        *,
+        peak_ceiling_db: float | None = None,
     ) -> Path:
+        """Sum tracks at unity after each one's gain (never 1/N).
+
+        With ``peak_ceiling_db``, sum to 32-bit float first, measure the true peak,
+        and trim the whole mix down so it peaks at or below the ceiling (never up).
+        """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not track_wavs:
             raise ValueError("no tracks to mix")
-        if len(track_wavs) == 1:
-            wav, gain_db = track_wavs[0]
-            if float(gain_db) == 0.0:
-                shutil.copy2(wav, output_path)
-                return output_path
-            return self.apply_gain(wav, output_path, float(gain_db))
-
-        inputs: list[str] = []
-        filters: list[str] = []
-        for i, (wav, gain_db) in enumerate(track_wavs):
-            inputs.extend(["-i", str(wav)])
-            filters.append(f"[{i}:a]volume={gain_db}dB[a{i}]")
-        mix_inputs = "".join(f"[a{i}]" for i in range(len(track_wavs)))
-        filters.append(f"{mix_inputs}amix=inputs={len(track_wavs)}:duration=longest[out]")
-        fc = ";".join(filters)
-        cmd = [self.ffmpeg, "-y", *inputs, "-filter_complex", fc, "-map", "[out]", str(output_path)]
-        run(cmd, check=True, capture_output=True)
+        if peak_ceiling_db is None:
+            if len(track_wavs) == 1:
+                wav, gain_db = track_wavs[0]
+                if float(gain_db) == 0.0:
+                    shutil.copy2(wav, output_path)
+                    return output_path
+                return self.apply_gain(wav, output_path, float(gain_db))
+            self._sum_tracks(track_wavs, output_path)
+            return output_path
+        summed = output_path.with_name(f".{output_path.stem}.sum.wav")
+        try:
+            self._sum_tracks(track_wavs, summed, codec_args=("-c:a", "pcm_f32le"))
+            measured = self.measure_loudness_full(summed)
+            peak = measured.get("true_peak_db") if measured else None
+            trim = headroom_trim_db(peak, float(peak_ceiling_db))
+            if trim < 0:
+                log.info(
+                    "mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, peak_ceiling_db
+                )
+            self.apply_gain(summed, output_path, trim)
+        finally:
+            summed.unlink(missing_ok=True)
         return output_path
 
     def measure_loudnorm_stats(

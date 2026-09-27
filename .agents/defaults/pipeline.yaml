@@ -189,6 +189,9 @@ mix:
   fade_in_sec: 2.0
   fade_out_sec: 3.0
   duck_db: -10.0
+  # The premix sums tracks at unity (no 1/N), then trims the whole mix down so its
+  # true peak sits at or below this ceiling (dBTP) before mastering.
+  premix_peak_ceiling_db: -1.0
 
 transcribe:
   # Lowest practical WER. Override at setup (`--whisper-model`) or pipeline config.

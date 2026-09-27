@@ -21,7 +21,7 @@ from podcast_mcp.edits.pending_preview import (
     resolve_pending_preview,
 )
 from podcast_mcp.edits.transcript_cuts import search_transcript
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     publish_stem,
@@ -1033,7 +1033,7 @@ class PlayService:
             track = self.project.track_by_id(tid)
             segments.append((wav, _compose_gain_db(track, tier_used)))
 
-        extra = _mix_cache_extra(segments)
+        extra = f"mix{MIX_SEMANTICS_REV}:{_mix_cache_extra(segments)}"
         out = self._cache_path(
             f"compose_{kind}_{'-'.join(ids)}",
             start_sec,

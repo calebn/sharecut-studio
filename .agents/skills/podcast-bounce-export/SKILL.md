@@ -50,3 +50,5 @@ Outputs land in `{workspace}/export/bounces/`.
 - Times are **timeline** clock ([tool_timebase](../../../src/podcast_mcp/util/tool_timebase.py))
 - Does **not** write `master_qc.json` / `export_qc.json`
 - Encode/copy shares [`write_audio_formats`](../../../src/podcast_mcp/export/audio.py) with master deliverables; bounce still mixes stems/range itself (no loudness)
+
+The bounce sum is a unity sum trimmed under the same `mix.premix_peak_ceiling_db` true-peak ceiling as the premix.

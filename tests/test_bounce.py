@@ -69,7 +69,7 @@ def _ffmpeg_mock(*, mix_duration: float = 2.0) -> MagicMock:
         return Path(out)
 
     eng.render_dialogue_track.side_effect = _render
-    eng.mix_tracks.side_effect = lambda inputs, out: out.write_bytes(b"RIFFMIX") or out
+    eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
     eng.probe.return_value = MagicMock(duration_sec=mix_duration)
     eng.export_audio.side_effect = lambda *a, **k: Path(a[1])
     eng.extract_segment.side_effect = lambda src, out, start, end: (
@@ -95,6 +95,7 @@ def test_bounce_all_tracks_wav(minimal_project, sample_wav):
     assert paths[0].is_file()
     assert eng.render_dialogue_track.call_count == 2
     eng.mix_tracks.assert_called_once()
+    assert eng.mix_tracks.call_args.kwargs["peak_ceiling_db"] == -1.0
     # Private stem paths live under bounces/.*.stems/, not artifacts/tracks/
     stem_path = eng.mix_tracks.call_args[0][0][0][0]
     assert "bounces" in stem_path.parts
@@ -141,7 +142,7 @@ def test_bounce_selected_tracks_and_range(minimal_project, sample_wav):
     ws = _seed_bounce_project(minimal_project, sample_wav)
     eng = _ffmpeg_mock(mix_duration=5.0)
 
-    def _mix(inputs, out):
+    def _mix(inputs, out, **_kw):
         assert len(inputs) == 1
         assert inputs[0][0].name == "guest.wav"
         out.write_bytes(b"RIFFMIX")
@@ -192,7 +193,7 @@ def test_bounce_cleans_temp_mix_when_trim_fails(minimal_project, sample_wav):
     eng = _ffmpeg_mock(mix_duration=5.0)
     temps: list[Path] = []
 
-    def _mix(inputs, out):
+    def _mix(inputs, out, **_kw):
         out.write_bytes(b"RIFFMIX")
         temps.append(out)
         return out

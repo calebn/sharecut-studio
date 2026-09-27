@@ -9,6 +9,7 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import mute_regions_payload
+from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
@@ -321,10 +322,14 @@ def mix_render_hash(gains: Mapping[str, float]) -> str:
 
     Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
     check. The mix step adds only this, so a volume or mute change stales the
-    premix without staling any stem.
+    premix without staling any stem. Includes ``MIX_SEMANTICS_REV``, so premixes
+    summed under older mix rules (1/N amix) re-mix once.
     """
-    payload = sorted((track_id, round(float(gain), 4)) for track_id, gain in gains.items())
-    raw = json.dumps(payload, separators=(",", ":"))
+    payload = {
+        "mix_rev": MIX_SEMANTICS_REV,
+        "gains": sorted((track_id, round(float(gain), 4)) for track_id, gain in gains.items()),
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 

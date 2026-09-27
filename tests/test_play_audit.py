@@ -5,6 +5,7 @@ import pytest
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     expected_stem_duration_sec,
+    mix_render_hash,
     stem_duration_matches_timeline,
     stem_is_fresh,
     track_render_hash,
@@ -226,3 +227,13 @@ def test_clear_invalidations_if_current_keeps_an_edit_made_meanwhile(tmp_path) -
     assert clear_invalidations_if_current(project, snapshot, "host") is True
     assert project.render.invalidations == []
     assert clear_invalidations_if_current(project, snapshot, "host") is False
+
+
+def test_mix_render_hash_includes_mix_semantics_rev(monkeypatch) -> None:
+    """A mix semantics bump re-mixes premixes summed the old way."""
+    import podcast_mcp.engines.play_audit as play_audit
+    from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
+
+    before = mix_render_hash({"host": 0.0})
+    monkeypatch.setattr(play_audit, "MIX_SEMANTICS_REV", MIX_SEMANTICS_REV + 1)
+    assert mix_render_hash({"host": 0.0}) != before

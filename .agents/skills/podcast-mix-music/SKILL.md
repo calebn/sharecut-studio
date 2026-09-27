@@ -17,6 +17,8 @@ From `.agents/defaults/pipeline.yaml`:
 - Fade in: 2s, fade out: 3s
 - Ducking depth: -10 dB (future: envelope from speech boundaries)
 
+The premix is a unity sum (no 1/N) trimmed to `mix.premix_peak_ceiling_db` (true peak).
+
 ## Track roles
 
 - `intro`, `outro`, `music` — automation fade envelopes on volume

@@ -966,3 +966,49 @@ def test_annotate_time_marks_empty_copies_png(sample_wav: Path, tmp_path: Path):
     assert result.read_bytes() == png.read_bytes()
     same = eng.annotate_time_marks(png, [], png)
     assert same == png
+
+
+def _filter_complex(cmd: list[str]) -> str:
+    return cmd[cmd.index("-filter_complex") + 1]
+
+
+def test_mix_tracks_sums_at_unity(tmp_path: Path):
+    eng = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        eng.mix_tracks([(tmp_path / "a.wav", 0.0), (tmp_path / "b.wav", -3.0)], tmp_path / "m.wav")
+    fc = _filter_complex(run.call_args[0][0])
+    assert "amix=inputs=2:duration=longest:normalize=0" in fc
+
+
+@pytest.mark.parametrize(
+    ("measured", "trim"),
+    [
+        ({"integrated_lufs": -14.0, "true_peak_db": 2.0, "lra": 5.0}, -3.0),
+        ({"integrated_lufs": -14.0, "true_peak_db": -6.0, "lra": 5.0}, 0.0),
+        (None, 0.0),
+    ],
+)
+def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, measured, trim):
+    eng = FFmpegEngine()
+    out = tmp_path / "mix.wav"
+    with (
+        patch("podcast_mcp.engines.ffmpeg.run") as run,
+        patch.object(eng, "measure_loudness_full", return_value=measured),
+        patch.object(eng, "apply_gain") as apply_gain,
+    ):
+        eng.mix_tracks(
+            [(tmp_path / "a.wav", 0.0), (tmp_path / "b.wav", 0.0)], out, peak_ceiling_db=-1.0
+        )
+    cmd = run.call_args[0][0]
+    assert cmd[cmd.index("-c:a") + 1] == "pcm_f32le"
+    sum_path, dst, gain = apply_gain.call_args[0]
+    assert sum_path.name == ".mix.sum.wav"
+    assert (dst, gain) == (out, trim)
+
+
+def test_headroom_trim_db():
+    from podcast_mcp.engines.ffmpeg import headroom_trim_db
+
+    assert headroom_trim_db(2.0, -1.0) == -3.0
+    assert headroom_trim_db(-6.0, -1.0) == 0.0
+    assert headroom_trim_db(None, -1.0) == 0.0
