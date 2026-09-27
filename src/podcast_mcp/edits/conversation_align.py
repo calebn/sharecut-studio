@@ -14,7 +14,7 @@ import logging
 import statistics
 import subprocess
 from bisect import bisect_left
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -140,6 +140,17 @@ class ClipAlignPlan:
     skipped_reason: str | None = None
 
 
+_LIST_PREVIEW_LIMIT = 6
+
+
+def _list_preview(items: Sequence[str], limit: int = _LIST_PREVIEW_LIMIT) -> str:
+    """Comma-join the first ``limit`` items, then ``, +N more`` for the rest."""
+    listed = ", ".join(items[:limit])
+    if len(items) > limit:
+        listed += f", +{len(items) - limit} more"
+    return listed
+
+
 @dataclass
 class AlignResult:
     plans: list[ClipAlignPlan] = field(default_factory=list)
@@ -158,9 +169,9 @@ class AlignResult:
         if not moved:
             base = f"{len(self.plans)} clips; all near identity (ref={self.reference_track_id})"
         else:
-            parts = [f"{p.track_id}:{p.offset_sec:+.2f}s/{p.method}" for p in moved[:6]]
-            extra = "" if len(moved) <= 6 else f" +{len(moved) - 6} more"
-            base = f"{len(moved)} moved ({', '.join(parts)}{extra}); ref={self.reference_track_id}"
+            parts = [f"{p.track_id}:{p.offset_sec:+.2f}s/{p.method}" for p in moved]
+            listed = _list_preview(parts)
+            base = f"{len(moved)} moved ({listed}); ref={self.reference_track_id}"
         notes: list[str] = []
         locked = sorted({p.track_id for p in self.plans if p.method in LOCKED_METHODS})
         if locked:
@@ -171,8 +182,8 @@ class AlignResult:
         if held:
             notes.append(
                 "held unconfirmed "
-                + ", ".join(
-                    f"{p.track_id}:{(p.candidate_offset_sec or 0.0):+.2f}s" for p in held[:6]
+                + _list_preview(
+                    [f"{p.track_id}:{(p.candidate_offset_sec or 0.0):+.2f}s" for p in held]
                 )
             )
         skipped_reason_by_track: dict[str, str] = {}
@@ -1724,10 +1735,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             if new_stacks:
                 restore_clip_geometry(project, snap)
                 pairs = [f"{s.clip_ids[0]!r}/{s.clip_ids[1]!r}" for s in new_stacks]
-                listed = ", ".join(pairs[:6])
-                if len(pairs) > 6:
-                    listed += f", +{len(pairs) - 6} more"
-                skip = f"clip pairs would stack on the same source: {listed}"
+                skip = f"clip pairs would stack on the same source: {_list_preview(pairs)}"
 
         if skip:
             log.warning("align_tracks: skipping %s: %s", track.id, skip)
