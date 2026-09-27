@@ -38,6 +38,18 @@ def refresh_timeline_duration(project: EpisodeProject) -> None:
         project.timeline.duration_sec = None
 
 
+def clip_media_duration(project: EpisodeProject, track: Track, clip: Clip) -> float:
+    """File length ``clip`` reads: source recording, else lane media, else ``source_end``."""
+    media_dur = float(clip.source_end) if clip.source_end > clip.source_start else 0.0
+    if track.media and track.media.duration_sec:
+        media_dur = float(track.media.duration_sec)
+    if clip.source_id:
+        src = project.source_by_id(clip.source_id)
+        if src and src.duration_sec:
+            media_dur = float(src.duration_sec)
+    return media_dur
+
+
 def apply_full_span_media(
     project: EpisodeProject,
     track: Track,
