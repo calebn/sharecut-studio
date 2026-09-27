@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Barrier
@@ -110,8 +111,10 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
     connection.execute.side_effect = [
         sqlite3.OperationalError("database is locked"),
         Mock(fetchone=Mock(return_value=("wal",))),
+        Mock(),
     ]
-    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    connect = Mock(return_value=connection)
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", connect)
     sleep = Mock()
     monkeypatch.setattr(session_sqlite.time, "sleep", sleep)
 
@@ -119,6 +122,10 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
 
     sleep.assert_called_once_with(session_sqlite._WAL_INIT_RETRY_SEC)
     connection.close.assert_not_called()
+    connect.assert_called_once_with(
+        str(tmp_path / "sync.db"), check_same_thread=False, isolation_level=None, timeout=0
+    )
+    connection.execute.assert_called_with(session_sqlite._BUSY_TIMEOUT_PRAGMA)
 
 
 def test_wal_initialization_gives_up_after_the_deadline(
@@ -150,3 +157,34 @@ def test_wal_initialization_does_not_retry_other_sqlite_errors(
 
     sleep.assert_not_called()
     connection.close.assert_called_once_with()
+
+
+def test_connection_restores_default_busy_timeout_after_wal_setup(tmp_path: Path) -> None:
+    connection = session_sqlite.connect_session_db(tmp_path / "sync.db")
+    try:
+        assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+    finally:
+        connection.close()
+
+
+def test_wal_init_lock_is_per_database(tmp_path: Path) -> None:
+    first = session_sqlite._wal_init_lock(tmp_path / "a" / "sync.db")
+    assert first is session_sqlite._wal_init_lock(tmp_path / "a" / ".." / "a" / "sync.db")
+    assert first is not session_sqlite._wal_init_lock(tmp_path / "b" / "sync.db")
+
+
+def test_wal_setup_on_one_database_does_not_block_another(tmp_path: Path) -> None:
+    (tmp_path / "b").mkdir()
+    opened: list[sqlite3.Connection] = []
+
+    def open_b() -> None:
+        opened.append(session_sqlite.connect_session_db(tmp_path / "b" / "sync.db"))
+
+    with session_sqlite._wal_init_lock(tmp_path / "a" / "sync.db"):
+        worker = threading.Thread(target=open_b)
+        worker.start()
+        worker.join(timeout=5)
+        assert not worker.is_alive()
+    assert len(opened) == 1
+    opened[0].close()
