@@ -1596,8 +1596,10 @@ def _at_recorded_placement(project: EpisodeProject, track: Track, clip: Clip) ->
     entry = _ingest_alignment_entry(project, track, clip)
     if entry is None:
         return False
-    recorded_shift = entry.content_align_sec - entry.session_start_in_file_sec
-    return abs(clip_source_to_timeline_shift(clip) - recorded_shift) <= DURATION_EPS_SEC
+    return (
+        abs(clip_source_to_timeline_shift(clip) - entry.source_to_timeline_shift_sec)
+        <= DURATION_EPS_SEC
+    )
 
 
 def _is_whole_file_clip(
@@ -1747,16 +1749,11 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             updated += 1
             if plan.method == "manual":
                 continue  # keep the manifest's pinned meta entry
-            shift = clip_source_to_timeline_shift(clip)
-            session_start = max(0.0, -shift)
-            content = max(0.0, shift)
             key = ingest_alignment_meta_key(
                 project, track, clip, multi_clip=clips_by_track.get(track.id, 1) > 1
             )
-            align_meta[key] = SpeakerIngestAlignment(
-                session_start_in_file_sec=session_start,
-                content_align_sec=content,
-                align_method=plan.method,
+            align_meta[key] = SpeakerIngestAlignment.from_source_to_timeline_shift(
+                clip_source_to_timeline_shift(clip), align_method=plan.method
             )
 
     project.meta.ingest_alignment = align_meta or None

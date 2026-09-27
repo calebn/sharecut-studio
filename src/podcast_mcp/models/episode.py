@@ -320,6 +320,22 @@ class SpeakerIngestAlignment(BaseModel):
     content_align_sec: float = 0.0
     align_method: str = "unknown"
 
+    @property
+    def source_to_timeline_shift_sec(self) -> float:
+        """Timeline minus source seconds this entry places its clip at."""
+        return self.content_align_sec - self.session_start_in_file_sec
+
+    @classmethod
+    def from_source_to_timeline_shift(
+        cls, shift_sec: float, *, align_method: str
+    ) -> SpeakerIngestAlignment:
+        """Normalized entry for ``shift_sec``: one field carries it, the other is 0."""
+        return cls(
+            session_start_in_file_sec=max(0.0, -shift_sec),
+            content_align_sec=max(0.0, shift_sec),
+            align_method=align_method,
+        )
+
 
 class ProjectMeta(BaseModel):
     name: str
