@@ -210,6 +210,13 @@
   min-block-size: var(--control-height);
 }
 
+.waveform-amp-readout {
+  align-self: center;
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
 .transport-overflow {
   margin-left: 0;
   position: relative;

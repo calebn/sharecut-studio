@@ -5,11 +5,17 @@ import type { LayerVisibility } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { Button } from "../ui";
 
-const TOGGLES: { key: keyof LayerVisibility; label: string }[] = [
+const TOGGLES: {
+  key: keyof LayerVisibility;
+  label: string;
+  swatch?: "silence" | "snap";
+}[] = [
   { key: "showEdits", label: "Edits" },
   { key: "showLevels", label: "Levels" },
   { key: "showMarkers", label: "Markers" },
   { key: "showComments", label: "Comments" },
+  { key: "showSilence", label: "Silence shading", swatch: "silence" },
+  { key: "showSnapPoints", label: "Snap points", swatch: "snap" },
 ];
 
 /** A layer/legend checkbox row, shared by the overlay legend and menu-hosted toggles like Fit tracks to window height. */
@@ -55,13 +61,19 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
       role={menu ? "none" : "group"}
       aria-label={menu ? undefined : "Timeline layers"}
     >
-      {TOGGLES.map(({ key, label }) => (
+      {TOGGLES.map(({ key, label, swatch }) => (
         <LegendCheckbox
           key={key}
           menu={menu}
           checked={layers[key]}
           onChange={(checked) => setLayerVisible(key, checked)}
         >
+          {swatch ? (
+            <span
+              className={`overlay-legend-swatch overlay-legend-swatch--${swatch}`}
+              aria-hidden="true"
+            />
+          ) : null}
           {label}
         </LegendCheckbox>
       ))}

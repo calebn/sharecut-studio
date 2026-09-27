@@ -74,8 +74,8 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Fit session width | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |
 | Switch editor tab | `view.setTab` | — (not industry-standard; tab click) | `tabBar` | — | — | — | — | anchor · look |
 | Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | `mobileNav` | — | — | — | — | anchor · look |
-| Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | `timeline.waveform` | — | — | — | — | time · look |
+| Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform`, `transport.viewMenu.waveformAmplitude` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | `timeline.waveform`, `transport.viewMenu.waveformAmplitude` | — | — | — | — | time · look |
 | Fit tracks to window height | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | `transport.fitTracksHeight`, `transport.viewMenu.fitTracksHeight` | — | — | — | — | none · none |
 | Increase track height | `view.trackHeightIncrease` | `Alt+=` | `transport.menu` | — | — | — | — | none · none |
 | Decrease track height | `view.trackHeightDecrease` | `Alt+-` | `transport.menu` | — | — | — | — | none · none |

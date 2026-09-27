@@ -1056,7 +1056,8 @@
       "surfaces": {
         "command": "view.waveformZoomIn",
         "gui": [
-          "timeline.waveform"
+          "timeline.waveform",
+          "transport.viewMenu.waveformAmplitude"
         ],
         "keyboard": "ArrowUp"
       },
@@ -1079,7 +1080,8 @@
       "surfaces": {
         "command": "view.waveformZoomOut",
         "gui": [
-          "timeline.waveform"
+          "timeline.waveform",
+          "transport.viewMenu.waveformAmplitude"
         ],
         "keyboard": "ArrowDown"
       },
