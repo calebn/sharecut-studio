@@ -30,6 +30,7 @@ from podcast_mcp.pipeline.meta import (
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
 from podcast_mcp.util.dicts import deep_merge, get_by_path
+from podcast_mcp.util.progress import resolve_progress_task
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
@@ -435,6 +436,29 @@ def _track_evidence(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _track_silence_fraction(
+    project: Any, track_id: str, *, peak_dbfs: float
+) -> tuple[Path, float] | str:
+    """Digital-silence fraction for one dialogue track's source audio.
+
+    Returns ``(path, fraction)``, or a skip reason (``missing_audio`` /
+    ``decode_failed``) so callers can report it.
+    """
+    from podcast_mcp.engines.asr_silence import digital_silence_fraction
+    from podcast_mcp.util.tracks import track_audio_path
+
+    try:
+        path = track_audio_path(project, track_id)
+    except ValueError:
+        return "missing_audio"
+    if not path.is_file():
+        return "missing_audio"
+    frac = digital_silence_fraction(path, peak_dbfs=peak_dbfs)
+    if frac is None:
+        return "decode_failed"
+    return path, frac
+
+
 def _dialogue_silence_fractions(
     project: Any, *, peak_dbfs: float
 ) -> tuple[dict[str, tuple[Path, float]], dict[str, str]]:
@@ -443,26 +467,37 @@ def _dialogue_silence_fractions(
     Returns ``(measured, skipped)``: ``skipped`` maps a track id to why it was not
     measured (``missing_audio`` or ``decode_failed``) so callers can report it.
     """
-    from podcast_mcp.engines.asr_silence import digital_silence_fraction
-    from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+    from podcast_mcp.util.tracks import dialogue_track_ids
 
     measured: dict[str, tuple[Path, float]] = {}
     skipped: dict[str, str] = {}
-    for tid in dialogue_track_ids(project):
-        try:
-            path = track_audio_path(project, tid)
-        except ValueError:
-            skipped[tid] = "missing_audio"
-            continue
-        if not path.is_file():
-            skipped[tid] = "missing_audio"
-            continue
-        frac = digital_silence_fraction(path, peak_dbfs=peak_dbfs)
-        if frac is None:
-            skipped[tid] = "decode_failed"
-            continue
-        measured[tid] = (path, frac)
+    ids = dialogue_track_ids(project)
+    with resolve_progress_task(
+        "analyze_silence", "Scanning dialogue for digital silence", total=len(ids) or None
+    ) as task:
+        for done, tid in enumerate(ids, start=1):
+            outcome = _track_silence_fraction(project, tid, peak_dbfs=peak_dbfs)
+            if isinstance(outcome, str):
+                skipped[tid] = outcome
+            else:
+                measured[tid] = outcome
+            task.advance(1, message=f"Scanned {tid} ({done}/{len(ids)})")
     return measured, skipped
+
+
+def _measure_analyze_inputs(
+    project: Any, *, policy: Any, peak_dbfs: float
+) -> tuple[dict[str, Any], dict[str, tuple[Path, float]], dict[str, str]]:
+    """Run health analysis then digital-silence scanning as named Analyze phases."""
+    from podcast_mcp.engines.audio_audit import analyze_cleanup
+
+    with resolve_progress_task("pipeline_analyze", "Analyzing audio", prefer_parent=True) as task:
+        task.set_phase("health", "Measuring track health…")
+        with task.child("analyze_health", "Measuring track health"):
+            report = analyze_cleanup(project, policy=policy)
+        task.set_phase("digital_silence", "Scanning dialogue for digital silence…")
+        silence, skipped = _dialogue_silence_fractions(project, peak_dbfs=peak_dbfs)
+    return report, silence, skipped
 
 
 def suggest_pipeline_tuning(
@@ -472,12 +507,18 @@ def suggest_pipeline_tuning(
 ) -> dict[str, Any]:
     """Heuristic Analyze: propose config patches from cleanup/health signals."""
     from podcast_mcp.edits.conversation_align import DURATION_EPS_SEC, equal_duration_dialogue
-    from podcast_mcp.engines.audio_audit import AnalysisPolicy, analyze_cleanup
+    from podcast_mcp.engines.audio_audit import AnalysisPolicy
 
     defaults = load_defaults()
     base = copy.deepcopy(base_config) if base_config is not None else copy.deepcopy(defaults)
     policy = AnalysisPolicy.from_defaults(defaults)
-    report = analyze_cleanup(project, policy=policy)
+    # asr describes the *base* config: it is not re-read after the loop below sets
+    # transcribe.vad.enabled on `proposed`, so later checks must not rely on it for
+    # the proposed value.
+    asr = AsrOptions.from_defaults(base)
+    report, silence, silence_skipped = _measure_analyze_inputs(
+        project, policy=policy, peak_dbfs=asr.silence_peak_dbfs
+    )
     proposed = copy.deepcopy(base)
     reasons: list[dict[str, Any]] = []
     effects = dict(proposed.get("effects") or {})
@@ -592,11 +633,6 @@ def suggest_pipeline_tuning(
             )
         )
 
-    # asr describes the *base* config: it is not re-read after the loop below sets
-    # transcribe.vad.enabled on `proposed`, so later checks must not rely on it for
-    # the proposed value.
-    asr = AsrOptions.from_defaults(base)
-    silence, silence_skipped = _dialogue_silence_fractions(project, peak_dbfs=asr.silence_peak_dbfs)
     for tid, why in silence_skipped.items():
         row = track_rows.setdefault(tid, {"track_id": tid})
         row["digital_silence_fraction"] = None

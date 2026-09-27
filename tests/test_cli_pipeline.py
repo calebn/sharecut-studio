@@ -262,3 +262,34 @@ def test_pipeline_analyze_json_and_empty(tmp_path):
     assert text_result.exit_code == 0, text_result.stdout
     assert "Analyze: no findings." in text_result.stdout
     assert "No config changes proposed." in text_result.stdout
+
+
+def test_pipeline_analyze_json_progress_reports_phases(tmp_path):
+    project = _init_project(tmp_path)
+    with patch(
+        "podcast_mcp.engines.audio_audit.analyze_cleanup",
+        return_value={"tracks": []},
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "--json-progress",
+                "pipeline",
+                "analyze",
+                "--project",
+                str(project),
+                "--json",
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+
+    events = [json.loads(line) for line in result.stderr.strip().splitlines() if line.strip()]
+    phases = [
+        e.get("phase")
+        for e in events
+        if e.get("kind") == "message" and e.get("task_id") == "pipeline.analyze" and e.get("phase")
+    ]
+    assert phases == ["health", "digital_silence"]
+
+    payload = json.loads(result.stdout)
+    assert payload["report_summary"]["track_count"] == 0

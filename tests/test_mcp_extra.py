@@ -166,6 +166,41 @@ def test_mcp_pipeline_analyze_tool(tmp_path, sample_wav, monkeypatch):
     assert applied["config"]["config"]["balance"]["dialogue_lufs"] == -19.0
 
 
+def test_mcp_pipeline_analyze_tool_reports_phases(tmp_path, sample_wav, monkeypatch):
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.util.progress import RecordingProgress, progress_task
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
+
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_cleanup",
+        lambda project, *, policy=None, progress=None: {"tracks": []},
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.engines.asr_silence.digital_silence_fraction",
+        lambda track_path, *, peak_dbfs: 0.1,
+    )
+
+    rec = RecordingProgress()
+    with progress_task("pipeline_analyze_tool", "Pipeline analyze", reporter=rec):
+        json.loads(mcp_pipeline.pipeline_analyze_tool(path, apply=False))
+
+    phases = [
+        e.phase
+        for e in rec.events
+        if e.kind == "message" and e.task_id == "pipeline_analyze_tool" and e.phase
+    ]
+    assert phases == ["health", "digital_silence"]
+
+    silence_updates = [
+        e for e in rec.events if e.task_id == "analyze_silence" and e.kind == "update"
+    ]
+    assert silence_updates[-1].current == 1
+    assert silence_updates[-1].total == 1
+
+
 def test_mcp_pipeline_run_working_set_and_overrides(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
