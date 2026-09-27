@@ -55,13 +55,19 @@ def _run_step_published(
     """Run ``fn`` on a private copy of ``project``; publish its changes in one locked swap (#357).
 
     Render snapshots taken meanwhile see the project from before the step, never half of
-    it, and the step's FFmpeg work holds no ``project_state_lock``. A failed step still
-    publishes what it changed (as when steps mutated ``project`` in place). ``step_copy`` lets
-    guards inside the step compare against the live project (``live_project``).
+    it, and the step's FFmpeg work holds no ``project_state_lock``. A failed or cancelled step
+    (``CancelledProgress``, ``KeyboardInterrupt``) still publishes what it changed, as when
+    steps mutated ``project`` in place; if that conflicts with a concurrent edit, the partial
+    changes are dropped with a warning and the step's own exception propagates. ``step_copy``
+    lets guards inside the step compare against the live project (``live_project``).
+    A step must not hand ``work`` to work that outlives it: background jobs capture paths,
+    not the project (``schedule_stem_waveforms`` resolves its refs before queueing).
     """
     with project_state_lock(project):
-        base = project_merge_data(project)
         work = project.model_copy(deep=True)
+    # ``work`` equals ``project`` as of the copy and nothing else touches it, so its dump is
+    # the merge base; taking it outside the lock keeps the locked section to the copy.
+    base = project_merge_data(work)
     try:
         with step_copy(project, work):
             summary = fn(work, step_defaults)
@@ -74,7 +80,14 @@ def _run_step_published(
                 "edit and were dropped",
                 name,
             )
+        except Exception:
+            logger.exception(
+                "pipeline step %s failed, and publishing its partial changes failed too", name
+            )
         raise
+    # A conflict here drops the step's project changes; stems, premix or master it already
+    # wrote stay on disk. Each .hash names the snapshot it was built from, so freshness
+    # judges them against the live project, and the re-run the conflict asks for reconciles.
     publish_project_changes(project, base, work)
     return summary
 
@@ -150,6 +163,20 @@ TRANSCRIBE_STEP = "transcribe_tracks"
 def _current_run(project: EpisodeProject, run: PipelineRun) -> PipelineRun:
     """The run as the project holds it now: a merged save can swap the object."""
     return next((r for r in project.pipeline_runs if r.id == run.id), run)
+
+
+def _current_log(
+    project: EpisodeProject, run: PipelineRun, log: PipelineStepLog
+) -> PipelineStepLog:
+    """The step log as the project holds it now: a merged publish can swap ``pipeline_runs``."""
+    return next(
+        (
+            s
+            for s in reversed(_current_run(project, run).steps)
+            if s.step == log.step and s.started_at == log.started_at
+        ),
+        log,
+    )
 
 
 def select_pipeline_steps(
@@ -278,6 +305,7 @@ class PipelineRunner:
                     step_prog.set_phase("running", title)
                     try:
                         summary = _run_step_published(project, name, fn, step_defaults)
+                        log = _current_log(project, run, log)
                         log.status = "ok"
                         if summary:
                             log.message = summary
@@ -314,6 +342,7 @@ class PipelineRunner:
                         )
                         pipe.current = step_idx
                     except Exception as exc:
+                        log = _current_log(project, run, log)
                         log.status = "error"
                         log.message = str(exc)
                         log.finished_at = datetime.now(UTC).isoformat()

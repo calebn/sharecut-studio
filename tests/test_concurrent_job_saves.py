@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -38,6 +39,7 @@ from podcast_mcp.services import history as history_service_mod
 from podcast_mcp.services import workspace as workspace_mod
 from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.util.atomic_json import load_json_object
+from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     live_project,
     project_state_lock,
@@ -829,6 +831,121 @@ def test_a_failed_step_still_publishes_its_partial_changes(minimal_project, monk
     with pytest.raises(RuntimeError):
         PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
     assert ws.project.track_by_id("host").gain_db == 3.0
+
+
+def test_a_step_conflict_after_writing_artifacts_keeps_them_and_fails_the_step(
+    minimal_project, monkeypatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    out = ws.project.artifacts_dir() / "step_output.txt"
+
+    def step(work, _defaults):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("rendered")
+        work.track_by_id("guest").gain_db = 3.0
+        with project_state_lock(ws.project):
+            ws.project.track_by_id("guest").gain_db = -1.0
+        return "ok"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    with pytest.raises(ProjectMergeConflict):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    assert out.read_text() == "rendered"
+    assert _gains(ws.project) == (0.0, -1.0)
+    assert ws.project.pipeline_runs[-1].steps[-1].status == "error"
+
+
+def test_a_failed_publish_after_a_failed_step_keeps_the_steps_error(
+    minimal_project, monkeypatch, caplog
+) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(_work, _defaults):
+        raise RuntimeError("boom")
+
+    def broken_publish(*_a, **_k):
+        raise ValueError("publish broke")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    monkeypatch.setattr(runner_mod, "publish_project_changes", broken_publish)
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.pipeline.runner"),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    assert "publishing its partial changes failed" in caplog.text
+    assert ws.project.pipeline_runs[-1].steps[-1].message == "boom"
+
+
+def test_a_cancelled_step_publishes_its_partial_changes(minimal_project, monkeypatch) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(work, _defaults):
+        work.track_by_id("host").gain_db = 3.0
+        raise CancelledProgress("cancelled")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    with pytest.raises(CancelledProgress):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    assert ws.project.track_by_id("host").gain_db == 3.0
+
+
+def test_a_cancelled_steps_conflicting_changes_are_dropped_with_a_warning(
+    minimal_project, monkeypatch, caplog
+) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(work, _defaults):
+        work.track_by_id("guest").gain_db = 3.0
+        with project_state_lock(ws.project):
+            ws.project.track_by_id("guest").gain_db = -1.0
+        raise CancelledProgress("cancelled")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    with (
+        caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.runner"),
+        pytest.raises(CancelledProgress),
+    ):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    assert "were dropped" in caplog.text
+    assert _gains(ws.project) == (0.0, -1.0)
+
+
+def _replace_runs(live) -> None:
+    # What adopt_project_state does when a concurrent save_merged adopts the saved runs.
+    with project_state_lock(live):
+        live.pipeline_runs = [r.model_copy(deep=True) for r in live.pipeline_runs]
+
+
+def test_the_step_log_follows_pipeline_runs_replaced_during_the_step(
+    minimal_project, monkeypatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(_work, _defaults):
+        _replace_runs(ws.project)
+        return "done"
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    log = ws.project.pipeline_runs[-1].steps[-1]
+    assert log.message == "done"
+    assert log.finished_at is not None
+
+
+def test_a_failed_steps_log_follows_replaced_pipeline_runs(minimal_project, monkeypatch) -> None:
+    ws = _two_tracks(minimal_project)
+
+    def step(_work, _defaults):
+        _replace_runs(ws.project)
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(runner_mod._STEP_MAP, "balance_tracks", step)
+    with pytest.raises(RuntimeError):
+        PipelineRunner(defaults={}).run(ws.project, only_step="balance_tracks")
+    log = ws.project.pipeline_runs[-1].steps[-1]
+    assert (log.status, log.message) == ("error", "boom")
+    assert log.finished_at is not None
 
 
 def test_live_project_resolves_only_the_marked_step_copy(minimal_project):
