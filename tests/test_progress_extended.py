@@ -49,10 +49,14 @@ def test_cli_progress_reporter_non_tty_fallback():
     reporter.close()
 
 
-def test_make_progress_reporter_cli_default(monkeypatch):
+def test_make_progress_reporter_cli_default(monkeypatch, fake_rich_progress):
+    # fake_rich_progress (tests/conftest.py) keeps this from starting a real
+    # background-thread rich.progress.Progress that this test never closes
+    # (see #645 — that's exactly the shape of leak that flaked CI).
     monkeypatch.setattr("sys.stderr.isatty", lambda: True)
     reporter = make_progress_reporter(enabled=True, json_mode=False)
     assert isinstance(reporter, CliProgressReporter)
+    reporter.close()
 
 
 def test_make_progress_reporter_piped_is_null(monkeypatch):
