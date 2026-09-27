@@ -68,6 +68,22 @@ def test_join_render_fields_modes():
     assert join_render_fields(left, cut)["join_render_mode"] == "cut"
 
 
+@pytest.mark.parametrize(
+    ("fade_out_ms", "fade_in_ms", "expected"),
+    [(10, 60, 30), (60, 10, 30), (40, 50, 40), (20, 20, 20)],
+)
+def test_crossfade_ms_at_join_unequal_fades(fade_out_ms: int, fade_in_ms: int, expected: int):
+    left = _clip("a", 0, 1, fade_out_ms=fade_out_ms)
+    right = _clip("b", 1, 2, fade_in_ms=fade_in_ms, join_in_mode=ClipJoinMode.CROSSFADE)
+    assert crossfade_ms_at_join(left, right) == expected
+    assert join_render_fields(left, right)["join_crossfade_ms"] == expected
+
+
+def test_crossfade_ms_at_join_is_zero_when_not_a_crossfade():
+    left = _clip("a", 0, 1, fade_out_ms=10)
+    assert crossfade_ms_at_join(left, _clip("b", 1, 2, fade_in_ms=60)) == 0
+
+
 def test_neighbour_clips_errors():
     p = _project(
         _clip("a", 0, 1),
