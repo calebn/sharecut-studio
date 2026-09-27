@@ -15,8 +15,13 @@ export function selectionToWire(
   if (sel.kind === "clip") {
     return { kind: "clip", id: sel.id, track_id: sel.trackId };
   }
-  if (sel.kind === "pending" || sel.kind === "applied") {
-    return { kind: sel.kind, id: sel.id, track_id: sel.trackId };
+  if (sel.kind === "pending") {
+    return { kind: "pending", id: sel.id, track_id: sel.trackId };
+  }
+  if (sel.kind === "applied") {
+    return sel.trackId
+      ? { kind: "applied", id: sel.id, track_id: sel.trackId }
+      : { kind: "applied", id: sel.id };
   }
   if (sel.kind === "track") {
     return { kind: "track", track_id: sel.trackId };
@@ -69,12 +74,13 @@ export function selectionFromWire(
   if (sel.kind === "clip" && sel.id && sel.track_id) {
     return { kind: "clip", id: sel.id, trackId: sel.track_id };
   }
-  if ((sel.kind === "pending" || sel.kind === "applied") && sel.id) {
-    return {
-      kind: sel.kind,
-      id: sel.id,
-      trackId: sel.track_id ?? "",
-    };
+  if (sel.kind === "pending" && sel.id) {
+    return { kind: "pending", id: sel.id, trackId: sel.track_id ?? "" };
+  }
+  if (sel.kind === "applied" && sel.id) {
+    return sel.track_id
+      ? { kind: "applied", id: sel.id, trackId: sel.track_id }
+      : { kind: "applied", id: sel.id };
   }
   if (sel.kind === "track" && sel.track_id) {
     return { kind: "track", trackId: sel.track_id };

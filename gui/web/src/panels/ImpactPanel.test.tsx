@@ -279,6 +279,33 @@ describe("ImpactPanel applied edits", () => {
     });
   });
 
+  it("omits trackId when selecting a session-wide record", async () => {
+    const user = userEvent.setup();
+    const project = projectWithApplied();
+    project.applied_edits.records.push(
+      appliedEditRecord({
+        id: "session",
+        operation: "ripple_delete_clips",
+        track_ids: [],
+        reason: null,
+      }),
+    );
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Ripple delete clips · session · not on timeline",
+      }),
+    );
+    expect(useDawStore.getState().selection).toStrictEqual({
+      kind: "applied",
+      id: "session",
+    });
+  });
+
   it("has no a11y violations with the applied list open", async () => {
     const { container } = render(
       <DawProvider

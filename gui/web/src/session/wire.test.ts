@@ -14,6 +14,24 @@ const envelopes = [
 ];
 
 describe("selection wire", () => {
+  it("sends a session-wide applied selection without a track id", () => {
+    const local = { kind: "applied" as const, id: "alog_1" };
+    const wire = selectionToWire(local);
+    expect(wire).toStrictEqual({ kind: "applied", id: "alog_1" });
+    expect(selectionFromWire(wire)).toStrictEqual(local);
+  });
+
+  it("round-trips an applied selection on a track", () => {
+    const local = { kind: "applied" as const, id: "alog_1", trackId: "host" };
+    const wire = selectionToWire(local);
+    expect(wire).toStrictEqual({
+      kind: "applied",
+      id: "alog_1",
+      track_id: "host",
+    });
+    expect(selectionFromWire(wire)).toStrictEqual(local);
+  });
+
   it("round-trips transcriptWord", () => {
     const local = {
       kind: "transcriptWord" as const,
