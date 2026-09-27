@@ -112,6 +112,24 @@ def test_mix_with_music_builds_premix(minimal_project, sample_wav, tmp_workspace
     assert (proj.artifacts_dir() / "premix.wav").is_file()
 
 
+def test_mix_with_music_hashes_the_faded_music_stem(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.engines.play_audit import read_stem_hash, track_render_hash
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    steps.mix_with_music(proj, defaults)
+    envelope = proj.volume_envelope_for("bed")
+    assert envelope is not None and len(envelope.points) == 4
+    assert read_stem_hash(proj, "bed") == track_render_hash(proj, "bed")
+    envelope.points[1].value = 0.5
+    assert read_stem_hash(proj, "bed") != track_render_hash(proj, "bed")
+
+
 def test_stem_uses_pre_mutation_snapshot_for_audio_and_hash(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
