@@ -473,6 +473,28 @@ describe("host document command queue", () => {
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
   });
 
+  it.each([408, 429])(
+    "keeps a host replay answered %i queued for the next drain",
+    async (status) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response("slow down", { status })),
+      );
+      const { submitDocumentCommand } = await import("./api");
+
+      await expect(
+        submitDocumentCommand(
+          "/tmp/episode.project.json",
+          "SetTrackMeta",
+          {},
+          { command_id: "limited", client_seq: 3, replaying: true },
+        ),
+      ).rejects.toMatchObject({ status });
+      expect(addHostConflict).not.toHaveBeenCalled();
+      expect(removeHostQueuedCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it("binds a legacy guest queue record to the current tab identity on replay", async () => {
     vi.stubGlobal(
       "fetch",

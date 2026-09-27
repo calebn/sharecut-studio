@@ -388,21 +388,6 @@ describe("drainHostOfflineQueue", () => {
       "mine",
     ]);
   });
-
-  it("treats a retry-later 4xx as consumed, because the host submit layer already dequeued it", async () => {
-    const path = "/projects/episode.project.json";
-    hostQueue.mockResolvedValue([cmd("r"), cmd("next")]);
-    submit.mockRejectedValueOnce(new ApiError("Slow down", null, 429));
-    const { drainHostOfflineQueue } = await import("./drainOfflineQueue");
-
-    await drainHostOfflineQueue(path);
-
-    expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([
-      "r",
-      "next",
-    ]);
-    expect(removeHostQueuedCommands).toHaveBeenCalledWith(path, ["next"]);
-  });
 });
 
 describe("drainOfflineQueue (guest)", () => {
@@ -576,6 +561,26 @@ describe.each([
     }
   });
 
+  it.each([408, 429])(
+    "stops at a retry-later %i and keeps it for the next drain",
+    async (status) => {
+      queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
+      submit
+        .mockResolvedValueOnce({ ok: true })
+        .mockRejectedValueOnce(new ApiError("Slow down", null, status));
+
+      await drain();
+
+      expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual(["a", "b"]);
+      if (name === "host") {
+        expect(removeHostQueuedCommands).toHaveBeenCalledTimes(1);
+        expect(removeHostQueuedCommands).toHaveBeenCalledWith(HOST_PATH, ["a"]);
+      } else {
+        expect(removeHostQueuedCommands).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it("stops when the submit layer leaves a replay queued", async () => {
     queue().mockResolvedValue([rec("a", 1), rec("b", 2), rec("c", 3)]);
     submit.mockResolvedValueOnce({ ok: true, queued: true });
@@ -620,7 +625,6 @@ describe("replayQueuedCommands", () => {
         if (cmd.command_id === "d") return "stop";
         return "send";
       },
-      consumed: () => false,
       settle,
     });
 
@@ -629,14 +633,13 @@ describe("replayQueuedCommands", () => {
     expect(settle).toHaveBeenCalledWith(["a", "c"]);
   });
 
-  it("defaults the gate to send and continues past a consumed failure", async () => {
+  it("defaults the gate to send and continues past a permanent rejection", async () => {
     const { replayQueuedCommands } = await import("./drainOfflineQueue");
     const queue = [rec("a"), rec("b"), rec("c"), rec("d")];
     submit.mockRejectedValueOnce(new ApiError("x", null, 403));
     await replayQueuedCommands({
       path: "/projects/driver.project.json",
       load: async () => queue,
-      consumed: () => true,
     });
 
     expect(submit.mock.calls.map((c) => c[3].command_id)).toEqual([

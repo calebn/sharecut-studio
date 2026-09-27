@@ -21,7 +21,6 @@ export function errorMessage(error: unknown, fallback?: string): string {
   return error instanceof Error ? error.message : (fallback ?? String(error));
 }
 
-/** True for a 4xx the server answered: retrying the same request cannot succeed. */
 /** A rate limit, timeout or server error: the same request may succeed later. */
 export function isRetryLater(error: unknown): boolean {
   if (!(error instanceof ApiError) || error.status === null) {
@@ -30,6 +29,7 @@ export function isRetryLater(error: unknown): boolean {
   return error.status === 408 || error.status === 429 || error.status >= 500;
 }
 
+/** True for any 4xx the server answered (including 408 / 429). */
 export function isClientRejection(error: unknown): boolean {
   return (
     error instanceof ApiError &&
@@ -37,6 +37,14 @@ export function isClientRejection(error: unknown): boolean {
     error.status >= 400 &&
     error.status < 500
   );
+}
+
+/**
+ * A 4xx other than 408 / 429: the server refused this request for good
+ * (validation, auth, conflict, revoked share), so retrying it cannot help.
+ */
+export function isPermanentRejection(error: unknown): boolean {
+  return isClientRejection(error) && !isRetryLater(error);
 }
 
 const HOST_OFFLINE_MESSAGE =

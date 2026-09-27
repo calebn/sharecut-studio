@@ -132,7 +132,9 @@ export async function submitQueuedDocumentCommand(
         });
       }
       // The caller reports a live refusal now. Replaying it later would
-      // overwrite newer edits, as on the host.
+      // overwrite newer edits, as on the host. The drain
+      // (`replayQueuedCommands`) skips past a permanent rejection, so it
+      // must be dequeued before this throws.
       await removeQueuedCommand(token, command_id);
       throw failure;
     }
@@ -256,8 +258,15 @@ async function submitHostDocumentCommand(
     const { failure, status } = reply;
     const detail = failure.message;
     if (status < 500) {
-      // A 4xx will never succeed on retry. Record 409s, and any rejected
-      // replay (nobody is awaiting it), so the banner says why it was dropped.
+      if (opts?.replaying && isRetryLater(failure)) {
+        // A rate limit (429) or timeout (408) on a replay: nobody awaits it,
+        // so keep it queued for the next drain, as the guest path does.
+        throw failure;
+      }
+      // Any other 4xx will never succeed on retry. The drain
+      // (`replayQueuedCommands`) skips past it, so it must be dequeued
+      // before this throws. Record 409s, and any rejected replay (nobody is
+      // awaiting it), so the banner says why it was dropped.
       if (status === 409 || opts?.replaying) {
         await hostQueue.addHostConflict(projectPath, {
           command: {
