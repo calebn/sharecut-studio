@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.engines.play_audit import (
+    clear_invalidations_if_current,
     expected_stem_duration_sec,
     stem_duration_matches_timeline,
     stem_is_fresh,
@@ -10,6 +11,7 @@ from podcast_mcp.engines.play_audit import (
     write_stem_hash,
 )
 from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
+from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -210,3 +212,17 @@ def test_track_render_hash_ignores_clip_list_order(tmp_path) -> None:
     project.timeline.clips = [second, first]
 
     assert track_render_hash(project, "host") == in_order
+
+
+def test_clear_invalidations_if_current_keeps_an_edit_made_meanwhile(tmp_path) -> None:
+    project = EpisodeProject.create("inv", str(tmp_path))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    snapshot = project.model_copy(deep=True)
+    record_invalidation(project, track_ids=["host"])
+    edited = project.model_copy(deep=True)
+    edited.track_by_id("host").gain_db = 3.0
+    assert clear_invalidations_if_current(project, snapshot, "host", current=edited) is False
+    assert len(project.render.invalidations) == 1
+    assert clear_invalidations_if_current(project, snapshot, "host") is True
+    assert project.render.invalidations == []
+    assert clear_invalidations_if_current(project, snapshot, "host") is False
