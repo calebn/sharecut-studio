@@ -25,6 +25,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.services import PipelineRunResult
 
 
 @pytest.fixture(autouse=True)
@@ -1194,7 +1195,7 @@ def test_api_pipeline_run_and_events(minimal_project, monkeypatch) -> None:
             message="Completed step_b: 12 cuts applied",
         )
         reporter.end("pipeline")
-        return "step_b"
+        return PipelineRunResult(last_step="step_b", steps=[])
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -1260,7 +1261,7 @@ def test_api_pipeline_events_status_snapshots_while_running(minimal_project, mon
         if progress is not None:
             progress.update("pipeline", 1, total=1, message="done")
             progress.end("pipeline")
-        return "long_step"
+        return PipelineRunResult(last_step="long_step", steps=[])
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -1332,7 +1333,7 @@ def test_api_pipeline_events_two_subscribers_both_get_done(minimal_project, monk
         if progress is not None:
             progress.update("pipeline", 1, total=1, message="Completed long_step: ok")
             progress.end("pipeline")
-        return "long_step"
+        return PipelineRunResult(last_step="long_step", steps=[])
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -1724,7 +1725,7 @@ def test_api_pipeline_run_conflict(minimal_project, monkeypatch) -> None:
         kwargs.get("progress")
         started.set()
         release.wait(timeout=5)
-        return "done"
+        return PipelineRunResult(last_step="done", steps=[])
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -2044,7 +2045,7 @@ def test_api_pipeline_run_validation_and_cancel(minimal_project, monkeypatch) ->
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
-        lambda self, **kwargs: "done",
+        lambda self, **kwargs: PipelineRunResult(last_step="done", steps=[]),
     )
     client = TestClient(create_app())
     path = str(minimal_project)
@@ -2115,7 +2116,7 @@ def test_api_pipeline_run_passes_unattended(minimal_project, monkeypatch) -> Non
 
     def fake_run(self, **kwargs):
         seen.update(kwargs)
-        return "done"
+        return PipelineRunResult(last_step="done", steps=[])
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -3039,7 +3040,7 @@ def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypa
 
     def fake_run(self, **kwargs):
         seen.append(kwargs.get("config"))
-        return "done"
+        return PipelineRunResult(last_step="done", steps=[])
 
     monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
     monkeypatch.setattr(
