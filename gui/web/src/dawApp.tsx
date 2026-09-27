@@ -8,11 +8,10 @@ import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { HelpDialog } from "./home/HelpDialog";
 import { useBladeCut } from "./hooks/useBladeCut";
 import { useDocumentSync } from "./hooks/useDocumentSync";
-import { useGuestSync } from "./hooks/useGuestSync";
+import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
-import { useProjectPoll } from "./hooks/useProjectPoll";
 import { useSessionSync } from "./hooks/useSessionSync";
 import { useDawKeymapListener } from "./keymap/listener";
 import { BounceDialog } from "./layout/BounceDialog";
@@ -120,17 +119,14 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     publishKey,
     syncEnabled,
   );
-  const guestWsReady = useGuestSync(
+  useGuestSyncAndProjectPoll(
     projectPath,
     applyAgentSession,
     project,
     setProject,
     setSessionClients,
-    guestSyncEnabled,
+    { hostSyncEnabled: syncEnabled, guestSyncEnabled },
   );
-  // Hosts always poll meta; guests only while their socket is live, since useGuestSync
-  // polls on its own while the socket is down (#657).
-  useProjectPoll(projectPath, setProject, syncEnabled || guestWsReady);
   usePointerType();
 
   useEffect(() => {
