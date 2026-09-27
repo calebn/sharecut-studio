@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { Timecode } from "../ui";
+import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { Pill, Timecode } from "../ui";
 import { transportTimecode } from "../utils/time";
 import { ListenHero } from "./ListenHero";
 import { TransportFrame, TransportZone } from "./TransportFrame";
@@ -87,6 +88,9 @@ function TransportPreview({
           <TransportZone position="center">
             <div className="transport-play">{controls}</div>
           </TransportZone>
+          <TransportZone position="end">
+            <Pill tone="ok">Fresh</Pill>
+          </TransportZone>
         </TransportFrame>
       </div>
       <main aria-label="Stage" />
@@ -123,7 +127,8 @@ export const EmptyProject: Story = {
 
 export const CompactPhone: Story = {
   render: (args) => <TransportPreview {...args} phone />,
-  parameters: { viewport: { defaultViewport: "mobile1" } },
+  parameters: recordMobileViewport.parameters,
+  globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole("heading", { level: 1 })).toBeVisible();

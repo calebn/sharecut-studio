@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { pipelineJobSnapshot } from "../test/fixtures";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 
@@ -117,9 +118,10 @@ export const CompactPhone: Story = {
     headlineMax: 28,
   },
   parameters: {
-    viewport: { defaultViewport: "mobile1" },
+    ...recordMobileViewport.parameters,
     mobileStatusChip: true,
   },
+  globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const chip = canvas
