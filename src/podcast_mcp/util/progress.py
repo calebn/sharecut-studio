@@ -706,6 +706,7 @@ class ProgressTask:
         self._last_update_at: float | None = None
         self._pending_update = False
         self._pending_message: str | None = None
+        # Reentrant: advance_to() holds the lock while calling advance(), which takes it again.
         self._update_lock = threading.RLock()
 
     def __enter__(self) -> ProgressTask:

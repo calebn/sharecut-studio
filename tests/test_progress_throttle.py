@@ -185,3 +185,18 @@ def test_concurrent_advance_loses_no_counts_and_stays_ordered(frozen_clock):
     currents = [e.current for e in _updates(rec)]
     assert currents[-1] == 4000
     assert currents == sorted(currents)
+
+
+def test_advance_to_reenters_update_lock(frozen_clock):
+    rec = RecordingProgress()
+    with progress_task("t", "T", total=10, reporter=rec) as p:
+        done = threading.Event()
+
+        def run() -> None:
+            p.advance_to(3, message="m")
+            done.set()
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        assert done.wait(2.0), "advance_to deadlocked on _update_lock"
+    assert next((e.current, e.message) for e in _updates(rec)) == (3, "m")
