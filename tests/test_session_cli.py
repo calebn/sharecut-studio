@@ -70,6 +70,12 @@ def test_session_cli_status_seek_stop(minimal_project) -> None:
     assert "playhead_sec" in json.loads(status.stdout)
 
 
+def test_session_stop_help_says_it_pauses_in_place() -> None:
+    res = runner.invoke(app, ["session", "stop", "--help"])
+    assert res.exit_code == 0
+    assert "Pause DAW transport in place" in res.stdout
+
+
 def test_session_cli_region_invalid(minimal_project) -> None:
     proj = load_project(minimal_project)
     publish_agent_play(
