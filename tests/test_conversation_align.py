@@ -11,11 +11,13 @@ import pytest
 
 from podcast_mcp.edits.conversation_align import (
     REFERENCE_METHOD,
+    UNCONFIRMED_HOLD,
     AcousticOffset,
     AlignResult,
     ClipAlignPlan,
     _confirm_large_move,
     _is_common_ngram,
+    _list_preview,
     _weighted_median,
     acoustic_clip_offset,
     apply_alignment_plans,
@@ -769,6 +771,31 @@ def test_align_result_summary_skip_and_overflow() -> None:
     ]
     text = AlignResult(plans=plans, reference_track_id="t0").summary()
     assert "+2 more" in text
+
+
+def test_list_preview_caps_and_counts_rest() -> None:
+    assert _list_preview([]) == ""
+    assert _list_preview(["a", "b"]) == "a, b"
+    assert _list_preview([str(i) for i in range(6)]) == "0, 1, 2, 3, 4, 5"
+    assert _list_preview([str(i) for i in range(8)]) == "0, 1, 2, 3, 4, 5, +2 more"
+    assert _list_preview(["a", "b", "c"], limit=2) == "a, b, +1 more"
+
+
+def test_align_result_summary_held_overflow() -> None:
+    plans = [
+        ClipAlignPlan(
+            track_id=f"t{i}",
+            clip_id=f"c{i}",
+            offset_sec=0.0,
+            method=UNCONFIRMED_HOLD,
+            candidate_offset_sec=float(i + 2),
+        )
+        for i in range(8)
+    ]
+    text = AlignResult(plans=plans, reference_track_id="t0").summary()
+    assert "held unconfirmed t0:+2.00s" in text
+    assert "t5:+7.00s, +2 more" in text
+    assert "t6:" not in text
 
 
 def test_snapshot_restore_clip_geometry(tmp_path: Path) -> None:
