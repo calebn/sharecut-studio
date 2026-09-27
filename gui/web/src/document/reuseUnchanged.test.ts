@@ -268,6 +268,37 @@ describe("reuseUnchanged", () => {
     expect(out.envelopes[0]).not.toBe(prev.envelopes[0]);
   });
 
+  it("reuses an envelope whose points differ only in key order", () => {
+    const prev = minimalProject({
+      envelopes: [envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }])],
+    });
+    const next = fresh(prev);
+    next.envelopes = [
+      envelope("host", "gain", [{ value: 1, time: 0, id: "p1" }]),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes[0]).toBe(prev.envelopes[0]);
+  });
+
+  it("does not reuse an envelope whose point gained a field", () => {
+    const prev = minimalProject({
+      envelopes: [envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }])],
+    });
+    const next = fresh(prev);
+    next.envelopes = [
+      envelope("host", "gain", [
+        {
+          id: "p1",
+          time: 0,
+          value: 1,
+          curve: "linear",
+        } as unknown as AutomationEnvelope["points"][number],
+      ]),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes[0]).not.toBe(prev.envelopes[0]);
+  });
+
   it("swaps an envelope keyed by track_id + parameter, keeping the other", () => {
     const prev = minimalProject({
       envelopes: [
@@ -284,6 +315,20 @@ describe("reuseUnchanged", () => {
     expect(out.envelopes).not.toBe(prev.envelopes);
     expect(out.envelopes[0]).toBe(prev.envelopes[0]);
     expect(out.envelopes[1]).toBe(next.envelopes[1]);
+  });
+
+  it("keeps every envelope, losing only reuse, when two share track_id + parameter", () => {
+    const prev = minimalProject({
+      envelopes: [
+        envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }]),
+        envelope("host", "gain", [{ id: "p2", time: 1, value: 0.5 }]),
+      ],
+    });
+    const next = fresh(prev);
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes).toEqual(next.envelopes);
+    expect(out.envelopes[0]).toBe(next.envelopes[0]);
+    expect(out.envelopes[1]).toBe(prev.envelopes[1]);
   });
 
   it("reuses a pending edit whose timeline_spans/track_ids changed only by value", () => {

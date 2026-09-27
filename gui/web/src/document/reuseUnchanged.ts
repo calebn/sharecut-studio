@@ -1,6 +1,7 @@
 import type {
   AppliedEditRecord,
   AutomationEnvelope,
+  AutomationPoint,
   ClipMuteRegion,
   ClippingRegion,
   ClipRow,
@@ -76,7 +77,13 @@ function sameClipsMeta(
   return sameShallow({ ...a, tracks: null }, { ...b, tracks: null });
 }
 
-/** Envelopes have no `id`; keyed by the pair that identifies one on a track. */
+/**
+ * Envelopes have no `id`; keyed by the pair that identifies one on a track.
+ * The domain keeps at most one envelope per (`track_id`, `parameter`). If two
+ * ever shared a key, `reuseByKey`'s map keeps the last, so the earlier one
+ * only loses reuse; the result still holds every `next` envelope (pinned in
+ * `reuseUnchanged.test.ts`).
+ */
 export function envelopeKey(e: AutomationEnvelope): string {
   return `${e.track_id}\u0000${e.parameter}`;
 }
@@ -85,11 +92,26 @@ export function idKey<T extends { id: string }>(item: T): string {
   return item.id;
 }
 
+/**
+ * Same points in the same order, each with the same own keys and values.
+ * Field by field (key-order-insensitive, nothing serialized), since a long
+ * envelope is compared on every snapshot or patch.
+ */
+function samePoints(
+  a: readonly AutomationPoint[],
+  b: readonly AutomationPoint[],
+): boolean {
+  return (
+    a === b ||
+    (a.length === b.length && a.every((p, i) => sameShallow(p, b[i]!)))
+  );
+}
+
 function sameEnvelope(a: AutomationEnvelope, b: AutomationEnvelope): boolean {
   return (
     a.track_id === b.track_id &&
     a.parameter === b.parameter &&
-    sameJson(a.points, b.points)
+    samePoints(a.points, b.points)
   );
 }
 
