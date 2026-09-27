@@ -71,6 +71,8 @@ class FanoutHub:
 
         Must stay non-blocking: document submit publishes while holding the project lock and
         the document.db write lock. Queue puts and overflow run on the loop, never here.
+        Cost is one ``call_soon_threadsafe`` wakeup per distinct subscriber loop per publish
+        (one for the usual single-loop key).
         """
         by_loop: dict[asyncio.AbstractEventLoop, list[asyncio.Queue[dict[str, Any]]]] = {}
         with self._lock:
