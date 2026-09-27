@@ -858,6 +858,12 @@ def test_parse_config_assignments_types_and_nesting() -> None:
     assert result["focus"]["episode_promise"] is None
     assert result["transcribe"]["decode"]["temperature"] == [0.0, 0.2]
     assert result["effects"]["gate"] == [{"type": "gate", "params": {"threshold_db": -30}}]
+    assert (
+        parse_config_assignments(["effects.noise_reduction_rnnoise=[]"])["effects"][
+            "noise_reduction_rnnoise"
+        ]
+        == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -869,6 +875,7 @@ def test_parse_config_assignments_types_and_nesting() -> None:
         "focus.not_a_real_key=1",
         "focus..enabled=1",
         "focus.enabled=[unclosed",
+        "effects.gatee=[]",
     ],
 )
 def test_parse_config_assignments_rejects(assignment: str) -> None:
