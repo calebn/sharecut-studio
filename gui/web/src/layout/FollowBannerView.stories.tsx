@@ -81,7 +81,8 @@ export const PhoneLongName: Story = {
     await expect(text).toBeInTheDocument();
     if (!shell || !text) return;
     // jsdom (src/test/allStories.test.tsx) has no layout engine, so the
-    // truncation and fit checks only run in a real Storybook browser.
+    // truncation and fit checks only run in a real Storybook browser. CI
+    // covers the same fit in e2e/presence-follow.spec.ts (360px phone guest).
     const shellRect = shell.getBoundingClientRect();
     if (shellRect.width === 0) return;
     // The long name truncates (ellipsis) instead of widening the banner…

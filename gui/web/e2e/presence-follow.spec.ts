@@ -8,6 +8,7 @@ import {
 import { expectPageAxeClean } from "./axe";
 import { clickHTMLElement } from "./domClick";
 import { followUntilBannerVisible, waitForFollowBanner } from "./followBanner";
+import { openTransportMenu } from "./overlayReachability";
 import { scrollTimelineBy } from "./scroll";
 import { withShareableProject } from "./shareableProject";
 import { openGuestShare, openHostShare } from "./shareNavigation";
@@ -17,6 +18,8 @@ import { withTwoBrowserPages } from "./twoBrowserPages";
 const DESKTOP = { width: 1440, height: 900 };
 const TABLET = { width: 820, height: 1180 };
 const PHONE = { width: 390, height: 844 };
+/** Matches the Storybook `recordMobileViewport` width used by Templates/FollowBanner PhoneLongName. */
+const NARROW_PHONE = { width: 360, height: 800 };
 async function transportTimecode(page: Page): Promise<string> {
   // Phone Listen renders a full pair in its body; other shells use header
   // transport's compact timecode. Compare the shared playhead portion.
@@ -193,12 +196,13 @@ async function withHostGuestPages<T>(
   browser: Browser,
   role: "viewer" | "editor",
   run: (host: Page, guest: Page) => Promise<T>,
+  guestViewport: { width: number; height: number } = DESKTOP,
 ): Promise<T> {
   return withShareableProject(async (projectPath) => {
     return withTwoBrowserPages(
       browser,
       { viewport: DESKTOP },
-      { viewport: DESKTOP },
+      { viewport: guestViewport },
       async (host, guest) => {
         await openHostShare(host, projectPath);
         const token = await test.step(
@@ -468,6 +472,41 @@ test.describe("presence follow guest share", () => {
       );
       await expectGuestListeningInMix(pageB);
     });
+  });
+
+  test("phone guest banner truncates and keeps Stop following in the shell", async ({
+    browser,
+  }) => {
+    await withHostGuestPages(
+      browser,
+      "viewer",
+      async (host, guest) => {
+        await expect(guest.locator(".daw-shell--phone")).toBeVisible();
+        await host.locator('[data-presence-anchor="tab:pipeline"]').click();
+        await followUntilBannerVisible(guest, async () => {
+          await openTransportMenu(guest);
+        });
+        await host.locator('[data-presence-anchor="audition:fx"]').click();
+        const banner = guest.locator(".follow-banner");
+        // The degrade detail makes the text longer than a 360px row.
+        await expect(banner).toContainText(/auditioning FX/);
+        const text = guest.locator(".follow-banner-text");
+        // Ellipsis truncation (presence.css) instead of widening the banner.
+        await expect
+          .poll(() => text.evaluate((el) => el.scrollWidth > el.clientWidth))
+          .toBe(true);
+        const shellBox = await guest.locator(".daw-shell").boundingBox();
+        const stopBox = await guest
+          .locator(".follow-banner-stop")
+          .boundingBox();
+        expect(shellBox).toBeTruthy();
+        expect(stopBox).toBeTruthy();
+        expect(stopBox!.x + stopBox!.width).toBeLessThanOrEqual(
+          shellBox!.x + shellBox!.width + 1,
+        );
+      },
+      NARROW_PHONE,
+    );
   });
 
   test("editor guest Mix lock after host FX", async ({ browser }) => {

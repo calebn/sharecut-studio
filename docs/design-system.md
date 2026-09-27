@@ -298,6 +298,11 @@ that store or simulate command execution.
    and `.stories.tsx` module, runs
    its `play` function, and checks the rendered DOM with axe in CI. Keep
    colocated component tests for behavior that needs specific assertions.
+   That suite runs under jsdom, which has no layout, so layout asserts in a
+   `play` function (sizes, overflow, `getBoundingClientRect`) only run in a
+   real Storybook browser; give any layout rule that must not regress a
+   Playwright check in `e2e/` as well (for example the 360px follow-banner
+   fit in `e2e/presence-follow.spec.ts`).
 10. Run `npm run build-storybook` before pushing; the Pages workflow rebuilds
     from `main` anyway.
 
