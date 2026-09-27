@@ -133,9 +133,45 @@ def test_digital_silence_fraction_undecodable(monkeypatch, tmp_path, caplog):
         raise RuntimeError("no decode")
 
     monkeypatch.setattr(asr_silence, "peak_envelope", boom)
+    asr_silence._cached_silent_fraction.cache_clear()
+    p = tmp_path / "a.wav"
+    p.write_bytes(b"x")
     with caplog.at_level("WARNING"):
-        result = asr_silence.digital_silence_fraction(tmp_path / "a.wav", peak_dbfs=-60.0)
+        result = asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
     assert result is None
+    assert "digital silence measure skipped" in caplog.text
+
+
+def test_digital_silence_fraction_cached_per_file_version(monkeypatch, tmp_path):
+    import os
+
+    from podcast_mcp.engines import asr_silence
+
+    asr_silence._cached_silent_fraction.cache_clear()
+    calls = []
+
+    def fake_envelope(path, **_k):
+        calls.append(path)
+        return np.array([0.0, 0.0, 0.0, 0.5], dtype=np.float32), 100.0
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", fake_envelope)
+    p = tmp_path / "a.wav"
+    p.write_bytes(b"x")
+    assert asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0) == 0.75
+    assert asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0) == 0.75
+    assert len(calls) == 1
+    st = p.stat()
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+    asr_silence.digital_silence_fraction(p, peak_dbfs=-60.0)
+    assert len(calls) == 2
+    asr_silence.digital_silence_fraction(p, peak_dbfs=-50.0)
+    assert len(calls) == 3
+    asr_silence._cached_silent_fraction.cache_clear()
+
+
+def test_digital_silence_fraction_missing_file(tmp_path, caplog):
+    with caplog.at_level("WARNING"):
+        assert digital_silence_fraction(tmp_path / "nope.wav", peak_dbfs=-60.0) is None
     assert "digital silence measure skipped" in caplog.text
 
 

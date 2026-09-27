@@ -9,13 +9,15 @@ energy above 4 kHz still counts. It is reduced to a per-block peak envelope, so
 memory stays small on long tracks.
 
 Analyze (``suggest_pipeline_tuning``) reuses the same envelope to flag a dialogue
-source that is mostly digital silence, a sign of a gated stem worth VAD.
+source that is mostly digital silence, a sign of a gated stem worth VAD. The
+resulting fraction is cached in-process per file version.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 
@@ -107,17 +109,30 @@ def silent_fraction(peaks: np.ndarray, *, peak_dbfs: float) -> float:
     return float(np.count_nonzero(peaks < db_to_amplitude(peak_dbfs)) / peaks.size)
 
 
+@lru_cache(maxsize=64)
+def _cached_silent_fraction(path: str, size: int, mtime_ns: int, peak_dbfs: float) -> float:
+    """Decode ``path`` once per (size, mtime_ns, peak_dbfs); size/mtime key the file version."""
+    del size, mtime_ns  # cache key only
+    peaks, _rate = peak_envelope(Path(path))
+    return silent_fraction(peaks, peak_dbfs=peak_dbfs)
+
+
 def digital_silence_fraction(path: Path, *, peak_dbfs: float) -> float | None:
     """Share of ``path``'s ``PEAK_BLOCK_SEC`` blocks that are digital silence.
 
-    ``None`` (a warning is logged) when the media cannot be decoded.
+    Cached in-process per file version (path, size, mtime) and ``peak_dbfs``, so a
+    re-run Analyze (GUI button, MCP) does not decode an unchanged file again.
+    ``None`` (a warning is logged) when the media cannot be read or decoded; failures
+    are not cached.
     """
     try:
-        peaks, _rate = peak_envelope(path)
+        st = path.stat()
+        return _cached_silent_fraction(
+            str(path.resolve()), st.st_size, st.st_mtime_ns, float(peak_dbfs)
+        )
     except Exception as exc:
         log.warning("digital silence measure skipped for %s: %s", path, exc)
         return None
-    return silent_fraction(peaks, peak_dbfs=peak_dbfs)
 
 
 def flag_silent_words_in_file(
