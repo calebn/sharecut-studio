@@ -145,8 +145,10 @@ If a published version's MP3 is missing, retry encoding writes a temporary MP3 b
 publishes `mix.mp3` only after encoding succeeds. Python-level failures and interruptions remove
 the temporary output, so guest audio lookup continues to use the frozen WAV. The retry pins the
 resolved review directory so a symlink retarget cannot redirect the output or cleanup.
-FFmpeg receives a private snapshot copied from a no-follow, descriptor-pinned WAV read;
-it never reopens the workspace source path during a retry.
+FFmpeg receives a private, separate-inode snapshot made from a no-follow,
+descriptor-pinned WAV read. A filesystem clone avoids a full copy when supported;
+otherwise the pinned descriptor is copied. In-place writes to the source cannot
+change FFmpeg's snapshot during a retry.
 Before a retry creates its temporary file, it inspects up to 32 matching `.mix-*.mp3` names in
 that version's directory and removes regular files older than 24 hours. The age threshold protects
 fresh concurrent retries; symlinks, the published `mix.mp3`, and `mix.wav` are excluded. Cleanup is
