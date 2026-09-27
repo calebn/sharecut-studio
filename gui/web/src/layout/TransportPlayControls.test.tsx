@@ -28,7 +28,7 @@ describe("TransportPlayControls", () => {
     );
     expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute(
       "title",
-      "Stop (K)",
+      "Stop and return to where playback started (K)",
     );
     const pause = screen.getByRole("button", { name: "Pause" });
     expect(pause).toHaveAttribute("title", "Pause (Space)");
