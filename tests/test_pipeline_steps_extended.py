@@ -382,6 +382,40 @@ def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, w
     assert "unmapped_words" not in qc["timebase"]["tracks"]["host"]
 
 
+def test_premix_rebuild_leaves_reconciliation_to_the_fingerprint(
+    minimal_project, sample_wav, tmp_workspace
+):
+    """ensure_current_premix's inline assemble does not false-stale reconciliation (#621)."""
+    from podcast_mcp.engines.play_audit import premix_path
+    from podcast_mcp.engines.reconciliation_state import (
+        mark_reconciliation_fresh,
+        reconciliation_status,
+    )
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    mark_reconciliation_fresh(proj)
+    steps.mix_with_music(proj, defaults)
+
+    with patch.object(steps, "assemble_timeline", wraps=steps.assemble_timeline) as assemble:
+        premix_path(proj).unlink()  # missing premix: rebuilt
+        steps.ensure_current_premix(proj, defaults)
+        proj.track_by_id("bed").fader_db = -6.0  # music-only mix change: rebuilt
+        steps.ensure_current_premix(proj, defaults)
+    assert assemble.call_count == 2
+    assert premix_path(proj).is_file()
+    assert reconciliation_status(proj)["stale"] is False
+
+    proj.track_by_id("host").gain_db = 3.0  # dialogue change: the fingerprint catches it
+    steps.ensure_current_premix(proj, defaults)
+    assert reconciliation_status(proj)["stale"] is True
+
+
 def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch(

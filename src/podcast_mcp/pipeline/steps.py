@@ -624,12 +624,8 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
     mix_cfg = defaults.get("mix", {})
     meta_path = artifact(project, "track_outputs.json")
     if not meta_path.is_file():
-        from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
-
+        # No reconciliation stale mark: see ensure_current_premix (#621).
         assemble_timeline(project, defaults)
-        # The runner no longer marks stale after this step (#621); an inline assemble is
-        # still a dialogue re-render, as the runner would treat assemble_timeline.
-        mark_reconciliation_stale(project)
     rendered = json.loads(meta_path.read_text(encoding="utf-8"))
     eng = ffmpeg()
 
@@ -703,6 +699,13 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
     Warns when the rebuilt premix still reads stale (a stem that never goes fresh,
     such as a duration mismatch), since every export would otherwise redo it silently.
+
+    This inline assemble (and ``mix_with_music``'s, when ``track_outputs.json`` is
+    missing) does not mark reconciliation stale the way the runner does after
+    ``assemble_timeline``: it re-renders the dialogue state ``audio_state_fingerprint()``
+    already hashes, so a dialogue change since the last reconcile is caught by the
+    fingerprint check in ``reconciliation_is_stale``. Marking it unconditionally would
+    false-stale a music-only remix, such as a bed fader change (#621).
     """
     from podcast_mcp.engines.play_audit import (
         premix_is_stale,
