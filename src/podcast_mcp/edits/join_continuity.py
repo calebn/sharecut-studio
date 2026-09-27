@@ -13,9 +13,11 @@ guarantee - disclaimer on every report.
 
 from __future__ import annotations
 
+import json
+import logging
 import tempfile
 import wave
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -34,7 +36,7 @@ from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
 from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
 from podcast_mcp.util.process import DEVNULL, run
 from podcast_mcp.util.timebase import TimelineSec
@@ -54,6 +56,8 @@ _DISCLAIMER = (
     "Fail-closed multi-detector join cost (TTS/forensic fusion). "
     "Not PEAQ/POLQA and not a human-ear guarantee - prefer leave-in when unsure."
 )
+_CLICK_BATCH_SIZE = 16
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -475,9 +479,15 @@ def _load_sides(
 def _click_check_hires(
     project: EpisodeProject, track_id: str, src_join_sec: float, *, side_sec: float = 0.02
 ) -> float | None:
+    path = track_audio_path(project, track_id)
+    return _score_single_highrate_window(path, src_join_sec, side_sec=side_sec)
+
+
+def _score_single_highrate_window(
+    path: Path, src_join_sec: float, *, side_sec: float
+) -> float | None:
     from podcast_mcp.engines.align import load_mono_window
 
-    path = track_audio_path(project, track_id)
     try:
         win = load_mono_window(
             path,
@@ -500,9 +510,9 @@ def _click_spike_from_window(win: np.ndarray) -> float | None:
 
 @contextmanager
 def _highrate_click_scorer(
-    path: Path, *, side_sec: float = 0.02
+    path: Path, *, source_joins: Sequence[float] = (), side_sec: float = 0.02
 ) -> Iterator[Callable[[float], float | None]]:
-    """Keep one bounded WAV reader or one seekable decode for a join sweep."""
+    """Keep one bounded WAV reader or batch seeked windows for a join sweep."""
     duration = side_sec * 2
     with ExitStack() as stack:
         try:
@@ -530,46 +540,96 @@ def _highrate_click_scorer(
                 yield score_wav
                 return
 
-    # Unsupported containers need FFmpeg; keep its output on disk, never in RAM.
-    with ExitStack() as stack:
-        try:
-            decoded = stack.enter_context(tempfile.TemporaryFile(mode="w+b"))
-        except OSError:  # pragma: no cover - no temporary storage
-            yield lambda _join: None
-            return
-        try:
-            run(
-                [
-                    resolve_ffmpeg(),
-                    "-v",
-                    "error",
-                    "-i",
-                    str(path),
-                    "-ac",
-                    "1",
-                    "-ar",
-                    "48000",
-                    "-f",
-                    "f32le",
-                    "pipe:1",
-                ],
-                stdout=decoded,
-                stderr=DEVNULL,
-                check=True,
-            )
-        except Exception:  # pragma: no cover - decode failures
-            yield lambda _join: None
-            return
+    # Unsupported containers use one seek per join. Keep only a small batch of
+    # 0.1-second outputs at a time, never a decoded copy of the full recording.
+    scores = _score_highrate_batches(path, source_joins, side_sec=side_sec)
 
-        def score_decoded(src_join_sec: float) -> float | None:
-            start_frame = round(max(0.0, src_join_sec - side_sec) * 48000)
-            # load_mono_window's FFmpeg fallback uses at least 0.1 seconds.
-            count = round(max(0.1, duration) * 48000)
-            decoded.seek(start_frame * 4)
-            win = np.frombuffer(decoded.read(count * 4), dtype=np.float32)
-            return _click_spike_from_window(win)
+    def score_seeked(src_join_sec: float) -> float | None:
+        if src_join_sec in scores:
+            return scores[src_join_sec]
+        return _score_single_highrate_window(path, src_join_sec, side_sec=side_sec)
 
-        yield score_decoded
+    yield score_seeked
+
+
+def _preferred_audio_stream(path: Path) -> int:
+    """Match FFmpeg's default audio stream choice for a single input."""
+    result = run(
+        [
+            resolve_ffprobe(),
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=channels:stream_disposition=default",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        check=True,
+    )
+    streams = json.loads(result.stdout).get("streams", [])
+    if not streams:
+        raise ValueError(f"no audio stream in {path}")
+    return max(
+        range(len(streams)),
+        key=lambda i: (
+            int(streams[i].get("disposition", {}).get("default") or 0),
+            int(streams[i].get("channels") or 0),
+        ),
+    )
+
+
+def _score_highrate_batches(
+    path: Path, source_joins: Sequence[float], *, side_sec: float
+) -> dict[float, float | None]:
+    scores: dict[float, float | None] = {}
+    if not source_joins:
+        return scores
+    try:
+        stream = _preferred_audio_stream(path)
+    except Exception as exc:
+        _LOG.debug("high-rate click stream probe failed for %s: %s", path, exc)
+        return {
+            join: _score_single_highrate_window(path, join, side_sec=side_sec)
+            for join in source_joins
+        }
+    for offset in range(0, len(source_joins), _CLICK_BATCH_SIZE):
+        batch = source_joins[offset : offset + _CLICK_BATCH_SIZE]
+        try:
+            with tempfile.TemporaryDirectory(prefix="join-click-") as temp:
+                outputs = [Path(temp) / f"{i}.f32le" for i in range(len(batch))]
+                command = [resolve_ffmpeg(), "-v", "error", "-y"]
+                for join in batch:
+                    command.extend(["-ss", str(max(0.0, join - side_sec)), "-i", str(path)])
+                for i, output in enumerate(outputs):
+                    command.extend(
+                        [
+                            "-map",
+                            f"{i}:a:{stream}",
+                            "-t",
+                            str(max(0.1, side_sec * 2)),
+                            "-ac",
+                            "1",
+                            "-ar",
+                            "48000",
+                            "-f",
+                            "f32le",
+                            str(output),
+                        ]
+                    )
+                run(command, stderr=DEVNULL, check=True)
+                for join, output in zip(batch, outputs, strict=True):
+                    win = np.fromfile(output, dtype=np.float32)
+                    scores[join] = _click_spike_from_window(win)
+        except Exception as exc:
+            _LOG.debug("high-rate click batch failed for %s at offset %d: %s", path, offset, exc)
+            # One bad output must not hide reports from the remaining joins.
+            for join in batch:
+                scores[join] = _score_single_highrate_window(path, join, side_sec=side_sec)
+    return scores
 
 
 def _maybe_neural(
@@ -817,7 +877,16 @@ def assess_project_joins(
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, cfg) if cfg.calibrate else None
         )
-        with _highrate_click_scorer(track_audio_path(project, tid)) as click_score:
+        source_joins: list[float] = []
+        for _prev, cur in joins:
+            join_t = float(cur.timeline_start)
+            mapped = timeline.timeline_to_source(tid, TimelineSec(join_t))
+            if mapped is None:
+                raise ValueError(f"timeline join {join_t} falls in a gap on track {tid!r}")
+            source_joins.append(float(mapped))
+        with _highrate_click_scorer(
+            track_audio_path(project, tid), source_joins=source_joins
+        ) as click_score:
             for prev, cur in joins:
                 join_t = float(cur.timeline_start)
                 gap = abs(float(cur.source_start) - float(prev.source_end))

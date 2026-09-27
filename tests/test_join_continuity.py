@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import wave
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -277,7 +278,7 @@ def test_project_join_sweep_keeps_one_bounded_wav_reader(
     assert len(opened) == 1
 
 
-def test_project_join_sweep_decodes_unsupported_container_once(
+def test_project_join_sweep_batches_unsupported_container_windows(
     minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.edits import join_continuity as jc
@@ -296,28 +297,180 @@ def test_project_join_sweep_decodes_unsupported_container_once(
         jc.assess_existing_join(project, "host", join_t, config=cfg).to_dict()
         for join_t in (0.5, 1.0)
     ]
-    calls = 0
-    temporary_files = []
-    temporary_file = jc.tempfile.TemporaryFile
+    commands = []
+    temporary_dirs = []
+    temporary_directory = jc.tempfile.TemporaryDirectory
 
-    def tracked_temporary_file(*args, **kwargs):
-        handle = temporary_file(*args, **kwargs)
-        temporary_files.append(handle)
-        return handle
+    @contextmanager
+    def tracked_temporary_directory(*args, **kwargs):
+        with temporary_directory(*args, **kwargs) as directory:
+            temporary_dirs.append(Path(directory))
+            yield directory
 
     def counted_run(*args, **kwargs):
-        nonlocal calls
-        calls += 1
+        commands.append(args[0])
         return run(*args, **kwargs)
 
     monkeypatch.setattr(jc, "run", counted_run)
-    monkeypatch.setattr(jc.tempfile, "TemporaryFile", tracked_temporary_file)
+    monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
     sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
-    assert calls == 1
-    assert len(temporary_files) == 1 and temporary_files[0].closed
+    assert len([cmd for cmd in commands if Path(cmd[0]).name == "ffmpeg"]) == 1
+    assert len(temporary_dirs) == 1 and not temporary_dirs[0].exists()
     for actual, expected in zip(sweep["joins"], individual, strict=True):
         assert actual["verdict"] == expected["verdict"]
         assert actual["risk"] == pytest.approx(expected["risk"], abs=0.01)
+
+
+def test_unsupported_click_windows_match_individual_flac(tmp_path: Path, sample_wav: Path) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+    from podcast_mcp.util.binaries import resolve_ffmpeg
+    from podcast_mcp.util.process import run
+
+    flac = tmp_path / "source.flac"
+    run([resolve_ffmpeg(), "-y", "-v", "error", "-i", str(sample_wav), str(flac)], check=True)
+    joins = [1.2, 0.01, 0.8, 1.2, 100.0]
+    with jc._highrate_click_scorer(flac, source_joins=joins) as score:
+        actual = [score(join) for join in joins]
+    expected = [jc._score_single_highrate_window(flac, join, side_sec=0.02) for join in joins]
+    for got, want in zip(actual, expected, strict=True):
+        if want is None:
+            assert got is None
+        else:
+            assert got == pytest.approx(want, rel=1e-5)
+
+
+def test_click_batch_matches_ffmpeg_audio_stream_selection(tmp_path: Path) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+    from podcast_mcp.util.binaries import resolve_ffmpeg
+    from podcast_mcp.util.process import run
+
+    first = tmp_path / "two_audio.mka"
+    run(
+        [
+            resolve_ffmpeg(),
+            "-y",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=8000",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=880:sample_rate=48000",
+            "-t",
+            "1",
+            "-map",
+            "0:a",
+            "-map",
+            "1:a",
+            "-c:a",
+            "pcm_s16le",
+            str(first),
+        ],
+        check=True,
+    )
+    second = tmp_path / "second_default.mka"
+    run(
+        [
+            resolve_ffmpeg(),
+            "-y",
+            "-v",
+            "error",
+            "-i",
+            str(first),
+            "-map",
+            "0:a",
+            "-c",
+            "copy",
+            "-disposition:a:0",
+            "0",
+            "-disposition:a:1",
+            "default",
+            str(second),
+        ],
+        check=True,
+    )
+    assert jc._preferred_audio_stream(first) == 0
+    assert jc._preferred_audio_stream(second) == 1
+    for path in (first, second):
+        join = 0.5
+        with jc._highrate_click_scorer(path, source_joins=[join, 0.8]) as score:
+            actual = score(join)
+        expected = jc._score_single_highrate_window(path, join, side_sec=0.02)
+        assert actual == pytest.approx(expected, rel=1e-5)
+
+
+def test_click_batch_bounds_temporary_bytes_for_long_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+
+    path = tmp_path / "long.flac"
+    path.write_bytes(b"fixture")
+    joins = [float(7200 + i) for i in range(18)]
+    sizes: list[int] = []
+    commands: list[list[str]] = []
+    directories: list[Path] = []
+    temporary_directory = jc.tempfile.TemporaryDirectory
+
+    @contextmanager
+    def tracked_temporary_directory(*args, **kwargs):
+        with temporary_directory(*args, **kwargs) as directory:
+            directories.append(Path(directory))
+            yield directory
+
+    def fake_run(command, **_kwargs):
+        commands.append(command)
+        outputs = [Path(word) for word in command if str(word).endswith(".f32le")]
+        for output in outputs:
+            np.zeros(4800, dtype=np.float32).tofile(output)
+        sizes.append(sum(output.stat().st_size for output in outputs))
+
+    monkeypatch.setattr(jc, "_preferred_audio_stream", lambda _path: 0)
+    monkeypatch.setattr(jc, "run", fake_run)
+    monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
+    scores = jc._score_highrate_batches(path, joins, side_sec=0.02)
+    assert list(scores) == joins
+    assert len(commands) == 2
+    assert sizes == [16 * 4800 * 4, 2 * 4800 * 4]
+    assert all("-ss" in command and "-t" in command for command in commands)
+    assert all(not directory.exists() for directory in directories)
+
+
+def test_click_batch_failure_falls_back_per_join_and_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+
+    path = tmp_path / "source.flac"
+    path.write_bytes(b"fixture")
+    calls: list[float] = []
+    directories: list[Path] = []
+    temporary_directory = jc.tempfile.TemporaryDirectory
+
+    @contextmanager
+    def tracked_temporary_directory(*args, **kwargs):
+        with temporary_directory(*args, **kwargs) as directory:
+            directories.append(Path(directory))
+            yield directory
+
+    def fail_batch(*_args, **_kwargs):
+        raise RuntimeError("one output failed")
+
+    def fallback(_path, join, *, side_sec):
+        calls.append(join)
+        return join if join != 2.0 else None
+
+    monkeypatch.setattr(jc, "_preferred_audio_stream", lambda _path: 0)
+    monkeypatch.setattr(jc, "run", fail_batch)
+    monkeypatch.setattr(jc, "_score_single_highrate_window", fallback)
+    monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
+    scores = jc._score_highrate_batches(path, [1.0, 2.0, 3.0], side_sec=0.02)
+    assert scores == {1.0: 1.0, 2.0: None, 3.0: 3.0}
+    assert calls == [1.0, 2.0, 3.0]
+    assert len(directories) == 1 and not directories[0].exists()
 
 
 def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:

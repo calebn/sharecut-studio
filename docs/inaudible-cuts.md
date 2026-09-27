@@ -128,9 +128,12 @@ values to the fusion step. This keeps detector policy in one place while the
 published report format stays stable.
 The project join sweep reuses each track's decoded waveform, natural-join
 calibration, and high-rate source reader across its joins. PCM WAV checks seek
-bounded windows through one open reader; other containers decode once into a
-temporary seekable stream. Individual join scoring still reads only a short
-window around its join.
+bounded windows through one open reader. Other containers use FFmpeg to seek
+independent 0.1-second source windows in batches of at most 16 joins; temporary
+PCM output is discarded after each batch, so a long source is never decoded
+wholesale for click checks. If a batch fails, each affected join is retried
+with the individual short-window decoder. Individual join scoring reads only a
+short window around its join.
 MFCC scoring shares an immutable mel filterbank for equal sample rates and FFT sizes.
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
