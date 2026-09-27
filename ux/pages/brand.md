@@ -40,7 +40,7 @@ Change hex in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharec
 
 | Role | Use |
 |------|-----|
-| Canvas / surface / elevated | Linen paper and white panes (light) or warm stone (dark) — not icy SaaS gray, not brown cave, not `#000`. One warm neutral ramp serves both themes. Copper is the only warm metal. |
+| Canvas / surface / elevated | Near-white sage canvas and panes (light) or warm stone (dark) — not icy SaaS gray, not brown cave, not `#000`. Copper is the only warm metal. |
 | Ink / muted | Cream or ink; cooler muted for secondary copy so copper can pop |
 | Accent | Copper (new penny) for links and focus |
 | Accent solid | Button fill with on-color text ≥ **4.5:1**; light mode uses a darker variant of the decorative orange |
@@ -50,6 +50,12 @@ Change hex in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharec
 One accent for primary actions. Links use accent text (`--color-accent-text` on marketing, relay and splash pages; `--accent-fg` in Studio), both at least 4.5:1, **never** browser-default blue. Do not `@media` / `@container` to swap `font-family` or accent hue.
 
 Light and dark are the same room with the lights up or down.
+
+The light chrome uses canvas `#fbfdfc`, panes `#f7f9f8`, and sunken wells
+`#eef1f0`. Light timeline lanes share the pane shade, while muted lanes have
+their own `#e9edeb` role. Borders and restrained shadows separate adjacent
+surfaces; semantic roles remain distinct when their values match. The docs
+site's light palette follows the same sage ink and pane colors.
 
 ## Type
 

@@ -50,15 +50,15 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --color-bg-canvas: #f4f1eb;
-  --color-bg-surface: #fffdf9;
+  --color-bg-canvas: #fbfdfc;
+  --color-bg-surface: #f7f9f8;
   --color-bg-elevated: #ffffff;
-  --color-border: #d9d4cb;
-  --color-border-strong: #8a837a;
-  --color-text-primary: #1c1a17;
-  --color-text-secondary: #5c5750;
+  --color-border: #d5dbd8;
+  --color-border-strong: #7d8a84;
+  --color-text-primary: #1a211e;
+  --color-text-secondary: #4d5a54;
   --color-accent: #df4b28;
-  /* #df4b28 is 3.6:1 on canvas; links and body-size accent text use this. */
+  /* Decorative #df4b28 is 4.0:1 on canvas; links use --color-accent-text. */
   --color-accent-text: #b13a1e;
   /* Darker solid keeps small button text above 4.5:1. */
   --color-accent-solid: #c33b1f;
@@ -70,13 +70,13 @@
   :root:not([data-theme]) {
     color-scheme: light;
 
-    --color-bg-canvas: #f4f1eb;
-    --color-bg-surface: #fffdf9;
+    --color-bg-canvas: #fbfdfc;
+    --color-bg-surface: #f7f9f8;
     --color-bg-elevated: #ffffff;
-    --color-border: #d9d4cb;
-    --color-border-strong: #8a837a;
-    --color-text-primary: #1c1a17;
-    --color-text-secondary: #5c5750;
+    --color-border: #d5dbd8;
+    --color-border-strong: #7d8a84;
+    --color-text-primary: #1a211e;
+    --color-text-secondary: #4d5a54;
     --color-accent: #df4b28;
     --color-accent-text: #b13a1e;
     --color-accent-solid: #c33b1f;

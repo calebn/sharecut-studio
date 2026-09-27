@@ -31,6 +31,14 @@ copies ship to splash/relay static contexts that never load `primitives.css`.
 Studio primitives may restate a brand hex (marked `twin:` in the source);
 do not "fix" this by cross-referencing.
 
+The light theme uses a cool sage neutral ramp: canvas `#fbfdfc`, base
+`#f7f9f8`, sunken `#eef1f0`, with muted timeline lanes at `#e9edeb`. Dark
+theme colors remain warm stone. Shared brand values have one editing source
+(`deploy/brand/brand-tokens.css`) and byte-identical copies for the Studio,
+marketing, splash, and relay bundles; `tests/test_public_sites.py` checks
+those copies. The docs site keeps its independent light roles in
+`docs-site/assets/site.css`, matched to the shared sage ink, base, and border.
+
 Tier discipline is enforced by `tests/test_css_policy.py`
 (`test_primitives_are_raw_values`, `test_theme_files_use_primitives_not_raw_hex`).
 
@@ -146,9 +154,10 @@ Two roles sit beside the ladder:
   reads on every rung. Hover is a wash and selected is a chip, so a hovered
   control never looks selected.
 
-**Palette.** One warm stone neutral ramp serves both themes (`primitives.css`,
-ordered dark → light); a separate warm-charcoal ramp (`--primitive-warm-*`)
-serves only the fixed-dark transport (`theme-fixed.css`). Light mode is paper and white panes with warm near-black
+**Palette.** Dark warm stone and light cool sage neutrals share the
+`primitives.css` family (roughly ordered dark → light); a separate
+warm-charcoal ramp (`--primitive-warm-*`) serves only the fixed-dark transport
+(`theme-fixed.css`). Light mode is near-white sage with green-tinted near-black
 ink; dark mode is warm stone, never a cool reskin of light. Orange belongs to
 Play, the playhead, and one primary action per context; teal marks positive
 signals and dialogue. The light decorative orange `#df4b28` is too light for

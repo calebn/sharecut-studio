@@ -89,7 +89,7 @@ test("stage follows the theme and motion respects preference", async ({
     });
     // Light mode gets a light stage; dark mode keeps the stage darkest.
     expect(colors.timeline).toBe(
-      theme === "light" ? "rgb(230, 227, 221)" : "rgb(14, 12, 11)",
+      theme === "light" ? "rgb(238, 241, 240)" : "rgb(14, 12, 11)",
     );
     expect(colors.transport).toContain("gradient");
     expect(colors.transportHeight).toBe(56);
