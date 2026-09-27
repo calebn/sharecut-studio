@@ -1749,6 +1749,43 @@ def test_split_track_after_ripple_zero_offset_rebases_each_piece(tmp_path: Path)
     assert not any(p.skipped_reason for p in result.plans)
 
 
+def test_hold_co_timed_uses_overlapping_reference_piece(tmp_path: Path) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "hold_overlap",
+        [
+            Clip(
+                id="host_a", track_id="host", source_start=3.0, source_end=53.0, timeline_start=0.0
+            ),
+            Clip(
+                id="host_b",
+                track_id="host",
+                source_start=60.0,
+                source_end=100.0,
+                timeline_start=60.0,
+            ),
+            Clip(
+                id="guest_a",
+                track_id="guest",
+                source_start=0.0,
+                source_end=40.0,
+                timeline_start=0.0,
+            ),
+        ],
+        guest_dur=40.0,
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a", "host_b"),
+            ClipAlignPlan(track_id="guest", clip_id="guest_a", offset_sec=0.0, method="hold"),
+        ],
+    )
+    apply_alignment_plans(proj, result)
+    g = next(c for c in proj.clips if c.id == "guest_a")
+    assert (g.source_start, g.source_end, g.timeline_start) == pytest.approx((3.0, 40.0, 0.0))
+
+
 def test_split_track_meta_uses_clip_shift(tmp_path: Path) -> None:
     proj = _bladed_project(tmp_path)
     apply_alignment_plans(proj, _plans(-35.6))
