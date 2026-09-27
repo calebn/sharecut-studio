@@ -6,7 +6,12 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.edits.transcript_bleed_mute import _track_duration, apply_transcript_bleed_mute
-from podcast_mcp.engines.play_audit import stem_hash_path, write_stem_hash
+from podcast_mcp.engines.play_audit import (
+    read_stem_hash,
+    stem_hash_path,
+    track_render_hash,
+    write_stem_hash,
+)
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -16,6 +21,8 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.util import atomic_render
+from podcast_mcp.util.project_state import render_lock
 
 
 def _project_with_stem(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
@@ -102,8 +109,11 @@ def test_apply_transcript_bleed_mute_cleans_temp_on_failure(
             side_effect=RuntimeError("gate failed"),
         ),
         pytest.raises(RuntimeError, match="gate failed"),
+        render_lock(project),
     ):
         apply_transcript_bleed_mute(project, dry_run=False)
+    assert list((project.artifacts_dir() / "tracks").glob("*.partial*")) == []
+    assert not project.track_by_id("host").transcript_gate
 
 
 def test_apply_transcript_bleed_mute_scoped_track(tmp_path: Path, sample_wav: Path) -> None:
@@ -167,7 +177,8 @@ def test_apply_transcript_bleed_mute_writes_stem(tmp_path: Path, sample_wav: Pat
             "podcast_mcp.edits.transcript_bleed_mute.gate_stem_window",
             side_effect=_copy_gate,
         ) as gate,
-        patch("podcast_mcp.edits.transcript_bleed_mute.write_stem_hash") as wh,
+        patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
+        render_lock(project),
     ):
         result = apply_transcript_bleed_mute(project, dry_run=False)
     gate.assert_called_once()
@@ -175,13 +186,17 @@ def test_apply_transcript_bleed_mute_writes_stem(tmp_path: Path, sample_wav: Pat
     assert kwargs.get("duration_sec") == 2.0
     assert kwargs.get("win_start") == 0.0
     assert kwargs.get("win_end") == 2.0
-    wh.assert_called_once_with(project, "host")
     assert result["applied_count"] == 1
+    assert read_stem_hash(project, "host") == track_render_hash(project, "host")
     assert project.track_by_id("host").transcript_gate is True
 
 
 def test_apply_transcript_bleed_mute_skips_grown_stem(tmp_path: Path, sample_wav: Path) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
+    write_stem_hash(project, "host")
+    before_hash = read_stem_hash(project, "host")
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    before_bytes = stem.read_bytes()
 
     def _copy_gate(src, intervals, dest, **_kwargs) -> None:
         Path(dest).write_bytes(Path(src).read_bytes())
@@ -193,17 +208,25 @@ def test_apply_transcript_bleed_mute_skips_grown_stem(tmp_path: Path, sample_wav
         ),
         patch(
             "podcast_mcp.edits.transcript_bleed_mute.probe_stem_duration_sec",
-            side_effect=[2.0, 9.0],
+            return_value=2.0,
         ),
+        patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=9.0),
         patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
+        render_lock(project),
     ):
         result = apply_transcript_bleed_mute(project, dry_run=False)
     assert result["applied_count"] == 0
-    assert any(s["reason"] == "duration_mismatch_after_gate" for s in result["skipped"])
+    skipped = [s for s in result["skipped"] if s["reason"] == "duration_mismatch_after_gate"]
+    assert len(skipped) == 1
+    assert skipped[0]["stem_duration_sec"] == 9.0
+    assert stem.read_bytes() == before_bytes
+    assert read_stem_hash(project, "host") == before_hash
+    assert not project.track_by_id("host").transcript_gate
+    assert list(stem.parent.glob("*.partial*")) == []
 
 
 def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
-    tmp_path: Path, sample_wav: Path
+    tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
     write_stem_hash(project, "host")
@@ -213,21 +236,41 @@ def test_apply_bleed_mute_drops_the_hash_before_swapping_the_stem(
         hash_while_gating.append(stem_hash_path(project, "host").exists())
         Path(dest).write_bytes(b"gated")
 
+    real_replace = atomic_render.os.replace
+    hash_at_swap: list[bool] = []
+
+    def spy(src, dst):
+        if Path(dst) == project.artifacts_dir() / "tracks" / "host.wav":
+            hash_at_swap.append(stem_hash_path(project, "host").exists())
+        real_replace(src, dst)
+
+    monkeypatch.setattr(atomic_render.os, "replace", spy)
     with (
         patch("podcast_mcp.edits.transcript_bleed_mute.gate_stem_window", side_effect=_gate),
         patch(
             "podcast_mcp.edits.transcript_bleed_mute.probe_stem_duration_sec",
-            side_effect=[2.0, 9.0],
+            return_value=2.0,
         ),
+        patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
         patch("podcast_mcp.edits.transcript_bleed_mute.stem_is_fresh", return_value=True),
+        render_lock(project),
     ):
         result = apply_transcript_bleed_mute(project, dry_run=False)
     tracks = project.artifacts_dir() / "tracks"
     assert hash_while_gating == [True]
+    assert hash_at_swap == [False]
     assert (tracks / "host.wav").read_bytes() == b"gated"
-    assert any(s["reason"] == "duration_mismatch_after_gate" for s in result["skipped"])
-    assert not stem_hash_path(project, "host").exists()
+    assert result["applied_count"] == 1
+    assert read_stem_hash(project, "host") == track_render_hash(project, "host")
+    assert project.track_by_id("host").transcript_gate is True
     assert list(tracks.glob("*.partial*")) == []
+
+
+def test_apply_bleed_mute_requires_the_render_lock(tmp_path: Path, sample_wav: Path) -> None:
+    project = _project_with_stem(tmp_path, sample_wav)
+    with pytest.raises(RuntimeError, match="render_lock"):
+        apply_transcript_bleed_mute(project, dry_run=False)
+    assert apply_transcript_bleed_mute(project, dry_run=True)["dry_run"] is True
 
 
 def test_apply_transcript_bleed_mute_window_scoped_intervals(
