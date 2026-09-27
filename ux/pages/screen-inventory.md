@@ -104,6 +104,10 @@ The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **R
 
 Guests never see this dialog (`canManageProjects` is false on `share:{token}`).
 
+Storybook `Templates/ShareDialog` previews the production `ShareDialogView`
+with fictional links. The live `ShareDialog` keeps the API calls, clipboard,
+confirm prompts and record-panel handoff.
+
 ---
 
 ## Host: Connect agent dialog

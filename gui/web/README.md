@@ -87,6 +87,11 @@ Standalone Canvas stories open their dialogs; autodocs examples start closed
 with launchers so each can be inspected independently. The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
 
+`Templates/ShareDialog` renders the production `ShareDialogView`, the same
+view the live `ShareDialog` adapter renders. Stories use fictional
+`hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
+clipboard, `window.confirm` and the record-panel handoff.
+
 `Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
 screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and
 `BottomSheet` both use. `Molecules/UndoToast` shows the undo/dismiss toast
