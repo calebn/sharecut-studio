@@ -38,7 +38,10 @@ const meta: Meta<typeof StaleInvalidationOverlay> = {
   title: "Templates/StaleInvalidationOverlay",
   component: StaleInvalidationOverlay,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    lanePreviewLabel: "Stale timeline region preview",
+  },
   decorators: [timelineLaneStoryDecorator],
   args: {
     invalidations: [cut],
@@ -53,6 +56,10 @@ type Story = StoryObj<typeof StaleInvalidationOverlay>;
 
 export const RegionalCut: Story = {
   play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector("main")).toHaveAttribute(
+      "aria-label",
+      "Stale timeline region preview",
+    );
     const band = canvasElement.querySelector(".stale-inv-band");
     await expect(band).toHaveStyle({ left: "40px", width: "60px" });
     await expect(band).toHaveAttribute("title", "cut · 2.0–5.0s");

@@ -117,7 +117,7 @@ widths. Whole-track invalidations have no regional band. The bands remain
 decorative and hidden from the accessibility tree; the live stale-status
 controls communicate render state. Both overlay stories share the production
 lane shell through `timelineLaneStoryDecorator` so desktop and phone widths
-stay aligned.
+stay aligned while retaining each surface's accessible landmark name.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,
