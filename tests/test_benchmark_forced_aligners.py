@@ -426,6 +426,30 @@ def test_aggregate_weights_by_matched_words() -> None:
     assert result["boundary_mae_ms"] == pytest.approx(40.0)
 
 
+def test_aggregate_runtime_is_all_or_nothing() -> None:
+    metrics = {
+        "matched_words": 1,
+        "reference_words": 1,
+        "words_over_150ms": 0,
+        "boundary_mae_ms": 10.0,
+        "mean_start_error_ms": 0.0,
+        "mean_end_error_ms": 0.0,
+    }
+    timed = {"metrics": metrics, "provenance": {"runtime_sec": 1.0, "audio_sec": 4.0}}
+    untimed = {"metrics": metrics, "provenance": {"runtime_sec": 2.0}}
+
+    both = bfa.aggregate([timed, timed])
+    assert both["runtime_sec"] == pytest.approx(2.0)
+    assert both["audio_sec"] == pytest.approx(8.0)
+    assert both["realtime_factor"] == pytest.approx(0.25)
+
+    mixed = bfa.aggregate([timed, untimed])
+    assert mixed["runtime_sec"] is None
+    assert mixed["audio_sec"] is None
+    assert mixed["realtime_factor"] is None
+    assert mixed["boundary_mae_ms"] == pytest.approx(10.0)
+
+
 def test_native_prediction_provenance_is_prediction_compatible(monkeypatch) -> None:
     bw = load_script("benchmark_word_boundaries")
 
