@@ -29,3 +29,39 @@ export function projectHasSourceAudio(
     project.clips.clip_count > 0 || project.tracks.some(trackHasSourceAudio)
   );
 }
+
+/** Longest track source media (s); 0 when no track has media. */
+export function projectSourceDurationSec(
+  project: Pick<ProjectView, "tracks">,
+): number {
+  return project.tracks.reduce(
+    (longest, t) => Math.max(longest, t.duration_sec ?? 0),
+    0,
+  );
+}
+
+export type TimelineCut = {
+  cutSec: number;
+  sourceSec: number;
+  timelineSec: number;
+};
+
+/**
+ * Source audio cut from the timeline by every edit kind (remove decisions,
+ * ripple, trim, structural), as source length minus timeline length.
+ * Null without source media.
+ */
+export function timelineCut(
+  project: Pick<ProjectView, "tracks" | "timeline_duration_sec">,
+): TimelineCut | null {
+  const sourceSec = projectSourceDurationSec(project);
+  if (!(sourceSec > 0)) {
+    return null;
+  }
+  const timelineSec = Math.max(0, project.timeline_duration_sec || 0);
+  return {
+    cutSec: Math.max(0, sourceSec - timelineSec),
+    sourceSec,
+    timelineSec,
+  };
+}

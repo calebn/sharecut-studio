@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
 describe("StatusBar chips", () => {
@@ -471,5 +471,41 @@ describe("StatusBar live region", () => {
       });
     });
     expect(screen.getByTitle("Ada (viewer)")).toBeTruthy();
+  });
+});
+
+describe("StatusBar cut chip", () => {
+  function renderWith(project: ReturnType<typeof minimalProject>) {
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <StatusBar />
+      </DawProvider>,
+    );
+  }
+
+  afterEach(() => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+  });
+
+  it("reports source vs timeline length, not remove decisions (#533)", () => {
+    renderWith(
+      minimalProject({
+        tracks: [sampleTrack({ duration_sec: 1689.4 })],
+        timeline_duration_sec: 221.3,
+        edit_impact: {
+          pending_review_count: 0,
+          total_removed_sec: 0,
+          by_track_sec: {},
+        },
+      }),
+    );
+    expect(screen.getByText("Cut 24:28 of 28:09")).toBeTruthy();
+    expect(screen.queryByText(/Removed:/)).toBeNull();
+  });
+
+  it("is hidden without source media", () => {
+    renderWith(minimalProject());
+    expect(screen.queryByText(/^Cut /)).toBeNull();
   });
 });
