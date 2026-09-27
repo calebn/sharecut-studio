@@ -673,11 +673,13 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
 
     ``value`` is parsed as a YAML scalar or flow value (``true``, ``-36``, ``[0.0, 0.2]``,
     ``null``, JSON arrays/objects all parse as YAML). The top-level key must be one of
-    ``ALLOWED_CONFIG_TOP_KEYS``; outside ``effects`` (whose preset names are free-form),
-    the dotted path must already exist in the shipped defaults, so a typo raises instead
-    of silently doing nothing.
+    ``ALLOWED_CONFIG_TOP_KEYS``; the dotted path must already exist in the shipped
+    defaults, and under ``effects`` the preset name must be a known preset (builtin or
+    the defaults ``effects:`` overlay), so a typo raises instead of silently doing
+    nothing.
     """
     defaults = load_defaults()
+    known_presets = resolve_presets(defaults)
     out: dict[str, Any] = {}
     for assignment in assignments:
         if "=" not in assignment:
@@ -694,6 +696,11 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
             raise ValueError(f"unknown pipeline config key: {top!r} (in {assignment!r})")
         if top != "effects" and not _defaults_have_path(defaults, path):
             raise ValueError(f"unknown pipeline config key: {path!r}")
+        if top == "effects" and len(parts) > 1 and parts[1] not in known_presets:
+            raise ValueError(
+                f"unknown effect preset: {parts[1]!r} (in {assignment!r}); "
+                f"known: {', '.join(sorted(known_presets))}"
+            )
         try:
             value = yaml.safe_load(raw_value) if raw_value else None
         except yaml.YAMLError as exc:
