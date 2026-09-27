@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
+import { useMountedRef } from "../hooks/useMountedRef";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
@@ -294,13 +295,7 @@ function WaveformLayerView({
 
   const canvases = useRef(new Map<number, HTMLCanvasElement>());
   const drawn = useRef(new WeakMap<HTMLCanvasElement, string>());
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = useMountedRef();
 
   // Draw what is cached, stand in for the rest, and ask for data and rasters.
   useLayoutEffect(() => {
