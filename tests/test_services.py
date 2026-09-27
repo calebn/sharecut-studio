@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -244,7 +243,27 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
     resolve.assert_called_once_with(requested="base.en")
     engine.assert_called_once()
     assert engine.call_args.args == ("base.en",)
-    assert engine.call_args.kwargs["options"] == AsrOptions.from_defaults()
+    assert engine.call_args.kwargs == {}
+
+
+def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_project):
+    from podcast_mcp.services.pipeline_config import config_store
+
+    ws = ProjectWorkspace.open(minimal_project)
+    store = config_store()
+    store.put(ws.path, config={"transcribe": {"vad": {"enabled": False}}})
+    try:
+        svc = TranscriptService(ws)
+        with (
+            patch("podcast_mcp.services.transcript.dialogue_transcribe_jobs", return_value=[]),
+            patch("podcast_mcp.services.transcript.plan_transcription"),
+            patch("podcast_mcp.services.transcript.run_transcribe_plan", return_value=[]) as run,
+        ):
+            svc.transcribe()
+        make_engine = run.call_args.args[2]
+        assert make_engine().options.vad_enabled is False
+    finally:
+        store.put(ws.path, reset=True)
 
 
 def test_transcript_service_export_subtitles(minimal_project):

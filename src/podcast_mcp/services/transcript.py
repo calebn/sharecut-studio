@@ -15,11 +15,15 @@ from podcast_mcp.whisper_models import resolve_whisper_model
 class TranscriptService:
     def __init__(self, workspace: ProjectWorkspace, *, model: str | None = None) -> None:
         self.ws = workspace
-        self._engine = TranscriptionEngine(
-            resolve_whisper_model(requested=model), options=AsrOptions.from_defaults()
-        )
+        self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
+        from podcast_mcp.services.pipeline_config import config_store
+
+        # Same transcribe.* settings as pipeline_run: the project's staged working set
+        # (Studio Pipeline pane / pipeline_set_config_tool), else the shipped defaults.
+        self._engine.options = AsrOptions.from_defaults(config_store().get(self.ws.path).config)
+
         def mutate(p) -> list[str]:
             jobs = [track_transcribe_job(p, track_id)] if track_id else dialogue_transcribe_jobs(p)
             # An explicit transcribe is an attended overwrite: edited transcripts are
