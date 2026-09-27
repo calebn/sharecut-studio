@@ -561,6 +561,43 @@ def test_apply_prefix_edits_archives_the_optimized_cut_range():
     assert proj.timeline.duration_sec == pytest.approx(10.0)
 
 
+def test_apply_prefix_edits_pads_at_the_optimized_join():
+    """replace_gap_sec pads the real butt-join even when optimization moved the start > 0.1 s."""
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        EditDecision(
+            id="p1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.5,
+            reason="pause:long",
+            review_required=False,
+            applied=False,
+            replace_gap_sec=0.3,
+        )
+    ]
+    optimized = type("R", (), {"start": 1.7, "end": 2.5, "mode": "vocal_transcript_guided"})()
+    with (
+        patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
+        patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"),
+        patch("podcast_mcp.edits.decisions.recommend_post_pad_fade_in_ms", return_value=0),
+        patch(
+            "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
+            return_value=optimized,
+        ),
+    ):
+        defaults.return_value = {"tighten": {"inaudible_opt": True}}
+        assert apply_prefix_edits(proj, "pause:", config_key="tighten") == 1
+    host = clips_for_track(proj, "host")
+    # The pad opens at the optimized join (1.7), so the clip is not split at the requested 2.0.
+    assert len(host) == 2
+    assert host[0].timeline_end == pytest.approx(1.7)
+    assert host[1].timeline_start == pytest.approx(1.7 + 0.3)
+    assert host[1].source_start == pytest.approx(2.5)
+    assert proj.editorial.edit_log[-1].timeline_start == pytest.approx(1.7)
+
+
 def test_apply_prefix_edits_skips_review_required_and_invalid_range():
     proj = _project_with_clip()
     proj.edit_decisions = [
