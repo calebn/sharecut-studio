@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from io import StringIO
 
 import pytest
@@ -148,3 +149,39 @@ def test_json_reporter_event_count_is_bounded(frozen_clock):
         assert len(update_lines) == 2
     finally:
         rep.close()
+
+
+def test_coalesced_update_keeps_latest_non_none_message(frozen_clock):
+    rec = RecordingProgress()
+    with progress_task("t", "T", reporter=rec) as p:
+        p.advance(1, message="x")  # first update, sent
+        p.advance(1, message="y")  # pending
+        p.advance(1)  # pending, message None keeps "y"
+    assert [(e.current, e.message) for e in _updates(rec)] == [(1, "x"), (3, "y")]
+
+
+def test_coalesced_update_without_messages_flushes_none(frozen_clock):
+    rec = RecordingProgress()
+    with progress_task("t", "T", reporter=rec) as p:
+        p.advance(1, message="x")
+        p.advance(1)
+    assert [(e.current, e.message) for e in _updates(rec)] == [(1, "x"), (2, None)]
+
+
+def test_concurrent_advance_loses_no_counts_and_stays_ordered(frozen_clock):
+    rec = RecordingProgress()
+    with progress_task("t", "T", reporter=rec) as p:
+
+        def worker() -> None:
+            for _ in range(500):
+                frozen_clock[0] += 0.001
+                p.advance(1)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    currents = [e.current for e in _updates(rec)]
+    assert currents[-1] == 4000
+    assert currents == sorted(currents)
