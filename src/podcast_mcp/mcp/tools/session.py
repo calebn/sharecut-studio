@@ -88,7 +88,7 @@ def set_session_playing_tool(project_path: str, playing: bool) -> str:
 
 
 def stop_session_tool(project_path: str) -> str:
-    """Pause DAW transport and clear the highlight region."""
+    """Pause DAW transport in place and clear the highlight region (GUI Stop / K also returns to the play start; this tool does not)."""
     ws = ProjectWorkspace.open(project_path)
     state = SessionControlService(ws).stop()
     return json.dumps(state, indent=2)

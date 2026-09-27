@@ -88,7 +88,7 @@
         ]
       },
       "omit": {},
-      "tooltip": "Stop playback",
+      "tooltip": "Stop and return to where playback started",
       "presence": {
         "cursor": "anchor",
         "follow": "look",

@@ -17,7 +17,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.transport.stop": {
     label: "Stop playback",
-    tooltip: "Stop playback",
+    tooltip: "Stop and return to where playback started",
   },
   "daw.transport.audition": {
     label: "Audition Mix / FX / Raw",
