@@ -1,9 +1,13 @@
 import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import {
+  _resetPageCloseRiskForTests,
+  publishDesktopCloseGuard,
+} from "../desktop/useDesktopCloseGuard";
 import { useDawStore } from "../state/dawStore";
 import { clearRegisteredCommands, execute } from "./execute";
-import { PROJECT_CLOSE_TIMEOUT_MS } from "./projectMedia";
+import { PROJECT_CLOSE_TIMEOUT_MS, PROJECT_NEW_RETRY_MS } from "./projectMedia";
 import {
   _resetProjectOpenInFlightForTests,
   registerDawCommands,
@@ -51,6 +55,7 @@ describe("project.open", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     _resetProjectOpenInFlightForTests();
+    _resetPageCloseRiskForTests();
   });
 
   it("picks then opens and navigates", async () => {
@@ -141,6 +146,31 @@ describe("project.open", () => {
       expect(useDawStore.getState().statusAnnouncement).toContain("timed out");
       expect(assign).not.toHaveBeenCalled();
       expect(openMock).toHaveBeenCalledWith("/tmp/ep");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("blocks New while this browser tab is recording", async () => {
+    publishDesktopCloseGuard(true, "host");
+    expect((await execute("project.new")).status).toBe("disabled");
+    expect(closeMock).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("New works again when the page stays after navigating", async () => {
+    vi.useFakeTimers();
+    try {
+      expect((await execute("project.new")).status).toBe("ok");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(assign).toHaveBeenCalledTimes(1);
+      expect((await execute("project.new")).status).toBe("ok");
+      expect(closeMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(PROJECT_NEW_RETRY_MS);
+      expect((await execute("project.new")).status).toBe("ok");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(closeMock).toHaveBeenCalledTimes(2);
+      expect(assign).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

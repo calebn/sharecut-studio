@@ -7,9 +7,20 @@ export type RecordingRole = "host" | "guest";
 // update stays on the existing loopback page and needs no remote Tauri IPC.
 export const CLOSE_GUARD_PARAM = "sc_close_guard";
 
-/** An armed native guard also blocks leaving the project that owns the room. */
+// The same risk in page memory: a plain browser tab gets no URL marker, but
+// its keeper's beforeunload prompt would still cancel a project switch.
+let pageCloseRisk = false;
+
+export function _resetPageCloseRiskForTests(): void {
+  pageCloseRisk = false;
+}
+
+/** An armed guard (native marker or this page's recording risk) blocks leaving the project that owns the room. */
 export function desktopCloseGuardArmed(): boolean {
-  return new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM);
+  return (
+    pageCloseRisk ||
+    new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM)
+  );
 }
 
 /** Update the current WebView URL before an asynchronous recording transition. */
@@ -18,6 +29,11 @@ export function publishDesktopCloseGuard(
   role: RecordingRole,
   canClear = true,
 ): void {
+  if (closeRisk) {
+    pageCloseRisk = true;
+  } else if (canClear) {
+    pageCloseRisk = false;
+  }
   if (!isTauri()) {
     return;
   }

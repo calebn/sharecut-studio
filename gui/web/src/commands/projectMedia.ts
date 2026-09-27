@@ -26,6 +26,8 @@ let projectOpenInFlight = false;
 let projectNewInFlight = false;
 /** Studio New stops waiting for the unpin after this long and stays open. */
 export const PROJECT_CLOSE_TIMEOUT_MS = 10_000;
+/** If the page is still here this long after navigating Home (a leave-page prompt answered Stay), New works again. */
+export const PROJECT_NEW_RETRY_MS = 5_000;
 export function _resetProjectOpenInFlightForTests(): void {
   projectOpenInFlight = false;
   projectNewInFlight = false;
@@ -134,6 +136,9 @@ export function registerProjectMediaCommands(): void {
         return;
       }
       window.location.assign(homeUrl(window.location.href));
+      setTimeout(() => {
+        projectNewInFlight = false;
+      }, PROJECT_NEW_RETRY_MS);
     })();
     return { status: "ok" };
   });

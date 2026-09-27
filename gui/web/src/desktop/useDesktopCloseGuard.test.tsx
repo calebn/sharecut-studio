@@ -1,7 +1,9 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  _resetPageCloseRiskForTests,
   CLOSE_GUARD_PARAM,
+  desktopCloseGuardArmed,
   useDesktopCloseGuard,
 } from "./useDesktopCloseGuard";
 
@@ -29,6 +31,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   window.history.replaceState(null, "", "/");
+  _resetPageCloseRiskForTests();
 });
 
 describe("useDesktopCloseGuard", () => {
@@ -75,5 +78,18 @@ describe("useDesktopCloseGuard", () => {
     expect(
       new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM),
     ).toBe(false);
+  });
+
+  it("arms the in-page guard in a browser without changing the URL", () => {
+    isTauri.mockReturnValue(false);
+    const { rerender } = render(<Guard closeRisk recordingRole="host" />);
+    expect(desktopCloseGuardArmed()).toBe(true);
+    expect(
+      new URL(window.location.href).searchParams.has(CLOSE_GUARD_PARAM),
+    ).toBe(false);
+    rerender(<Guard closeRisk={false} recordingRole="host" canClear={false} />);
+    expect(desktopCloseGuardArmed()).toBe(true);
+    rerender(<Guard closeRisk={false} recordingRole="host" />);
+    expect(desktopCloseGuardArmed()).toBe(false);
   });
 });
