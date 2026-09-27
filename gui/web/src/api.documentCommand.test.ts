@@ -616,6 +616,31 @@ describe("host document command queue", () => {
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
   });
 
+  it("reports an approval left queued behind older work", async () => {
+    enqueueHostCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: true,
+    });
+    vi.stubGlobal("fetch", vi.fn());
+    const { approveEdits } = await import("./api");
+    await expect(
+      approveEdits("/tmp/episode.project.json", ["a"]),
+    ).resolves.toEqual({ queued: true });
+  });
+
+  it("reports a sent approval as not queued", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      ),
+    );
+    const { approveEdits } = await import("./api");
+    await expect(
+      approveEdits("/tmp/episode.project.json", ["a"]),
+    ).resolves.toEqual({ queued: false });
+  });
+
   it("keeps a guest command queued when its POST times out", async () => {
     enqueueCommand.mockResolvedValue(undefined);
     vi.stubGlobal(

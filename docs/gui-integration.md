@@ -162,10 +162,7 @@ code to show recovery guidance without exposing the CLI-oriented server hint.
 The waiver route is host-origin protected and serializes its project save with
 document commands.
 
-An Approve click made while another live host command from the same tab is still
-in flight waits for that send (up to 5 s, `HOST_SEND_WAIT_MS`) and then posts, so the typed 409 always reaches the
-inspector (rather than resolving as a silent `queued` success that later replays
-as a raw banner conflict).
+An Approve click made while another live host command from the same tab (or this tab's offline-queue drain) is still in flight waits for it (up to 5 s in total, `HOST_SEND_WAIT_MS`) and then posts, so the typed 409 reaches the inspector. If the earlier work is still running after 5 s, the approval stays queued for the drain: the Pending edit inspector and the Impact panel show a **Still sending** status instead of treating it as done, and a refusal of the later replay appears in the **Needs attention** banner.
 
 ### Layout (Reaper-style)
 

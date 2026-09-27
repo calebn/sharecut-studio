@@ -56,3 +56,7 @@ export function pendingReasonLabel(reason: string | null | undefined): string {
   }
   return reason;
 }
+
+/** Shown when Approve/Reject was saved but is still waiting to send. */
+export const PENDING_REVIEW_QUEUED_MESSAGE =
+  "Still sending. It will retry automatically; if the host refuses it, it shows under Needs attention.";

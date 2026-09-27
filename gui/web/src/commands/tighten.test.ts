@@ -10,8 +10,8 @@ vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
   return {
     ...actual,
-    approveEdits: vi.fn(async () => undefined),
-    rejectEdits: vi.fn(async () => undefined),
+    approveEdits: vi.fn(async () => ({ queued: false })),
+    rejectEdits: vi.fn(async () => ({ queued: false })),
   };
 });
 
