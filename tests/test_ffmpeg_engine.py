@@ -602,6 +602,44 @@ def test_measure_loudness_full_reports_progress(tmp_path: Path):
     assert run_with_progress.call_args.kwargs["on_progress"] is cb
 
 
+def test_measure_loudness_full_uses_given_total_without_probing(tmp_path: Path):
+    eng = FFmpegEngine()
+    wav = tmp_path / "x.wav"
+    wav.write_bytes(b"x")
+    with (
+        patch.object(eng, "probe") as probe,
+        patch.object(eng, "_run_with_progress", return_value="") as run_with_progress,
+    ):
+        assert eng.measure_loudness_full(wav, on_progress=MagicMock(), total_sec=7.5) is None
+    probe.assert_not_called()
+    assert run_with_progress.call_args.kwargs["total_sec"] == 7.5
+
+
+def test_master_loudnorm_probes_input_once_for_both_passes(tmp_path: Path):
+    eng = FFmpegEngine()
+    src = tmp_path / "premix.wav"
+    src.write_bytes(b"x")
+    out = tmp_path / "mastered.wav"
+    with (
+        patch.object(
+            eng, "probe", return_value=AudioProbe(duration_sec=2.0, sample_rate=48000, channels=2)
+        ) as probe,
+        patch.object(
+            eng, "_run_with_progress", side_effect=[_EBUR128_SUMMARY, _LOUDNORM_JSON_STDERR]
+        ) as rwp,
+    ):
+        eng.master_loudnorm(
+            src,
+            out,
+            integrated_lufs=-16.0,
+            true_peak_db=-1.5,
+            on_progress=MagicMock(),
+            on_measure_progress=MagicMock(),
+        )
+    assert probe.call_count == 1
+    assert [c.kwargs["total_sec"] for c in rwp.call_args_list] == [2.0, 2.0]
+
+
 def test_master_loudnorm_forwards_measure_progress(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
@@ -622,6 +660,7 @@ def test_master_loudnorm_forwards_measure_progress(tmp_path: Path):
             src, out, integrated_lufs=-16.0, true_peak_db=-1.5, on_measure_progress=cb
         )
     assert stats.call_args.kwargs["on_progress"] is cb
+    assert stats.call_args.kwargs["total_sec"] == 1.0
 
 
 def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):

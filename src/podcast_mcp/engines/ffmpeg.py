@@ -1014,13 +1014,17 @@ class FFmpegEngine:
         input_path: Path,
         *,
         on_progress: Callable[[float, float], None] | None = None,
+        total_sec: float | None = None,
     ) -> dict[str, float] | None:
         """loudnorm pass-1 values from one ebur128 pass.
 
         Much faster than a loudnorm measure pass, which resamples to 192 kHz.
         ``target_offset`` is 0: loudnorm only uses it in dynamic mode.
         """
-        m = self.measure_loudness_full(input_path, on_progress=on_progress) or {}
+        m = (
+            self.measure_loudness_full(input_path, on_progress=on_progress, total_sec=total_sec)
+            or {}
+        )
         keys = {
             "input_i": "integrated_lufs",
             "input_tp": "true_peak_db",
@@ -1051,8 +1055,13 @@ class FFmpegEngine:
         path: Path,
         *,
         on_progress: Callable[[float, float], None] | None = None,
+        total_sec: float | None = None,
     ) -> dict[str, float | None] | None:
-        """Integrated LUFS + true peak + LRA from ebur128 (for post-master QC)."""
+        """Integrated LUFS + true peak + LRA from ebur128 (for post-master QC).
+
+        ``total_sec`` overrides the probed duration for progress (callers that
+        already probed).
+        """
         cmd = [
             self.ffmpeg,
             "-i",
@@ -1067,8 +1076,10 @@ class FFmpegEngine:
             r = run(cmd, capture_output=True, text=True)
             text = (r.stderr or "") + (r.stdout or "")
         else:
+            duration = total_sec if total_sec is not None else self.probe(path).duration_sec
+            # Best-effort like the run() path above: a failed measure parses to None, not an error.
             text = self._run_with_progress(
-                cmd, total_sec=self.probe(path).duration_sec, on_progress=on_progress, check=False
+                cmd, total_sec=duration, on_progress=on_progress, check=False
             )
         i_m = re.search(r"\bI:\s*(-?\d+\.?\d*)\s*LUFS", text)
         tp_m = re.search(r"Peak:\s*(-?\d+\.?\d*)\s*dBFS", text)
@@ -1135,7 +1146,8 @@ class FFmpegEngine:
         into mastered/export WAVs.
 
         ``on_measure_progress`` reports pass 1 (ebur128) and ``on_progress`` pass 2,
-        each as (done_sec, total_sec) of the input.
+        each as (done_sec, total_sec) of the input. Both use the one input probe, so
+        they share a per-pass total.
 
         If the premix loudness range exceeds ``lra``, loudnorm will under-shoot
         ``integrated_lufs`` to honor the LRA/TP ceilings - raise ``lra`` (or
@@ -1145,7 +1157,9 @@ class FFmpegEngine:
         probe = self.probe(input_path)
         out_rate = sample_rate if sample_rate is not None else probe.sample_rate
         out_ch = channels if channels is not None else probe.channels
-        stats = self.loudnorm_input_stats(input_path, on_progress=on_measure_progress)
+        stats = self.loudnorm_input_stats(
+            input_path, on_progress=on_measure_progress, total_sec=probe.duration_sec
+        )
         base = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
         if stats is None:
             af = f"{base}:print_format=json"
