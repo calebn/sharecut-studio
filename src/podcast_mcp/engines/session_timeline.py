@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import itertools
 from bisect import bisect_right
-from collections.abc import Collection, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Protocol
@@ -251,18 +251,17 @@ class SourceStack:
 def same_source_timeline_overlaps(
     project: EpisodeProject,
     *,
-    track_ids: Collection[str] | None = None,
+    clips: Iterable[Clip] | None = None,
     tolerance_sec: float = SAME_SOURCE_OVERLAP_TOLERANCE_SEC,
 ) -> list[SourceStack]:
     """Clip pairs on the same lane, reading the same media, whose timeline spans overlap.
 
     Flags stacked whole-file copies of a split track (see #520): two clips that would
-    play the same audio at the same time. Empty (zero-length) clips are ignored.
+    play the same audio at the same time. Checks ``clips`` (default: every project clip);
+    empty (zero-length) clips are ignored.
     """
     groups: dict[tuple[str, str], list[Clip]] = {}
-    for clip in project.clips:
-        if track_ids is not None and clip.track_id not in track_ids:
-            continue
+    for clip in project.clips if clips is None else clips:
         if clip.timeline_end <= clip.timeline_start + _EPS:
             continue
         key = (clip.track_id, clip_media_key(project, clip))
