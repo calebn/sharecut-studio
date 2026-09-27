@@ -7,6 +7,7 @@ import { parse } from "@babel/parser";
  */
 export const STORY_SUPPORT_MODULES = new Set([
   "record/recordStoryDecorator.tsx",
+  "timeline/timelineLaneStoryDecorator.tsx",
   "storybook/docsTheme.ts",
   "storybook/StudioDocsContainer.tsx",
 ]);

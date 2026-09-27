@@ -3,6 +3,7 @@ import { expect, fn } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { appliedEditRecord } from "../test/fixtures";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
+import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
 const visible = appliedEditRecord({
   id: "visible-edit",
@@ -37,20 +38,7 @@ const meta: Meta<typeof AppliedEditOverlay> = {
   component: AppliedEditOverlay,
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story, context) => (
-      <main className="timeline-area" aria-label="Applied edit marker preview">
-        <div
-          className="lane-row"
-          style={{ width: context.parameters.phoneWidth ? "360px" : "40rem" }}
-        >
-          <div className="lane-inner" style={{ width: "100%" }}>
-            <Story />
-          </div>
-        </div>
-      </main>
-    ),
-  ],
+  decorators: [timelineLaneStoryDecorator],
   args: {
     records: [visible, selected],
     trackId: "mira-voice",
