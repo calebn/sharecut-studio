@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import resource
 import sys
 import time
 from collections.abc import Mapping, Sequence
@@ -319,6 +318,16 @@ def align_prediction(
     return output, stats, runtime_sec
 
 
+def _peak_rss_mb() -> float | None:
+    """Process-wide RSS high-water mark in MiB; None where ``resource`` is missing (Windows)."""
+    try:
+        import resource
+    except ImportError:
+        return None
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss / 1024**2 if sys.platform == "darwin" else rss / 1024
+
+
 def candidate_payload(
     c: Candidate,
     *,
@@ -331,10 +340,7 @@ def candidate_payload(
     threads: int,
     model_dir: Path,
 ) -> dict[str, Any]:
-    if sys.platform == "darwin":
-        peak_rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024**2
-    else:
-        peak_rss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    peak_rss_mb = _peak_rss_mb()
     provenance = {
         "model": c.hf_repo,
         "version": c.revision,
@@ -353,6 +359,7 @@ def candidate_payload(
         "audio_sec": audio_sec,
         "realtime_factor": runtime_sec / audio_sec if audio_sec else None,
         "peak_rss_mb": peak_rss_mb,
+        "peak_rss_scope": "process",
         "alignment_stats": stats,
     }
     return {"audio_sha256": audio_sha256, "provenance": provenance, "words": words}
