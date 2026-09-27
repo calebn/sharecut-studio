@@ -12,6 +12,8 @@ from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from podcast_mcp.util.intervals import merge_intervals
+
 ABS_GATE_LUFS = -70.0
 REL_GATE_LU = 10.0
 BLOCK_SEC = 0.4
@@ -46,12 +48,7 @@ def speech_blocks(
     blocks: Sequence[tuple[float, float]], intervals: Sequence[tuple[float, float]]
 ) -> list[float]:
     """Momentary values whose window centre (t - 0.2 s) lies inside a speech interval."""
-    merged: list[list[float]] = []
-    for start, end in sorted(intervals):
-        if merged and start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
+    merged = merge_intervals(intervals)
     starts = [s for s, _e in merged]
     chosen: list[float] = []
     for t, m in blocks:
