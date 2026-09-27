@@ -3,6 +3,8 @@ from __future__ import annotations
 from podcast_mcp.config import load_defaults
 from podcast_mcp.models import (
     MediaAsset,
+    ProcessingChain,
+    ProcessingEffect,
     Track,
     TrackRole,
     Transcript,
@@ -77,6 +79,57 @@ def test_clean_audio_preserves_existing_chain(minimal_project, sample_wav, tmp_w
     chain = next(c for c in proj.processing_chains if c.track_id == "host")
     effects = [e.effect for e in chain.effects]
     assert effects == ["highpass", "agate"]
+
+
+def test_compress_tracks_rerun_keeps_one_compressor(minimal_project, sample_wav, tmp_workspace):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.clean_audio(proj, defaults)
+    steps.compress_tracks(proj, defaults)
+    steps.compress_tracks(proj, defaults)
+    steps.compress_tracks(proj, defaults)
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    assert [e.effect for e in chain.effects] == ["highpass", "acompressor"]
+
+
+def test_compress_tracks_rerun_applies_new_params_and_keeps_bypass(
+    minimal_project, sample_wav, tmp_workspace
+):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.compress_tracks(proj, defaults)
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    comp = next(e for e in chain.effects if e.effect == "acompressor")
+    comp.bypass = True
+
+    d = load_defaults()
+    d = {**d, "compression": {**d["compression"], "ratio": 5.0}}
+    steps.compress_tracks(proj, d)
+
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    compressors = [e for e in chain.effects if e.effect == "acompressor"]
+    assert len(compressors) == 1
+    assert compressors[0].params["ratio"] == 5.0
+    assert compressors[0].bypass is True
+
+
+def test_compress_tracks_heals_stacked_compressors(minimal_project, sample_wav, tmp_workspace):
+    proj = _project_with_host(minimal_project, sample_wav, tmp_workspace)
+    proj.processing_chains = [
+        ProcessingChain(
+            track_id="host",
+            effects=[
+                ProcessingEffect(effect="highpass", params={"frequency": 90}),
+                ProcessingEffect(effect="acompressor", params={"ratio": 2}),
+                ProcessingEffect(effect="acompressor", params={"ratio": 3}),
+                ProcessingEffect(effect="agate", params={}),
+                ProcessingEffect(effect="acompressor", params={"ratio": 4}),
+            ],
+        )
+    ]
+    steps.compress_tracks(proj, load_defaults())
+    chain = next(c for c in proj.processing_chains if c.track_id == "host")
+    assert [e.effect for e in chain.effects] == ["highpass", "acompressor", "agate"]
 
 
 def test_analyze_and_tighten_steps(minimal_project):
