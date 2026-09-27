@@ -5,6 +5,7 @@ import type {
   PipelineJobSnapshot,
   PipelineStatusResponse,
 } from "../types/pipeline";
+import { createFallbackPoll, type FallbackPoll } from "../utils/fallbackPoll";
 import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
 
 const STATUS_POLL_MS = 1000;
@@ -99,7 +100,7 @@ export function usePipelineJob(
   const enabled = options.enabled ?? true;
   const activityJob = options.activityJob ?? null;
   const esRef = useRef<EventSource | null>(null);
-  const pollRef = useRef<number | null>(null);
+  const statusPollRef = useRef<FallbackPoll | null>(null);
   const attachedJobId = useRef<string | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const silenceTimerRef = useRef<number | null>(null);
@@ -118,10 +119,7 @@ export function usePipelineJob(
   const discoverKeyRef = useRef<string | null>(null);
 
   const stopPoll = () => {
-    if (pollRef.current != null) {
-      window.clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    statusPollRef.current?.stop();
   };
 
   const clearReconnectTimer = () => {
@@ -162,42 +160,34 @@ export function usePipelineJob(
     );
   };
 
+  // One tick of the stream-down status poll.
+  const pollStatusOnce = useEffectEvent(() => {
+    const attachedAtStart = attachedJobId.current;
+    void loadPipelineStatus({ signal: abortRef.current?.signal })
+      .then((st) => {
+        // A stream attached since this fetch started owns the job now.
+        if (!mountedRef.current || attachedJobId.current !== attachedAtStart) {
+          return;
+        }
+        apply(st);
+        if (!st.running) {
+          stopPoll();
+          clearReconnectTimer();
+          closeStream();
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+        /* ignore transient poll errors */
+      });
+  });
+
   const attachEvents = useEffectEvent((jobId: string) => {
     if (!enabledRef.current || !mountedRef.current) {
       return;
     }
-
-    const startPoll = () => {
-      if (pollRef.current != null) {
-        return;
-      }
-      pollRef.current = window.setInterval(() => {
-        const attachedAtStart = attachedJobId.current;
-        void loadPipelineStatus({ signal: abortRef.current?.signal })
-          .then((st) => {
-            // A stream attached since this fetch started owns the job now.
-            if (
-              !mountedRef.current ||
-              attachedJobId.current !== attachedAtStart
-            ) {
-              return;
-            }
-            apply(st);
-            if (!st.running) {
-              stopPoll();
-              clearReconnectTimer();
-              closeStream();
-            }
-          })
-          .catch((err: unknown) => {
-            if (err instanceof DOMException && err.name === "AbortError") {
-              return;
-            }
-            /* ignore transient poll errors */
-          });
-      }, STATUS_POLL_MS);
-    };
-
     if (attachedJobId.current === jobId && esRef.current) {
       return;
     }
@@ -214,7 +204,7 @@ export function usePipelineJob(
         return;
       }
       closeStream();
-      startPoll();
+      statusPollRef.current?.start();
       void loadPipelineStatus({ signal: abortRef.current?.signal })
         .then((st) => {
           if (!mountedRef.current) {
@@ -314,6 +304,11 @@ export function usePipelineJob(
     mountedRef.current = true;
     const ac = new AbortController();
     abortRef.current = ac;
+    const statusPoll = createFallbackPoll(
+      () => pollStatusOnce(),
+      STATUS_POLL_MS,
+    );
+    statusPollRef.current = statusPoll;
     void loadPipelineStatus({ signal: ac.signal })
       .then((st) => {
         if (!mountedRef.current) {
@@ -358,7 +353,8 @@ export function usePipelineJob(
       window.clearInterval(discover);
       clearReconnectTimer();
       closeStream();
-      stopPoll();
+      statusPoll.stop();
+      statusPollRef.current = null;
     };
   }, [enabled]);
 

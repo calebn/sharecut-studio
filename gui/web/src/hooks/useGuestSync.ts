@@ -25,6 +25,7 @@ import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
 import { loadCommentAuthor } from "../utils/commentAuthor";
+import { createFallbackPoll } from "../utils/fallbackPoll";
 import {
   type GuestProgressEvent,
   guestProgressToJob,
@@ -92,7 +93,6 @@ export function useGuestSync(
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    let pollId: ReturnType<typeof setInterval> | null = null;
     resetDocumentSeq();
     sessionSeqRef.current = 0;
     wsOpenRef.current = false;
@@ -128,24 +128,14 @@ export function useGuestSync(
         .catch(() => undefined);
     };
 
+    const fallbackPoll = createFallbackPoll(pollProject, FALLBACK_POLL_MS);
     const startPoll = ({ immediate = true }: { immediate?: boolean } = {}) => {
       if (closed) {
         return;
       }
-      if (pollId == null) {
-        pollId = setInterval(pollProject, FALLBACK_POLL_MS);
-      }
-      if (immediate) {
-        pollProject();
-      }
+      fallbackPoll.start({ immediate });
     };
-
-    const stopPoll = () => {
-      if (pollId != null) {
-        clearInterval(pollId);
-        pollId = null;
-      }
-    };
+    const stopPoll = () => fallbackPoll.stop();
 
     const connect = () => {
       if (closed) {
