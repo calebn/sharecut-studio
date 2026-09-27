@@ -616,13 +616,17 @@ with the locally cached faster-whisper `base` model:
 ```
 
 Use `--prediction candidate.json` instead of `--native-model base` for another
-aligner on the **same** audio; the candidate file contains the audio SHA-256
-and an ordered `words` array of text/start/end objects. The script checks both
+aligner on the **same** audio; the candidate file contains the audio SHA-256,
+nonempty `provenance` metadata (model, version, settings, license and optional
+runtime), and an ordered `words` array of text/start/end objects. The script checks both
 the gold fixture and candidate hashes against the audio
 SHA-256, preserves predicted words and provenance in the report, and never
 downloads a model. Scores count only normalized matching words in sequence.
 Report missed/extra words alongside boundary MAE (mean absolute start and end
 error) and the fraction of matched words with either boundary off by >150 ms.
+If no words match, MAE and the >150 ms fraction are `null`; missed/extra counts
+still show the failed coverage. Matching uses a bounded monotone alignment
+that prefers lower timing error when repeated words create equal text matches.
 
 The checked-in `*.native-base.json` reports measured 42 matching words across
 48 reference words: 82.3 ms boundary MAE, 15/42 (35.7%) over 150 ms, six

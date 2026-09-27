@@ -6,14 +6,17 @@ Run with ``uv run python scripts/benchmark_word_boundaries.py --help``.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import time
+from importlib.metadata import version
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.engines.word_boundary_metrics import measure_word_boundaries
+from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.hashing import sha256_file
 
 
 def _read_words(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -36,7 +39,7 @@ def benchmark(
     if not isinstance(expected_sha, str) or len(expected_sha) != 64:
         raise ValueError("gold audio_sha256 must be a SHA-256 hex digest")
     audio_path = gold_path.parent / audio_name
-    observed_sha = hashlib.sha256(audio_path.read_bytes()).hexdigest()
+    observed_sha = sha256_file(audio_path)
     if observed_sha != expected_sha:
         raise ValueError("audio SHA-256 does not match gold fixture")
 
@@ -44,8 +47,18 @@ def benchmark(
         supplied, prediction = _read_words(prediction_path)
         if supplied.get("audio_sha256") != observed_sha:
             raise ValueError("prediction audio_sha256 does not match gold fixture")
+        provenance = supplied.get("provenance")
+        if not isinstance(provenance, dict) or not provenance:
+            raise ValueError("prediction needs nonempty provenance metadata")
+        runtime_sec = provenance.get("runtime_sec")
+        if runtime_sec is not None and (
+            isinstance(runtime_sec, bool)
+            or not isinstance(runtime_sec, (int, float))
+            or not isfinite(runtime_sec)
+            or runtime_sec < 0
+        ):
+            raise ValueError("provenance runtime_sec must be nonnegative and finite")
         source = str(prediction_path)
-        runtime_sec = None
     else:
         assert native_model is not None
         start = time.perf_counter()
@@ -55,12 +68,21 @@ def benchmark(
             {"text": word.text, "start": word.start, "end": word.end} for word in transcript.words
         ]
         source = f"faster-whisper:{native_model}"
+        provenance = {
+            "model": native_model,
+            "library": "faster-whisper",
+            "library_version": version("faster-whisper"),
+            "device": "cpu",
+            "compute_type": "int8",
+            "runtime_sec": runtime_sec,
+        }
     metrics = measure_word_boundaries(reference, prediction)
     return {
         "fixture_id": gold.get("id"),
         "audio_sha256": observed_sha,
         "reference": gold.get("reference"),
         "prediction_source": source,
+        "provenance": provenance,
         "runtime_sec": runtime_sec,
         "metrics": metrics.as_dict(),
         "words": prediction,
@@ -76,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     report = benchmark(args.gold, prediction_path=args.prediction, native_model=args.native_model)
-    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    write_json_atomic(args.output, report)
     print(json.dumps(report["metrics"], sort_keys=True))
     return 0
 
