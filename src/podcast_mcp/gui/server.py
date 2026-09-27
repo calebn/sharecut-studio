@@ -91,6 +91,7 @@ def _accepts_html(request: Request) -> bool:
 
 #: ``/?home=1`` shows the host home without the pinned-project redirect
 #: (recovery page "Choose a different project", Studio New project).
+#: Must match gui/web/src/utils/projectUrl.ts (test_home_query_param_matches_the_gui).
 HOME_QUERY_PARAM = "home"
 
 

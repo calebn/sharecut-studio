@@ -2731,6 +2731,40 @@ def test_index_home_param_skips_pinned_redirect(minimal_project, tmp_path) -> No
     assert res.status_code == 200
 
 
+def test_recovery_home_link_keeps_the_pin(minimal_project, tmp_path) -> None:
+    """The recovery page's home link shows home and never unpins (#533)."""
+    served = Path(minimal_project).resolve()
+    client = _root_client(tmp_path, minimal_project)
+    other = minimal_project.parent / "other" / "episode.project.json"
+    page = client.get(
+        "/",
+        params={"project": str(other)},
+        headers={"Accept": "text/html"},
+        follow_redirects=False,
+    )
+    assert page.status_code == 403
+    assert 'href="/?home=1"' in page.text
+    home = client.get("/", params={"home": "1"}, follow_redirects=False)
+    assert home.status_code == 200
+    assert Path(client.app.state.served_project).resolve() == served
+    assert client.get("/", follow_redirects=False).status_code == 307
+
+
+def test_home_query_param_matches_the_gui() -> None:
+    """The web client's /?home=1 must be the flag the pinned-root redirect skips."""
+    pytest.importorskip("fastapi")
+    import re
+
+    from podcast_mcp.gui.server import HOME_QUERY_PARAM
+
+    ts = (
+        Path(__file__).resolve().parents[1] / "gui" / "web" / "src" / "utils" / "projectUrl.ts"
+    ).read_text(encoding="utf-8")
+    match = re.search(r'export const HOME_QUERY_PARAM = "(\w+)";', ts)
+    assert match
+    assert match.group(1) == HOME_QUERY_PARAM
+
+
 def test_index_bare_root_redirect_refuses_relayed_request(minimal_project, tmp_path) -> None:
     client = _root_client(tmp_path, minimal_project)
     res = client.get("/", headers={"X-Sharecut-Relayed": "1"}, follow_redirects=False)
