@@ -21,6 +21,7 @@ from typing import Any
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.track_media import refresh_timeline_duration
+from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 from podcast_mcp.engines.session_timeline import SessionTimeline, clip_source_to_timeline_shift
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.transcript_align import (
@@ -640,15 +641,6 @@ def resolve_clip_wav(project: EpisodeProject, track: Track, clip: Clip) -> Path 
     return path if path.is_file() else None
 
 
-def _probe_duration_sec(path: Path) -> float | None:
-    try:
-        from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-        return float(FFmpegEngine().probe(path).duration_sec)
-    except (OSError, ValueError, subprocess.CalledProcessError):
-        return None
-
-
 def _acoustic_window_and_starts(
     duration_sec: float | None,
     *,
@@ -707,8 +699,8 @@ def acoustic_clip_offset(
 
     if starts is not None and source_starts is not None and len(source_starts) != len(starts):
         raise ValueError("source_starts must match starts")
-    ref_dur = _probe_duration_sec(reference)
-    src_dur = _probe_duration_sec(source)
+    ref_dur = probe_wav_duration_sec(reference)
+    src_dur = probe_wav_duration_sec(source)
     fit_dur = None
     if ref_dur is not None and src_dur is not None:
         fit_dur = min(ref_dur, src_dur)
