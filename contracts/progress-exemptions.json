@@ -465,6 +465,13 @@
       "date": "2026-09-03"
     },
     {
+      "id": "pipeline.config",
+      "kind": "minimal",
+      "reason": "Instant preview computation, no I/O, no persistent store",
+      "approved_by": "calebn",
+      "date": "2026-09-27"
+    },
+    {
       "id": "pipeline.list",
       "kind": "minimal",
       "reason": "Instant read/CRUD/status/gate; start/end wrap only (no phases required)",
