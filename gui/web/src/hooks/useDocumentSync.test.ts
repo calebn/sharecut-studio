@@ -56,7 +56,7 @@ describe("useDocumentSync", () => {
     vi.unstubAllGlobals();
   });
 
-  it("merges patch.tracks, skips Echo, and keeps comments-only merges", async () => {
+  it("merges patch.tracks, ignores non-document frames, and keeps comments-only merges", async () => {
     renderHook(() =>
       useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
     );
@@ -80,7 +80,7 @@ describe("useDocumentSync", () => {
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
-        type: "Echo",
+        type: "Ping",
         server_seq: 2,
         snapshot: { server_seq: 2, project: minimalProject() },
       });
@@ -103,13 +103,13 @@ describe("useDocumentSync", () => {
     expect(useDawStore.getState().project?.tracks).toBe(tracksAfterPatch);
   });
 
-  it("skips Echo first and still applies a later same-seq Applied", async () => {
+  it("ignores a non-document frame and still applies a later same-seq Applied", async () => {
     renderHook(() =>
       useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
-        type: "Echo",
+        type: "Ping",
         server_seq: 4,
         snapshot: {
           server_seq: 4,

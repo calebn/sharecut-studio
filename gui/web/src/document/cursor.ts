@@ -27,19 +27,15 @@ export function eventServerSeq(msg: {
   return Number(msg.snapshot?.server_seq ?? msg.server_seq ?? 0);
 }
 
-/** Skip Echo and own-HTTP; still apply peer / ExternalMutate at the current seq.
+/** Skip stale seq and own-HTTP; still apply peer / ExternalMutate at the current seq.
 
 Hub overflow `resync` always applies, including own-client seq.
 */
 export function shouldApplyDocumentEvent(msg: {
-  type?: string;
   server_seq?: number;
   snapshot?: { server_seq?: number; resync?: boolean };
   command?: { client_id?: string };
 }): boolean {
-  if (msg.type === "Echo") {
-    return false;
-  }
   if (msg.snapshot?.resync) {
     return true;
   }

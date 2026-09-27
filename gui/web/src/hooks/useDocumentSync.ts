@@ -39,8 +39,8 @@ type DocumentSnapshotMsg = {
 };
 
 /**
- * Document-plane WS: merge Applied snapshots/patches into the store.
- * Own-echo HTTP applies are skipped. useProjectPoll remains a safety net.
+ * Document-plane WS (server→client only): merge Applied snapshots/patches into the store.
+ * Own-client HTTP Applied at the current seq is skipped. useProjectPoll remains a safety net.
  */
 export function useDocumentSync(
   projectPath: string,
@@ -69,9 +69,6 @@ export function useDocumentSync(
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
-          if (msg.type === "Echo") {
-            return;
-          }
           if (msg.type !== "Applied" && msg.type !== "Snapshot") {
             return;
           }
@@ -81,7 +78,6 @@ export function useDocumentSync(
           }
           if (
             !shouldApplyDocumentEvent({
-              type: msg.type,
               server_seq: msg.server_seq,
               snapshot: snap,
               command: msg.command,
