@@ -39,10 +39,10 @@ export type KeymapCommand = {
   /** When true, require meta or ctrl (Mod+key chords). */
   requireMod?: boolean;
   /**
-   * When true, require Alt/Option without Mod (Alt+key chords). When `e.key`
-   * is not a printable ASCII character, also matches the key derived from the
-   * physical `e.code` (letters, digits, punctuation), since macOS Option
-   * rewrites `e.key` (Option+= types "≠").
+   * When true, require Alt/Option without Mod (Alt+key chords). On Apple
+   * platforms, when `e.key` is not a printable ASCII character, also matches
+   * the key derived from the physical `e.code` (letters, digits, punctuation),
+   * since macOS Option rewrites `e.key` (Option+= types "≠").
    */
   requireAlt?: boolean;
   /** true = Shift required; false = Shift excluded; omit = Shift optional. */
@@ -730,12 +730,16 @@ const PUNCTUATION_CODE_KEYS: Record<string, string> = {
 const PRINTABLE_ASCII_KEY = /^[\x21-\x7e]$/;
 
 /**
- * The unmodified key for a physical `e.code`. macOS Option rewrites `e.key`
- * for almost every key (Option+= → "≠", Option+] → "'", Option+E → "Dead"),
- * so Alt rows — including a remapped one — also match by code, but only when
- * `e.key` is not already a printable ASCII character. Otherwise a non-US
- * layout could fire an Alt row from the wrong key (AZERTY Alt+Q has
- * `code: "KeyA"`; Windows Dvorak's physical `Equal` key types "]").
+ * The unmodified key for a physical `e.code` (US positions). macOS Option
+ * rewrites `e.key` for almost every key (Option+= → "≠", Option+] → "'",
+ * Option+E → "Dead"), so on Apple platforms Alt rows — including a remapped
+ * one — also match by code, but only when `e.key` is not already a printable
+ * ASCII character (AZERTY Alt+Q has `code: "KeyA"`; Dvorak's physical `Equal`
+ * key types "]"). Other platforms never fall back: their Alt keeps the
+ * layout's `e.key`, so a US-position match would fire a row from the wrong
+ * key (German Alt+ß has `code: "Minus"`; Cyrillic Alt+ф has `code: "KeyA"`).
+ * On a non-US macOS layout, a non-ASCII or dead Option key still matches by
+ * its US position.
  */
 function keyFromCode(code: string | undefined): string | null {
   if (!code) return null;
@@ -772,10 +776,13 @@ export function matchKeymapCommands(
     KeyboardEvent,
     "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"
   >,
+  apple: boolean = isApplePlatform(),
 ): KeymapCommand[] {
   const candidates = eventKeyCandidates(e);
   const physical =
-    e.altKey && !PRINTABLE_ASCII_KEY.test(e.key) ? keyFromCode(e.code) : null;
+    apple && e.altKey && !PRINTABLE_ASCII_KEY.test(e.key)
+      ? keyFromCode(e.code)
+      : null;
   const altCandidates = physical ? [...candidates, physical] : candidates;
   const mod = e.metaKey || e.ctrlKey;
   const out: KeymapCommand[] = [];
@@ -832,8 +839,9 @@ export function matchKeymapCommand(
     KeyboardEvent,
     "key" | "code" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey"
   >,
+  apple: boolean = isApplePlatform(),
 ): KeymapCommand | null {
-  return matchKeymapCommands(e)[0] ?? null;
+  return matchKeymapCommands(e, apple)[0] ?? null;
 }
 
 export function ignoresKeyRepeat(
