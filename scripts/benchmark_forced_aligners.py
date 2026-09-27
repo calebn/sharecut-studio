@@ -28,6 +28,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     log_softmax,
     plan_windows,
 )
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.word_boundary_metrics import (
     matched_word_pairs,
     measure_word_boundaries,
@@ -197,12 +198,16 @@ def resolve_model_dir(c: Candidate, override: Path | None) -> Path:
 
 
 def load_audio(path: Path, clip: tuple[float, float] | None) -> np.ndarray:
-    from faster_whisper.audio import decode_audio
+    """Mono float32 at SAMPLE_RATE; a clip decodes only its window (ffmpeg -ss/-t)."""
+    if clip is None:
+        from faster_whisper.audio import decode_audio
 
-    samples = decode_audio(str(path), sampling_rate=SAMPLE_RATE)
-    if clip is not None:
+        samples = decode_audio(str(path), sampling_rate=SAMPLE_RATE)
+    else:
         start, end = clip
-        samples = samples[round(start * SAMPLE_RATE) : round(end * SAMPLE_RATE)]
+        start_frame = round(start * SAMPLE_RATE)
+        frames = max(0, round(end * SAMPLE_RATE) - start_frame)
+        samples = FFmpegEngine().decode_window_f32(path, start_frame, frames, SAMPLE_RATE, 1)[:, 0]
     if len(samples) == 0:
         raise ValueError("empty audio clip")
     return samples

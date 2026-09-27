@@ -706,7 +706,8 @@ above) has real 3-speaker Zoom speech with clipped consonants, quiet words and
 overlap that the LibriSpeech clips don't exercise. With `LAB` and
 `LAB_RUNS_DIR` exported as above, `run --target lab` clips each stem
 (`source/zoom_excerpt_pan/audio*.m4a` by default, overridable with
-`--lab-glob`) to 60 s and writes outputs under `$LAB_RUNS_DIR/align/lab`.
+`--lab-glob`) to 60 s, decoding only that window through ffmpeg, and writes
+outputs under `$LAB_RUNS_DIR/align/lab`.
 
 There is no ground truth on the lab tape, so read agreement, runtime/RTF, and
 the ranked disagreement list (largest first) to audition candidates by ear

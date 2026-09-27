@@ -193,6 +193,8 @@ def test_write_wav16_and_load_audio_clip(tmp_path) -> None:
 
     clipped = bfa.load_audio(path, (0.25, 0.75))
     assert len(clipped) == 8000
+    assert clipped.dtype == np.float32
+    assert len(bfa.load_audio(path, None)) == bfa.SAMPLE_RATE
 
     with pytest.raises(ValueError, match="empty audio clip"):
         bfa.load_audio(path, (0.0, 0.0))
