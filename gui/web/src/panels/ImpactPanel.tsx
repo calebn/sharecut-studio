@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { approveEdits, rejectEdits } from "../api";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import {
@@ -24,6 +25,21 @@ export function ImpactPanel() {
   const { busy, error, errorCode, setError, run } = useProjectMutation();
   const { notice: queuedNotice, setQueued } =
     useQueuedReviewNotice(projectPath);
+  const appliedRecords = project?.applied_edits.records;
+  const clipsByTrack = project?.clips.tracks;
+  // One projection pass per document change, not per render (records × tracks × clips).
+  const onTimelineIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!appliedRecords || !clipsByTrack) {
+      return ids;
+    }
+    for (const rec of appliedRecords) {
+      if (appliedRecordOnTimeline(rec, clipsByTrack)) {
+        ids.add(rec.id);
+      }
+    }
+    return ids;
+  }, [appliedRecords, clipsByTrack]);
 
   if (!project) {
     return null;
@@ -95,18 +111,20 @@ export function ImpactPanel() {
                   variant="link"
                   data-applied-id={rec.id}
                   onClick={() =>
-                    setSelection({
-                      kind: "applied",
-                      id: rec.id,
-                      trackId: rec.track_ids[0] ?? "",
-                    })
+                    setSelection(
+                      rec.track_ids[0]
+                        ? {
+                            kind: "applied",
+                            id: rec.id,
+                            trackId: rec.track_ids[0],
+                          }
+                        : { kind: "applied", id: rec.id },
+                    )
                   }
                 >
                   {appliedEditTitle(rec)} ·{" "}
                   {rec.track_ids.join(", ") || "session"}
-                  {appliedRecordOnTimeline(rec, project.clips.tracks)
-                    ? ""
-                    : " · not on timeline"}
+                  {onTimelineIds.has(rec.id) ? "" : " · not on timeline"}
                 </Button>
               </li>
             ))}

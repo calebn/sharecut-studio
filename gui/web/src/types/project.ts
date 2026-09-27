@@ -313,7 +313,8 @@ export interface ProjectView {
 export type Selection =
   | { kind: "clip"; id: string; trackId: string }
   | { kind: "pending"; id: string; trackId: string }
-  | { kind: "applied"; id: string; trackId: string }
+  /** `trackId` is omitted for a session-wide record (`track_ids: []`). */
+  | { kind: "applied"; id: string; trackId?: string }
   | { kind: "track"; trackId: string }
   | { kind: "chapter"; id: string; time: number }
   | { kind: "social"; id: string }
