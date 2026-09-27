@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services import PipelineService, ProjectWorkspace
+from podcast_mcp.services.pipeline import format_export_qc_lines
+
+
+def _run_message(last_step: str, job_result: dict[str, Any] | None) -> str:
+    """`Completed through <step>` plus the export QC verdict lines when this run exported."""
+    qc = job_result or {}
+    lines = [f"Completed through {last_step}"]
+    lines.extend(format_export_qc_lines(qc.get("export_qc"), qc.get("export_qc_path")))
+    return "\n".join(lines)
 
 
 def pipeline_run(
@@ -26,6 +36,8 @@ def pipeline_run(
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
     only (not persisted). Replacing edited transcripts is refused when ``unattended``;
     run attended, or the user confirms with Studio Re-transcribe.
+    Returns ``Completed through <step>``; when this run exported, the next lines are
+    the export QC verdict (same as CLI ``pipeline run``).
     """
     from podcast_mcp.services.pipeline_config import (
         config_store,
@@ -82,7 +94,7 @@ def pipeline_run(
             raise RuntimeError(job.error or job.message or "Pipeline failed")
         if job.status == "cancelled":
             raise RuntimeError(job.message or "Pipeline cancelled")
-        return f"Completed through {job.result_step or ''}"
+        return _run_message(job.result_step or "", job.result)
 
     result = PipelineService(ws).run(
         from_step=from_step,
@@ -91,7 +103,7 @@ def pipeline_run(
         unattended=run_unattended,
         config=run_config,
     )
-    return f"Completed through {result.last_step}"
+    return _run_message(result.last_step, result.job_result())
 
 
 def pipeline_get_config_tool(project_path: str) -> str:

@@ -1218,7 +1218,12 @@ def test_api_pipeline_run_and_events(minimal_project, monkeypatch) -> None:
             message="Completed step_b: 12 cuts applied",
         )
         reporter.end("pipeline")
-        return PipelineRunResult(last_step="step_b", steps=[])
+        return PipelineRunResult(
+            last_step="step_b",
+            steps=[],
+            export_qc={"ok": False, "issues": ["bad"], "warnings": [], "timebase": {"big": 1}},
+            export_qc_path=minimal_project.parent / "export_qc.json",
+        )
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.run",
@@ -1246,6 +1251,10 @@ def test_api_pipeline_run_and_events(minimal_project, monkeypatch) -> None:
     assert st["job"]["steps"][0]["name"] == "step_a"
     assert st["job"]["steps"][0]["summary"] == "3 tracks probed"
     assert st["job"]["steps"][1]["summary"] == "12 cuts applied"
+    assert st["job"]["result"] == {
+        "export_qc": {"ok": False, "issues": ["bad"], "warnings": []},
+        "export_qc_path": str(minimal_project.parent / "export_qc.json"),
+    }
 
     with client.stream(
         "GET",
@@ -2166,6 +2175,7 @@ def test_api_pipeline_run_passes_unattended(minimal_project, monkeypatch) -> Non
     assert seen.get("unattended") is True
     assert "merge_transcript" in (seen.get("skip_steps") or [])
     assert seen.get("config")["balance"]["dialogue_lufs"] == -17.0
+    assert st["job"]["result"] is None
 
 
 def test_project_meta_helper(minimal_project) -> None:

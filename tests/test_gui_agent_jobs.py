@@ -529,7 +529,12 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
 
     class FakeSvc:
         def run(self, **_kwargs):
-            return PipelineRunResult(last_step="ingest_tracks", steps=[])
+            return PipelineRunResult(
+                last_step="ingest_tracks",
+                steps=[],
+                export_qc={"ok": True, "issues": [], "warnings": []},
+                export_qc_path=proj.parent / "export_qc.json",
+            )
 
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.ProjectWorkspace.open", FakeWs.open)
     monkeypatch.setattr("podcast_mcp.mcp.tools.pipeline.PipelineService", lambda _ws: FakeSvc())
@@ -560,6 +565,7 @@ def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
     mgr._job = None
     out = mcp_pipeline.pipeline_run(str(proj), only_step="ingest_tracks", use_working_set=False)
     assert "ingest_tracks" in out
+    assert "Export QC: ok (0 issues), 0 warnings" in out
     shared_job_manager(reset=True)
 
 

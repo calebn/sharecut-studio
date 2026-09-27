@@ -100,6 +100,24 @@ def test_mcp_pipeline_run_only_step(tmp_path, sample_wav):
     assert "ingest_tracks" in result
 
 
+def test_mcp_pipeline_run_reports_export_qc_verdict(tmp_path):
+    from podcast_mcp.services import PipelineRunResult
+
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    fake = PipelineRunResult(
+        last_step="export_deliverables",
+        steps=[],
+        export_qc={"ok": False, "issues": ["bad thing"], "warnings": []},
+        export_qc_path=tmp_path / "export_qc.json",
+    )
+    with patch("podcast_mcp.mcp.tools.pipeline.PipelineService.run", return_value=fake):
+        out = mcp_pipeline.pipeline_run(path, use_working_set=False)
+    lines = out.splitlines()
+    assert lines[0] == "Completed through export_deliverables"
+    assert lines[1].startswith("Export QC: FAILED (1 issues), 0 warnings")
+    assert lines[2] == "  - bad thing"
+
+
 def test_mcp_pipeline_config_tools(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")

@@ -1089,7 +1089,7 @@ class PipelineJobManager:
                     str(info.get("error") or "Render preview failed (premix missing)")
                 )
             return "Render preview complete", None
-        job.result_step = svc.run(
+        run_result = svc.run(
             from_step=job.from_step,
             only_step=job.only_step,
             skip_steps=job.skip_steps or None,
@@ -1097,8 +1097,9 @@ class PipelineJobManager:
             unattended=job.unattended,
             config=job.config,
             cancel_check=cancel_check,
-        ).last_step
-        return "Pipeline complete", None
+        )
+        job.result_step = run_result.last_step
+        return "Pipeline complete", run_result.job_result()
 
 
 class AgentJobFanInReporter:

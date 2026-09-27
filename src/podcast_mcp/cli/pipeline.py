@@ -68,17 +68,8 @@ def _echo_run_report(result: PipelineRunResult) -> None:
         if log.message:
             line = f"{line}: {log.message}"
         typer.echo(line)
-    if result.export_qc is not None:
-        qc = result.export_qc
-        verdict = "ok" if qc.get("ok") else "FAILED"
-        issues = qc.get("issues") or []
-        warnings = qc.get("warnings") or []
-        typer.echo(
-            f"Export QC: {verdict} ({len(issues)} issues), "
-            f"{len(warnings)} warnings ({result.export_qc_path})"
-        )
-        for issue in issues:
-            typer.echo(f"  - {issue}")
+    for line in result.qc_report_lines():
+        typer.echo(line)
     typer.echo(f"Pipeline complete. Last step: {result.last_step}")
 
 

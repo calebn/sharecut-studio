@@ -90,7 +90,7 @@ podcast pipeline run --project episode.project.json --strict  # exit 1 if this r
 
 Existing transcripts are reused (a second run does not call Whisper). On seeded projects use `--from merge_transcript` or rely on the skip. `--force` / MCP `force_transcribe=true` re-transcribes; if a hand-edited transcript would be replaced (forced, or its audio changed) and the run is unattended, it fails with `TranscriptOverwriteRefused` naming each track and reason — rerun attended, or have the user click Studio Re-transcribe and accept its replace prompt (the only path that confirms replacing edits in Batch mode).
 
-`pipeline list` shows each step's enabled / no-op / disabled state under the effective config; `--json` for scripting. After `pipeline run`, read the `Export QC:` line on stdout (ok/FAILED, issue count, path) before treating an export as shippable — `--strict` is opt-in until #621, so a non-strict run still exits 0 on a failed verdict.
+`pipeline list` shows each step's enabled / no-op / disabled state under the effective config; `--json` for scripting. After `pipeline run`, read the `Export QC:` line on stdout (ok/FAILED, issue count, path) before treating an export as shippable (MCP `pipeline_run` returns the same lines after `Completed through …`) — `--strict` is opt-in until #621, so a non-strict run still exits 0 on a failed verdict.
 
 ## After automation
 

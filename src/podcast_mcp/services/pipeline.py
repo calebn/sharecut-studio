@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,20 @@ from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_lock
 
 
+def format_export_qc_lines(
+    export_qc: Mapping[str, Any] | None, qc_path: Path | str | None
+) -> list[str]:
+    """`Export QC: ok|FAILED (N issues), M warnings (<path>)` plus one `  - issue` line each; [] if no export ran."""
+    if export_qc is None:
+        return []
+    verdict = "ok" if export_qc.get("ok") else "FAILED"
+    issues = list(export_qc.get("issues") or [])
+    warnings = list(export_qc.get("warnings") or [])
+    lines = [f"Export QC: {verdict} ({len(issues)} issues), {len(warnings)} warnings ({qc_path})"]
+    lines.extend(f"  - {issue}" for issue in issues)
+    return lines
+
+
 @dataclass(frozen=True)
 class PipelineRunResult:
     """Outcome of a `PipelineService.run()` call: the last step and this run's QC verdict."""
@@ -30,6 +44,23 @@ class PipelineRunResult:
     def ok(self) -> bool:
         """True when this run exported no QC (nothing to fail), or its QC verdict is ok."""
         return self.export_qc is None or bool(self.export_qc.get("ok"))
+
+    def qc_report_lines(self) -> list[str]:
+        """This run's export QC verdict lines (empty when the run did not export)."""
+        return format_export_qc_lines(self.export_qc, self.export_qc_path)
+
+    def job_result(self) -> dict[str, Any] | None:
+        """Compact QC verdict for a Studio job's terminal `result`; None when the run did not export."""
+        if self.export_qc is None:
+            return None
+        return {
+            "export_qc": {
+                "ok": bool(self.export_qc.get("ok")),
+                "issues": list(self.export_qc.get("issues") or []),
+                "warnings": list(self.export_qc.get("warnings") or []),
+            },
+            "export_qc_path": str(self.export_qc_path) if self.export_qc_path else None,
+        }
 
 
 class PipelineService:
