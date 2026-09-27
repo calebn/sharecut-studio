@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from queue import Empty
 
 import pytest
 
+from job_event_helpers import JobEventTap
+from podcast_mcp.gui.job_events import job_listener_count
 from podcast_mcp.gui.jobs import (
     AgentJobFanInReporter,
     PipelineJob,
@@ -14,18 +15,6 @@ from podcast_mcp.gui.jobs import (
     shared_job_manager,
 )
 from podcast_mcp.util.progress import bind_progress, progress_task
-
-
-def _drain(job: PipelineJob) -> list[dict]:
-    items: list[dict] = []
-    while True:
-        try:
-            item = job.events.get_nowait()
-        except Empty:
-            break
-        if isinstance(item, dict):
-            items.append(item)
-    return items
 
 
 def test_gui_agent_job_progress_sink_skips_without_studio_manager() -> None:
@@ -46,8 +35,8 @@ def test_manager_catalog_shares_live_state_and_lock() -> None:
     mgr._finished_limit = 1
     first = mgr.adopt_agent_job(tool_id="first", label="First", claim="first")
     assert mgr._catalog.get_job(first.id) is first
-    assert mgr.add_sse_subscriber_for(first)
-    assert mgr.sse_subscriber_count() == 1
+    with JobEventTap(first.id):
+        assert job_listener_count(first.id) == 1
     mgr.complete_agent_job(first, status="ok")
     assert mgr.get_job(first.id) is first
     second = mgr.adopt_agent_job(tool_id="second", label="Second", claim="second")
@@ -82,9 +71,9 @@ def test_rich_mcp_wrap_creates_agent_job_and_sse_payload() -> None:
         assert snap["label"] == "align_tracks"
         assert snap["message"] == "Scoring bleed windows"
         assert snap["project_path"] == ""
-        assert mgr.add_sse_subscriber_for(job) is True
-        task.advance(2, message="Still scoring")
-        events = _drain(job)
+        with JobEventTap(job.id) as tap:
+            task.advance(2, message="Still scoring")
+            events = tap.drain()
         assert any(
             item.get("type") == "progress" and (item.get("job") or {}).get("kind") == "agent"
             for item in events
@@ -249,7 +238,6 @@ def test_agent_fanin_child_events_helpers_and_lookups() -> None:
     assert _gui_fail_message("\n", phase="mix") == "mix"
 
     mgr = PipelineJobManager()
-    mgr.add_sse_subscriber()
     mgr._job = PipelineJob(
         id="done-pipe",
         project_path="/tmp/ep.json",
@@ -411,7 +399,6 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         claim="c1",
         project_path="/tmp/p.json",
     )
-    assert only_agent.add_sse_subscriber_for(agent_live) is True
     assert only_agent.get_job(agent_live.id) is agent_live
     st = only_agent.status()
     assert st["job"]["kind"] == "agent"
@@ -432,17 +419,11 @@ def test_agent_fanin_closed_and_child_before_job() -> None:
         status="running",
         started_at=1.0,
     )
-    sse_mgr.add_sse_subscriber()
-    reporter = _SsePublishReporter(sse_mgr)
-    reporter.start("t", "lab")
-    reporter.update("t", 1, message="m")
-    stolen = []
-    while True:
-        try:
-            stolen.append(sse_mgr._job.events.get_nowait())
-        except Empty:
-            break
-    assert stolen == []
+    with JobEventTap("sse") as tap:
+        reporter = _SsePublishReporter(sse_mgr)
+        reporter.start("t", "lab")
+        reporter.update("t", 1, message="m")
+        assert tap.drain() == []
     reporter.start("pipeline", "lab")
     reporter.update("pipeline", 1, message="m")
     long_fail = _gui_fail_message("x" * 250)
@@ -486,22 +467,22 @@ def test_agent_live_cap_evicts_oldest() -> None:
 
 
 def test_agent_publish_skips_without_subscriber_and_bounds_queue() -> None:
-    from podcast_mcp.gui.jobs import _EVENT_QUEUE_MAX
+    from podcast_mcp.gui.job_events import JOB_EVENT_QUEUE_MAX
 
     mgr = PipelineJobManager()
     job = mgr.adopt_agent_job(tool_id="t", label="T", claim="c")
     reporter = _JobProgressReporter(job)
     reporter.message("t", "silent")
-    assert _drain(job) == []
-    assert mgr.add_sse_subscriber_for(job) is True
-    reporter.message("t", "live")
-    events = _drain(job)
-    assert events
-    assert events[-1].get("message") == "live"
-    for i in range(_EVENT_QUEUE_MAX + 8):
-        job.publish({"type": "progress", "n": i})
-    queued = _drain(job)
-    assert len(queued) <= _EVENT_QUEUE_MAX
+    assert not job.has_listeners()
+    with JobEventTap(job.id) as tap:
+        reporter.message("t", "live")
+        events = tap.drain()
+        assert events
+        assert events[-1].get("message") == "live"
+        for i in range(JOB_EVENT_QUEUE_MAX + 8):
+            job.publish({"type": "progress", "n": i})
+        queued = tap.drain()
+    assert len(queued) <= JOB_EVENT_QUEUE_MAX
 
 
 def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
@@ -520,17 +501,15 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
     )
     mgr._job = pipe
     agent = mgr.adopt_agent_job(tool_id="align_tracks", label="align", claim="c")
-    assert mgr.add_sse_subscriber_for(agent) is True
-    assert mgr.listening_progress_reporter() is None
-    wrap = _SsePublishReporter(mgr)
-    wrap.message("align_tracks", "should not land on pipeline")
-    assert _drain(pipe) == []
-    assert any(item.get("kind") == "message" for item in _drain(agent))
-    mgr.add_sse_subscriber()
-    wrap.message("align_tracks", "still agent-owned")
-    assert _drain(pipe) == []
-    kinds = [item.get("kind") for item in _drain(agent)]
-    assert "message" in kinds
+    with JobEventTap(agent.id) as agent_tap:
+        assert not pipe.has_listeners()
+        assert mgr.listening_progress_reporter() is None
+        wrap = _SsePublishReporter(mgr)
+        wrap.message("align_tracks", "should not land on pipeline")
+        assert any(item.get("kind") == "message" for item in agent_tap.drain())
+        wrap.message("align_tracks", "still agent-owned")
+        kinds = [item.get("kind") for item in agent_tap.drain()]
+        assert "message" in kinds
 
 
 def test_pipeline_run_uses_studio_job_lock(tmp_path, monkeypatch) -> None:
@@ -596,7 +575,6 @@ def test_pipeline_run_wrap_does_not_create_agent_job() -> None:
 
 def test_wait_timeout_and_sse_helpers() -> None:
     from podcast_mcp.gui.jobs import (
-        _drop_unread_events,
         _gui_fail_message,
         _token_looks_like_abs_path,
         studio_job_manager,
@@ -607,7 +585,6 @@ def test_wait_timeout_and_sse_helpers() -> None:
     studio_job_manager()
 
     mgr = PipelineJobManager()
-    mgr.remove_sse_subscriber()
     live = PipelineJob(
         id="wait-me",
         project_path="/tmp/p.json",
@@ -621,13 +598,9 @@ def test_wait_timeout_and_sse_helpers() -> None:
     assert mgr.wait(live) is live
 
     job = mgr.adopt_agent_job(tool_id="t", label="T", claim="c-end")
-    assert mgr.add_sse_subscriber_for(job) is True
-    job.close_stream()
-    assert mgr.add_sse_subscriber_for(job) is True
-    drained = _drain(job)
-    assert drained == [] or None in drained
-    _drop_unread_events(job)
-    mgr.complete_agent_job(job, status="ok", message="done")
+    with JobEventTap(job.id) as tap:
+        mgr.complete_agent_job(job, status="ok", message="done")
+        assert tap.drain()[-1]["type"] == "done"
 
 
 def test_agent_finalize_closes_reporter_if_complete_raises(monkeypatch) -> None:

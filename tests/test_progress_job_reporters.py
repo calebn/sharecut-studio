@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import sys
-from queue import Empty
 
 import pytest
 
+from job_event_helpers import JobEventTap
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJob, _BootstrapProgressReporter
 from podcast_mcp.gui.jobs import (
     PipelineJob,
@@ -436,7 +436,6 @@ def test_job_progress_reporter_non_pipeline_task() -> None:
 def test_sse_sink_requires_live_job_and_subscribers() -> None:
     mgr = PipelineJobManager()
     assert mgr.listening_progress_reporter() is None
-    assert mgr.sse_subscriber_count() == 0
 
     live = PipelineJob(
         id="live",
@@ -447,60 +446,28 @@ def test_sse_sink_requires_live_job_and_subscribers() -> None:
         started_at=0.0,
         message="Pipeline",
     )
-    finished = PipelineJob(
-        id="done",
-        project_path="/tmp/p.json",
-        from_step=None,
-        only_step=None,
-        status="ok",
-    )
     mgr._job = live
     assert mgr.listening_progress_reporter() is None
-    assert mgr.add_sse_subscriber_for(finished) is False
-    assert mgr.sse_subscriber_count() == 0
-    assert mgr.add_sse_subscriber_for(live) is True
-    mgr.add_sse_subscriber()
-    assert mgr.sse_subscriber_count() == 2
-    mgr.remove_sse_subscriber()
-    assert mgr.sse_subscriber_count() == 1
 
-    reporter = mgr.listening_progress_reporter()
-    assert isinstance(reporter, _SsePublishReporter)
-    reporter.message("tool", "Running steal")
-    reporter.fail("tool", message="hijack")
-    assert live.message == "Pipeline"
-    assert live.error is None
-    stolen = []
-    while True:
-        try:
-            item = live.events.get_nowait()
-        except Empty:
-            break
-        if isinstance(item, dict):
-            stolen.append(item.get("kind"))
-    assert stolen == []
-    reporter.message("pipeline", "Owned wrap")
-    reporter.fail("pipeline", message="pipeline fail")
-    kinds = []
-    while True:
-        try:
-            item = live.events.get_nowait()
-        except Empty:
-            break
-        if isinstance(item, dict):
-            kinds.append(item.get("kind"))
-    assert "message" in kinds
-    assert "fail" in kinds
+    with JobEventTap(live.id) as tap:
+        reporter = mgr.listening_progress_reporter()
+        assert isinstance(reporter, _SsePublishReporter)
+        reporter.message("tool", "Running steal")
+        reporter.fail("tool", message="hijack")
+        assert live.message == "Pipeline"
+        assert live.error is None
+        stolen = [item.get("kind") for item in tap.drain()]
+        assert stolen == []
+        reporter.message("pipeline", "Owned wrap")
+        reporter.fail("pipeline", message="pipeline fail")
+        kinds = [item.get("kind") for item in tap.drain()]
+        assert "message" in kinds
+        assert "fail" in kinds
 
-    live.status = "ok"
-    reporter.start("tool", "after done")
-    extra = []
-    while True:
-        try:
-            extra.append(live.events.get_nowait())
-        except Empty:
-            break
-    assert extra == []
+        live.status = "ok"
+        reporter.start("tool", "after done")
+        assert tap.drain() == []
+    assert not live.has_listeners()
 
 
 def test_gui_sse_progress_sink_skips_without_listener() -> None:
@@ -569,47 +536,40 @@ def test_last_progress_at_ignores_snapshot_keepalive() -> None:
         last_progress_at=42.0,
         message="Quiet step",
     )
-    job._sse_listeners = 1
     reporter = _JobProgressReporter(job)
-    try:
-        snap = job.snapshot()
-        assert snap["last_progress_at"] == 42.0
-        time.sleep(0.02)
-        keep = job.snapshot()
-        assert keep["last_progress_at"] == 42.0
-        assert keep["elapsed_sec"] >= snap["elapsed_sec"]
+    with JobEventTap(job.id) as tap:
+        try:
+            snap = job.snapshot()
+            assert snap["last_progress_at"] == 42.0
+            time.sleep(0.02)
+            keep = job.snapshot()
+            assert keep["last_progress_at"] == 42.0
+            assert keep["elapsed_sec"] >= snap["elapsed_sec"]
 
-        reporter.start("pipeline", "Pipeline", total=1)
-        bumped = job.last_progress_at
-        assert bumped is not None and bumped != 42.0
+            reporter.start("pipeline", "Pipeline", total=1)
+            bumped = job.last_progress_at
+            assert bumped is not None and bumped != 42.0
 
-        headline = job.message
-        reporter.heartbeat("pipeline")
-        assert job.message == headline
-        assert job.last_progress_at is not None
-        assert job.last_progress_at >= bumped
-        reporter.heartbeat("pipeline", message="still working")
-        assert job.message == "still working"
+            headline = job.message
+            reporter.heartbeat("pipeline")
+            assert job.message == headline
+            assert job.last_progress_at is not None
+            assert job.last_progress_at >= bumped
+            reporter.heartbeat("pipeline", message="still working")
+            assert job.message == "still working"
 
-        reporter.end("pipeline", message="done")
-        after_end = job.last_progress_at
-        reporter.heartbeat("pipeline")
-        reporter.heartbeat("pipeline", message="resurrect")
-        assert job.last_progress_at == after_end
-        assert job.message == "done"
-        assert "pipeline" not in reporter._tasks
-        kinds = []
-        while True:
-            try:
-                item = job.events.get_nowait()
-            except Empty:
-                break
-            if isinstance(item, dict):
-                kinds.append(item.get("kind"))
-        assert "heartbeat" in kinds
-        assert kinds[-1] == "end"
-    finally:
-        reporter.close()
+            reporter.end("pipeline", message="done")
+            after_end = job.last_progress_at
+            reporter.heartbeat("pipeline")
+            reporter.heartbeat("pipeline", message="resurrect")
+            assert job.last_progress_at == after_end
+            assert job.message == "done"
+            assert "pipeline" not in reporter._tasks
+            kinds = [item.get("kind") for item in tap.drain()]
+            assert "heartbeat" in kinds
+            assert kinds[-1] == "end"
+        finally:
+            reporter.close()
 
 
 def test_job_reporter_mixin_heartbeat_bumps_last_progress_at(monkeypatch) -> None:
@@ -624,32 +584,25 @@ def test_job_reporter_mixin_heartbeat_bumps_last_progress_at(monkeypatch) -> Non
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    job._sse_listeners = 1
     reporter = _JobProgressReporter(job)
     reporter._heartbeat_sec = 0.01
-    try:
-        reporter.start("pipeline", "Pipeline", total=1)
-        first = job.last_progress_at
-        assert first is not None
-        with reporter._lock:
-            reporter._tasks["pipeline"].last_emit = time.monotonic() - 1.0
-        waits = iter([False, True])
-        monkeypatch.setattr(reporter._stop, "wait", lambda _timeout: next(waits))
-        reporter._heartbeat_loop()
-        assert job.last_progress_at is not None
-        assert job.last_progress_at >= first
-        assert job.message == "Pipeline"
-        kinds = []
-        while True:
-            try:
-                item = job.events.get_nowait()
-            except Empty:
-                break
-            if isinstance(item, dict):
-                kinds.append(item.get("kind"))
-        assert "heartbeat" in kinds
-    finally:
-        reporter.close()
+    with JobEventTap(job.id) as tap:
+        try:
+            reporter.start("pipeline", "Pipeline", total=1)
+            first = job.last_progress_at
+            assert first is not None
+            with reporter._lock:
+                reporter._tasks["pipeline"].last_emit = time.monotonic() - 1.0
+            waits = iter([False, True])
+            monkeypatch.setattr(reporter._stop, "wait", lambda _timeout: next(waits))
+            reporter._heartbeat_loop()
+            assert job.last_progress_at is not None
+            assert job.last_progress_at >= first
+            assert job.message == "Pipeline"
+            kinds = [item.get("kind") for item in tap.drain()]
+            assert "heartbeat" in kinds
+        finally:
+            reporter.close()
 
 
 def test_mixin_heartbeat_does_not_reregister_finished_task() -> None:
@@ -664,27 +617,20 @@ def test_mixin_heartbeat_does_not_reregister_finished_task() -> None:
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    job._sse_listeners = 1
     reporter = _JobProgressReporter(job)
-    try:
-        reporter.start("pipeline", "Pipeline", total=1)
-        reporter.end("pipeline", message="done")
-        after_end = job.last_progress_at
-        reporter._emit_heartbeat("pipeline", object(), 12.0)
-        assert "pipeline" not in reporter._tasks
-        assert job.last_progress_at == after_end
-        kinds = []
-        while True:
-            try:
-                item = job.events.get_nowait()
-            except Empty:
-                break
-            if isinstance(item, dict):
-                kinds.append(item.get("kind"))
-        assert kinds.count("heartbeat") == 0
-        assert kinds[-1] == "end"
-    finally:
-        reporter.close()
+    with JobEventTap(job.id) as tap:
+        try:
+            reporter.start("pipeline", "Pipeline", total=1)
+            reporter.end("pipeline", message="done")
+            after_end = job.last_progress_at
+            reporter._emit_heartbeat("pipeline", object(), 12.0)
+            assert "pipeline" not in reporter._tasks
+            assert job.last_progress_at == after_end
+            kinds = [item.get("kind") for item in tap.drain()]
+            assert kinds.count("heartbeat") == 0
+            assert kinds[-1] == "end"
+        finally:
+            reporter.close()
 
 
 def test_job_reporter_refuses_emit_after_close() -> None:
@@ -699,29 +645,22 @@ def test_job_reporter_refuses_emit_after_close() -> None:
         started_at=time.monotonic(),
         message="Pipeline",
     )
-    job._sse_listeners = 1
     reporter = _JobProgressReporter(job)
-    reporter.start("pipeline", "Pipeline", total=1)
-    reporter.close()
-    last = job.last_progress_at
-    reporter.heartbeat("pipeline")
-    reporter.start("pipeline", "again")
-    reporter.update("pipeline", 1, message="late")
-    reporter.message("pipeline", "late-msg")
-    reporter.end("pipeline")
-    reporter.fail("pipeline", message="late-fail")
-    reporter.cancel("pipeline", message="late-cancel")
-    assert job.last_progress_at == last
-    assert job.message == "Pipeline"
-    kinds = []
-    types = []
-    while True:
-        try:
-            item = job.events.get_nowait()
-        except Empty:
-            break
-        if isinstance(item, dict):
-            types.append(item.get("type"))
-            kinds.append(item.get("kind"))
-    assert "heartbeat" not in kinds
-    assert types[-1] != "done"
+    with JobEventTap(job.id) as tap:
+        reporter.start("pipeline", "Pipeline", total=1)
+        reporter.close()
+        last = job.last_progress_at
+        reporter.heartbeat("pipeline")
+        reporter.start("pipeline", "again")
+        reporter.update("pipeline", 1, message="late")
+        reporter.message("pipeline", "late-msg")
+        reporter.end("pipeline")
+        reporter.fail("pipeline", message="late-fail")
+        reporter.cancel("pipeline", message="late-cancel")
+        assert job.last_progress_at == last
+        assert job.message == "Pipeline"
+        drained = tap.drain()
+        kinds = [item.get("kind") for item in drained]
+        types = [item.get("type") for item in drained]
+        assert "heartbeat" not in kinds
+        assert types[-1] != "done"

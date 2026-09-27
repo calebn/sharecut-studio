@@ -229,6 +229,8 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
 
 
 def test_gui_bootstrap_events_sse(monkeypatch) -> None:
+    import json
+
     from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
     from podcast_mcp.gui.server import create_app
 
@@ -266,6 +268,10 @@ def test_gui_bootstrap_events_sse(monkeypatch) -> None:
         body = b"".join(stream.iter_bytes()).decode()
     assert "data:" in body
     assert job_id in body
+    frames = [
+        json.loads(ln.removeprefix("data: ")) for ln in body.splitlines() if ln.startswith("data: ")
+    ]
+    assert frames[-1]["type"] == "done"
 
 
 def test_gui_bootstrap_run_value_error(monkeypatch) -> None:

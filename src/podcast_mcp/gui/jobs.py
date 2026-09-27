@@ -1,4 +1,4 @@
-"""Background pipeline jobs for the DAW viewer (progress via queue → SSE)."""
+"""Background pipeline jobs for the DAW viewer (progress via per-subscriber SSE fan-out)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from queue import Empty, Full, Queue
 from typing import Any, Literal
 
+from podcast_mcp.gui.job_events import job_listener_count, publish_job_event
 from podcast_mcp.services import BounceRequest, BounceService, PipelineService, ProjectWorkspace
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
@@ -23,7 +23,6 @@ JobKind = Literal["pipeline", "render_preview", "bounce", "export", "agent"]
 
 _LIVE_STATUSES = frozenset({"queued", "running"})
 _GUI_FAIL_MAX = 200
-_EVENT_QUEUE_MAX = 256
 _AGENT_LIVE_LIMIT = 8
 _PIPELINE_OWNED_WRAPS = frozenset({"pipeline_run"})
 _DOMAIN_PROGRESS_KINDS = frozenset({"start", "update", "message", "heartbeat"})
@@ -51,38 +50,6 @@ def _gui_fail_message(message: str | None, phase: str | None = None) -> str | No
     if not line:
         return None
     return line[:_GUI_FAIL_MAX]
-
-
-def _new_event_queue() -> Queue[dict[str, Any] | None]:
-    return Queue(maxsize=_EVENT_QUEUE_MAX)
-
-
-def _enqueue_event(job: PipelineJob, item: dict[str, Any] | None) -> None:
-    try:
-        job.events.put_nowait(item)
-    except Full:
-        try:
-            job.events.get_nowait()
-        except Empty:
-            return
-        try:
-            job.events.put_nowait(item)
-        except Full:
-            return
-
-
-def _drop_unread_events(job: PipelineJob) -> None:
-    """Drop queued snapshots so a new subscriber starts from a live snapshot."""
-    saw_end = False
-    while True:
-        try:
-            item = job.events.get_nowait()
-        except Empty:
-            break
-        if item is None:
-            saw_end = True
-    if saw_end:
-        _enqueue_event(job, None)
 
 
 @dataclass(frozen=True)
@@ -162,10 +129,8 @@ class PipelineJob:
     config: dict[str, Any] | None = None
     cancel_requested: bool = False
     steps: list[StepTiming] = field(default_factory=list)
-    events: Queue[dict[str, Any] | None] = field(default_factory=_new_event_queue)
     result_step: str | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
-    _sse_listeners: int = 0
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -195,15 +160,11 @@ class PipelineJob:
             }
             return payload
 
-    def publish(self, event: dict[str, Any]) -> None:
-        if self._sse_listeners <= 0:
-            return
-        _enqueue_event(self, event)
+    def has_listeners(self) -> bool:
+        return job_listener_count(self.id) > 0
 
-    def close_stream(self) -> None:
-        if self._sse_listeners <= 0:
-            return
-        _enqueue_event(self, None)
+    def publish(self, event: dict[str, Any]) -> None:
+        publish_job_event(self.id, event)
 
 
 class _JobProgressReporter(ElapsedProgressMixin):
@@ -475,7 +436,7 @@ class _SsePublishReporter:
             for job in candidates:
                 if (
                     job.status in _LIVE_STATUSES
-                    and job._sse_listeners > 0
+                    and job.has_listeners()
                     and _job_owns_task(job, task_id)
                 ):
                     return job
@@ -590,7 +551,7 @@ class _SsePublishReporter:
 
 
 class _JobCatalog:
-    """Owns job identity, bounded history, and SSE subscriber bookkeeping.
+    """Owns job identity and bounded history.
 
     Caller-held lock methods are suffixed ``_locked`` or documented at the method.
     """
@@ -613,33 +574,6 @@ class _JobCatalog:
             self._served_project = (
                 str(Path(project_path).expanduser().resolve()) if project_path is not None else None
             )
-
-    def add_sse_subscriber_for(self, job: PipelineJob) -> bool:
-        """Count a listener only while it streams this live job."""
-        with self._lock:
-            live = job.status in _LIVE_STATUSES and (self._job is job or job.id in self._agent_live)
-            if not live:
-                return False
-            _drop_unread_events(job)
-            job._sse_listeners += 1
-            return True
-
-    def add_sse_subscriber(self) -> None:
-        with self._lock:
-            if self._job is not None:
-                self._job._sse_listeners += 1
-
-    def remove_sse_subscriber(self, job: PipelineJob | None = None) -> None:
-        with self._lock:
-            target = job if job is not None else self._job
-            if target is None:
-                return
-            target._sse_listeners = max(0, target._sse_listeners - 1)
-
-    def sse_subscriber_count(self) -> int:
-        with self._lock:
-            n = self._job._sse_listeners if self._job is not None else 0
-            return n + sum(row._sse_listeners for row in self._agent_live.values())
 
     def _running_jobs_locked(self) -> list[PipelineJob]:
         running: list[PipelineJob] = []
@@ -793,9 +727,7 @@ class _JobCatalog:
                     old.status = "cancelled"
                     old.message = "Replaced by newer activity"
                     old.finished_at = time.monotonic()
-            _drop_unread_events(old)
             old.publish({"type": "done", "job": old.snapshot()})
-            old.close_stream()
         job.publish({"type": "status", "job": job.snapshot()})
         return job
 
@@ -825,9 +757,6 @@ class _JobCatalog:
             self._forget_agent_locked(job)
             self._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
-        job.close_stream()
-        if job._sse_listeners <= 0:
-            _drop_unread_events(job)
 
     def _forget_agent_locked(self, job: PipelineJob) -> None:
         self._agent_live.pop(job.id, None)
@@ -895,18 +824,6 @@ class PipelineJobManager:
     def set_served_project(self, project_path: Path | str | None) -> None:
         self._catalog.set_served_project(project_path)
 
-    def add_sse_subscriber_for(self, job: PipelineJob) -> bool:
-        return self._catalog.add_sse_subscriber_for(job)
-
-    def add_sse_subscriber(self) -> None:
-        self._catalog.add_sse_subscriber()
-
-    def remove_sse_subscriber(self, job: PipelineJob | None = None) -> None:
-        self._catalog.remove_sse_subscriber(job)
-
-    def sse_subscriber_count(self) -> int:
-        return self._catalog.sse_subscriber_count()
-
     def status(self, project_path: str | None = None) -> dict[str, Any]:
         return self._catalog.status(project_path)
 
@@ -934,7 +851,7 @@ class PipelineJobManager:
             job = self._catalog._job
             if job is None or job.status not in _LIVE_STATUSES:
                 return None
-            if job._sse_listeners <= 0:
+            if not job.has_listeners():
                 return None
         return _SsePublishReporter(self)
 
@@ -1131,7 +1048,6 @@ class PipelineJobManager:
             if self._catalog._job is job and job.status in ("ok", "error", "cancelled"):
                 self._catalog._archive_job(job)
         job.publish({"type": "done", "job": job.snapshot()})
-        job.close_stream()
 
     def _execute_job(
         self,

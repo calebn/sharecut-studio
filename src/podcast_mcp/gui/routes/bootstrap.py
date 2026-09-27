@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator
-from queue import Empty
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -12,6 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager, shared_bootstrap_job_manager
 from podcast_mcp.gui.routes.deps import require_host
+from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
 from podcast_mcp.services.bootstrap import component_status
 from podcast_mcp.whisper_models import resolve_whisper_model
@@ -103,28 +101,4 @@ def bootstrap_events(
     job = _jobs(request).get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="No bootstrap job")
-
-    def event_stream() -> Iterator[str]:
-        yield f"data: {json.dumps({'type': 'status', 'job': job.snapshot()})}\n\n"
-        while True:
-            try:
-                event = job.events.get(timeout=1.0)
-            except Empty:
-                yield f"data: {json.dumps({'type': 'status', 'job': job.snapshot()})}\n\n"
-                if job.status not in ("queued", "running"):
-                    break
-                continue
-            if event is None:
-                break
-            yield f"data: {json.dumps(event)}\n\n"
-            if event.get("type") == "done":
-                break
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return job_events_response(job)
