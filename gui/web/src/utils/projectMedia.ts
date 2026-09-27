@@ -37,6 +37,17 @@ function longestSourceSec(tracks: readonly TrackView[]): number {
   );
 }
 
+/** Tracks Cut measures: dialogue tracks when any has media, else every track. */
+function cutTracks(project: Pick<ProjectView, "tracks">): {
+  tracks: readonly TrackView[];
+  dialogueOnly: boolean;
+} {
+  const dialogue = project.tracks.filter((t) => t.role === "dialogue");
+  return longestSourceSec(dialogue) > 0
+    ? { tracks: dialogue, dialogueOnly: true }
+    : { tracks: project.tracks, dialogueOnly: false };
+}
+
 /**
  * Longest dialogue-track source media (s), so a music bed or sting longer than
  * the talk does not inflate Cut; every track when no dialogue track has media;
@@ -45,10 +56,21 @@ function longestSourceSec(tracks: readonly TrackView[]): number {
 export function projectSourceDurationSec(
   project: Pick<ProjectView, "tracks">,
 ): number {
-  const dialogue = longestSourceSec(
-    project.tracks.filter((t) => t.role === "dialogue"),
-  );
-  return dialogue > 0 ? dialogue : longestSourceSec(project.tracks);
+  return longestSourceSec(cutTracks(project).tracks);
+}
+
+/** Latest clip `timeline_end` on these tracks; null when they have no clips. */
+function clipsEndSec(
+  tracks: readonly TrackView[],
+  clips: ProjectView["clips"],
+): number | null {
+  let end: number | null = null;
+  for (const t of tracks) {
+    for (const c of clips.tracks[t.id] ?? []) {
+      end = Math.max(end ?? 0, c.timeline_end);
+    }
+  }
+  return end;
 }
 
 export type TimelineCut = {
@@ -59,18 +81,25 @@ export type TimelineCut = {
 
 /**
  * Source audio cut from the timeline by every edit kind (remove decisions,
- * ripple, trim, structural), as source length minus timeline length.
- * Net of the whole timeline: gaps or clips moved past the source end offset it.
- * Null without source media.
+ * ripple, trim, structural), as source length minus timeline length. Both
+ * sides use the same tracks: with dialogue media, the latest dialogue clip end
+ * (an uncut music bed past it does not hide the cut); otherwise, or when those
+ * tracks have no clips, `timeline_duration_sec`. Net of those tracks: gaps or
+ * clips moved past the source end offset it. Null without source media.
  */
 export function timelineCut(
-  project: Pick<ProjectView, "tracks" | "timeline_duration_sec">,
+  project: Pick<ProjectView, "tracks" | "clips" | "timeline_duration_sec">,
 ): TimelineCut | null {
-  const sourceSec = projectSourceDurationSec(project);
+  const { tracks, dialogueOnly } = cutTracks(project);
+  const sourceSec = longestSourceSec(tracks);
   if (!(sourceSec > 0)) {
     return null;
   }
-  const timelineSec = Math.max(0, project.timeline_duration_sec || 0);
+  const dialogueEnd = dialogueOnly ? clipsEndSec(tracks, project.clips) : null;
+  const timelineSec = Math.max(
+    0,
+    dialogueEnd ?? (project.timeline_duration_sec || 0),
+  );
   return {
     cutSec: Math.max(0, sourceSec - timelineSec),
     sourceSec,
