@@ -147,6 +147,11 @@ def _write_hash(path: Path, h: str) -> str:
     return h
 
 
+def _clear_hash(path: Path) -> None:
+    """Delete a hash sidecar, so the render beside it reads as stale."""
+    path.unlink(missing_ok=True)
+
+
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
     return track_stem_path(project, track_id)
 
@@ -160,7 +165,7 @@ def read_stem_hash(project: EpisodeProject, track_id: str) -> str | None:
 
 
 def clear_stem_hash(project: EpisodeProject, track_id: str) -> None:
-    stem_hash_path(project, track_id).unlink(missing_ok=True)
+    _clear_hash(stem_hash_path(project, track_id))
 
 
 def stem_revision(project: EpisodeProject, track_id: str) -> FileRevision | None:
@@ -335,7 +340,7 @@ def write_premix_hash(project: EpisodeProject, gains: Mapping[str, float]) -> st
 
 
 def clear_premix_hash(project: EpisodeProject) -> None:
-    premix_hash_path(project).unlink(missing_ok=True)
+    _clear_hash(premix_hash_path(project))
 
 
 def premix_stale_vs_mix(project: EpisodeProject) -> bool:
@@ -434,7 +439,7 @@ def read_mastered_hash(project: EpisodeProject) -> str | None:
 
 
 def clear_mastered_hash(project: EpisodeProject) -> None:
-    mastered_hash_path(project).unlink(missing_ok=True)
+    _clear_hash(mastered_hash_path(project))
 
 
 def write_mastered_hash(project: EpisodeProject, source_hash: str | None) -> str | None:
