@@ -334,8 +334,15 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
 
 1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade regions with edge handles (each handle straddles its fade edge; a zero-length fade's handle sits just inside the clip edge it fades: fade-in at the start, fade-out at the end), crossfade border, width-tiered role/duration labels  
 2. **Levels** — volume automation polyline from `envelopes[]` (toggle)  
-3. **Edits** — applied ticks under pending regions (visual markers; dense stacks are
-   non-interactive for WCAG 2.5.8); `remove` hatch vs `mute` solid (toggle)  
+3. **Edits** — applied edits draw as narrow, non-interactive seam/edge ticks with a
+   top notch, above the clips (`.applied-edit-layer`, z above `.clip-block`; dense
+   stacks are non-interactive for WCAG 2.5.8). They are projected client-side
+   through the lane's current clips (`timeline/appliedEditTicks.ts`, #527), so
+   later ripples, trims and splits move a tick to the post-edit join instead of
+   drawing the record's stale pre-edit range. Records that no longer map to a
+   clip appear only in **Impact → Applied edits**. The layer clips to the canvas,
+   so a tick can never widen the scroll range. Pending `remove` stays hatched and
+   `mute` solid (toggle)  
 4. **Markers** — chapter diamonds + social clip regions above lanes (toggle)
 
 Default zoom **fits the full `timeline_duration_sec`** into the measured timeline viewport (fractional `px/sec` allowed — waveform tiles stay 512 CSS px at any zoom). Manual −/+ sets a `userZoomed` flag; **Fit** (or double-click the ruler) clears it and re-fits. Container resize re-fits only while not user-zoomed. Session length stays clip-based (`timeline_duration_sec`) for Fit, Home/End, and the transport duration readout. When zoomed out so the session is narrower than the time column, the visible canvas and ruler extend to the viewport with ticks through empty time past the last clip (seeks still clamp to the session); zoomed in, canvas width stays session-based and does not stretch past the last clip. The phone's fixed playhead is the exception: its canvas is exactly the session and the lead pads fill the view (`docs/gui-mobile.md`). Tick labels stay clipped inside the canvas (`overflow: hidden` / end-aligned last tick).
@@ -407,7 +414,7 @@ Pending edits and combined transcript utterances in `/api/project` include **dua
 
 **Transcript display is non-destructive:** cut-away (`mappable === false`) utterances stay in on-disk `combined.json` with source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
 
-**Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten.
+**Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten. The lane's applied-edit ticks do not use `timeline_*` at all (#527): they come from `params.per_track_source` (`ripple_delete`/`punch_delete`), `params.split_source_by_track` (`split_clips_at`/`approve_split`), or the record's own `source_start`/`source_end`, projected through the track's current clips.
 
 `ProjectView` also includes `social_clips` (timeline-clock candidates from `social.clip_candidates`) and `envelopes` for lane-level volume curves.
 

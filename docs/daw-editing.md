@@ -20,7 +20,7 @@ Map tools onto interaction **shapes**. Shared inspector chrome; specialized body
 
 | Shape | Examples (MCP / domain) | Project storage | DAW today |
 |-------|-------------------------|-----------------|-----------|
-| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, revert one cut | `editorial.edit_decisions`, `editorial.edit_log` | Pending inspector Approve/Reject/Restore + Impact bulk; overlay ticks |
+| **A. Discrete edit events** | pending `EditDecision`, applied `edit_log`, approve/reject, revert one cut | `editorial.edit_decisions`, `editorial.edit_log` | Pending inspector Approve/Reject/Restore + Impact bulk and Applied edits list; seam/edge ticks (projected through current clips) |
 | **B. Boundary / join properties** | fade in/out, `join_in_mode`, **clip edge trim** (`TrimClipEdge`) | `timeline.clips[].fade_*`, `join_in_mode`, `source_*` | Trim handles + ghost waveform; fade handles; join mode |
 | **C. Continuous processors** | cleanup / EQ / gate / compressor chains | `mix.processing_chains[]` | Track inspector per-effect bypass; FX vs Raw audition |
 | **D. Content text** | word/phrase correct, suppress flags | `transcripts.per_track[].words[]` | Edit toggle → select word → inspector (correct / suppress) |
