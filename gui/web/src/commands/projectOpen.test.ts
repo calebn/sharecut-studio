@@ -5,6 +5,7 @@ import {
   _resetPageCloseRiskForTests,
   publishDesktopCloseGuard,
 } from "../desktop/useDesktopCloseGuard";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { clearRegisteredCommands, execute } from "./execute";
 import { PROJECT_CLOSE_TIMEOUT_MS, PROJECT_NEW_RETRY_MS } from "./projectMedia";
@@ -146,6 +147,28 @@ describe("project.open", () => {
       expect(useDawStore.getState().statusAnnouncement).toContain("timed out");
       expect(assign).not.toHaveBeenCalled();
       expect(openMock).toHaveBeenCalledWith("/tmp/ep");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("New does not re-pin a share project after a stalled unpin", async () => {
+    useDawStore.setState({ projectPath: shareProjectKey("tok") });
+    vi.useFakeTimers();
+    try {
+      closeMock.mockImplementationOnce(
+        (signal?: AbortSignal) =>
+          new Promise<void>((_, reject) => {
+            signal?.addEventListener("abort", () => reject(signal.reason));
+          }),
+      );
+      expect(
+        (await execute("project.new", {}, { skipWhen: true })).status,
+      ).toBe("ok");
+      await vi.advanceTimersByTimeAsync(PROJECT_CLOSE_TIMEOUT_MS);
+      expect(useDawStore.getState().statusAnnouncement).toContain("timed out");
+      expect(assign).not.toHaveBeenCalled();
+      expect(openMock).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
