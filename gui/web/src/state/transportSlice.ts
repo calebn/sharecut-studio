@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { guestHearsMixOnly } from "../shareMode";
 import type { AuditionMode, SessionRegion } from "../types/session";
+import { clampToSession } from "../utils/time";
 import type { DawStore, PlayAbFollowup } from "./types";
 
 type TransportSlice = Pick<
@@ -51,12 +52,10 @@ export function stopTargetSec(
   if (s.playStartSec == null) {
     return s.playheadSec;
   }
-  const end = s.project?.timeline_duration_sec;
-  const capped =
-    end != null && Number.isFinite(end)
-      ? Math.min(s.playStartSec, Math.max(0, end))
-      : s.playStartSec;
-  return Math.max(0, capped);
+  return clampToSession(
+    s.playStartSec,
+    s.project?.timeline_duration_sec ?? Number.NaN,
+  );
 }
 
 export const createTransportSlice: StateCreator<

@@ -67,6 +67,19 @@ describe("transport.stop", () => {
     expect(s().playheadSec).toBe(20);
   });
 
+  it("Stop without a loaded timeline length only clamps at 0", async () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(50);
+    await execute("transport.togglePlay");
+    const project = s().project;
+    if (!project) throw new Error("project not loaded");
+    useDawStore.setState({
+      project: { ...project, timeline_duration_sec: Number.NaN },
+    });
+    await execute("transport.stop");
+    expect(s().playheadSec).toBe(50);
+  });
+
   it("keeps the playhead when nothing has played", async () => {
     useDawStore.setState({ playStartSec: null });
     useDawStore.getState().setPlayheadSec(30);
