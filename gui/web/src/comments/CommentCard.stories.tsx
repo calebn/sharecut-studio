@@ -35,6 +35,26 @@ function CardHarness(args: Args) {
                 }
               : undefined
           }
+          onReply={
+            args.onReply
+              ? () => {
+                  setComment((current) => ({
+                    ...current,
+                    replies: [
+                      ...(current.replies ?? []),
+                      {
+                        id: `${current.id}-story-reply-${(current.replies ?? []).length + 1}`,
+                        author: "You",
+                        body: replyDraft,
+                        created_at: "2026-01-02T00:00:00Z",
+                      },
+                    ],
+                  }));
+                  setReplyDraft("");
+                  args.onReply?.();
+                }
+              : undefined
+          }
           onResolve={
             args.onResolve
               ? (resolved) => {
@@ -66,7 +86,12 @@ const meta: Meta<typeof CommentCard> = {
   title: "Templates/CommentCard",
   component: CommentCard,
   tags: ["autodocs"],
-  render: (args) => <CardHarness {...args} />,
+  render: (args) => (
+    <CardHarness
+      key={JSON.stringify([args.comment, args.replyDraft, args.selected])}
+      {...args}
+    />
+  ),
   args: {
     comment: sampleComment({
       id: "card-open",
@@ -86,11 +111,9 @@ export default meta;
 type Story = StoryObj<typeof CommentCard>;
 
 export const Open: Story = {
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Resolve" }));
-    await expect(args.onResolve).toHaveBeenCalledWith(true);
-    await expect(canvas.getByRole("button", { name: /Reopen/ })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Resolve" })).toBeVisible();
   },
 };
 
@@ -105,10 +128,23 @@ export const Resolved: Story = {
       resolved_at: "2026-01-02T00:00:00Z",
     }),
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("button", { name: /Reopen/ })).toBeVisible();
+  },
+};
+
+export const ResolveAndReopen: Story = {
+  args: {
+    comment: sampleComment({ id: "card-toggle", author: "Mira" }),
+  },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Resolve" }));
+    await expect(args.onResolve).toHaveBeenCalledWith(true);
     await userEvent.click(canvas.getByRole("button", { name: /Reopen/ }));
     await expect(args.onResolve).toHaveBeenCalledWith(false);
+    await expect(canvas.getByRole("button", { name: "Resolve" })).toBeVisible();
   },
 };
 
@@ -156,6 +192,10 @@ export const ActionsAndReplies: Story = {
     );
     await userEvent.click(canvas.getByRole("button", { name: "Reply" }));
     await expect(args.onReply).toHaveBeenCalled();
+    await expect(canvas.getByText("Thanks")).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Reply to Bo" }),
+    ).toHaveValue("");
   },
 };
 

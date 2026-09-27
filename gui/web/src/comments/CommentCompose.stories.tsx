@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import "../styles/partials/review-entry.css";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { CommentCompose } from "./CommentCompose";
 
@@ -10,25 +11,32 @@ function ComposeHarness(args: Args) {
   const [body, setBody] = useState(args.body);
   const [author, setAuthor] = useState(args.author);
   return (
-    <div className="comments-panel">
-      <CommentCompose
-        {...args}
-        body={body}
-        author={author}
-        submitDisabled={args.submitDisabled || !body.trim()}
-        onBodyChange={(value) => {
-          setBody(value);
-          args.onBodyChange(value);
-        }}
-        onAuthorChange={
-          args.onAuthorChange
-            ? (value) => {
-                setAuthor(value);
-                args.onAuthorChange?.(value);
-              }
-            : undefined
-        }
-      />
+    <CommentCompose
+      {...args}
+      body={body}
+      author={author}
+      onBodyChange={(value) => {
+        setBody(value);
+        args.onBodyChange(value);
+      }}
+      onAuthorChange={
+        args.onAuthorChange
+          ? (value) => {
+              setAuthor(value);
+              args.onAuthorChange?.(value);
+            }
+          : undefined
+      }
+    />
+  );
+}
+
+function GuestCompose(args: Args) {
+  return (
+    <div className="cover review-shell">
+      <div className="cover-center center stack">
+        <ComposeHarness {...args} className="review-compose box elevated" />
+      </div>
     </div>
   );
 }
@@ -37,7 +45,14 @@ const meta: Meta<typeof CommentCompose> = {
   title: "Templates/CommentCompose",
   component: CommentCompose,
   tags: ["autodocs"],
-  render: (args) => <ComposeHarness {...args} />,
+  render: (args) => (
+    <div className="comments-panel">
+      <ComposeHarness
+        key={JSON.stringify([args.body, args.author])}
+        {...args}
+      />
+    </div>
+  ),
   args: {
     body: "",
     onBodyChange: fn(),
@@ -49,10 +64,29 @@ export default meta;
 type Story = StoryObj<typeof CommentCompose>;
 
 export const Empty: Story = {
-  play: async ({ args, canvasElement }) => {
+  args: { submitDisabled: true },
+  parameters: {
+    docs: {
+      description: {
+        story: "An empty draft with posting explicitly disabled by its caller.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const submit = canvas.getByRole("button", { name: "Post comment" });
     await expect(submit).toBeDisabled();
+    await expect(canvas.getByRole("textbox", { name: "Comment" })).toHaveValue(
+      "",
+    );
+  },
+};
+
+export const DraftAndPost: Story = {
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const submit = canvas.getByRole("button", { name: "Post comment" });
+    await expect(submit).toBeEnabled();
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Comment" }),
       "Keep this pause.",
@@ -64,6 +98,9 @@ export const Empty: Story = {
 };
 
 export const GuestFeedback: Story = {
+  render: (args) => (
+    <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
+  ),
   args: {
     body: "The opening sounds clear.",
     author: "Mira",
@@ -92,6 +129,9 @@ export const Posting: Story = {
 };
 
 export const MobileGuestFeedback: Story = {
+  render: (args) => (
+    <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
+  ),
   parameters: recordMobileViewport.parameters,
   globals: recordMobileViewport.globals,
   args: {

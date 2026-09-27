@@ -110,6 +110,11 @@ callbacks update only story-local state; the live comment panel and transcript
 utterance rows remain outside this catalog slice. The restored-word preview
 uses the theme's unmapped text color at full opacity so its ghost styling
 remains readable in both themes.
+Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
+and DraftAndPost exercise the controls separately; Empty passes an explicit
+disabled prop rather than adding validation to the shared form. GuestFeedback
+and MobileGuestFeedback use the same review shell and compose classes as the
+public review page.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
