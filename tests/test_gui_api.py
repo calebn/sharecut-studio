@@ -777,7 +777,7 @@ def test_api_audio_resolve_errors(minimal_project, monkeypatch) -> None:
         raise ValueError("bad kind")
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.project.resolve_viewer_audio",
+        "podcast_mcp.gui.routes.project.resolve_viewer_transport",
         bad_kind,
     )
     bad = client.get("/api/audio", params={"path": str(minimal_project)})
@@ -787,7 +787,7 @@ def test_api_audio_resolve_errors(minimal_project, monkeypatch) -> None:
         raise KeyError("no stem")
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.project.resolve_viewer_audio",
+        "podcast_mcp.gui.routes.project.resolve_viewer_transport",
         missing_kind,
     )
     missing = client.get("/api/audio", params={"path": str(minimal_project)})
@@ -804,7 +804,7 @@ def test_api_audio_rerender_merge_conflict_is_409(minimal_project, monkeypatch) 
     def conflict(*_args: object, **_kwargs: object) -> None:
         raise ProjectMergeConflict(["render.premix_hash"])
 
-    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_audio", conflict)
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_transport", conflict)
     res = TestClient(create_app()).get(
         "/api/audio", params={"path": str(minimal_project), "rerender": "true"}
     )
@@ -822,13 +822,39 @@ def test_api_audio_render_busy_is_503(minimal_project, monkeypatch) -> None:
     def busy(*_args: object, **_kwargs: object) -> None:
         raise RenderBusyError("render.lock")
 
-    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_audio", busy)
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_transport", busy)
     res = TestClient(create_app()).get(
         "/api/audio", params={"path": str(minimal_project), "rerender": "true"}
     )
     assert res.status_code == 503
     assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
     assert "another render" in res.json()["detail"]
+
+
+def test_api_audio_render_busy_fallback_sets_header(
+    minimal_project, sample_wav, tmp_path, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.play import TransportPath
+
+    wav = tmp_path / "premix.wav"
+    wav.write_bytes(sample_wav.read_bytes())
+    client = TestClient(create_app())
+    params = {"path": str(minimal_project), "rerender": "true"}
+    for busy in (True, False):
+        transport = TransportPath(path=wav, source="premix", tier="premix", render_busy=busy)
+        monkeypatch.setattr(
+            "podcast_mcp.gui.routes.project.resolve_viewer_transport",
+            lambda *_a, _t=transport, **_k: _t,
+        )
+        res = client.get("/api/audio", params=params)
+        assert res.status_code == 200
+        assert ("X-Sharecut-Render-Busy" in res.headers) is busy
+        if busy:
+            assert res.headers["X-Sharecut-Render-Busy"] == "1"
 
 
 def test_api_health() -> None:
@@ -2018,7 +2044,7 @@ def test_project_meta_helper(minimal_project) -> None:
 
 
 def test_resolve_viewer_audio_premix(tmp_path) -> None:
-    from podcast_mcp.gui.audio import resolve_viewer_audio
+    from podcast_mcp.gui.audio import resolve_viewer_audio, resolve_viewer_transport
     from podcast_mcp.services import ProjectWorkspace
 
     ws = ProjectWorkspace.create(tmp_path, name="a")
@@ -2027,6 +2053,7 @@ def test_resolve_viewer_audio_premix(tmp_path) -> None:
     premix.write_bytes(b"RIFF....")
     path = resolve_viewer_audio(ws, kind="premix")
     assert path == premix.resolve()
+    assert resolve_viewer_transport(ws, kind="premix").render_busy is False
 
 
 def test_resolve_viewer_audio_missing_premix(tmp_path) -> None:

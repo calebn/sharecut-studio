@@ -711,7 +711,7 @@ def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
             patch.object(PlayService, "ensure_stem", mock_render),
             patch("podcast_mcp.services.play.render_track_segment", side_effect=_seg) as seg,
         ):
-            PlayService(ws).play(
+            result = PlayService(ws).play(
                 PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
                 dry_run=True,
             )
@@ -719,6 +719,7 @@ def test_play_rerender_segment_renders_while_another_render_holds_the_lock(
         release.set()
         holder.join(5)
     assert time.monotonic() - started < 5
+    assert result.render_busy is True
     mock_render.assert_not_called()
     seg.assert_called_once()
 
@@ -756,8 +757,10 @@ def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_th
         _render_lock_held_elsewhere(ws, monkeypatch),
         patch("podcast_mcp.services.play.rerender_preview", MagicMock()) as rerender,
     ):
-        assert PlayService(ws)._ensure_premix(rerender=True) == premix
+        svc = PlayService(ws)
+        assert svc._ensure_premix(rerender=True) == premix
     rerender.assert_not_called()
+    assert svc.render_busy is True
 
 
 def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample_wav) -> None:
@@ -802,6 +805,7 @@ def test_transport_stem_build_streams_the_existing_stem_while_another_render_hol
         tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
     assert tp.path == stem.resolve()
     assert tp.tier == "stem"
+    assert tp.render_busy is True
     publish.assert_not_called()
 
 

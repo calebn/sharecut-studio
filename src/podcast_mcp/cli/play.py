@@ -87,6 +87,7 @@ def play_cmd(
         "wav": str(result.wav_path),
         "source": result.source_label,
         "tier": result.tier,
+        "render_busy": result.render_busy,
         "start_sec": result.start_sec,
         "end_sec": result.end_sec,
         "player": result.player_cmd,

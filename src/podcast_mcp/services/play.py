@@ -9,7 +9,7 @@ import shutil
 import time
 import wave
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from filelock import Timeout
@@ -115,6 +115,7 @@ class PlayResult:
     end_sec: float
     tier: str
     compare_segments: list[dict] | None = None
+    render_busy: bool = False
 
 
 @dataclass(frozen=True)
@@ -125,12 +126,16 @@ class TransportPath:
     ``play_cache/``. CLI/MCP segment audition and the DAW transport share the
     same path resolution helpers (``_ensure_premix``, ``ensure_stem``,
     ``track_audio_path``).
+
+    ``render_busy`` is True when a rerender or stem build lost the render-lock race (or
+    the project lock was busy) and the file already on disk is served instead.
     """
 
     path: Path
     source: str
     tier: str
     stem_is_fresh: bool | None = None
+    render_busy: bool = False
 
 
 # Tiers whose audio already carries the track's staging gain_db.
@@ -162,6 +167,7 @@ class PlayService:
         self.ws = workspace
         self.project = workspace.project
         self._defaults = load_defaults()
+        self.render_busy = False  # a rerender fell back to the file on disk (lock busy)
 
     def _play_cache_dir(self, *protected: Path) -> Path:
         """Keep old generated auditions bounded without touching active outputs."""
@@ -252,6 +258,7 @@ class PlayService:
                 path=path.resolve(),
                 source="premix",
                 tier="premix",
+                render_busy=self.render_busy,
             )
 
         if normalized == "review" or normalized.startswith("review:"):
@@ -283,10 +290,13 @@ class PlayService:
             if rerender or build_stem:
                 try:
                     path = self.ensure_stem(track_id, lock_timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC)
+                # RenderBusyError, or the commit-lock timeout from ensure_stem's invalidation
+                # clear (after its publish).
                 except Timeout:
                     path = stem_path(self.project, track_id)
                     if not path.is_file():
                         raise
+                    self.render_busy = True
                     log.info("render or project busy; streaming the existing %s stem", track_id)
             else:
                 path = stem_path(self.project, track_id)
@@ -300,6 +310,7 @@ class PlayService:
                 source=f"processed:{track_id}",
                 tier="stem",
                 stem_is_fresh=stem_is_fresh(self.project, track_id),
+                render_busy=self.render_busy,
             )
 
         if normalized in ("raw", "track"):
@@ -328,18 +339,24 @@ class PlayService:
         publish_audition: bool = True,
     ) -> PlayResult:
         if req.follow_transcript:
-            return self._play_follow_transcript(
-                req,
-                dry_run=dry_run,
-                player=player,
-                publish_audition=publish_audition,
+            return replace(
+                self._play_follow_transcript(
+                    req,
+                    dry_run=dry_run,
+                    player=player,
+                    publish_audition=publish_audition,
+                ),
+                render_busy=self.render_busy,
             )
         if req.compare:
-            return self._play_compare(
-                req,
-                dry_run=dry_run,
-                player=player,
-                publish_audition=publish_audition,
+            return replace(
+                self._play_compare(
+                    req,
+                    dry_run=dry_run,
+                    player=player,
+                    publish_audition=publish_audition,
+                ),
+                render_busy=self.render_busy,
             )
         source, start, end = self._resolve_source_and_times(req)
         if req.raw and source.startswith("processed:"):
@@ -360,6 +377,7 @@ class PlayService:
             start_sec=ext_start,
             end_sec=ext_end,
             tier=tier,
+            render_busy=self.render_busy,
         )
         if publish_audition:
             # Prefer timeline bounds from the request resolution (start/end),
@@ -490,6 +508,7 @@ class PlayService:
                 # RenderBusyError, or the commit-lock timeout from ensure_stem's invalidation clear.
                 log.info("render or project busy; playing %s from a segment render", track_id)
                 use_stem = False
+                self.render_busy = True
 
         # Freshness includes timeline-duration match; mismatched stems fall through
         # to segment render so timeline seconds are never treated as source offsets.
@@ -550,6 +569,7 @@ class PlayService:
             except Timeout:
                 if not premix.is_file():
                     raise
+                self.render_busy = True
                 log.info("render or project busy; playing the existing premix")
         if not premix.is_file():
             raise FileNotFoundError("premix.wav not found; run render-preview or pipeline first")
