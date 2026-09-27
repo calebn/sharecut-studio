@@ -112,19 +112,33 @@ def test_candidates_config_is_pinned_and_valid() -> None:
 
 def test_resolve_model_dir_never_downloads(monkeypatch, tmp_path) -> None:
     import huggingface_hub
+    from huggingface_hub.errors import LocalEntryNotFoundError
 
-    def fail_download(*args, **kwargs):
+    def cache_miss(*args, **kwargs):
         assert kwargs.get("local_files_only") is True
-        raise RuntimeError("would download")
+        raise LocalEntryNotFoundError("no cached snapshot")
 
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", fail_download)
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", cache_miss)
     candidate = bfa.load_candidates(labels=["onnx-base"])[0]
 
-    with pytest.raises(FileNotFoundError, match="uv run python"):
+    with pytest.raises(FileNotFoundError, match=r"no cached snapshot.*uv run python"):
         bfa.resolve_model_dir(candidate, None)
 
     override = tmp_path / "cached"
     assert bfa.resolve_model_dir(candidate, override) == override
+
+
+def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
+    import huggingface_hub
+
+    def denied(*args, **kwargs):
+        raise PermissionError("cache index is not readable")
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", denied)
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+
+    with pytest.raises(PermissionError, match="not readable"):
+        bfa.resolve_model_dir(candidate, None)
 
 
 def test_align_prediction_retimes_words_and_keeps_native_for_unalignable() -> None:
