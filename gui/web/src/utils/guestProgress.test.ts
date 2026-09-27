@@ -90,6 +90,159 @@ describe("guestProgressToJob", () => {
     expect(guestProgressToJob({}, prev)?.id).toBe("keep");
     expect(guestProgressToJob({ type: "progress" }, prev)?.id).toBe("keep");
   });
+
+  it("keeps the running headline on a null-message update", () => {
+    const prev = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      status: "running",
+      kind: "message",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "Scoring bleed windows…",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "update",
+        task_id: "guest_mute_bleed",
+        label: "Mute bleed",
+        message: null,
+        current: 3,
+        total: 10,
+      },
+      prev,
+    );
+    expect(next?.message).toBe("Scoring bleed windows…");
+    expect(next?.current).toBe(3);
+  });
+
+  it("keeps the running headline on a heartbeat", () => {
+    const prev = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      status: "running",
+      kind: "message",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "Scoring bleed windows…",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "heartbeat",
+        task_id: "guest_mute_bleed",
+        label: "Mute bleed",
+        message: null,
+      },
+      prev,
+    );
+    expect(next?.message).toBe("Scoring bleed windows…");
+  });
+
+  it("a new event message still replaces the headline", () => {
+    const prev = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      status: "running",
+      kind: "message",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "Scoring bleed windows…",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "update",
+        task_id: "guest_mute_bleed",
+        label: "Mute bleed",
+        message: "Applying mutes",
+      },
+      prev,
+    );
+    expect(next?.message).toBe("Applying mutes");
+  });
+
+  it("falls back to the label for a different task", () => {
+    const prev = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      status: "running",
+      kind: "message",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "Scoring bleed windows…",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "update",
+        task_id: "guest_render_preview",
+        label: "Render preview",
+        message: null,
+      },
+      prev,
+    );
+    expect(next?.message).toBe("Render preview");
+  });
+
+  it("falls back to the label on a start frame", () => {
+    const prev = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      status: "running",
+      kind: "message",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "Scoring bleed windows…",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "start",
+        task_id: "guest_mute_bleed",
+        label: "Mute bleed",
+        message: null,
+      },
+      prev,
+    );
+    expect(next?.message).toBe("Mute bleed");
+  });
+
+  it("does not carry a finished job's message into a new run", () => {
+    const prevDone = guestProgressToJob({
+      type: "progress",
+      plane: "progress",
+      kind: "end",
+      status: "ok",
+      task_id: "guest_mute_bleed",
+      label: "Mute bleed",
+      message: "done",
+    });
+    const next = guestProgressToJob(
+      {
+        type: "progress",
+        plane: "progress",
+        status: "running",
+        kind: "update",
+        task_id: "guest_mute_bleed",
+        label: "Mute bleed",
+        message: null,
+      },
+      prevDone,
+    );
+    expect(next?.message).toBe("Mute bleed");
+  });
 });
 
 describe("guestProgressWsUrl", () => {
