@@ -109,10 +109,16 @@ Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
 own processing chain (`measure_loudness_blocks`: one ffmpeg pass with `ebur128=framelog=info`,
 which prints the 400 ms momentary loudness every 100 ms; those are the BS.1770 gating
 blocks). [`util/loudness.py`](../src/podcast_mcp/util/loudness.py) keeps the blocks whose
-window centre falls inside the track's own non-suppressed transcript words, then applies the
+window centre falls inside the track's own non-suppressed transcript words that its clips
+keep on the timeline (words in material focus/tighten cut don't count), then applies the
 -70 LUFS absolute and -10 LU relative gates. Bleed and silence therefore don't count. With no
 transcript or under 3 s of speech it falls back to ungated BS.1770 and reports `ungated`.
 `gain_db = target - measured`; `gain_db` is applied only in the mix, never baked into stems.
+A track whose loudness can't be measured (ffmpeg error, no momentary blocks) keeps its
+`gain_db` and is listed as `not measured, gain kept` in the summary. Gains are applied only
+after every track is measured, so a cancel changes nothing. `gain_db` reflects the FX chain
+at measurement time: re-run `balance_tracks` after adding, removing, bypassing or retuning
+effects; nothing yet flags a stale balance.
 
 ## Two-pass loudness + mastering QC
 
