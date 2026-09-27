@@ -23,6 +23,41 @@ function clip(partial: Partial<ClipRow> & Pick<ClipRow, "id">): ClipRow {
 }
 
 describe("proxyMath", () => {
+  it("drops the fades at a cut join, as render does", () => {
+    const [a, b] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          source_start: 0,
+          source_end: 2,
+          timeline_start: 0,
+          timeline_end: 2,
+          fade_in_ms: 20,
+          fade_out_ms: 30,
+        }),
+        clip({
+          id: "c2",
+          source_start: 3,
+          source_end: 5,
+          timeline_start: 2,
+          timeline_end: 4,
+          fade_in_ms: 40,
+          fade_out_ms: 50,
+          join_in_mode: "cut",
+          join_left_clip_id: "c1",
+        }),
+      ],
+      0,
+      10,
+      60,
+      200,
+    );
+    expect(a.fadeInSec).toBeCloseTo(0.02);
+    expect(a.fadeOutSec).toBe(0);
+    expect(b.fadeInSec).toBe(0);
+    expect(b.fadeOutSec).toBeCloseTo(0.05);
+  });
+
   it("maps source seconds to chunk indices", () => {
     expect(chunkIndexForSource(0, 60)).toBe(0);
     expect(chunkIndexForSource(59.9, 60)).toBe(0);

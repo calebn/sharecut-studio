@@ -1,4 +1,8 @@
-import { isCrossfadeJoin } from "../edit/joinRender";
+import {
+  clipIdsBeforeCut,
+  isCrossfadeJoin,
+  isCutJoin,
+} from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
 import { originTrackId } from "../utils/timebase";
 
@@ -45,6 +49,7 @@ function clipSlices(
   clip: ClipRow,
   chunkSec: number,
   overlapMs: number,
+  cutOut: boolean,
 ): ScheduledSlice[] {
   const slices: ScheduledSlice[] = [];
   const srcDur = Math.max(0, clip.source_end - clip.source_start);
@@ -53,8 +58,9 @@ function clipSlices(
   }
   let srcCursor = clip.source_start;
   let timelineCursor = clip.timeline_start;
-  const fadeInSec = Math.max(0, clip.fade_in_ms) / 1000;
-  const fadeOutSec = Math.max(0, clip.fade_out_ms) / 1000;
+  // Render ignores the fades at a cut join (engines/timeline_render.py).
+  const fadeInSec = isCutJoin(clip) ? 0 : Math.max(0, clip.fade_in_ms) / 1000;
+  const fadeOutSec = cutOut ? 0 : Math.max(0, clip.fade_out_ms) / 1000;
   const equalPower = isCrossfadeJoin(clip);
   const firstIdx = chunkIndexForSource(clip.source_start, chunkSec);
   const lastIdx = chunkIndexForSource(
@@ -89,7 +95,7 @@ function clipSlices(
   return slices;
 }
 
-/** Build scheduled slices for clips overlapping [windowStart, windowEnd) on the timeline. */
+/** Build scheduled slices for one track's clips overlapping [windowStart, windowEnd) on the timeline. */
 export function buildSchedule(
   clips: ClipRow[],
   windowStartSec: number,
@@ -98,6 +104,7 @@ export function buildSchedule(
   overlapMs: number,
 ): ScheduledSlice[] {
   const out: ScheduledSlice[] = [];
+  const beforeCut = clipIdsBeforeCut(clips);
   for (const clip of clips) {
     if (
       clip.timeline_end <= windowStartSec ||
@@ -105,7 +112,12 @@ export function buildSchedule(
     ) {
       continue;
     }
-    for (const slice of clipSlices(clip, chunkSec, overlapMs)) {
+    for (const slice of clipSlices(
+      clip,
+      chunkSec,
+      overlapMs,
+      beforeCut.has(clip.id),
+    )) {
       const sliceEnd = slice.whenTimelineSec + slice.durationSec;
       if (sliceEnd <= windowStartSec || slice.whenTimelineSec >= windowEndSec) {
         continue;
