@@ -39,7 +39,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
-  "timeline/TimeRuler.tsx",
+  "timeline/TimeRulerView.tsx",
   "timeline/EnvelopeOverlay.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
   "layout/BottomTabsSplitter.tsx",
