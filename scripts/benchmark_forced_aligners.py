@@ -413,6 +413,10 @@ def agreement(
     for label, prediction in predictions.items():
         ref_words, ref_dropped = _drop_zero_duration(reference["words"])
         pred_words, pred_dropped = _drop_zero_duration(prediction["words"])
+        # Harness-written preds already dropped theirs in align_prediction();
+        # report the per-side total so agree.json matches alignment_stats.
+        ref_dropped += _dropped_upstream(reference)
+        pred_dropped += _dropped_upstream(prediction)
         metrics = measure_word_boundaries(ref_words, pred_words)
         pairs = matched_word_pairs(ref_words, pred_words)
         ranked = sorted(
@@ -443,6 +447,12 @@ def agreement(
             "realtime_factor": provenance.get("realtime_factor"),
         }
     return {"comparisons": comparisons}
+
+
+def _dropped_upstream(payload: Mapping[str, Any]) -> int:
+    """Zero-duration words the harness dropped before writing ``payload`` (0 when none recorded)."""
+    stats = (payload.get("provenance") or {}).get("alignment_stats") or {}
+    return int(stats.get("dropped_zero_duration", 0))
 
 
 def _drop_zero_duration(words: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
