@@ -115,7 +115,7 @@ NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` 
 
 On a long raw session, cut content before tightening:
 
-1. Content-cut the dead start, off-topic runs and meta talk with `ripple_delete_tool` (dead start: `start=0`). Mid-episode handoffs use `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`.
+1. Content-cut from the end of the episode toward the start with `ripple_delete_tool`. Off-topic runs and meta talk first (latest first): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`. The dead start (`start=0`) goes last, because it shifts everything after it.
 2. Re-waive the refine gate after each ripple (`transcript_refine_waive_tool`), because dropped words make the waive stale.
 3. Only then run `propose_edits`. It sees only the kept words, so reject any tighten proposal made before the cut.
 
