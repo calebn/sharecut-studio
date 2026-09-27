@@ -461,3 +461,44 @@ def test_transcribe_all_dialogue_stamps_audio_hash(minimal_project, sample_wav):
     )
     out = engine.transcribe_all_dialogue(proj, language="en")
     assert out[0].audio_sha256 == sha256_file(Path(proj.workspace_dir) / "raw" / "host.wav")
+
+
+def _silent_job_engine(minimal_project, tmp_path, options=None):
+    """Engine whose ASR returns one word over a digital-silence wav."""
+    import wave
+    from unittest.mock import patch
+
+    from podcast_mcp.engines.transcribe import TranscribeJob
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = load_project(minimal_project)
+    wav = tmp_path / "silent.wav"
+    with wave.open(str(wav), "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(8000)
+        f.writeframes(b"\x00\x00" * 16000)
+    job = TranscribeJob(track_id="host", source_id=None, audio=wav)
+    engine = TranscriptionEngine(options=options)
+    asr = Transcript(track_id="", words=[TranscriptWord(text="thanks", start=0.2, end=0.6)])
+    return proj, job, engine, patch.object(engine, "transcribe_file", return_value=asr)
+
+
+def test_transcribe_job_flags_silent_word_and_caches_flag(minimal_project, tmp_path):
+    proj, job, engine, patcher = _silent_job_engine(minimal_project, tmp_path)
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+    assert tr.words[0].suspect_hallucination
+    cached = engine.cache_path(proj, job.cache_id, job.audio, language="en")
+    assert '"suspect_hallucination": true' in cached.read_text(encoding="utf-8")
+
+
+def test_transcribe_job_silence_filter_can_be_disabled(minimal_project, tmp_path):
+    from podcast_mcp.engines.asr_options import AsrOptions
+
+    proj, job, engine, patcher = _silent_job_engine(
+        minimal_project, tmp_path, AsrOptions(silence_filter_enabled=False)
+    )
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+    assert not tr.words[0].suspect_hallucination

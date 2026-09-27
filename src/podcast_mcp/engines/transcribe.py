@@ -11,6 +11,7 @@ from typing import Any
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_silence import flag_silent_words_in_file
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
     DEFAULT_MAX_WORD_DURATION_SEC,
@@ -354,6 +355,12 @@ class TranscriptionEngine:
         flag_anomalous_asr_durations(
             transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
         )
+        if self.options.silence_filter_enabled:
+            n = flag_silent_words_in_file(
+                transcript.words, job.audio, peak_dbfs=self.options.silence_peak_dbfs
+            )
+            if n:
+                log.info("%s: %d word(s) over silence flagged suspect_hallucination", job.label, n)
         if fresh:
             write_text_atomic(cache, transcript.model_dump_json(indent=2))
         return transcript

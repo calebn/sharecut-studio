@@ -1138,3 +1138,21 @@ def test_balance_keeps_gain_when_every_word_is_cut(minimal_project, sample_wav, 
     assert proj.track_by_id("host").gain_db == 3.0
     assert "not measured, gain kept: host" in summary
     assert "speech-gated" not in summary
+
+def test_transcribe_tracks_summary_counts_suspect_hallucinations(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    asr = Transcript(
+        track_id="",
+        words=[TranscriptWord(text="ghost", start=0.0, end=0.5, suspect_hallucination=True)],
+    )
+    with (
+        patch.object(Engine, "transcribe_file", return_value=asr),
+        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=1),
+    ):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "1 suspect hallucinations" in summary

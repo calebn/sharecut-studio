@@ -138,6 +138,8 @@ class TranscriptWord(BaseModel):
     dominant_track: str | None = None
     speaker_match_track: str | None = None
     speaker_match_score: float | None = None
+    # Own-track audio under this word is digital silence (Whisper hallucination, #521).
+    suspect_hallucination: bool = False
 
 
 # One transcript per (track_id, source_id) within a project.
