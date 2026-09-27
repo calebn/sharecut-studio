@@ -51,6 +51,19 @@ describe("columnGeometry", () => {
     expect(col(g, 1)).toEqual([-1, -1, -1, -1]);
   });
 
+  it("only suppresses silence-cutoff columns in pyramid mode", () => {
+    // rows 20 (a compact-lane device height): a peak this small falls under
+    // SILENCE_ROWS (0.15) at this scale, even though it is a real sample,
+    // not noise, for the single-reading pcm/line modes.
+    const quiet: [number, number, number, number] = [-0.01, 0.01, 0, 1];
+    const pyr = columnGeometry(env([quiet]), 1, 20, "pyramid");
+    expect(col(pyr, 0)).toEqual([-1, -1, -1, -1]);
+    const pcm = columnGeometry(env([quiet]), 1, 20, "pcm");
+    expect(col(pcm, 0)[0]).not.toBe(-1);
+    const line = columnGeometry(env([quiet]), 1, 20, "line");
+    expect(col(line, 0)[0]).not.toBe(-1);
+  });
+
   it("widens thin columns to the mode's minimum thickness", () => {
     // 0.01 * 45 = 0.45 rows above the midline: kept, widened around its centre.
     const thin: [number, number, number, number] = [0.01, 0.01, 0, 1];

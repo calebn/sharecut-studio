@@ -48,7 +48,16 @@ export function columnGeometry(
     }
     const mn = env.min[c]!;
     const mx = env.max[c]!;
-    if (Math.max(Math.abs(mn), Math.abs(mx)) * ampZoom * sc < SILENCE_ROWS) {
+    // Pyramid bins aggregate many frames, so a peak under SILENCE_ROWS marks
+    // a genuinely quiet region worth erasing. PCM/line columns are a single
+    // reading (one sample or a tiny window): on a short lane the same peak
+    // can fall under the (lane-height-scaled) cutoff even though it is real
+    // data, not noise — `minThick` below already keeps it visible, so only
+    // pyramid columns are suppressed here.
+    if (
+      mode === "pyramid" &&
+      Math.max(Math.abs(mn), Math.abs(mx)) * ampZoom * sc < SILENCE_ROWS
+    ) {
       continue;
     }
     let top = mid - clamp(mx * ampZoom, -1, 1) * sc;
