@@ -16,7 +16,7 @@ import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 
-/** Server close code for a refused handshake or a revoked grant (authz recheck). */
+/** Server close code for a grant revoked after accept (authz recheck). */
 const WS_CLOSE_FORBIDDEN = 4403;
 
 function documentWsUrl(projectPath: string): string {
@@ -44,8 +44,9 @@ type DocumentSnapshotMsg = {
 /**
  * Document-plane WS (server→client only): merge Applied snapshots/patches into the store.
  * Own-client HTTP Applied at the current seq is skipped. useProjectPoll remains a safety net.
- * A 4403 close (authz refused or revoked) is terminal: the session token is read once per
- * page, so reconnecting cannot succeed until reload.
+ * A 4403 close (grant revoked by the post-accept authz recheck) is terminal: the session
+ * token is read once per page, so reconnecting cannot succeed until reload. A refused
+ * handshake closes before accept, which the browser reports as 1006, so it keeps retrying.
  */
 export function useDocumentSync(
   projectPath: string,
