@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from podcast_mcp.models import EpisodeProject, MediaAsset, ProcessingEffect, Track, TrackRole
-from podcast_mcp.pipeline.helpers import artifact, ensure_dialogue_clips, set_or_replace_chain
+from podcast_mcp.pipeline.helpers import (
+    artifact,
+    ensure_dialogue_clips,
+    replace_effect,
+    set_or_replace_chain,
+)
 
 
 def test_ensure_dialogue_clips_creates_clip():
@@ -41,3 +46,37 @@ def test_artifact_path_under_workspace(tmp_path):
     proj.ensure_dirs()
     p = artifact(proj, "nested/out.json")
     assert "artifacts" in str(p)
+
+
+def test_replace_effect_appends_when_absent():
+    effects = [ProcessingEffect(effect="highpass", params={"frequency": 90})]
+    new = ProcessingEffect(effect="acompressor", params={"ratio": 3})
+    result = replace_effect(effects, new)
+    assert [e.effect for e in result] == ["highpass", "acompressor"]
+    assert len(effects) == 1
+
+
+def test_replace_effect_replaces_in_place_and_keeps_bypass():
+    effects = [
+        ProcessingEffect(effect="highpass", params={"frequency": 90}),
+        ProcessingEffect(effect="acompressor", params={"ratio": 2}, bypass=True),
+        ProcessingEffect(effect="agate", params={}),
+    ]
+    new = ProcessingEffect(effect="acompressor", params={"ratio": 4})
+    result = replace_effect(effects, new)
+    assert [e.effect for e in result] == ["highpass", "acompressor", "agate"]
+    assert result[1].params["ratio"] == 4
+    assert result[1].bypass is True
+    assert new.bypass is False
+
+
+def test_replace_effect_collapses_duplicates():
+    effects = [
+        ProcessingEffect(effect="acompressor", params={"ratio": 2}),
+        ProcessingEffect(effect="highpass", params={"frequency": 90}),
+        ProcessingEffect(effect="acompressor", params={"ratio": 3}),
+    ]
+    new = ProcessingEffect(effect="acompressor", params={"ratio": 5})
+    result = replace_effect(effects, new)
+    assert [e.effect for e in result] == ["acompressor", "highpass"]
+    assert result[0].params["ratio"] == 5

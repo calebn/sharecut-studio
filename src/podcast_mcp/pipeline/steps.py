@@ -24,6 +24,7 @@ from podcast_mcp.pipeline.helpers import (
     artifact,
     ensure_dialogue_clips,
     ffmpeg,
+    replace_effect,
     set_or_replace_chain,
 )
 from podcast_mcp.util.atomic_render import render_atomic
@@ -419,6 +420,7 @@ def balance_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
 
 
 def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    """Set one acompressor per dialogue chain from ``compression.*``; a re-run replaces it in place (keeping bypass) instead of stacking another."""
     comp = defaults.get("compression", {})
     touched = 0
     for track in project.tracks:
@@ -428,20 +430,18 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             (c for c in project.processing_chains if c.track_id == track.id),
             None,
         )
-        effects = list(existing.effects) if existing else []
-        effects.append(
-            ProcessingEffect(
-                effect="acompressor",
-                params={
-                    "threshold_db": comp.get("threshold_db", -18),
-                    "ratio": comp.get("ratio", 3),
-                    "attack_ms": comp.get("attack_ms", 15),
-                    "release_ms": comp.get("release_ms", 150),
-                    "makeup_db": comp.get("makeup_db", 0),
-                },
-            )
+        compressor = ProcessingEffect(
+            effect="acompressor",
+            params={
+                "threshold_db": comp.get("threshold_db", -18),
+                "ratio": comp.get("ratio", 3),
+                "attack_ms": comp.get("attack_ms", 15),
+                "release_ms": comp.get("release_ms", 150),
+                "makeup_db": comp.get("makeup_db", 0),
+            },
         )
-        set_or_replace_chain(project, track.id, effects)
+        effects = list(existing.effects) if existing else []
+        set_or_replace_chain(project, track.id, replace_effect(effects, compressor))
         touched += 1
     return f"compressor on {touched} dialogue tracks"
 

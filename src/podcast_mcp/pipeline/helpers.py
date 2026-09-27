@@ -45,6 +45,26 @@ def set_or_replace_chain(
     project.processing_chains.append(ProcessingChain(track_id=track_id, effects=effects))
 
 
+def replace_effect(
+    effects: list[ProcessingEffect], new: ProcessingEffect
+) -> list[ProcessingEffect]:
+    """``effects`` with one ``new.effect`` entry: ``new`` in place of the first, later ones dropped.
+
+    The replaced entry keeps its position and ``bypass``. ``new`` is appended when the
+    chain has none. A pipeline step that owns an effect updates it on re-run instead of
+    stacking another copy.
+    """
+    slot = next((i for i, e in enumerate(effects) if e.effect == new.effect), None)
+    if slot is None:
+        return [*effects, new]
+    kept = new.model_copy(update={"bypass": effects[slot].bypass})
+    return [
+        kept if i == slot else e
+        for i, e in enumerate(effects)
+        if i == slot or e.effect != new.effect
+    ]
+
+
 def artifact(project: EpisodeProject, name: str) -> Path:
     p = project.artifacts_dir() / name
     p.parent.mkdir(parents=True, exist_ok=True)

@@ -36,3 +36,4 @@ podcast pipeline run --project episode.project.json --from assemble_timeline
 - Podcast speech: aim for **3–6 dB** gain reduction on peaks, not pumping.
 - Do not compress music/SFX tracks with this skill — dialogue roles only.
 - Compression runs at assemble via `processing_chains` on the project file.
+- Re-running `compress_tracks` is safe: it updates the one acompressor in each dialogue chain from `compression.*` (same position, bypass kept) and collapses any duplicates left by older runs.
