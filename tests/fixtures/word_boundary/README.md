@@ -30,3 +30,14 @@ ordered words as `{"audio_sha256": "...", "provenance": {"model": "...",
 to JSON and pass `--prediction` in place of `--native-model`. Match coverage
 and the omitted/extra counts must accompany MAE: an aligner cannot appear
 accurate by leaving difficult words unmatched.
+
+## Forced-aligner candidates
+
+`candidates.json` pins the Hugging Face repo and revision for each forced
+aligner the harness in `scripts/benchmark_forced_aligners.py` can run
+(an ONNX wav2vec2-base, its int8 variant, and a WhisperX-style torch
+wav2vec2-large; all Apache-2.0). Sizes are not claimed here. Print the exact
+download command for a candidate with `download-commands`, then score it
+against these clips with `run --target librispeech`; the harness never
+downloads a model itself. No candidate report is checked in yet — results
+are pending [#641](https://github.com/calebn/sharecut-studio/issues/641).

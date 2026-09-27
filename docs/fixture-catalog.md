@@ -13,6 +13,8 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | `asr_gold` | `tests/fixtures/asr_gold/` | ~5 MB | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~15 MB | AMI word XML + synthetic audio | Natural overlap vs synthetic calibration (nightly) |
+| `word_boundary` | `tests/fixtures/word_boundary/` | 3 short clips | LibriSpeech MFA reference (not hand-checked) | Word-boundary benchmark (native vs forced aligners) |
+| `word_boundary_synthetic` | `tests/fixtures/word_boundary_synthetic/` | 2.5 s tone bursts | Exact by construction (hand-computed) | Word-boundary metric/harness correctness |
 
 ### Regenerate
 

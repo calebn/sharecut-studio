@@ -363,6 +363,7 @@ For audio, pipeline and DAW behaviour that the Tier A fixtures are too small to 
   - **Read-only shared data:** `$LAB/runs/baseline` and `$LAB/source/` are never edited. Clone the baseline instead.
   - **GUI port:** start the GUI on the free port the script prints (`podcast gui … --port N --no-open`), not 8765.
   - **Transcription:** use `--source excerpt` (~2 min) for ASR checks. Full-length live ASR, and any full `pipeline run`, goes through `$LAB/scripts/with-asr-lock.sh`, so parallel lanes don't transcribe 3 × 28 min at once.
+  - **Alignment / word boundaries:** see [Lab tape: alignment testing grounds](#lab-tape-alignment-testing-grounds).
 
 ### Large-project browser profile (opt-in)
 
@@ -635,11 +636,77 @@ error when repeated words create equal text matches. The 256-word limit bounds
 matching time and traceback memory even when a candidate inserts or omits a
 long contiguous span.
 
+The metric also reports a signed bias over matched words:
+`mean_start_error_ms` and `mean_end_error_ms` are `prediction - reference`
+in milliseconds, so a positive start means the candidate starts late and a
+negative end means it clips the tail. CTC forced alignment tends to do both;
+#641 and #639 use this bias to tune boundary padding, not just the
+unsigned MAE.
+
 The checked-in `*.native-base.json` reports measured 42 matching words across
 48 reference words: 82.3 ms boundary MAE, 15/42 (35.7%) over 150 ms, six
 missed and four extra words. The 24.0 s combined wall time includes three
 separate Python/model-start processes on the local CPU and is not a normalized
-inference-speed comparison. Before choosing a forced aligner, run at least two
-FOSS CPU candidates on these exact clips, record model/license/download size,
-CPU time and memory, and repeat on hand-audited conversational podcast speech.
-The benchmark does not alter production ASR timestamps or the pipeline.
+inference-speed comparison. The benchmark does not alter production ASR
+timestamps or the pipeline.
+
+**Synthetic fixture.** `tests/fixtures/word_boundary_synthetic/` is a 2.5 s
+tone-burst WAV with a hand-authored 5-word gold transcript and prediction.
+Its README works out the expected metrics by hand (45.0 ms MAE, 1/4 words
+over 150 ms, +40.0 ms start bias, −20.0 ms end bias), and a test asserts them
+through both the library and the CLI. It is not speech and proves the metric
+and harness, not aligner accuracy.
+
+**Forced-aligner harness.** `scripts/benchmark_forced_aligners.py` runs pinned
+CTC forced-aligner candidates (`plan` / `run` / `agree` / `download-commands`
+subcommands) that re-time an existing word list — native Whisper output, or a
+candidate re-timing another candidate — using the numpy CTC Viterbi in
+`src/podcast_mcp/engines/ctc_forced_align.py` (benchmark-only until #639
+integrates it). Targets:
+
+- `librispeech` — scored against the same gold fixture as above.
+- `aligned_dialogue` and `lab` — agreement only (native vs. each candidate,
+  and candidates against each other); `aligned_dialogue`'s canned transcript
+  does not match its audio, so it has no ground-truth boundaries.
+
+Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
+(Hugging Face repo + pinned revision + license). The harness resolves each
+model with `snapshot_download(..., local_files_only=True)` and **never
+downloads**: an uncached model raises `FileNotFoundError` naming the exact
+download command, which `download-commands` also prints. `torch-large` needs
+`uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
+candidates do not.
+
+**Candidate results: pending #641.** This issue proves the harness and metric
+only; no candidate MAE/runtime number is checked in. Run it yourself with:
+
+```bash
+uv run python scripts/benchmark_forced_aligners.py download-commands   # then run what it prints
+uv run python scripts/benchmark_forced_aligners.py run --target librispeech --runs-dir .lab-runs/align/librispeech
+```
+
+### Lab tape: alignment testing grounds
+
+The lab checkout (see [Local lab verification](#local-lab-verification-private-tape)
+above) has real 3-speaker Zoom speech with clipped consonants, quiet words and
+overlap that the LibriSpeech clips don't exercise. With `LAB` and
+`LAB_RUNS_DIR` exported as above, `run --target lab` clips each stem
+(`source/zoom_excerpt_pan/audio*.m4a` by default, overridable with
+`--lab-glob`) to 60 s and writes outputs under `$LAB_RUNS_DIR/align/lab`.
+
+There is no ground truth on the lab tape, so read agreement, runtime/RTF, and
+the ranked disagreement list (largest first) to audition candidates by ear
+instead of trusting a single number. A hallucinated word over gated silence
+(#521) is an ASR error, not a boundary error — don't blame the aligner for it.
+To get real ground truth for a clip, hand-check its native words and save
+them beside the clip WAV as a local `*.gold.json` in the same format as the
+checked-in fixture gold, then score it with
+`scripts/benchmark_word_boundaries.py --gold`.
+
+**Rules**, on top of the lab rules above:
+
+- Never write under `$LAB/source` or `$LAB/runs/baseline` — the harness
+  refuses a `--runs-dir` inside the lab checkout.
+- Full-length stems go through `$LAB/scripts/with-asr-lock.sh`.
+- Never commit lab audio, transcripts or word text, and never paste word
+  text into PRs or issues. Aggregate numbers (MAE, RTF, counts) are fine.

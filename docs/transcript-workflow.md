@@ -85,7 +85,14 @@ than 150 ms. The initial three-clip faster-whisper `base` CPU/int8 baseline is
 words over 150 ms; six reference words were missed and four predictions were
 extra. This read-speech baseline cannot establish accuracy on conversational
 podcast audio. See [testing.md](testing.md#word-boundary-benchmark) for the
-reproduction command and fixture provenance.
+reproduction command and fixture provenance. The metric also reports a signed
+bias, `mean_start_error_ms`/`mean_end_error_ms` (prediction minus reference),
+for tuning boundary padding. `scripts/benchmark_forced_aligners.py` runs
+pinned CTC forced-aligner candidates (an ONNX wav2vec2-base and a
+WhisperX-style torch wav2vec2-large) over the same fixtures and the lab tape;
+results are pending [#641](https://github.com/calebn/sharecut-studio/issues/641)
+and integration is [#639](https://github.com/calebn/sharecut-studio/issues/639).
+See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
 
 **Does not fix:**
 
