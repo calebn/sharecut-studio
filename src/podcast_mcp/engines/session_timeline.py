@@ -32,14 +32,21 @@ _REL_DRIFT_MIN_PIECE_SEC = 1.0  # ignore reference-edit slivers shorter than thi
 _ClipKey = tuple[float, float, float]  # (timeline_start, source_start, source_end)
 
 
+def _clip_source_path(project: EpisodeProject, clip: Clip) -> str | None:
+    """Path of the source recording ``clip.source_id`` names, else ``None``."""
+    if not clip.source_id:
+        return None
+    src = project.source_by_id(clip.source_id)
+    return src.path if src is not None and src.path else None
+
+
 def origin_track_id_for_clip(project: EpisodeProject, clip: Clip) -> str:
     """Track whose media this clip plays (``source_id`` path, else current lane)."""
-    if clip.source_id:
-        src = project.source_by_id(clip.source_id)
-        if src is not None:
-            for track in project.tracks:
-                if track.media is not None and track.media.path == src.path:
-                    return track.id
+    path = _clip_source_path(project, clip)
+    if path is not None:
+        for track in project.tracks:
+            if track.media is not None and track.media.path == path:
+                return track.id
     return clip.track_id
 
 
@@ -228,10 +235,9 @@ def slip_clip_to_shift(
 
 def clip_media_key(project: EpisodeProject, clip: Clip) -> str:
     """Media file identity a clip reads: ``sources[source_id].path``, else the lane's media."""
-    if clip.source_id:
-        src = project.source_by_id(clip.source_id)
-        if src is not None and src.path:
-            return src.path
+    path = _clip_source_path(project, clip)
+    if path is not None:
+        return path
     track = next((t for t in project.tracks if t.id == clip.track_id), None)
     if track is not None and track.media and track.media.path:
         return track.media.path
