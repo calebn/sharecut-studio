@@ -161,6 +161,13 @@ export function isLiveClient(
   return serverNowMs - seenMs <= maxAgeMs;
 }
 
+/** Share guests join session sync as `guest-<token8>-<id>` (`review_share._guest_client_id`). */
+export const GUEST_CLIENT_ID_PREFIX = "guest-";
+
+export function isGuestClientId(clientId: string): boolean {
+  return clientId.startsWith(GUEST_CLIENT_ID_PREFIX);
+}
+
 export function isLocalPresenceClient(
   clientId: string,
   localId: string | null,
@@ -171,7 +178,7 @@ export function isLocalPresenceClient(
   if (clientId === localId) {
     return true;
   }
-  return clientId.startsWith("guest-") && clientId.endsWith(`-${localId}`);
+  return isGuestClientId(clientId) && clientId.endsWith(`-${localId}`);
 }
 
 export function remotePresenceClients<

@@ -1,17 +1,14 @@
 import type { SessionClient } from "../types/session";
 import { plural } from "../utils/format";
-import { isLocalPresenceClient } from "./followSync";
+import { isGuestClientId, isLocalPresenceClient } from "./followSync";
 
 const NON_PERSON_ROLES = new Set(["agent", "cli"]);
 
-/**
- * Share guests join session sync as `guest-<token8>-<id>` with role
- * `viewer` (`review_share._guest_client_id`); `guest` is the authz role.
- */
+/** Share guests carry the guest client-id prefix with role `viewer`; `guest` is the authz role. */
 export function isGuestPresenceClient(
   client: Pick<SessionClient, "client_id" | "role">,
 ): boolean {
-  return client.role === "guest" || client.client_id.startsWith("guest-");
+  return client.role === "guest" || isGuestClientId(client.client_id);
 }
 
 function count(n: number, noun: string): string {
