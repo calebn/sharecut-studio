@@ -32,6 +32,34 @@ def _seed_premix(minimal_project, sample_wav):
     return ProjectWorkspace.open(minimal_project)
 
 
+def test_guest_audio_cache_headers_use_pinned_file(tmp_path, monkeypatch):
+    import podcast_mcp.gui.pinned_file_response as pinned_response
+    import podcast_mcp.gui.routes.review_share as review_share
+
+    audio = tmp_path / "mix.wav"
+    audio.write_bytes(b"old audio")
+    replacement = tmp_path / "replacement.wav"
+    replacement.write_bytes(b"replacement audio")
+    expected = f'"{audio.stat().st_mtime_ns}-{audio.stat().st_size}"'
+    real_open = pinned_response.open_pinned_media
+
+    def swap_after_open(path):
+        source = real_open(path)
+        audio.unlink()
+        replacement.rename(audio)
+        return source
+
+    monkeypatch.setattr(pinned_response, "open_pinned_media", swap_after_open)
+    monkeypatch.setattr(review_share, "_audio_slot", lambda _token: None)
+    response = review_share._audio_file_response("token", audio, cache_audio=True)
+    try:
+        assert response.headers["etag"] == expected
+        assert response._source.read() == b"old audio"
+        assert audio.read_bytes() == b"replacement audio"
+    finally:
+        response._source.close()
+
+
 def test_share_create_and_api(minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path):
 
     ws = _seed_premix(minimal_project, sample_wav)

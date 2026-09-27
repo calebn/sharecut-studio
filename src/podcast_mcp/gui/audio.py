@@ -6,6 +6,7 @@ CLI, MCP, and the DAW viewer stay on one code path.
 
 from __future__ import annotations
 
+from os import stat_result
 from pathlib import Path
 
 from fastapi import Request
@@ -51,8 +52,8 @@ def resolve_viewer_transport(
     )
 
 
-def audio_cache_headers(path: Path) -> dict[str, str]:
-    st = path.stat()
+def audio_cache_headers(st: stat_result) -> dict[str, str]:
+    """Cache metadata for the descriptor pinned by the response."""
     return {
         "Accept-Ranges": "bytes",
         "Cache-Control": "private, max-age=0, must-revalidate",
@@ -75,11 +76,7 @@ def audio_file_response(
     )
     st = response.stat_result
     assert st is not None
-    headers = {
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "private, max-age=0, must-revalidate",
-        "ETag": f'"{st.st_mtime_ns}-{st.st_size}"',
-    }
+    headers = audio_cache_headers(st)
     if request is not None:
         inm = request.headers.get("if-none-match")
         if inm is not None and headers["ETag"] in inm:

@@ -134,7 +134,7 @@ def test_upload_and_presign_proxy(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     track_id = "host"
     fake = MagicMock()
-    fake.upload_file = MagicMock()
+    fake.upload_fileobj = MagicMock()
     fake.presigned_get_url = MagicMock(
         side_effect=lambda key, expires_in: f"https://cdn.test/{key}?e={expires_in}"
     )
@@ -152,12 +152,38 @@ def test_upload_and_presign_proxy(minimal_project, monkeypatch):
     )
     prefix = upload_track_proxy_to_object_store(ws, track_id, object_store=cfg)
     assert prefix == proxy_object_prefix(track_id, ws.project.track_by_id(track_id).proxy.hash)
-    assert fake.upload_file.called
+    assert fake.upload_fileobj.called
     urls = presigned_proxy_urls(ws.project, track_id, object_store=cfg)
     assert urls is not None
     assert len(urls) == ws.project.track_by_id(track_id).proxy.chunk_count
-    fake.upload_file.reset_mock()
+    fake.upload_fileobj.reset_mock()
     upload_track_proxy_to_object_store(ws, track_id, object_store=cfg)
+    assert not fake.upload_fileobj.called
+
+
+def test_proxy_upload_reads_pinned_chunk_after_path_swap(minimal_project, monkeypatch):
+    import podcast_mcp.services.proxy_media as proxy_media
+
+    ws = _seed_track(minimal_project)
+    proxy = ensure_track_proxy(ws, "host")
+    chunk = proxy_dir(ws, "host", proxy.hash) / "00000.mp3"
+    original = chunk.read_bytes()
+    real_open = proxy_media.open_pinned_media
+
+    def swap_after_open(path):
+        source = real_open(path)
+        if path == chunk:
+            chunk.rename(chunk.with_suffix(".old"))
+            chunk.symlink_to(chunk.with_suffix(".old"))
+        return source
+
+    uploaded = []
+    fake = MagicMock()
+    fake.upload_fileobj.side_effect = lambda source, _key: uploaded.append(source.read())
+    monkeypatch.setattr(proxy_media, "ensure_track_proxy", lambda _ws, _tid: proxy)
+    monkeypatch.setattr(proxy_media, "open_pinned_media", swap_after_open)
+    upload_track_proxy_to_object_store(ws, "host", object_store=fake)
+    assert uploaded[0] == original
     assert not fake.upload_file.called
 
 
@@ -165,7 +191,7 @@ def test_delete_proxy_when_no_shares(minimal_project, monkeypatch, tmp_workspace
     ws = _seed_track(minimal_project)
     track_id = "host"
     fake = MagicMock()
-    fake.upload_file = MagicMock()
+    fake.upload_fileobj = MagicMock()
     fake.presigned_get_url = MagicMock(return_value="https://x")
     fake.delete_object = MagicMock()
     cfg = ObjectStoreConfig(
@@ -379,7 +405,7 @@ def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
     fake = MagicMock()
-    fake.upload_file = MagicMock()
+    fake.upload_fileobj = MagicMock()
     fake.delete_object = MagicMock()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -398,7 +424,7 @@ def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_
     )
     ensure_and_upload_all_proxies(ws)
     assert ws.project.track_by_id("host").proxy is not None
-    assert fake.upload_file.called
+    assert fake.upload_fileobj.called
     delete_all_proxies_if_unused(ws)
     assert fake.delete_object.called
 
@@ -470,7 +496,7 @@ def test_object_store_client_from_config_object(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
     fake = MagicMock()
-    fake.upload_file = MagicMock()
+    fake.upload_fileobj = MagicMock()
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
         region="us-test-1",
@@ -486,7 +512,7 @@ def test_object_store_client_from_config_object(minimal_project, monkeypatch):
     assert prefix is not None
     # Pass an already-constructed ObjectStoreClient
     fake2 = MagicMock()
-    fake2.upload_file = MagicMock()
+    fake2.upload_fileobj = MagicMock()
     # Already uploaded - short-circuit
     assert upload_track_proxy_to_object_store(ws, "host", object_store=fake2) is not None
-    assert not fake2.upload_file.called
+    assert not fake2.upload_fileobj.called

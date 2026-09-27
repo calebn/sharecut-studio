@@ -24,6 +24,7 @@ from podcast_mcp.util.object_store import (
     load_object_store_config,
     resolve_object_store_client,
 )
+from podcast_mcp.util.pinned_media import open_pinned_media
 from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -192,9 +193,12 @@ def upload_track_proxy_to_object_store(
     out_dir = proxy_dir(ws, track_id, proxy.hash)
     for i in range(proxy.chunk_count):
         path = out_dir / f"{i:05d}.mp3"
-        if not path.is_file():
-            raise FileNotFoundError(f"missing proxy chunk: {path}")
-        client.upload_file(path, proxy_chunk_key(track_id, proxy.hash, i))
+        try:
+            source = open_pinned_media(path)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"missing proxy chunk: {path}") from exc
+        with source:
+            client.upload_fileobj(source, proxy_chunk_key(track_id, proxy.hash, i))
     uploaded_at = _now_iso()
 
     def mutate(p: EpisodeProject) -> dict[str, Any]:
