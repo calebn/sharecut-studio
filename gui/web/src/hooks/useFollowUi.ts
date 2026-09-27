@@ -20,6 +20,7 @@ export function useFollowUi(): void {
   const lastHearSig = useRef("");
   const lastSelSig = useRef("");
   const seenSelection = useRef(false);
+  const lastLeaderTab = useRef<string | null>(null);
 
   useEffect(() => {
     if (!followingClientId) {
@@ -28,6 +29,7 @@ export function useFollowUi(): void {
       lastHearSig.current = "";
       lastSelSig.current = "";
       seenSelection.current = false;
+      lastLeaderTab.current = null;
       useDawStore.getState().setFollowDegraded({});
       return;
     }
@@ -37,6 +39,7 @@ export function useFollowUi(): void {
       lastHearSig.current = "";
       lastSelSig.current = "";
       seenSelection.current = false;
+      lastLeaderTab.current = null;
       useDawStore.getState().setFollowDegraded({});
     }
     const target = resolveFollowTarget(
@@ -98,10 +101,17 @@ export function useFollowUi(): void {
     const s = useDawStore.getState();
     withProgrammaticUi(() => {
       if (ui && uiChanged && plan) {
-        // Only a real tab change: setActiveTab leaves the timeline layout, and
-        // audition/anchor ticks must not undo a follower's own layout.
-        if (plan.apply.tab && plan.apply.tab !== s.activeTab) {
-          s.setActiveTab(plan.apply.tab);
+        // Switch only when the leader's tab changed since the last tick:
+        // setActiveTab leaves a layout that hides the tab, so audition/anchor
+        // ticks must not undo a follower's own layout, while a leader moving
+        // to a tab the follower holds behind the timeline layout must still
+        // reveal it. The first tick compares with the follower's own tab.
+        if (plan.apply.tab) {
+          const prevTab = lastLeaderTab.current ?? s.activeTab;
+          lastLeaderTab.current = plan.apply.tab;
+          if (plan.apply.tab !== prevTab) {
+            s.setActiveTab(plan.apply.tab);
+          }
         }
         if (plan.apply.mobile) {
           if (plan.apply.mobile.moreDestination) {
