@@ -132,7 +132,7 @@ from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
-from podcast_mcp.util.project_state import render_lock
+from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals
 from podcast_mcp.util.tracks import resolve_track
 
@@ -1463,6 +1463,8 @@ class EditService:
         end_sec: float | None = None,
         apply: bool = True,
         progress: ProgressReporter | None = None,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> dict:
         tid: str | None = None
         if track_id or speaker:
@@ -1489,7 +1491,7 @@ class EditService:
             )
 
         # The render lock comes before mutate()'s project locks (lock order, #482).
-        with render_lock(self.ws.project):
+        with render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check):
             return self.ws.mutate(
                 "before apply bleed mute",
                 "after apply bleed mute",

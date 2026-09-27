@@ -1349,6 +1349,42 @@ def test_edit_apply_bleed_mute_apply(minimal_project, sample_wav) -> None:
     assert ws.project.track_by_id("host").transcript_gate is True
 
 
+def _apply_bleed_mute_while_locked(ws, **kwargs) -> None:
+    held, release = threading.Event(), threading.Event()
+
+    def hold() -> None:
+        with render_lock(ws.project):
+            held.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert held.wait(5)
+    started = time.monotonic()
+    try:
+        EditService(ws).apply_bleed_mute(speaker="Host", apply=True, **kwargs)
+    finally:
+        release.set()
+        holder.join(5)
+        assert time.monotonic() - started < 5
+
+
+def test_edit_apply_bleed_mute_stops_waiting_at_its_lock_timeout(
+    minimal_project, sample_wav
+) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with pytest.raises(RenderBusyError):
+        _apply_bleed_mute_while_locked(ws, lock_timeout=0.2)
+
+
+def test_edit_apply_bleed_mute_stops_waiting_when_cancelled(minimal_project, sample_wav) -> None:
+    from podcast_mcp.util.progress import CancelledProgress
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with pytest.raises(CancelledProgress):
+        _apply_bleed_mute_while_locked(ws, cancel_check=lambda: True)
+
+
 def test_edit_gate_overreach(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"overreach_ms": 0}
