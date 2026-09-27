@@ -9,7 +9,7 @@ import {
   type OfflineConflict,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
-import { plural } from "../utils/format";
+import { GuestAttentionBannerView } from "./GuestAttentionBannerView";
 
 /** Pending host edits and host/guest 409 conflicts from IndexedDB. */
 export function GuestAttentionBanner() {
@@ -52,42 +52,15 @@ export function GuestAttentionBanner() {
     };
   }, [projectPath, token]);
 
-  if (conflicts.length === 0 && pending === 0) {
-    return null;
-  }
-
   return (
-    <div className="guest-attention" role="alert">
-      <div className="guest-attention-head">
-        <strong>Needs attention</strong>
-        <span>
-          {pending > 0 ? `${pending} pending` : ""}
-          {pending > 0 && conflicts.length > 0 ? ", " : ""}
-          {conflicts.length > 0
-            ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
-            : ""}
-        </span>
-        {conflicts.length > 0 && (
-          <button
-            type="button"
-            className="guest-attention-dismiss"
-            onClick={() => {
-              void (
-                token ? clearConflicts(token) : clearHostConflicts(projectPath)
-              ).then(() => setConflicts([]));
-            }}
-          >
-            Dismiss all
-          </button>
-        )}
-      </div>
-      <ul className="guest-attention-list">
-        {conflicts.slice(0, 5).map((c) => (
-          <li key={c.command.command_id}>
-            <code>{c.command.type}</code>: {c.reason}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <GuestAttentionBannerView
+      pending={pending}
+      conflicts={conflicts}
+      onDismissAll={() => {
+        void (
+          token ? clearConflicts(token) : clearHostConflicts(projectPath)
+        ).then(() => setConflicts([]));
+      }}
+    />
   );
 }

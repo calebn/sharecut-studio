@@ -1,4 +1,5 @@
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
+import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   AppliedEditRecord,
@@ -98,6 +99,23 @@ export function appliedEditRecord(
     reason: "Shorten the pause",
     params: {},
     ...overrides,
+  };
+}
+
+/** Fictional offline queue conflict for guest-attention unit tests and stories. */
+export function offlineConflict(
+  overrides: { command?: Partial<QueuedCommand>; reason?: string } = {},
+): OfflineConflict {
+  return {
+    command: {
+      command_id: "sample-command",
+      client_seq: 1,
+      type: "SetEnvelope",
+      payload: {},
+      created_at: 0,
+      ...overrides.command,
+    },
+    reason: overrides.reason ?? "Envelope changed since this edit was queued",
   };
 }
 
