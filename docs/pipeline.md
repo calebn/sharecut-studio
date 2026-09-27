@@ -11,7 +11,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 7. `reconcile_transcript` — Pass 1: audibility/bleed suppress
 8. `precorrect_transcript` — Glossary and cross-track sync
 9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)
-10. `analyze_focus_cuts` — `artifacts/focus_outline.md`; off unless `focus.enabled`
+10. `analyze_focus_cuts` — writes `artifacts/focus_outline.md`: an **outline for the agent, not a cut list** (its `focus:*` hints are optional). Off unless `focus.enabled`; when off it writes nothing and only reports `skipped (focus.enabled=false)`. On long raw sessions, see [§ Long raw sessions](#long-raw-sessions-content-cut-before-tighten).
 11. `focus_from_transcript` — No-op unless `focus.auto_apply`
 12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
 13. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
@@ -25,6 +25,21 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 21. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping)
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
+
+## Long raw sessions: content cut before tighten
+
+The default pipeline makes no content cuts: focus and tighten are off, so a raw 28-minute session exports at 28 minutes. On a long raw session (pre-show chatter, off-topic runs, meta talk), do the **content cut before you tighten**. Tighten proposals in material you later remove waste review time for both the agent and the human. On the lab tape, 62 of 80 `propose-edits` hits fell in pre-show chatter that the human edit drops.
+
+1. **Content cut first** (timeline seconds, all dialogue tracks). Read the whole transcript (`podcast edit transcript` / `get_transcript(combined=true, format=timestamps)`) and decide the kept ranges. A content cut usually removes far more than the 15% guard, so get explicit sign-off on the kept ranges first. Then:
+   - **Dead start:** find the first kept line's `timeline_start` with `podcast edit search --query "<first kept line>"` (`search_transcript_tool`). Then run `podcast edit ripple-delete --start 0 --end <timeline_start − ~0.5>` (`ripple_delete_tool`).
+   - **Off-topic run or meta talk:** run `podcast edit suggest-handoff-cut --track <id> --keep-left-end <L> --keep-right-start <R>` (`suggest_handoff_cut_tool`). Then run `podcast edit ripple-delete --start <cut_start> --end <cut_end> --no-inaudible-opt` (`ripple_delete_tool(..., use_inaudible_opt=false)`). See [inaudible-cuts.md § Narrative handoffs](inaudible-cuts.md).
+   - Cut from the end of the episode toward the start, so timeline times you already looked up stay valid. Otherwise search again after each ripple.
+   - Use ripple deletes, not per-track `cut_time_range_tool` / `apply_edit_plan_tool` decisions. With peer speech in the window, those become a track-local punch (`speech_energy_guard`) and leave a hole.
+2. **Re-clear the refine gate after every ripple.** An applied cut drops the removed words, which changes the precorrect fingerprint. A done or waived refine then goes stale (`podcast transcript refine-status` shows `"stale": true`), and the next ripple, approve or `propose-edits` raises `TranscriptRefineRequiredError`. Re-waive with `podcast transcript refine-waive --reason "content cut: structural edit"` (`transcript_refine_waive_tool`), or run `refine-done` if you refined again.
+3. **Then tighten the kept range:** `podcast propose-edits` (`propose_edits`). The ripple dropped the removed words, so proposals come only from kept material, and there is no range argument. Content cuts still pending (`review_required`, not approved) keep their words, so approve them first. The ripple does not remove tighten proposals made before the content cut: reject them (`podcast edit reject --ids …` / `reject_edits_tool`) and propose again.
+4. **`analyze_focus_cuts` is an outline, not a cut list.** It writes `artifacts/focus_outline.md` for the agent to read (**podcast-focus-episode**). Its heuristic `focus:*` hints are optional and often empty; it proposed 0 cuts on the lab tape. With the default `focus.enabled: false` it writes nothing and reports only `skipped (focus.enabled=false)`.
+
+Skills: **podcast-pipeline-run**, **podcast-edit-natural-language** (content-cut tools), **podcast-tighten-dialogue**, **podcast-focus-episode**. Tool reference: [nl-editing.md § Long raw sessions](nl-editing.md#long-raw-sessions-content-cut-before-tighten).
 
 ## Conversation align (`align_tracks` + gate)
 
