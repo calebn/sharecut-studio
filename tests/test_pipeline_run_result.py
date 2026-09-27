@@ -72,6 +72,27 @@ def test_corrupt_qc_file_gives_not_ok_unreadable(minimal_project: Path, monkeypa
     assert "unreadable" in result.export_qc["issues"][0]
 
 
+def test_missing_qc_file_after_export_gives_not_ok(minimal_project: Path, monkeypatch) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    project = load_project(minimal_project)
+    qc_path = pipeline_steps.export_qc_path(project)
+    qc_path.unlink(missing_ok=True)
+    run = _stub_run([PipelineStepLog(step="export_deliverables", started_at="t", status="ok")])
+    _patch_runner(monkeypatch, run)
+
+    from podcast_mcp.services.pipeline import PipelineService
+
+    result = PipelineService(ws).run(only_step="export_deliverables")
+
+    assert result.ok is False
+    assert result.export_qc == {
+        "ok": False,
+        "issues": ["export_qc.json missing after export"],
+        "warnings": [],
+    }
+    assert result.export_qc_path == qc_path
+
+
 def test_ok_qc_gives_ok_true(minimal_project: Path, monkeypatch) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     project = load_project(minimal_project)
