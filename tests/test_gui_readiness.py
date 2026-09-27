@@ -254,6 +254,56 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
         revert_applied_edit(p, record.id)
 
 
+def test_revert_track_scope_punch_refills_the_hole_in_place() -> None:
+    import pytest
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.edits.edit_log import revert_applied_edit
+
+    p = EpisodeProject.create("gui_test", "/tmp/gui_test")
+    p.timeline.tracks = [
+        Track(
+            id=tid,
+            label=tid,
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=60.0),
+        )
+        for tid in ("host", "guest")
+    ]
+    p.timeline.clips = [
+        Clip(id=f"c_{tid}", track_id=tid, source_start=0.0, source_end=10.0, timeline_start=0.0)
+        for tid in ("host", "guest")
+    ]
+    p.edit_decisions = [
+        EditDecision(
+            id="k",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=3.0,
+            reason="nl:test",
+            review_required=True,
+            scope="track",
+        )
+    ]
+    approve_edits(p, ["k"])
+    record = p.editorial.edit_log[-1]
+    assert record.params["scope"] == "track"
+    guest_before = [c.model_dump() for c in clips_for_track(p, "guest")]
+    revert_applied_edit(p, record.id)
+    host = [(c.source_start, c.source_end, c.timeline_start) for c in clips_for_track(p, "host")]
+    assert host == [
+        (0.0, 2.0, 0.0),
+        (pytest.approx(2.0), pytest.approx(3.0), pytest.approx(2.0)),
+        (3.0, 10.0, 3.0),
+    ]
+    # Nothing rippled: the peer track and the session length are unchanged.
+    assert [c.model_dump() for c in clips_for_track(p, "guest")] == guest_before
+    assert p.timeline.duration_sec == pytest.approx(10.0)
+    assert p.editorial.edit_log == []
+
+
 def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
     """Recorded clocks stay within the GUI's APPLIED_EDGE_EPS_SEC through ripple/split/trim/roll."""
     import re
