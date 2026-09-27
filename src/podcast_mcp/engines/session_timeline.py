@@ -20,7 +20,7 @@ from functools import lru_cache
 from typing import Any, Protocol
 
 from podcast_mcp.models import Clip, EpisodeProject
-from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
 DEFAULT_MERGE_GAP_SEC = 0.15
@@ -270,10 +270,12 @@ def same_source_timeline_overlaps(
     stacks: list[SourceStack] = []
     for (track_id, media), members in groups.items():
         ordered = sorted(members, key=lambda c: (c.timeline_start, c.id))
+        index = HalfOpenIntervalIndex.build((c.timeline_start, c.timeline_end) for c in ordered)
         for i, a in enumerate(ordered):
-            for b in ordered[i + 1 :]:
-                if b.timeline_start >= a.timeline_end - tolerance_sec:
-                    break
+            for j in index.overlapping_ordinals(a.timeline_start, a.timeline_end):
+                if j <= i:
+                    continue
+                b = ordered[j]
                 overlap = min(a.timeline_end, b.timeline_end) - b.timeline_start
                 if overlap > tolerance_sec:
                     stacks.append(
