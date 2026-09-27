@@ -34,6 +34,10 @@ The `Templates/TimelineRange` story shows the production audition and comment
 selection overlays with the prop-only `PlayheadNeedle` in a 360px timeline
 well. The live `Playhead` keeps the DAW store subscription and moves its needle
 through a direct transform update during playback.
+`Templates/TrackHeader` previews the production track gutter and mute/solo
+controls with fictional track data, including stale and empty lanes, reorder
+cues, and a 360px phone rail. The live adapters retain DAW state, drag
+allowlisting, and command dispatch; stories pass props and action callbacks.
 `Templates/TimeRuler` shows the same prop-driven ruler view used by the live
 timeline at desktop and 360px widths, including comment-anchor mode. Its live
 adapter supplies DAW position and visible chunks; the story supplies fixed

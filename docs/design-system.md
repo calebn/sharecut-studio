@@ -163,6 +163,13 @@ colours); `tests/test_brand_color_roles.py` checks all three theme selectors.
 Review every new component in
 both themes, in story mode and on its docs page, before merging.
 
+`Templates/TrackHeader` renders the production `TrackHeaderView` and
+`TrackMuteSoloButtonsView` from fixed, fictional props. It covers selected,
+saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop, and
+360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons` adapters
+continue to read DAW state and dispatch commands; catalog stories do not mount
+that store or simulate command execution.
+
 ## Adding a story
 
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the

@@ -1,3 +1,7 @@
+import { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
+
+export { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
+
 import { setTrackFaderCommand, setTrackMuteCommand } from "../api";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
@@ -8,10 +12,6 @@ import { evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import { resolveTrackId } from "./targets";
 import type { ExecuteResult } from "./types";
-
-/** M on a track muted in the mix, for a guest who can't edit it. */
-export const SAVED_MUTE_READ_ONLY =
-  "Muted in the mix. Only the host and editors can unmute it";
 
 /**
  * A volume change waits this long for the next one, so a held arrow key or

@@ -1,18 +1,12 @@
-import type { CSSProperties, DragEvent, MouseEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
-import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
-import { initials } from "../presence/colors";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
-import { formatGainDb, trackFaderDb, trackOutputGainDb } from "../utils/audio";
 import { trackHasSourceAudio } from "../utils/projectMedia";
-import {
-  reasonChipLabel,
-  wholeTrackReasonsForTrack,
-} from "../utils/staleRender";
+import { wholeTrackReasonsForTrack } from "../utils/staleRender";
+import { TrackHeaderView } from "./TrackHeaderView";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
 import { setTrackReorderData } from "./trackReorder";
 
@@ -38,13 +32,6 @@ interface TrackHeaderProps {
     trackIndex: number,
     placeAfter: boolean,
   ) => void;
-}
-
-function gainFillPercent(gainDb: number): number {
-  const min = -24;
-  const max = 12;
-  const clamped = Math.max(min, Math.min(max, gainDb));
-  return ((clamped - min) / (max - min)) * 100;
 }
 
 export function TrackHeader({
@@ -108,11 +95,6 @@ export function TrackHeader({
       hasRegional ||
       breakdown.staleTrackIds.includes(track.id));
   const dropHighlight = ingestDropTrackId === track.id;
-  const label = track.label || track.id;
-  const outputDb = trackOutputGainDb(track);
-  const identityStyle = {
-    "--track-identity-color": laneColor(track.role, trackIndex),
-  } as CSSProperties;
   const longPress = useLongPress(() => onSelect(false));
 
   const select = (e: MouseEvent) => {
@@ -149,96 +131,27 @@ export function TrackHeader({
     onReorderDrop?.(track.id, trackIndex, placeAfter);
   };
 
-  const edgeClass =
-    dropEdge === "before"
-      ? " drop-before"
-      : dropEdge === "after"
-        ? " drop-after"
-        : "";
-
   return (
-    <div
-      className={`track-header-row${muted ? " muted" : ""}${selected ? " selected" : ""}${headerHighlight ? " stale-highlight" : ""}${wholeReasons.length ? " stale-whole-track" : ""}${dropHighlight ? " lane-drop-target" : ""}${dragging ? " dragging" : ""}${edgeClass}${mayReorder ? " reorderable" : ""}`}
-      style={identityStyle}
-      {...presenceAnchorProps(presenceAnchor("track", track.id))}
+    <TrackHeaderView
+      track={track}
+      trackIndex={trackIndex}
+      selected={selected}
+      muted={muted}
+      stemClass={stemClass}
+      wholeReasons={wholeReasons}
+      hasRegional={hasRegional}
+      headerHighlight={headerHighlight}
+      dropHighlight={dropHighlight}
+      dragging={dragging}
+      dropEdge={dropEdge}
+      mayReorder={mayReorder}
+      mixer={<TrackMuteSoloButtons trackId={track.id} />}
+      longPress={longPress}
+      onSelect={select}
+      onHandleDragStart={onHandleDragStart}
+      onReorderDragEnd={onReorderDragEnd}
       onDragOver={allowReorderDrop}
       onDrop={onDrop}
-    >
-      <button
-        type="button"
-        className="track-header-open"
-        aria-label={`Open track details, ${label}`}
-        aria-expanded={selected}
-        {...longPress}
-        onClick={select}
-      />
-      {mayReorder ? (
-        <button
-          type="button"
-          className="track-reorder-handle"
-          draggable
-          tabIndex={-1}
-          aria-roledescription="drag handle"
-          aria-label={`Reorder track ${label}`}
-          title="Drag to reorder"
-          onDragStart={onHandleDragStart}
-          onDragEnd={() => onReorderDragEnd?.()}
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : null}
-      <span className="track-title">
-        {/* Phone rail identity: initials in the lane color (the full name is
-            on the lane's clip labels and in the open button's name). */}
-        <span className="track-chip" aria-hidden="true">
-          {initials(label)}
-        </span>
-        <span className="track-title-text">{label}</span>
-        {stemClass && (
-          <span
-            className={`stem-dot ${stemClass}`}
-            title={
-              stemClass === "stale" ? "Stem out of date" : "Stem up to date"
-            }
-          />
-        )}
-        {wholeReasons.map((r) => (
-          <span key={r} className="stale-reason-chip" title={`Stale: ${r}`}>
-            {reasonChipLabel(r)}
-          </span>
-        ))}
-        {hasRegional && !wholeReasons.length ? (
-          <span className="stale-reason-chip" title="Stale regions on lane">
-            Regions
-          </span>
-        ) : null}
-        <span className="track-header-disclose" aria-hidden="true">
-          ›
-        </span>
-      </span>
-      <div className="track-meta">
-        <span className="track-role">
-          {track.role}
-          {track.speaker ? ` · ${track.speaker}` : ""}
-        </span>
-        <div className="track-transport-btns">
-          <TrackMuteSoloButtons trackId={track.id} />
-          {track.fx_count > 0 && (
-            <span className="badge fx" title={`${track.fx_count} effects`}>
-              FX {track.fx_count}
-            </span>
-          )}
-        </div>
-      </div>
-      <div
-        className="gain-strip"
-        title={`Plays at ${formatGainDb(outputDb)}: staging ${formatGainDb(track.gain_db)}, volume ${formatGainDb(trackFaderDb(track))}`}
-      >
-        <div
-          className="gain-fill"
-          style={{ width: `${gainFillPercent(outputDb)}%` }}
-        />
-        <span className="gain-label">{formatGainDb(outputDb)}</span>
-      </div>
-    </div>
+    />
   );
 }
