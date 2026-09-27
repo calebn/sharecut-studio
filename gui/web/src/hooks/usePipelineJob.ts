@@ -209,7 +209,11 @@ export function usePipelineJob(
       statusPollRef.current?.start();
       void loadPipelineStatus({ signal: abortRef.current?.signal })
         .then((st) => {
-          if (!mountedRef.current) {
+          // Same rule as pollStatusOnce: a stream that attached while this
+          // re-check was in flight (discover tick, or a new running job) owns
+          // the chrome now, so a stale result must not overwrite it or
+          // schedule a reconnect that would close it.
+          if (!mountedRef.current || esRef.current != null) {
             return;
           }
           apply(st);
@@ -224,7 +228,12 @@ export function usePipelineJob(
           clearReconnectTimer();
           reconnectTimerRef.current = window.setTimeout(() => {
             reconnectTimerRef.current = null;
-            if (!enabledRef.current || !mountedRef.current) {
+            // A stream attached during the 2s wait already recovered.
+            if (
+              !enabledRef.current ||
+              !mountedRef.current ||
+              esRef.current != null
+            ) {
               return;
             }
             attachEvents(next);
