@@ -303,6 +303,8 @@ export function TranscriptPanel() {
   const openInlineEdit = (ref: WordRef) => {
     cancelQueuedSeek();
     // One correction at a time: a pending commit keeps its editor open.
+    // No client timeout, like every useProjectMutation flow: a stalled request
+    // holds the lock until it settles, and the saving status line says why.
     if (inlineCommitPendingRef.current) return;
     setInlineEditError(null);
     setInlineEdit(ref);
@@ -324,6 +326,8 @@ export function TranscriptPanel() {
   };
 
   // Close when editing becomes impossible or the word vanishes (remote edit, rehydrate).
+  // transcriptWordExists scans the episode's words, but only while an editor is
+  // open and when allUtterances changes identity (merge, mutation), never per key.
   useEffect(() => {
     if (
       inlineEdit &&
