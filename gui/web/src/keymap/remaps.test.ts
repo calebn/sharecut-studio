@@ -39,4 +39,13 @@ describe("keymap remaps", () => {
     localStorage.setItem(KEY, JSON.stringify({ "tool.select": ["B"] }));
     expect(getKeymapOverride("tool.select")).toEqual(["B"]);
   });
+
+  it.each(["null", "[]", "42", '"x"', "{not json"])(
+    "treats a stored %s as no remaps",
+    (raw) => {
+      localStorage.setItem(KEY, raw);
+      expect(getKeymapOverride("tool.select")).toBeUndefined();
+      expect(getKeymapOverride("layout.timeline")).toBeUndefined();
+    },
+  );
 });

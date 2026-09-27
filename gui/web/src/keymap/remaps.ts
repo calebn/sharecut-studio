@@ -37,17 +37,28 @@ function migrateRenamed(saved: KeymapOverrides): KeymapOverrides | null {
   return next;
 }
 
+/** Parse stored overrides; anything but a plain JSON object (null, array, scalar, bad JSON) is no remaps. */
+function parseOverrides(raw: string | null): KeymapOverrides {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as KeymapOverrides)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function readStorage(): KeymapOverrides {
   if (memory) {
     return memory;
   }
-  const raw = readLocal(STORAGE_KEY);
-  let saved: KeymapOverrides;
-  try {
-    saved = raw ? (JSON.parse(raw) as KeymapOverrides) : {};
-  } catch {
-    saved = {};
-  }
+  const saved = parseOverrides(readLocal(STORAGE_KEY));
   const migrated = migrateRenamed(saved);
   if (migrated) {
     writeStorage(migrated);
