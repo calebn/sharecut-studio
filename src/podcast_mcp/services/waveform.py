@@ -394,8 +394,9 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
                     path.unlink()
                     removed += 1
         for legacy in peaks.glob("*.json"):
-            # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530).
-            superseded = f"track-{legacy.stem}" in live_pyramids
+            # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530);
+            # ``ref_slug`` hashes ids an older build wrote unsanitized.
+            superseded = ref_slug("track", legacy.stem) in live_pyramids
             with contextlib.suppress(OSError):
                 if superseded or legacy.stat().st_mtime < cutoff:
                     legacy.unlink()
