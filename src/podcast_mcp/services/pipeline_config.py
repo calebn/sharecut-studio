@@ -333,34 +333,72 @@ class PipelineConfigStore:
     ) -> WorkingSet:
         key = self._key(project_path)
         with self._lock:
-            if reset or key not in self._by_path:
-                base = load_defaults()
-                self._by_path[key] = WorkingSet(
-                    config=copy.deepcopy(base),
-                    enabled_steps=default_enabled_steps(base),
-                    unattended=True,
-                )
-            ws = self._by_path[key]
-            if ws.enabled_steps is None:
-                previous_enabled = set(default_enabled_steps(ws.config))
-            else:
-                previous_enabled = set(ws.enabled_steps)
-            prev_editorial = editorial_enabled_flags(ws.config)
-            if config is not None:
-                ws.config = merge_pipeline_config(config, base=load_defaults())
-            if enabled_steps is not None:
-                ws.enabled_steps = reconcile_enabled_steps(
-                    previous_enabled,
-                    set(enabled_steps),
-                )
-            elif config is not None and prev_editorial != editorial_enabled_flags(ws.config):
-                ws.enabled_steps = sync_editorial_enabled_steps(
-                    previous_enabled,
-                    ws.config,
-                )
-            if unattended is not None:
-                ws.unattended = unattended
-            return ws
+            return self._put_locked(
+                key,
+                config=config,
+                enabled_steps=enabled_steps,
+                unattended=unattended,
+                reset=reset,
+            )
+
+    def _put_locked(
+        self,
+        key: str,
+        *,
+        config: dict[str, Any] | None,
+        enabled_steps: list[str] | None,
+        unattended: bool | None,
+        reset: bool,
+    ) -> WorkingSet:
+        """``put`` body; caller holds ``self._lock``."""
+        if reset or key not in self._by_path:
+            base = load_defaults()
+            self._by_path[key] = WorkingSet(
+                config=copy.deepcopy(base),
+                enabled_steps=default_enabled_steps(base),
+                unattended=True,
+            )
+        ws = self._by_path[key]
+        if ws.enabled_steps is None:
+            previous_enabled = set(default_enabled_steps(ws.config))
+        else:
+            previous_enabled = set(ws.enabled_steps)
+        prev_editorial = editorial_enabled_flags(ws.config)
+        if config is not None:
+            ws.config = merge_pipeline_config(config, base=load_defaults())
+        if enabled_steps is not None:
+            ws.enabled_steps = reconcile_enabled_steps(
+                previous_enabled,
+                set(enabled_steps),
+            )
+        elif config is not None and prev_editorial != editorial_enabled_flags(ws.config):
+            ws.enabled_steps = sync_editorial_enabled_steps(
+                previous_enabled,
+                ws.config,
+            )
+        if unattended is not None:
+            ws.unattended = unattended
+        return ws
+
+    def apply_patches(self, project_path: Path | str, patches: dict[str, Any]) -> WorkingSet:
+        """Deep-merge ``patches`` onto the config staged *now*, in one locked step.
+
+        Analyze measures against an earlier snapshot and can run for a while (it decodes
+        audio). Merging only its patches keeps a config edit that landed during the scan
+        (GUI ``PUT /api/pipeline/config``, MCP ``pipeline_set_config_tool``) instead of
+        overwriting it with the stale snapshot.
+        """
+        key = self._key(project_path)
+        with self._lock:
+            current = self._by_path.get(key)
+            base = current.config if current is not None else load_defaults()
+            return self._put_locked(
+                key,
+                config=merge_pipeline_config(patches, base=base),
+                enabled_steps=None,
+                unattended=None,
+                reset=False,
+            )
 
 
 _STORE = PipelineConfigStore()
@@ -696,6 +734,22 @@ def suggest_pipeline_tuning(
             "tracks": list(track_rows.values()),
         },
     }
+
+
+def analyze_working_set(project_path: Path, project: Any, *, apply: bool) -> dict[str, Any]:
+    """Analyze against the staged working set; with ``apply``, merge only its patches back.
+
+    Shared by GUI ``POST /api/pipeline/analyze`` and MCP ``pipeline_analyze_tool``.
+    """
+    store = config_store()
+    result = suggest_pipeline_tuning(project, base_config=store.get(project_path).config)
+    if apply:
+        store.apply_patches(project_path, result["patches"])
+        result["applied"] = True
+        result["config"] = build_config_payload(project_path)
+    else:
+        result["applied"] = False
+    return result
 
 
 def _defaults_have_path(defaults: Mapping[str, Any], path: str) -> bool:

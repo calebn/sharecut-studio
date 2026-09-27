@@ -1792,7 +1792,7 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.pipeline.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
         lambda project, base_config=None: {
             "proposed_config": {"balance": {"dialogue_lufs": -19.0}},
             "patches": {"balance": {"dialogue_lufs": -19.0}},
