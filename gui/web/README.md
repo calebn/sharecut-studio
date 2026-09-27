@@ -30,6 +30,10 @@ Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
 the GitHub Pages publishing setup. Pull requests build the catalog without
 deploying it.
+The `Templates/TimelineRange` story shows the production audition and comment
+selection overlays with the prop-only `PlayheadNeedle` in a 360px timeline
+well. The live `Playhead` keeps the DAW store subscription and moves its needle
+through a direct transform update during playback.
 
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
