@@ -6,6 +6,7 @@ Never downloads models; see docs/testing.md § Word-boundary benchmark.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import os
 import sys
@@ -537,6 +538,10 @@ def run_suite(
                     "provenance": prediction["provenance"],
                 }
             )
+
+        # Free the ONNX session / torch model before the next candidate loads.
+        del backend
+        gc.collect()
 
     for item in items:
         native_payload = native_payloads[item.item_id]

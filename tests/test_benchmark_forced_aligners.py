@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import wave
+import weakref
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -312,6 +313,40 @@ def test_run_suite_end_to_end_with_fakes(tmp_path) -> None:
     assert (runs_dir / "tones.agree.json").exists()
     assert (runs_dir / "summary.json").exists()
     assert summary["scored"]["onnx-base"]["items"] == 1
+
+
+def test_run_suite_releases_each_backend_before_the_next(tmp_path) -> None:
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+
+    def fake_native(audio_path, model):
+        return {"words": prediction["words"], "provenance": prediction["provenance"]}
+
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    _vocab_json(model_dir / "vocab.json", {"<pad>": 0, "|": 1, "A": 2})
+    vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "A": 2})
+    refs: list[weakref.ref] = []
+
+    def backend_factory(candidate, resolved_dir, threads):
+        assert all(ref() is None for ref in refs)
+        backend = FakeBackend(vocab, {}, frames=1, vocab_size=3)
+        refs.append(weakref.ref(backend))
+        return backend
+
+    labels = ["onnx-base", "onnx-base-int8"]
+    bfa.run_suite(
+        [item],
+        bfa.load_candidates(labels=labels),
+        runs_dir=tmp_path / "runs",
+        model_dirs={label: model_dir for label in labels},
+        backend_factory=backend_factory,
+        native=fake_native,
+    )
+
+    assert len(refs) == 2
 
 
 def test_run_suite_drops_zero_duration_native_words(tmp_path) -> None:
