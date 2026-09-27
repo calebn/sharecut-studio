@@ -622,6 +622,11 @@ describe("TimelineView lane fit", () => {
     ) as RecordingResizeObserver;
     act(() => ro.fire(800, chrome + 2 * 300));
     expect(laneHeightVar(container)).toBe("144px");
+
+    // Switching to fit uses the stage height measured while fixed, clamped
+    // to MAX_FIT_LANE_HEIGHT.
+    act(() => useDawStore.setState({ laneHeightMode: "fit" }));
+    expect(laneHeightVar(container)).toBe("240px");
   });
 
   it("re-resolves on a mode/preference change without a resize", () => {
