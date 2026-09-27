@@ -78,6 +78,15 @@ class TightenProposal:
     def summary(self) -> str:
         return format_tighten_propose_summary(self.decisions, self.skip_counts)
 
+    def to_payload(self) -> dict[str, Any]:
+        """JSON-ready payload matching the ``propose_edits`` MCP tool's shape."""
+        return {
+            "operation": "propose_edits",
+            "edits": [e.model_dump() for e in self.decisions],
+            "skip_counts": self.skip_counts,
+            "summary": self.summary(),
+        }
+
 
 def propose_tighten_edits(
     project: EpisodeProject,

@@ -27,6 +27,7 @@ def propose_edits_cmd(
         "--intensity",
         help="light, medium (default from tighten.intensity), or aggressive preset.",
     ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the proposal as JSON"),
 ) -> None:
     if intensity is not None:
         try:
@@ -35,6 +36,9 @@ def propose_edits_cmd(
             raise typer.BadParameter(str(exc), param_hint="--intensity") from exc
     ws = ProjectWorkspace.open(project)
     proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
+    if as_json:
+        typer.echo(json.dumps(proposal.to_payload(), indent=2, default=str))
+        return
     typer.echo(proposal.summary())
 
 

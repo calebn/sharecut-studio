@@ -358,14 +358,7 @@ def propose_edits(
     ws = ProjectWorkspace.open(project_path)
     proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)
     agent_mutated(ws)
-    return to_json(
-        {
-            "operation": "propose_edits",
-            "edits": [e.model_dump() for e in proposal.decisions],
-            "skip_counts": proposal.skip_counts,
-            "summary": proposal.summary(),
-        }
-    )
+    return to_json(proposal.to_payload())
 
 
 def apply_edits(project_path: str) -> str:
