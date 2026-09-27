@@ -38,6 +38,8 @@ function CardHarness(args: Args) {
           onReply={
             args.onReply
               ? () => {
+                  const body = replyDraft.trim();
+                  if (!body) return;
                   setComment((current) => ({
                     ...current,
                     replies: [
@@ -45,7 +47,7 @@ function CardHarness(args: Args) {
                       {
                         id: `${current.id}-story-reply-${(current.replies ?? []).length + 1}`,
                         author: "You",
-                        body: replyDraft,
+                        body,
                         created_at: "2026-01-02T00:00:00Z",
                       },
                     ],
@@ -186,9 +188,11 @@ export const ActionsAndReplies: Story = {
       canvas.getByRole("checkbox", { name: "Trim the intro" }),
     );
     await expect(args.onToggleAction).toHaveBeenCalledWith("trim", true);
+    await userEvent.click(canvas.getByRole("button", { name: "Reply" }));
+    await expect(args.onReply).not.toHaveBeenCalled();
     await userEvent.type(
       canvas.getByRole("textbox", { name: "Reply to Bo" }),
-      "Thanks",
+      " Thanks ",
     );
     await userEvent.click(canvas.getByRole("button", { name: "Reply" }));
     await expect(args.onReply).toHaveBeenCalled();

@@ -114,7 +114,9 @@ Open, Resolved, and Empty stay fixed for visual comparison. ResolveAndReopen
 and DraftAndPost exercise the controls separately; Empty passes an explicit
 disabled prop rather than adding validation to the shared form. GuestFeedback
 and MobileGuestFeedback use the same review shell and compose classes as the
-public review page.
+public review page in a fullscreen canvas. DraftAndPost clears its draft after
+the story-local successful submit; ActionsAndReplies ignores blank replies
+and displays trimmed successful replies, as the public review page does.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the

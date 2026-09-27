@@ -7,7 +7,10 @@ import { CommentCompose } from "./CommentCompose";
 
 type Args = Parameters<typeof CommentCompose>[0];
 
-function ComposeHarness(args: Args) {
+function ComposeHarness({
+  clearOnSubmit = false,
+  ...args
+}: Args & { clearOnSubmit?: boolean }) {
   const [body, setBody] = useState(args.body);
   const [author, setAuthor] = useState(args.author);
   return (
@@ -18,6 +21,10 @@ function ComposeHarness(args: Args) {
       onBodyChange={(value) => {
         setBody(value);
         args.onBodyChange(value);
+      }}
+      onSubmit={() => {
+        args.onSubmit();
+        if (clearOnSubmit) setBody("");
       }}
       onAuthorChange={
         args.onAuthorChange
@@ -83,6 +90,11 @@ export const Empty: Story = {
 };
 
 export const DraftAndPost: Story = {
+  render: (args) => (
+    <div className="comments-panel">
+      <ComposeHarness {...args} clearOnSubmit />
+    </div>
+  ),
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const submit = canvas.getByRole("button", { name: "Post comment" });
@@ -94,6 +106,9 @@ export const DraftAndPost: Story = {
     await expect(submit).toBeEnabled();
     await userEvent.click(submit);
     await expect(args.onSubmit).toHaveBeenCalled();
+    await expect(canvas.getByRole("textbox", { name: "Comment" })).toHaveValue(
+      "",
+    );
   },
 };
 
@@ -101,6 +116,7 @@ export const GuestFeedback: Story = {
   render: (args) => (
     <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
   ),
+  parameters: { layout: "fullscreen" },
   args: {
     body: "The opening sounds clear.",
     author: "Mira",
@@ -132,7 +148,7 @@ export const MobileGuestFeedback: Story = {
   render: (args) => (
     <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
   ),
-  parameters: recordMobileViewport.parameters,
+  parameters: { ...recordMobileViewport.parameters, layout: "fullscreen" },
   globals: recordMobileViewport.globals,
   args: {
     body: "The pause before the second answer makes the scene easier to follow.",
