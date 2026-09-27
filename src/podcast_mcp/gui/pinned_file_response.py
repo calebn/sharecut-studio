@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -20,23 +21,35 @@ class PinnedFileResponse(FileResponse):
         self, path: Path, *, background: BackgroundTask | None = None, **kwargs: Any
     ) -> None:
         self._source = open_pinned_media(path)
+        self._read_lock = threading.Lock()
         self._on_close = background
         try:
             super().__init__(path, stat_result=os.fstat(self._source.fileno()), **kwargs)
         except BaseException:
-            self._source.close()
+            self.close()
             raise
+
+    def close(self) -> None:
+        """Release the pinned descriptor; safe to call more than once."""
+        self._source.close()
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         try:
             await super().__call__(scope, receive, send)
         finally:
-            self._source.close()
+            self.close()
             if self._on_close is not None:
                 await self._on_close()
 
+    def _read_at(self, offset: int, length: int) -> bytes:
+        if hasattr(os, "pread"):
+            return os.pread(self._source.fileno(), length, offset)
+        with self._read_lock:  # Windows has no pread; serialize seek + read instead.
+            self._source.seek(offset)
+            return self._source.read(length)
+
     async def _chunk(self, offset: int, length: int) -> bytes:
-        return await asyncio.to_thread(os.pread, self._source.fileno(), length, offset)
+        return await asyncio.to_thread(self._read_at, offset, length)
 
     async def _handle_simple(self, send: Any, send_header_only: bool, send_pathsend: bool) -> None:
         del send_pathsend  # Never hand a pathname to the ASGI server.

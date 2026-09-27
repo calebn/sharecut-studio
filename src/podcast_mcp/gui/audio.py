@@ -74,13 +74,17 @@ def audio_file_response(
         filename=filename or path.name,
         content_disposition_type="inline",
     )
-    st = response.stat_result
-    assert st is not None
-    headers = audio_cache_headers(st)
-    if request is not None:
-        inm = request.headers.get("if-none-match")
-        if inm is not None and headers["ETag"] in inm:
-            response._source.close()
-            return Response(status_code=304, headers=headers)
-    response.headers.update(headers)
+    try:
+        st = response.stat_result
+        assert st is not None
+        headers = audio_cache_headers(st)
+        if request is not None:
+            inm = request.headers.get("if-none-match")
+            if inm is not None and headers["ETag"] in inm:
+                response.close()
+                return Response(status_code=304, headers=headers)
+        response.headers.update(headers)
+    except BaseException:
+        response.close()
+        raise
     return response
