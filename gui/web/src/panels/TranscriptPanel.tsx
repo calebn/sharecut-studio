@@ -333,7 +333,10 @@ export function TranscriptPanel() {
     }
   }, [inlineEdit, canCorrect, allUtterances]);
 
-  // Keyboard close (Enter / Esc) returns focus to the word chip.
+  // Keyboard close (Enter / Esc) returns focus to the word chip. Re-query it by
+  // data-track-id / data-word-index rather than saving the element (as
+  // useDialogModal's restoreFocusRef does): the list virtualizes, so a saved
+  // node can be unmounted or remounted by the time the editor closes.
   useEffect(() => {
     const target = inlineFocusRestoreRef.current;
     if (inlineEdit != null || !target) return;
