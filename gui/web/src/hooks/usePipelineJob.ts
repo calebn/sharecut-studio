@@ -79,9 +79,14 @@ export function attachTargetId(st: PipelineStatusResponse): string | null {
 
 /**
  * Keep pipelineJob in the store live for the whole DAW session (status bar +
- * Pipeline tab). SSE for pipeline step transitions; 1s status poll owns
- * activityJob / running_count so an agent stream cannot steal pipeline chrome.
- * Discovers in-process agent jobs started from host MCP without a prior POST.
+ * Pipeline tab). The attached job's SSE stream (connect snapshot, live
+ * events, 1s keepalive snapshots, `done`) is the only source for that job
+ * while it is open; the 1s status poll runs only while the stream is down
+ * (from `onerror` until a reconnected stream delivers a frame). The 5s
+ * discover poll owns activityJob / running_count for other jobs and
+ * discovers in-process agent jobs started from host MCP without a prior
+ * POST; a stream frame updates activityJob only when no other job is the
+ * live primary.
  */
 export function usePipelineJob(
   pipelineJob: PipelineJobSnapshot | null,
@@ -102,6 +107,8 @@ export function usePipelineJob(
   setActivityRef.current = options.setActivityJob;
   const setCountRef = useRef(options.setActivityRunningCount);
   setCountRef.current = options.setActivityRunningCount;
+  const activityRef = useRef(activityJob);
+  activityRef.current = activityJob;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const discoverKeyRef = useRef<string | null>(null);
@@ -169,7 +176,6 @@ export function usePipelineJob(
     };
 
     if (attachedJobId.current === jobId && esRef.current) {
-      startPoll();
       return;
     }
     esRef.current?.close();
@@ -177,13 +183,22 @@ export function usePipelineJob(
     const es = new EventSource(pipelineEventsUrl(jobId));
     esRef.current = es;
     es.onmessage = (ev) => {
+      // Any frame proves the stream is live again: drop the socket-down poll.
+      stopPoll();
       try {
         const data = JSON.parse(ev.data) as PipelineEvent;
         if (data.job) {
           if (isPipelineKindJob(data.job)) {
             setJobRef.current(data.job);
           }
-          setActivityRef.current?.(data.job);
+          const primary = activityRef.current;
+          if (
+            primary == null ||
+            primary.id === data.job.id ||
+            !isPipelineRunning(primary)
+          ) {
+            setActivityRef.current?.(data.job);
+          }
         }
         if (data.type === "done") {
           es.close();
@@ -248,7 +263,6 @@ export function usePipelineJob(
           }
         });
     };
-    startPoll();
   });
 
   // Bootstrap + discover jobs started outside this viewer (host MCP fan-in).
