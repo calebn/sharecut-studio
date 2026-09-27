@@ -190,6 +190,8 @@ export interface TranscriptWordView {
   word_index?: number;
   confidence?: number | null;
   suppressed?: boolean;
+  /** Own-track audio under the word is digital silence (possible Whisper hallucination). */
+  suspect_hallucination?: boolean;
 }
 
 export interface CombinedUtterance {

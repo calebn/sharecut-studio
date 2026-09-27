@@ -9,6 +9,7 @@ export type TranscriptTurnWord = {
   unmapped?: boolean;
   selected?: boolean;
   lowConfidence?: boolean;
+  suspectHallucination?: boolean;
   title?: string;
   ariaLabel?: string;
   anchorProps?: Record<string, string>;
@@ -95,6 +96,7 @@ export function TranscriptTurnView({
               item.unmapped ? "unmapped" : "",
               item.word.suppressed ? "suppressed" : "",
               item.lowConfidence ? "low-confidence" : "",
+              item.suspectHallucination ? "suspect-hallucination" : "",
               item.selected ? "selected" : "",
             ]
               .filter(Boolean)
