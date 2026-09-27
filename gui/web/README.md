@@ -153,6 +153,12 @@ and state motion, and the three status loops, share `--motion-*` tokens and
 run only when reduced motion is not requested. Playwright's `e2e/design-polish.spec.ts` checks both themes and
 the reduced-motion path.
 
+The light ladder uses a sage canvas (`#fbfdfc`), near-white pane
+(`#f7f9f8`), and recessed well (`#eef1f0`); its timeline muted lane
+(`#e9edeb`) has a separate semantic role. The dark palette remains warm
+stone. Edit shared brand values in `deploy/brand/brand-tokens.css` and sync
+its four copies; `tests/test_public_sites.py` enforces identical content.
+
 Root switching (same CSS contract as marketing):
 
 - `document.documentElement.dataset.theme = "light" | "dark"` overrides OS

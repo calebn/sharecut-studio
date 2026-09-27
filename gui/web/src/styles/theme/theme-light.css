@@ -12,8 +12,8 @@
   --color-bg-raised: var(--color-bg-elevated);
   --color-bg-overlay: var(--color-bg-elevated);
   --color-bg-sunken: var(--primitive-neutral-125);
-  /* Contrast partners (≥4.5:1): 15.4 canvas, 17.1 base, 17.4 raised,
-     17.4 overlay, 14.2 sunken. */
+  /* Contrast partners (≥4.5:1): 16.1 canvas, 15.5 base, 16.4 raised,
+     16.4 overlay, 14.4 sunken. */
   --color-text-on-canvas: var(--color-text-primary);
   --color-text-on-base: var(--color-text-primary);
   --color-text-on-raised: var(--color-text-primary);
@@ -23,7 +23,7 @@
   /* Form fields: white and bordered on every pane. */
   --color-field: var(--primitive-white);
   /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
-     Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
+     Chip text ≥4.5:1: primary 13.4:1, secondary 5.9:1. */
   --color-chip-selected: var(--primitive-neutral-150);
   --color-chip-selected-fg: var(--color-text-primary);
   /* Hover wash: a faint ink tint that reads on every ladder rung and stays
@@ -33,7 +33,7 @@
      clips carry the color and each track row reads as one row (#20). */
   --color-timeline-well: var(--primitive-neutral-140);
   --color-timeline-lane: var(--primitive-neutral-55);
-  --color-timeline-lane-muted: var(--primitive-neutral-125);
+  --color-timeline-lane-muted: var(--primitive-neutral-145);
   --color-timeline-border: var(--primitive-neutral-250);
   --color-timeline-text: var(--primitive-neutral-650);
   --color-timeline-grid: color-mix(
@@ -50,7 +50,7 @@
     var(--primitive-black) 6%,
     transparent
   );
-  /* 3.2:1 on the stage well (non-text ≥3:1). */
+  /* 3.6:1 on the stage well (non-text ≥3:1). */
   --color-timeline-playhead: var(--primitive-orange-450);
   --color-signal: var(--primitive-teal-675);
 
@@ -341,8 +341,8 @@
     --color-bg-raised: var(--color-bg-elevated);
     --color-bg-overlay: var(--color-bg-elevated);
     --color-bg-sunken: var(--primitive-neutral-125);
-    /* Contrast partners (≥4.5:1): 15.4 canvas, 17.1 base, 17.4 raised,
-       17.4 overlay, 14.2 sunken. */
+    /* Contrast partners (≥4.5:1): 16.1 canvas, 15.5 base, 16.4 raised,
+       16.4 overlay, 14.4 sunken. */
     --color-text-on-canvas: var(--color-text-primary);
     --color-text-on-base: var(--color-text-primary);
     --color-text-on-raised: var(--color-text-primary);
@@ -352,7 +352,7 @@
     /* Form fields: white and bordered on every pane. */
     --color-field: var(--primitive-white);
     /* Selected toggles, segments, and tabs: a neutral chip, never the accent.
-       Chip text ≥4.5:1: primary 13.3:1, secondary 5.5:1. */
+       Chip text ≥4.5:1: primary 13.4:1, secondary 5.9:1. */
     --color-chip-selected: var(--primitive-neutral-150);
     --color-chip-selected-fg: var(--color-text-primary);
     /* Hover wash: a faint ink tint that reads on every ladder rung and stays
@@ -366,7 +366,7 @@
        clips carry the color and each track row reads as one row (#20). */
     --color-timeline-well: var(--primitive-neutral-140);
     --color-timeline-lane: var(--primitive-neutral-55);
-    --color-timeline-lane-muted: var(--primitive-neutral-125);
+    --color-timeline-lane-muted: var(--primitive-neutral-145);
     --color-timeline-border: var(--primitive-neutral-250);
     --color-timeline-text: var(--primitive-neutral-650);
     --color-timeline-grid: color-mix(
@@ -383,7 +383,7 @@
       var(--primitive-black) 6%,
       transparent
     );
-    /* 3.2:1 on the stage well (non-text ≥3:1). */
+    /* 3.6:1 on the stage well (non-text ≥3:1). */
     --color-timeline-playhead: var(--primitive-orange-450);
     --color-signal: var(--primitive-teal-675);
 

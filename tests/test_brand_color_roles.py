@@ -11,6 +11,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 BRAND_TOKENS = ROOT / "deploy/brand/brand-tokens.css"
+DOCS_SITE_CSS = ROOT / "docs-site/assets/site.css"
+UX_SITE_CSS = ROOT / "ux/assets/site.css"
 MARKETING_CSS = ROOT / "deploy/brand/marketing.css"
 THEME_CSS = ROOT / "gui/web/src/styles/theme.css"
 THEME_TOKENS = ROOT / "gui/web/src/styles/theme/tokens.css"
@@ -346,8 +348,8 @@ def test_design_palette_preserves_text_and_action_contrast() -> None:
     """The visual target's decorative accent needs a darker filled action in light mode."""
     light = brand_light_data_roles()
     dark = brand_dark_roles()
-    assert light["--color-bg-canvas"] == "#f4f1eb"
-    assert light["--color-bg-surface"] == "#fffdf9"
+    assert light["--color-bg-canvas"] == "#fbfdfc"
+    assert light["--color-bg-surface"] == "#f7f9f8"
     assert light["--color-accent"] == "#df4b28"
     assert dark["--color-bg-canvas"] == "#181614"
     assert dark["--color-accent"] == "#ff6d48"
@@ -361,6 +363,49 @@ def test_design_palette_preserves_text_and_action_contrast() -> None:
         assert (
             _contrast_ratio(roles["--color-accent-on-solid"], roles["--color-accent-solid"]) >= 4.5
         )
+
+
+def test_sage_light_roles_keep_timeline_text_legible() -> None:
+    """The muted lane has its own shade and its ruler ink clears normal-text AA."""
+    roles = _studio_roles("light")
+    expected = {
+        "--color-bg-canvas": "#fbfdfc",
+        "--color-bg-surface": "#f7f9f8",
+        "--color-bg-elevated": "#ffffff",
+        "--color-bg-sunken": "#eef1f0",
+        "--color-border": "#d5dbd8",
+        "--color-border-strong": "#7d8a84",
+        "--color-text-primary": "#1a211e",
+        "--color-text-secondary": "#4d5a54",
+        "--color-chip-selected": "#e4e9e7",
+        "--color-badge-bg": "#eef1f0",
+        "--color-timeline-well": "#eef1f0",
+        "--color-timeline-lane": "#f7f9f8",
+        "--color-timeline-lane-muted": "#e9edeb",
+        "--color-timeline-border": "#ccd4d0",
+        "--color-timeline-text": "#5f6e68",
+    }
+    for role, color in expected.items():
+        assert _resolve_hex(role, roles) == color, role
+    for lane in ("--color-timeline-lane", "--color-timeline-lane-muted"):
+        assert (
+            _contrast_ratio(_resolve_hex("--color-timeline-text", roles), _resolve_hex(lane, roles))
+            >= 4.5
+        ), lane
+
+
+def test_docs_site_sage_light_roles_match_studio() -> None:
+    css = DOCS_SITE_CSS.read_text(encoding="utf-8")
+    assert UX_SITE_CSS.read_text(encoding="utf-8") == css
+    light = _all_custom_props(_first_rule_body(css, re.compile(r":root\s*\{")))
+    brand = brand_light_data_roles()
+    assert light["--bg"] == brand["--color-bg-surface"]
+    assert light["--bg-elev"] == brand["--color-bg-elevated"]
+    assert light["--ink"] == brand["--color-text-primary"]
+    assert light["--muted"] == brand["--color-text-secondary"]
+    assert light["--line"] == brand["--color-border"]
+    for ink in ("--ink", "--muted"):
+        assert _contrast_ratio(light[ink], light["--bg"]) >= 4.5
 
 
 _VAR_ONLY_RE = re.compile(r"^var\(\s*(--[\w-]+)\s*\)$")
@@ -480,7 +525,7 @@ def test_transport_inks_meet_contrast_on_the_strip() -> None:
 
 def test_brand_accent_text_reads_on_canvas_and_surface() -> None:
     """Marketing, relay and splash links use --color-accent-text: the light
-    accent itself is 3.6:1 on canvas (#20 review)."""
+    decorative accent itself is below 4.5:1 on the light canvas (#20 review)."""
     for roles in (brand_light_data_roles(), brand_dark_roles()):
         for surface in ("--color-bg-canvas", "--color-bg-surface", "--color-bg-elevated"):
             assert _contrast_ratio(roles["--color-accent-text"], roles[surface]) >= 4.5, surface
