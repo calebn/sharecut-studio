@@ -522,12 +522,13 @@ def test_run_suite_drops_zero_duration_native_words(tmp_path) -> None:
         return FakeBackend(vocab, {}, frames=1, vocab_size=3)
 
     runs_dir = tmp_path / "runs"
+    labels = ["onnx-base", "onnx-base-int8"]
     summary = bfa.run_suite(
         [item],
-        bfa.load_candidates(labels=["onnx-base"]),
+        bfa.load_candidates(labels=labels),
         runs_dir=runs_dir,
         target="synthetic",
-        model_dirs={"onnx-base": model_dir},
+        model_dirs={label: model_dir for label in labels},
         backend_factory=backend_factory,
         native=fake_native,
     )
@@ -540,6 +541,12 @@ def test_run_suite_drops_zero_duration_native_words(tmp_path) -> None:
     assert summary["agreement"]["onnx-base"]["matched_words"] == 5
     agree = json.loads((runs_dir / "tones.agree.json").read_text(encoding="utf-8"))
     assert agree["comparisons"]["onnx-base"]["dropped_zero_duration"] == {
+        "reference": 1,
+        "prediction": 1,
+    }
+    # Pairwise candidate~candidate: both sides are harness preds that already
+    # dropped the zero-duration word upstream, so each side reports it once.
+    assert agree["comparisons"]["onnx-base~onnx-base-int8"]["dropped_zero_duration"] == {
         "reference": 1,
         "prediction": 1,
     }
