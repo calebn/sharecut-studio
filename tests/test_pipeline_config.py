@@ -19,6 +19,7 @@ from podcast_mcp.services.pipeline_config import (
     config_store,
     deep_merge,
     default_enabled_steps,
+    editorial_enabled_flags,
     merge_pipeline_config,
     pipeline_step_states,
     reconcile_enabled_steps,
@@ -687,3 +688,25 @@ def test_pipeline_step_states_rows():
     assert by_id["analyze_focus_cuts"]["noop_reason"] == "focus.enabled=false"
     assert by_id["ingest_tracks"]["enabled"] is True
     assert by_id["ingest_tracks"]["noop_reason"] is None
+
+
+def test_editorial_gates_follow_noop_unless():
+    cfg = deep_merge(load_defaults(), {"tighten": {"enabled": True}, "focus": {"enabled": True}})
+    assert editorial_enabled_flags(cfg) == (True, True)
+    enabled = default_enabled_steps(cfg)
+    rows = {r["id"]: r for r in pipeline_step_states(cfg)}
+    for step_id in ("analyze_fillers_pauses", "tighten_from_transcript"):
+        assert step_id in enabled
+        assert rows[step_id]["enabled"] is True
+        assert rows[step_id]["noop_reason"] is None
+    assert "analyze_focus_cuts" in enabled and "focus_from_transcript" in enabled
+
+
+def test_tighten_gate_agrees_when_enabled_key_missing():
+    cfg = load_defaults()
+    cfg.setdefault("tighten", {}).pop("enabled", None)
+    assert editorial_enabled_flags(cfg)[1] is False
+    rows = {r["id"]: r for r in pipeline_step_states(cfg)}
+    for step_id in ("analyze_fillers_pauses", "tighten_from_transcript"):
+        assert rows[step_id]["enabled"] is False
+        assert rows[step_id]["noop_reason"] == "tighten.enabled=false"

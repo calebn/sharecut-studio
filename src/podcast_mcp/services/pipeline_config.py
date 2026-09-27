@@ -59,30 +59,26 @@ def transcribe_run_config(
     return deep_merge(merge_pipeline_config(config), override)
 
 
+FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
+TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
+
+
 def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
     cfg = config if config is not None else load_defaults()
-    focus_on = bool((cfg.get("focus") or {}).get("enabled"))
-    tighten_on = bool((cfg.get("tighten") or {}).get("enabled"))
+    focus_on, tighten_on = editorial_enabled_flags(cfg)
     enabled: set[str] = set()
     for name in ORDERED_STEP_NAMES:
-        meta = step_meta(name)
-        if name in ("analyze_focus_cuts", "focus_from_transcript"):
+        if name in FOCUS_STEPS:
             if focus_on:
                 enabled.add(name)
             continue
-        if name in ("analyze_fillers_pauses", "tighten_from_transcript"):
+        if name in TIGHTEN_STEPS:
             if tighten_on:
                 enabled.add(name)
             continue
-        if meta.enabled_by_default:
+        if step_meta(name).enabled_by_default:
             enabled.add(name)
-    ordered: list[str] = []
-    seen: set[str] = set()
-    for name in ORDERED_STEP_NAMES:
-        if name in enabled and name not in seen:
-            ordered.append(name)
-            seen.add(name)
-    return ordered
+    return order_enabled_steps(enabled)
 
 
 def pipeline_step_states(config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -101,10 +97,6 @@ def pipeline_step_states(config: dict[str, Any] | None = None) -> list[dict[str,
             }
         )
     return out
-
-
-FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
-TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
 
 
 def order_enabled_steps(enabled: set[str]) -> list[str]:
@@ -135,9 +127,9 @@ def reconcile_enabled_steps(
 
 
 def editorial_enabled_flags(config: dict[str, Any]) -> tuple[bool, bool]:
-    """Return ``(focus.enabled, tighten.enabled)`` from a pipeline config."""
-    focus_on = bool((config.get("focus") or {}).get("enabled"))
-    tighten_on = bool((config.get("tighten") or {}).get("enabled"))
+    """Return ``(focus.enabled, tighten.enabled)``: each group's first step ``noop_unless`` gate."""
+    focus_on = step_noop_reason(FOCUS_STEPS[0], config) is None
+    tighten_on = step_noop_reason(TIGHTEN_STEPS[0], config) is None
     return focus_on, tighten_on
 
 

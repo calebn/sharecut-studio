@@ -134,7 +134,7 @@ Each step runs on a private copy of the project. Its changes become visible to c
 
 ## Tighten params
 
-Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-ear bar in [filler-cut-quality.md](filler-cut-quality.md). Manual `propose-edits` / `apply-edits` still read these keys.
+Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-ear bar in [filler-cut-quality.md](filler-cut-quality.md). Manual `propose-edits` / `apply-edits` still read these keys. A config with no `tighten.enabled` key counts as `false` everywhere: the step bodies, the Pipeline checklist defaults and `pipeline list` all read the step's `StepMeta.noop_unless` gate (`pipeline.meta.step_noop_reason`).
 
 | Key | Default | Role |
 |-----|---------|------|
