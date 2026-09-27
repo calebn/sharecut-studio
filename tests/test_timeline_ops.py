@@ -19,6 +19,8 @@ from podcast_mcp.edits.timeline_ops import (
     shorten_word_gaps,
     split_clip,
 )
+from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
     ClipJoinMode,
@@ -602,11 +604,108 @@ def test_shorten_word_gaps() -> None:
     assert summary["operation"] == "shorten_word_gaps"
 
 
-def test_shorten_word_gaps_uses_one_batch_delete() -> None:
+def test_shorten_word_gaps_batches_mapping_but_deletes_right_to_left() -> None:
     p = _two_track_project()
-    with patch("podcast_mcp.edits.timeline_ops.batch_ripple_delete") as batch:
+    p.transcripts[0].words = [
+        TranscriptWord(text="one", start=0.0, end=0.5),
+        TranscriptWord(text="two", start=2.0, end=2.2),
+        TranscriptWord(text="three", start=5.0, end=5.5),
+    ]
+    with (
+        patch.object(
+            SessionTimeline,
+            "map_source_spans",
+            autospec=True,
+            side_effect=SessionTimeline.map_source_spans,
+        ) as map_spans,
+        patch("podcast_mcp.edits.timeline_ops.ripple_delete", wraps=ripple_delete) as delete,
+    ):
         shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
-    assert batch.call_count == 1
+    assert map_spans.call_count == 1
+    assert delete.call_count == 2
+    assert [call.args[1:] for call in delete.call_args_list] == [
+        (2.2, 4.8),
+        (0.5, 1.8),
+    ]
+    assert all(call.kwargs == {"use_inaudible_opt": False} for call in delete.call_args_list)
+    assert [(record.timeline_start, record.timeline_end) for record in p.editorial.edit_log] == [
+        (2.2, 4.8),
+        (0.5, 1.8),
+    ]
+
+    invalidations = record_after_audio_mutation(
+        p,
+        changed_track_ids=["host", "guest"],
+        operation="shorten_word_gaps",
+        new_edit_log=p.editorial.edit_log,
+    )
+    assert [(item.timeline_start, item.timeline_end) for item in invalidations] == [
+        (2.2, 4.8),
+        (0.5, 1.8),
+    ]
+
+
+def test_shorten_word_gaps_preserves_hole_clip_id_fades_and_regional_edits() -> None:
+    p = _two_track_project()
+    p.clips = [
+        Clip(
+            id="upstream",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.4,
+            timeline_start=0.0,
+        ),
+        Clip(
+            id="middle",
+            track_id="host",
+            source_start=0.4,
+            source_end=2.0,
+            timeline_start=0.4,
+        ),
+        Clip(
+            id="late",
+            track_id="host",
+            source_start=4.0,
+            source_end=8.0,
+            timeline_start=3.0,
+        ),
+        Clip(
+            id="guest",
+            track_id="guest",
+            source_start=0.0,
+            source_end=8.0,
+            timeline_start=0.0,
+        ),
+    ]
+    p.transcripts[0].words = [
+        TranscriptWord(text="one", start=0.5, end=0.7),
+        TranscriptWord(text="two", start=1.5, end=1.7),
+    ]
+
+    shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+
+    host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
+    assert host[0].id == "upstream"
+    assert host[0].timeline_start == 0.0
+    assert host[-1].id == "late"
+    assert host[-1].timeline_start == pytest.approx(2.4)
+    assert host[-1].timeline_start - host[-2].timeline_end == pytest.approx(1.0)
+    assert host[1].fade_out_ms > 0
+    assert host[2].fade_in_ms > 0
+    assert [(r.operation, r.timeline_start, r.timeline_end) for r in p.editorial.edit_log] == [
+        ("ripple_delete", pytest.approx(0.7), pytest.approx(1.3))
+    ]
+
+    invalidations = record_after_audio_mutation(
+        p,
+        changed_track_ids=["host", "guest"],
+        operation="shorten_word_gaps",
+        new_edit_log=p.editorial.edit_log,
+    )
+    assert len(invalidations) == 1
+    assert invalidations[0].track_ids == ["host", "guest"]
+    assert invalidations[0].timeline_start == pytest.approx(0.7)
+    assert invalidations[0].timeline_end == pytest.approx(1.3)
 
 
 def test_batch_ripple_empty_ranges() -> None:
