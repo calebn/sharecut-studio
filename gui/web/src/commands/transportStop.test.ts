@@ -80,6 +80,17 @@ describe("transport.stop", () => {
     expect(s().playheadSec).toBe(50);
   });
 
+  it("Space-pause then K returns to the play start", async () => {
+    const s = () => useDawStore.getState();
+    s().setPlayheadSec(12);
+    await execute("transport.togglePlay");
+    s().setPlayheadSec(40);
+    await execute("transport.togglePlay");
+    s().setPlayheadSec(40);
+    await execute("transport.stop");
+    expect(s().playheadSec).toBe(12);
+  });
+
   it("keeps the playhead when nothing has played", async () => {
     useDawStore.setState({ playStartSec: null });
     useDawStore.getState().setPlayheadSec(30);
