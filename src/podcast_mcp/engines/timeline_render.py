@@ -430,12 +430,12 @@ def render_track_segment(
     af = eng.build_track_filter(chain, env)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
-    overlapping: list[tuple[Clip, float, float]] = []
-    for clip in track_clips:
+    overlapping: list[tuple[int, Clip, float, float]] = []
+    for clip_i, clip in enumerate(track_clips):
         ov_tl_start = max(timeline_start, clip.timeline_start)
         ov_tl_end = min(timeline_end, clip.timeline_end)
         if ov_tl_end > ov_tl_start:
-            overlapping.append((clip, ov_tl_start, ov_tl_end))
+            overlapping.append((clip_i, clip, ov_tl_start, ov_tl_end))
 
     if not overlapping:
         raise ValueError(
@@ -444,7 +444,7 @@ def render_track_segment(
 
     placed: list[PlacedSegment] = []
     timeline_cursor = timeline_start
-    for clip, ov_tl_start, ov_tl_end in overlapping:
+    for clip_i, clip, ov_tl_start, ov_tl_end in overlapping:
         src_bounds = clip_timeline_overlap_to_source(clip, ov_tl_start, ov_tl_end)
         if src_bounds is None:
             continue
@@ -456,7 +456,6 @@ def render_track_segment(
             track.id,
         )
 
-        clip_i = track_clips.index(clip)
         prev = track_clips[clip_i - 1] if clip_i > 0 else None
         nxt = track_clips[clip_i + 1] if clip_i + 1 < len(track_clips) else None
         crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
