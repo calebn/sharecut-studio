@@ -72,6 +72,44 @@ describe("applyDocumentSnapshot", () => {
     expect(useDawStore.getState().project?.tracks[0]?.id).toBe("a");
   });
 
+  it("keeps the newer envelope by identity when a stale peer snapshot races an own HTTP apply", () => {
+    resetDocumentSeqForTests();
+    const env = (value: number) => ({
+      track_id: "host",
+      parameter: "volume",
+      points: [{ id: "p1", time: 0, value }],
+    });
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ envelopes: [env(1)] }));
+    // The own HTTP command result lands first, at seq 5.
+    applyDocumentSnapshot(
+      { server_seq: 5, project: minimalProject({ envelopes: [env(1.5)] }) },
+      { commandClientId: documentClientId() },
+    );
+    const newer = useDawStore.getState().project!.envelopes[0];
+    expect(newer?.points[0]?.value).toBe(1.5);
+    // A peer snapshot from before that command arrives late over WS.
+    applyDocumentSnapshot(
+      { server_seq: 4, project: minimalProject({ envelopes: [env(1)] }) },
+      { commandClientId: "peer-client" },
+    );
+    expect(useDawStore.getState().project!.envelopes[0]).toBe(newer);
+    // The WS echo of the own command at the same seq is skipped.
+    applyDocumentSnapshot(
+      { server_seq: 5, project: minimalProject({ envelopes: [env(1.5)] }) },
+      { commandClientId: documentClientId() },
+    );
+    expect(useDawStore.getState().project!.envelopes[0]).toBe(newer);
+    // A peer update at the current seq with equal content applies, and
+    // reuseUnchanged keeps the envelope's identity.
+    applyDocumentSnapshot(
+      { server_seq: 5, project: minimalProject({ envelopes: [env(1.5)] }) },
+      { commandClientId: "peer-client" },
+    );
+    expect(useDawStore.getState().project!.envelopes[0]).toBe(newer);
+  });
+
   it("refetches shell when snapshot.resync is set", async () => {
     resetDocumentSeqForTests();
     useDawStore
