@@ -23,10 +23,10 @@ from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
-    GUEST_SHARE_RECHECK_ON_FRAME_S,
-    GUEST_SHARE_RECHECK_S,
     GuestWsGuard,
+    admit_guest_ws,
     guest_ws_reject,
+    guest_ws_share_row,
 )
 from podcast_mcp.gui.routes.session import apply_ws_client_message
 from podcast_mcp.gui.routes.share_common import (
@@ -753,51 +753,47 @@ async def _pump_guest_progress(
         raise
 
 
-@router.websocket("/api/review/{token}/progress/ws")
-async def progress_ws(websocket: WebSocket, token: str) -> None:
-    """Progress plane only — valid review token, no ``view`` capability required."""
-    try:
-        row = lookup_share(token, kind="review")
-    except KeyError:
-        await guest_ws_reject(websocket, 4403, "invalid or revoked share token")
-        return
+async def _admit_review_ws(websocket: WebSocket, token: str) -> bool | None:
+    """Review-socket preamble: token, authz, restricted origin/principal.
+
+    Returns the share's ``restricted`` flag, or ``None`` after a reject close
+    (callers must test ``is None`` — ``False`` means an open share).
+    """
+    row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_REVIEW)
+    if row is None:
+        return None
     decision = authorize_share_token(token=token, expected_token=row.get("token"))
     if not decision.allowed:
         await guest_ws_reject(websocket, 4403, decision.reason or "forbidden")
-        return
+        return None
     restricted = access_required(row)
     if restricted:
         if not guest_restricted_origin_allowed(websocket.headers.get("origin")):
             await guest_ws_reject(websocket, 4403, "Origin not allowed")
-            return
+            return None
         if not _restricted_principal_ok(websocket, token):
             await guest_ws_reject(websocket, 4401, "authentication required")
-            return
-    gate_held = False
+            return None
+    return restricted
+
+
+@router.websocket("/api/review/{token}/progress/ws")
+async def progress_ws(websocket: WebSocket, token: str) -> None:
+    """Progress plane only — valid review token, no ``view`` capability required."""
+    restricted = await _admit_review_ws(websocket, token)
+    if restricted is None:
+        return
+    conn = await admit_guest_ws(websocket, token, log_label="guest progress ws")
+    if conn is None:
+        return
     hub = guest_progress_hub()
     q: asyncio.Queue[dict[str, Any]] | None = None
-    pump: asyncio.Task[None] | None = None
-    recheck_task: asyncio.Task[None] | None = None
     try:
-        if host_rate_limit_enabled():
-            lim = get_host_limiters()
-            gate = lim.guest_ws_concurrent.try_enter(token)
-            if not gate.allowed:
-                await guest_ws_reject(websocket, 4429, "guest ws concurrency limit")
-                return
-            gate_held = True
-        await websocket.accept()
-        loop = asyncio.get_running_loop()
-        q = hub.subscribe(token, loop)
-        guard = GuestWsGuard(
-            websocket,
-            lambda: _share_progress_still_valid(token, restricted=restricted, websocket=websocket),
-            interval=GUEST_SHARE_RECHECK_S,
-            on_frame=GUEST_SHARE_RECHECK_ON_FRAME_S,
-            malformed_limit=GUEST_MALFORMED_LIMIT,
+        guard = await conn.start(
+            lambda: _share_progress_still_valid(token, restricted=restricted, websocket=websocket)
         )
-        pump = asyncio.create_task(_pump_guest_progress(token, guard, q))
-        recheck_task = asyncio.create_task(guard.recheck_loop())
+        q = hub.subscribe(token, asyncio.get_running_loop())
+        conn.spawn(_pump_guest_progress(token, guard, q))
         while True:
             try:
                 text = await websocket.receive_text()
@@ -810,18 +806,12 @@ async def progress_ws(websocket: WebSocket, token: str) -> None:
                 await guard.close(4403, "share revoked or expired")
                 break
     finally:
-        if q is not None:
-            hub.unsubscribe(token, q)
-        for task in (pump, recheck_task):
-            if task is not None:
-                task.cancel()
-        for task in (pump, recheck_task):
-            if task is None:
-                continue
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
-        if gate_held:
-            get_host_limiters().guest_ws_concurrent.exit(token)
+        try:
+            if q is not None:
+                hub.unsubscribe(token, q)
+            await conn.stop_tasks()
+        finally:
+            conn.release()
 
 
 @router.websocket("/api/review/{token}/daw/ws")
@@ -832,27 +822,12 @@ async def daw_ws(
     name: str | None = Query(None),
 ) -> None:
     """Guest Sharecut Studio dual-plane fanout (Presence inbound; share-token auth)."""
-    try:
-        row = lookup_share(token, kind="review")
-    except KeyError:
-        await guest_ws_reject(websocket, 4403, "invalid or revoked share token")
+    restricted = await _admit_review_ws(websocket, token)
+    if restricted is None:
         return
-    decision = authorize_share_token(token=token, expected_token=row.get("token"))
-    if not decision.allowed:
-        await guest_ws_reject(websocket, 4403, decision.reason or "forbidden")
-        return
-    restricted = access_required(row)
-    if restricted:
-        if not guest_restricted_origin_allowed(websocket.headers.get("origin")):
-            await guest_ws_reject(websocket, 4403, "Origin not allowed")
-            return
-        if not _restricted_principal_ok(websocket, token):
-            await guest_ws_reject(websocket, 4401, "authentication required")
-            return
-    else:
-        origin = websocket.headers.get("origin")
-        if origin:
-            log.debug("guest ws origin token=%s origin=%s", token[:8], origin)
+    origin = websocket.headers.get("origin")
+    if not restricted and origin:
+        log.debug("guest ws origin token=%s origin=%s", token[:8], origin)
     try:
         _row, ws_proj = require_share_cap(token, CAP_VIEW)
     except PermissionError as exc:
@@ -862,14 +837,9 @@ async def daw_ws(
         await guest_ws_reject(websocket, 4403, "share not found")
         return
 
-    gate_held = False
-    if host_rate_limit_enabled():
-        lim = get_host_limiters()
-        gate = lim.guest_ws_concurrent.try_enter(token)
-        if not gate.allowed:
-            await guest_ws_reject(websocket, 4429, "guest ws concurrency limit")
-            return
-        gate_held = True
+    conn = await admit_guest_ws(websocket, token, log_label="guest ws")
+    if conn is None:
+        return
 
     hub = get_hub()
     session_key = str(ws_proj.project.workspace_path())
@@ -878,23 +848,13 @@ async def daw_ws(
     q_doc = None
     q_progress = None
     progress_hub = guest_progress_hub()
-    session_task: asyncio.Task[None] | None = None
-    doc_task: asyncio.Task[None] | None = None
-    progress_pump_task: asyncio.Task[None] | None = None
-    recheck_task: asyncio.Task[None] | None = None
     session_svc: SessionSyncService | None = None
     guest_client_id: str | None = None
     conn_gen: int | None = None
-    guard: GuestWsGuard | None = None
 
     try:
-        await websocket.accept()
-        guard = GuestWsGuard(
-            websocket,
-            lambda: _share_still_valid(token, restricted=restricted, websocket=websocket),
-            interval=GUEST_SHARE_RECHECK_S,
-            on_frame=GUEST_SHARE_RECHECK_ON_FRAME_S,
-            malformed_limit=GUEST_MALFORMED_LIMIT,
+        guard = await conn.start(
+            lambda: _share_still_valid(token, restricted=restricted, websocket=websocket)
         )
         loop = asyncio.get_running_loop()
         q_session = hub.subscribe(session_key, loop)
@@ -939,7 +899,7 @@ async def daw_ws(
         )
 
         async def _pump_session() -> None:
-            assert q_session is not None and guest_client_id is not None and guard is not None
+            assert q_session is not None and guest_client_id is not None
             try:
                 while True:
                     event = await q_session.get()
@@ -957,7 +917,7 @@ async def daw_ws(
                 raise
 
         async def _pump_document() -> None:
-            assert q_doc is not None and guard is not None
+            assert q_doc is not None
             try:
                 while True:
                     event = await q_doc.get()
@@ -970,10 +930,9 @@ async def daw_ws(
                     await guard.close(1011, "document pump failed")
                 raise
 
-        session_task = asyncio.create_task(_pump_session())
-        doc_task = asyncio.create_task(_pump_document())
-        progress_pump_task = asyncio.create_task(_pump_guest_progress(token, guard, q_progress))
-        recheck_task = asyncio.create_task(guard.recheck_loop())
+        conn.spawn(_pump_session())
+        conn.spawn(_pump_document())
+        conn.spawn(_pump_guest_progress(token, guard, q_progress))
         while True:
             try:
                 text = await websocket.receive_text()
@@ -1000,25 +959,15 @@ async def daw_ws(
                 await guard.close(4400, close_reason)
                 break
     finally:
-        if q_session is not None:
-            hub.unsubscribe(session_key, q_session)
-        if q_doc is not None:
-            hub.unsubscribe(doc_key, q_doc)
-        if q_progress is not None:
-            progress_hub.unsubscribe(token, q_progress)
-        for task in (session_task, doc_task, progress_pump_task, recheck_task):
-            if task is not None:
-                task.cancel()
-        for task in (session_task, doc_task, progress_pump_task, recheck_task):
-            if task is None:
-                continue
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                log.exception("guest ws pump exit token=%s", token[:8])
-        if session_svc is not None and guest_client_id is not None:
-            session_svc.remove_client(guest_client_id, generation=conn_gen)
-        if gate_held:
-            get_host_limiters().guest_ws_concurrent.exit(token)
+        try:
+            if q_session is not None:
+                hub.unsubscribe(session_key, q_session)
+            if q_doc is not None:
+                hub.unsubscribe(doc_key, q_doc)
+            if q_progress is not None:
+                progress_hub.unsubscribe(token, q_progress)
+            await conn.stop_tasks()
+            if session_svc is not None and guest_client_id is not None:
+                session_svc.remove_client(guest_client_id, generation=conn_gen)
+        finally:
+            conn.release()

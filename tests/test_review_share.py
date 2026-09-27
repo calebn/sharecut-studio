@@ -1015,13 +1015,10 @@ def test_guest_daw_ws_rejects_invalid_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     client = TestClient(create_app())
-    try:
-        with client.websocket_connect("/api/review/no-such-token/daw/ws") as ws:
-            ws.receive_json()
-            raise AssertionError("expected websocket close")
-    except Exception as exc:
-        # Starlette raises WebSocketDisconnect / RuntimeError on denied connect
-        assert "4403" in str(exc) or "1000" in str(exc) or "disconnect" in str(exc).lower() or True
+    with client.websocket_connect("/api/review/no-such-token/daw/ws") as ws:
+        payload = ws.receive()
+    assert payload["code"] == 4403
+    assert payload["reason"] == "invalid or revoked share token"
 
 
 def test_guest_daw_ws_requires_view_cap(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -1485,7 +1482,7 @@ def test_guest_daw_ws_malformed_and_oversize(
 
 def test_guest_daw_ws_revocation_recheck(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.review_share.GUEST_SHARE_RECHECK_ON_FRAME_S",
+        "podcast_mcp.gui.routes.guest_ws_common.GUEST_SHARE_RECHECK_ON_FRAME_S",
         0.0,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1514,7 +1511,7 @@ def test_guest_daw_ws_revocation_recheck_idle(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.review_share.GUEST_SHARE_RECHECK_S",
+        "podcast_mcp.gui.routes.guest_ws_common.GUEST_SHARE_RECHECK_S",
         0.05,
     )
     ws = _seed_premix(minimal_project, sample_wav)

@@ -440,7 +440,6 @@ def test_removed_guest_ws_closes_when_idle_without_room_event(
     import asyncio
 
     from podcast_mcp.gui.routes import record_share
-    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
 
     class QuietHub:
         def subscribe(self, _key, _loop):
@@ -449,13 +448,9 @@ def test_removed_guest_ws_closes_when_idle_without_room_event(
         def unsubscribe(self, _key, _queue):
             return None
 
-    class FastGuard(GuestWsGuard):
-        def __init__(self, websocket, still_valid, *, send_gate):
-            super().__init__(websocket, still_valid, interval=0.01, send_gate=send_gate)
-
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     monkeypatch.setattr(record_share, "get_hub", lambda: QuietHub())
-    monkeypatch.setattr(record_share, "GuestWsGuard", FastGuard)
+    monkeypatch.setattr("podcast_mcp.gui.routes.guest_ws_common.GUEST_SHARE_RECHECK_S", 0.01)
     token = room["guest"]["token"]
     with client.websocket_connect(f"/api/rec/{token}/ws") as removed:
         _join(removed, name="Ava")
@@ -871,46 +866,43 @@ def test_record_ws_reject_paths(minimal_project, sample_wav, tmp_workspace, monk
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
     from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
+    from podcast_mcp.gui.routes import guest_ws_common as gwc
     from podcast_mcp.gui.routes import record_share as rec_mod
     from podcast_mcp.services.share import lookup_share
 
     row = lookup_share(token, kind=SHARE_KIND_RECORD)
+
+    def _patch_lookup(fn):
+        monkeypatch.setattr(rec_mod, "lookup_share", fn)
+        monkeypatch.setattr(gwc, "lookup_share", fn)
 
     def _no_monitor(tok, kind=None):
         out = dict(row)
         out["capabilities"] = ["join"]
         return out
 
-    monkeypatch.setattr(rec_mod, "lookup_share", _no_monitor)
+    _patch_lookup(_no_monitor)
     try:
         with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
             sock.receive_json()
             raise AssertionError("expected close")
     except Exception:
         pass
-    monkeypatch.setattr(
-        rec_mod,
-        "lookup_share",
-        lambda tok, kind=None: {**row, "role": "host"},
-    )
+    _patch_lookup(lambda tok, kind=None: {**row, "role": "host"})
     try:
         with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
             sock.receive_json()
             raise AssertionError("expected close")
     except Exception:
         pass
-    monkeypatch.setattr(
-        rec_mod,
-        "lookup_share",
-        lambda tok, kind=None: {**row, "session_id": ""},
-    )
+    _patch_lookup(lambda tok, kind=None: {**row, "session_id": ""})
     try:
         with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
             sock.receive_json()
             raise AssertionError("expected close")
     except Exception:
         pass
-    monkeypatch.setattr(rec_mod, "lookup_share", lambda tok, kind=None: row)
+    _patch_lookup(lambda tok, kind=None: row)
 
     def _gone(*_a, **_k):
         raise FileNotFoundError("gone")
@@ -924,11 +916,7 @@ def test_record_ws_reject_paths(minimal_project, sample_wav, tmp_workspace, monk
         pass
     from podcast_mcp.gui.routes.record_share import _record_still_valid
 
-    monkeypatch.setattr(
-        rec_mod,
-        "lookup_share",
-        lookup_share,
-    )
+    _patch_lookup(lookup_share)
     assert _record_still_valid(token) is True
     ShareService(ws).revoke_room(room["session_id"])
     assert _record_still_valid(token) is False
@@ -936,6 +924,7 @@ def test_record_ws_reject_paths(minimal_project, sample_wav, tmp_workspace, monk
 
 
 def test_record_ws_rate_limit_skips_frames(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    from podcast_mcp.gui.routes import guest_ws_common as gwc
     from podcast_mcp.gui.routes import record_share as rec_mod
 
     class _Dec:
@@ -962,6 +951,8 @@ def test_record_ws_rate_limit_skips_frames(minimal_project, sample_wav, tmp_work
     token = room["guest"]["token"]
     monkeypatch.setattr(rec_mod, "host_rate_limit_enabled", lambda: True)
     monkeypatch.setattr(rec_mod, "get_host_limiters", lambda: _Limiters())
+    monkeypatch.setattr(gwc, "host_rate_limit_enabled", lambda: True)
+    monkeypatch.setattr(gwc, "get_host_limiters", lambda: _Limiters())
     try:
         with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
             sock.receive_json()
@@ -994,6 +985,7 @@ def test_record_ws_rate_limit_skips_frames(minimal_project, sample_wav, tmp_work
         guest_ws_record_token = _Always()
 
     monkeypatch.setattr(rec_mod, "get_host_limiters", lambda: _SkipFirst())
+    monkeypatch.setattr(gwc, "get_host_limiters", lambda: _SkipFirst())
     with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
         _join(sock, name="Skip")
         _join(sock, name="Ava")
