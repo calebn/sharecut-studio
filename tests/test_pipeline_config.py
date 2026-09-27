@@ -16,6 +16,7 @@ from podcast_mcp.pipeline.meta import (
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
 from podcast_mcp.services.pipeline_config import (
     asr_options_for,
+    config_assignment_paths,
     config_assignments,
     config_store,
     deep_merge,
@@ -844,6 +845,16 @@ def test_config_assignments_round_trips() -> None:
     round_tripped = parse_config_assignments(assignments)
     assert round_tripped == patches
     assert config_assignments({}) == []
+
+
+def test_config_assignment_paths() -> None:
+    patches = {
+        "focus": {"enabled": True},
+        "effects": {"gate": [{"effect": "agate"}]},
+        "a=b": {"c": 1},
+    }
+    assert config_assignment_paths(patches) == ["focus.enabled", "effects.gate", "a=b.c"]
+    assert config_assignment_paths({}) == []
 
 
 def test_pipeline_step_states_rows():

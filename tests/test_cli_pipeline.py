@@ -131,6 +131,7 @@ def test_pipeline_config_shows_overrides():
     assert "focus.enabled = true *" in result.stdout
     focus_line = next(line for line in result.stdout.splitlines() if "analyze_focus_cuts" in line)
     assert "enabled" in focus_line and "no-op" not in focus_line
+    assert "pass the same --set to podcast pipeline run to use these values" in result.stdout
 
 
 def test_pipeline_config_json():

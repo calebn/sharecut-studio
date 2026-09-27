@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -685,13 +685,21 @@ def parse_config_assignments(assignments: Sequence[str]) -> dict[str, Any]:
     return out
 
 
-def config_assignments(patches: Mapping[str, Any], prefix: str = "") -> list[str]:
-    """Flatten a nested patch dict into ``path=json_value`` assignments (inverse of parsing)."""
-    out: list[str] = []
+def _config_leaves(patches: Mapping[str, Any], prefix: str = "") -> Iterator[tuple[str, Any]]:
+    """Yield ``(dotted_path, value)`` for each leaf of a nested patch dict."""
     for key, value in patches.items():
         path = f"{prefix}.{key}" if prefix else key
         if isinstance(value, Mapping) and value:
-            out.extend(config_assignments(value, path))
+            yield from _config_leaves(value, path)
         else:
-            out.append(f"{path}={json.dumps(value)}")
-    return out
+            yield path, value
+
+
+def config_assignments(patches: Mapping[str, Any]) -> list[str]:
+    """Flatten a nested patch dict into ``path=json_value`` assignments (inverse of parsing)."""
+    return [f"{path}={json.dumps(value)}" for path, value in _config_leaves(patches)]
+
+
+def config_assignment_paths(patches: Mapping[str, Any]) -> list[str]:
+    """Dotted leaf paths of a nested patch dict (the keys ``config_assignments`` would emit)."""
+    return [path for path, _value in _config_leaves(patches)]
