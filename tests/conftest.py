@@ -216,3 +216,39 @@ def pinned_media_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(os, "supports_dir_fd", set())
     monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", True)
     assert not pinned_media.descriptor_walk_supported()
+
+
+@pytest.fixture
+def raising_stop_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``GuestWsConnection.stop_tasks`` run its real teardown, then raise.
+
+    Guest WebSocket cleanup tests use this to prove that the concurrency slot and
+    session presence are still released when task teardown fails.
+    """
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsConnection
+
+    real_stop = GuestWsConnection.stop_tasks
+
+    async def _stop_then_raise(self: GuestWsConnection) -> None:
+        await real_stop(self)
+        raise RuntimeError("stop_tasks boom")
+
+    monkeypatch.setattr(GuestWsConnection, "stop_tasks", _stop_then_raise)
+
+
+@pytest.fixture
+def removed_session_clients(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Spy on ``SessionSyncService.remove_client`` and return the removed client ids in call order."""
+    from podcast_mcp.services.session_sync.service import SessionSyncService
+
+    removed: list[str] = []
+    real_remove = SessionSyncService.remove_client
+
+    def _spy_remove(
+        self: SessionSyncService, client_id: str, *, generation: int | None = None
+    ) -> None:
+        removed.append(client_id)
+        real_remove(self, client_id, generation=generation)
+
+    monkeypatch.setattr(SessionSyncService, "remove_client", _spy_remove)
+    return removed

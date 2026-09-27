@@ -1117,35 +1117,19 @@ def test_guest_daw_ws_rate_limit_disabled(minimal_project, sample_wav, tmp_works
         assert guest_ws.receive_json()["plane"] in {"session", "document"}
 
 
+@pytest.mark.usefixtures("raising_stop_tasks")
 def test_guest_daw_ws_cleanup_runs_when_stop_tasks_raises(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, removed_session_clients
 ):
     import contextlib
 
-    from podcast_mcp.gui.routes.guest_ws_common import GuestWsConnection
     from podcast_mcp.services.remote_mcp.limits import (
         get_host_limiters,
         reset_host_limiters_for_tests,
     )
-    from podcast_mcp.services.session_sync.service import SessionSyncService
 
     monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
     reset_host_limiters_for_tests()
-    real_stop = GuestWsConnection.stop_tasks
-
-    async def _stop_then_raise(self):
-        await real_stop(self)
-        raise RuntimeError("stop_tasks boom")
-
-    monkeypatch.setattr(GuestWsConnection, "stop_tasks", _stop_then_raise)
-    removed: list[str] = []
-    real_remove = SessionSyncService.remove_client
-
-    def _spy_remove(self, client_id, *, generation=None):
-        removed.append(client_id)
-        real_remove(self, client_id, generation=generation)
-
-    monkeypatch.setattr(SessionSyncService, "remove_client", _spy_remove)
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="StopRaises")
     share = ShareService(ws).create(
@@ -1158,7 +1142,7 @@ def test_guest_daw_ws_cleanup_runs_when_stop_tasks_raises(
         with client.websocket_connect(f"/api/review/{token}/daw/ws?client_id=g1") as guest_ws:
             assert guest_ws.receive_json()["plane"] in {"session", "document"}
             assert guest_ws.receive_json()["plane"] in {"session", "document"}
-    assert len(removed) == 1
+    assert len(removed_session_clients) == 1
     lim = get_host_limiters()
     assert lim.guest_ws_concurrent.try_enter(token).allowed  # slot was released
     lim.guest_ws_concurrent.exit(token)
