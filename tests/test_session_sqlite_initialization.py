@@ -123,7 +123,11 @@ def test_wal_initialization_retries_while_another_process_holds_the_lock(
     sleep.assert_called_once_with(session_sqlite._WAL_INIT_RETRY_SEC)
     connection.close.assert_not_called()
     connect.assert_called_once_with(
-        str(tmp_path / "sync.db"), check_same_thread=False, isolation_level=None, timeout=0
+        str(tmp_path / "sync.db"),
+        check_same_thread=False,
+        isolation_level=None,
+        timeout=0,
+        uri=False,
     )
     connection.execute.assert_called_with(session_sqlite.DEFAULT_BUSY_TIMEOUT_PRAGMA)
 
@@ -208,3 +212,20 @@ def test_wal_init_lock_is_kept_when_the_switch_fails(
         session_sqlite.connect_session_db(db_path)
     assert session_sqlite._wal_init_key(db_path) in session_sqlite._WAL_INIT_LOCKS
     session_sqlite._WAL_INIT_LOCKS.discard_idle(session_sqlite._wal_init_key(db_path))
+
+
+def test_connect_session_db_without_create_never_creates_the_file(tmp_path) -> None:
+    path = tmp_path / "missing.db"
+    with pytest.raises(sqlite3.OperationalError):
+        session_sqlite.connect_session_db(path, create=False)
+    assert not path.exists()
+
+
+def test_connect_session_db_without_create_opens_an_existing_file(tmp_path) -> None:
+    path = tmp_path / "sync.db"
+    session_sqlite.connect_session_db(path).close()
+    conn = session_sqlite.connect_session_db(path, create=False)
+    try:
+        assert str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal"
+    finally:
+        conn.close()
