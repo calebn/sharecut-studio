@@ -34,6 +34,10 @@ The `Templates/TimelineRange` story shows the production audition and comment
 selection overlays with the prop-only `PlayheadNeedle` in a 360px timeline
 well. The live `Playhead` keeps the DAW store subscription and moves its needle
 through a direct transform update during playback.
+`Templates/CommentCard`, `Templates/CommentCompose`, and
+`Templates/GhostWordChips` show the shipped comment and transcript preview
+components with fictional, local-only state, including 360px phone variants.
+They do not mount the live comment panel or transcript utterance rows.
 
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
