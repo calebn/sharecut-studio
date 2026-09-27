@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ClipRow } from "../types/project";
 import {
+  clipIdsBeforeCut,
   cutFadeHint,
   isCrossfadeJoin,
   isCutJoin,
@@ -62,6 +63,16 @@ describe("joinRender", () => {
 });
 
 describe("join mode helpers", () => {
+  it("finds clips whose next join is a cut", () => {
+    const ids = clipIdsBeforeCut([
+      { join_in_mode: "fade", join_left_clip_id: null },
+      { join_in_mode: "cut", join_left_clip_id: "c1" },
+      { join_in_mode: "fade", join_left_clip_id: "c2" },
+      { join_in_mode: "cut", join_left_clip_id: null },
+    ]);
+    expect([...ids]).toEqual(["c1"]);
+  });
+
   it("classifies join modes", () => {
     expect(isCutJoin({ join_in_mode: "cut" })).toBe(true);
     expect(isCutJoin({ join_in_mode: "fade" })).toBe(false);

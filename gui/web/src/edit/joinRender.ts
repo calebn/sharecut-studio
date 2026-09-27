@@ -26,6 +26,19 @@ export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
   return clip.join_in_mode === "crossfade";
 }
 
+/** Ids of clips whose outgoing join is a cut (render drops their fade-out). */
+export function clipIdsBeforeCut(
+  clips: Pick<ClipRow, "join_in_mode" | "join_left_clip_id">[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const c of clips) {
+    if (isCutJoin(c) && c.join_left_clip_id) {
+      ids.add(c.join_left_clip_id);
+    }
+  }
+  return ids;
+}
+
 /** Why inspector fade inputs are ignored at cut joins, or null. */
 export function cutFadeHint(cutIn: boolean, cutOut: boolean): string | null {
   if (cutIn && cutOut) {
