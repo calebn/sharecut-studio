@@ -90,6 +90,11 @@ audio. `mix_with_music` is not in `PipelineRunner.AUDIO_AFFECTING_STEPS`: it onl
 music/intro/outro envelopes and stems and mixes (#621). A clean full run therefore
 exports with `reconciliation.stale: false`. `export_qc.json` still reports staleness if
 anything changed dialogue audio after pass 2 (an edit, FX, a partial `--from` run).
+Inline re-assembles outside the runner (`ensure_current_premix` before mastering,
+`mix_with_music` when `track_outputs.json` is missing) do not set the flag: they
+re-render the dialogue state `audio_state_fingerprint()` already hashes, so a real
+dialogue change still reads stale via `last_reconciliation_hash`, and a music-only
+remix does not.
 `export_deliverables` writes
 `artifacts/export_qc.json` with the current `reconciliation_status()` and an explicit
 issue message when stale, specifically so this doesn't ship unnoticed. See
