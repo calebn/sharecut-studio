@@ -103,6 +103,8 @@ its docstring).
 Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
 `mix_render_hash`.
 
+The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line: render status and review publish have no run config (the GUI Pipeline tab's per-project override lives in the GUI process), so they compare the premix against the ceiling it was mixed under and only a volume, mute or mix-rule change reads as stale.
+
 ## Dialogue gain staging (`balance_tracks`)
 
 `balance_tracks` runs after `compress_tracks`. It measures each dialogue track through its

@@ -39,6 +39,7 @@ from podcast_mcp.engines.play_audit import (
     premix_stale_vs_mix,
     premix_stale_vs_stems,
     read_mastered_hash,
+    read_premix_ceiling_db,
     read_premix_hash,
     track_render_hash,
     write_premix_hash,
@@ -307,6 +308,35 @@ def test_a_peak_ceiling_change_stales_the_premix(minimal_project: Path) -> None:
     assert premix_stale_vs_mix(ws.project, same) is False
     assert premix_stale_vs_mix(ws.project, lower) is True
     assert premix_is_stale(ws.project, lower) is True
+
+
+def test_without_a_config_the_premix_is_judged_by_its_recorded_ceiling(
+    minimal_project: Path,
+) -> None:
+    ws = _two_tracks(minimal_project)
+    _fake_premix(ws)
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-3.0)
+    assert read_premix_ceiling_db(ws.project) == -3.0
+    assert read_premix_hash(ws.project) == mix_render_hash(mix_gains(ws.project), -3.0)
+    # Render status and review publish pass no config: a per-project override isn't stale.
+    assert premix_stale_vs_mix(ws.project) is False
+    assert premix_is_stale(ws.project) is False
+    assert render_status_report(ws.project)["premix"]["stale_vs_mix"] is False
+    # A run's config still compares its own ceiling.
+    assert premix_stale_vs_mix(ws.project, {"mix": {"premix_peak_ceiling_db": -1.0}}) is True
+    # A saved volume change still stales it.
+    ws.project.track_by_id("host").fader_db = -2.0
+    assert premix_stale_vs_mix(ws.project) is True
+
+
+def test_a_premix_hash_without_a_ceiling_reads_the_default(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fake_premix(ws)
+    premix_hash_path(ws.project).write_text(
+        mix_render_hash(mix_gains(ws.project), -1.0) + "\n", encoding="utf-8"
+    )
+    assert read_premix_ceiling_db(ws.project) is None
+    assert premix_stale_vs_mix(ws.project) is False
 
 
 def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(

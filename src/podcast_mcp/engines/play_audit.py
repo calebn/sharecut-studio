@@ -346,15 +346,40 @@ def premix_hash_path(project: EpisodeProject) -> Path:
     return project.artifacts_dir() / PREMIX_HASH_NAME
 
 
+def _premix_sidecar(project: EpisodeProject) -> list[str]:
+    """``premix.hash`` split into ``[mix hash, peak ceiling dBTP]`` (older files: hash only)."""
+    raw = _read_hash(premix_hash_path(project))
+    return raw.split() if raw else []
+
+
 def read_premix_hash(project: EpisodeProject) -> str | None:
-    return _read_hash(premix_hash_path(project))
+    parts = _premix_sidecar(project)
+    return parts[0] if parts else None
+
+
+def read_premix_ceiling_db(project: EpisodeProject) -> float | None:
+    """The true-peak ceiling ``premix.wav`` was mixed under, or None when not recorded."""
+    parts = _premix_sidecar(project)
+    if len(parts) < 2:
+        return None
+    try:
+        return float(parts[1])
+    except ValueError:
+        return None
 
 
 def write_premix_hash(
     project: EpisodeProject, gains: Mapping[str, float], *, peak_ceiling_db: float | None = None
 ) -> str:
-    """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``)."""
-    return _write_hash(premix_hash_path(project), mix_render_hash(gains, peak_ceiling_db))
+    """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``).
+
+    The sidecar holds the mix hash, then the peak ceiling it was mixed under, so a
+    caller without the run's config can still judge the premix (``premix_stale_vs_mix``).
+    """
+    ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
+    h = mix_render_hash(gains, ceiling)
+    write_text_atomic(premix_hash_path(project), f"{h}\n{round(ceiling, 2)}\n")
+    return h
 
 
 def clear_premix_hash(project: EpisodeProject) -> None:
@@ -368,14 +393,22 @@ def premix_stale_vs_mix(project: EpisodeProject, defaults: Mapping[str, Any] | N
     stale once a fader moves off 0 dB. It also counts stale once a track is
     muted: older mixes skipped muted tracks too, but nothing records which,
     so a project with a hand-set mute re-mixes once. ``defaults`` is the pipeline config
-    whose ``mix.premix_peak_ceiling_db`` the premix must match (None = ``load_defaults()``).
+    whose ``mix.premix_peak_ceiling_db`` the premix must match. With None (render status,
+    review publish: no run config at hand) the ceiling recorded in ``premix.hash`` is used,
+    falling back to ``load_defaults()`` for a hash without one, so a per-project ceiling
+    override doesn't read as stale.
     """
     if not premix_path(project).is_file():
         return False
     stored = read_premix_hash(project)
     if stored is None:
         return any(t.fader_db or t.muted for t in project.tracks if t.media)
-    return stored != mix_render_hash(mix_gains(project), mix_peak_ceiling_db(defaults))
+    if defaults is None:
+        recorded = read_premix_ceiling_db(project)
+        ceiling = mix_peak_ceiling_db() if recorded is None else recorded
+    else:
+        ceiling = mix_peak_ceiling_db(defaults)
+    return stored != mix_render_hash(mix_gains(project), ceiling)
 
 
 def _mtime(path: Path) -> float | None:
@@ -410,7 +443,8 @@ def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None 
     Covers the saved mix (volume, mute), a stem rendered after the premix, and a
     rendered stem the mix plays that's behind its edits, clips or FX, in one pass
     over the mixed stems. A missing stem is unknown rather than stale, and no
-    premix is not stale: callers check that it exists.
+    premix is not stale: callers check that it exists. ``defaults`` works as in
+    ``premix_stale_vs_mix``.
     """
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
