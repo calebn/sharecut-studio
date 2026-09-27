@@ -302,6 +302,99 @@ describe("usePipelineJob", () => {
     }
   });
 
+  it("cancels the pending reconnect when the down poll sees nothing running", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    const running = {
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse;
+    loadPipelineStatus
+      .mockResolvedValueOnce(running) // bootstrap
+      .mockResolvedValueOnce(running) // onerror re-check arms the 2s reconnect
+      .mockResolvedValue({
+        running: false,
+        job: job({ status: "ok" }),
+        jobs: [job({ status: "ok" })],
+        running_count: 0,
+      } satisfies PipelineStatusResponse);
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, vi.fn(), { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      act(() => {
+        FakeEventSource.instances.at(-1)!.onerror?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000); // down poll: not running
+      });
+      const n = loadPipelineStatus.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeEventSource.instances.length).toBe(1);
+      expect(loadPipelineStatus).toHaveBeenCalledTimes(n);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a down-poll result that resolves after a stream reattached", async () => {
+    vi.useFakeTimers();
+    const pipe = job();
+    const running = {
+      running: true,
+      job: pipe,
+      jobs: [pipe],
+      running_count: 1,
+    } satisfies PipelineStatusResponse;
+    let resolveLate: (st: PipelineStatusResponse) => void = () => {};
+    loadPipelineStatus
+      .mockResolvedValueOnce(running) // bootstrap
+      .mockResolvedValueOnce(running) // onerror re-check arms the 2s reconnect
+      .mockResolvedValueOnce(running) // 1s down poll
+      .mockImplementationOnce(
+        () =>
+          new Promise<PipelineStatusResponse>((resolve) => {
+            resolveLate = resolve;
+          }),
+      ) // 2s down poll: still in flight when the stream reattaches
+      .mockResolvedValue(running);
+    const setPipelineJob = vi.fn();
+    const { unmount } = renderHook(() =>
+      usePipelineJob(pipe, setPipelineJob, { enabled: true }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      act(() => {
+        FakeEventSource.instances.at(-1)!.onerror?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      const reattached = FakeEventSource.instances.at(-1)!;
+      expect(FakeEventSource.instances.length).toBe(2);
+      setPipelineJob.mockClear();
+      await act(async () => {
+        resolveLate({ running: false, job: null, jobs: [], running_count: 0 });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(reattached.close).not.toHaveBeenCalled();
+      expect(setPipelineJob).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("a stream frame does not replace a different live primary activity job", async () => {
     vi.useFakeTimers();
     const pipe = job();

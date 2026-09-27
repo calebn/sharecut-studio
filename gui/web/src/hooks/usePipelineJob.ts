@@ -153,14 +153,20 @@ export function usePipelineJob(
         return;
       }
       pollRef.current = window.setInterval(() => {
+        const attachedAtStart = attachedJobId.current;
         void loadPipelineStatus({ signal: abortRef.current?.signal })
           .then((st) => {
-            if (!mountedRef.current) {
+            // A stream attached since this fetch started owns the job now.
+            if (
+              !mountedRef.current ||
+              attachedJobId.current !== attachedAtStart
+            ) {
               return;
             }
             apply(st);
             if (!st.running) {
               stopPoll();
+              clearReconnectTimer();
               esRef.current?.close();
               esRef.current = null;
               attachedJobId.current = null;
