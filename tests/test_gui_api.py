@@ -2723,6 +2723,30 @@ def test_index_bare_root_redirects_to_pinned_project(minimal_project, tmp_path) 
     assert "no-store" in res.headers["cache-control"]
 
 
+def test_index_bare_root_redirect_keeps_a_mount_prefix(minimal_project, tmp_path) -> None:
+    pytest.importorskip("fastapi")
+    from urllib.parse import parse_qs, urljoin, urlsplit
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    outer = FastAPI()
+    outer.mount(
+        "/studio",
+        create_app(static_dir=_recovery_static_root(tmp_path), served_project=minimal_project),
+    )
+    client = TestClient(outer)
+    res = client.get("/studio/", params={"theme": "dark"}, follow_redirects=False)
+    assert res.status_code == 307
+    location = res.headers["location"]
+    assert location.startswith("?")
+    parts = urlsplit(urljoin("http://testserver/studio/", location))
+    assert parts.path == "/studio/"
+    assert parse_qs(parts.query) == {"theme": ["dark"], "project": [str(minimal_project)]}
+
+
 def test_index_bare_root_redirect_keeps_the_desktop_close_guard(minimal_project, tmp_path) -> None:
     from urllib.parse import parse_qs, urlsplit
 
