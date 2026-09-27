@@ -126,33 +126,61 @@ export async function drainHostOfflineQueue(
   await removeHostQueuedCommands(projectPath, completed);
 }
 
-const hostDrainRuns = new Map<
-  string,
-  { again: boolean; done: Promise<void> }
->();
+type DrainRun = { again: boolean; done: Promise<void> };
+
+/**
+ * Run `pass` now, or once more after the run in progress for `key`, so a
+ * request made mid-run is never lost and overlapping requests never run two
+ * passes at once. Never rejects.
+ */
+function coalescedDrain(
+  runs: Map<string, DrainRun>,
+  key: string,
+  pass: () => Promise<void>,
+): { done: Promise<void>; started: boolean } {
+  const running = runs.get(key);
+  if (running) {
+    running.again = true;
+    return { done: running.done, started: false };
+  }
+  const run: DrainRun = { again: false, done: Promise.resolve() };
+  runs.set(key, run);
+  run.done = (async () => {
+    try {
+      do {
+        run.again = false;
+        await pass().catch(() => undefined);
+      } while (run.again);
+    } finally {
+      runs.delete(key);
+    }
+  })();
+  return { done: run.done, started: true };
+}
+
+const hostDrainRuns = new Map<string, DrainRun>();
+const guestDrainRuns = new Map<string, DrainRun>();
 
 /**
  * Drain the host queue now, or once more after the drain in progress, so a
  * request made mid-drain is never lost. Never rejects.
  */
 export function requestHostDrain(projectPath: string): Promise<void> {
-  const running = hostDrainRuns.get(projectPath);
-  if (running) {
-    running.again = true;
-    return running.done;
+  const { done, started } = coalescedDrain(hostDrainRuns, projectPath, () =>
+    drainHostOfflineQueue(projectPath),
+  );
+  if (started) {
+    trackHostDrain(projectPath, done);
   }
-  const run = { again: false, done: Promise.resolve() };
-  hostDrainRuns.set(projectPath, run);
-  run.done = (async () => {
-    try {
-      do {
-        run.again = false;
-        await drainHostOfflineQueue(projectPath).catch(() => undefined);
-      } while (run.again);
-    } finally {
-      hostDrainRuns.delete(projectPath);
-    }
-  })();
-  trackHostDrain(projectPath, run.done);
-  return run.done;
+  return done;
+}
+
+/**
+ * Replay this share guest's queue now, or once more after the replay in
+ * progress: WebSocket reconnect and `online` can fire together, and two
+ * overlapping passes would POST every record twice. Never rejects.
+ */
+export function requestGuestDrain(token: string): Promise<void> {
+  return coalescedDrain(guestDrainRuns, token, () => drainOfflineQueue(token))
+    .done;
 }
