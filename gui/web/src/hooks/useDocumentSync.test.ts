@@ -12,7 +12,7 @@ class FakeWebSocket {
   readyState = FakeWebSocket.OPEN;
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
   url: string;
   closed = false;
@@ -22,9 +22,9 @@ class FakeWebSocket {
     FakeWebSocket.instances.push(this);
   }
 
-  close() {
+  close(code = 1000) {
     this.closed = true;
-    this.onclose?.();
+    this.onclose?.({ code });
   }
 
   emit(msg: unknown) {
@@ -134,5 +134,43 @@ describe("useDocumentSync", () => {
     expect(useDawStore.getState().project?.tracks.map((t) => t.id)).toEqual([
       "real",
     ]);
+  });
+
+  it("reconnects after a non-4403 close", async () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() =>
+      useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
+    );
+    try {
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1011);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats a 4403 close as terminal and stops reconnecting", async () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() =>
+      useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
+    );
+    try {
+      await act(async () => {
+        FakeWebSocket.instances[0].close(4403);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 });
