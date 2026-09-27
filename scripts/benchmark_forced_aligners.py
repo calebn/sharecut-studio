@@ -223,7 +223,13 @@ def normalize(samples: np.ndarray) -> np.ndarray:
 
 class OnnxBackend:
     def __init__(self, model_dir: Path, onnx_file: str, threads: int) -> None:
-        import onnxruntime as ort
+        try:
+            import onnxruntime as ort
+        except ImportError as exc:
+            raise RuntimeError(
+                "onnx backend needs onnxruntime, which faster-whisper installs "
+                "transitively (not a direct dependency): run uv sync"
+            ) from exc
 
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = threads

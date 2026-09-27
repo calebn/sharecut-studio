@@ -681,7 +681,9 @@ aligner leaves unaligned keep their Whisper times; zero-duration ones
 candidate prediction and counted in `provenance.alignment_stats.dropped_zero_duration`,
 matching the `dropped_zero_duration` counts in `*.agree.json`. `torch-large`
 needs `uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
-candidates do not.
+candidates need only `onnxruntime`, which the base install gets transitively
+through `faster-whisper` (it is not a direct dependency, so declare it if
+faster-whisper ever drops it).
 
 **Candidate results: pending #641.** This issue proves the harness and metric
 only; no candidate MAE/runtime number is checked in. Run it yourself with:
