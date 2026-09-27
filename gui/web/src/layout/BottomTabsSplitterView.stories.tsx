@@ -1,12 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { DEFAULT_TABS_HEIGHT_REM } from "../hooks/useTabsHeight";
+import {
+  clampTabsHeightRem,
+  DEFAULT_TABS_HEIGHT_REM,
+  MIN_TABS_HEIGHT_REM,
+} from "../hooks/useTabsHeight";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import {
   BottomTabsSplitterView,
   type BottomTabsSplitterViewProps,
 } from "./BottomTabsSplitterView";
+
+/**
+ * Fixed shell space below transport + status for stories. With the production
+ * 0.6 max fraction this caps the band at 384px (24rem at a 16px root).
+ */
+const STORY_AVAILABLE_PX = 640;
+const STORY_MAX_REM = clampTabsHeightRem(999, STORY_AVAILABLE_PX);
 
 const meta: Meta<typeof BottomTabsSplitterView> = {
   title: "Templates/BottomTabsSplitter",
@@ -27,9 +38,9 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
     ),
   ],
   args: {
-    heightRem: 12.5,
-    minRem: 8,
-    maxRem: 24,
+    heightRem: DEFAULT_TABS_HEIGHT_REM,
+    minRem: MIN_TABS_HEIGHT_REM,
+    maxRem: STORY_MAX_REM,
     userSet: false,
     onResize: fn(),
     onReset: fn(),
@@ -47,7 +58,8 @@ function SplitterPreview(args: BottomTabsSplitterViewProps) {
       heightRem={heightRem}
       userSet={userSet}
       onResize={(rem) => {
-        setHeightRem(Math.min(args.maxRem, Math.max(args.minRem, rem)));
+        // Same clamp as useTabsHeight.setHeightRem, over the fixed story shell.
+        setHeightRem(clampTabsHeightRem(rem, STORY_AVAILABLE_PX));
         setUserSet(true);
         args.onResize(rem);
       }}
