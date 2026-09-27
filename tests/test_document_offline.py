@@ -179,37 +179,6 @@ def test_document_route_conflict_json(minimal_project):
     assert r.json()["detail"]["conflict"] is True
 
 
-def test_document_ws_authz_revoked_mid_session(minimal_project, monkeypatch):
-    from podcast_mcp.services.session_sync.authz import AuthzDecision
-
-    calls = {"n": 0}
-
-    def _auth(**_kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return AuthzDecision(allowed=True, reason="")
-        return AuthzDecision(allowed=False, reason="revoked")
-
-    monkeypatch.setattr(
-        "podcast_mcp.gui.routes.document.authorize_client",
-        _auth,
-    )
-    client = TestClient(create_app())
-    url = f"/api/document/ws?path={minimal_project}&client_id=c1&role=viewer"
-    with client.websocket_connect(url) as ws:
-        ws.receive_json()
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "SuggestPendingEdit",
-                "payload": {"track_id": "host", "start": 0.0, "end": 0.1},
-                "client_seq": 1,
-            }
-        )
-        err = ws.receive_json()
-        assert err["type"] == "Error"
-
-
 def test_share_audio_permission_and_redirect_errors(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

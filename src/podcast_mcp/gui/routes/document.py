@@ -4,20 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import sqlite3
 from typing import Any
-from uuid import uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket
 from filelock import Timeout
-from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
 from podcast_mcp.gui.routes.deps import (
-    PROJECT_BUSY_CODE,
     peer_host,
     project_busy_error,
     require_authz,
@@ -27,10 +23,7 @@ from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
-from podcast_mcp.services.document_sync.payloads import (
-    document_command_from_body,
-    parse_document_command,
-)
+from podcast_mcp.services.document_sync.payloads import document_command_from_body
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
@@ -44,27 +37,6 @@ _PROJECT_BUSY = "Project is busy in another process; try again"
 def _is_project_busy(exc: BaseException) -> bool:
     """The project file lock timed out, or the document.db write lock stayed busy."""
     return isinstance(exc, Timeout) or is_sqlite_busy(exc)
-
-
-def _submit_ws_command(
-    svc: DocumentSyncService,
-    msg: dict[str, Any],
-    *,
-    client_id: str,
-    role: str,
-) -> dict[str, Any]:
-    cmd = parse_document_command(
-        {
-            "type": msg["command_type"],
-            "payload": msg.get("payload") or {},
-            "client_id": client_id,
-            "role": role,
-            "client_seq": msg.get("client_seq"),
-            "command_id": msg.get("command_id") or uuid4().hex,
-            "structural_mode": msg.get("structural_mode"),
-        }
-    )
-    return svc.submit(cmd, structural_mode=msg.get("structural_mode"))
 
 
 @router.get("/api/document/comments")
@@ -138,6 +110,10 @@ async def document_ws(
     label: str | None = Query(None),
     token: str | None = Query(None),
 ):
+    """Server→client document fan-out: hello shell ``Snapshot``, then hub ``Applied``.
+
+    Commands use ``POST /api/document/command``; inbound frames are ignored (#565).
+    """
     denied = websocket_host_binding_denied(websocket)
     if denied is not None:
         await websocket.close(code=4403, reason=denied[:120])
@@ -185,41 +161,14 @@ async def document_ws(
                 await websocket.send_json(event)
 
         hub_task = asyncio.create_task(_pump_hub())
+        # Server→client only (#565): the hello Snapshot above and _pump_hub (started after
+        # it) are this socket's only senders and never overlap, so sends need no lock.
+        # Inbound frames are drained only to notice the disconnect; commands go through
+        # POST /api/document/command.
         while True:
-            try:
-                raw_msg = await websocket.receive_text()
-            except WebSocketDisconnect:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
                 break
-            msg = await run_in_threadpool(json.loads, raw_msg)
-            if msg.get("type") != "Command":
-                continue
-            again = authorize_client(
-                client_id=client_id,
-                role=role,
-                peer_host=peer,
-                token=token,
-                display_name=label,
-                relayed=relayed,
-            )
-            if not again.allowed:
-                await websocket.send_json({"type": "Error", "detail": again.reason or "forbidden"})
-                await websocket.close(code=4403, reason=(again.reason or "forbidden")[:120])
-                break
-            try:
-                result = await run_in_threadpool(
-                    _submit_ws_command, svc, msg, client_id=client_id, role=role
-                )
-                await websocket.send_json({**result, "type": "Echo"})
-            except ValidationError as exc:
-                await websocket.send_json({"type": "Error", "detail": str(exc)})
-            except (KeyError, ValueError, PermissionError) as exc:
-                await websocket.send_json({"type": "Error", "detail": str(exc)})
-            except (Timeout, sqlite3.OperationalError) as exc:
-                if not _is_project_busy(exc):
-                    raise
-                await websocket.send_json(
-                    {"type": "Error", "detail": _PROJECT_BUSY, "code": PROJECT_BUSY_CODE}
-                )
     finally:
         hub.unsubscribe(key, queue)
         if hub_task is not None:

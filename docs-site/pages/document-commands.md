@@ -1,6 +1,6 @@
 # Document commands
 
-Typed document-plane commands shared by host GUI, guest share HTTP, document WebSocket, and MCP.
+Typed document-plane commands shared by host GUI HTTP, guest share HTTP, and MCP. The document WebSocket only fans out `Applied`.
 
 Envelope fields on every command: `client_id`, `client_seq` (optional, >= 1; omit to let the server assign one), optional `role`, `command_id`, `causation_id`, `token`, `structural_mode`. A retry repeats the `command_id` (or the same type and payload) on the same `client_seq` and returns `idempotent`; a different edit on a used `client_seq` is a 409 conflict.
 
@@ -16,7 +16,6 @@ Which product surfaces expose related workflows: [Capabilities](#/capabilities).
 |---------|------------------|
 | Host HTTP `POST /api/document/command` | FastAPI body = `DocumentCommandBody` |
 | Guest HTTP `POST /api/review/{token}/daw/document/command` | Same models + share caps |
-| Document WS `/api/document/ws` | `parse_document_command` on each `Command` frame |
 | Host MCP / CLI helpers | `validate_payload` / typed submit |
 | Guest MCP `guest_submit_document_command` | `inputSchema` = this schema |
 

@@ -1,7 +1,7 @@
-"""Boundary validation for typed document commands across HTTP / WS / MCP.
+"""Boundary validation for typed document commands across HTTP / MCP.
 
 Keeps the published contract honest: invalid payloads must fail at each adapter
-before DocumentSyncService.submit (422 / WS Error / ValidationError / -32602).
+before DocumentSyncService.submit (422 / ValidationError / -32602).
 """
 
 from __future__ import annotations
@@ -145,25 +145,6 @@ def test_guest_http_rejects_invalid_document_payload(
         json=_BAD_APPROVE,
     )
     assert r.status_code == 422
-
-
-def test_document_ws_rejects_invalid_payload(minimal_project):
-    client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=boundary-ws&role=viewer"
-    with client.websocket_connect(url) as ws:
-        snap = ws.receive_json()
-        assert snap["type"] == "Snapshot"
-        ws.send_json(
-            {
-                "type": "Command",
-                "command_type": "ApproveEdits",
-                "payload": {"decision_ids": ["x"]},
-                "client_seq": 1,
-            }
-        )
-        err = ws.receive_json()
-        assert err["type"] == "Error"
-        assert "decision_ids" in err["detail"] or "ids" in err["detail"]
 
 
 def test_host_mcp_rejects_invalid_payload(minimal_project):

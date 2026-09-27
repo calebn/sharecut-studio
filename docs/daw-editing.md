@@ -185,7 +185,7 @@ Shipped:
 
 Shipped:
 
-- Document `Applied` / `Snapshot` use a **named projection** (`SHELL` / `DETAIL` / `TRACKS` / `CLIPS` / `FX` / `ENVELOPES` / `MIX` / `COMMENTS`; `FULL` is hydrate-only via `GET ?phase=full`). Applied defaults to **SHELL**; transcript word/phrase/suppress commands send `DETAIL`; fade/join send `CLIPS`, bypass sends `FX`, envelope points send `ENVELOPES`, volume and mute send `MIX`. Host `useDocumentSync` **merges** via `applyDocumentSnapshot` (skip Echo / own-HTTP; apply peer and `ExternalMutate` at the current seq) and overlays hydrated `words[]` onto SHELL utterances by source clocks when utterance text matches.
+- Document `Applied` / `Snapshot` use a **named projection** (`SHELL` / `DETAIL` / `TRACKS` / `CLIPS` / `FX` / `ENVELOPES` / `MIX` / `COMMENTS`; `FULL` is hydrate-only via `GET ?phase=full`). Applied defaults to **SHELL**; transcript word/phrase/suppress commands send `DETAIL`; fade/join send `CLIPS`, bypass sends `FX`, envelope points send `ENVELOPES`, volume and mute send `MIX`. Host `useDocumentSync` **merges** via `applyDocumentSnapshot` (skip own-HTTP; apply peer and `ExternalMutate` at the current seq) and overlays hydrated `words[]` onto SHELL utterances by source clocks when utterance text matches.
 - MCP/CLI mutations call `after_agent_mutation` / `notify_document_changed` (`ExternalMutate`, default **shell**) so agent cuts update open host DAW tabs without waiting on project poll
 - Agent selection: `SetSelection` + optional selection on seek/region/play; MCP `set_session_selection_tool`; `applyAgentSession` applies selection for agent snapshots
 - `TunnelClient` reconnect with exponential backoff + share re-register after disconnect

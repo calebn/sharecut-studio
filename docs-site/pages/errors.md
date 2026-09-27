@@ -9,7 +9,6 @@ until then parse by status / JSON-RPC `error.code`.
 |---------|--------|
 | Host `POST /api/document/command` | HTTP **422** (FastAPI validation `detail` list) |
 | Guest `POST …/daw/document/command` | HTTP **422** |
-| Document WS command frame | `{ "type": "Error", "detail": "…" }` |
 | Guest MCP `guest_submit_document_command` | JSON-RPC **`-32602`** |
 
 Comment / reply body max: **8000** characters.
