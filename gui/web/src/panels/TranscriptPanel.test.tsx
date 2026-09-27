@@ -559,6 +559,34 @@ describe("TranscriptPanel", () => {
       expect(q.getByRole("button", { name: "hello" })).not.toHaveFocus();
     });
 
+    it("keeps a pending editor when another word is double-clicked", async () => {
+      let resolve: () => void = () => {};
+      vi.mocked(correctTranscriptWord).mockImplementationOnce(
+        () =>
+          new Promise<void>((r) => {
+            resolve = r;
+          }),
+      );
+      const { container } = render(<TranscriptPanel />);
+      const q = within(container);
+      fireEvent.doubleClick(q.getByRole("button", { name: "hello" }));
+      const input = q.getByRole("textbox", { name: /Correct word/ });
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+      fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
+      expect(q.getByRole("textbox", { name: /hello/ })).toHaveValue("Hello");
+      expect(q.queryByRole("textbox", { name: /there/ })).toBeNull();
+      await act(async () => {
+        resolve();
+      });
+      await vi.waitFor(() =>
+        expect(q.queryByRole("textbox", { name: /Correct word/ })).toBeNull(),
+      );
+      fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
+      expect(q.getByRole("textbox", { name: /there/ })).toHaveFocus();
+    });
+
     it("has no axe violations with the editor open", async () => {
       const { container } = render(<TranscriptPanel />);
       const hello = within(container).getByRole("button", { name: "hello" });

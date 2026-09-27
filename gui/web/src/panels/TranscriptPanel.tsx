@@ -189,6 +189,8 @@ export function TranscriptPanel() {
   const [inlineEdit, setInlineEdit] = useState<WordRef | null>(null);
   /** Word chip to refocus after Enter / Esc closes the inline editor. */
   const inlineFocusRestoreRef = useRef<WordRef | null>(null);
+  /** An inline commit is in flight; it can outlive its editor (mode switch). */
+  const inlineCommitPendingRef = useRef(false);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
   const longPressReleasedRef = useRef(false);
@@ -293,6 +295,8 @@ export function TranscriptPanel() {
 
   const openInlineEdit = (ref: WordRef) => {
     cancelQueuedSeek();
+    // One correction at a time: a pending commit keeps its editor open.
+    if (inlineCommitPendingRef.current) return;
     setInlineEdit(ref);
   };
   const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
@@ -938,6 +942,9 @@ export function TranscriptPanel() {
                               restore,
                             )
                           }
+                          onBusyChange={(pending) => {
+                            inlineCommitPendingRef.current = pending;
+                          }}
                         />
                       ) : undefined,
                     buttonProps: wordInteractive

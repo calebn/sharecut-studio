@@ -186,6 +186,25 @@ describe("InlineWordEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("reports busy while a commit is in flight", async () => {
+    const onBusyChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={vi.fn()}
+        onBusyChange={onBusyChange}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello{Enter}");
+    await waitFor(() => expect(onBusyChange).toHaveBeenLastCalledWith(false));
+    expect(onBusyChange.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("blur cancels without restoring focus", () => {
     const onClose = vi.fn();
     render(
