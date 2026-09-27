@@ -138,7 +138,7 @@ and the step summary adds "silence filter skipped on N track(s)".
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
 treat a flagged word like any other (reconcile's inaudible pass often suppresses it anyway).
 Review flagged words with `transcript_refine_brief_tool` (`suspect_hallucination_open_words`,
-`suspect_hallucination_sample`) or Studio's Annotate view (dotted underline), and suppress real
+`suspect_hallucination_sample`) or Studio's Annotate view (dotted underline on unsuppressed flagged words), and suppress real
 hallucinations with `set_word_suppressed_tool`. If a track still loops, set
 `transcribe.decode.condition_on_previous_text: false`.
 

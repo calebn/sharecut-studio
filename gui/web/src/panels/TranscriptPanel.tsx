@@ -784,8 +784,11 @@ export function TranscriptPanel() {
                     transcriptAnnotate &&
                     w.confidence != null &&
                     w.confidence < LOW_CONFIDENCE;
+                  // Suppressed words are already handled; they keep only the strikethrough.
                   const suspectChip =
-                    transcriptAnnotate && Boolean(w.suspect_hallucination);
+                    transcriptAnnotate &&
+                    Boolean(w.suspect_hallucination) &&
+                    !w.suppressed;
                   const cutAwayChip =
                     transcriptAnnotate &&
                     showCutAwayUtterances &&
