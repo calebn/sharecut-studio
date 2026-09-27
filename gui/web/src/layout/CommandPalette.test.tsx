@@ -1,13 +1,18 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { registerDawCommands } from "../commands/register";
+import { getKeymapOverride } from "../keymap/remaps";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
 import { CommandPalette } from "./CommandPalette";
 
 describe("CommandPalette", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
   beforeEach(() => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
@@ -74,6 +79,23 @@ describe("CommandPalette", () => {
       screen.getByRole("button", { name: /Annotate transcript/ }),
     );
     expect(useDawStore.getState().transcriptAnnotate).toBe(true);
+  });
+
+  it("stores a remap on blur and clears it when emptied", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <CommandPalette />
+      </DawProvider>,
+    );
+    await user.click(screen.getByLabelText("Show remaps"));
+    const input = screen.getByLabelText("Remap Select tool");
+    await user.type(input, "X");
+    await user.tab();
+    expect(getKeymapOverride("tool.select")).toEqual(["X"]);
+    await user.clear(input);
+    await user.tab();
+    expect(getKeymapOverride("tool.select")).toBeUndefined();
   });
 
   it("closes on Escape", async () => {
