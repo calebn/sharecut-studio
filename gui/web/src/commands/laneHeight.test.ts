@@ -13,12 +13,17 @@ describe("lane height commands", () => {
       timelineFocused: true,
       laneHeightMode: "fixed",
       laneHeightPx: 104,
+      drawnLaneHeightPx: null,
     });
   });
 
   afterEach(() => {
     clearRegisteredCommands();
-    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+    useDawStore.setState({
+      laneHeightMode: "fixed",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: null,
+    });
   });
 
   it("toggles the fit mode and announces it", async () => {
@@ -52,6 +57,50 @@ describe("lane height commands", () => {
     await execute("view.trackHeightDecrease");
     expect(useDawStore.getState().laneHeightMode).toBe("fixed");
     expect(useDawStore.getState().laneHeightPx).toBe(72);
+  });
+
+  it("Increase from fit never shrinks the drawn lanes", async () => {
+    useDawStore.setState({
+      laneHeightMode: "fit",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: 240,
+    });
+    await execute("view.trackHeightIncrease");
+    expect(useDawStore.getState().laneHeightMode).toBe("fixed");
+    expect(useDawStore.getState().laneHeightPx).toBe(240);
+  });
+
+  it("steps from an off-list fitted height", async () => {
+    useDawStore.setState({
+      laneHeightMode: "fit",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: 187,
+    });
+    await execute("view.trackHeightIncrease");
+    expect(useDawStore.getState().laneHeightPx).toBe(192);
+    useDawStore.setState({ laneHeightMode: "fit", drawnLaneHeightPx: 187 });
+    await execute("view.trackHeightDecrease");
+    expect(useDawStore.getState().laneHeightPx).toBe(144);
+  });
+
+  it("Decrease from a fitted 72px never grows back to the saved height", async () => {
+    useDawStore.setState({
+      laneHeightMode: "fit",
+      laneHeightPx: 192,
+      drawnLaneHeightPx: 72,
+    });
+    await execute("view.trackHeightDecrease");
+    expect(useDawStore.getState().laneHeightPx).toBe(72);
+  });
+
+  it("fixed mode steps the saved px, not the drawn px", async () => {
+    useDawStore.setState({
+      laneHeightMode: "fixed",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: 240,
+    });
+    await execute("view.trackHeightIncrease");
+    expect(useDawStore.getState().laneHeightPx).toBe(144);
   });
 
   it("is disabled when the timeline is not focused", async () => {

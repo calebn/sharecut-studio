@@ -129,6 +129,8 @@ export interface DawState {
   sheetExpanded: boolean;
   laneHeightMode: LaneHeightMode;
   laneHeightPx: number;
+  /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
+  drawnLaneHeightPx: number | null;
   /** Command cheatsheet / palette open. */
   commandPaletteOpen: boolean;
   /** Mobile gestures cheatsheet open. */
@@ -261,6 +263,7 @@ export interface DawState {
   setLaneHeightMode: (mode: LaneHeightMode) => void;
   toggleFitTracksHeight: () => void;
   stepLaneHeight: (direction: "up" | "down") => void;
+  setDrawnLaneHeightPx: (px: number | null) => void;
   setCommandPaletteOpen: (on: boolean) => void;
   setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;

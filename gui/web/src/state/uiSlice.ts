@@ -133,6 +133,7 @@ type UiSlice = Pick<
   | "sheetExpanded"
   | "laneHeightMode"
   | "laneHeightPx"
+  | "drawnLaneHeightPx"
   | "setZoomPxPerSec"
   | "setWaveformAmpZoom"
   | "nudgeWaveformAmp"
@@ -166,6 +167,7 @@ type UiSlice = Pick<
   | "setLaneHeightMode"
   | "toggleFitTracksHeight"
   | "stepLaneHeight"
+  | "setDrawnLaneHeightPx"
   | "commandPaletteOpen"
   | "setCommandPaletteOpen"
   | "gesturesSheetOpen"
@@ -259,6 +261,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     layoutMode: "default" as LayoutMode,
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
+    drawnLaneHeightPx: null as number | null,
     sheetExpanded: false,
     setZoomPxPerSec: (zoomPxPerSec) =>
       set({
@@ -541,9 +544,21 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     toggleFitTracksHeight: () =>
       get().setLaneHeightMode(get().laneHeightMode === "fit" ? "fixed" : "fit"),
     stepLaneHeight: (direction: "up" | "down") => {
-      const laneHeightPx = stepLaneHeightPx(get().laneHeightPx, direction);
+      // From fit mode, step from the height the lanes are drawn at, so
+      // Increase never shrinks them and Decrease never grows them.
+      const { laneHeightMode, laneHeightPx: saved, drawnLaneHeightPx } = get();
+      const from =
+        laneHeightMode === "fit" && drawnLaneHeightPx != null
+          ? drawnLaneHeightPx
+          : saved;
+      const laneHeightPx = stepLaneHeightPx(from, direction);
       set({ laneHeightMode: "fixed", laneHeightPx });
       writeLaneHeightPref({ mode: "fixed", px: laneHeightPx });
+    },
+    setDrawnLaneHeightPx: (drawnLaneHeightPx) => {
+      if (get().drawnLaneHeightPx !== drawnLaneHeightPx) {
+        set({ drawnLaneHeightPx });
+      }
     },
     commandPaletteOpen: false,
     setCommandPaletteOpen: (commandPaletteOpen) =>

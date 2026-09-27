@@ -538,7 +538,11 @@ describe("dawStore follow presence", () => {
 
 describe("lane height preference", () => {
   afterEach(() => {
-    useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
+    useDawStore.setState({
+      laneHeightMode: "fixed",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: null,
+    });
     localStorage.removeItem(LANE_HEIGHT_STORAGE_KEY);
   });
 
@@ -587,5 +591,30 @@ describe("lane height preference", () => {
     useDawStore.getState().toggleFitTracksHeight();
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     expect(useDawStore.getState().laneHeightMode).toBe("fit");
+  });
+
+  it("stepLaneHeight from fit steps from the drawn height", () => {
+    useDawStore.setState({
+      laneHeightMode: "fit",
+      laneHeightPx: 104,
+      drawnLaneHeightPx: 240,
+    });
+    useDawStore.getState().stepLaneHeight("up");
+    const state = useDawStore.getState();
+    expect(state.laneHeightMode).toBe("fixed");
+    expect(state.laneHeightPx).toBe(240);
+    expect(
+      JSON.parse(localStorage.getItem(LANE_HEIGHT_STORAGE_KEY) ?? "{}"),
+    ).toEqual({
+      mode: "fixed",
+      px: 240,
+    });
+  });
+
+  it("setDrawnLaneHeightPx updates the field", () => {
+    useDawStore.getState().setDrawnLaneHeightPx(150);
+    expect(useDawStore.getState().drawnLaneHeightPx).toBe(150);
+    useDawStore.getState().setDrawnLaneHeightPx(null);
+    expect(useDawStore.getState().drawnLaneHeightPx).toBeNull();
   });
 });
