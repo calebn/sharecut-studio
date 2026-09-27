@@ -428,6 +428,8 @@ def aggregate(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
     end_weighted = 0.0
     runtime_total = 0.0
     audio_total = 0.0
+    # All-or-nothing: one report without runtime_sec/audio_sec blanks the
+    # runtime totals rather than averaging a partial, skewed subset.
     have_runtime = True
     for report in reports:
         metrics = report["metrics"]
