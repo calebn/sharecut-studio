@@ -447,23 +447,23 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             },
         )
         effects = list(existing.effects) if existing else []
-        prior = [e for e in effects if e.effect == compressor.effect]
-        if prior and prior[0].params != compressor.params:
+        result = replace_effect(effects, compressor)
+        if result.replaced is not None and result.replaced.params != compressor.params:
             overwritten += 1
             log.warning(
                 "compress_tracks: overwriting acompressor params on track %s: %s -> %s",
                 track.id,
-                prior[0].params,
+                result.replaced.params,
                 compressor.params,
             )
-        if len(prior) > 1:
-            removed += len(prior) - 1
+        if result.dropped:
+            removed += result.dropped
             log.warning(
                 "compress_tracks: removed %d extra acompressor(s) on track %s",
-                len(prior) - 1,
+                result.dropped,
                 track.id,
             )
-        set_or_replace_chain(project, track.id, replace_effect(effects, compressor))
+        set_or_replace_chain(project, track.id, result.effects)
         touched += 1
     summary = f"compressor on {touched} dialogue tracks"
     if overwritten or removed:
