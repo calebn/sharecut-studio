@@ -162,9 +162,10 @@ export async function submitQueuedDocumentCommand(
 }
 
 /**
- * Wait (at most HOST_SEND_WAIT_MS) for this tab's earlier sends, then return
- * this command's persisted record if it is now the queue head. Null keeps it
- * queued; the caller then requests a drain.
+ * Wait (at most HOST_SEND_WAIT_MS in total) for this tab's earlier sends and
+ * the host drain run in progress, then return this command's persisted record
+ * if it is now the queue head. Null keeps it queued; the caller then requests
+ * a drain.
  */
 async function queueHeadAfterEarlierSends(
   loadQueue: () => Promise<QueuedCommand[]>,

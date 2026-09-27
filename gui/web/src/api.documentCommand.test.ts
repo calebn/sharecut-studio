@@ -138,6 +138,45 @@ describe("host document command queue", () => {
       expect(requestHostDrain).not.toHaveBeenCalled();
     });
 
+    it("waits for the drain pass in progress before re-reading the queue head", async () => {
+      const { trackHostDrain } = await import("./state/hostSendOrder");
+      let finishDrain!: () => void;
+      trackHostDrain(
+        path,
+        new Promise<void>((r) => {
+          finishDrain = r;
+        }),
+      );
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: true,
+      });
+      let queue = [
+        { command_id: "replayed", payload: {} },
+        { command_id: "mine", payload: { ids: ["a"] } },
+      ];
+      loadHostCommandQueue.mockImplementation(async () => queue);
+      const fetchSpy = vi.fn(async () => refine409());
+      vi.stubGlobal("fetch", fetchSpy);
+      const { submitDocumentCommand } = await import("./api");
+      const pending = submitDocumentCommand(
+        path,
+        "ApproveEdits",
+        { ids: ["a"] },
+        { command_id: "mine" },
+      );
+      const assertion = expect(pending).rejects.toMatchObject({
+        code: "transcript_refine_required",
+      });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(fetchSpy).not.toHaveBeenCalled();
+      queue = [{ command_id: "mine", payload: { ids: ["a"] } }];
+      finishDrain();
+      await assertion;
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(requestHostDrain).not.toHaveBeenCalled();
+    });
+
     it("stays queued and requests a drain when the earlier send stalls", async () => {
       let releaseFirst!: () => void;
       const fetchSpy = vi
