@@ -88,7 +88,8 @@ def _segment_fade_in(prev: Clip | None, clip: Clip, *, first: bool) -> float:
 
 
 def _segment_fade_out(clip: Clip, nxt: Clip | None, *, last: bool) -> float:
-    if not last or clip.join_in_mode == ClipJoinMode.CUT:
+    # A cut is per join: the next clip's cut drops this clip's fade-out.
+    if not last or (nxt is not None and nxt.join_in_mode == ClipJoinMode.CUT):
         return 0.0
     if nxt is not None and uses_crossfade_join(clip, nxt):
         return 0.0
