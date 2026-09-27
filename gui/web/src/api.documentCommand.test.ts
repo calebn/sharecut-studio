@@ -577,6 +577,27 @@ describe("host document command queue", () => {
     expect(removeHostQueuedCommand).not.toHaveBeenCalled();
   });
 
+  it("keeps a guest command queued when its POST times out", async () => {
+    enqueueCommand.mockResolvedValue(undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("Document command timed out", "TimeoutError");
+      }),
+    );
+    const { submitDocumentCommand } = await import("./api");
+    const { shareProjectKey } = await import("./shareMode");
+
+    const result = await submitDocumentCommand(
+      shareProjectKey("tok"),
+      "AddComment",
+      { body: "x" },
+    );
+
+    expect(result.queued).toBe(true);
+    expect(removeQueuedCommand).not.toHaveBeenCalled();
+  });
+
   it("keeps a timed-out host POST queued for the drain", async () => {
     vi.stubGlobal(
       "fetch",

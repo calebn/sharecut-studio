@@ -1,6 +1,7 @@
 /** Raw document-command HTTP transport; queue policy belongs to commandQueue. */
 import { authHeaders } from "../sessionAuth";
 import { reviewApiBase } from "../shareMode";
+import { type ApiError, readApiFailure } from "../utils/apiError";
 
 export async function hostFetch(
   input: string,
@@ -12,46 +13,73 @@ export async function hostFetch(
   });
 }
 
-export function postGuestDocumentCommand(
-  token: string,
-  body: Record<string, unknown>,
-): Promise<Response> {
-  return fetch(`${reviewApiBase(token)}/daw/document/command`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 /**
- * A host POST unanswered after this long is aborted and handled as a
- * transport failure: its record stays queued and replays idempotently.
+ * A document-command POST whose response (headers and body) has not arrived
+ * after this long is aborted and handled as a transport failure: its record
+ * stays queued and replays with the same `(client_id, client_seq)`. The server
+ * may still be running the original. `DocumentSyncService.submit` checks for a
+ * retry under the workspace lock and the document write transaction, so the
+ * replay waits for the original and then returns it as `idempotent`
+ * (`tests/test_document_sync.py::test_concurrent_same_sequence_submits_apply_once`).
  */
-export const HOST_COMMAND_TIMEOUT_MS = 60_000;
+export const DOCUMENT_COMMAND_TIMEOUT_MS = 60_000;
 
-export async function postHostDocumentCommand(
-  projectPath: string,
-  body: Record<string, unknown>,
-): Promise<Response> {
+/** A document-command response, read in full within the timeout. */
+export type DocumentCommandReply =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; status: number; failure: ApiError };
+
+async function postDocumentCommand(
+  send: (signal: AbortSignal) => Promise<Response>,
+): Promise<DocumentCommandReply> {
   const controller = new AbortController();
   const timer = setTimeout(
     () =>
       controller.abort(
-        new DOMException("Host document command timed out", "TimeoutError"),
+        new DOMException("Document command timed out", "TimeoutError"),
       ),
-    HOST_COMMAND_TIMEOUT_MS,
+    DOCUMENT_COMMAND_TIMEOUT_MS,
   );
   try {
-    return await hostFetch(
-      `/api/document/command?path=${encodeURIComponent(projectPath)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      },
-    );
+    const res = await send(controller.signal);
+    // Read the body before clearing the timer: a stalled body must not hang.
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        failure: await readApiFailure(res),
+      };
+    }
+    return { ok: true, data: (await res.json()) as Record<string, unknown> };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export function postGuestDocumentCommand(
+  token: string,
+  body: Record<string, unknown>,
+): Promise<DocumentCommandReply> {
+  return postDocumentCommand((signal) =>
+    fetch(`${reviewApiBase(token)}/daw/document/command`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    }),
+  );
+}
+
+export function postHostDocumentCommand(
+  projectPath: string,
+  body: Record<string, unknown>,
+): Promise<DocumentCommandReply> {
+  return postDocumentCommand((signal) =>
+    hostFetch(`/api/document/command?path=${encodeURIComponent(projectPath)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    }),
+  );
 }
