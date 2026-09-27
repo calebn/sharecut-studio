@@ -229,8 +229,12 @@ describe("EnvelopeOverlay", () => {
       </TimelineGestureProvider>,
     );
     const circle = container.querySelectorAll("circle")[1]!;
-    fireEvent.pointerDown(circle);
-    expect(hold).toHaveBeenCalledTimes(1);
+    let holdsDuringEvent = -1;
+    act(() => {
+      fireEvent.pointerDown(circle);
+      holdsDuringEvent = hold.mock.calls.length;
+    });
+    expect(holdsDuringEvent).toBe(1);
     fireEvent.pointerMove(circle, { clientX: 80, clientY: 8 });
     expect(release).not.toHaveBeenCalled();
     fireEvent.pointerUp(circle);

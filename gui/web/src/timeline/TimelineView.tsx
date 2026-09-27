@@ -450,7 +450,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   ]);
 
   // Lane geometry as drawn: held still while a move / trim / fade / envelope
-  // drag is active (children hold via useHoldTimelineMetrics).
+  // drag is active (children hold via useHoldTimelineMetrics, or the envelope
+  // drag's pointerdown via useTimelineGestureHold).
   const liveLayout = useMemo(
     () => ({
       laneHeight: fittedLaneHeight,

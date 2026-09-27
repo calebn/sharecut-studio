@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { setEnvelope } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -6,7 +6,7 @@ import type { AutomationEnvelope, Selection } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { sortedVolumePoints } from "../utils/envelopes";
 import { EnvelopeOverlayView } from "./EnvelopeOverlayView";
-import { useHoldTimelineMetrics, useTimelineMetrics } from "./timelineMetrics";
+import { useTimelineGestureHold, useTimelineMetrics } from "./timelineMetrics";
 import { useVisibleChunks } from "./useVisibleChunks";
 
 interface EnvelopeOverlayProps {
@@ -34,9 +34,9 @@ export function EnvelopeOverlay({
   );
   const { laneHeight } = useTimelineMetrics();
   const visibleChunks = useVisibleChunks(width);
-  const [dragging, setDragging] = useState(false);
-  // yToValue uses the lane height and SVG rect: keep both still mid-drag.
-  useHoldTimelineMetrics(dragging);
+  // yToValue reads the lane height and SVG rect: the view holds both still
+  // from pointerdown until the drag commits, cancels or unmounts.
+  const holdGeometry = useTimelineGestureHold() ?? undefined;
   const priorSel = useRef<Selection>(null);
 
   const points = sortedVolumePoints(envelopes, trackId);
@@ -67,7 +67,7 @@ export function EnvelopeOverlay({
         setSelection(priorSel.current);
         announceStatus(errorMessage(error, "Could not apply envelope"));
       }}
-      onDragActiveChange={setDragging}
+      holdGeometry={holdGeometry}
     />
   );
 }
