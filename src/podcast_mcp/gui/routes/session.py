@@ -8,12 +8,14 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from podcast_mcp.gui.jobs import session_file_meta
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
 from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
 from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
+from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
@@ -51,6 +53,37 @@ def _auth(
         token=token or x_podcast_token,
         relayed=is_relayed_request(request.headers),
     )
+
+
+def _publish_viewer_blob(project: EpisodeProject, body: ViewerSessionSnapshot) -> dict[str, Any]:
+    """Shared by ``POST /api/session/state`` and the WS ``ViewerState`` frame."""
+    return publish_viewer_snapshot(project, body.model_dump(exclude_none=True))
+
+
+def _apply_viewer_state(
+    svc: SessionSyncService,
+    raw: Any,
+    *,
+    client_id: str,
+    role: str,
+    label: str | None,
+) -> dict[str, Any]:
+    """WS twin of ``POST /api/session/state``: viewer blob -> typed commands.
+
+    The socket's own ``client_id`` (and label, when set) replaces any value in
+    the blob, so a socket cannot publish as another client.
+    """
+    try:
+        body = ViewerSessionSnapshot.model_validate(raw)
+    except ValidationError as exc:
+        return {"type": "Error", "code": "invalid_viewer_state", "detail": str(exc)[:500]}
+    body = body.model_copy(update={"client_id": client_id, "label": label or body.label})
+    snapshot = _publish_viewer_blob(svc.project, body)
+    return {
+        "type": "Echo",
+        "command": {"type": "ViewerState", "client_id": client_id, "role": role},
+        "snapshot": snapshot,
+    }
 
 
 def apply_ws_client_message(
@@ -126,6 +159,10 @@ def apply_ws_client_message(
             )
         )
         return None, seq + 1
+    if mtype == "ViewerState":
+        return _apply_viewer_state(
+            svc, msg.get("snapshot"), client_id=client_id, role=role, label=label
+        ), seq
     return None, seq
 
 
@@ -212,8 +249,7 @@ def post_session_state(
     _auth(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
-    snapshot = body.model_dump(exclude_none=True)
-    return publish_viewer_snapshot(ws.project, snapshot)
+    return _publish_viewer_blob(ws.project, body)
 
 
 @router.websocket("/api/session/ws")
