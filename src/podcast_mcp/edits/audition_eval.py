@@ -46,7 +46,12 @@ def inject_hum_span(
     freq_hz: float = 60.0,
     mix_db: float = 0.0,
 ) -> Path:
-    """Mix mains-hum (fundamental + 2nd harmonic) into [start_sec, end_sec)."""
+    """Mix mains-hum (fundamental + 2nd harmonic) into [start_sec, end_sec).
+
+    ``mix_tracks`` sums at unity with no peak ceiling on purpose: the source keeps
+    its level inside the span and the hum sits ``mix_db`` on top of it. A ceiling trim
+    (or the old 1/N sum, about -6 dB) would put a level step at the span edges.
+    """
     eng = FFmpegEngine()
     tmp = dest.parent / f".{dest.stem}_hum"
     tmp.mkdir(parents=True, exist_ok=True)

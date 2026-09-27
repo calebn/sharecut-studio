@@ -72,3 +72,22 @@ def test_defect_injection_hypothesis_gates(tmp_path: Path) -> None:
             report["rows"],
         )
         assert stats["recall"] >= gate["min_recall"], (code, stats, report["rows"])
+
+
+def test_inject_hum_span_adds_hum_at_unity(tmp_path: Path) -> None:
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    tone, out = tmp_path / "tone.wav", tmp_path / "hum.wav"
+    evaluation.generate_tone(tone, duration_sec=6.0, freq_hz=220.0)
+    evaluation.inject_hum_span(tone, out, start_sec=2.0, end_sec=4.0, freq_hz=60.0, mix_db=0.0)
+    src_span, out_span = tmp_path / "src_span.wav", tmp_path / "out_span.wav"
+    eng.extract_segment(tone, src_span, 2.2, 3.8)
+    eng.extract_segment(out, out_span, 2.2, 3.8)
+    src_lufs, out_lufs = eng.measure_loudness(src_span), eng.measure_loudness(out_span)
+    assert src_lufs is not None and out_lufs is not None
+    # Unity sum: the tone keeps its level and the hum adds power (1/N dipped it ~6 dB).
+    assert out_lufs > src_lufs
+    full = eng.measure_loudness_full(out)
+    assert full is not None and full["true_peak_db"] is not None
+    assert full["true_peak_db"] < 0.0
