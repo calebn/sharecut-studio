@@ -237,13 +237,13 @@ def test_cli_pipeline_run_realign_passes_config(tmp_path: Path, monkeypatch) -> 
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
-    from podcast_mcp.services import PipelineService
+    from podcast_mcp.services import PipelineRunResult, PipelineService
 
     seen: list[dict | None] = []
 
     def fake_run(self, **kwargs):  # type: ignore[no-untyped-def]
         seen.append(kwargs.get("config"))
-        return "done"
+        return PipelineRunResult(last_step="done", steps=[])
 
     monkeypatch.setattr(PipelineService, "run", fake_run)
     proj = _proj(tmp_path)

@@ -84,14 +84,14 @@ def pipeline_run(
             raise RuntimeError(job.message or "Pipeline cancelled")
         return f"Completed through {job.result_step or ''}"
 
-    step = PipelineService(ws).run(
+    result = PipelineService(ws).run(
         from_step=from_step,
         only_step=only_step,
         skip_steps=skip_steps,
         unattended=run_unattended,
         config=run_config,
     )
-    return f"Completed through {step}"
+    return f"Completed through {result.last_step}"
 
 
 def pipeline_get_config_tool(project_path: str) -> str:

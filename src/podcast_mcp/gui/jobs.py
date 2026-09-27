@@ -1097,7 +1097,7 @@ class PipelineJobManager:
             unattended=job.unattended,
             config=job.config,
             cancel_check=cancel_check,
-        )
+        ).last_step
         return "Pipeline complete", None
 
 

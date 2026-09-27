@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.models import AutomationEnvelope, AutomationPoint
+from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun, PipelineStepLog
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.pipeline.helpers import ffmpeg
@@ -13,6 +15,21 @@ from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_lock
+
+
+@dataclass(frozen=True)
+class PipelineRunResult:
+    """Outcome of a `PipelineService.run()` call: the last step and this run's QC verdict."""
+
+    last_step: str
+    steps: list[PipelineStepLog]
+    export_qc: dict[str, Any] | None = None
+    export_qc_path: Path | None = None
+
+    @property
+    def ok(self) -> bool:
+        """True when this run exported no QC (nothing to fail), or its QC verdict is ok."""
+        return self.export_qc is None or bool(self.export_qc.get("ok"))
 
 
 class PipelineService:
@@ -29,7 +46,7 @@ class PipelineService:
         unattended: bool = False,
         config: dict | None = None,
         cancel_check=None,
-    ) -> str:
+    ) -> PipelineRunResult:
         from podcast_mcp.services.pipeline_config import (
             ensure_whisper_cached_for_run,
             merge_pipeline_config,
@@ -46,7 +63,7 @@ class PipelineService:
         self.ws.save_merged(history_label="before pipeline run")
         defaults = merge_pipeline_config(config) if config is not None else None
         runner = PipelineRunner(defaults=defaults)
-        runner.run(
+        pipeline_run = runner.run(
             self.ws.project,
             from_step=from_step,
             only_step=only_step,
@@ -57,7 +74,37 @@ class PipelineService:
             cancel_check=cancel_check,
         )
         self.ws.save_merged(history_label="after pipeline run")
-        return self.ws.project.last_completed_step or ""
+        return self._run_result(pipeline_run)
+
+    def _run_result(self, pipeline_run: PipelineRun) -> PipelineRunResult:
+        last_step = self.ws.project.last_completed_step or ""
+        exported_ok = any(
+            log.step == "export_deliverables" and log.status == "ok" for log in pipeline_run.steps
+        )
+        export_qc: dict[str, Any] | None = None
+        qc_path: Path | None = None
+        if exported_ok:
+            qc_path = pipeline_steps.export_qc_path(self.ws.project)
+            try:
+                export_qc = pipeline_steps.read_export_qc(self.ws.project)
+            except ValueError as exc:
+                export_qc = {
+                    "ok": False,
+                    "issues": [f"export_qc.json unreadable: {exc}"],
+                    "warnings": [],
+                }
+            if export_qc is None:
+                export_qc = {
+                    "ok": False,
+                    "issues": ["export_qc.json missing after export"],
+                    "warnings": [],
+                }
+        return PipelineRunResult(
+            last_step=last_step,
+            steps=list(pipeline_run.steps),
+            export_qc=export_qc,
+            export_qc_path=qc_path,
+        )
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
         def mutate(p) -> int:
