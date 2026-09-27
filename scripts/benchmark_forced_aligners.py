@@ -178,9 +178,10 @@ def download_command(c: Candidate) -> str:
 def resolve_model_dir(c: Candidate, override: Path | None) -> Path:
     if override is not None:
         return override
-    try:
-        from huggingface_hub import snapshot_download
+    from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
 
+    try:
         return Path(
             snapshot_download(
                 c.hf_repo,
@@ -189,9 +190,9 @@ def resolve_model_dir(c: Candidate, override: Path | None) -> Path:
                 local_files_only=True,
             )
         )
-    except Exception as exc:
+    except LocalEntryNotFoundError as exc:
         raise FileNotFoundError(
-            f"{c.label} is not cached locally; download it first: {download_command(c)}"
+            f"{c.label} is not cached locally ({exc}); download it first: {download_command(c)}"
         ) from exc
 
 

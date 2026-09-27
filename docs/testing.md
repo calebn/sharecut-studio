@@ -672,8 +672,10 @@ integrates it). Targets:
 Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
 (Hugging Face repo + pinned revision + license). The harness resolves each
 model with `snapshot_download(..., local_files_only=True)` and **never
-downloads**: an uncached model raises `FileNotFoundError` naming the exact
-download command, which `download-commands` also prints. Native words the
+downloads**: an uncached model (a Hugging Face `LocalEntryNotFoundError`)
+raises `FileNotFoundError` naming the exact download command, which
+`download-commands` also prints; any other hub error (permissions, a corrupt
+cache) propagates unchanged. Native words the
 aligner leaves unaligned keep their Whisper times; zero-duration ones
 (`start == end`, a known faster-whisper output) are dropped from each
 candidate prediction and counted in `provenance.alignment_stats.dropped_zero_duration`,
