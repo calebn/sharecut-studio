@@ -13,6 +13,10 @@ guarantee - disclaimer on every report.
 
 from __future__ import annotations
 
+import tempfile
+import wave
+from collections.abc import Callable, Iterator
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -27,9 +31,12 @@ from podcast_mcp.edits.audio_cache import (
 )
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
+from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
+from podcast_mcp.util.process import DEVNULL, run
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
@@ -480,11 +487,89 @@ def _click_check_hires(
         )
     except Exception:  # pragma: no cover - decode failures
         return None
+    return _click_spike_from_window(win)
+
+
+def _click_spike_from_window(win: np.ndarray) -> float | None:
     if win.size < 64:  # pragma: no cover
         return None
     d2 = np.diff(np.diff(win.astype(np.float64)))
     local = float(np.sqrt(np.mean(win.astype(np.float64) ** 2)) + 1e-8)
     return float(np.max(np.abs(d2))) / local
+
+
+@contextmanager
+def _highrate_click_scorer(
+    path: Path, *, side_sec: float = 0.02
+) -> Iterator[Callable[[float], float | None]]:
+    """Keep one bounded WAV reader or one seekable decode for a join sweep."""
+    duration = side_sec * 2
+    with ExitStack() as stack:
+        try:
+            reader = stack.enter_context(wave.open(str(path), "rb"))
+        except (OSError, wave.Error):
+            reader = None
+        if reader is not None:
+            probe, _ = read_open_wav_mono_window(
+                reader, start_sec=0.0, duration_sec=0.001, out_rate=48000
+            )
+            if probe.size:
+
+                def score_wav(src_join_sec: float) -> float | None:
+                    try:
+                        win, _ = read_open_wav_mono_window(
+                            reader,
+                            start_sec=max(0.0, src_join_sec - side_sec),
+                            duration_sec=duration,
+                            out_rate=48000,
+                        )
+                    except (OSError, ValueError, wave.Error):
+                        return None
+                    return _click_spike_from_window(np.asarray(win, dtype=np.float32))
+
+                yield score_wav
+                return
+
+    # Unsupported containers need FFmpeg; keep its output on disk, never in RAM.
+    with ExitStack() as stack:
+        try:
+            decoded = stack.enter_context(tempfile.TemporaryFile(mode="w+b"))
+        except OSError:  # pragma: no cover - no temporary storage
+            yield lambda _join: None
+            return
+        try:
+            run(
+                [
+                    resolve_ffmpeg(),
+                    "-v",
+                    "error",
+                    "-i",
+                    str(path),
+                    "-ac",
+                    "1",
+                    "-ar",
+                    "48000",
+                    "-f",
+                    "f32le",
+                    "pipe:1",
+                ],
+                stdout=decoded,
+                stderr=DEVNULL,
+                check=True,
+            )
+        except Exception:  # pragma: no cover - decode failures
+            yield lambda _join: None
+            return
+
+        def score_decoded(src_join_sec: float) -> float | None:
+            start_frame = round(max(0.0, src_join_sec - side_sec) * 48000)
+            # load_mono_window's FFmpeg fallback uses at least 0.1 seconds.
+            count = round(max(0.1, duration) * 48000)
+            decoded.seek(start_frame * 4)
+            win = np.frombuffer(decoded.read(count * 4), dtype=np.float32)
+            return _click_spike_from_window(win)
+
+        yield score_decoded
 
 
 def _maybe_neural(
@@ -606,6 +691,7 @@ def _assess_existing_join(
     natural_p95: float | None = None,
     baseline_ready: bool = False,
     timeline: SessionTimeline | None = None,
+    click_score: Callable[[float], float | None] | None = None,
 ) -> JoinContinuityReport:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
@@ -620,7 +706,11 @@ def _assess_existing_join(
     join_i = int(max(0.0, src_join) * cfg.sample_rate)
     left, right = _load_sides(samples, cfg.sample_rate, join_i, cfg.side_sec)
     risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
-    spike = _click_check_hires(project, track_id, float(src_join))
+    spike = (
+        click_score(float(src_join))
+        if click_score is not None
+        else _click_check_hires(project, track_id, float(src_join))
+    )
     if spike is not None and spike > 12.0:  # pragma: no branch
         hits.append(
             DetectorHit(
@@ -727,26 +817,28 @@ def assess_project_joins(
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, cfg) if cfg.calibrate else None
         )
-        for prev, cur in joins:
-            join_t = float(cur.timeline_start)
-            gap = abs(float(cur.source_start) - float(prev.source_end))
-            rep = _assess_existing_join(
-                project,
-                tid,
-                join_t,
-                timebase="timeline",
-                config=cfg,
-                defaults=defaults,
-                samples=samples,
-                natural_p95=natural_p95,
-                baseline_ready=True,
-                timeline=timeline,
-            )
-            d = rep.to_dict()
-            d["source_gap_sec"] = round(gap, 4)
-            reports.append(d)
-            if worst is None or d["risk"] > worst["risk"]:
-                worst = d
+        with _highrate_click_scorer(track_audio_path(project, tid)) as click_score:
+            for prev, cur in joins:
+                join_t = float(cur.timeline_start)
+                gap = abs(float(cur.source_start) - float(prev.source_end))
+                rep = _assess_existing_join(
+                    project,
+                    tid,
+                    join_t,
+                    timebase="timeline",
+                    config=cfg,
+                    defaults=defaults,
+                    samples=samples,
+                    natural_p95=natural_p95,
+                    baseline_ready=True,
+                    timeline=timeline,
+                    click_score=click_score,
+                )
+                d = rep.to_dict()
+                d["source_gap_sec"] = round(gap, 4)
+                reports.append(d)
+                if worst is None or d["risk"] > worst["risk"]:
+                    worst = d
     fails = [r for r in reports if r["verdict"] == "fail"]
     reviews = [r for r in reports if r["verdict"] == "review"]
     return {

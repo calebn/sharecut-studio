@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -246,6 +248,76 @@ def test_project_join_sweep_shares_decode_and_baseline(
     assert counts == {"decode": 1, "baseline": 1}
     for actual, expected in zip(sweep["joins"], individual, strict=True):
         assert {k: v for k, v in actual.items() if k != "source_gap_sec"} == expected
+
+
+def test_project_join_sweep_keeps_one_bounded_wav_reader(
+    minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+
+    project = _tiny_project(minimal_project, sample_wav)
+    project.clips.append(
+        Clip(id="c3", track_id="host", source_start=1.6, source_end=1.9, timeline_start=1.0)
+    )
+    opened: list[str] = []
+    real_open = wave.open
+
+    def counted_open(path, mode):
+        opened.append(str(path))
+        return real_open(path, mode)
+
+    monkeypatch.setattr(jc, "wave", SimpleNamespace(open=counted_open, Error=wave.Error))
+    monkeypatch.setattr(
+        jc,
+        "_click_check_hires",
+        lambda *_args: pytest.fail("the sweep must reuse its high-rate reader"),
+    )
+    sweep = jc.assess_project_joins(project, track_id="host", config=_cfg())
+    assert sweep["join_count"] == 2
+    assert len(opened) == 1
+
+
+def test_project_join_sweep_decodes_unsupported_container_once(
+    minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity as jc
+    from podcast_mcp.util.binaries import resolve_ffmpeg
+    from podcast_mcp.util.process import run
+
+    project = _tiny_project(minimal_project, sample_wav)
+    project.clips.append(
+        Clip(id="c3", track_id="host", source_start=1.6, source_end=1.9, timeline_start=1.0)
+    )
+    flac = project.workspace_path() / "raw" / "host.flac"
+    run([resolve_ffmpeg(), "-y", "-v", "error", "-i", str(sample_wav), str(flac)], check=True)
+    project.tracks[0].media.path = "raw/host.flac"
+    cfg = _cfg()
+    individual = [
+        jc.assess_existing_join(project, "host", join_t, config=cfg).to_dict()
+        for join_t in (0.5, 1.0)
+    ]
+    calls = 0
+    temporary_files = []
+    temporary_file = jc.tempfile.TemporaryFile
+
+    def tracked_temporary_file(*args, **kwargs):
+        handle = temporary_file(*args, **kwargs)
+        temporary_files.append(handle)
+        return handle
+
+    def counted_run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return run(*args, **kwargs)
+
+    monkeypatch.setattr(jc, "run", counted_run)
+    monkeypatch.setattr(jc.tempfile, "TemporaryFile", tracked_temporary_file)
+    sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
+    assert calls == 1
+    assert len(temporary_files) == 1 and temporary_files[0].closed
+    for actual, expected in zip(sweep["joins"], individual, strict=True):
+        assert actual["verdict"] == expected["verdict"]
+        assert actual["risk"] == pytest.approx(expected["risk"], abs=0.01)
 
 
 def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
