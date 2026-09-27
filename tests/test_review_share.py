@@ -960,7 +960,7 @@ def test_sanitize_guest_document_event_reduces_file_signature_to_numbers():
         "plane": "document",
         "snapshot": {
             "server_seq": 3,
-            "file": {"mtime_ns": 111, "size": 22, "ino": 9, "path": "/Users/h/ep.json"},
+            "file": {"mtime_ns": 111, "size": 22, "ino": 9, "path": "/Users/host/ep.json"},
             "file_before": {"mtime_ns": "100", "size": 20},
         },
         "server_seq": 3,
