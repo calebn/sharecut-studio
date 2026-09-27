@@ -3,6 +3,7 @@ import { expect } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { renderInvalidation } from "../test/fixtures";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
+import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
 const cut = renderInvalidation();
 const short = renderInvalidation({
@@ -38,23 +39,7 @@ const meta: Meta<typeof StaleInvalidationOverlay> = {
   component: StaleInvalidationOverlay,
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story, context) => (
-      <main
-        className="timeline-area"
-        aria-label="Stale timeline region preview"
-      >
-        <div
-          className="lane-row"
-          style={{ width: context.parameters.phoneWidth ? "360px" : "40rem" }}
-        >
-          <div className="lane-inner" style={{ width: "100%" }}>
-            <Story />
-          </div>
-        </div>
-      </main>
-    ),
-  ],
+  decorators: [timelineLaneStoryDecorator],
   args: {
     invalidations: [cut],
     trackId: "mira-voice",

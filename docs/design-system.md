@@ -115,7 +115,9 @@ the live track lane. Fictional regional, overlapping, short, clipped, filtered,
 and empty states show how render invalidations appear at desktop and 360px
 widths. Whole-track invalidations have no regional band. The bands remain
 decorative and hidden from the accessibility tree; the live stale-status
-controls communicate render state.
+controls communicate render state. Both overlay stories share the production
+lane shell through `timelineLaneStoryDecorator` so desktop and phone widths
+stay aligned.
 
 `Templates/CommentCard`, `Templates/CommentCompose`, and
 `Templates/GhostWordChips` preview the production transcript comment card,

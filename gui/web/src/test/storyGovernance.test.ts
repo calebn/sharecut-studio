@@ -41,6 +41,11 @@ describe("storyLeaks", () => {
       'import { recordStoryDecorator } from "./record/recordStoryDecorator.tsx";',
       1,
     ],
+    [
+      "timeline/TrackLane.tsx",
+      'import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";',
+      1,
+    ],
     ["App.tsx", 'const m = import.meta.glob("./**/*.tsx");', 1],
     ["App.tsx", 'const m = import.meta.glob("./**/*.stories.tsx");', 1],
     ["App.tsx", "const m = import.meta.glob(`./**/*.tsx`);", 1],
@@ -154,6 +159,9 @@ it("classifies story, test and test-helper files", () => {
   expect(isStoryOrTestFile("test/a11y.ts")).toBe(true);
   expect(isStoryOrTestFile("ui/Button.tsx")).toBe(false);
   expect(isStoryOrTestFile("record/recordStoryDecorator.tsx")).toBe(false);
+  expect(isStoryOrTestFile("timeline/timelineLaneStoryDecorator.tsx")).toBe(
+    false,
+  );
 });
 
 describe("stories stay out of the production bundle", () => {
