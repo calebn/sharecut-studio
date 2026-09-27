@@ -179,9 +179,19 @@ export function waitForBootstrapJob(
     let settled = false;
     const es = new EventSource(bootstrapEventsUrl(jobId));
 
+    // Backstop only: a non-terminal re-check must not roll back newer SSE progress.
     const recheck = window.setInterval(() => {
       void fetchBootstrapJob(jobId)
-        .then((job) => consider(job))
+        .then((job) => {
+          if (
+            job &&
+            (job.status === "ok" ||
+              job.status === "error" ||
+              job.status === "cancelled")
+          ) {
+            consider(job);
+          }
+        })
         .catch(() => {
           /* ignore transient */
         });
@@ -211,7 +221,7 @@ export function waitForBootstrapJob(
     };
 
     const consider = (job: BootstrapJobSnapshot | null | undefined) => {
-      if (!job) {
+      if (!job || settled) {
         return;
       }
       opts?.onUpdate?.(job);
