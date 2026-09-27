@@ -1145,14 +1145,45 @@ def test_transcribe_tracks_summary_counts_suspect_hallucinations(
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.models import Transcript, TranscriptWord
 
+    def _flag_first(words, path, *, peak_dbfs):
+        words[0].suspect_hallucination = True
+        return 1
+
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    asr = Transcript(
-        track_id="",
-        words=[TranscriptWord(text="ghost", start=0.0, end=0.5, suspect_hallucination=True)],
-    )
+    asr = Transcript(track_id="", words=[TranscriptWord(text="ghost", start=0.0, end=0.5)])
     with (
         patch.object(Engine, "transcribe_file", return_value=asr),
-        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=1),
+        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", side_effect=_flag_first),
     ):
         summary = steps.transcribe_tracks(proj, load_defaults())
     assert "1 suspect hallucinations" in summary
+
+
+def test_transcribe_tracks_summary_ignores_flags_on_reused_transcripts(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        steps.transcribe_tracks(proj, load_defaults())
+    proj.transcripts[0].words[0].suspect_hallucination = True
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        second = steps.transcribe_tracks(proj, load_defaults())
+    eng_cls.assert_not_called()
+    assert "0 transcribed, 1 reused" in second
+    assert "suspect hallucinations" not in second
+
+
+def test_transcribe_tracks_summary_reports_silence_filter_skip(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch("podcast_mcp.engines.transcribe.flag_silent_words_in_file", return_value=None),
+    ):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "silence filter skipped on 1 track(s)" in summary

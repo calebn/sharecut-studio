@@ -217,8 +217,10 @@ class TranscriptionEngine:
     ) -> None:
         self.model_size = validate_whisper_model(model_size)
         self.device = device
-        self.options = options or AsrOptions()
+        self.options = options if options is not None else AsrOptions.from_defaults()
         self._model = None
+        # Job labels whose silence filter could not decode the audio (step summary).
+        self.silence_filter_skipped: list[str] = []
 
     def _get_model(self):
         if self._model is None:
@@ -355,14 +357,20 @@ class TranscriptionEngine:
         flag_anomalous_asr_durations(
             transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
         )
+        # Cached words carry no silence flags: they are recomputed below from the current
+        # transcribe.silence_filter settings (not a cache input) on every read.
+        for word in transcript.words:
+            word.suspect_hallucination = False
+        if fresh:
+            write_text_atomic(cache, transcript.model_dump_json(indent=2))
         if self.options.silence_filter_enabled:
             n = flag_silent_words_in_file(
                 transcript.words, job.audio, peak_dbfs=self.options.silence_peak_dbfs
             )
-            if n:
+            if n is None:
+                self.silence_filter_skipped.append(job.label)
+            elif n:
                 log.info("%s: %d word(s) over silence flagged suspect_hallucination", job.label, n)
-        if fresh:
-            write_text_atomic(cache, transcript.model_dump_json(indent=2))
         return transcript
 
     def transcribe_track(

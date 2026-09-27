@@ -113,14 +113,22 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         unattended=is_unattended(defaults=defaults),
         allow_edited=bool(cfg.get("overwrite_edited", False)),
     )
-    transcripts = run_transcribe_plan(
-        project,
-        plan,
-        lambda: TranscriptionEngine(
+    engines: list[TranscriptionEngine] = []
+
+    def make_engine() -> TranscriptionEngine:
+        # Built only when ASR runs (model validation stays lazy); kept for the skip count.
+        engine = TranscriptionEngine(
             model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
             device="cpu",
             options=AsrOptions.from_defaults(defaults),
-        ),
+        )
+        engines.append(engine)
+        return engine
+
+    transcripts = run_transcribe_plan(
+        project,
+        plan,
+        make_engine,
         use_cache=not overwrite,
         language=cfg.get("language", "en"),
         max_word_sec=pol.max_word_audibility_sec,
@@ -148,15 +156,13 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
-    suspect = sum(
-        1
-        for t in project.transcripts
-        if t.key in job_keys
-        for w in t.words
-        if w.suspect_hallucination
-    )
+    # Fresh ASR only: reused transcripts keep whatever flags an earlier run stored.
+    suspect = sum(1 for t in transcripts for w in t.words if w.suspect_hallucination)
     if suspect:
         summary += f", {suspect} suspect hallucinations"
+    skipped = sum(len(e.silence_filter_skipped) for e in engines)
+    if skipped:
+        summary += f", silence filter skipped on {skipped} track(s)"
     return summary
 
 
