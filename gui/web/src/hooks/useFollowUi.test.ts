@@ -99,6 +99,16 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().layoutMode).toBe("default");
   });
 
+  it("reveals a leader tab the follower holds behind the timeline layout", () => {
+    const { rerender } = renderHook(() => useFollowUi());
+    expect(useDawStore.getState().activeTab).toBe("comments");
+    useDawStore.setState({ activeTab: "transcript", layoutMode: "timeline" });
+    useDawStore.setState({ sessionClients: [leader({ tab: "transcript" })] });
+    rerender();
+    expect(useDawStore.getState().activeTab).toBe("transcript");
+    expect(useDawStore.getState().layoutMode).toBe("default");
+  });
+
   it("applies the same ui only once", () => {
     let tabSets = 0;
     const orig = useDawStore.getState().setActiveTab;
