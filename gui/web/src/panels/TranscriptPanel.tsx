@@ -1087,6 +1087,11 @@ export function TranscriptPanel() {
                                   ) {
                                     return;
                                   }
+                                  // Mouse edits inline; touch double-tap already
+                                  // opened the Correct sheet (ghost-click guard above).
+                                  // Deliberate: the sheet leaves room for the on-screen
+                                  // keyboard and keeps Suppress / End index. Both paths
+                                  // submit through submitWordCorrection.
                                   if (inlineEditable && wordIndex != null) {
                                     openInlineEdit({
                                       trackId: u.track_id,
