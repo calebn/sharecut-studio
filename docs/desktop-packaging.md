@@ -102,7 +102,7 @@ available for a final guard check. Guest producers and guests who declined
 recording do not receive a keeper warning from room state alone.
 A successful retry clears a current keeper finalization warning; an older
 session's failed disposal stays armed because a new session cannot repair its
-WAV. New/Open project navigation is blocked while the marker is armed, and
+WAV. New/Open project navigation is blocked while the marker is armed (and, in a plain browser tab, which gets no marker, while that tab reports the same recording risk in page memory), and
 Home does not clear a marker carried from a recording room. The sidecar starts unpinned, so the first window shows Home; once a project is open, reloading `/` returns to it (the pinned-root redirect keeps `sc_close_guard`), and only Studio New project unpins. If a
 confirmed native destroy fails, a dialog explains that the room remains open
 and offers a retry through the normal Quit control.
