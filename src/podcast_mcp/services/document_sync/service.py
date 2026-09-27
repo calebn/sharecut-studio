@@ -319,11 +319,16 @@ class DocumentSyncService:
             with store.write_transaction():
                 existing = existing_document_command(store, command)
                 if existing is not None:
+                    retry_snap = self.document_snapshot(projection=snap_proj)
+                    # Nothing applied: file_before is the current file, so a client
+                    # holding it keeps it and any other client marks it unknown (#657).
+                    if file_before is not None:
+                        retry_snap["file_before"] = file_before
                     return {
                         "ok": True,
                         "type": "Applied",
                         "command": existing,
-                        "snapshot": self.document_snapshot(projection=snap_proj),
+                        "snapshot": retry_snap,
                         "server_seq": existing["server_seq"],
                         "idempotent": True,
                     }
