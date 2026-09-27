@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import errno
 import hashlib
 import json
 import logging
@@ -1129,6 +1128,37 @@ def test_failed_mp3_retry_never_exposes_partial_file(
     assert mp3.read_bytes() == b"complete mp3"
 
 
+@pytest.mark.parametrize("force_copy", [False, True])
+def test_mp3_retry_snapshot_survives_in_place_source_write(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, force_copy
+):
+    project, version_id = _publish(minimal_project, sample_wav)
+    wav = version_audio_path(project, version_id)
+    original = wav.read_bytes()
+    mp3 = version_mp3_path(project, version_id)
+    assert mp3 is not None
+    mp3.unlink()
+    if force_copy:
+        monkeypatch.setattr(review_versions, "_clone_pinned_wav", lambda _fd, _path: False)
+
+    class MutatingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert source.read_bytes() == original
+            assert (source.stat().st_dev, source.stat().st_ino) != (
+                wav.stat().st_dev,
+                wav.stat().st_ino,
+            )
+            assert source.parent.stat().st_mode & 0o077 == 0
+            with wav.open("r+b") as mutable:
+                mutable.write(b"CHANGED")
+            assert source.read_bytes() == original
+            output.write_bytes(b"encoded original")
+
+    assert encode_version_mp3(project, version_id, eng=MutatingEngine()) == mp3
+    assert wav.read_bytes().startswith(b"CHANGED")
+    assert mp3.read_bytes() == b"encoded original"
+
+
 @requires_safe_cleanup
 def test_mp3_retry_cleans_only_bounded_stale_regular_files(
     minimal_project, sample_wav, tmp_workspace
@@ -1433,61 +1463,88 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
     assert version.model_dump() == original_metadata
 
 
-def test_mp3_retry_hardlinks_pinned_wav(minimal_project, sample_wav, monkeypatch):
+def test_mp3_retry_uses_separate_inode(minimal_project, sample_wav):
     project, version_id = _publish(minimal_project, sample_wav)
     version_mp3_path(project, version_id).unlink()
     wav = version_audio_path(project, version_id)
 
     class InspectingEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
-            assert os.stat(source).st_ino == os.stat(wav).st_ino
+            assert (os.stat(source).st_dev, os.stat(source).st_ino) != (
+                os.stat(wav).st_dev,
+                os.stat(wav).st_ino,
+            )
             assert source.read_bytes() == wav.read_bytes()
             output.write_bytes(b"mp3")
 
-    def unexpected_copy(*args, **kwargs):
-        raise AssertionError("same-device retry should not copy the WAV")
+    encode_version_mp3(project, version_id, eng=InspectingEngine())
 
+
+def test_mp3_retry_native_clone_avoids_full_copy(minimal_project, sample_wav, monkeypatch):
+    project, version_id = _publish(minimal_project, sample_wav)
+    version_mp3_path(project, version_id).unlink()
+    expected = version_audio_path(project, version_id).read_bytes()
+    native_clone = review_versions._clone_pinned_wav
+
+    def require_native_clone(source_fd, snapshot):
+        if not native_clone(source_fd, snapshot):
+            pytest.skip("filesystem does not support cloning this WAV")
+        return True
+
+    def unexpected_copy(*_args, **_kwargs):
+        raise AssertionError("native clone must avoid a full WAV copy")
+
+    monkeypatch.setattr(review_versions, "_clone_pinned_wav", require_native_clone)
     monkeypatch.setattr(review_versions.shutil, "copyfileobj", unexpected_copy)
-    encode_version_mp3(project, version_id, eng=InspectingEngine())
-
-
-def test_mp3_retry_copies_pinned_wav_when_link_fails(minimal_project, sample_wav, monkeypatch):
-    project, version_id = _publish(minimal_project, sample_wav)
-    version_mp3_path(project, version_id).unlink()
-    wav = version_audio_path(project, version_id)
-
-    class InspectingEngine:
-        def export_mp3(self, source, output, *, bitrate_kbps):
-            assert os.stat(source).st_ino != os.stat(wav).st_ino
-            assert source.read_bytes() == wav.read_bytes()
-            output.write_bytes(b"mp3")
-
-    def cross_device(*args, **kwargs):
-        raise OSError(errno.EXDEV, "cross-device link")
-
-    monkeypatch.setattr(review_versions.os, "link", cross_device)
-    encode_version_mp3(project, version_id, eng=InspectingEngine())
-
-
-def test_mp3_retry_rejects_link_to_swapped_source(minimal_project, sample_wav, monkeypatch):
-    project, version_id = _publish(minimal_project, sample_wav)
-    version_mp3_path(project, version_id).unlink()
-    wav = version_audio_path(project, version_id)
-    expected = wav.read_bytes()
-    real_link = os.link
-
-    def swap_before_link(source, target, **kwargs):
-        wav.rename(wav.with_suffix(".old"))
-        wav.write_bytes(b"replacement")
-        return real_link(source, target, **kwargs)
 
     class InspectingEngine:
         def export_mp3(self, source, output, *, bitrate_kbps):
             assert source.read_bytes() == expected
-            assert os.stat(source).st_ino != os.stat(wav).st_ino
             output.write_bytes(b"mp3")
 
-    monkeypatch.setattr(review_versions.os, "link", swap_before_link)
+    encode_version_mp3(project, version_id, eng=InspectingEngine())
+
+
+def test_mp3_retry_copies_pinned_wav_when_clone_fails(minimal_project, sample_wav, monkeypatch):
+    project, version_id = _publish(minimal_project, sample_wav)
+    version_mp3_path(project, version_id).unlink()
+    wav = version_audio_path(project, version_id)
+
+    class InspectingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert (os.stat(source).st_dev, os.stat(source).st_ino) != (
+                os.stat(wav).st_dev,
+                os.stat(wav).st_ino,
+            )
+            assert source.read_bytes() == wav.read_bytes()
+            output.write_bytes(b"mp3")
+
+    monkeypatch.setattr(review_versions, "_clone_pinned_wav", lambda _fd, _path: False)
+    encode_version_mp3(project, version_id, eng=InspectingEngine())
+
+
+def test_mp3_retry_clones_pinned_source_after_path_swap(minimal_project, sample_wav, monkeypatch):
+    project, version_id = _publish(minimal_project, sample_wav)
+    version_mp3_path(project, version_id).unlink()
+    wav = version_audio_path(project, version_id)
+    expected = wav.read_bytes()
+    real_clone = review_versions._clone_pinned_wav
+
+    def swap_before_clone(source_fd, target):
+        wav.rename(wav.with_suffix(".old"))
+        wav.write_bytes(b"replacement")
+        return real_clone(source_fd, target)
+
+    class InspectingEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            assert source.read_bytes() == expected
+            assert (os.stat(source).st_dev, os.stat(source).st_ino) != (
+                os.stat(wav).st_dev,
+                os.stat(wav).st_ino,
+            )
+            output.write_bytes(b"mp3")
+
+    monkeypatch.setattr(review_versions, "_clone_pinned_wav", swap_before_clone)
     encode_version_mp3(project, version_id, eng=InspectingEngine())
 
 
