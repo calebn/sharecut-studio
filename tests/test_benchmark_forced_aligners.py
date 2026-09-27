@@ -335,6 +335,24 @@ def test_agreement_drops_zero_duration_words_and_ranks_disagreements() -> None:
     assert entry["realtime_factor"] == 0.5
 
 
+def test_agreement_counts_upstream_zero_duration_drops() -> None:
+    words = [{"text": "one", "start": 0.0, "end": 0.2}]
+    reference = {
+        "audio_sha256": "a" * 64,
+        "provenance": {"alignment_stats": {"dropped_zero_duration": 1}},
+        "words": [*words, {"text": "zero", "start": 0.3, "end": 0.3}],
+    }
+    prediction = {
+        "audio_sha256": "a" * 64,
+        "provenance": {"alignment_stats": {"dropped_zero_duration": 2}},
+        "words": words,
+    }
+
+    entry = bfa.agreement(reference, {"cand": prediction})["comparisons"]["cand"]
+
+    assert entry["dropped_zero_duration"] == {"reference": 2, "prediction": 2}
+
+
 def test_agreement_rejects_mismatched_audio() -> None:
     reference = {"audio_sha256": "a" * 64, "words": []}
     prediction = {"audio_sha256": "b" * 64, "words": []}
@@ -498,7 +516,7 @@ def test_run_suite_drops_zero_duration_native_words(tmp_path) -> None:
     agree = json.loads((runs_dir / "tones.agree.json").read_text(encoding="utf-8"))
     assert agree["comparisons"]["onnx-base"]["dropped_zero_duration"] == {
         "reference": 1,
-        "prediction": 0,
+        "prediction": 1,
     }
 
 

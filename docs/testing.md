@@ -682,8 +682,11 @@ raises `FileNotFoundError` naming the exact download command, which
 cache) propagates unchanged. Native words the
 aligner leaves unaligned keep their Whisper times; zero-duration ones
 (`start == end`, a known faster-whisper output) are dropped from each
-candidate prediction and counted in `provenance.alignment_stats.dropped_zero_duration`,
-matching the `dropped_zero_duration` counts in `*.agree.json`. `torch-large`
+candidate prediction and counted in `provenance.alignment_stats.dropped_zero_duration`.
+Each side's `dropped_zero_duration` count in `*.agree.json` is that recorded
+upstream count plus any zero-duration word still in the compared payload
+(the native reference's are dropped there), so a candidate's agree count
+matches its `alignment_stats`. `torch-large`
 needs `uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
 candidates need only `onnxruntime`, which the base install gets transitively
 through `faster-whisper` (it is not a direct dependency, so declare it if
