@@ -8,12 +8,14 @@ describe("bindWsSender", () => {
       readyState: WebSocket.OPEN,
       send,
     } as unknown as WebSocket;
-    bindWsSender(open)({ type: "Presence" });
+    expect(bindWsSender(open)({ type: "Presence" })).toBe(true);
     expect(send).toHaveBeenCalledWith(JSON.stringify({ type: "Presence" }));
-    bindWsSender({
-      readyState: WebSocket.CONNECTING,
-      send,
-    } as unknown as WebSocket)({ type: "Presence" });
+    expect(
+      bindWsSender({
+        readyState: WebSocket.CONNECTING,
+        send,
+      } as unknown as WebSocket)({ type: "Presence" }),
+    ).toBe(false);
     expect(send).toHaveBeenCalledTimes(1);
   });
 });

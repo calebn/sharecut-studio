@@ -258,12 +258,12 @@ Agent, CLI, local DAW tabs, and future remote web users are **clients** of one s
 | `GET /api/session/meta` | `server_seq` / mtime (or `exists: false`) |
 | `GET /api/session/state` | Materialized snapshot + `clients[]` (404 if empty) |
 | `POST /api/session/command` | Submit typed command (agent = viewer = cli) |
-| `POST /api/session/state` | Viewer blob → typed commands (Ack, presence heartbeat, durable deltas) |
-| `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; primary DAW transport |
+| `POST /api/session/state` | Viewer blob → typed commands (Ack, presence heartbeat, durable deltas); socket-down fallback |
+| `WS /api/session/ws?path=&client_id=` | Push `Applied` / `Snapshot`; primary DAW transport; inbound `Presence` and durable `ViewerState` |
 
 **Agent → DAW:** `PlayService.play()` emits `PlayOsAudio` (speakers only — DAW seeks/highlights) or `AuditionInViewer` (`dry_run=true` — browser plays). `SessionControlService` / MCP session tools submit the same typed commands; optional `selection` / `set_session_selection_tool` highlights a modifier in the inspector. WebSocket fanout updates open tabs; HTTP snapshot poll is fallback.
 
-**DAW → agent:** presence (cursor, viewport, live playhead) publishes over **WebSocket** `Presence` frames. Durable deltas (mode, selection, mute) still `POST /api/session/state`. Continuous playhead while playing must not emit durable `SetPlayhead` Applied events (that re-seeks the browser audio and stutters). Followers omit `playhead_sec` / `is_playing` from that HTTP snapshot.
+**DAW → agent:** presence (cursor, viewport, live playhead) publishes over **WebSocket** `Presence` frames. Durable deltas (mode, selection, mute) go over the socket as one `ViewerState` frame per debounced change while it is live; `POST /api/session/state` is only the socket-down fallback. Continuous playhead while playing must not emit durable `SetPlayhead` Applied events (that re-seeks the browser audio and stutters). Followers omit `playhead_sec` / `is_playing` from that snapshot.
 
 **Transport authority (Figma-like):** each DAW tab owns its own play/pause clock. Agent commands (`SetRegion` / `AuditionInViewer` / `SetPlaying` from role `agent`) may drive transport; other viewers’ `SetPlaying` / playhead echoes are ignored (ack cursor only). Local Play clears any leftover agent `playUntil` auto-stop so a prior audition region cannot halt free scrubbing. Agents call `get_session_state_tool` (or `podcast session status`) before “cut from here”; prefer the viewer entry in `clients[]` for the live playhead while transport is rolling.
 

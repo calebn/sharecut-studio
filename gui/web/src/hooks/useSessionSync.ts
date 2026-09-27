@@ -47,7 +47,8 @@ function wsUrl(projectPath: string, clientId: string): string {
 /**
  * Session sync: WebSocket primary (Applied fanout), HTTP publish + mtime fallback.
  *
- * Presence publishes over WS; durable deltas still POST /api/session/state.
+ * Presence and durable deltas (`ViewerState`) publish over WS while it is
+ * open; POST /api/session/state is the socket-down fallback only.
  * See docs/gui-integration.md § Shared session state.
  */
 export function useSessionSync(
@@ -62,7 +63,7 @@ export function useSessionSync(
   enabled = true,
 ): void {
   const clientIdRef = useRef(newClientId());
-  const sendRef = useRef<((frame: Record<string, unknown>) => void) | null>(
+  const sendRef = useRef<((frame: Record<string, unknown>) => boolean) | null>(
     null,
   );
   const [wsReady, setWsReady] = useState(false);
@@ -70,7 +71,6 @@ export function useSessionSync(
     serverSeq: lastAppliedRevision,
     commandId: lastAppliedCommandId,
   });
-  const mtimeRef = useRef<number | null>(null);
   const applyAgentSessionRef = useRef(applyAgentSession);
   applyAgentSessionRef.current = applyAgentSession;
 
@@ -261,18 +261,18 @@ export function useSessionSync(
     FALLBACK_POLL_MS,
   );
 
-  const publishHttp = useEffectEvent(async () => {
+  /** Durable viewer state: one WS `ViewerState` frame while live, else HTTP. */
+  const publish = useEffectEvent(async () => {
     const snap = {
       ...buildViewerSnapshot(),
       client_id: clientIdRef.current,
       label: "Host",
     };
-    const written = await postSessionState(projectPath, snap);
-    mtimeRef.current = null;
-    const meta = await loadSessionMeta(projectPath);
-    if (meta.exists) {
-      mtimeRef.current = meta.mtime_ns;
+    // The server's Echo (own client_id) advances the cursor via onmessage.
+    if (sendRef.current?.({ type: "ViewerState", snapshot: snap })) {
+      return;
     }
+    const written = await postSessionState(projectPath, snap);
     cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
   });
 
@@ -285,7 +285,7 @@ export function useSessionSync(
       void (async () => {
         try {
           if (!cancelled) {
-            await publishHttp();
+            await publish();
           }
         } catch {
           // Transient
@@ -296,7 +296,8 @@ export function useSessionSync(
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [projectPath, suppressPublish, publishKey, enabled]);
+    // wsReady: a (re)connect republishes over the new socket; a drop republishes over HTTP.
+  }, [projectPath, suppressPublish, publishKey, enabled, wsReady]);
 
   useEffect(() => {
     if (!enabled || !projectPath || suppressPublish || !isPlaying || wsReady) {
@@ -307,7 +308,7 @@ export function useSessionSync(
       void (async () => {
         try {
           if (!cancelled) {
-            await publishHttp();
+            await publish();
           }
         } catch {
           // Transient
