@@ -227,17 +227,21 @@ def expected_stem_duration_sec(project: EpisodeProject, track_id: str) -> float 
     return float(extent[0])
 
 
-def probe_stem_duration_sec(project: EpisodeProject, track_id: str) -> float | None:
-    stem = stem_path(project, track_id)
-    if not stem.is_file():
+def probe_wav_duration_sec(path: Path) -> float | None:
+    """Duration of the WAV at ``path`` in seconds, or None when missing or unreadable."""
+    if not path.is_file():
         return None
     try:
         from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
-        return float(FFmpegEngine().probe(stem).duration_sec)
+        return float(FFmpegEngine().probe(path).duration_sec)
     except Exception as exc:
-        log.debug("stem probe failed for %s: %s", track_id, exc)
+        log.debug("probe failed for %s: %s", path, exc)
         return None
+
+
+def probe_stem_duration_sec(project: EpisodeProject, track_id: str) -> float | None:
+    return probe_wav_duration_sec(stem_path(project, track_id))
 
 
 def stem_duration_matches_timeline(

@@ -1249,7 +1249,7 @@ def test_edit_apply_bleed_mute_apply(minimal_project, sample_wav) -> None:
             "podcast_mcp.edits.transcript_bleed_mute.gate_stem_window",
             side_effect=_copy_gate,
         ),
-        patch("podcast_mcp.edits.transcript_bleed_mute.write_stem_hash"),
+        patch("podcast_mcp.edits.transcript_bleed_mute.probe_wav_duration_sec", return_value=2.0),
     ):
         out = EditService(ws).apply_bleed_mute(speaker="Host", apply=True)
     assert out["applied_count"] == 1

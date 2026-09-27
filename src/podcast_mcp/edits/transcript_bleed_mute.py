@@ -7,18 +7,17 @@ from typing import Any
 
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
-    clear_stem_hash,
     expected_stem_duration_sec,
     probe_stem_duration_sec,
+    probe_wav_duration_sec,
+    publish_stem,
     stem_is_fresh,
-    write_stem_hash,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcript_gated_play import gate_stem_window, word_intervals
 from podcast_mcp.models import EpisodeProject, TrackRole
-from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
-from podcast_mcp.util.project_state import render_lock
+from podcast_mcp.util.project_state import render_lock_held
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
 
 log = logging.getLogger(__name__)
@@ -39,6 +38,33 @@ def _track_duration(project: EpisodeProject, track_id: str) -> float:
     return 0.0
 
 
+class _GateGrewStemError(Exception):
+    """The gated render came out longer than the timeline; it is never published."""
+
+    def __init__(self, duration_sec: float | None) -> None:
+        super().__init__(f"gated stem is {duration_sec} s")
+        self.duration_sec = duration_sec
+
+
+def _gate_into(
+    tmp: Path,
+    *,
+    stem: Path,
+    intervals: list[tuple[float, float]],
+    duration_sec: float,
+    win_start: float,
+    win_end: float,
+) -> None:
+    """Gate ``stem`` into ``tmp``; reject a render longer than the timeline before the swap."""
+    gate_stem_window(
+        stem, intervals, tmp, duration_sec=duration_sec, win_start=win_start, win_end=win_end
+    )
+    # Gate must not grow the stem past the timeline (wrong-clock pad).
+    after = probe_wav_duration_sec(tmp)
+    if after is None or after > duration_sec + STEM_DURATION_TOLERANCE_SEC:
+        raise _GateGrewStemError(after)
+
+
 def apply_transcript_bleed_mute(
     project: EpisodeProject,
     *,
@@ -54,7 +80,15 @@ def apply_transcript_bleed_mute(
     ``track.transcript_gate`` so history/undo and segment play re-apply the gate.
     Optional ``start_sec``/``end_sec`` limit the muted window (rest of stem unchanged).
     Transcript word metadata is unchanged.
+    With ``dry_run=False`` the caller must hold ``render_lock(project)``, taken before the
+    project locks (``EditService.apply_bleed_mute`` does); a gated render longer than the
+    timeline is rejected before the swap, keeping the old stem and hash.
     """
+    if not dry_run and not render_lock_held(project):
+        raise RuntimeError(
+            "apply_transcript_bleed_mute(dry_run=False) rewrites stems: hold "
+            "render_lock(project) before the project locks (#482)"
+        )
     targets = [track_id] if track_id else dialogue_track_ids(project)
     targets = [tid for tid in targets if project.track_by_id(tid)]
 
@@ -134,35 +168,36 @@ def apply_transcript_bleed_mute(
                 candidates.append(entry)
 
                 if not dry_run:
-                    # Sibling temp + hash dropped before the swap (#356); the old temp in the
-                    # system dir could also fail os.replace across filesystems.
-                    with render_lock(project):
-                        render_atomic(
-                            stem,
+                    was_gated = track.transcript_gate
+                    # The hash publish_stem writes must name the gated render.
+                    track.transcript_gate = True
+                    try:
+                        publish_stem(
+                            project,
+                            tid,
                             functools.partial(
-                                gate_stem_window,
-                                stem,
-                                intervals,
+                                _gate_into,
+                                stem=stem,
+                                intervals=intervals,
                                 duration_sec=dur,
                                 win_start=win_start,
                                 win_end=win_end,
                             ),
-                            before_replace=functools.partial(clear_stem_hash, project, tid),
                         )
-                    # Gate must not grow the stem past the timeline (wrong-clock pad).
-                    after = probe_stem_duration_sec(project, tid)
-                    if after is None or after > dur + STEM_DURATION_TOLERANCE_SEC:
+                    except _GateGrewStemError as exc:
+                        track.transcript_gate = was_gated
                         skipped.append(
                             {
                                 "track_id": tid,
                                 "reason": "duration_mismatch_after_gate",
                                 "expected_duration_sec": dur,
-                                "stem_duration_sec": after,
+                                "stem_duration_sec": exc.duration_sec,
                             }
                         )
                         continue
-                    track.transcript_gate = True
-                    write_stem_hash(project, tid)
+                    except BaseException:
+                        track.transcript_gate = was_gated
+                        raise
                     applied.append(entry)
             finally:
                 task.advance(1, total=len(targets))
