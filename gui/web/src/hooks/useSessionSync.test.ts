@@ -439,6 +439,155 @@ describe("useSessionSync presence", () => {
     }
   });
 
+  it("hands the echo deadline to the next unechoed ViewerState frame after a partial Echo", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      const { rerender } = renderHook(
+        ({ publishKey }: { publishKey: string }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            vi.fn(),
+            () => ({ playhead_sec: 0, is_playing: false }),
+            false,
+            0,
+            null,
+            false,
+            publishKey,
+            true,
+          ),
+        { initialProps: { publishKey: "k1" } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const viewerStateFrames = () =>
+        FakeWebSocket.instances[0].sent
+          .map(
+            (s) =>
+              JSON.parse(s) as {
+                type: string;
+                snapshot?: { client_id?: string };
+              },
+          )
+          .filter((f) => f.type === "ViewerState");
+      const echo = (clientId: string | undefined, seq: number) =>
+        FakeWebSocket.instances[0].emit({
+          type: "Echo",
+          command: { type: "ViewerState", client_id: clientId, role: "viewer" },
+          snapshot: { server_seq: seq, last_command_id: `cmd-${seq}` },
+        });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(viewerStateFrames()).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(840);
+      });
+      rerender({ publishKey: "k2" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(viewerStateFrames()).toHaveLength(2);
+
+      const clientId = viewerStateFrames()[0].snapshot?.client_id;
+      await act(async () => {
+        echo(clientId, 1);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(postSessionState).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(900);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not fall back once every in-flight ViewerState frame is echoed", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      const { rerender } = renderHook(
+        ({ publishKey }: { publishKey: string }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            vi.fn(),
+            () => ({ playhead_sec: 0, is_playing: false }),
+            false,
+            0,
+            null,
+            false,
+            publishKey,
+            true,
+          ),
+        { initialProps: { publishKey: "k1" } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const viewerStateFrames = () =>
+        FakeWebSocket.instances[0].sent
+          .map(
+            (s) =>
+              JSON.parse(s) as {
+                type: string;
+                snapshot?: { client_id?: string };
+              },
+          )
+          .filter((f) => f.type === "ViewerState");
+      const echo = (clientId: string | undefined, seq: number) =>
+        FakeWebSocket.instances[0].emit({
+          type: "Echo",
+          command: { type: "ViewerState", client_id: clientId, role: "viewer" },
+          snapshot: { server_seq: seq, last_command_id: `cmd-${seq}` },
+        });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(viewerStateFrames()).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(840);
+      });
+      rerender({ publishKey: "k2" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(viewerStateFrames()).toHaveLength(2);
+
+      const clientId = viewerStateFrames()[0].snapshot?.client_id;
+      await act(async () => {
+        echo(clientId, 1);
+        echo(clientId, 2);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(postSessionState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not fall back once the ViewerState echo arrives", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
