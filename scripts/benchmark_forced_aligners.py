@@ -298,12 +298,16 @@ def align_prediction(
             failed_windows += 1
     runtime_sec = time.perf_counter() - start_time
 
+    # Unaligned native words keep their Whisper times; a start == end one would
+    # fail every metric's 0 <= start < end validation, so drop and count it.
+    output, dropped = _drop_zero_duration(output)
     unaligned_words = len(words) - aligned_words
     stats = {
         "windows": windows_count,
         "failed_windows": failed_windows,
         "aligned_words": aligned_words,
         "unaligned_words": unaligned_words,
+        "dropped_zero_duration": dropped,
     }
     return output, stats, runtime_sec
 
@@ -512,11 +516,10 @@ def run_suite(
                 write_json_atomic(runs_dir / f"{item.item_id}.{c.label}.report.json", report)
                 scored[c.label].append(report)
 
+            native_words, _ = _drop_zero_duration(native_payload["words"])
             agreements[c.label].append(
                 {
-                    "metrics": measure_word_boundaries(
-                        native_payload["words"], prediction["words"]
-                    ).as_dict(),
+                    "metrics": measure_word_boundaries(native_words, prediction["words"]).as_dict(),
                     "provenance": prediction["provenance"],
                 }
             )

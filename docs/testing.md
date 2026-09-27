@@ -673,8 +673,12 @@ Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
 (Hugging Face repo + pinned revision + license). The harness resolves each
 model with `snapshot_download(..., local_files_only=True)` and **never
 downloads**: an uncached model raises `FileNotFoundError` naming the exact
-download command, which `download-commands` also prints. `torch-large` needs
-`uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
+download command, which `download-commands` also prints. Native words the
+aligner leaves unaligned keep their Whisper times; zero-duration ones
+(`start == end`, a known faster-whisper output) are dropped from each
+candidate prediction and counted in `provenance.alignment_stats.dropped_zero_duration`,
+matching the `dropped_zero_duration` counts in `*.agree.json`. `torch-large`
+needs `uv sync --extra dev --extra gui --extra relay --extra joinqc`; the ONNX
 candidates do not.
 
 **Candidate results: pending #641.** This issue proves the harness and metric
