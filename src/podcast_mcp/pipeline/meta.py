@@ -1058,15 +1058,6 @@ class WorkingSet:
     unattended: bool = True
 
 
-def get_by_path(data: dict[str, Any], path: str) -> Any:
-    cur: Any = data
-    for part in path.split("."):
-        if not isinstance(cur, dict) or part not in cur:
-            return None
-        cur = cur[part]
-    return cur
-
-
 def set_by_path(data: dict[str, Any], path: str, value: Any) -> None:
     parts = path.split(".")
     cur = data

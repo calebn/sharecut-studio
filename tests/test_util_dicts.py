@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.util.dicts import deep_merge
+from podcast_mcp.util.dicts import deep_merge, get_by_path
 
 
 def test_deep_merge_nested_keeps_siblings() -> None:
@@ -22,3 +22,9 @@ def test_deep_merge_does_not_alias_override() -> None:
     out = deep_merge({}, override)
     out["items"].append(2)
     assert override["items"] == [1]
+
+
+def test_get_by_path_nested_missing_and_non_mapping() -> None:
+    assert get_by_path({"a": {"b": 1}}, "a.b") == 1
+    assert get_by_path({"a": {}}, "a.x") is None
+    assert get_by_path({"a": 1}, "a.b") is None

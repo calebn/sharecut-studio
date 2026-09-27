@@ -9,7 +9,6 @@ from podcast_mcp.pipeline.meta import (
     PARAM_FIELDS,
     cascade_disable,
     expand_enable,
-    get_by_path,
     ordered_step_metas,
     param_fields_payload,
 )
@@ -25,6 +24,7 @@ from podcast_mcp.services.pipeline_config import (
     sync_editorial_enabled_steps,
     whitelist_overrides,
 )
+from podcast_mcp.util.dicts import get_by_path
 
 
 def _put_enable_toggle(store, proj, step_id: str, enabled: bool) -> None:
@@ -518,7 +518,6 @@ def test_apply_enable_toggle_when_enabled_steps_none(tmp_path) -> None:
 
 def test_meta_path_helpers_and_unknown_step() -> None:
     from podcast_mcp.pipeline.meta import (
-        get_by_path,
         set_by_path,
         step_meta,
         transitive_depends_on,
