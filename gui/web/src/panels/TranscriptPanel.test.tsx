@@ -121,6 +121,7 @@ describe("TranscriptPanel", () => {
       selection: null,
       transcriptFollowPlayhead: false,
       layoutMode: "default",
+      pointerKind: "fine",
     });
   });
 
@@ -382,6 +383,20 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({ projectPath: "share:tok" });
       const { container } = render(<TranscriptPanel />);
       expect(container.querySelector(".transcript-mode-hint")).toBeNull();
+    });
+
+    it("points coarse pointers at double-tap correction", () => {
+      useDawStore.setState({ pointerKind: "coarse" });
+      const { container } = render(<TranscriptPanel />);
+      const hint = container.querySelector(".transcript-mode-hint");
+      expect(hint).toHaveTextContent(/Double-tap a word/);
+      expect(hint).not.toHaveTextContent(/Enter saves/);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /Correct/i }),
+      );
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/text only/);
     });
 
     it("hides the hint for unhydrated transcript words", () => {
