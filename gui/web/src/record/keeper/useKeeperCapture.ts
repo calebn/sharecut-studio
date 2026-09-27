@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useMountedRef } from "../../hooks/useMountedRef";
 import { errorMessage } from "../../utils/apiError";
 import { recordingClockMs } from "../clock";
 import type { RecordRole, RecordSnapshot } from "../types";
@@ -93,7 +94,7 @@ export function useKeeperCapture({
   const finalizationFailed = useRef(false);
   const disposalFailed = useRef(false);
   const [epoch, setEpoch] = useState(0);
-  const mountedRef = useRef(true);
+  const mountedRef = useMountedRef();
   const pendingDisposals = useRef(0);
   const writingRef = useRef(writing);
   writingRef.current = writing;
@@ -200,13 +201,6 @@ export function useKeeperCapture({
     [markUnfinalizedCapture],
   );
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
   const disposeSession = useCallback(
     (session: KeeperSession) => {
       const guardDuringDispose =
@@ -250,7 +244,7 @@ export function useKeeperCapture({
           }
         });
     },
-    [markUnfinalizedCapture],
+    [markUnfinalizedCapture, mountedRef],
   );
 
   useEffect(() => {
@@ -530,7 +524,7 @@ export function useKeeperCapture({
           setMicCheckFailed(true);
         }
       });
-  }, [stream]);
+  }, [stream, mountedRef]);
   const closeFinalizing =
     finalizing || (unfinalizedCapture && snapshot?.state === "stopped");
   useLayoutEffect(() => {
