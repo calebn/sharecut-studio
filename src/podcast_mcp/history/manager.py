@@ -14,6 +14,7 @@ from podcast_mcp.project_store import (
     history_snapshot_path,
     read_history_snapshot,
     snapshot_from_project,
+    snapshots_equal,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.project_state import project_commit_lock
@@ -112,7 +113,7 @@ class HistoryManager:
 
         if not force and history.cursor >= 0 and history.entries:
             current = self._read_snapshot(project, history.entries[history.cursor])
-            if current == snap:
+            if snapshots_equal(current, snap):
                 return history.entries[history.cursor]
 
         entry_id = uuid.uuid4().hex[:12]

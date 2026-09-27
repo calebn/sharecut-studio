@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from pathlib import Path
 
@@ -20,9 +21,11 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_store import (
+    HistoryMatch,
     ProjectStore,
     history_index_path,
     history_snapshot_path,
+    match_history_to_project,
     read_history_index,
 )
 from podcast_mcp.services import ProjectWorkspace
@@ -455,6 +458,21 @@ def test_store_load_does_not_adopt_an_index_without_a_readable_current_snapshot(
     [message] = _not_adopting(caplog)
     assert reason in message
     assert "never landed" not in message
+
+
+@pytest.mark.parametrize("fixture", ["synthetic_bleed_60s", "ami_bleed_60s"])
+def test_a_saved_snapshot_matches_the_project_it_came_from(tmp_path, fixture):
+    """Every editable field survives the snapshot file's JSON round trip (#589)."""
+    source = Path(__file__).parent / "fixtures" / fixture / "episode.project.json"
+    shutil.copy(source, tmp_path / "episode.project.json")
+    project = load_project(tmp_path / "episode.project.json")
+    rel = write_snapshot(project, snapshot_from_project(project), "roundtrip")
+    history = ProjectHistory(
+        cursor=0, entries=[HistoryEntry(id="roundtrip", label="x", snapshot_file=rel)]
+    )
+    assert match_history_to_project(project, history) is HistoryMatch.MATCHES
+    project.comments = [*project.comments, _comment("changed")]
+    assert match_history_to_project(project, history) is HistoryMatch.STATE_DIFFERS
 
 
 def test_snapshot_file_uses_the_shared_layout(minimal_project):
