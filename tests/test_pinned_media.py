@@ -268,6 +268,24 @@ def test_fallback_refuses_unverifiable_file_identity(
         open_pinned_media(media)
 
 
+def test_fallback_refuses_an_unresolved_spelling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An 8.3 short name or subst drive realpaths elsewhere; the caller must pass a resolved path."""
+    media = tmp_path / "LONGNA~1" / "mix.mp3"
+    media.parent.mkdir()
+    media.write_bytes(b"published")
+    _no_descriptor_walk(monkeypatch, "dir_fd")
+    real_realpath = os.path.realpath
+
+    def expand_short_name(path, *args, **kwargs):
+        return real_realpath(path, *args, **kwargs).replace("LONGNA~1", "Long Name")
+
+    monkeypatch.setattr(pinned_media.os.path, "realpath", expand_short_name)
+    with pytest.raises(ValueError, match="already be resolved"):
+        open_pinned_media(media)
+
+
 def test_close_waits_for_an_in_flight_read(tmp_path: Path) -> None:
     import threading
 
