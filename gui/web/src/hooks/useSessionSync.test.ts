@@ -382,6 +382,63 @@ describe("useSessionSync presence", () => {
     }
   });
 
+  it("keeps the oldest unechoed ViewerState deadline across later sends", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      const { rerender } = renderHook(
+        ({ publishKey }: { publishKey: string }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            vi.fn(),
+            () => ({ playhead_sec: 0, is_playing: false }),
+            false,
+            0,
+            null,
+            false,
+            publishKey,
+            true,
+          ),
+        { initialProps: { publishKey: "k1" } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const viewerStateFrames = () =>
+        FakeWebSocket.instances[0].sent.filter((s) =>
+          s.includes('"ViewerState"'),
+        );
+      expect(viewerStateFrames()).toHaveLength(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      rerender({ publishKey: "k2" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      expect(viewerStateFrames()).toHaveLength(2);
+      expect(postSessionState).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not fall back once the ViewerState echo arrives", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
