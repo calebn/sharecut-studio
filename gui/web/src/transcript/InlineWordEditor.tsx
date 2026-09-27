@@ -9,7 +9,12 @@ interface Props {
   wordIndex: number;
   initialText: string;
   onClose: (restoreFocus: boolean) => void;
-  /** True when a commit starts, false once it settles (also after unmount). */
+  /**
+   * True when a commit starts, false once it settles, including after this
+   * editor unmounted (mode switch, word removed). It must stay safe to call
+   * then: the handler may only touch the caller's own refs or state, never
+   * this editor's.
+   */
   onBusyChange?: (busy: boolean) => void;
   /**
    * A commit that fails after this editor unmounted (mode switch, word
