@@ -658,8 +658,8 @@ through both the library and the CLI. It is not speech and proves the metric
 and harness, not aligner accuracy.
 
 **Forced-aligner harness.** `scripts/benchmark_forced_aligners.py` runs pinned
-CTC forced-aligner candidates (`plan` / `run` / `agree` / `download-commands`
-subcommands) that re-time an existing word list — native Whisper output, or a
+CTC forced-aligner candidates (`plan` / `run` / `agree` / `download-commands` /
+`verify-candidates` subcommands) that re-time an existing word list — native Whisper output, or a
 candidate re-timing another candidate — using the numpy CTC Viterbi in
 `src/podcast_mcp/engines/ctc_forced_align.py` (benchmark-only until #639
 integrates it). Targets:
@@ -670,7 +670,11 @@ integrates it). Targets:
   does not match its audio, so it has no ground-truth boundaries.
 
 Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
-(Hugging Face repo + pinned revision + license). The harness resolves each
+(Hugging Face repo + pinned revision + license). Nothing in CI checks those
+pins; run `uv run python scripts/benchmark_forced_aligners.py verify-candidates`
+(network, metadata only — no weights) before relying on them. It exits 1 and
+lists each candidate whose revision no longer resolves, whose model-card
+license differs, or whose pinned files are missing. The harness resolves each
 model with `snapshot_download(..., local_files_only=True)` and **never
 downloads**: an uncached model (a Hugging Face `LocalEntryNotFoundError`)
 raises `FileNotFoundError` naming the exact download command, which

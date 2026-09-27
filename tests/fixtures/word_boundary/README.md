@@ -39,5 +39,7 @@ aligner the harness in `scripts/benchmark_forced_aligners.py` can run
 wav2vec2-large; all Apache-2.0). Sizes are not claimed here. Print the exact
 download command for a candidate with `download-commands`, then score it
 against these clips with `run --target librispeech`; the harness never
-downloads a model itself. No candidate report is checked in yet — results
-are pending [#641](https://github.com/calebn/sharecut-studio/issues/641).
+downloads a model itself. Check that the pins still resolve and the licenses
+still match the model cards with `verify-candidates` (network, metadata
+only). No candidate report is checked in yet — results are pending
+[#641](https://github.com/calebn/sharecut-studio/issues/641).
