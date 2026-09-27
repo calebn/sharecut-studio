@@ -857,6 +857,25 @@ def test_api_audio_render_busy_fallback_sets_header(
             assert res.headers["X-Sharecut-Render-Busy"] == "1"
 
 
+def test_api_audio_project_lock_timeout_hides_the_lock_path(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from filelock import Timeout
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    def busy(*_args: object, **_kwargs: object) -> None:
+        raise Timeout("/secret/ws/artifacts/episode.project.json.lock")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.project.resolve_viewer_transport", busy)
+    res = TestClient(create_app()).get(
+        "/api/audio", params={"path": str(minimal_project), "rerender": "true"}
+    )
+    assert res.status_code == 503
+    assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "/secret" not in res.json()["detail"]
+
+
 def test_api_health() -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

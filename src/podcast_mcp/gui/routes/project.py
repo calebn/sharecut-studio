@@ -24,6 +24,10 @@ from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services import HistoryService, ProjectWorkspace
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
+_AUDIO_BUSY_DETAIL = (
+    "project is busy: another render or save is in progress; try again when it finishes"
+)
+
 router = APIRouter()
 
 _PICK_LOCK = threading.Lock()
@@ -283,10 +287,11 @@ def get_audio(
         # The premix re-render's save collided with a concurrent edit; nothing was saved.
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Timeout as exc:
-        # Another render (export/Refresh) holds the render lock and nothing is on disk yet.
+        # Another render or a commit holds its lock and nothing is on disk yet. Fixed text:
+        # a plain filelock.Timeout names the lock file's absolute path.
         raise HTTPException(
             status_code=503,
-            detail=str(exc),
+            detail=_AUDIO_BUSY_DETAIL,
             headers={"X-Sharecut-Error-Code": "project_busy"},
         ) from exc
     response = audio_file_response(transport.path, request=request)
