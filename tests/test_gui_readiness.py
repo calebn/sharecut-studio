@@ -181,6 +181,16 @@ def test_seam_source_by_track_gap_fallback_follows_timeline_order() -> None:
     }
 
 
+def test_seam_source_by_track_ignores_a_clip_that_only_grazes_the_cut() -> None:
+    """Overlap below _MERGE_EPS is not material: no bogus fallback pair for the track."""
+    from podcast_mcp.edits.edit_log import seam_source_by_track
+
+    clip = Clip(
+        id="c", track_id="host", source_start=10.0, source_end=12.0, timeline_start=3.0 - 5e-7
+    )
+    assert seam_source_by_track({"host": [clip]}, 1.0, 3.0) == {}
+
+
 def _project_with_moved_clip() -> EpisodeProject:
     """W src[0,5]@0, X src[10,20]@5, Z src[30,40]@18; Y src[5,8] parked at 30."""
     p = _project_with_two_clips()
