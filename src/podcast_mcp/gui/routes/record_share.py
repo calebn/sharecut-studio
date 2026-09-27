@@ -13,7 +13,11 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket,
 
 from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capability
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
-from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, guest_ws_reject
+from podcast_mcp.gui.routes.guest_ws_common import (
+    admit_guest_ws,
+    guest_ws_reject,
+    guest_ws_share_row,
+)
 from podcast_mcp.gui.routes.record_upload_http import (
     ClippingParam,
     ClippingTruncatedParam,
@@ -82,10 +86,8 @@ async def record_ws(
     client_id: str | None = Query(None),
     name: str | None = Query(None),
 ) -> None:
-    try:
-        row = lookup_share(token, kind=SHARE_KIND_RECORD)
-    except KeyError:
-        await guest_ws_reject(websocket, 4403, "invalid or revoked share token")
+    row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_RECORD)
+    if row is None:
         return
     if not has_capability(row.get("capabilities"), CAP_MONITOR):
         await guest_ws_reject(websocket, 4403, "monitor capability required")
@@ -105,14 +107,9 @@ async def record_ws(
         await guest_ws_reject(websocket, 4403, "share not found")
         return
 
-    gate_held = False
-    if host_rate_limit_enabled():
-        lim = get_host_limiters()
-        gate = lim.guest_ws_concurrent.try_enter(token)
-        if not gate.allowed:
-            await guest_ws_reject(websocket, 4429, "guest ws concurrency limit")
-            return
-        gate_held = True
+    conn = await admit_guest_ws(websocket, token, log_label="record ws")
+    if conn is None:
+        return
 
     caps = list(row.get("capabilities") or [])
     guest_client_id = client_id or f"rec-{token[:8]}"
@@ -123,9 +120,6 @@ async def record_ws(
     participant_id: str | None = None
     joined = False
     q = None
-    pump_task: asyncio.Task[None] | None = None
-    recheck_task: asyncio.Task[None] | None = None
-    guard: GuestWsGuard | None = None
 
     def _connection_valid() -> bool:
         return _record_still_valid(token) and (
@@ -136,13 +130,12 @@ async def record_ws(
         return participant_id is None or svc.participant_not_removed_in_runtime(participant_id)
 
     try:
-        await websocket.accept()
-        guard = GuestWsGuard(websocket, _connection_valid, send_gate=_participant_runtime_valid)
+        guard = await conn.start(_connection_valid, send_gate=_participant_runtime_valid)
         loop = asyncio.get_running_loop()
         q = hub.subscribe(hub_key, loop)
 
         async def _pump() -> None:
-            assert q is not None and guard is not None
+            assert q is not None
             try:
                 while True:
                     event = await q.get()
@@ -167,8 +160,7 @@ async def record_ws(
                     await guard.close(1011, "record pump failed")
                 raise
 
-        pump_task = asyncio.create_task(_pump())
-        recheck_task = asyncio.create_task(guard.recheck_loop())
+        conn.spawn(_pump())
 
         while True:
             try:
@@ -316,23 +308,11 @@ async def record_ws(
         try:
             if q is not None:
                 hub.unsubscribe(hub_key, q)
-            for task in (pump_task, recheck_task):
-                if task is not None:
-                    task.cancel()
-            for task in (pump_task, recheck_task):
-                if task is None:
-                    continue
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-                except Exception:
-                    log.exception("record ws pump exit token=%s", token[:8])
+            await conn.stop_tasks()
             if participant_id is not None:
                 svc.disconnect(participant_id, connection_id=connection_id)
         finally:
-            if gate_held:
-                get_host_limiters().guest_ws_concurrent.exit(token)
+            conn.release()
 
 
 def _guest_upload_ctx(
