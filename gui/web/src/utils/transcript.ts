@@ -5,6 +5,7 @@ import type {
   TimelineSpan,
   TranscriptWordView,
 } from "../types/project";
+import { memoByRef } from "./memoByRef";
 
 /** First indexed word on a track, in transcript order. */
 export function findTranscriptWord(
@@ -262,10 +263,7 @@ export function transcriptWordAnchor(
     : presenceAnchor("transcript", "turn", turnIndex, "w", flatWordIndex);
 }
 
-const anchorTurnIndexCache = new WeakMap<
-  TranscriptTurn[],
-  Map<string, number>
->();
+const anchorTurnIndexOf = memoByRef(buildAnchorTurnIndex);
 
 function buildAnchorTurnIndex(turns: TranscriptTurn[]): Map<string, number> {
   const index = new Map<string, number>();
@@ -304,12 +302,7 @@ export function transcriptAnchorTurnIndex(
   turns: TranscriptTurn[],
   anchor: string,
 ): number {
-  let index = anchorTurnIndexCache.get(turns);
-  if (!index) {
-    index = buildAnchorTurnIndex(turns);
-    anchorTurnIndexCache.set(turns, index);
-  }
-  return index.get(anchor) ?? -1;
+  return anchorTurnIndexOf(turns).get(anchor) ?? -1;
 }
 
 /** Index of the utterance covering the playhead, or -1 if none. */
