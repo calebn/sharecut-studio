@@ -33,6 +33,13 @@ def test_capabilities_docs_export_check_passes() -> None:
     assert proc.returncode == 0, proc.stderr + proc.stdout
 
 
+def test_keymap_chords_reports_alt_track_height_commands() -> None:
+    mod = load_script("check_capabilities_manifest")
+    chords = mod._keymap_chords()
+    assert chords["view.trackHeightIncrease"] == "Alt+="
+    assert chords["view.trackHeightDecrease"] == "Alt+-"
+
+
 def test_gui_capability_without_presence_is_an_error() -> None:
     mod = load_script("check_capabilities_manifest")
     errors = mod.presence_errors(

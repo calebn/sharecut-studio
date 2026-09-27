@@ -97,6 +97,8 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `\` | Fit session in view (`view.fit`) | Timeline focused | Timeline focused |
 | `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
 | `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
+| `Alt+=` | Increase track height (`view.trackHeightIncrease`) | Timeline focused | Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px |
+| `Alt+-` | Decrease track height (`view.trackHeightDecrease`) | Timeline focused | Alt+-: timeline focused |
 
 ## ui
 
@@ -128,6 +130,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
+| Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
 | Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |
 | Start recording | `record.start` | Host project management |  |
 | Pause recording | `record.pause` | Host project management |  |

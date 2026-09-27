@@ -71,6 +71,9 @@ function defaultShortcut(cmd: KeymapCommand): string {
   if (cmd.requireMod) {
     parts.push("Mod");
   }
+  if (cmd.requireAlt) {
+    parts.push("Alt");
+  }
   if (cmd.requireShift) {
     parts.push("Shift");
   }

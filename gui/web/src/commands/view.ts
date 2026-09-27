@@ -100,6 +100,32 @@ export function registerViewCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("view.fitTracksHeight", () => {
+    const s = useDawStore.getState();
+    s.toggleFitTracksHeight();
+    const mode = useDawStore.getState().laneHeightMode;
+    s.announceStatus(
+      mode === "fit" ? "Tracks fit window height" : "Fixed track height",
+    );
+    return { status: "ok" };
+  });
+
+  registerCommand("view.trackHeightIncrease", () => {
+    const s = useDawStore.getState();
+    s.stepLaneHeight("up");
+    const px = useDawStore.getState().laneHeightPx;
+    s.announceStatus(`Track height ${px} px`);
+    return { status: "ok" };
+  });
+
+  registerCommand("view.trackHeightDecrease", () => {
+    const s = useDawStore.getState();
+    s.stepLaneHeight("down");
+    const px = useDawStore.getState().laneHeightPx;
+    s.announceStatus(`Track height ${px} px`);
+    return { status: "ok" };
+  });
+
   // A volume still in its save delay goes first, so undo takes it back
   // instead of the step before it.
 }

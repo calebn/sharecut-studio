@@ -1091,6 +1091,76 @@
       }
     },
     {
+      "id": "daw.view.fitTracksHeight",
+      "label": "Fit tracks to window height",
+      "tooltip": "Fit tracks to window height",
+      "tooltip_pressed": "Use a fixed track height",
+      "toggle": true,
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "view.fitTracksHeight",
+        "gui": [
+          "transport.fitTracksHeight",
+          "transport.viewMenu.fitTracksHeight"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toggle; View menu checkbox and transport icon"
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.view.trackHeightIncrease",
+      "label": "Increase track height",
+      "tooltip": "Increase track height",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineFocused"
+      ],
+      "surfaces": {
+        "command": "view.trackHeightIncrease",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Alt+="
+      },
+      "omit": {},
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.view.trackHeightDecrease",
+      "label": "Decrease track height",
+      "tooltip": "Decrease track height",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": true,
+      "gates": [
+        "timelineFocused"
+      ],
+      "surfaces": {
+        "command": "view.trackHeightDecrease",
+        "gui": [
+          "transport.menu"
+        ],
+        "keyboard": "Alt+-"
+      },
+      "omit": {},
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.history.undo",
       "label": "Undo",
       "service": "Sharecut Studio command bus \u2192 services/document",

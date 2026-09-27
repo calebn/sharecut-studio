@@ -197,6 +197,20 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Waveform amplitude zoom out",
     tooltip: "Waveform amplitude zoom out",
   },
+  "daw.view.fitTracksHeight": {
+    label: "Fit tracks to window height",
+    tooltip: "Fit tracks to window height",
+    tooltip_pressed: "Use a fixed track height",
+    toggle: true,
+  },
+  "daw.view.trackHeightIncrease": {
+    label: "Increase track height",
+    tooltip: "Increase track height",
+  },
+  "daw.view.trackHeightDecrease": {
+    label: "Decrease track height",
+    tooltip: "Decrease track height",
+  },
   "daw.history.undo": {
     label: "Undo",
     tooltip: "Undo",
@@ -408,6 +422,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   tabBar: "daw.view.setTab",
   mobileNav: "daw.view.setMobileMode",
   "timeline.waveform": "daw.view.waveformZoomOut",
+  "transport.fitTracksHeight": "daw.view.fitTracksHeight",
+  "transport.viewMenu.fitTracksHeight": "daw.view.fitTracksHeight",
   historyPanel: "daw.history.redo",
   "mobileShell.gesture.twoFingerTap": "daw.history.undo",
   staleRenderPill: "daw.render.refreshMix",
