@@ -198,7 +198,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 |--|--|
 | **Purpose** | Read/fix transcript; seek by word; suggest cut-away |
 | **Primary actions** | Follow playhead · Edit mode · tap word → sheet · suppress / correct |
-| **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed) · selection range |
+| **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed, suspect_hallucination) · selection range |
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
 | **Out of scope** | Full desktop bottom-tab bundle |
 

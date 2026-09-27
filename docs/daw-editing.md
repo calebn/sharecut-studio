@@ -151,7 +151,7 @@ Shipped:
 
 Shipped:
 
-- Transcript toolbar **Annotate** (display density, orthogonal to Correct/Select): off = clean reading view; on = low-confidence underlines, Descript-style **edit-boundary** glyphs at every clip join on ProjectView `edit_boundaries` (word-aligned in the turn that precedes/contains the join), and nested **Show cut away**
+- Transcript toolbar **Annotate** (display density, orthogonal to Correct/Select): off = clean reading view; on = low-confidence underlines, dotted underlines on `suspect_hallucination` words (over digital silence), Descript-style **edit-boundary** glyphs at every clip join on ProjectView `edit_boundaries` (word-aligned in the turn that precedes/contains the join), and nested **Show cut away**
 - Transcript toolbar **Correct** / **Select** toggles (host-only): neither = seek-on-click / double-click-word seek; **Correct** selects a word for ASR fix (`TranscriptWordInspector`); **Select** click/shift/drag builds a `transcriptRange` for Mod+C/X/V clipboard
 - Tooltip / `aria-label` copy for GUI chrome lives on capability rows (`tooltip` / `tooltip_pressed`) in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json); generated into `gui/web/src/capabilities/copy.ts` via `make schema-export`
 - Clip **trim handles** (bottom corners): front = `source_start`, back = `source_end` via `TrimClipEdge` (ripple) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API); a pointer-up under 3 px net, or a trim the snap or clamp leaves on the committed edge, saves nothing
@@ -159,7 +159,7 @@ Shipped:
 - Transcript boundary drag shows **ghost cutaway words** (same expand-range math as timeline ghost waveform) while restoring into the join
 - Fade handles remain distinct from trim/roll
 - Document commands `CorrectTranscriptWord`, `CorrectTranscriptPhrase`, `SetTranscriptWordSuppressed`, `TrimClipEdge`, `RollClipJoin`, `MoveClips` → `EditService`
-- Mapper emits suppressed words with `word_index`, `confidence`, `suppressed` chips; `edit_boundaries[]` for **joins only** (both neighbors) plus cutaway word refs — no trailing mark after the last clip on a track
+- Mapper emits suppressed words with `word_index`, `confidence`, `suppressed`, `suspect_hallucination` chips; `edit_boundaries[]` for **joins only** (both neighbors) plus cutaway word refs — no trailing mark after the last clip on a track
 - MCP `set_word_suppressed_tool` for agent parity; listen-first audition stays MCP-only (`podcast-transcript-audition`)
 
 **Done when:** correcting a word in the Transcript tab persists to `transcripts.per_track` and survives reload.

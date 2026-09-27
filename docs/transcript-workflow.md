@@ -124,11 +124,28 @@ truncated. This changes future ASR output, not existing transcript words.
 
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)
-and decodes with `hallucination_silence_threshold`. Afterwards each word whose own-track
-peak is below `transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets
-`suspect_hallucination: true` (also on cache hits, so the threshold is not part of the cache
-key). Words are never deleted; reconcile, merge and export are unchanged. If a track still
-loops, set `transcribe.decode.condition_on_previous_text: false`.
+and decodes with `hallucination_silence_threshold`. VAD keeps quiet speech down to about
+40 dB below the talker (measured on `tests/fixtures/asr_gold` with `base.en`). Fainter bleed
+is dropped, so bleed-phrase alignment on very quiet bleed falls back to gap alignment; for
+such episodes lower `transcribe.vad.threshold` or turn `transcribe.vad.enabled` off. After
+ASR, each word whose own-track peak (native sample rate, all channels) is below
+`transcribe.silence_filter.peak_dbfs` (-60 dBFS) gets `suspect_hallucination: true`. ASR
+cache files store unflagged words; the flags are recomputed from the current
+`transcribe.silence_filter` settings after every ASR run or cache read, so the filter is not
+a cache input. When a track cannot be decoded its flags stay cleared, a warning is logged,
+and the step summary adds "silence filter skipped on N track(s)".
+
+The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
+treat a flagged word like any other (reconcile's inaudible pass often suppresses it anyway).
+Review flagged words with `transcript_refine_brief_tool` (`suspect_hallucination_open_words`,
+`suspect_hallucination_sample`) or Studio's Annotate view (dotted underline), and suppress real
+hallucinations with `set_word_suppressed_tool`. If a track still loops, set
+`transcribe.decode.condition_on_previous_text: false`.
+
+`podcast transcribe` / `transcribe_track` read the same `transcribe.*` settings as
+`pipeline_run`: the project's staged working set (Studio Pipeline pane,
+`pipeline_set_config_tool`), or the shipped defaults when nothing is staged. The CLI has no
+working set, so it always uses the shipped defaults.
 
 **Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
 already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),
