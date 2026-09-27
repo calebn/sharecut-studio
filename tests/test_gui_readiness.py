@@ -254,6 +254,28 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
         revert_applied_edit(p, record.id)
 
 
+def test_revert_refuses_a_punch_whose_seam_does_not_span_the_hole() -> None:
+    import pytest
+
+    from podcast_mcp.edits.clips_ops import clips_for_track
+    from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
+    from podcast_mcp.edits.timeline_ops import move_clips, punch_delete
+
+    p = _project_with_moved_clip()
+    move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
+    punch_delete(p, "host", 10.0, 21.0, use_inaudible_opt=False)
+    record = list_applied_edits(p, track_id="host")[-1]
+    assert record.params["scope"] == "track"
+    record.source_start = 10.0
+    record.source_end = 21.0
+    before = [c.model_dump() for c in clips_for_track(p, "host")]
+    # [15, 33] is 18 s of source for an 11 s hole.
+    with pytest.raises(ValueError, match="History undo"):
+        revert_applied_edit(p, record.id)
+    assert [c.model_dump() for c in clips_for_track(p, "host")] == before
+    assert record in p.editorial.edit_log
+
+
 def test_revert_track_scope_punch_refills_the_hole_in_place() -> None:
     import pytest
 
