@@ -668,7 +668,15 @@ def bind_progress(reporter: ProgressReporter) -> Iterator[ProgressReporter]:
 
 
 class ProgressTask:
-    """Domain-facing progress handle (context manager)."""
+    """One progress row; use as a context manager.
+
+    ``advance`` / ``advance_to`` coalesce to one update per
+    ``PROGRESS_UPDATE_MIN_INTERVAL_SEC``. A throttled value is only sent by a flush
+    (``set_phase`` / ``message`` / ``child`` / ``end`` via ``__exit__`` / ``fail`` /
+    ``cancel``), so a task used outside ``with`` must still be closed or its last
+    value is never reported. ``advance*`` is safe from several threads: counts and
+    sends are serialized under a per-task lock.
+    """
 
     def __init__(
         self,
@@ -695,7 +703,7 @@ class ProgressTask:
         self._last_update_at: float | None = None
         self._pending_update = False
         self._pending_message: str | None = None
-        self._update_lock = threading.Lock()
+        self._update_lock = threading.RLock()
 
     def __enter__(self) -> ProgressTask:
         mark_wrapped(self._mark_id)
@@ -782,22 +790,24 @@ class ProgressTask:
         message: str | None = None,
         total: int | None = None,
     ) -> None:
-        self.current += amount
-        prev_total = self.total
-        if total is not None and not self._lock_total:
-            self.total = total
         self._bucket.had_update = True
         if message:
             self._bucket.had_message = True
         now = _update_clock()
         with self._update_lock:
+            self.current += amount
+            prev_total = self.total
+            if total is not None and not self._lock_total:
+                self.total = total
             if not self._update_due(now, total_changed=self.total != prev_total):
                 self._pending_update = True
+                # Latest non-None message wins: reporters read message=None as "keep the headline".
                 if message is not None:
                     self._pending_message = message
                 return
             self._mark_update_sent(now)
-        self._send_update(message)
+            # Sent under the lock so concurrent advances reach the reporter in order.
+            self._send_update(message)
 
     def _update_due(self, now: float, *, total_changed: bool) -> bool:
         if self._last_update_at is None or total_changed:
@@ -811,7 +821,7 @@ class ProgressTask:
         self._pending_update = False
         self._pending_message = None
 
-    def _send_update(self, message: str | None) -> None:
+    def _send_update(self, message: str | None) -> None:  # caller holds _update_lock
         self._reporter_now().update(
             self.task_id, self.current, total=self.total, message=message, phase=self.phase
         )
@@ -823,7 +833,7 @@ class ProgressTask:
                 return
             message = self._pending_message
             self._mark_update_sent(_update_clock())
-        self._send_update(message)
+            self._send_update(message)
 
     def advance_to(
         self,
@@ -833,10 +843,11 @@ class ProgressTask:
         total: int | None = None,
     ) -> None:
         """Set ``current`` to an absolute count (no-op if already at or past it)."""
-        delta = max(0, current - self.current)
-        if delta == 0 and message is None and (total is None or total == self.total):
-            return
-        self.advance(delta, message=message, total=total)
+        with self._update_lock:
+            delta = max(0, current - self.current)
+            if delta == 0 and message is None and (total is None or total == self.total):
+                return
+            self.advance(delta, message=message, total=total)
 
     def message(self, text: str) -> None:
         self._flush_update()
