@@ -188,3 +188,23 @@ def test_wal_setup_on_one_database_does_not_block_another(tmp_path: Path) -> Non
         assert not worker.is_alive()
     assert len(opened) == 1
     opened[0].close()
+
+
+def test_wal_init_lock_is_dropped_after_successful_switch(tmp_path: Path) -> None:
+    db_path = tmp_path / "sync.db"
+    connection = session_sqlite.connect_session_db(db_path)
+    connection.close()
+    assert session_sqlite._wal_init_key(db_path) not in session_sqlite._WAL_INIT_LOCKS
+
+
+def test_wal_init_lock_is_kept_when_the_switch_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    connection = Mock()
+    connection.execute.side_effect = sqlite3.OperationalError("disk I/O error")
+    monkeypatch.setattr(session_sqlite.sqlite3, "connect", Mock(return_value=connection))
+    db_path = tmp_path / "sync.db"
+    with pytest.raises(sqlite3.OperationalError):
+        session_sqlite.connect_session_db(db_path)
+    assert session_sqlite._wal_init_key(db_path) in session_sqlite._WAL_INIT_LOCKS
+    session_sqlite._WAL_INIT_LOCKS.discard_idle(session_sqlite._wal_init_key(db_path))
