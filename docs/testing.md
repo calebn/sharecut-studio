@@ -685,6 +685,12 @@ candidates need only `onnxruntime`, which the base install gets transitively
 through `faster-whisper` (it is not a direct dependency, so declare it if
 faster-whisper ever drops it).
 
+Each prediction's provenance records `runtime_sec`, `realtime_factor`,
+`load_sec` and `peak_rss_mb`. `peak_rss_mb` is the process RSS high-water mark
+(`peak_rss_scope: "process"`, `None` on Windows), so in a multi-candidate
+`run` later candidates inherit earlier peaks; for per-candidate memory run one
+`--candidate` per invocation.
+
 **Candidate results: pending #641.** This issue proves the harness and metric
 only; no candidate MAE/runtime number is checked in. Run it yourself with:
 

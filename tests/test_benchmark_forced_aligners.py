@@ -265,6 +265,13 @@ def test_candidate_payload_is_a_valid_benchmark_prediction(tmp_path) -> None:
     )
     native_report = json.loads(native_path.read_text(encoding="utf-8"))
     assert report["metrics"] == native_report["metrics"]
+    assert payload["provenance"]["peak_rss_scope"] == "process"
+
+
+def test_peak_rss_is_none_without_resource_module(monkeypatch) -> None:
+    assert isinstance(bfa._peak_rss_mb(), float)
+    monkeypatch.setitem(sys.modules, "resource", None)
+    assert bfa._peak_rss_mb() is None
 
 
 def test_run_suite_end_to_end_with_fakes(tmp_path) -> None:
