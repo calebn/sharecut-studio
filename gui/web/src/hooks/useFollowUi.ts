@@ -101,15 +101,16 @@ export function useFollowUi(): void {
     const s = useDawStore.getState();
     withProgrammaticUi(() => {
       if (ui && uiChanged && plan) {
-        // Switch only when the leader's tab changed since the last tick:
-        // setActiveTab leaves a layout that hides the tab, so audition/anchor
-        // ticks must not undo a follower's own layout, while a leader moving
-        // to a tab the follower holds behind the timeline layout must still
-        // reveal it. The first tick compares with the follower's own tab.
+        // Apply the leader's tab on the first tick after (re)following, then
+        // only when the leader's tab changes. setActiveTab leaves a layout that
+        // hides the tab, so starting to follow always shows the leader's panel,
+        // audition/anchor ticks never undo a follower's own layout or tab, and
+        // a leader moving to a tab the follower holds behind the timeline
+        // layout still reveals it.
         if (plan.apply.tab) {
-          const prevTab = lastLeaderTab.current ?? s.activeTab;
+          const leaderTabChanged = plan.apply.tab !== lastLeaderTab.current;
           lastLeaderTab.current = plan.apply.tab;
-          if (plan.apply.tab !== prevTab) {
+          if (leaderTabChanged) {
             s.setActiveTab(plan.apply.tab);
           }
         }
