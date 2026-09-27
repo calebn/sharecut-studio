@@ -155,6 +155,32 @@ def test_seam_source_by_track_falls_back_to_removed_span_in_a_gap() -> None:
     assert seam_source_by_track({"host": [clip]}, 1.0, 5.0) == {"host": [4.0, 6.0]}
 
 
+def test_seam_source_by_track_gap_fallback_follows_timeline_order() -> None:
+    """A cut edge in a gap reads the nearest clip in timeline order, not the source-sorted extreme."""
+    import pytest
+
+    from podcast_mcp.edits.edit_log import seam_source_by_track
+
+    # Start in the 5-7 gap; b (src 30-34) is first inside the cut, c (src 0-10) follows.
+    clips = [
+        Clip(id="a", track_id="host", source_start=20.0, source_end=25.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=30.0, source_end=34.0, timeline_start=7.0),
+        Clip(id="c", track_id="host", source_start=0.0, source_end=10.0, timeline_start=11.0),
+    ]
+    assert seam_source_by_track({"host": clips}, 6.0, 13.0) == {
+        "host": [pytest.approx(30.0), pytest.approx(2.0)]
+    }
+    # End in the 6-8 gap; e (src 10-12) is last inside the cut, d (src 40-44) precedes it.
+    clips = [
+        Clip(id="d", track_id="host", source_start=40.0, source_end=44.0, timeline_start=0.0),
+        Clip(id="e", track_id="host", source_start=10.0, source_end=12.0, timeline_start=4.0),
+        Clip(id="f", track_id="host", source_start=0.0, source_end=5.0, timeline_start=8.0),
+    ]
+    assert seam_source_by_track({"host": clips}, 3.0, 7.0) == {
+        "host": [pytest.approx(43.0), pytest.approx(12.0)]
+    }
+
+
 def _project_with_moved_clip() -> EpisodeProject:
     """W src[0,5]@0, X src[10,20]@5, Z src[30,40]@18; Y src[5,8] parked at 30."""
     p = _project_with_two_clips()

@@ -6,6 +6,7 @@ from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     _build_index,
     clip_media_key,
+    clip_source_at_timeline,
     clip_timeline_overlap_to_source,
     clip_timeline_point_to_source,
     map_timeline_spans_over_clips,
@@ -248,6 +249,13 @@ def test_clip_timeline_helpers(compressed_project):
 
     with pytest.raises(ValueError, match="outside clip"):
         clip_timeline_point_to_source(clip, 0.0)
+
+
+def test_clip_source_at_timeline_maps_the_placement_line_without_bounds() -> None:
+    clip = Clip(id="c", track_id="host", source_start=100.0, source_end=110.0, timeline_start=70.0)
+    assert clip_source_at_timeline(clip, 72.5) == pytest.approx(102.5)
+    # At timeline_end, where clip_timeline_point_to_source raises.
+    assert clip_source_at_timeline(clip, 80.0) == pytest.approx(110.0)
 
 
 def test_map_timeline_spans_without_clips_is_identity():
