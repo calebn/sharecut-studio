@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import ast
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -145,14 +145,60 @@ def test_edit_segments():
     assert segs[1].start == 0.8 and segs[1].end == 2.0
 
 
+_ARTIFACTS = "artifacts"
+_PATH_JOIN_CALLS = frozenset({"join", "joinpath", "Path", "PurePath", "PosixPath"})
+
+
+def _is_artifacts_literal(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and node.value == _ARTIFACTS
+
+
+def _joins_artifacts(node: ast.AST) -> bool:
+    """True for a path join whose appended segment is the literal ``"artifacts"``."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _is_artifacts_literal(node.right)
+    if isinstance(node, ast.Call):
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name not in _PATH_JOIN_CALLS:
+            return False
+        # joinpath's args are all appended segments; join/Path's first arg is the base.
+        segments = node.args if name == "joinpath" else node.args[1:]
+        return any(_is_artifacts_literal(arg) for arg in segments)
+    if isinstance(node, ast.JoinedStr):
+        return any(
+            isinstance(part, ast.Constant)
+            and isinstance(part.value, str)
+            and part.value.startswith("/artifacts")
+            for part in node.values
+        )
+    return False
+
+
 def test_workspace_artifacts_dir_is_the_only_artifacts_join() -> None:
     src = Path(__file__).resolve().parents[1] / "src" / "podcast_mcp"
-    pattern = re.compile(r'/\s*"artifacts"')
     offenders = [
-        f"{path.relative_to(src)}:{lineno}"
+        f"{path.relative_to(src)}:{node.lineno}"
         for path in sorted(src.rglob("*.py"))
         if path.name != "episode.py" or path.parent.name != "models"
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if pattern.search(line)
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
+        if _joins_artifacts(node)
     ]
     assert offenders == [], "use models.workspace_artifacts_dir: " + ", ".join(offenders)
+
+
+@pytest.mark.parametrize(
+    ("snippet", "flagged"),
+    [
+        ('ws / "artifacts"', True),
+        ('os.path.join(ws, "artifacts")', True),
+        ('Path(ws, "artifacts")', True),
+        ('ws.joinpath("artifacts")', True),
+        ('f"{ws}/artifacts/x"', True),
+        ('WORKSPACE_COPY_IGNORE = ("artifacts", "history")', False),
+        ('Path("artifacts")', False),
+        ('url = "/api/artifacts"', False),
+    ],
+)
+def test_artifacts_join_scan_catches_every_spelling(snippet: str, flagged: bool) -> None:
+    assert any(_joins_artifacts(n) for n in ast.walk(ast.parse(snippet))) is flagged
