@@ -224,10 +224,27 @@ def test_cli_rich_message_updates_row_not_stderr(monkeypatch, capsys):
         reporter = CliProgressReporter(enabled=True)
     reporter.start("p", "Pipeline", total=4)
     fake = reporter._progress
-    bar = fake.add_task_calls  # noqa: F841 - keep for clarity
     reporter.message("p", "Running align")
     assert fake.update_calls[-1][1] == {"description": "Running align"}
     assert capsys.readouterr().err == ""
+    reporter.close()
+
+
+def test_cli_rich_bar_id_zero_updates_and_is_removed(monkeypatch):
+    monkeypatch.setattr("sys.stderr.isatty", lambda: True)
+    monkeypatch.setattr(_RecordingFakeProgress, "_bar_seq", -1)
+    with patch.dict("sys.modules", {"rich.progress": _patched_rich_progress_module()}):
+        reporter = CliProgressReporter(enabled=True)
+    reporter.start("p", "Pipeline", total=4)
+    fake = reporter._progress
+    reporter.update("p", 2, total=4)
+    assert fake.update_calls[-1] == (0, {"completed": 2, "total": 4})
+    reporter.start("f", "Fails")
+    reporter.fail("f", message="boom")
+    reporter.start("c", "Cancels")
+    reporter.cancel("c")
+    reporter.end("p")
+    assert reporter._bars == {}
     reporter.close()
 
 
