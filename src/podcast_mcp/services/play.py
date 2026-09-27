@@ -539,8 +539,14 @@ class PlayService:
                 with render_lock(self.project, timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC):
                     # A render takes seconds: merge the save so an edit committed meanwhile survives.
                     self.project = self.ws.checkpoint()
-                    rerender_preview(self.project)
-                    self.ws.save_merged()
+                    try:
+                        rerender_preview(self.project)
+                        self.ws.save_merged()
+                    except BaseException:
+                        # Drop the failed render's partial in-memory state and the checkpoint
+                        # (as HistoryService._move does), so a reused workspace matches the file.
+                        self.project = self.ws.discard_changes()
+                        raise
             except Timeout:
                 if not premix.is_file():
                     raise
