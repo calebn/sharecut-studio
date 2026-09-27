@@ -16,6 +16,7 @@ from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
+from podcast_mcp.util import pinned_media
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -207,3 +208,11 @@ def published_share(
         return ws, version, share
 
     return make_share
+
+
+@pytest.fixture
+def pinned_media_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Route ``open_pinned_media`` through its Windows path fallback on any OS."""
+    monkeypatch.setattr(os, "supports_dir_fd", set())
+    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", True)
+    assert not pinned_media.descriptor_walk_supported()
