@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +12,7 @@ from podcast_mcp.project_store import (
     ProjectStore,
     history_index_path,
     history_snapshot_path,
+    read_history_snapshot,
     snapshot_from_project,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
@@ -66,14 +66,7 @@ class HistoryManager:
         project: EpisodeProject,
         entry: HistoryEntry,
     ) -> ProjectStateSnapshot:
-        path = project.workspace_path() / entry.snapshot_file
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if "timeline" not in data:
-            raise ValueError(
-                f"History snapshot {entry.snapshot_file} is not v2 format "
-                "(missing timeline section)."
-            )
-        return ProjectStateSnapshot.model_validate(data)
+        return read_history_snapshot(project, entry)
 
     def record(
         self,
@@ -211,6 +204,9 @@ def record_and_commit(
 
     A failure rolls the new entry back (``history.rollback.rolled_back_on_failure``).
     """
+    # record() and store.commit() take project_commit_lock again inside this hold; that
+    # nests only because both locks are re-entrant per thread
+    # (tests/test_project_commit_lock.py::test_lock_is_reentrant_and_shared_per_workspace).
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
         with rolled_back_on_failure(project, checkpoint):
