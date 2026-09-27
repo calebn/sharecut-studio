@@ -16,6 +16,7 @@ from podcast_mcp.services.fanout_hub import FanoutHub
 
 JOB_EVENT_QUEUE_MAX = 256
 JOB_EVENT_KEEPALIVE_SEC = 1.0
+LIVE_JOB_STATUSES = frozenset({"queued", "running"})
 TERMINAL_JOB_STATUSES = frozenset({"ok", "error", "cancelled"})
 _HUB = FanoutHub(queue_maxsize=JOB_EVENT_QUEUE_MAX)
 

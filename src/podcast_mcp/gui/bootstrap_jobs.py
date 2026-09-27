@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.gui.job_events import publish_job_event
+from podcast_mcp.gui.job_events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES, publish_job_event
 from podcast_mcp.services.bootstrap import run_bootstrap
 from podcast_mcp.util.progress import ProgressEvent
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, resolve_whisper_model
@@ -207,9 +207,9 @@ class BootstrapJobManager:
     ) -> BootstrapJob:
         model = resolve_whisper_model(requested=whisper_model)
         with self._lock:
-            if self._job is not None and self._job.status in ("queued", "running"):
+            if self._job is not None and self._job.status in LIVE_JOB_STATUSES:
                 raise RuntimeError("A bootstrap job is already running")
-            if self._job is not None and self._job.status in ("ok", "error", "cancelled"):
+            if self._job is not None and self._job.status in TERMINAL_JOB_STATUSES:
                 self._finished[self._job.id] = self._job
             job = BootstrapJob(
                 id=uuid.uuid4().hex[:12],
@@ -235,7 +235,7 @@ class BootstrapJobManager:
                 return None
             if job_id is not None and job.id != job_id:
                 return None
-            if job.status not in ("queued", "running"):
+            if job.status not in LIVE_JOB_STATUSES:
                 return job
             job.cancel_requested = True
             job.message = "Cancel requested…"
