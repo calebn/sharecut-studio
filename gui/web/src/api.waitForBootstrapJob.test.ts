@@ -145,4 +145,53 @@ describe("waitForBootstrapJob", () => {
     expect(es.closed).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it("ignores a non-terminal status re-check so SSE progress is not rolled back", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ job: { ...okJob("job-live"), status: "running" } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const onUpdate = vi.fn();
+    const p = waitForBootstrapJob("job-live", { onUpdate });
+    const es = FakeEventSource.instances[0]!;
+    await vi.advanceTimersByTimeAsync(JOB_STREAM_RECHECK_MS);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onUpdate).not.toHaveBeenCalled();
+    es.emit({ type: "status", job: okJob("job-live") });
+    await expect(p).resolves.toMatchObject({ id: "job-live", status: "ok" });
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a status re-check that lands after SSE settled the wait", async () => {
+    vi.useFakeTimers();
+    let release: (res: Response) => void = () => {};
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onUpdate = vi.fn();
+    const p = waitForBootstrapJob("job-race", { onUpdate });
+    const es = FakeEventSource.instances[0]!;
+    await vi.advanceTimersByTimeAsync(JOB_STREAM_RECHECK_MS);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    es.emit({ type: "status", job: okJob("job-race") });
+    await expect(p).resolves.toMatchObject({ id: "job-race", status: "ok" });
+    release(
+      new Response(JSON.stringify({ job: okJob("job-race") }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
 });
