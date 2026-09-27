@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -96,8 +96,9 @@ controls in the wide `TransportFrame` and the phone `ListenHero`, including
 the empty-project disabled state. `Templates/PipelineStatusChip` shows the
 shipped status chip in the desktop footer and the phone Listen status row
 with fictional pipeline and activity jobs. Both accept props and callbacks
-alone; the live `TransportBar` and `StatusBar` remain outside Storybook because
-they read DAW state. The live chip omits `nowSec` and ticks its stall copy
+alone; the live `TransportBar` remains outside Storybook because it reads DAW
+state directly — `StatusBar` renders the cataloged `StatusBarView` below. The
+live chip omits `nowSec` and ticks its stall copy
 once a second; most running-chip examples omit a progress timestamp entirely
 so the catalog does not depend on a moving clock, and the `Stalled` example
 instead passes a fixed `nowSec` so its "last update Ns ago" copy renders
@@ -188,6 +189,23 @@ item), and the dismiss control from props alone.
 Both stories share `dawShellStoryDecorator` for a real `.daw-shell` frame at
 desktop and 360px widths.
 
+`Templates/StatusBar`, `Templates/AvatarStack` and `Templates/OverlayLegend`
+follow the same adapter/view split as `TrackHeaderView`, `TimeRulerView` and
+`TranscriptTurnView`: each live component became a thin adapter that reads
+the DAW store and renders a new props-only `XView`. `StatusBarView` takes a
+`summary: StatusBarSummary | null` built by the pure `statusBarSummary(project,
+render)` helper, so its story copy (pending/unmapped counts, the cut chip,
+render freshness, transcript sync) comes from the same fixtures as the live
+footer instead of invented text; `null` renders the "Loading episode…"
+footer. Presence stays a store leaf for re-render isolation: `StatusBarView`
+takes a `presence?: ReactNode` slot, the live `StatusBar` fills it with the
+memoized `PresenceStatus`, and its stories pass the new `PresenceStatusView`
+with a fixed roster instead. `AvatarStackView` and `OverlayLegendView` take
+the roster/layers and callbacks as props; their adapters keep the store
+selectors, the presence-follow command dispatch, and the chapter-add side
+effect. Stories cover desktop, phone, menu-hosted, stale-render, guest-share,
+and loading/overflow/following states for the three templates.
+
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
@@ -207,8 +225,6 @@ checkbox so it can ship as its own PR:
 
 - **A** ([#608](https://github.com/calebn/sharecut-studio/issues/608)) — share
   and bounce dialogs: `ShareDialog`, `BounceDialog`
-- **C** ([#610](https://github.com/calebn/sharecut-studio/issues/610)) —
-  status-bar chrome: `StatusBar`, `AvatarStack`, `OverlayLegend`
 - **D** ([#611](https://github.com/calebn/sharecut-studio/issues/611)) — tool
   rail, tool mode toggle and command palette: `EditingToolRail`,
   `ToolModeToggle`, `CommandPalette`
@@ -220,7 +236,7 @@ checkbox so it can ship as its own PR:
   `CommentPlaybackBubble`
 - **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
   fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
-  desktop, blocked by C, D and the remaining `TransportBar` pieces
+  desktop, blocked by D and the remaining `TransportBar` pieces
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories; they are not on this list and get
@@ -358,6 +374,10 @@ that store or simulate command execution.
 
 ## Changelog
 
+- 2026-09-27 — Closed #610: extracted props-only `StatusBarView`,
+  `AvatarStackView`, `OverlayLegendView` and `PresenceStatusView` from their
+  live adapters and added `Templates/StatusBar`, `Templates/AvatarStack` and
+  `Templates/OverlayLegend`, following the C bullet's follow-up refactor.
 - 2026-09-27 — Added `Templates/InspectorSeekFooter` over the extracted
   props-only `InspectorSeekFooterView`, and `Templates/BottomTabsSplitter`
   over `BottomTabsSplitterView`; the blocked-skip reason uses a `useId()` id;
