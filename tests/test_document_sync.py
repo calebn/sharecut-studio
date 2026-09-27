@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 import pytest
@@ -1379,6 +1382,32 @@ def test_reused_command_id_with_a_different_edit_is_a_conflict(minimal_project):
     with pytest.raises(DocumentSequenceConflictError):
         svc.submit(_comment("second", seq=2, command_id="fixed"))
     assert len(_journal(svc)) == 1
+
+
+def test_concurrent_same_sequence_submits_apply_once(minimal_project):
+    """A replay racing its still-running original (client timeout, another tab) applies once."""
+    first_svc = DocumentSyncService.open(minimal_project)
+    second_svc = DocumentSyncService.open(minimal_project)
+    entered = Event()
+    original_apply = first_svc._apply
+
+    def slow_apply(*args, **kwargs):
+        entered.set()
+        time.sleep(0.2)
+        return original_apply(*args, **kwargs)
+
+    with (
+        patch.object(first_svc, "_apply", side_effect=slow_apply),
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        first = pool.submit(first_svc.submit, _comment("same", command_id="fixed"))
+        assert entered.wait(timeout=5.0)
+        second = pool.submit(second_svc.submit, _comment("same", command_id="fixed"))
+        results = [first.result(timeout=30), second.result(timeout=30)]
+
+    assert [r.get("idempotent") is True for r in results] == [False, True]
+    assert len(first_svc.ws.reload().comments) == 1
+    assert len(_journal(first_svc)) == 1
 
 
 def test_server_assigned_sequences_never_collide(minimal_project):
