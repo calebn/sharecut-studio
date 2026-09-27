@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -187,6 +188,42 @@ def test_pipeline_analyze_prints_evidence_and_proposal(tmp_path):
     assert "--set transcribe.vad.enabled=true" in result.stdout
     base_config = mock_suggest.call_args.kwargs["base_config"]
     assert base_config["focus"]["enabled"] is True
+
+
+def test_pipeline_analyze_run_line_keeps_overrides_and_quotes_project(tmp_path):
+    sub = tmp_path / "My Show"
+    sub.mkdir()
+    project = _init_project(sub)
+    fake_result = {
+        "proposed_config": {},
+        "patches": {"transcribe": {"vad": {"enabled": True}}},
+        "reasons": [],
+        "report_summary": {"track_count": 0, "reason_count": 0, "tracks": []},
+    }
+    with patch(
+        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        return_value=fake_result,
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "pipeline",
+                "analyze",
+                "--project",
+                str(project),
+                "--set",
+                "transcribe.silence_filter.peak_dbfs=-50",
+                "--set",
+                "focus.enabled=true",
+            ],
+        )
+    assert result.exit_code == 0, result.stdout
+    line = next(line for line in result.stdout.splitlines() if line.startswith("Proposed:"))
+    assert "--set transcribe.silence_filter.peak_dbfs=-50" in line
+    assert "--set focus.enabled=true" in line
+    assert "--set transcribe.vad.enabled=true" in line
+    assert shlex.quote(str(project)) in line
+    assert "'" in line
 
 
 def test_pipeline_analyze_json_and_empty(tmp_path):
