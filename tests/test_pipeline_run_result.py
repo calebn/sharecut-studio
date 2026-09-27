@@ -107,3 +107,24 @@ def test_ok_qc_gives_ok_true(minimal_project: Path, monkeypatch) -> None:
 
     assert result.ok is True
     assert result.export_qc == {"ok": True, "issues": [], "warnings": []}
+
+
+def test_format_export_qc_lines_and_job_result(tmp_path: Path) -> None:
+    from podcast_mcp.services.pipeline import PipelineRunResult, format_export_qc_lines
+
+    assert format_export_qc_lines(None, None) == []
+    res = PipelineRunResult(
+        last_step="export_deliverables",
+        steps=[],
+        export_qc={"ok": False, "issues": ["bad"], "warnings": ["w"], "timebase": {"x": 1}},
+        export_qc_path=tmp_path / "export_qc.json",
+    )
+    assert res.qc_report_lines() == [
+        f"Export QC: FAILED (1 issues), 1 warnings ({tmp_path / 'export_qc.json'})",
+        "  - bad",
+    ]
+    assert res.job_result() == {
+        "export_qc": {"ok": False, "issues": ["bad"], "warnings": ["w"]},
+        "export_qc_path": str(tmp_path / "export_qc.json"),
+    }
+    assert PipelineRunResult(last_step="x", steps=[]).job_result() is None

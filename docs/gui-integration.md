@@ -305,7 +305,7 @@ Configurable production spine — **visible params are the source of truth for R
 | `GET /api/pipeline/config?path=` | Effective config, enabled steps, step metadata, param schema, component status |
 | `PUT /api/pipeline/config` | Body `{ path, config?, enabled_steps?, unattended?, reset? }` — session working set |
 | `POST /api/pipeline/analyze` | Body `{ path, apply? }` — heuristic proposals (`reasons`, `patches`); `apply` writes working set |
-| `GET /api/pipeline/status` | Current / last job snapshot, scoped to the served project |
+| `GET /api/pipeline/status` | Current / last job snapshot, scoped to the served project. A finished `kind=pipeline` run that reached `export_deliverables` carries this run's QC verdict on `result.export_qc` (`ok`, `issues`, `warnings`) and `result.export_qc_path` (same verdict as CLI `pipeline run` / MCP `pipeline_run`); `result` is null when the run did not export. The Pipeline tab does not render it yet. |
 | `POST /api/pipeline/run` | Body `{ path, from_step?, only_step?, skip_steps?, enabled_steps?, unattended?, config?, use_working_set? }` — 409 if busy |
 | `GET /api/transcript/vocabulary?path=` | Host project terms, guest names, `revision`, and whether any stored transcript used a different vocabulary revision, and `edited_tracks` (track ids with `user_edited` transcripts, which Re-transcribe asks before replacing) |
 | `PUT /api/transcript/vocabulary` | Body `{ path, terms, guest_names, base_revision }` — save per-project vocabulary; 409 when `base_revision` is stale (another editor saved first), 400 for invalid or prompt-overflowing vocabulary, 503 when the context lock is busy; Pipeline offers a run from `transcribe_tracks` when an existing transcript needs it |
