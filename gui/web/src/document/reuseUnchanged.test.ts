@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleTrack } from "../test/fixtures";
-import type { ClipRow, ProjectView } from "../types/project";
+import type {
+  AppliedEditRecord,
+  AutomationEnvelope,
+  ClipRow,
+  PendingEditView,
+  ProjectView,
+} from "../types/project";
 import { mergeProjectPatch, projectFromDocumentSnapshot } from "./projectPatch";
 import { reuseUnchanged } from "./reuseUnchanged";
 
@@ -171,5 +177,192 @@ describe("reuseUnchanged", () => {
       patch: { clips: fresh(prev).clips },
     });
     expect(viaPatch?.clips).toBe(prev.clips);
+  });
+
+  function envelope(
+    trackId: string,
+    parameter: string,
+    points: AutomationEnvelope["points"] = [],
+  ): AutomationEnvelope {
+    return { track_id: trackId, parameter, points };
+  }
+
+  function pendingEdit(
+    id: string,
+    extra: Partial<PendingEditView> = {},
+  ): PendingEditView {
+    return {
+      id,
+      track_id: "host",
+      type: "cut",
+      reason: null,
+      source_start: 0,
+      source_end: 1,
+      timeline_start: 0,
+      timeline_end: 1,
+      timeline_spans: [],
+      mappable: true,
+      crossfade_ms: null,
+      boundary_mode: null,
+      cut_confidence: null,
+      review_required: false,
+      applied: false,
+      ...extra,
+    };
+  }
+
+  function appliedRecord(
+    id: string,
+    extra: Partial<AppliedEditRecord> = {},
+  ): AppliedEditRecord {
+    return {
+      id,
+      applied_at: "2024-01-01T00:00:00Z",
+      operation: "cut",
+      track_ids: ["host"],
+      timeline_start: 0,
+      timeline_end: 1,
+      source_start: 0,
+      source_end: 1,
+      reason: null,
+      params: {},
+      ...extra,
+    };
+  }
+
+  it("reuses envelopes, pending edits and applied records of an equal projection", () => {
+    const prev = minimalProject({
+      envelopes: [envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }])],
+      pending_edits: [pendingEdit("pe1")],
+      applied_edits: { count: 1, records: [appliedRecord("ar1")] },
+    });
+    const out = reuseUnchanged(prev, fresh(prev));
+    expect(out.envelopes).toBe(prev.envelopes);
+    expect(out.pending_edits).toBe(prev.pending_edits);
+    expect(out.applied_edits).toBe(prev.applied_edits);
+  });
+
+  it("reuses an envelope whose points are equal by value (envelopes have no id)", () => {
+    const prev = minimalProject({
+      envelopes: [envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }])],
+    });
+    const next = fresh(prev);
+    next.envelopes = [
+      envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }]),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes).toBe(prev.envelopes);
+    expect(out.envelopes[0]).toBe(prev.envelopes[0]);
+  });
+
+  it("does not reuse an envelope whose points changed", () => {
+    const prev = minimalProject({
+      envelopes: [envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }])],
+    });
+    const next = fresh(prev);
+    next.envelopes = [
+      envelope("host", "gain", [{ id: "p1", time: 0, value: 0.5 }]),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes).not.toBe(prev.envelopes);
+    expect(out.envelopes[0]).not.toBe(prev.envelopes[0]);
+  });
+
+  it("swaps an envelope keyed by track_id + parameter, keeping the other", () => {
+    const prev = minimalProject({
+      envelopes: [
+        envelope("host", "gain", [{ id: "p1", time: 0, value: 1 }]),
+        envelope("guest", "gain", [{ id: "p2", time: 0, value: 1 }]),
+      ],
+    });
+    const next = fresh(prev);
+    next.envelopes = [
+      prev.envelopes[0]!,
+      envelope("guest", "pan", [{ id: "p3", time: 0, value: 0 }]),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.envelopes).not.toBe(prev.envelopes);
+    expect(out.envelopes[0]).toBe(prev.envelopes[0]);
+    expect(out.envelopes[1]).toBe(next.envelopes[1]);
+  });
+
+  it("reuses a pending edit whose timeline_spans/track_ids changed only by value", () => {
+    const prev = minimalProject({
+      pending_edits: [
+        pendingEdit("pe1", {
+          track_ids: ["host"],
+          timeline_spans: [{ start: 0, end: 1 }],
+        }),
+      ],
+    });
+    const next = fresh(prev);
+    next.pending_edits = [
+      pendingEdit("pe1", {
+        track_ids: ["host"],
+        timeline_spans: [{ start: 0, end: 1 }],
+      }),
+    ];
+    const out = reuseUnchanged(prev, next);
+    expect(out.pending_edits).toBe(prev.pending_edits);
+  });
+
+  it("adds a pending edit record while keeping the existing one", () => {
+    const prev = minimalProject({ pending_edits: [pendingEdit("pe1")] });
+    const next = fresh(prev);
+    next.pending_edits = [prev.pending_edits[0]!, pendingEdit("pe2")];
+    const out = reuseUnchanged(prev, next);
+    expect(out.pending_edits).not.toBe(prev.pending_edits);
+    expect(out.pending_edits[0]).toBe(prev.pending_edits[0]);
+    expect(out.pending_edits[1]).toBe(next.pending_edits[1]);
+  });
+
+  it("reuses an applied record whose params changed only by value", () => {
+    const prev = minimalProject({
+      applied_edits: {
+        count: 1,
+        records: [appliedRecord("ar1", { params: { db: 1 } })],
+      },
+    });
+    const next = fresh(prev);
+    next.applied_edits = {
+      count: 1,
+      records: [appliedRecord("ar1", { params: { db: 1 } })],
+    };
+    const out = reuseUnchanged(prev, next);
+    expect(out.applied_edits).toBe(prev.applied_edits);
+  });
+
+  it("keeps the applied_edits object when only count changes but records match", () => {
+    const prev = minimalProject({
+      applied_edits: { count: 1, records: [appliedRecord("ar1")] },
+    });
+    const next = fresh(prev);
+    next.applied_edits = {
+      count: 2,
+      records: [appliedRecord("ar1")],
+    };
+    const out = reuseUnchanged(prev, next);
+    expect(out.applied_edits).not.toBe(prev.applied_edits);
+    expect(out.applied_edits.count).toBe(2);
+    expect(out.applied_edits.records).toBe(prev.applied_edits.records);
+  });
+
+  it("does not reuse an applied record whose params changed", () => {
+    const prev = minimalProject({
+      applied_edits: {
+        count: 1,
+        records: [appliedRecord("ar1", { params: { db: 1 } })],
+      },
+    });
+    const next = fresh(prev);
+    next.applied_edits = {
+      count: 1,
+      records: [appliedRecord("ar1", { params: { db: 2 } })],
+    };
+    const out = reuseUnchanged(prev, next);
+    expect(out.applied_edits).not.toBe(prev.applied_edits);
+    expect(out.applied_edits.records[0]).not.toBe(
+      prev.applied_edits.records[0],
+    );
   });
 });
