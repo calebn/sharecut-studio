@@ -40,6 +40,7 @@ from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_file_revision,
     project_state_lock,
+    step_copy,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,13 +55,15 @@ def _run_step_published(
 
     Render snapshots taken meanwhile see the project from before the step, never half of
     it, and the step's FFmpeg work holds no ``project_state_lock``. A failed step still
-    publishes what it changed (as when steps mutated ``project`` in place).
+    publishes what it changed (as when steps mutated ``project`` in place). ``step_copy`` lets
+    guards inside the step compare against the live project (``live_project``).
     """
     with project_state_lock(project):
         base = project_merge_data(project)
         work = project.model_copy(deep=True)
     try:
-        summary = fn(work, step_defaults)
+        with step_copy(project, work):
+            summary = fn(work, step_defaults)
     except BaseException:
         try:
             publish_project_changes(project, base, work)
