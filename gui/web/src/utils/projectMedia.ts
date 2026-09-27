@@ -30,14 +30,25 @@ export function projectHasSourceAudio(
   );
 }
 
-/** Longest track source media (s); 0 when no track has media. */
-export function projectSourceDurationSec(
-  project: Pick<ProjectView, "tracks">,
-): number {
-  return project.tracks.reduce(
+function longestSourceSec(tracks: readonly TrackView[]): number {
+  return tracks.reduce(
     (longest, t) => Math.max(longest, t.duration_sec ?? 0),
     0,
   );
+}
+
+/**
+ * Longest dialogue-track source media (s), so a music bed or sting longer than
+ * the talk does not inflate Cut; every track when no dialogue track has media;
+ * 0 when no track has media.
+ */
+export function projectSourceDurationSec(
+  project: Pick<ProjectView, "tracks">,
+): number {
+  const dialogue = longestSourceSec(
+    project.tracks.filter((t) => t.role === "dialogue"),
+  );
+  return dialogue > 0 ? dialogue : longestSourceSec(project.tracks);
 }
 
 export type TimelineCut = {
@@ -49,6 +60,7 @@ export type TimelineCut = {
 /**
  * Source audio cut from the timeline by every edit kind (remove decisions,
  * ripple, trim, structural), as source length minus timeline length.
+ * Net of the whole timeline: gaps or clips moved past the source end offset it.
  * Null without source media.
  */
 export function timelineCut(

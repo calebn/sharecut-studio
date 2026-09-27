@@ -3,7 +3,31 @@ import { minimalProject, sampleTrack } from "../test/fixtures";
 import { projectSourceDurationSec, timelineCut } from "./projectMedia";
 
 describe("timelineCut", () => {
-  it("takes the longest track and treats null as 0", () => {
+  it("ignores a music bed longer than the dialogue", () => {
+    const cut = timelineCut(
+      minimalProject({
+        tracks: [
+          sampleTrack({ id: "host", duration_sec: 600 }),
+          sampleTrack({ id: "bed", role: "music", duration_sec: 900 }),
+        ],
+        timeline_duration_sec: 500,
+      }),
+    );
+    expect(cut?.sourceSec).toBe(600);
+    expect(cut?.cutSec).toBe(100);
+  });
+
+  it("uses every track when no dialogue track has media", () => {
+    const p = minimalProject({
+      tracks: [
+        sampleTrack({ id: "host", duration_sec: null }),
+        sampleTrack({ id: "bed", role: "music", duration_sec: 120 }),
+      ],
+    });
+    expect(projectSourceDurationSec(p)).toBe(120);
+  });
+
+  it("takes the longest dialogue track and treats null as 0", () => {
     const p = minimalProject({
       tracks: [
         sampleTrack({ duration_sec: 10 }),
