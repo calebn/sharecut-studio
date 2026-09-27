@@ -6,7 +6,7 @@ import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { appliedEditRecord, clipRow, minimalProject } from "../test/fixtures";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
 
@@ -165,5 +165,131 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(
       screen.queryByRole("button", { name: "Waive with reason" }),
     ).toBeNull();
+  });
+});
+
+describe("ImpactPanel applied edits", () => {
+  function projectWithApplied() {
+    return minimalProject({
+      clips: {
+        tracks: {
+          host: [
+            clipRow({
+              id: "c1",
+              track_id: "host",
+              source_start: 0,
+              source_end: 2,
+              timeline_start: 0,
+              timeline_end: 2,
+            }),
+            clipRow({
+              id: "c2",
+              track_id: "host",
+              source_start: 3,
+              source_end: 9,
+              timeline_start: 2,
+              timeline_end: 8,
+            }),
+          ],
+        },
+        clip_count: 2,
+      },
+      applied_edits: {
+        count: 2,
+        records: [
+          appliedEditRecord({
+            id: "mapped",
+            operation: "ripple_delete",
+            track_ids: ["host"],
+            source_start: null,
+            source_end: null,
+            params: { per_track_source: { host: [2, 3] } },
+          }),
+          appliedEditRecord({
+            id: "legacy",
+            operation: "ripple_delete",
+            track_ids: ["host"],
+            timeline_start: 0,
+            timeline_end: 1334.8,
+            source_start: null,
+            source_end: null,
+            params: {},
+          }),
+        ],
+      },
+    });
+  }
+
+  beforeEach(() => {
+    loadHostCommandCount.mockReset().mockResolvedValue(1);
+    useDawStore.getState().hydrate("/tmp/p.json", projectWithApplied());
+    useDawStore.setState({ guestMode: null, shareCapabilities: [] });
+  });
+
+  it("shows the applied edits count in the summary", () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={projectWithApplied()}
+      >
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    expect(screen.getByText("Applied edits (2)")).toBeInTheDocument();
+  });
+
+  it("marks only the unmapped record as not on timeline", () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={projectWithApplied()}
+      >
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    const mapped = screen.getByRole("button", {
+      name: "Ripple delete: Shorten the pause · host",
+    });
+    expect(mapped.textContent).not.toContain("not on timeline");
+    const legacy = screen.getByRole("button", {
+      name: "Ripple delete: Shorten the pause · host · not on timeline",
+    });
+    expect(legacy).toBeInTheDocument();
+  });
+
+  it("selects the applied record on click", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={projectWithApplied()}
+      >
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Ripple delete: Shorten the pause · host",
+      }),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "applied",
+      id: "mapped",
+      trackId: "host",
+    });
+  });
+
+  it("has no a11y violations with the applied list open", async () => {
+    const { container } = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={projectWithApplied()}
+      >
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    const details = container.querySelector("details.impact-applied");
+    details?.setAttribute("open", "");
+    await expectNoA11yViolations(container);
   });
 });
