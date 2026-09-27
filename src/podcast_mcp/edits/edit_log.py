@@ -192,6 +192,7 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
     ``params['per_track_source']`` (``{track_id: [pre, post]}``) are restored as one
     clip; when any pair does not span the record's timeline hole (a cut across moved
     or gapped clips), revert raises and points to History undo before anything moves.
+    The pair alone cannot say where a gap sat inside the cut, so no offset is guessed.
     Track-scope punch archives (``params['scope'] == 'track'``) left a silent hole
     instead, so they refill it in place on their own tracks and shift nothing.
     """
