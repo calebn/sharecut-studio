@@ -8,11 +8,21 @@ import pytest
 
 from podcast_mcp.edits.track_media import (
     apply_full_span_media,
+    clip_media_duration,
     ensure_audio_in_workspace,
     media_asset_from_path,
     resolve_workspace_raw_audio,
 )
-from podcast_mcp.models import Track, TrackRole, load_project
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    ProjectMeta,
+    SourceRecording,
+    Track,
+    TrackRole,
+    load_project,
+)
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -57,6 +67,18 @@ def test_apply_full_span_media_and_store_path(minimal_project, sample_wav, tmp_p
     # Saved JSON uses portable workspace_dir
     raw_json = Path(minimal_project).read_text(encoding="utf-8")
     assert '"workspace_dir": "."' in raw_json
+
+
+def test_clip_media_duration_prefers_source_then_lane_then_clip(tmp_path):
+    p = EpisodeProject(meta=ProjectMeta(name="dur", workspace_dir=str(tmp_path)))
+    track = Track(id="g", label="G", media=MediaAsset(path="raw/g.wav", duration_sec=80.0))
+    bare = Track(id="b", label="B")
+    p.sources = [SourceRecording(id="s", path="raw/s.wav", duration_sec=120.0)]
+    clip = Clip(id="c", track_id="g", source_start=5.0, source_end=40.0, timeline_start=0.0)
+    assert clip_media_duration(p, bare, clip) == 40.0
+    assert clip_media_duration(p, track, clip) == 80.0
+    clip.source_id = "s"
+    assert clip_media_duration(p, track, clip) == 120.0
 
 
 def test_resolve_workspace_raw_audio_rejects_escape(minimal_project, sample_wav):

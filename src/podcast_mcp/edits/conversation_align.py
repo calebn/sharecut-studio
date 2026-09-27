@@ -21,7 +21,7 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.ranges import merge_timeline_ranges
-from podcast_mcp.edits.track_media import refresh_timeline_duration
+from podcast_mcp.edits.track_media import clip_media_duration, refresh_timeline_duration
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -1580,17 +1580,6 @@ def plan_conversation_alignment(
     return AlignResult(plans=plans, reference_track_id=ref_track.id, large_move_sec=large_move_sec)
 
 
-def _clip_media_duration(project: EpisodeProject, track: Track, clip: Clip) -> float:
-    media_dur = float(clip.source_end) if clip.source_end > clip.source_start else 0.0
-    if track.media and track.media.duration_sec:
-        media_dur = float(track.media.duration_sec)
-    if clip.source_id:
-        src = project.source_by_id(clip.source_id)
-        if src and src.duration_sec:
-            media_dur = float(src.duration_sec)
-    return media_dur
-
-
 def _at_recorded_placement(project: EpisodeProject, track: Track, clip: Clip) -> bool:
     """True when ``clip`` still sits at the placement ``meta.ingest_alignment`` records."""
     entry = _ingest_alignment_entry(project, track, clip)
@@ -1698,7 +1687,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             plan = by_key.get((track.id, clip.id))
             if plan is None:
                 continue
-            media_dur = _clip_media_duration(project, track, clip)
+            media_dur = clip_media_duration(project, track, clip)
             geom = _planned_geometry(
                 project,
                 track,
