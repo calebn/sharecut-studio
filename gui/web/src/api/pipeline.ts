@@ -12,7 +12,7 @@ import type {
   PipelineStatusResponse,
 } from "../types/pipeline";
 import { readApiError, readApiFailure } from "../utils/apiError";
-import { jobResultPaths } from "../utils/pipeline";
+import { isTerminalJobStatus, jobResultPaths } from "../utils/pipeline";
 
 export async function loadPipelineSteps(): Promise<string[]> {
   const res = await hostFetch("/api/pipeline/steps");
@@ -215,7 +215,8 @@ export async function startRenderPreview(
       if (status.job.status === "ok") {
         return { mode: "sync", ok: true };
       }
-      if (status.job.status === "error" || status.job.status === "cancelled") {
+      // ok returned above, so any other terminal status is a failure.
+      if (isTerminalJobStatus(status.job.status)) {
         throw new Error(status.job.error ?? "Render preview failed");
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -247,11 +248,6 @@ export async function followExportJob(
 
 /** Slow status re-check while a job SSE stream is open: backstop for a stream that stays OPEN but goes silent (buffering proxy, half-open socket, backgrounded webview). */
 export const JOB_STREAM_RECHECK_MS = 15_000;
-
-/** True for a job status that ends a wait (mirrors backend `TERMINAL_JOB_STATUSES`). */
-export function isTerminalJobStatus(status: string): boolean {
-  return status === "ok" || status === "error" || status === "cancelled";
-}
 
 /**
  * Re-check a job every `JOB_STREAM_RECHECK_MS` while its SSE stream is open

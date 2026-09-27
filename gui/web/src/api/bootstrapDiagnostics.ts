@@ -1,6 +1,7 @@
 import { hostFetch } from "../api/documentTransport";
 import { readApiError } from "../utils/apiError";
-import { isTerminalJobStatus, startJobStatusRecheck } from "./pipeline";
+import { isTerminalJobStatus } from "../utils/pipeline";
+import { startJobStatusRecheck } from "./pipeline";
 
 export type BootstrapComponentStatus = {
   ok: boolean;

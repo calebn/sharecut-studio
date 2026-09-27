@@ -51,6 +51,23 @@ describe("guestProgressToJob", () => {
     ).toBe("boom");
   });
 
+  it("keeps cancelled and maps an unknown status to running", () => {
+    expect(
+      guestProgressToJob({
+        type: "progress",
+        plane: "progress",
+        status: "cancelled",
+      })?.status,
+    ).toBe("cancelled");
+    expect(
+      guestProgressToJob({
+        type: "progress",
+        plane: "progress",
+        status: "weird",
+      })?.status,
+    ).toBe("running");
+  });
+
   it("ignores other planes", () => {
     const prev = guestProgressToJob({
       type: "progress",
