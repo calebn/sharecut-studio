@@ -38,6 +38,10 @@ def session_seek(
 def session_stop(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
+    """Pause DAW transport in place and clear the highlight region.
+
+    GUI Stop / K also returns to the play start; this command does not.
+    """
     ws = ProjectWorkspace.open(project)
     state = SessionControlService(ws).stop()
     typer.echo(json.dumps(state, indent=2))
