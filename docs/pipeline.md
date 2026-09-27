@@ -215,9 +215,11 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
 Analyze's digital-silence fraction (`engines/asr_silence.digital_silence_fraction`) is
-cached in-process per (file path, size, mtime, `peak_dbfs`), so re-running Analyze from
-the GUI or MCP server does not re-decode unchanged dialogue stems; each CLI
-`podcast pipeline analyze` is a fresh process and decodes once.
+cached in-process per (resolved path, `file_revision` — device, inode, size, mtime — and
+`peak_dbfs`), so re-running Analyze from the GUI or MCP server does not re-decode
+unchanged dialogue stems; each CLI `podcast pipeline analyze` is a fresh process and
+decodes once. An atomic replace (new inode) re-measures; an in-place rewrite that keeps
+inode, size and mtime keeps the cached value until the GUI/MCP process restarts.
 
 Stem workers read one deep project snapshot captured before dispatch. Each
 worker renders and writes its cache hash from that snapshot. If an edit changes
