@@ -323,8 +323,8 @@ export function useSessionSync(
   /**
    * Durable viewer state: one WS `ViewerState` frame while live, else HTTP.
    * The server's own-client Echo advances the cursor (onmessage) and ends the
-   * wait; a rejection or no Echo in VIEWER_STATE_ECHO_TIMEOUT_MS (half-open
-   * socket) republishes over HTTP.
+   * wait; a rejection or no Echo within VIEWER_STATE_ECHO_TIMEOUT_MS of the oldest unechoed
+   * send (half-open socket, dropped frame) republishes over HTTP; later sends do not extend that deadline.
    */
   const publish = useEffectEvent(async () => {
     if (
@@ -332,13 +332,13 @@ export function useSessionSync(
     ) {
       const wait = viewerStateWaitRef.current;
       wait.inFlight += 1;
-      if (wait.timer != null) {
-        window.clearTimeout(wait.timer);
+      // Keep the oldest unechoed send's deadline: a later send must not push it back.
+      if (wait.timer == null) {
+        wait.timer = window.setTimeout(() => {
+          wait.timer = null;
+          fallBackToHttp();
+        }, VIEWER_STATE_ECHO_TIMEOUT_MS);
       }
-      wait.timer = window.setTimeout(() => {
-        wait.timer = null;
-        fallBackToHttp();
-      }, VIEWER_STATE_ECHO_TIMEOUT_MS);
       return;
     }
     await publishOverHttp();
