@@ -10,7 +10,7 @@ import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchTracksOrder } from "../document/projectPatch";
-import { canIngestMedia } from "../shareMode";
+import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { withAbortTimeout } from "../utils/abortTimeout";
 import { errorMessage } from "../utils/apiError";
@@ -108,6 +108,7 @@ export function registerProjectMediaCommands(): void {
     }
     projectNewInFlight = true;
     useDawStore.getState().announceStatus("Closing project…");
+    const projectPath = useDawStore.getState().projectPath;
     void (async () => {
       try {
         await withAbortTimeout(
@@ -121,6 +122,15 @@ export function registerProjectMediaCommands(): void {
         useDawStore
           .getState()
           .announceStatus(`New project failed: ${errorMessage(e)}`);
+        // A timed-out close may still land on the server; re-pin what Studio shows.
+        if (
+          e instanceof DOMException &&
+          e.name === "TimeoutError" &&
+          projectPath &&
+          !isShareProjectKey(projectPath)
+        ) {
+          void openEpisodeProject(projectPath).catch(() => undefined);
+        }
         return;
       }
       window.location.assign(homeUrl(window.location.href));

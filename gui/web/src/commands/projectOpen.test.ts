@@ -114,6 +114,7 @@ describe("project.open", () => {
       ),
     );
     expect(assign).not.toHaveBeenCalled();
+    expect(openMock).not.toHaveBeenCalled();
   });
 
   it("New ignores a repeat while the unpin is pending", async () => {
@@ -134,10 +135,12 @@ describe("project.open", () => {
             signal?.addEventListener("abort", () => reject(signal.reason));
           }),
       );
+      openMock.mockResolvedValue({ project_path: "/tmp/ep", name: "ep" });
       expect((await execute("project.new")).status).toBe("ok");
       await vi.advanceTimersByTimeAsync(PROJECT_CLOSE_TIMEOUT_MS);
       expect(useDawStore.getState().statusAnnouncement).toContain("timed out");
       expect(assign).not.toHaveBeenCalled();
+      expect(openMock).toHaveBeenCalledWith("/tmp/ep");
     } finally {
       vi.useRealTimers();
     }
