@@ -294,12 +294,14 @@ async def session_ws(
 
     async def _detach_record() -> None:
         nonlocal rec_svc, rec_queue, attached_sid
-        if rec_queue is not None:
-            hub.unsubscribe(record_hub_key(ws_proj.project), rec_queue)
-            rec_queue = None
-        await rec_tasks.stop()
-        rec_svc = None
-        attached_sid = None
+        try:
+            if rec_queue is not None:
+                hub.unsubscribe(record_hub_key(ws_proj.project), rec_queue)
+                rec_queue = None
+            await rec_tasks.stop()
+        finally:
+            rec_svc = None
+            attached_sid = None
 
     async def _attach_record() -> None:
         nonlocal rec_svc, rec_queue, attached_sid, fail_until
@@ -405,13 +407,17 @@ async def session_ws(
             if echo is not None:
                 await _send(echo)
     finally:
+        # _detach_record() nulls rec_svc; keep it for the participant disconnect.
+        record_svc = rec_svc
         try:
-            if rec_svc is not None:
-                rec_svc.disconnect(HOST_PARTICIPANT_ID, connection_id=host_record_conn_id)
             hub.unsubscribe(key, queue)
             try:
                 await hub_tasks.stop()
             finally:
                 await _detach_record()
         finally:
-            svc.remove_client(client_id)
+            try:
+                if record_svc is not None:
+                    record_svc.disconnect(HOST_PARTICIPANT_ID, connection_id=host_record_conn_id)
+            finally:
+                svc.remove_client(client_id)

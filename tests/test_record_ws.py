@@ -1402,6 +1402,48 @@ def test_host_ws_reattaches_when_record_session_changes(
         assert room["session_id"]
 
 
+def test_host_ws_teardown_survives_record_disconnect_error(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import contextlib
+    from urllib.parse import quote
+
+    from podcast_mcp.gui.routes import session as session_routes
+    from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
+    from podcast_mcp.services.record.service import record_hub_key
+    from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    ws, _created, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    spawned = []
+
+    class _SpyTaskSet(WsTaskSet):
+        def spawn(self, coro):
+            task = super().spawn(coro)
+            spawned.append(task)
+            return task
+
+    monkeypatch.setattr(session_routes, "WsTaskSet", _SpyTaskSet)
+    disconnects = []
+
+    def _locked(self, participant_id, *, connection_id=None):
+        disconnects.append(participant_id)
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(RecordSessionService, "disconnect", _locked)
+    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-lock&role=viewer&label=Host"
+    with contextlib.suppress(RuntimeError):
+        with client.websocket_connect(url) as host:
+            assert host.receive_json()["type"] == "Snapshot"
+            _drain_until(host, lambda m: m.get("plane") == "record")
+    hub = get_hub()
+    assert disconnects == [HOST_PARTICIPANT_ID]
+    assert len(spawned) >= 2  # session hub pump + record pump
+    assert all(task.done() for task in spawned)
+    assert hub.listener_count(str(ws.project.workspace_path())) == 0
+    assert hub.listener_count(record_hub_key(ws.project)) == 0
+
+
 def _remove(client, ws, pid: str) -> None:
     response = client.post(
         "/api/record/command",
