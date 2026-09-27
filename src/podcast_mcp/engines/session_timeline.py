@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import itertools
 from bisect import bisect_right
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Sequence
+from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
@@ -192,6 +192,100 @@ def clip_source_to_timeline_shift(clip: SourcePlacement) -> float:
     the clip's placement (negative when the clip starts after timeline 0).
     """
     return clip.timeline_start - clip.source_start
+
+
+SAME_SOURCE_OVERLAP_TOLERANCE_SEC = 0.05
+_MIN_SLIP_SEC = 0.01
+
+
+def slip_clip_to_shift(
+    clip: Clip,
+    target_shift: float,
+    *,
+    media_duration: float,
+) -> tuple[float, float, float] | None:
+    """Move ``clip``'s source range so its source-to-timeline shift becomes ``target_shift``.
+
+    Unlike :func:`offset_to_clip_geometry`, the clip's timeline window is kept: only its
+    source range slips by the delta between the current and target shift. A head that
+    would land before the file start trims the clip instead (the timeline start moves
+    later and the source start clamps to 0); a tail past ``media_duration`` clamps too.
+    Returns ``None`` when the slip would leave the clip with no audio.
+    """
+    delta = target_shift - clip_source_to_timeline_shift(clip)
+    src_start = clip.source_start - delta
+    src_end = clip.source_end - delta
+    tl_start = clip.timeline_start
+    if src_start < 0:
+        tl_start -= src_start
+        src_start = 0.0
+    if media_duration > 0:
+        src_end = min(src_end, media_duration)
+    if src_end - src_start < _MIN_SLIP_SEC:
+        return None
+    return src_start, src_end, tl_start
+
+
+def clip_media_key(project: EpisodeProject, clip: Clip) -> str:
+    """Media file identity a clip reads: ``sources[source_id].path``, else the lane's media."""
+    if clip.source_id:
+        src = project.source_by_id(clip.source_id)
+        if src is not None and src.path:
+            return src.path
+    track = next((t for t in project.tracks if t.id == clip.track_id), None)
+    if track is not None and track.media and track.media.path:
+        return track.media.path
+    return f"track:{clip.track_id}"
+
+
+@dataclass(frozen=True)
+class SourceStack:
+    """Two clips on one lane that read the same media file and overlap on the timeline."""
+
+    track_id: str
+    media: str
+    clip_ids: tuple[str, str]
+    overlap_sec: float
+
+
+def same_source_timeline_overlaps(
+    project: EpisodeProject,
+    *,
+    track_ids: Collection[str] | None = None,
+    tolerance_sec: float = SAME_SOURCE_OVERLAP_TOLERANCE_SEC,
+) -> list[SourceStack]:
+    """Clip pairs on the same lane, reading the same media, whose timeline spans overlap.
+
+    Flags stacked whole-file copies of a split track (see #520): two clips that would
+    play the same audio at the same time. Empty (zero-length) clips are ignored.
+    """
+    groups: dict[tuple[str, str], list[Clip]] = {}
+    for clip in project.clips:
+        if track_ids is not None and clip.track_id not in track_ids:
+            continue
+        if clip.timeline_end <= clip.timeline_start + _EPS:
+            continue
+        key = (clip.track_id, clip_media_key(project, clip))
+        groups.setdefault(key, []).append(clip)
+
+    stacks: list[SourceStack] = []
+    for (track_id, media), members in groups.items():
+        ordered = sorted(members, key=lambda c: (c.timeline_start, c.id))
+        for i, a in enumerate(ordered):
+            for b in ordered[i + 1 :]:
+                if b.timeline_start >= a.timeline_end - tolerance_sec:
+                    break
+                overlap = min(a.timeline_end, b.timeline_end) - b.timeline_start
+                if overlap > tolerance_sec:
+                    stacks.append(
+                        SourceStack(
+                            track_id=track_id,
+                            media=media,
+                            clip_ids=(a.id, b.id),
+                            overlap_sec=round(overlap, 3),
+                        )
+                    )
+    return stacks
 
 
 class SessionTimeline:
@@ -426,11 +520,12 @@ _DRIFT_WARN_SEC = 1.0
 
 
 def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
-    """Per-track drift and unmapped transcript words for export/doctor QC.
+    """Per-track drift, unmapped transcript words and stacked clips for export/doctor QC.
 
     Source/timeline drift after cuts is expected on edited episodes - reported as
     ``warnings``, not a ship-blocker. Unmapped transcript words (wrong clock or
-    cut-away) remain hard ``issues``.
+    cut-away) and same-source timeline stacks (stacked copies play twice, see #520)
+    remain hard ``issues``.
     """
     st = SessionTimeline(project)
     tracks: dict[str, dict[str, float | int]] = {}
@@ -467,9 +562,20 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
                 "clip source ranges (may be cut away or stored in wrong clock)"
             )
 
+    stacks = same_source_timeline_overlaps(project)
+    for stack in stacks:
+        tinfo = tracks.setdefault(stack.track_id, {"max_drift_sec": st.max_drift(stack.track_id)})
+        tinfo["stacked_clips"] = int(tinfo.get("stacked_clips", 0)) + 1
+        a, b = stack.clip_ids
+        issues.append(
+            f"Track {stack.track_id!r}: clips {a!r} and {b!r} overlap {stack.overlap_sec:.2f}s "
+            "on the timeline while reading the same source (stacked copies play twice)"
+        )
+
     return {
         "tracks": tracks,
         "warnings": warnings,
         "issues": issues,
         "ok": not issues,
+        "stacked_clips": [asdict(s) for s in stacks],
     }

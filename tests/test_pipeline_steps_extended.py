@@ -845,6 +845,21 @@ def test_write_export_qc_timebase_issues(minimal_project, tmp_workspace):
     assert not qc["ok"]
 
 
+def test_write_export_qc_flags_stacked_same_source_clips(minimal_project, tmp_workspace):
+    from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
+    from podcast_mcp.models import Clip
+
+    proj = load_project(minimal_project)
+    mark_reconciliation_fresh(proj)
+    proj.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=60.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=0.0, source_end=60.0, timeline_start=0.0),
+    ]
+    qc = steps.write_export_qc(proj)
+    assert not qc["ok"]
+    assert any("stacked" in i for i in qc["timebase"]["issues"])
+
+
 def test_ingest_tracks_resolves_relative_media_path(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     host = proj.track_by_id("host")
