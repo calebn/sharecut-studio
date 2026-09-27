@@ -74,7 +74,7 @@ state and a 360px phone variant; `Molecules/FocusPull` shows its initial view
 and the exit/enter transition. `Templates/PipelineStatusChip`'s `Stalled`
 story previews the stall copy against a fixed `nowSec` so it renders
 deterministically instead of depending on a ticking clock — see
-[design-system.md § Catalog boundary](../../docs/design-system.md#domain-surfaces-templates)
+[design-system.md § Catalog boundary](../../docs/design-system.md#catalog-boundary-store-bound-components)
 for which remaining components are store-bound and tracked as refactor
 follow-ups instead of stories.
 
