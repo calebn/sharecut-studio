@@ -1,16 +1,15 @@
-import { useState } from "react";
 import { approveEdits, rejectEdits } from "../api";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
 } from "../inspector/TranscriptRefineRecovery";
+import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { Button, InlineError } from "../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending } from "../utils/edits";
-import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 
 export function ImpactPanel() {
   const { project, projectPath, setSelection } = useDaw((s) => ({
@@ -19,7 +18,8 @@ export function ImpactPanel() {
     setSelection: s.setSelection,
   }));
   const { busy, error, errorCode, setError, run } = useProjectMutation();
-  const [sendingNotice, setSendingNotice] = useState(false);
+  const { notice: queuedNotice, setQueued } =
+    useQueuedReviewNotice(projectPath);
 
   if (!project) {
     return null;
@@ -33,13 +33,13 @@ export function ImpactPanel() {
     if (ids.length === 0) {
       return;
     }
-    setSendingNotice(false);
+    setQueued(false);
     await run(async () => {
       const { queued } =
         action === "approve"
           ? await approveEdits(projectPath, ids)
           : await rejectEdits(projectPath, ids);
-      setSendingNotice(queued);
+      setQueued(queued);
       setSelection(null);
     });
   };
@@ -117,11 +117,7 @@ export function ImpactPanel() {
             : error
         }
       />
-      {sendingNotice ? (
-        <p className="ui-field-hint" role="status">
-          {PENDING_REVIEW_QUEUED_MESSAGE}
-        </p>
-      ) : null}
+      {queuedNotice}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery
           key={reviewRequired.map((edit) => edit.id).join(",")}

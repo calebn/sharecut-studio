@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { approveEdits, waiveTranscriptRefine } from "../api";
@@ -9,6 +9,15 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
+
+const { loadHostCommandCount } = vi.hoisted(() => ({
+  loadHostCommandCount: vi.fn(async () => 1),
+}));
+
+vi.mock("../state/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/offlineStore")>()),
+  loadHostCommandCount,
+}));
 
 vi.mock("../api", () => ({
   approveEdits: vi.fn(async () => ({ queued: false })),
@@ -50,6 +59,7 @@ function project() {
 
 describe("ImpactPanel transcript refine recovery", () => {
   beforeEach(() => {
+    loadHostCommandCount.mockReset().mockResolvedValue(1);
     vi.mocked(approveEdits).mockReset().mockResolvedValue({ queued: false });
     vi.mocked(waiveTranscriptRefine).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", project());
@@ -79,6 +89,24 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /Still sending/,
     );
+  });
+
+  it("clears Still sending once the queued approval leaves the queue", async () => {
+    const user = userEvent.setup();
+    vi.mocked(approveEdits).mockResolvedValue({ queued: true });
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /Approve all/ }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Still sending/,
+    );
+    loadHostCommandCount.mockResolvedValue(0);
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
+      timeout: 3000,
+    });
   });
 
   it("offers a waiver after bulk approval is blocked without retrying approval", async () => {

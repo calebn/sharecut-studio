@@ -27,7 +27,6 @@ import {
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import { loadCommentAuthor } from "../../utils/commentAuthor";
 import {
-  PENDING_REVIEW_QUEUED_MESSAGE,
   pendingReasonLabel,
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
@@ -42,6 +41,7 @@ import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
 } from "../TranscriptRefineRecovery";
+import { useQueuedReviewNotice } from "../useQueuedReviewNotice";
 
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const { project, projectPath, guestMode, shareCapabilities, setSelection } =
@@ -57,7 +57,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
-  const [sendingNotice, setSendingNotice] = useState(false);
+  const { notice: queuedNotice, setQueued } =
+    useQueuedReviewNotice(projectPath);
   const isSplit = edit.type === "split";
   const skipOk = canSuggestSkip(edit);
   const skipReason = suggestDisabledReason(edit);
@@ -89,8 +90,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
 
   useEffect(() => {
     setError(null);
-    setSendingNotice(false);
-  }, [edit.id, setError]);
+    setQueued(false);
+  }, [edit.id, setError, setQueued]);
 
   useEffect(() => {
     setStartStr(formatTimeMs(edit.source_start));
@@ -122,7 +123,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   ]);
 
   const runAction = async (action: "approve" | "reject") => {
-    setSendingNotice(false);
+    setQueued(false);
     await run(async () => {
       const { queued } =
         action === "approve"
@@ -130,7 +131,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           : await rejectEdits(projectPath, [edit.id]);
       if (queued) {
         // Saved but not sent yet: keep the edit selected and say so.
-        setSendingNotice(true);
+        setQueued(true);
         return;
       }
       const next = useDawStore.getState().project;
@@ -348,11 +349,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           <DefItem label="Confidence">{edit.cut_confidence.toFixed(2)}</DefItem>
         ) : null}
       </DefinitionList>
-      {sendingNotice ? (
-        <p className="ui-field-hint" role="status">
-          {PENDING_REVIEW_QUEUED_MESSAGE}
-        </p>
-      ) : null}
+      {queuedNotice}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery
           key={edit.id}
