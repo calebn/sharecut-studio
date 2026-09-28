@@ -9,8 +9,15 @@ import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { initials } from "../presence/colors";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
+import { Icon } from "../ui";
 import { formatGainDb, trackFaderDb, trackOutputGainDb } from "../utils/audio";
 import { reasonChipLabel } from "../utils/staleRender";
+import {
+  outputGainTitle,
+  reorderHandleTitle,
+  STEM_STATUS_LABEL,
+  trackSubtitle,
+} from "./trackHeaderCopy";
 
 export interface TrackHeaderViewProps {
   track: TrackView;
@@ -28,17 +35,11 @@ export interface TrackHeaderViewProps {
   mixer: ReactNode;
   longPress?: LongPressHandlers;
   onSelect: MouseEventHandler<HTMLButtonElement>;
+  onHandleSelect?: () => void;
   onHandleDragStart?: DragEventHandler<HTMLButtonElement>;
   onReorderDragEnd?: () => void;
   onDragOver?: DragEventHandler<HTMLDivElement>;
   onDrop?: DragEventHandler<HTMLDivElement>;
-}
-
-function gainFillPercent(gainDb: number): number {
-  const min = -24;
-  const max = 12;
-  const clamped = Math.max(min, Math.min(max, gainDb));
-  return ((clamped - min) / (max - min)) * 100;
 }
 
 /** Props-only track gutter rendering for live state and static catalog cases. */
@@ -58,6 +59,7 @@ export function TrackHeaderView({
   mixer,
   longPress,
   onSelect,
+  onHandleSelect,
   onHandleDragStart,
   onReorderDragEnd,
   onDragOver,
@@ -65,6 +67,8 @@ export function TrackHeaderView({
 }: TrackHeaderViewProps) {
   const label = track.label || track.id;
   const outputDb = trackOutputGainDb(track);
+  const stagingDb = track.gain_db;
+  const volumeDb = trackFaderDb(track);
   const identityStyle = {
     "--track-identity-color": laneColor(track.role, trackIndex),
   } as CSSProperties;
@@ -95,13 +99,15 @@ export function TrackHeaderView({
           type="button"
           className="track-reorder-handle"
           draggable
-          tabIndex={-1}
           aria-roledescription="drag handle"
           aria-label={`Reorder track ${label}`}
-          title="Drag to reorder"
+          title={reorderHandleTitle()}
           onDragStart={onHandleDragStart}
           onDragEnd={() => onReorderDragEnd?.()}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onHandleSelect?.();
+          }}
         />
       ) : null}
       <span className="track-title">
@@ -112,20 +118,27 @@ export function TrackHeaderView({
         </span>
         <span className="track-title-text">{label}</span>
         {stemClass && (
-          <span
-            className={`stem-dot ${stemClass}`}
-            title={
-              stemClass === "stale" ? "Stem out of date" : "Stem up to date"
-            }
+          <Icon
+            name={stemClass === "stale" ? "refresh" : "check"}
+            className={`stem-status ${stemClass}`}
+            title={STEM_STATUS_LABEL[stemClass]}
+            size={12}
           />
         )}
         {wholeReasons.map((r) => (
-          <span key={r} className="stale-reason-chip" title={`Stale: ${r}`}>
+          <span
+            key={r}
+            className="stale-reason-chip"
+            title={`${STEM_STATUS_LABEL.stale}: ${reasonChipLabel(r)}`}
+          >
             {reasonChipLabel(r)}
           </span>
         ))}
         {hasRegional && !wholeReasons.length ? (
-          <span className="stale-reason-chip" title="Stale regions on lane">
+          <span
+            className="stale-reason-chip"
+            title="Parts of this track are out of date"
+          >
             Regions
           </span>
         ) : null}
@@ -134,10 +147,7 @@ export function TrackHeaderView({
         </span>
       </span>
       <div className="track-meta">
-        <span className="track-role">
-          {track.role}
-          {track.speaker ? ` · ${track.speaker}` : ""}
-        </span>
+        <span className="track-role">{trackSubtitle(track)}</span>
         <div className="track-transport-btns">
           {mixer}
           {track.fx_count > 0 && (
@@ -147,16 +157,12 @@ export function TrackHeaderView({
           )}
         </div>
       </div>
-      <div
-        className="gain-strip"
-        title={`Plays at ${formatGainDb(outputDb)}: staging ${formatGainDb(track.gain_db)}, volume ${formatGainDb(trackFaderDb(track))}`}
+      <span
+        className="track-out-gain"
+        title={outputGainTitle(outputDb, stagingDb, volumeDb)}
       >
-        <div
-          className="gain-fill"
-          style={{ width: `${gainFillPercent(outputDb)}%` }}
-        />
-        <span className="gain-label">{formatGainDb(outputDb)}</span>
-      </div>
+        Out {formatGainDb(outputDb)}
+      </span>
     </div>
   );
 }

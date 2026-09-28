@@ -148,6 +148,7 @@ export function TrackHeader({
       mixer={<TrackMuteSoloButtons trackId={track.id} />}
       longPress={longPress}
       onSelect={select}
+      onHandleSelect={() => onSelect(false)}
       onHandleDragStart={onHandleDragStart}
       onReorderDragEnd={onReorderDragEnd}
       onDragOver={allowReorderDrop}

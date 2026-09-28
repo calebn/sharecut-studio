@@ -23,6 +23,8 @@ const ICONS = {
   maximize: true,
   restore: true,
   fitHeight: true,
+  check: true,
+  refresh: true,
 } satisfies Record<IconName, true>;
 
 const NAMES = Object.keys(ICONS) as IconName[];
