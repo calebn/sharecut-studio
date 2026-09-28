@@ -1,0 +1,549 @@
+{
+  "api_version": 1,
+  "description": "Docs-sync map: the source of truth for AGENTS.md § Docs in sync (regenerate the table with `make docs-sync-table`). A rule fires when a changed path matches its gate/advisory trigger; it is satisfied when some other changed path matches one of its `docs` globs. `gate` rules fail `docs_sync.py check` in CI; `advisory` rules (including every row with no trigger yet) only report. Waive with the commit trailer `Docs-Sync-Waive: <id> <reason>`.",
+  "ignore": [
+    "**/*.test.*",
+    "**/*.stories.*",
+    "uv.lock",
+    "gui/web/package-lock.json"
+  ],
+  "rules": [
+    {
+      "id": "layers-packages-or-service-boundaries",
+      "when": "Layers, packages, or service boundaries",
+      "update": "`docs/architecture.md`",
+      "docs": [
+        "docs/architecture.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "source-timeline-timebase-sessiontimeline-or",
+      "when": "Source/timeline timebase, `SessionTimeline`, or clip time math",
+      "update": "`docs/episode-format-v2.md`, `docs/architecture.md` § Timebase, `docs/contributing.md` § Time handling, `docs/testing.md`, `util/tool_timebase.py` (`TOOL_TIMEBASE`), affected skills (`podcast-play-audition`, `podcast-chapter-markers`, `podcast-edit-natural-language`, `podcast-social-clips`, `podcast-mute-bleed`)",
+      "docs": [
+        "docs/episode-format-v2.md",
+        "docs/architecture.md",
+        "docs/contributing.md",
+        "docs/testing.md",
+        "src/podcast_mcp/util/tool_timebase.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "setup-commands-or-repo-layout",
+      "when": "Setup, commands, or repo layout",
+      "update": "`README.md`, `docs/setup.md`",
+      "docs": [
+        "README.md",
+        "docs/setup.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "python-deps",
+      "when": "Python dependencies (add/remove/bump)",
+      "update": "`pyproject.toml`, then regenerate `uv.lock` (`uv lock`), `docs/setup.md`",
+      "docs": [
+        "pyproject.toml",
+        "uv.lock",
+        "docs/setup.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "contributor-workflow",
+      "when": "Contributor workflow",
+      "update": "`docs/contributing.md`, this file",
+      "docs": [
+        "docs/contributing.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "mcp-tools-or-nl-social-workflows",
+      "when": "MCP tools or NL/social workflows",
+      "update": "`docs/nl-editing.md`, `docs/transcript-workflow.md`, `docs/social-clips.md`, `docs/timeline-comments.md`, relevant `.agents/skills/` (incl. `podcast-transcript-workflow`, `podcast-play-audition`, `podcast-timeline-comments`)",
+      "docs": [
+        "docs/nl-editing.md",
+        "docs/transcript-workflow.md",
+        "docs/social-clips.md",
+        "docs/timeline-comments.md",
+        ".agents/skills/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "prosody-profile",
+      "when": "Prosody profile (`analyze_prosody` step, cache, engine, `audition_context` fields)",
+      "update": "`docs/pipeline.md` § Prosody profile, `docs/persistence.md`, `docs/architecture.md`, `docs/setup.md` (extras), `docs/testing.md` (CI extras), `docs/nl-editing.md` (`audition_context_tool` row), `.agents/defaults/pipeline.yaml`, `engines/prosody.py`, `edits/prosody_profile.py`, skills `podcast-play-audition`, `podcast-pipeline-run`, `podcast-pipeline-tune`, `podcast-setup`",
+      "docs": [
+        "docs/pipeline.md",
+        "docs/persistence.md",
+        "docs/architecture.md",
+        "docs/setup.md",
+        "docs/testing.md",
+        "docs/nl-editing.md",
+        ".agents/defaults/pipeline.yaml",
+        "src/podcast_mcp/engines/prosody.py",
+        "src/podcast_mcp/edits/prosody_profile.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "timeline-review-comments-action-items",
+      "when": "Timeline review comments / action items",
+      "update": "`docs/timeline-comments.md`, `docs/episode-format-v2.md` § Review, `schemas/episode.project.schema.json`, `.agents/skills/podcast-timeline-comments/`",
+      "docs": [
+        "docs/timeline-comments.md",
+        "docs/episode-format-v2.md",
+        "schemas/episode.project.schema.json",
+        ".agents/skills/podcast-timeline-comments/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "public-share-tokens",
+      "when": "Public share tokens (coolname, active + cooldown pools)",
+      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/share.py`, `podcast review backup-registry`",
+      "docs": [
+        "docs/share-tokens.md",
+        "src/podcast_mcp/edits/share_registry.py",
+        "src/podcast_mcp/edits/review_shares.py",
+        "src/podcast_mcp/services/share.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "recording-session",
+      "when": "Recording session (record links, roles incl. producer, lobby/consent, keeper capture, mix-minus monitor, pause/takes, live comments, upload/landing)",
+      "update": "`docs/recording-session.md` (decisions + test contract MM1–MM9), `docs/share-tokens.md` § Record sessions, `docs/persistence.md`, `docs/session-sync.md` § Recording session, `docs/timeline-comments.md` § Live comments, `ux/pages/guest-journeys.md` § 6, `ux/pages/domain-glossary.md`",
+      "docs": [
+        "docs/recording-session.md",
+        "docs/share-tokens.md",
+        "docs/persistence.md",
+        "docs/session-sync.md",
+        "docs/timeline-comments.md",
+        "ux/pages/guest-journeys.md",
+        "ux/pages/domain-glossary.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "durable-stores",
+      "when": "Durable stores (project JSON, session sync sqlite, share registry, cache `prefs.yaml`)",
+      "update": "`docs/persistence.md` — extend an existing store; do not scatter new sidecars. Episode `artifacts/transcript_context.yaml.lock` only coordinates writers; the vocabulary revision lives in context YAML and each transcript's `vocabulary_revision` in project JSON.",
+      "docs": [
+        "docs/persistence.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "daw-viewer-launch",
+      "when": "DAW viewer launch (`open_gui_tool`)",
+      "update": "`docs/gui-integration.md` § Launch, `docs/setup.md` § Read-only GUI viewer, `services/gui_launch.py`, skill `podcast-open-gui`",
+      "docs": [
+        "docs/gui-integration.md",
+        "docs/setup.md",
+        "src/podcast_mcp/services/gui_launch.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "undo-non-destructive-mutations",
+      "when": "Undo / non-destructive mutations",
+      "update": "`docs/history.md`, `docs/gui-integration.md`, `docs/contributing.md` § History, `.agents/INSTRUCTIONS.md`, `.agents/rules/engineering-standards.md`",
+      "docs": [
+        "docs/history.md",
+        "docs/gui-integration.md",
+        "docs/contributing.md",
+        ".agents/INSTRUCTIONS.md",
+        ".agents/rules/engineering-standards.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "cut-boundary-optimization",
+      "when": "Cut boundary optimization",
+      "update": "`docs/inaudible-cuts.md` (incl. § Narrative handoffs), `docs/filler-cut-quality.md`, `edits/silence_islands.py` / `suggest_handoff_cut_tool`, `.agents/skills/podcast-tighten-dialogue/`, `.agents/skills/podcast-edit-natural-language/`, `.agents/skills/podcast-inaudible-cuts/`, `.agents/skills/podcast-audio-cleanup/`",
+      "docs": [
+        "docs/inaudible-cuts.md",
+        "docs/filler-cut-quality.md",
+        "src/podcast_mcp/edits/silence_islands.py",
+        ".agents/skills/podcast-tighten-dialogue/",
+        ".agents/skills/podcast-edit-natural-language/",
+        ".agents/skills/podcast-inaudible-cuts/",
+        ".agents/skills/podcast-audio-cleanup/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "join-continuity-splice-qa",
+      "when": "Join continuity / splice QA",
+      "update": "`docs/inaudible-cuts.md` § Join continuity, `edits/join_continuity.py`, `edits/join_cost_spectral.py`, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above",
+      "docs": [
+        "docs/inaudible-cuts.md",
+        "src/podcast_mcp/edits/join_continuity.py",
+        "src/podcast_mcp/edits/join_cost_spectral.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "clip-join-modes",
+      "when": "Clip join modes (`join_in_mode`, fade vs crossfade render)",
+      "update": "`docs/inaudible-cuts.md`, `docs/filler-cut-quality.md`, `docs/nl-editing.md`, `schemas/episode.project.schema.json`, `.agents/defaults/pipeline.yaml` → `render`, affected skills above",
+      "docs": [
+        "docs/inaudible-cuts.md",
+        "docs/filler-cut-quality.md",
+        "docs/nl-editing.md",
+        "schemas/episode.project.schema.json",
+        ".agents/defaults/pipeline.yaml"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "audio-diagnostics-or-mastering-loudness-qc",
+      "when": "Audio diagnostics (spectrogram/astats/hum) or mastering loudness QC",
+      "update": "`docs/audio-engineering.md`, `.agents/skills/podcast-audio-cleanup/`, `.agents/skills/podcast-master-export/`",
+      "docs": [
+        "docs/audio-engineering.md",
+        ".agents/skills/podcast-audio-cleanup/",
+        ".agents/skills/podcast-master-export/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "bounce-stem-range-export",
+      "when": "Bounce / stem range export (GUI + MCP)",
+      "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/bounce.py`",
+      "docs": [
+        "docs/gui-integration.md",
+        "docs/daw-editing.md",
+        ".agents/skills/podcast-bounce-export/",
+        "src/podcast_mcp/services/bounce.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "waveform-pyramid-renderer-tiles",
+      "when": "Waveform pyramid / renderer / tiles",
+      "update": "`docs/waveform.md`, `contracts/timeline-zoom.json`, `docs/gui-integration.md` § Waveforms, `docs/persistence.md`",
+      "docs": [
+        "docs/waveform.md",
+        "contracts/timeline-zoom.json",
+        "docs/gui-integration.md",
+        "docs/persistence.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "ffmpeg-model-bootstrap-native-binary-resolution",
+      "when": "FFmpeg/model bootstrap, native binary resolution, or new `bootstrap` components",
+      "update": "`docs/setup.md`, `README.md`, `ROADMAP.md`, `.agents/skills/podcast-setup/`, `util/binaries.py`/`util/model_assets.py` docstrings",
+      "docs": [
+        "docs/setup.md",
+        "README.md",
+        "ROADMAP.md",
+        ".agents/skills/podcast-setup/",
+        "src/podcast_mcp/util/binaries.py",
+        "src/podcast_mcp/util/model_assets.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "raw-multitrack-per-speaker-tracks",
+      "when": "Raw multitrack → per-speaker tracks",
+      "update": "`docs/multitrack-ingest.md`, `.agents/skills/podcast-align-audio/`, `.agents/skills/podcast-ingest-align/`",
+      "docs": [
+        "docs/multitrack-ingest.md",
+        ".agents/skills/podcast-align-audio/",
+        ".agents/skills/podcast-ingest-align/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "episode-project-format-v2",
+      "when": "Episode project format v2",
+      "update": "`docs/episode-format-v2.md`, `schemas/episode.project.schema.json` (incl. `editorial.edit_log`, `AppliedEditRecord`)",
+      "docs": [
+        "docs/episode-format-v2.md",
+        "schemas/episode.project.schema.json"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "gui-timeline-inspector-apis",
+      "when": "GUI / timeline inspector APIs",
+      "update": "`docs/gui-integration.md`, `docs/history.md` (`history_diff`), `util/tool_timebase.py`",
+      "docs": [
+        "docs/gui-integration.md",
+        "docs/history.md",
+        "src/podcast_mcp/util/tool_timebase.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "read-only-daw-viewer",
+      "when": "Read-only DAW viewer (`gui/`, `podcast gui`)",
+      "update": "`docs/gui-integration.md` § Viewer, `docs/setup.md` § Read-only GUI viewer",
+      "docs": [
+        "docs/gui-integration.md",
+        "docs/setup.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-css-units-theme-tokens",
+      "when": "Sharecut Studio CSS units / theme tokens / Stylelint",
+      "update": "`.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md`",
+      "docs": [
+        ".agents/rules/gui-styling.md",
+        "docs/contributing.md",
+        "gui/web/README.md",
+        "ux/pages/brand.md",
+        "docs/gui-mobile.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-mobile-responsive-shells",
+      "when": "Sharecut Studio mobile / responsive shells",
+      "update": "`docs/gui-mobile.md`, `docs/gui-integration.md` § Responsive shells, `ROADMAP.md` § Follow-up",
+      "docs": [
+        "docs/gui-mobile.md",
+        "docs/gui-integration.md",
+        "ROADMAP.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "native-ios-android-engine-in-app-byok-agent",
+      "when": "Native iOS/Android engine / in-app BYOK agent (deferred)",
+      "update": "`docs/cross-platform-byok.md` (interim architecture rules + long-horizon path); do not implement now; keep ffmpeg behind `FFmpegEngine`, guest MCP ≠ owner device",
+      "docs": [
+        "docs/cross-platform-byok.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-editability",
+      "when": "Sharecut Studio editability (cuts, joins, FX, transcript in GUI)",
+      "update": "`docs/daw-editing.md`, `ROADMAP.md` § Follow-up, `docs/session-sync.md` § Document plane",
+      "docs": [
+        "docs/daw-editing.md",
+        "ROADMAP.md",
+        "docs/session-sync.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-keyboard-command-bus",
+      "when": "Sharecut Studio keyboard / command bus",
+      "update": "`gui/web/src/keymap/`, `gui/web/src/commands/` (`execute`); never add a second window `keydown` listener — see `commands/governance.test.ts`",
+      "docs": [
+        "gui/web/src/keymap/",
+        "gui/web/src/commands/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "capability-registration",
+      "when": "Capability registration (GUI / keys / MCP / CLI / skills)",
+      "update": "`contracts/capabilities.manifest.json`, `docs/entry-points.md`, live catalog https://docs.sharecut.studio/#/capabilities (regen with `make schema-export`); `make capabilities-check` / pre-commit `capabilities-manifest`",
+      "docs": [
+        "contracts/capabilities.manifest.json",
+        "docs/entry-points.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-shortcut-cheatsheet",
+      "when": "Sharecut Studio shortcut cheatsheet (docs + UX site)",
+      "update": "Regenerate with `make cheatsheet` after keymap/catalog changes; `make cheatsheet-check` / pre-commit `keymap-cheatsheet`; live: `ux/pages/shortcuts.md` → https://ux.sharecut.studio/#/shortcuts (links to capabilities catalog)",
+      "docs": [
+        "ux/pages/shortcuts.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-desktop-packaging",
+      "when": "Sharecut Studio desktop (Tauri) / packaging",
+      "update": "`docs/desktop-packaging.md`, `gui/desktop/`, `contracts/bootstrap-assets.json`, first-run `/api/bootstrap/*`; distribution operations are private",
+      "docs": [
+        "docs/desktop-packaging.md",
+        "gui/desktop/",
+        "contracts/bootstrap-assets.json"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "sharecut-studio-extensions-api-freemium-split",
+      "when": "Sharecut Studio Extensions API / freemium split seams",
+      "update": "`docs/extensions.md`, `docs/extension-seams.md`, `contracts/caps.json`, `podcast_mcp.extensions`, external provider packages such as `podcast_online`, `podcast_relay`, `PODCAST_EXTENSIONS`",
+      "docs": [
+        "docs/extensions.md",
+        "docs/extension-seams.md",
+        "contracts/caps.json"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "host-online-relay-tunnel-share-capabilities",
+      "when": "Host-online relay / tunnel / share capabilities / remote MCP",
+      "update": "`docs/host-online-relay.md` (§ Remote MCP + Rate limiting + Security notes + cap→tool matrix), `docs/share-tokens.md`, `services/remote_mcp/`, `gui/routes/remote_mcp.py`, `gui/routes/auth.py`, `services/share_auth/`, `mcp/tools/guest/`, `util/rate_limit.py`, `util/proxy_paths.py`, `util/body_limits.py`, `podcast_relay`, `PODCAST_REMOTE_MCP`, `PODCAST_RATE_LIMIT` / `PODCAST_RELAY_RATE_LIMIT`, `PODCAST_SESSION_AUTHZ`, `deploy/relay/`, `docs/timeline-comments.md` § Public review share, skill `podcast-remote-mcp` — **mounted via the FOSS collaboration extension**; deployment remains private",
+      "docs": [
+        "docs/host-online-relay.md",
+        "docs/share-tokens.md",
+        "src/podcast_mcp/services/remote_mcp/",
+        "src/podcast_mcp/gui/routes/remote_mcp.py",
+        "src/podcast_mcp/gui/routes/auth.py",
+        "src/podcast_mcp/services/share_auth/",
+        "src/podcast_mcp/mcp/tools/guest/",
+        "src/podcast_mcp/util/rate_limit.py",
+        "src/podcast_mcp/util/proxy_paths.py",
+        "src/podcast_mcp/util/body_limits.py",
+        "deploy/relay/",
+        "docs/timeline-comments.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "agent-daw-session-sync",
+      "when": "Agent ↔ DAW session sync (typed commands, sqlite log, WS)",
+      "update": "`docs/session-sync.md`, `docs/gui-integration.md` § Shared session state, `services/session_sync/`, `services/session_control.py`, skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands",
+      "docs": [
+        "docs/session-sync.md",
+        "docs/gui-integration.md",
+        "src/podcast_mcp/services/session_sync/",
+        "src/podcast_mcp/services/session_control.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "document-command-schema-developer-docs-pack",
+      "when": "Document-command schema / developer docs pack",
+      "update": "`schemas/document-commands.schema.json`, `docs-site/` (live https://docs.sharecut.studio/); regenerate with `make schema-export` (also capabilities catalog + share/MCP tables + guest OpenAPI); stale → `make schema-check` / pre-commit; deployment is private operations work; alpha — no public changelog yet",
+      "docs": [
+        "schemas/document-commands.schema.json",
+        "docs-site/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "pipeline-defaults-or-export-paths",
+      "when": "Pipeline defaults or export paths",
+      "update": "`.agents/defaults/pipeline.yaml`, pipeline docs under `docs/`",
+      "docs": [
+        ".agents/defaults/pipeline.yaml",
+        "docs/"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "gui-pipeline-config-analyze-run",
+      "when": "GUI pipeline config / Analyze → Run",
+      "update": "`docs/pipeline.md` § Configurable run, `docs/gui-integration.md` § Pipeline tab, skill `podcast-pipeline-tune`",
+      "docs": [
+        "docs/pipeline.md",
+        "docs/gui-integration.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "pipeline-step-parallelism-performance",
+      "when": "Pipeline step parallelism/performance",
+      "update": "`docs/pipeline.md` § Performance, `.agents/skills/podcast-pipeline-run/`, `.agents/skills/podcast-tighten-dialogue/`, `util/parallel.py`, `edits/audio_cache.py`",
+      "docs": [
+        "docs/pipeline.md",
+        ".agents/skills/podcast-pipeline-run/",
+        ".agents/skills/podcast-tighten-dialogue/",
+        "src/podcast_mcp/util/parallel.py",
+        "src/podcast_mcp/edits/audio_cache.py"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "testing-or-coverage-policy",
+      "when": "Testing or coverage policy",
+      "update": "`docs/testing.md`, `pyproject.toml`; Python: `make lint-py` / Ruff+Bandit+Vulture+Deptry+mypy; Sharecut Studio frontend: `make test-web`, `make test-web-e2e` (axe), `gui/web/README.md`; Tauri host: `make test-desktop` / `docs/desktop-packaging.md`",
+      "docs": [
+        "docs/testing.md",
+        "pyproject.toml",
+        "gui/web/README.md",
+        "docs/desktop-packaging.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "dependency-update-automation",
+      "when": "Dependency update automation (Dependabot / npm audit)",
+      "update": "`.github/dependabot.yml`, `tests/test_dependabot_config.py`, `docs/testing.md` § Dependency updates and audit, `docs/contributing.md` § Dependency updates",
+      "docs": [
+        ".github/dependabot.yml",
+        "tests/test_dependabot_config.py",
+        "docs/testing.md",
+        "docs/contributing.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "progress-framework",
+      "when": "Progress framework (long-running UX)",
+      "update": "`docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make progress-check` / pre-commit `progress-compliance` (warn → later error)",
+      "docs": [
+        "docs/progress.md",
+        "contracts/progress-exemptions.json",
+        "contracts/progress-richness.json",
+        "src/podcast_mcp/util/progress.py",
+        "docs/cli-progress.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "e2e-fixture-play-cli",
+      "when": "E2E fixture / play CLI",
+      "update": "`docs/e2e-fixture-manual.md`, `tests/fixtures/aligned_dialogue/README.md`",
+      "docs": [
+        "docs/e2e-fixture-manual.md",
+        "tests/fixtures/aligned_dialogue/README.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "roadmap-future-work",
+      "when": "Roadmap / future work",
+      "update": "`ROADMAP.md`; native apps + BYOK agent detail: `docs/cross-platform-byok.md`",
+      "docs": [
+        "ROADMAP.md",
+        "docs/cross-platform-byok.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "ux-pack",
+      "when": "UX onboarding pack (shareable site)",
+      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; keep in sync via `scripts/check_ux_pack_sync.py` / pre-commit (triggers include GUI shells, `docs/ui-philosophy.md`, `docs/gui-mobile.md`, `docs/host-online-relay.md`, `docs/session-sync.md`, `docs/recording-session.md`, episode schema)",
+      "docs": [
+        "ux/",
+        "ux/pages/brand.md",
+        "tests/fixtures/sharecut_ux_demo/",
+        "scripts/check_ux_pack_sync.py",
+        "docs/ui-philosophy.md",
+        "docs/gui-mobile.md",
+        "docs/host-online-relay.md",
+        "docs/session-sync.md",
+        "docs/recording-session.md"
+      ],
+      "advisory": null
+    },
+    {
+      "id": "play-modes",
+      "when": "Play modes (raw / processed / premix)",
+      "update": "`docs/setup.md` — `processed:<id>` for FX+edits, `track:<id>` for raw",
+      "docs": [
+        "docs/setup.md"
+      ],
+      "advisory": null
+    }
+  ]
+}

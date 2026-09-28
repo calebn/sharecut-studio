@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sharecut.studio/schemas/docs-sync.schema.json",
+  "title": "Docs-sync map",
+  "description": "AGENTS.md § Docs in sync, machine-readable. scripts/docs_sync.py parse_contract is the runtime validator; this file documents the same shape for editors.",
+  "type": "object",
+  "required": ["api_version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "api_version": { "type": "integer", "const": 1 },
+    "description": { "type": "string" },
+    "ignore": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/glob" },
+      "description": "Changed paths matching these never fire a rule (they may still satisfy one). Global false-positive control for tests, stories and lockfiles."
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!\\.?/)[^\\\\]+$",
+      "description": "Repo-relative glob, no leading `/` or `./`, no backslashes. `**` spans directories, `*` and `?` stay in one path segment, a trailing `/` matches the whole subtree below it."
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["include"],
+      "properties": {
+        "include": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/glob" }
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/glob" }
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "when", "update"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "description": "Stable kebab id. Named in `Docs-Sync-Waive:` trailers, so renaming one orphans historical waivers."
+        },
+        "when": {
+          "type": "string",
+          "minLength": 1,
+          "description": "AGENTS.md \"When you change…\" cell, trimmed; content otherwise verbatim (scripts/docs_sync.py render_table renders a compact table from it)."
+        },
+        "update": {
+          "type": "string",
+          "minLength": 1,
+          "description": "AGENTS.md \"Update…\" cell, trimmed; content otherwise verbatim. Every backticked token in it that resolves to a tracked repo path must be matched by a `docs` glob (scripts/docs_sync.py lint_contract)."
+        },
+        "docs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/glob" },
+          "description": "Paths that satisfy this rule. A change to any one of them, other than a path that itself fired the rule, satisfies it."
+        },
+        "gate": {
+          "$ref": "#/$defs/trigger",
+          "description": "Fails `docs_sync.py check` when fired, unsatisfied and unwaived."
+        },
+        "advisory": {
+          "description": "Reports only, never fails the gate. `null` is a row with no code trigger yet (rendered in the table, never evaluated); an object gives it a trigger without gating on it.",
+          "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/trigger" }]
+        }
+      },
+      "oneOf": [{ "required": ["gate"] }, { "required": ["advisory"] }]
+    }
+  }
+}
