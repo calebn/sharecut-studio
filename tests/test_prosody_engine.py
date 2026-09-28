@@ -13,6 +13,7 @@ from podcast_mcp.engines.prosody import (
     ProsodyParams,
     ProsodyUnavailable,
     WordSpan,
+    _voice_quality,
     parselmouth_version,
     segment_bounds,
     syllable_count_text,
@@ -56,6 +57,34 @@ def test_segment_bounds_splits_long_runs_at_max_segment_sec() -> None:
 def test_segment_bounds_empty_words_no_samples_returns_empty() -> None:
     params = ProsodyParams()
     assert segment_bounds([], total_dur=5.0, params=params) == []
+
+
+def test_voice_quality_flags_zero_hnr_as_low() -> None:
+    vq = _voice_quality(jitter=0.005, shimmer=0.02, hnr=0.0)
+    assert vq["hnr_db"] == 0.0
+    assert vq["hnr_low"] is True
+    assert vq["jitter_high"] is False
+    assert vq["shimmer_high"] is False
+
+
+def test_voice_quality_thresholds() -> None:
+    vq = _voice_quality(jitter=0.02, shimmer=0.05, hnr=20.0)
+    assert vq["jitter_high"] is True
+    assert vq["shimmer_high"] is True
+    assert vq["hnr_low"] is False
+
+
+@pytest.mark.parametrize("value", [None, float("nan"), float("inf")])
+def test_voice_quality_unmeasured_values_do_not_flag(value) -> None:
+    vq = _voice_quality(jitter=value, shimmer=value, hnr=value)
+    assert vq == {
+        "jitter_local": 0.0,
+        "shimmer_local": 0.0,
+        "hnr_db": 0.0,
+        "jitter_high": False,
+        "shimmer_high": False,
+        "hnr_low": False,
+    }
 
 
 def test_segment_bounds_from_energy_when_no_words() -> None:
