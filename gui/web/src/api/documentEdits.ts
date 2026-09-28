@@ -1,7 +1,13 @@
 import { hostFetch } from "../api/documentTransport";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
+import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import {
+  type OfflineConflict,
+  removeConflictsWhere,
+  removeHostConflictsWhere,
+} from "../state/offlineStore";
 import type { AutomationPoint } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
@@ -203,20 +209,57 @@ export async function setEffectBypass(
  * captured `expected_text`), load the host's current transcript words (the
  * `detail` phase) into the store before rethrowing, as `setEnvelope` does for
  * envelopes. The Correct inspector then re-captures its baseline from them,
- * so Apply again retries against the current text (#746).
+ * so Apply again retries against the current text (#746). Once a correction
+ * lands (not queued), earlier refused corrections of the same word leave
+ * Needs attention.
  */
 async function submitTranscriptCorrection(
   projectPath: string,
   type: "CorrectTranscriptWord" | "CorrectTranscriptPhrase",
   payload: Record<string, unknown>,
 ): Promise<void> {
+  let result: Record<string, unknown>;
   try {
-    await submitDocumentCommand(projectPath, type, payload);
+    result = await submitDocumentCommand(projectPath, type, payload);
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       await refreshProjectPhase(projectPath, "detail").catch(() => undefined);
     }
     throw error;
+  }
+  if (result.queued !== true) {
+    await clearSupersededCorrectionConflicts(projectPath, payload);
+  }
+}
+
+/** First word index a transcript correction payload rewrites. */
+function correctionStart(payload: Record<string, unknown>): unknown {
+  return payload.word_index ?? payload.start_word_index;
+}
+
+/**
+ * After a transcript correction lands, drop Needs attention entries for
+ * earlier refused corrections of the same word (same track and start
+ * index), so the banner stops asking the user to redo a correction that
+ * has now been made (#746). A failed cleanup never fails the correction;
+ * Dismiss all still clears it.
+ */
+async function clearSupersededCorrectionConflicts(
+  projectPath: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const superseded = ({ command }: OfflineConflict) =>
+    (command.type === "CorrectTranscriptWord" ||
+      command.type === "CorrectTranscriptPhrase") &&
+    command.payload.track_id === payload.track_id &&
+    correctionStart(command.payload) === correctionStart(payload);
+  const token = shareTokenFromKey(projectPath);
+  try {
+    await (token
+      ? removeConflictsWhere(token, superseded)
+      : removeHostConflictsWhere(projectPath, superseded));
+  } catch {
+    // Leave the entry; Dismiss all clears it.
   }
 }
 

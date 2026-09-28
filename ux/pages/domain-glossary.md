@@ -210,7 +210,8 @@ say "text not verified" in their status message.
 
 A refusal from the inline editor or the Correct inspector shows under the editor. A refusal from Select-mode or
 hover Ignore/Restore is announced as a status message instead, since those have no editor
-open. Either way it is also listed in **Needs attention**. The Correct inspector keeps what was typed and re-checks the
+open. Either way it is also listed in **Needs attention**. A later successful correction of the same word clears it from **Needs attention**.
+The Correct inspector keeps what was typed and re-checks the
 current text on its own, so trying Apply again is enough (if it could not load the current
 text yet, it says to re-read instead); with the inline word editor,
 reopen the word and try again, and after a Select-mode or hover Ignore/Restore refusal,

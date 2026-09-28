@@ -380,6 +380,33 @@ export async function addHostConflict(
   );
 }
 
+/** Drop the host conflicts `superseded` matches, e.g. an earlier refused correction of a word just corrected (#746). */
+export async function removeHostConflictsWhere(
+  projectPath: string,
+  superseded: (conflict: OfflineConflict) => boolean,
+): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  await updateStoredList<OfflineConflict, void>(
+    hostConflictKey(projectPath),
+    (list) => ({
+      items: list.filter((conflict) => !superseded(conflict)),
+      result: undefined,
+    }),
+  );
+}
+
+/** Guest-token twin of `removeHostConflictsWhere`. */
+export async function removeConflictsWhere(
+  token: string,
+  superseded: (conflict: OfflineConflict) => boolean,
+): Promise<void> {
+  const list = await loadConflicts(token);
+  const kept = list.filter((conflict) => !superseded(conflict));
+  if (kept.length !== list.length) {
+    await saveConflicts(token, kept);
+  }
+}
+
 function recordParticipantKey(token: string): string {
   return `record:${token}:participant`;
 }

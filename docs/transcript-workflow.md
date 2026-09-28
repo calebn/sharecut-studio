@@ -253,6 +253,8 @@ current transcript words (the `detail` phase) before reporting the refusal; the 
 keeps the typed draft, re-captures the span text from them, and, when that text differs from
 the refused text, says Apply again retries against the current text. If the load failed and
 no live update has arrived yet, it keeps the host's re-read wording instead.
+Once any Studio correction of the same word (same track and start index) lands, earlier
+refusals of it leave **Needs attention**.
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
 `verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
 MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
