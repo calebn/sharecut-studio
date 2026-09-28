@@ -6,8 +6,16 @@ import pickle
 
 import pytest
 
-from podcast_mcp.models import Transcript, TranscriptWord, TranscriptWords
+from podcast_mcp.models import (
+    Transcript,
+    TranscriptWord,
+    TranscriptWords,
+    load_project,
+    save_project,
+)
 from podcast_mcp.models.words_revision import words_revision
+from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.history import HistoryService
 
 
 def _tr() -> Transcript:
@@ -186,3 +194,26 @@ def test_memoize_words_on_untracked_list_computes_every_call():
     assert untracked.memoize_words("k", compute) == 1
     assert untracked.memoize_words("k", compute) == 2
     assert calls == 2
+
+
+def test_workspace_open_mutate_and_undo_keep_tracked_words(minimal_project):
+    """Production load paths never leave ``Transcript.words`` a plain list, which would
+    silently turn ``memoize_words`` into compute-every-call (#729).
+    """
+    proj = load_project(minimal_project)
+    proj.transcripts = [_tr()]
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    assert type(ws.project.transcripts[0].words) is TranscriptWords
+
+    def suppress(project):
+        project.transcripts[0].words[0].suppressed = True
+
+    ws.mutate("before suppress", "after suppress", suppress)
+    assert type(ws.project.transcripts[0].words) is TranscriptWords
+    HistoryService(ws).undo()
+    assert ws.project.transcripts[0].words[0].suppressed is False
+    assert type(ws.project.transcripts[0].words) is TranscriptWords
+    HistoryService(ws).redo()
+    assert ws.project.transcripts[0].words[0].suppressed is True
+    assert type(ws.project.transcripts[0].words) is TranscriptWords
