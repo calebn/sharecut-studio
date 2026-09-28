@@ -347,8 +347,8 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 
 | Story | Issue | Status | Automated coverage | Still manual |
 | --- | --- | --- | --- | --- |
-| US-1 | #3 | Partial | `gui/web/e2e/record-lobby.spec.ts` | Tauri recording (#193), host-drop in the browser |
-| US-2 | #9 | Partial | `tests/test_record_host_reconnect.py`, `gui/web/src/record/RecordPanel.test.tsx`, `gui/web/src/record/Room.test.tsx` | Tauri recording (#193), host-drop in the browser, listening by ear |
+| US-1 | #3 | Automated | `gui/web/e2e/record-lobby.spec.ts`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193) |
+| US-2 | #9 | Automated | `tests/test_record_host_reconnect.py`, `gui/web/src/record/RecordPanel.test.tsx`, `gui/web/src/record/Room.test.tsx`, `gui/web/e2e/record-host-reconnect.spec.ts` | Tauri recording (#193), listening by ear |
 | US-3 | #10 | Automated | `tests/test_ingest_recorder_import_e2e.py` | Tauri recording (#193) |
 | US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/layout/StatusBar.test.tsx`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
 | US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
@@ -540,6 +540,21 @@ checks server-side that the producer has no upload rows and that the host
 panel's upload list has no producer row. It closes the room dialog with
 its Close button once enabled; close stays disabled while the host keeper upload
 settles.
+
+The US-2 host-disconnect scenario (`gui/web/e2e/record-host-reconnect.spec.ts`)
+models a host drop with `installNetworkOutage` (`gui/web/e2e/networkOutage.ts`).
+It uses `page.routeWebSocket` to proxy the host's `/api/session/ws` (the host
+record plane) and the guest's `/api/rec/<token>/ws`, and it aborts the guest's
+`/api/rec/` HTTP. A drop closes both sides of the proxied sockets, so the
+server sees the host leave. Until restore, it refuses new sockets before they
+open. A 3 s blip must reconnect in under 9 s and stay REC with one keeper
+segment per side. A 12.5 s outage must show the guest "Host offline" copy
+while its keeper grows, refuse a remint (409), then force PAUSED with
+`pause_reason: host_reconnect` on the host's return. After Resume, Stop, and
+file ACKs on the same `/rec/` token, the clips land. Auto-land does not return
+its drift report to the browser, so the drift report after a host-reconnect
+pause is asserted in `tests/test_record_host_reconnect.py`
+(`test_land_after_host_reconnect_pause_reports_drift`).
 
 ### Browser acceptance matrix
 
