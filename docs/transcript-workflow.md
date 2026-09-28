@@ -226,11 +226,14 @@ comparing whitespace-collapsed, case-sensitive text; indices that no longer exis
 a mismatch too; a mismatch means another edit (a
 remote host, a guest, or an agent) shifted or changed those words since the caller last
 read them. A document command mismatch is a 409 conflict, same shape as other stale-state
-conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. Studio
-always sends it from both correction paths (the inline editor and the Correct inspector);
-the CLI (`podcast transcript correct`) and the batch cleanup / `verify_transcript` paths do
-not, and omitting it keeps the correction unguarded. The fix for a rejected correction is to
-re-read the transcript and redo the correction against its current text.
+conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. In Studio the
+inline editor always sends the text it opened with; the Correct inspector sends the span
+text captured when the word was selected or End index last changed, and only when every
+word in that range is loaded (otherwise it sends none and shows a hint under Apply).
+`podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
+`verify_transcript` paths do not send it, and omitting it keeps the correction unguarded.
+The fix for a rejected correction is to re-read the transcript and redo the correction
+against its current text.
 
 **Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
 Ignore/Restore button, and the Correct word inspector's Ignore action all call
