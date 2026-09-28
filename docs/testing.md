@@ -563,12 +563,12 @@ server-side (`make e2e-slow`). The Tighten panel opens on its empty state. A
 transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
 Play). A host Bounce dialog passes full-page axe (`expectPageAxeClean`) and
-writes one non-silent WAV under `export/bounces/` — its own terminal-result
-copy is held as `jobResultAnnouncement` (`announceJobResult`) until
-`StatusBar` sees that job's chip go terminal, so it wins the live region over
-the generic Activity headline instead of racing it (real bug, not WebKit-only:
-`BounceDialog.tsx`, `StatusBar.tsx`, and `export.deliverables` in
-`commands/host.ts` share the same fix). The stages run serially in one test
+writes one non-silent WAV under `export/bounces/` — its own result copy goes
+through `runAnnouncedJob` (`expectJobResult` → `announceJobResult`), and
+`useJobStatusAnnouncement` speaks it in place of the generic Activity "ok"
+headline instead of racing it (a real bug, not WebKit-only; `BounceDialog.tsx`
+and `export.deliverables` in `commands/host.ts` share the fix, and it covers
+the phone shell too). The stages run serially in one test
 because export bounces the landed track, so with `retries: 0` a failing stage
 skips the later ones until it is fixed; the report names the failing
 `test.step`.

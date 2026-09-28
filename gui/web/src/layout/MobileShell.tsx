@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
+import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
@@ -376,6 +377,7 @@ export function MobileShellView({
     followingClientId: s.followingClientId,
     statusAnnouncement: s.statusAnnouncement,
   }));
+  useJobStatusAnnouncement();
   const transportFocusRef = useTimelineFocusRegion<HTMLDivElement>(
     true,
     setTimelineFocused,

@@ -1,11 +1,7 @@
-import { useEffect } from "react";
+import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useDaw } from "../state/useDaw";
-import { isTerminalJobStatus, pipelineChipOpensPanel } from "../utils/pipeline";
-import {
-  pipelineKindLabel,
-  pipelineStatusLabel,
-} from "../utils/pipelineProgress";
+import { pipelineChipOpensPanel } from "../utils/pipeline";
 import { PresenceStatus } from "./PresenceStatus";
 import { StatusBarView } from "./StatusBarView";
 import { statusBarSummary } from "./statusBarSummary";
@@ -20,8 +16,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     shellBreakpoint,
     highlightStaleRender,
     statusAnnouncement,
-    jobResultAnnouncement,
-    announceStatus,
   } = useDaw((s) => ({
     project: s.project,
     pipelineJob: s.pipelineJob,
@@ -31,49 +25,10 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     shellBreakpoint: s.shellBreakpoint,
     highlightStaleRender: s.highlightStaleRender,
     statusAnnouncement: s.statusAnnouncement,
-    jobResultAnnouncement: s.jobResultAnnouncement,
-    announceStatus: s.announceStatus,
   }));
 
   const chipJob = activityJob ?? pipelineJob;
-  const jobId = chipJob?.id;
-  const jobStatus = chipJob?.status;
-  const jobMessage = chipJob?.message || chipJob?.label;
-  const jobKind = chipJob?.kind;
-  const jobResult = jobResultAnnouncement;
-  useEffect(() => {
-    if (!jobStatus) {
-      return;
-    }
-    // A job's own terminal-result copy (BounceDialog, export.deliverables)
-    // wins over this generic headline instead of racing it (#704): announce
-    // it once that job's chip reaches a terminal status, and stay quiet
-    // while it is still running so the result copy is not clobbered first.
-    if (jobResult && jobResult.jobId === jobId) {
-      if (isTerminalJobStatus(jobStatus)) {
-        announceStatus(jobResult.message);
-      }
-      return;
-    }
-    const parts = [
-      `${pipelineKindLabel(jobKind)}: ${pipelineStatusLabel(jobStatus)}`,
-    ];
-    if (jobMessage) {
-      parts.push(jobMessage);
-    }
-    if (activityRunningCount > 1) {
-      parts.push(`${activityRunningCount} activities`);
-    }
-    announceStatus(parts.join(": "));
-  }, [
-    activityRunningCount,
-    announceStatus,
-    jobId,
-    jobKind,
-    jobStatus,
-    jobMessage,
-    jobResult,
-  ]);
+  useJobStatusAnnouncement();
 
   // Same source as the transport pill, so the two never disagree.
   const render = useStaleRenderBreakdown(project);
