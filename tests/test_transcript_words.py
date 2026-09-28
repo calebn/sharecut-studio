@@ -79,6 +79,18 @@ def test_word_field_assignment_bumps_revision():
     assert words_revision() > before2
 
 
+def test_equal_word_field_assignment_does_not_bump():
+    tr = _tr()
+    w = tr.words[0]
+    before = words_revision()
+    w.suspect_hallucination = False
+    w.start = 0.0
+    w.text = "a"
+    assert words_revision() == before
+    w.suspect_hallucination = True
+    assert words_revision() > before
+
+
 def test_memoize_words_reuses_until_a_words_change():
     tr = _tr()
     other = _tr()

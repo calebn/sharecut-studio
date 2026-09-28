@@ -74,6 +74,10 @@ def test_load_track_profile_memoizes_words_fingerprint(minimal_project: Path, mo
     assert pp.load_track_profile(proj, "host").status == "fresh"
     assert calls["n"] == 1
 
+    proj.transcripts[0].words[0].suspect_hallucination = False  # already False
+    assert pp.load_track_profile(proj, "host").status == "fresh"
+    assert calls["n"] == 1
+
 
 def test_in_place_flag_change_is_stale_without_a_save(minimal_project: Path) -> None:
     proj = _seeded_project(minimal_project)
