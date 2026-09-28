@@ -15,6 +15,7 @@ import {
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
   TRANSCRIPT_CORRECT_TIMING_NOTE,
+  TRANSCRIPT_SPAN_UNVERIFIED_NOTE,
   TRANSCRIPT_SUPPRESS_TIP,
   TRANSCRIPT_UNSUPPRESS_TIP,
 } from "../../transcript/transcriptModeCopy";
@@ -62,12 +63,31 @@ export function TranscriptWordInspector({
   const mountedRef = useMountedRef();
   const [text, setText] = useState(word?.text ?? "");
   const [endIndexStr, setEndIndexStr] = useState(String(wordIndex));
+  // Span text the user saw when the draft was seeded or End index last
+  // changed (#650). Apply sends this snapshot, never a fresh read, so a peer
+  // edit inside the range since then is refused with a 409.
+  const [expectedText, setExpectedText] = useState<string | null>(
+    word?.text ?? null,
+  );
 
   useEffect(() => {
     setText(word?.text ?? "");
     setEndIndexStr(String(wordIndex));
+    setExpectedText(word?.text ?? null);
     setError(null);
   }, [word?.text, wordIndex, trackId, setError]);
+
+  const changeEndIndex = (value: string) => {
+    setEndIndexStr(value);
+    setExpectedText(
+      transcriptSpanText(
+        project,
+        trackId,
+        wordIndex,
+        Number.parseInt(value, 10),
+      ),
+    );
+  };
 
   const editable = !isShareProjectKey(projectPath);
   const suppressed = Boolean(word?.suppressed);
@@ -115,12 +135,6 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
-    const expectedText = transcriptSpanText(
-      project,
-      trackId,
-      wordIndex,
-      endIndex,
-    );
     await runForWord("fix", () =>
       submitWordCorrection(
         projectPath,
@@ -174,6 +188,11 @@ export function TranscriptWordInspector({
   const seekSec = wordSeekSec(word) ?? word.timeline_start ?? word.start;
   const playStart = word.timeline_start ?? word.start;
   const playEnd = word.timeline_end ?? word.end;
+  const endIndexNum = Number.parseInt(endIndexStr, 10);
+  const spanUnverified =
+    Number.isInteger(endIndexNum) &&
+    endIndexNum > wordIndex &&
+    expectedText == null;
 
   return (
     <ModifierInspector
@@ -252,7 +271,7 @@ export function TranscriptWordInspector({
                   value={endIndexStr}
                   disabled={busy}
                   aria-label="End word index"
-                  onChange={(e) => setEndIndexStr(e.target.value)}
+                  onChange={(e) => changeEndIndex(e.target.value)}
                   title="Same as start for a single-word correct; higher for phrase"
                 />
                 <Button disabled={busy} onClick={() => void applyText()}>
@@ -265,6 +284,9 @@ export function TranscriptWordInspector({
       </DefinitionList>
       {editable ? (
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
+      ) : null}
+      {editable && spanUnverified ? (
+        <p className="ui-field-hint">{TRANSCRIPT_SPAN_UNVERIFIED_NOTE}</p>
       ) : null}
     </ModifierInspector>
   );

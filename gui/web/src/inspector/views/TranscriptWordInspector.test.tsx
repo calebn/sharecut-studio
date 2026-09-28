@@ -117,6 +117,36 @@ describe("TranscriptWordInspector", () => {
     fireEvent.change(screen.getByLabelText("End word index"), {
       target: { value: "1" },
     });
+    expect(
+      screen.queryByText(/can't check whether someone else changed/),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there",
+        "hello there",
+      );
+    });
+  });
+
+  it("Apply sends the span text seen before a peer changed an inner word", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    const changed = project();
+    changed.transcript!.utterances[0]!.words![1]!.text = "where";
+    act(() => {
+      useDawStore.setState({ project: changed });
+    });
+    expect(screen.getByLabelText("Corrected text")).toHaveValue("Hello there");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await vi.waitFor(() => {
       expect(correctTranscriptPhrase).toHaveBeenCalledWith(
@@ -138,6 +168,9 @@ describe("TranscriptWordInspector", () => {
     fireEvent.change(screen.getByLabelText("End word index"), {
       target: { value: "5" },
     });
+    expect(
+      screen.getByText(/can't check whether someone else changed/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await vi.waitFor(() => {
       expect(correctTranscriptPhrase).toHaveBeenCalledWith(
