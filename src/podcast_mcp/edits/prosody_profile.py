@@ -7,8 +7,9 @@ timeline-mapped window handed to ``audition_context`` (see #196).
 
 The reader (:func:`load_track_profile`) never hashes audio: it lists this track's
 cache files (one after the writer prunes), picks the newest, and compares its stored
-``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint, and
-compares the stored ``params`` with the caller's current ``prosody.*`` params. The
+``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint, and,
+when the caller passes its staged ``prosody.*`` params, compares the stored ``params``
+with them (``params=None``, i.e. nothing staged, trusts the stored params). The
 writer (:func:`run_prosody_analysis`) is the only thing that hashes audio or reruns
 Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content
 change).
@@ -329,9 +330,11 @@ def load_track_profile(
     Per call: a listing of this track's cache files (normally one, since
     :func:`run_prosody_analysis` prunes superseded profiles), one JSON read, one
     ``stat`` of the media, and an O(words) fingerprint of the track's transcript,
-    checked cheapest first. No Praat run and no audio decode. It also compares the
-    stored ``params`` with ``params`` (the caller's current ``prosody.*`` settings;
-    default: shipped pipeline defaults).
+    checked cheapest first. No Praat run and no audio decode. When ``params`` is given
+    (the staged pipeline working set's ``prosody.*`` settings), it also compares the
+    stored ``params`` with it. ``None`` (nothing staged) trusts the stored params,
+    because the working set is process-local and an unstaged process cannot know what
+    the last run used.
     """
     profile = _existing_profile(project, track_id)
     if profile is None:
@@ -349,13 +352,12 @@ def load_track_profile(
             "Prosody algorithm or engine changed since the profile was computed; "
             "re-run analyze_prosody.",
         )
-    current_params = (params if params is not None else ProsodyParams.from_defaults()).key()
-    if profile.params != current_params:
+    if params is not None and profile.params != params.key():
         return ProfileLookup(
             profile,
             "stale",
-            "Prosody settings (prosody.*) changed since the profile was computed; "
-            "re-run analyze_prosody.",
+            "The staged prosody.* settings differ from the ones the profile was computed "
+            "with; re-run analyze_prosody.",
         )
     track = project.track_by_id(track_id)
     if track is None or not track.media:

@@ -426,14 +426,17 @@ def asr_options_for(project_path: Path | str) -> AsrOptions:
     return AsrOptions.from_defaults(_staged_or_default_config(project_path))
 
 
-def prosody_params_for(project_path: Path | str) -> ProsodyParams:
-    """Prosody params ``pipeline_run`` would use: the staged working set, else shipped defaults.
+def prosody_params_for(project_path: Path | str) -> ProsodyParams | None:
+    """The staged working set's ``prosody.*`` params, or ``None`` when nothing is staged.
 
-    Read-only: an unstaged project gets no working-set entry.
+    ``None`` tells the prosody reader to trust the params stored in the cached profile:
+    the working set is process-local, so an unstaged process cannot know which params
+    the last run used (#721). Read-only: an unstaged project gets no working-set entry.
     """
     from podcast_mcp.engines.prosody import ProsodyParams
 
-    return ProsodyParams.from_defaults(_staged_or_default_config(project_path))
+    staged = config_store().peek(project_path)
+    return ProsodyParams.from_defaults(staged.config) if staged is not None else None
 
 
 def build_config_payload(project_path: Path | str) -> dict[str, Any]:

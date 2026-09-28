@@ -257,7 +257,7 @@ def _prosody_for_track(
     st: SessionTimeline,
     track_id: str,
     spans: list[tuple[SourceSec, SourceSec]],
-    params: ProsodyParams,
+    params: ProsodyParams | None,
 ) -> dict[str, Any]:
     """The cached prosody window for one track; any cache/read error becomes a redacted `unavailable` entry."""
     from podcast_mcp.edits.prosody_profile import prosody_window
@@ -320,12 +320,6 @@ def build_audition_context(
     source_at_mid: dict[str, float | None] = {}
     words_timeline: dict[str, list[tuple[float, str]]] = {}
 
-    resolved_prosody_params: ProsodyParams | None = None
-    if include_prosody:
-        from podcast_mcp.engines.prosody import ProsodyParams
-
-        resolved_prosody_params = prosody_params or ProsodyParams.from_defaults()
-
     for tid in track_ids:
         spans = st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
         src_mid = st.timeline_to_source(tid, TimelineSec(mid))
@@ -352,10 +346,8 @@ def build_audition_context(
             "effects": _active_effects(project, tid),
             "muted": bool(getattr(project.track_by_id(tid), "muted", False)),
         }
-        if include_prosody and resolved_prosody_params is not None:
-            track_info["prosody"] = _prosody_for_track(
-                project, st, tid, spans, resolved_prosody_params
-            )
+        if include_prosody:
+            track_info["prosody"] = _prosody_for_track(project, st, tid, spans, prosody_params)
         tracks_out.append(track_info)
 
     skew = _clip_skew_warnings(source_at_mid, skew_warn_sec=skew_warn_sec)
