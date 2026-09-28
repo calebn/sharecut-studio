@@ -333,6 +333,37 @@ def test_remote_mcp_http_bridge(minimal_project, sample_wav, tmp_workspace, monk
     assert forbidden.status_code == 403
 
 
+def test_remote_mcp_http_bridge_runs_jsonrpc_off_the_event_loop(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import asyncio
+
+    from podcast_mcp.gui.routes import remote_mcp as remote_mcp_routes
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "comment", "mcp"], label="mcp-thread")
+    real = remote_mcp_routes.handle_mcp_jsonrpc
+    on_loop: list[bool] = []
+
+    def spy(token, body, **kwargs):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            on_loop.append(False)
+        else:
+            on_loop.append(True)
+        return real(token, body, **kwargs)
+
+    monkeypatch.setattr(remote_mcp_routes, "handle_mcp_jsonrpc", spy)
+    client = TestClient(create_app())
+    res = client.post(
+        f"/mcp/{share['token']}/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "ping", "params": {}},
+    )
+    assert res.status_code == 200
+    assert on_loop == [False]
+
+
 def test_claude_authless_handshake_and_share_alias(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
