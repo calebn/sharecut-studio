@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  clickHostTransport,
   createRecordRoom,
+  ensureHostRecordCommand,
   markSharecutE2e,
   openRecordLink,
   recordLinkPath,
@@ -46,6 +48,127 @@ describe("record links", () => {
     const goto = vi.fn(async () => null);
     await openRecordLink({ goto } as never, "guest-token");
     expect(goto).toHaveBeenCalledWith("/rec/guest-token?e2e=1");
+  });
+});
+
+/**
+ * A host fake whose `/api/record/state` GETs return successive entries of
+ * `states` (sticking on the last one), and whose `/api/record/command` POST
+ * resolves with `post`.
+ */
+function hostWithRecordStates(
+  states: string[],
+  post: { ok: boolean; body?: unknown },
+) {
+  let call = 0;
+  const get = vi.fn(async () => {
+    const state = states[Math.min(call, states.length - 1)];
+    call += 1;
+    return {
+      ok: () => true,
+      text: async () => JSON.stringify({ state }),
+      json: async () => ({
+        state,
+        session_id: "s",
+        take_index: 0,
+        recording_ms: 0,
+        participants: [],
+      }),
+    };
+  });
+  const postFn = vi.fn(async () => ({
+    ok: () => post.ok,
+    text: async () => JSON.stringify(post.body ?? {}),
+    json: async () => post.body ?? {},
+  }));
+  return { page: { request: { get, post: postFn } }, get, post: postFn };
+}
+
+describe("ensureHostRecordCommand", () => {
+  it("returns without posting when already in state", async () => {
+    const { page, post } = hostWithRecordStates(["recording"], { ok: true });
+    await ensureHostRecordCommand(
+      page as never,
+      "/p/x.json",
+      "Start",
+      "recording",
+    );
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("posts the command then polls until the state arrives", async () => {
+    const { page, post } = hostWithRecordStates(
+      ["stopped", "stopped", "recording"],
+      { ok: true },
+    );
+    await ensureHostRecordCommand(
+      page as never,
+      "/p/x.json",
+      "Start",
+      "recording",
+    );
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith("/api/record/command", {
+      data: { path: "/p/x.json", command_type: "Start", payload: {} },
+    });
+  });
+
+  it("tolerates a rejected POST when the state was reached by a race", async () => {
+    const { page, post } = hostWithRecordStates(["stopped", "recording"], {
+      ok: false,
+      body: { detail: "busy" },
+    });
+    await ensureHostRecordCommand(
+      page as never,
+      "/p/x.json",
+      "Start",
+      "recording",
+    );
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects with the server body when the POST fails and state never arrives", async () => {
+    const { page } = hostWithRecordStates(["stopped", "stopped"], {
+      ok: false,
+      body: { detail: "busy" },
+    });
+    await expect(
+      ensureHostRecordCommand(page as never, "/p/x.json", "Start", "recording"),
+    ).rejects.toThrow(/busy/);
+  });
+});
+
+describe("clickHostTransport", () => {
+  it("returns without requiring a POST when the click reaches the state", async () => {
+    const { page, post } = hostWithRecordStates(["recording"], { ok: true });
+    const waitForRequest = vi.fn(async () => null);
+    const button = { click: vi.fn(async () => {}) };
+    await clickHostTransport(
+      { ...page, waitForRequest } as never,
+      button as never,
+      "/p/x.json",
+      "Start",
+      "recording",
+    );
+    expect(button.click).toHaveBeenCalledTimes(1);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the UI never POSTs the command", async () => {
+    const { page } = hostWithRecordStates(["stopped", "stopped"], {
+      ok: true,
+    });
+    const waitForRequest = vi.fn(async () => null);
+    const button = { click: vi.fn(async () => {}) };
+    await expect(
+      clickHostTransport(
+        { ...page, waitForRequest } as never,
+        button as never,
+        "/p/x.json",
+        "Start",
+        "recording",
+      ),
+    ).rejects.toThrow(/did not POST \/api\/record\/command/);
   });
 });
 

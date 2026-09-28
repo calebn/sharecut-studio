@@ -2,6 +2,7 @@ import { type Browser, expect, test } from "@playwright/test";
 import {
   createRecordRoom,
   markSharecutE2e,
+  openHostRecordRoom,
   openRecordLink,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
@@ -34,10 +35,7 @@ test("host publishes close risk across recording and pause, then clears after st
       await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
       await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
       const room = await createRecordRoom(host, projectPath);
-      await host.getByRole("button", { name: "Menu" }).click();
-      await host.getByRole("menuitem", { name: "Record room…" }).click();
-      const dialog = host.getByRole("dialog", { name: "Record room" });
-      await expect(dialog).toBeVisible();
+      const dialog = await openHostRecordRoom(host);
 
       await markSharecutE2e(guest);
       await openRecordLink(guest, room.guest.token);

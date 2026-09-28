@@ -10,19 +10,24 @@ import {
 } from "@playwright/test";
 import { PCM_WAV_HEADER_BYTES } from "../src/audio/wavHeader";
 import { KEEPER_OPFS_ROOT } from "../src/record/keeper/opfsPath";
-import {
-  KEEPER_FRAME_BYTES,
-  KEEPER_SAMPLE_RATE,
-} from "../src/record/keeper/pcm";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import {
+  keeperWavBytes,
+  ONE_SECOND_KEEPER_PCM_BYTES,
+  ONE_SECOND_KEEPER_WAV_BYTES,
+  recordingWavs,
+} from "./keeperOpfs";
+import {
+  clickHostTransport,
   createRecordRoom,
+  ensureHostRecordCommand,
   HOST_PARTICIPANT_ID,
   hostRecordSnapshot,
-  hostRecordState,
   joinAsGuest,
   joinAsProducer,
+  landParticipant,
   markSharecutE2e,
+  openHostRecordRoom,
   openRecordLink,
   readSavedProject,
   recordParticipantId,
@@ -30,29 +35,6 @@ import {
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
-
-async function ensureHostRecordCommand(
-  host: Page,
-  projectPath: string,
-  commandType: string,
-  expectedState: string,
-): Promise<void> {
-  if ((await hostRecordState(host, projectPath)) === expectedState) {
-    return;
-  }
-  const started = await host.request.post("/api/record/command", {
-    data: { path: projectPath, command_type: commandType, payload: {} },
-  });
-  if (!started.ok()) {
-    if ((await hostRecordState(host, projectPath)) === expectedState) {
-      return;
-    }
-    expect(started.ok(), await started.text()).toBeTruthy();
-  }
-  await expect
-    .poll(async () => hostRecordState(host, projectPath))
-    .toBe(expectedState);
-}
 
 async function enableRoomTonePcmHarness(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -62,93 +44,12 @@ async function enableRoomTonePcmHarness(page: Page): Promise<void> {
   });
 }
 
-async function clickHostTransport(
-  host: Page,
-  button: Locator,
-  projectPath: string,
-  commandType: string,
-  expectedState: string,
-): Promise<void> {
-  const uiPost = host
-    .waitForRequest(
-      (req) =>
-        req.method() === "POST" && req.url().includes("/api/record/command"),
-      { timeout: 5_000 },
-    )
-    .catch(() => null);
-  await button.click();
-  if ((await hostRecordState(host, projectPath)) === expectedState) {
-    return;
-  }
-  const fired = await uiPost;
-  expect(
-    fired,
-    "host transport button did not POST /api/record/command",
-  ).toBeTruthy();
-  await ensureHostRecordCommand(host, projectPath, commandType, expectedState);
-}
-
 async function beforeUnloadIsBlocked(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     return event.defaultPrevented;
   });
-}
-
-/** One second of keeper PCM (48 kHz mono s16). */
-const ONE_SECOND_KEEPER_PCM_BYTES = KEEPER_SAMPLE_RATE * KEEPER_FRAME_BYTES;
-const ONE_SECOND_KEEPER_WAV_BYTES =
-  PCM_WAV_HEADER_BYTES + ONE_SECOND_KEEPER_PCM_BYTES;
-
-type RecordingWav = { path: string; size: number; header: number[] };
-
-/** Every `.wav` under the keeper OPFS root; null when that directory does not exist. */
-async function recordingWavs(page: Page): Promise<RecordingWav[] | null> {
-  return page.evaluate(async (rootName) => {
-    const root = await navigator.storage.getDirectory();
-    let recordings: FileSystemDirectoryHandle;
-    try {
-      recordings = await root.getDirectoryHandle(rootName);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "NotFoundError") {
-        return null;
-      }
-      throw error;
-    }
-    const out: Array<{ path: string; size: number; header: number[] }> = [];
-    const walk = async (dir: FileSystemDirectoryHandle, prefix: string) => {
-      for await (const [name, handle] of dir.entries()) {
-        const childPath = `${prefix}/${name}`;
-        if (handle.kind === "directory") {
-          await walk(handle as FileSystemDirectoryHandle, childPath);
-          continue;
-        }
-        if (!name.endsWith(".wav")) continue;
-        try {
-          const file = await (handle as FileSystemFileHandle).getFile();
-          out.push({
-            path: childPath,
-            size: file.size,
-            header: Array.from(
-              new Uint8Array(await file.slice(0, 12).arrayBuffer()),
-            ),
-          });
-        } catch {
-          // A keeper still being written can be locked; the next poll reads it.
-        }
-      }
-    };
-    await walk(recordings, "");
-    return out;
-  }, KEEPER_OPFS_ROOT);
-}
-
-async function keeperWavBytes(page: Page): Promise<number> {
-  return Math.max(
-    0,
-    ...((await recordingWavs(page)) ?? []).map((wav) => wav.size),
-  );
 }
 
 async function roomToneWav(page: Page): Promise<{
@@ -280,8 +181,7 @@ test.describe("record lobby", () => {
           "p_host",
         );
         await guest.reload();
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
+        await openHostRecordRoom(host);
         await expectRecoveryDownloads(guest);
         await expectRecoveryDownloads(host);
       } finally {
@@ -307,10 +207,7 @@ test.describe("record lobby", () => {
           await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
           const room = await createRecordRoom(host, projectPath);
 
-          await host.getByRole("button", { name: "Menu" }).click();
-          await host.getByRole("menuitem", { name: "Record room…" }).click();
-          const roomDlg = host.getByRole("dialog", { name: "Record room" });
-          await expect(roomDlg).toBeVisible();
+          const roomDlg = await openHostRecordRoom(host);
           await expect(
             roomDlg.getByRole("button", { name: "Start", exact: true }),
           ).toBeDisabled();
@@ -639,10 +536,7 @@ test.describe("record lobby", () => {
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
-        const roomDlg = host.getByRole("dialog", { name: "Record room" });
-        await expect(roomDlg).toBeVisible();
+        const roomDlg = await openHostRecordRoom(host);
 
         await markSharecutE2e(guest);
         await joinAsGuest(guest, room.guest.token, "Ava");
@@ -769,9 +663,7 @@ test.describe("record lobby", () => {
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
-        const roomDlg = host.getByRole("dialog", { name: "Record room" });
+        const roomDlg = await openHostRecordRoom(host);
 
         await markSharecutE2e(guest);
         await guest.addInitScript(() => {
@@ -881,9 +773,7 @@ test.describe("record lobby", () => {
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         const room = await createRecordRoom(host, projectPath);
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
-        const roomDlg = host.getByRole("dialog", { name: "Record room" });
+        const roomDlg = await openHostRecordRoom(host);
 
         await markSharecutE2e(guest);
         await joinAsGuest(guest, room.guest.token, "Ava");
@@ -1042,9 +932,7 @@ test.describe("record lobby", () => {
         await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
         await createRecordRoom(host, projectPath);
 
-        await host.getByRole("button", { name: "Menu" }).click();
-        await host.getByRole("menuitem", { name: "Record room…" }).click();
-        const room = host.getByRole("dialog", { name: "Record room" });
+        const room = await openHostRecordRoom(host);
         await expect(
           room.getByText(
             /Microphone access is blocked by your operating system/,
@@ -1144,10 +1032,7 @@ test.describe("record lobby", () => {
           await host.goto(`/?project=${project}&e2e=1`);
           await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
           const room = await createRecordRoom(host, projectPath);
-          await host.getByRole("button", { name: "Menu" }).click();
-          await host.getByRole("menuitem", { name: "Record room…" }).click();
-          const roomDlg = host.getByRole("dialog", { name: "Record room" });
-          await expect(roomDlg).toBeVisible();
+          const roomDlg = await openHostRecordRoom(host);
 
           await markSharecutE2e(guest);
           await joinAsGuest(guest, room.guest.token, "Ava");
@@ -1281,36 +1166,7 @@ test.describe("record lobby", () => {
             ].filter((row) => row.participant_id === producerId),
           ).toEqual([]);
 
-          // ACK auto-land and Land race; take whichever is ready first.
-          const avaLanded = uploadList.getByText("Ava: landed.");
-          const landButton = roomDlg.getByRole("button", {
-            name: "Land",
-            exact: true,
-          });
-          await expect
-            .poll(
-              async () => {
-                if (await avaLanded.isVisible()) return "landed";
-                if (
-                  (await landButton.count()) > 0 &&
-                  (await landButton.isEnabled())
-                ) {
-                  return "land";
-                }
-                return "waiting";
-              },
-              { timeout: 60_000 },
-            )
-            .not.toBe("waiting");
-          if (!(await avaLanded.isVisible())) {
-            await landButton
-              .click({ timeout: 5_000 })
-              .catch(async (error: unknown) => {
-                // Auto-land may disable Land between the check and the click.
-                if (!(await avaLanded.isVisible())) throw error;
-              });
-          }
-          await expect(avaLanded).toBeVisible({ timeout: 60_000 });
+          await landParticipant(roomDlg, "Ava");
           await expect(uploadList.getByText(/^Pat:/)).toHaveCount(0);
           await expect(
             guest.getByText(
