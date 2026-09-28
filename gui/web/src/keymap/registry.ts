@@ -28,6 +28,20 @@ export type KeymapCategory =
   | "ui"
   | "presence";
 
+/** Display order for keymap categories (in-app palette tabs and generated cheatsheets). */
+export const KEYMAP_CATEGORY_ORDER: readonly KeymapCategory[] = [
+  "transport",
+  "tools",
+  "layout",
+  "navigation",
+  "review",
+  "history",
+  "edit",
+  "view",
+  "ui",
+  "presence",
+];
+
 export type KeymapCommand = {
   id: string;
   category: KeymapCategory;
