@@ -152,6 +152,22 @@ def _drop_buffered_presence(q: asyncio.Queue[dict[str, Any]]) -> bool:
 
 
 def _session_overflow(q: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
+    """Overflow policy for one full subscriber queue. Invariant, highest priority first:
+
+    1. A document-plane ``Applied``/``Snapshot`` drains the whole queue and enqueues one
+       ``document_overflow_resync`` (the peer refetches, so no backlog is needed).
+    2. Presence frames (``Presence`` / ``PresenceDelta``, buffered or incoming) collapse
+       into one ``PresenceResync`` marker (the client answers with a ``RosterRequest``).
+    3. If the queue is still full, ``_enqueue_prefer_drop_signal`` evicts the first
+       buffered record ``Signal``; with none buffered, an incoming ``Signal`` is itself
+       dropped.
+    4. Otherwise it evicts the first buffered row that is neither a record-plane
+       ``Applied``/``Snapshot`` nor a ``PresenceResync`` marker (the oldest row as a last
+       resort), so record state and the presence resync survive overflow.
+
+    A change to one rule must keep the others; the overflow tests in
+    ``tests/test_session_sync_presence_delta.py`` pin them.
+    """
     if _document_applied(event):
         _drain_to_list(q)
         with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
