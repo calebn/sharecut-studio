@@ -4,8 +4,8 @@ import { disambiguatedNames } from "../presence/colors";
 import {
   isLocalPresenceClient,
   remotePresenceClients,
-  serverNowMs,
 } from "../presence/followSync";
+import { useServerNowMs } from "../presence/useServerNowMs";
 import { useDawStore } from "../state/dawStore";
 import type { SessionClient } from "../types/session";
 import { AvatarStackView } from "./AvatarStackView";
@@ -13,13 +13,6 @@ import { AvatarStackView } from "./AvatarStackView";
 type Props = {
   variant?: "inline" | "menu";
 };
-
-function liveOthers(
-  clients: SessionClient[],
-  localId: string | null,
-): SessionClient[] {
-  return remotePresenceClients(clients, localId, serverNowMs());
-}
 
 function localClient(
   clients: SessionClient[],
@@ -37,10 +30,8 @@ export function AvatarStack({ variant = "inline" }: Props) {
   const localClientId = useDawStore((s) => s.localClientId);
   const followingClientId = useDawStore((s) => s.followingClientId);
 
-  const others = useMemo(
-    () => liveOthers(sessionClients, localClientId),
-    [sessionClients, localClientId],
-  );
+  const nowMs = useServerNowMs(sessionClients, localClientId);
+  const others = remotePresenceClients(sessionClients, localClientId, nowMs);
   const self = localClient(sessionClients, localClientId);
   const names = useMemo(
     () => disambiguatedNames(sessionClients),

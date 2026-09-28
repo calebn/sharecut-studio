@@ -5,7 +5,8 @@ import type { SessionSelection } from "../types/session";
 import { presenceAnchor, resolvePresenceAnchor } from "./anchors";
 import { presenceColorVar, rosterDisplayName } from "./colors";
 import { createCursorMotion } from "./cursorMotion";
-import { remotePresenceClients, serverNowMs } from "./followSync";
+import { remotePresenceClients } from "./followSync";
+import { useServerNowMs } from "./useServerNowMs";
 
 type Props = {
   rootRef: RefObject<HTMLElement | null>;
@@ -71,7 +72,7 @@ function unionRect(
 export function PresenceGhostLayer({ rootRef }: Props) {
   const sessionClients = useDawStore((s) => s.sessionClients);
   const localClientId = useDawStore((s) => s.localClientId);
-  const now = serverNowMs();
+  const now = useServerNowMs(sessionClients, localClientId);
   const others = remotePresenceClients(
     sessionClients,
     localClientId,

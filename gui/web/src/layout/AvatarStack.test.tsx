@@ -190,4 +190,45 @@ describe("AvatarStack", () => {
     expect(screen.queryByRole("group", { name: "People" })).toBeNull();
     expect(container.querySelector(".ui-menu-section")).toBeNull();
   });
+
+  it("drops a peer that stops heartbeating with no other store change", () => {
+    vi.useFakeTimers({ now: 1_800_000_000_000 });
+    try {
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <AvatarStack />
+        </DawProvider>,
+      );
+      act(() => {
+        useDawStore.setState({
+          localClientId: "me",
+          followingClientId: null,
+          sessionClients: [
+            {
+              client_id: "me",
+              role: "viewer",
+              last_seen_ns: Date.now() * 1e6,
+              meta: { display_name: "Me" },
+            },
+            {
+              client_id: "a",
+              role: "viewer",
+              last_seen_ns: Date.now() * 1e6,
+              meta: { display_name: "Ada" },
+            },
+          ],
+        });
+      });
+      expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(35_000);
+      });
+      expect(screen.queryByRole("button", { name: "Follow Ada" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
