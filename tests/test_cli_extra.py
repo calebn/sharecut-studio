@@ -348,6 +348,40 @@ def test_e2e_project_path_env_override(tmp_path, monkeypatch):
     assert e2e_project_path() == project.resolve()
 
 
+def _seed_cli_transcript(project):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = load_project(project)
+    proj.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
+    ]
+    save_project(proj, project)
+
+
+def test_transcript_correct_expected_text_guard(tmp_path):
+    project = _init_project(tmp_path)
+    _seed_cli_transcript(project)
+    base = [
+        "correct",
+        "--project",
+        str(project),
+        "--track",
+        "host",
+        "--word-index",
+        "0",
+        "--text",
+        "the",
+    ]
+    stale = runner.invoke(transcript_app, [*base, "--expected-text", "tea"])
+    assert stale.exit_code == 1
+    assert "changed since this correction started" in stale.output
+    assert load_project(project).transcripts[0].words[0].text == "teh"
+    ok = runner.invoke(transcript_app, [*base, "--expected-text", "teh"])
+    assert ok.exit_code == 0
+    assert "Corrected." in ok.output
+    assert load_project(project).transcripts[0].words[0].text == "the"
+
+
 def test_transcript_context_set_marks_existing_transcript_stale(tmp_path):
     from podcast_mcp.models import Transcript
     from podcast_mcp.services import ProjectWorkspace, TranscriptPrecorrectService

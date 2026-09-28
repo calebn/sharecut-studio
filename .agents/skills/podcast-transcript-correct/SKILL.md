@@ -22,7 +22,7 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 - `apply_transcript_cleanup_tool` — prefer via refine skill for multi-word batches
 - `history_undo` — revert last correction
 
-**CLI:** `podcast transcript correct`, `podcast transcript review`
+**CLI:** `podcast transcript correct` (`--expected-text` refuses a fix whose word changed meanwhile, #650), `podcast transcript review`
 
 **Host Sharecut Studio:** Transcript tab → double-click a word, type, Enter (inline; Esc cancels), or **Correct** → click a word → inspector Apply / Suppress / Ignore (document commands; text only for Suppress, audio+text for Ignore, timing unchanged either way). Select mode has an Ignore/Restore toolbar button for a transcript range, and each ignored run gets a hover Restore control. Annotate → **Previous / Next** walks the low-confidence words (with Correct on, each step opens the word in the inspector). Agent listen-first audition stays MCP-only (`podcast-transcript-audition`).
 

@@ -1,3 +1,4 @@
+from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.services.align_accept import AlignAcceptService
 from podcast_mcp.services.bounce import BounceRequest, BounceService
 from podcast_mcp.services.clip import ClipService
@@ -49,6 +50,7 @@ __all__ = [
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
     "TranscriptService",
+    "TranscriptTextChangedError",
     "VocabularyConflictError",
     "ensure_viewer",
 ]

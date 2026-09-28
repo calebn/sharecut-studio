@@ -15,6 +15,7 @@ from podcast_mcp.services import (
     TranscriptPrecorrectService,
     TranscriptRefineService,
     TranscriptService,
+    TranscriptTextChangedError,
 )
 
 transcript_app = typer.Typer(help="Transcript correction and export.")
@@ -29,9 +30,18 @@ def transcript_correct_cmd(
     track: str = typer.Option(..., "--track"),
     word_index: int = typer.Option(..., "--word-index"),
     text: str = typer.Option(..., "--text"),
+    expected_text: str | None = typer.Option(
+        None,
+        "--expected-text",
+        help="Word text you read at --word-index; refuse the fix if it changed meanwhile (#650).",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    EditService(ws).correct_word(track, word_index, text)
+    try:
+        EditService(ws).correct_word(track, word_index, text, expected_text=expected_text)
+    except TranscriptTextChangedError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
     typer.echo("Corrected.")
 
 
