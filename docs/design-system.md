@@ -278,8 +278,9 @@ and `MenuItem`, which already have stories; they are not on this list and get
 no separate refactor issue. A component leaves this list only once its
 production view is extracted into a props-only `XView` rendered by the live
 adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
-`FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView` and
-`BounceDialogView` already were.
+`FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView`,
+`BounceDialogView`, `ToolModeToggleView`, `EditingToolRailView` and
+`CommandPaletteView` already were.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
