@@ -705,10 +705,16 @@ production code. A separate `pipeline` subcommand
 sha256-verified) → `WordAligner.align` → `apply_word_spans`. It shares
 `prepare_items()` with `run`: decode audio, then take native words from the
 checked-in fixtures, else from a `<id>.native.json` already in the runs dir
-with the same `audio_sha256` and `--native-model`, else from a fresh Whisper
-pass. Point `pipeline` at the same runs dir as `run` (both default to
-`$LAB_RUNS_DIR/align/<target>`) and both passes score the exact same native
-words and audio; delete `<id>.native.json` to force a fresh Whisper pass. It
+for the same `audio_sha256`, else from a fresh Whisper pass. A cached file for
+the same audio but a different `--native-model` or installed faster-whisper
+version is an error, never overwritten, so an earlier pass's predictions in
+that dir stay paired with the native words they re-timed. Point `pipeline` at
+the same runs dir as `run` (both default to `$LAB_RUNS_DIR/align/<target>`)
+and both passes score the exact same native words and audio; delete
+`<id>.native.json` to force a fresh Whisper pass. Run passes into one runs dir
+one at a time: the cache check is not locked, so two passes started together
+both run Whisper and the last write wins (`with-asr-lock.sh` serializes only
+the ASR step, not the check before it). It
 writes `<id>.onnx-base-pipeline.json` predictions/reports plus a
 `summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
 share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`

@@ -14,6 +14,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from fnmatch import fnmatch
+from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
@@ -494,13 +495,44 @@ def aggregate(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str, Any] | None:
-    """An earlier pass's ``<id>.native.json`` when it is for the same audio and Whisper model."""
+    """An earlier pass's ``<id>.native.json`` for this audio, or ``None`` to run Whisper afresh.
+
+    A file for different audio (``audio_sha256`` mismatch) is a soft miss: its
+    words are stale, so the caller re-runs Whisper and overwrites it. A file for
+    this audio from a different ``--native-model``, or (for faster-whisper words)
+    from a different installed faster-whisper version, raises instead: an earlier
+    pass's ``<id>.<label>.pred.json`` in the same runs dir was built from those
+    words, and overwriting them would silently pair mismatched native words with
+    those predictions. Passes into one runs dir must run one at a time; this
+    check-then-write is not locked.
+
+    Deliberately not shared with the checked-in fixture check in
+    :func:`prepare_items` (which raises on an audio mismatch) or
+    ``engines.transcribe._read_json_cache`` (a production-engine helper with its
+    own error handling): the three differ in what a mismatch means.
+    """
     if not path.exists():
         return None
     payload = json.loads(path.read_text(encoding="utf-8"))
-    provenance = payload.get("provenance") or {}
-    if payload.get("audio_sha256") != audio_sha256 or provenance.get("model") != native_model:
+    if payload.get("audio_sha256") != audio_sha256:
         return None
+    provenance = payload.get("provenance") or {}
+    cached_model = provenance.get("model")
+    if cached_model != native_model:
+        raise ValueError(
+            f"{path} holds native words from Whisper model {cached_model!r}, not "
+            f"{native_model!r}; pass --native-model {cached_model}, use another "
+            "--runs-dir, or delete the file to re-run Whisper"
+        )
+    if provenance.get("library") == "faster-whisper":
+        installed = package_version("faster-whisper")
+        cached_version = provenance.get("library_version")
+        if cached_version != installed:
+            raise ValueError(
+                f"{path} holds native words from faster-whisper {cached_version}, but "
+                f"{installed} is installed; use another --runs-dir or delete the file "
+                "to re-run Whisper"
+            )
     return payload
 
 
@@ -517,11 +549,13 @@ def prepare_items(
     ``<id>.wav`` under ``runs_dir``; a full item uses its audio path as-is. Native
     words come from ``item.words`` when set (checked-in fixtures, e.g.
     LibriSpeech's ``*.native-base.json``); otherwise from ``<id>.native.json``
-    already in ``runs_dir`` when its ``audio_sha256`` and provenance ``model``
-    match (an earlier ``run`` or ``pipeline`` into the same dir); otherwise from a
-    fresh ``native(...)`` (Whisper) run. The result is written as
-    ``<id>.native.json``, so a ``run_suite`` and a ``run_pipeline_pass`` pointed at
-    the same ``runs_dir`` score the exact same native words and audio. Delete
+    already in ``runs_dir`` for the same ``audio_sha256`` (an earlier ``run`` or
+    ``pipeline`` into the same dir); otherwise from a fresh ``native(...)``
+    (Whisper) run. A cached file for the same audio but another ``native_model``
+    or faster-whisper version raises (see :func:`_cached_native`) rather than
+    being overwritten. The result is written as ``<id>.native.json``, so a
+    ``run_suite`` and a ``run_pipeline_pass`` pointed at the same ``runs_dir``
+    (one at a time) score the exact same native words and audio. Delete
     ``<id>.native.json`` to force a fresh Whisper pass.
     """
     runs_dir.mkdir(parents=True, exist_ok=True)

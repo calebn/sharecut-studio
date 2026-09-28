@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import wave
 import weakref
@@ -804,16 +805,69 @@ def test_prepare_items_reuses_cached_native_words(tmp_path) -> None:
     assert calls == ["base"]
     assert second["tones"] == first["tones"]
 
-    # A different Whisper model is not a cache hit.
-    bfa.prepare_items([item], runs_dir=runs_dir, native_model="small", native=fake_native)
-    assert calls == ["base", "small"]
-
-    # Nor is a cached file for different audio.
+    # A cached file for different audio is stale: re-run Whisper and overwrite it.
     native_path = runs_dir / "tones.native.json"
     stale = json.loads(native_path.read_text(encoding="utf-8"))
     native_path.write_text(json.dumps({**stale, "audio_sha256": "0" * 64}), encoding="utf-8")
+    bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
+    assert calls == ["base", "base"]
+
+
+def test_prepare_items_refuses_to_overwrite_native_words_from_another_model(tmp_path) -> None:
+    """#715: a --native-model mismatch in a shared runs dir raises instead of re-pairing preds."""
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    calls: list[str] = []
+    fake_native = _tones_native(calls)
+    runs_dir = tmp_path / "runs"
     bfa.prepare_items([item], runs_dir=runs_dir, native_model="small", native=fake_native)
-    assert calls == ["base", "small", "small"]
+    native_path = runs_dir / "tones.native.json"
+    before = native_path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Whisper model 'small', not 'base'"):
+        bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
+    assert calls == ["small"]
+    assert native_path.read_text(encoding="utf-8") == before
+
+
+def test_prepare_items_checks_cached_faster_whisper_version(tmp_path) -> None:
+    """#715: cached faster-whisper words are reused only under the installed version."""
+    from importlib.metadata import version
+
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    calls: list[str] = []
+
+    def whisper_native(library_version):
+        def fake_native(audio_path, model):
+            calls.append(model)
+            return {
+                "words": prediction["words"],
+                "provenance": {
+                    **prediction["provenance"],
+                    "model": model,
+                    "library": "faster-whisper",
+                    "library_version": library_version,
+                    "runtime_sec": 1.5,
+                },
+            }
+
+        return fake_native
+
+    installed = version("faster-whisper")
+    current_dir = tmp_path / "current"
+    bfa.prepare_items([item], runs_dir=current_dir, native=whisper_native(installed))
+    bfa.prepare_items([item], runs_dir=current_dir, native=whisper_native(installed))
+    assert calls == ["base"]
+
+    stale_dir = tmp_path / "stale"
+    bfa.prepare_items([item], runs_dir=stale_dir, native=whisper_native("0.0.0-stale"))
+    with pytest.raises(ValueError, match=re.escape("faster-whisper 0.0.0-stale")):
+        bfa.prepare_items([item], runs_dir=stale_dir, native=whisper_native(installed))
+    assert calls == ["base", "base"]
 
 
 def _tones_native(calls: list[str] | None = None):
