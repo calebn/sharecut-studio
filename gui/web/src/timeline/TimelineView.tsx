@@ -36,6 +36,7 @@ import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { ClipRow } from "../types/project";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
 import {
@@ -471,62 +472,59 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const fittedRef = useRef<{ widthPx: number; sessionSec: number } | null>(
     null,
   );
-  // One observer on the scroller and its header column, used only as a
-  // trigger: every measurement reads the element (clientWidth), the same
-  // source as fit commands, zoom anchoring and presence. The time viewport
-  // drives the fit, the lead pads and the fixed line; the height the lanes.
-  useLayoutEffect(() => {
+  // One observer (ui/useResizeObserver) on the scroller and its header
+  // column, used only as a trigger: every measurement reads the element
+  // (clientWidth), the same source as fit commands, zoom anchoring and
+  // presence. The time viewport drives the fit, the lead pads and the fixed
+  // line; the height the lanes.
+  const measure = useStableCallback(() => {
     const el = scrollRef.current;
     if (!el || !project) {
       return;
     }
     const sessionSec = project.timeline_duration_sec;
-    const measure = () => {
-      const { scrollbarInlinePx, scrollbarBlockPx, ...next } =
-        measureTimelineColumns(el);
-      setColumns((prev) => (shallow(prev, next) ? prev : next));
-      // Only the stage edges read the scrollbar insets: write them straight
-      // to the area, so a scrollbar coming or going moves the edges in this
-      // frame without re-rendering the timeline.
-      const areaStyle = areaRef.current?.style;
-      areaStyle?.setProperty(
-        "--timeline-scrollbar-inline",
-        `${scrollbarInlinePx}px`,
-      );
-      areaStyle?.setProperty(
-        "--timeline-scrollbar-block",
-        `${scrollbarBlockPx}px`,
-      );
-      const timeWidth = next.timeViewportPx;
-      setTimelineViewportWidth(timeWidth);
-      stageHeightRef.current = el.clientHeight;
-      // Fixed mode ignores the stage height; the layout effect above
-      // re-resolves when the mode or fixed px changes.
-      if (fitInputsRef.current.mode === "fit") {
-        refitLanes();
-      }
-      if (useDawStore.getState().followingClientId) {
-        return;
-      }
-      const fitted = fittedRef.current;
-      if (
-        !userZoomed &&
-        timeWidth > 0 &&
-        (fitted?.widthPx !== timeWidth || fitted.sessionSec !== sessionSec)
-      ) {
-        fittedRef.current = { widthPx: timeWidth, sessionSec };
-        fitToWindow(timeWidth);
-      }
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    const header = timelineHeaderEl(el);
-    if (header) {
-      ro.observe(header);
+    const { scrollbarInlinePx, scrollbarBlockPx, ...next } =
+      measureTimelineColumns(el);
+    setColumns((prev) => (shallow(prev, next) ? prev : next));
+    // Only the stage edges read the scrollbar insets: write them straight
+    // to the area, so a scrollbar coming or going moves the edges in this
+    // frame without re-rendering the timeline.
+    const areaStyle = areaRef.current?.style;
+    areaStyle?.setProperty(
+      "--timeline-scrollbar-inline",
+      `${scrollbarInlinePx}px`,
+    );
+    areaStyle?.setProperty(
+      "--timeline-scrollbar-block",
+      `${scrollbarBlockPx}px`,
+    );
+    const timeWidth = next.timeViewportPx;
+    setTimelineViewportWidth(timeWidth);
+    stageHeightRef.current = el.clientHeight;
+    // Fixed mode ignores the stage height; the layout effect above
+    // re-resolves when the mode or fixed px changes.
+    if (fitInputsRef.current.mode === "fit") {
+      refitLanes();
     }
-    return () => ro.disconnect();
+    if (useDawStore.getState().followingClientId) {
+      return;
+    }
+    const fitted = fittedRef.current;
+    if (
+      !userZoomed &&
+      timeWidth > 0 &&
+      (fitted?.widthPx !== timeWidth || fitted.sessionSec !== sessionSec)
+    ) {
+      fittedRef.current = { widthPx: timeWidth, sessionSec };
+      fitToWindow(timeWidth);
+    }
+  });
+  // First measure in a layout effect so the first frame is already fitted;
+  // re-measure when the fit inputs change without a resize.
+  useLayoutEffect(() => {
+    measure();
   }, [
+    measure,
     project,
     userZoomed,
     fitToWindow,
@@ -534,6 +532,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     refitLanes,
     setTimelineViewportWidth,
   ]);
+  useResizeObserver(
+    [scrollRef, () => timelineHeaderEl(scrollRef.current)],
+    measure,
+    project != null,
+  );
 
   // Unmounting (shell switch, project close) drops the measured width and
   // drawn lane height, so the next timeline's first render uses the shell
