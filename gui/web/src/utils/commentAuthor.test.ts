@@ -45,15 +45,23 @@ describe("resolveCommentActor", () => {
   });
 
   it("an explicit name wins", () => {
-    expect(resolveCommentActor("Ada")).toBe("Ada");
+    expect(resolveCommentActor("Ada", "guest")).toBe("Ada");
   });
 
   it("a blank explicit name falls back to the saved name", () => {
     saveCommentAuthor("Caleb");
-    expect(resolveCommentActor("  ")).toBe("Caleb");
+    expect(resolveCommentActor("  ", "host")).toBe("Caleb");
   });
 
-  it("falls back to viewer when nothing is saved", () => {
-    expect(resolveCommentActor()).toBe("viewer");
+  it("falls back to the role's session label when nothing is saved", () => {
+    expect(resolveCommentActor(undefined, "host")).toBe(HOST_SESSION_LABEL);
+    expect(resolveCommentActor(null, "guest")).toBe(GUEST_SESSION_LABEL);
+  });
+
+  it("a blank guest name never picks up a saved Host", () => {
+    saveCommentAuthor("Host");
+    expect(resolveCommentActor("", "guest")).toBe("Guest");
+    saveCommentAuthor("Guest");
+    expect(resolveCommentActor("", "host")).toBe("Host");
   });
 });

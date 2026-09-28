@@ -1,3 +1,4 @@
+import type { CommentRole } from "../shareMode";
 import { readLocal, writeLocal } from "./storage";
 
 const STORAGE_KEY = "podcast-mcp-comment-author";
@@ -13,10 +14,6 @@ const PLACEHOLDER_NAMES = new Set([
   GUEST_SESSION_LABEL,
 ]);
 
-function savedCommentAuthor(): string {
-  return readLocal(STORAGE_KEY) ?? DEFAULT_AUTHOR;
-}
-
 export function saveCommentAuthor(author: string): void {
   writeLocal(STORAGE_KEY, author.trim() || DEFAULT_AUTHOR);
 }
@@ -27,7 +24,7 @@ export function saveCommentAuthor(author: string): void {
  * `Host`, `Guest`) counts as unset, so a host's stored `Host` never names a
  * guest in the same browser.
  */
-export function sessionDisplayName(role: "host" | "guest"): string {
+export function sessionDisplayName(role: CommentRole): string {
   const saved = (readLocal(STORAGE_KEY) ?? "").trim();
   if (saved && !PLACEHOLDER_NAMES.has(saved)) {
     return saved;
@@ -35,8 +32,14 @@ export function sessionDisplayName(role: "host" | "guest"): string {
   return role === "host" ? HOST_SESSION_LABEL : GUEST_SESSION_LABEL;
 }
 
-/** Identity for resolve / action-item completion; never empty. */
-export function resolveCommentActor(explicit?: string | null): string {
-  const who = (explicit ?? "").trim() || savedCommentAuthor().trim();
-  return who || DEFAULT_AUTHOR;
+/**
+ * Identity for posts, replies, resolves and action items: the typed name,
+ * else `sessionDisplayName(role)`. Never empty, and a blank field never picks
+ * up another role's stored placeholder.
+ */
+export function resolveCommentActor(
+  explicit: string | null | undefined,
+  role: CommentRole,
+): string {
+  return (explicit ?? "").trim() || sessionDisplayName(role);
 }

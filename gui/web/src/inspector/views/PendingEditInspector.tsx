@@ -12,6 +12,7 @@ import {
   canComment,
   canReply,
   canSuggestOrNudge,
+  commentRole,
   isShareProjectKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -25,7 +26,10 @@ import {
   InspectorSeekFooter,
 } from "../../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
-import { sessionDisplayName } from "../../utils/commentAuthor";
+import {
+  resolveCommentActor,
+  sessionDisplayName,
+} from "../../utils/commentAuthor";
 import {
   pendingReasonLabel,
   pendingTypeLabel,
@@ -70,9 +74,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
   );
-  const commentRole =
-    guestMode || isShareProjectKey(projectPath) ? "guest" : "host";
-  const [author, setAuthor] = useState(() => sessionDisplayName(commentRole));
+  const role = commentRole(projectPath, guestMode);
+  const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
   const timeHintId = useId();
   const {
@@ -81,7 +84,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     setError: setThreadError,
     resolve,
     reply,
-  } = useCommentActions({ author, setAuthor });
+  } = useCommentActions({ role, author, setAuthor });
 
   const thread = useMemo(
     () =>
@@ -193,7 +196,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       const tlEnd = isSplit ? tlStart : (edit.timeline_end ?? edit.source_end);
       await createComment(projectPath, {
         body: text,
-        author: author.trim() || sessionDisplayName(commentRole),
+        author: resolveCommentActor(author, role),
         timelineStart: tlStart,
         timelineEnd: tlEnd,
         trackIds: edit.track_ids ?? [edit.track_id],

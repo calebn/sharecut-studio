@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { commentTimeLabel, useCommentActions } from "../../comments";
-import { canReply, canSetAction } from "../../shareMode";
+import { canReply, canSetAction, commentRole } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import type { TimelineComment } from "../../types/project";
 import { Button, DefItem, DefinitionList } from "../../ui";
@@ -21,7 +21,9 @@ export function CommentInspector({ comment, onSeek }: Props) {
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const mayAction = canSetAction(projectPath, shareCapabilities);
   const [replyBody, setReplyBody] = useState("");
-  const { busy, error, resolve, reply, toggleAction } = useCommentActions();
+  const { busy, error, resolve, reply, toggleAction } = useCommentActions({
+    role: commentRole(projectPath, guestMode),
+  });
 
   const timeLabel = commentTimeLabel(comment);
 
