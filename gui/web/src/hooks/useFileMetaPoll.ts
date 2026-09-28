@@ -15,6 +15,7 @@ export const SANITY_POLL_MS = 30_000;
  * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.
  * First successful meta read only baselines — does not fire onChange.
  * A focus / visibility check while the baseline read is in flight is skipped.
+ * A read from a run that was cleaned up (re-render with new enabled / intervalMs, unmount) never releases the next run's busy flag.
  * server_seq counts only between two readings: a response without it (the
  * server could not read document.db) is ignored for the seq comparison.
  * Also checks at once when the window regains focus or the tab becomes visible.
@@ -40,20 +41,23 @@ export function useFileMetaPoll(
     }
     let cancelled = false;
 
-    const tick = async () => {
-      if (busyRef.current || cancelled) {
+    // One read for the baseline and every later check. The baseline claims
+    // busyRef even if a cancelled run's read is still in flight; later checks
+    // skip while it is held. A read releases the flag only while its run is
+    // current, so a stale read landing after a re-run (StrictMode remount, a
+    // guest socket flap toggling `enabled`) cannot free the new run's flag.
+    const read = async (baseline: boolean) => {
+      if (cancelled || (!baseline && busyRef.current)) {
         return;
       }
       busyRef.current = true;
       try {
         const meta = await fetchMetaRef.current();
-        if (cancelled) {
-          return;
-        }
-        if (meta.exists === false) {
+        if (cancelled || meta.exists === false) {
           return;
         }
         const changed =
+          !baseline &&
           mtimeRef.current !== null &&
           (meta.mtime_ns !== mtimeRef.current ||
             (meta.size !== undefined && meta.size !== sizeRef.current) ||
@@ -61,7 +65,7 @@ export function useFileMetaPoll(
               seqRef.current !== undefined &&
               meta.server_seq !== seqRef.current));
         mtimeRef.current = meta.mtime_ns;
-        if (meta.size !== undefined) {
+        if (baseline || meta.size !== undefined) {
           sizeRef.current = meta.size;
         }
         if (meta.server_seq !== undefined) {
@@ -73,35 +77,23 @@ export function useFileMetaPoll(
       } catch {
         // Transient
       } finally {
-        busyRef.current = false;
+        if (!cancelled) {
+          busyRef.current = false;
+        }
       }
     };
+    const tick = () => {
+      void read(false);
+    };
 
-    // The baseline holds busyRef like tick(), so a focus / visibility check
-    // fired before it lands cannot race it and overwrite the refs out of order.
-    busyRef.current = true;
-    void fetchMetaRef.current().then(
-      (meta) => {
-        busyRef.current = false;
-        if (!cancelled && meta.exists !== false) {
-          mtimeRef.current = meta.mtime_ns;
-          sizeRef.current = meta.size;
-          if (meta.server_seq !== undefined) {
-            seqRef.current = meta.server_seq;
-          }
-        }
-      },
-      () => {
-        busyRef.current = false;
-      },
-    );
+    void read(true);
 
     const id = window.setInterval(() => {
-      void tick();
+      tick();
     }, intervalMs);
     const onFocus = () => {
       if (document.visibilityState !== "hidden") {
-        void tick();
+        tick();
       }
     };
     window.addEventListener("focus", onFocus);
