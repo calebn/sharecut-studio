@@ -327,6 +327,8 @@ def test_gui_bootstrap_cancel_and_missing_job(monkeypatch) -> None:
 
     conflict = client.post("/api/bootstrap/run", json={"components": ["whisper"]})
     assert conflict.status_code == 409
+    assert "ffmpeg" in conflict.json()["detail"]
+    assert "already running" in conflict.json()["detail"]
 
     missing = client.post("/api/bootstrap/cancel", json={"job_id": "nope"})
     assert missing.status_code == 404
