@@ -82,7 +82,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Episode project format v2 | `docs/episode-format-v2.md`, `schemas/episode.project.schema.json` (incl. `editorial.edit_log`, `AppliedEditRecord`) |
 | GUI / timeline inspector APIs | `docs/gui-integration.md`, `docs/history.md` (`history_diff`), `util/tool_timebase.py` |
 | Read-only DAW viewer (`gui/`, `podcast gui`) | `docs/gui-integration.md` § Viewer, `docs/setup.md` § Read-only GUI viewer |
-| Sharecut Studio CSS units / theme tokens / Stylelint | `.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md` |
+| Sharecut Studio CSS units / theme tokens / Stylelint | `docs/design-tokens.md` (naming system), `.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md` |
 | Sharecut Studio mobile / responsive shells | `docs/gui-mobile.md`, `docs/gui-integration.md` § Responsive shells, `ROADMAP.md` § Follow-up |
 | Native iOS/Android engine / in-app BYOK agent (deferred) | `docs/cross-platform-byok.md` (interim architecture rules + long-horizon path); do not implement now; keep ffmpeg behind `FFmpegEngine`, guest MCP ≠ owner device |
 | Sharecut Studio editability (cuts, joins, FX, transcript in GUI) | `docs/daw-editing.md`, `ROADMAP.md` § Follow-up, `docs/session-sync.md` § Document plane |
