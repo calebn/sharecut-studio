@@ -105,6 +105,8 @@
   font-size: var(--font-size-caption);
 }
 
+/* Summary row, not a conflict: drop the marker but keep the list's
+   padding-left so "+N more" lines up with the bulleted rows' text. */
 .guest-attention-more {
   list-style: none;
   font-style: italic;
