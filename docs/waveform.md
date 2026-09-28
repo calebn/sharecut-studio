@@ -447,7 +447,7 @@ width.
   `k`'s canvas (`canvas.clip-waveform-tile`) covers only the part of
   `[k·512 + origin, +512)` inside the clip, and its backing store is
   `sw × round(height·d)` device px. The layer's height is measured with a
-  `ResizeObserver`, never read during render. Clips narrower than
+  `ResizeObserver` (`ui/useResizeObserver`), never read during render. Clips narrower than
   `min_clip_css_px` (6) get no layer.
 - **Draw.** The layer draws the cached bitmap for the tile key
   (`mediaKey|zoom|d|heightDev|style|ampZoom|k`, with `style` = `v2|scale|tints`

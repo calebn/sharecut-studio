@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sourceFiles } from "../test/sourceFiles";
 import {
   type ResizeObserverTarget,
   useResizeObserver,
@@ -141,5 +142,25 @@ describe("useResizeObserver", () => {
     const onResize = vi.fn();
     const { unmount } = render(<Harness onResize={onResize} />);
     expect(() => unmount()).not.toThrow();
+  });
+
+  it("only ui/useResizeObserver.ts constructs a ResizeObserver", () => {
+    const offenders: string[] = [];
+    for (const { rel, text } of sourceFiles()) {
+      if (
+        rel.includes(".test.") ||
+        rel.includes(".stories.") ||
+        rel.startsWith("test/")
+      ) {
+        continue;
+      }
+      if (rel === "ui/useResizeObserver.ts") {
+        continue;
+      }
+      if (/\bnew ResizeObserver\s*\(/.test(text)) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

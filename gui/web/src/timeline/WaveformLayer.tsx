@@ -12,6 +12,7 @@ import { useDevicePixelRatio } from "../hooks/useDevicePixelRatio";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   MIN_CLIP_CSS_PX,
   QUIET_WASH_MIN_ZOOM_PX_PER_SEC,
@@ -65,7 +66,6 @@ import {
   type WaveformStyle,
 } from "../waveform/types";
 import { quietBandsInView } from "./quietWash";
-import { useTimelineMetrics } from "./timelineMetrics";
 import { useResolvedTheme, waveformStyle } from "./waveformTheme";
 
 type Props = {
@@ -132,17 +132,17 @@ function useHeldReady(
   return next;
 }
 
-/** Height of the layer (css px), from a ResizeObserver: no layout reads in render. */
-function useLayerHeight(el: HTMLElement | null, laneHeight: number): number {
+/**
+ * Height of the layer (css px), from a ResizeObserver: no layout reads in
+ * render. The observer reports every size change, lane-height steps included.
+ */
+function useLayerHeight(el: HTMLElement | null): number {
   const [height, setHeight] = useState(0);
-  useLayoutEffect(() => {
-    if (!el || typeof ResizeObserver === "undefined") {
-      return;
+  useResizeObserver(el, () => {
+    if (el) {
+      setHeight(el.clientHeight);
     }
-    const ro = new ResizeObserver(() => setHeight(el.clientHeight));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [el, laneHeight]);
+  });
   return height;
 }
 
@@ -209,7 +209,6 @@ function WaveformLayerView({
   const gain = ampZoom * (postFader ? postFaderDisplayGain(gainDb) : 1);
   const theme = useResolvedTheme();
   const dprReal = useDevicePixelRatio();
-  const { laneHeight } = useTimelineMetrics();
   const held = useHeldReady(
     projectPath,
     mediaRef,
@@ -219,7 +218,7 @@ function WaveformLayerView({
   // Data requests go out under the ref the held pyramid belongs to.
   const dataRef = held?.ref ?? mediaRef;
   const [el, setEl] = useState<HTMLDivElement | null>(null);
-  const heightCss = useLayerHeight(el, laneHeight);
+  const heightCss = useLayerHeight(el);
   // Resolved once per (theme, lane colour) and cached; reads no layout.
   const style = useMemo<WaveformStyle | null>(
     () => (el ? waveformStyle(el, colorVar, theme) : null),

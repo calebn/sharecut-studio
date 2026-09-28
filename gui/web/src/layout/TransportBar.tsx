@@ -32,6 +32,7 @@ import {
   pillClassName,
   SegmentedControl,
   ToggleButton,
+  useResizeObserver,
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { AvatarStack } from "./AvatarStack";
@@ -54,6 +55,8 @@ const MODES: { id: AuditionMode; label: string; title: string }[] = [
 
 /** Transport collapses labeled chrome when shell is tablet/phone or bar width ≤ this. */
 export const TRANSPORT_COLLAPSE_PX = 720;
+
+const isNarrowTransport = (widthPx: number) => widthPx <= TRANSPORT_COLLAPSE_PX;
 
 type Props = {
   /** Tablet/phone: start collapsed (also forced by ResizeObserver). */
@@ -116,24 +119,19 @@ export function TransportBar({
   const [narrow, setNarrow] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
+  // Measured on mount and on a new project, then on every bar resize.
   useEffect(() => {
     const el = headerRef.current;
-    if (!el) {
-      return;
+    if (el) {
+      setNarrow(isNarrowTransport(el.clientWidth));
     }
-    const apply = (width: number) => {
-      setNarrow(width <= TRANSPORT_COLLAPSE_PX);
-    };
-    apply(el.clientWidth);
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        apply(entry.contentRect.width);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
   }, [project]);
+  useResizeObserver(headerRef, (entries) => {
+    const entry = entries[0];
+    if (entry) {
+      setNarrow(isNarrowTransport(entry.contentRect.width));
+    }
+  });
 
   const collapsed = compact || narrow;
   const loading = project == null;

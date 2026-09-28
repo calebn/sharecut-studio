@@ -198,7 +198,7 @@ The shell grid uses named areas (`banners / follow / transport / main / tabs / s
 
 ## Transport chrome (narrow)
 
-When the transport is **collapsed** (tablet/phone, or bar width ≤720px via ResizeObserver):
+When the transport is **collapsed** (tablet/phone, or bar width ≤720px via `ui/useResizeObserver`):
 
 The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent row above every mode body, leaving the header controls reachable. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
 
