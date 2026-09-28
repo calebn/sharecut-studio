@@ -19,7 +19,7 @@ export const AUDITION_MODES: readonly AuditionModeDef[] = [
   {
     id: "fx",
     label: "Edited stems",
-    title: "Each track with edits and effects",
+    title: "Each track on its own (not mixed), with edits and effects",
   },
   {
     id: "raw",

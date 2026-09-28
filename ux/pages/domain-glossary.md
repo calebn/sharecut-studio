@@ -25,7 +25,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
 | **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
 | **Remote agent link** | MCP URL for an external agent: `{base}/mcp/{token}/mcp` |
-| **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track with edits and effects, or the source audio without edits or effects |
+| **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track on its own (not mixed) with edits and effects, or the source audio without edits or effects |
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
 | **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
