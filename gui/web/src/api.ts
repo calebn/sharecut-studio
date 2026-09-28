@@ -80,6 +80,7 @@ export {
 } from "./api/mediaSession";
 export type { TranscriptVocabulary } from "./api/pipeline";
 export {
+  ANALYZE_WAIT_MS,
   analyzePipeline,
   cancelPipelineRun,
   followExportJob,
