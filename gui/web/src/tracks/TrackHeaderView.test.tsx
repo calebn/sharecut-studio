@@ -133,4 +133,26 @@ describe("TrackHeaderView", () => {
     expect(screen.getByText("dialogue")).toBeTruthy();
     expect(screen.queryByText("dialogue · Mira")).toBeNull();
   });
+
+  it("spells out envelope and other stale reason chips", () => {
+    renderHeader({
+      stemClass: "stale",
+      wholeReasons: ["envelope", "other"],
+      headerHighlight: true,
+    });
+    expect(screen.getByText("Envelope")).toBeTruthy();
+    expect(screen.getByText("Other")).toBeTruthy();
+  });
+
+  it("labels a regional-only stale track with full words", () => {
+    renderHeader({
+      stemClass: "stale",
+      hasRegional: true,
+      headerHighlight: true,
+    });
+    expect(screen.getByText("Some regions")).toHaveAttribute(
+      "title",
+      "Parts of this track are out of date",
+    );
+  });
 });

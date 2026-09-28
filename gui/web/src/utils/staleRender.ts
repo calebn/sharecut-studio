@@ -44,16 +44,19 @@ export type StaleRenderBreakdown = {
 const REASON_LABEL: Record<string, string> = {
   cut: "Cut",
   clip: "Clip",
-  envelope: "Env",
+  envelope: "Envelope",
   fx: "FX",
   gain: "Gain",
   mute: "Mute",
-  other: "Stem",
+  other: "Other",
 };
 
 export function reasonChipLabel(reason: string): string {
   return REASON_LABEL[reason] ?? reason;
 }
+
+/** Chip text for a track with only regional (non-whole-track) invalidations. */
+export const REGIONAL_CHIP_LABEL = "Some regions";
 
 function readInvalidations(project: ProjectView): RenderInvalidationView[] {
   const raw = (
