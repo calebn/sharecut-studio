@@ -940,6 +940,52 @@ describe("PipelinePanel", () => {
     ).toHaveAttribute("aria-valuenow", "50");
   });
 
+  it("renders a shared Analyze job's result that another viewer started", async () => {
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    dawState.activityJob = analyzeJobSnap({
+      id: "an-remote",
+      status: "ok",
+      message: "Analyze complete",
+      result: {
+        proposed_config: {},
+        patches: {},
+        reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
+        report_summary: { track_count: 1, reason_count: 1, tracks: [] },
+        applied: true,
+      },
+    });
+    rerender(<PipelinePanel />);
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("does not render a finished Analyze it never saw running", async () => {
+    dawState.activityJob = analyzeJobSnap({
+      id: "an-remote",
+      status: "ok",
+      message: "Analyze complete",
+      result: {
+        proposed_config: {},
+        patches: {},
+        reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
+        report_summary: { track_count: 1, reason_count: 1, tracks: [] },
+        applied: true,
+      },
+    });
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("host: mains hum")).not.toBeInTheDocument();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
