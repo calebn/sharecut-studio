@@ -26,3 +26,15 @@ class FakeBackend:
             lp[frame, :] = np.log(0.01)
             lp[frame, token] = np.log(0.9)
         return log_softmax(lp)
+
+
+class RecordingBackend:
+    """Wraps a backend and keeps a copy of every sample chunk it is asked to score."""
+
+    def __init__(self, inner: FakeBackend) -> None:
+        self._inner = inner
+        self.calls: list[np.ndarray] = []
+
+    def log_probs(self, samples: np.ndarray) -> np.ndarray:
+        self.calls.append(samples.copy())
+        return self._inner.log_probs(samples)

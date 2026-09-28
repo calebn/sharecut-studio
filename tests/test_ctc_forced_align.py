@@ -8,7 +8,7 @@ from itertools import pairwise
 import numpy as np
 import pytest
 
-from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend
+from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
 from podcast_mcp.engines.ctc_forced_align import (
     DEFAULT_MAX_GAP_SEC,
     DEFAULT_MAX_WINDOW_SEC,
@@ -265,15 +265,6 @@ def test_retime_spans_stream_matches_legacy_whole_file_slices() -> None:
     words.append(("bye", 97.0, 97.3))  # entirely past EOF
 
     vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
-
-    class RecordingBackend:
-        def __init__(self, inner: FakeBackend) -> None:
-            self._inner = inner
-            self.calls: list[np.ndarray] = []
-
-        def log_probs(self, samples: np.ndarray) -> np.ndarray:
-            self.calls.append(samples.copy())
-            return self._inner.log_probs(samples)
 
     def chunks(size: int = 4001) -> list[np.ndarray]:
         return [samples[i : i + size] for i in range(0, samples.size, size)]
