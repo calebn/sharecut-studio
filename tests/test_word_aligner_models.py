@@ -25,9 +25,9 @@ def _isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
-    word_aligner_models._verify_onnx_cached.cache_clear()
+    word_aligner_models._onnx_pin_mismatch_cached.cache_clear()
     yield
-    word_aligner_models._verify_onnx_cached.cache_clear()
+    word_aligner_models._onnx_pin_mismatch_cached.cache_clear()
 
 
 def test_catalog_pin_matches_benchmarked_candidate() -> None:
@@ -149,6 +149,8 @@ def test_is_cached_rejects_a_pinned_snapshot_with_a_bad_hash(tmp_path, monkeypat
     )
     monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", lambda p: "0" * 64)
     assert word_aligner_is_cached() is False
+    # same file key: clear the remembered mismatch to re-check with the good hash
+    word_aligner_models._onnx_pin_mismatch_cached.cache_clear()
     monkeypatch.setattr(
         "podcast_mcp.word_aligner_models.sha256_file",
         lambda p: word_aligner_model().onnx_sha256,
@@ -231,7 +233,7 @@ def test_is_cached_hashes_once_under_concurrent_status_checks(tmp_path, monkeypa
     assert len(calls) == 1
 
 
-def test_is_cached_does_not_remember_a_pin_mismatch(tmp_path, monkeypatch) -> None:
+def test_is_cached_remembers_a_pin_mismatch_until_the_file_changes(tmp_path, monkeypatch) -> None:
     snap = _complete_snapshot(tmp_path / "snap")
     monkeypatch.setattr(
         "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
@@ -247,8 +249,41 @@ def test_is_cached_does_not_remember_a_pin_mismatch(tmp_path, monkeypatch) -> No
     monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", fake_sha256)
 
     assert word_aligner_is_cached() is False
+    assert word_aligner_is_cached() is False
+    assert len(calls) == 1
+
+    (snap / "onnx" / "model.onnx").write_bytes(b"xy")
     assert word_aligner_is_cached() is True
     assert len(calls) == 2
+
+
+def test_is_cached_hashes_a_mismatch_once_under_concurrent_status_checks(
+    tmp_path, monkeypatch
+) -> None:
+    snap = _complete_snapshot(tmp_path / "snap")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    calls: list[Path] = []
+
+    def fake_sha256(p: Path) -> str:
+        calls.append(p)
+        time.sleep(0.05)
+        return "0" * 64
+
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", fake_sha256)
+
+    results: list[bool] = []
+    threads = [
+        threading.Thread(target=lambda: results.append(word_aligner_is_cached())) for _ in range(3)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert results == [False, False, False]
+    assert len(calls) == 1
 
 
 def test_model_supports_only_catalog_languages() -> None:

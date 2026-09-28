@@ -89,41 +89,54 @@ def _has_required_files(root: Path, model: WordAlignerModel) -> bool:
     return (root / "vocab.json").is_file() and (root / model.onnx_file).is_file()
 
 
+def _onnx_pin_mismatch(model_dir: Path, model: WordAlignerModel) -> str | None:
+    """Why the snapshot's ONNX file is not the pinned bytes, or None when it is."""
+    digest = sha256_file(model_dir / model.onnx_file)
+    if digest == model.onnx_sha256:
+        return None
+    return (
+        f"{model.onnx_file} sha256 {digest[:12]} does not match the pin; re-download with --upgrade"
+    )
+
+
 def verify_word_aligner_onnx(model_dir: Path, model: WordAlignerModel) -> None:
     """Fail closed when the snapshot's ONNX file is not the pinned bytes (corrupt or swapped)."""
-    digest = sha256_file(model_dir / model.onnx_file)
-    if digest != model.onnx_sha256:
-        raise WordAlignerMissingError(
-            model.id,
-            f"{model.onnx_file} sha256 {digest[:12]} does not match the pin; "
-            "re-download with --upgrade",
-        )
+    mismatch = _onnx_pin_mismatch(model_dir, model)
+    if mismatch is not None:
+        raise WordAlignerMissingError(model.id, mismatch)
 
 
-# Serialises the cached check so overlapping status requests hash the ONNX once, not each.
+# Serialises the cached check so overlapping status requests hash the ONNX once, not each
+# (pass or fail).
 _VERIFY_LOCK = threading.Lock()
 
 
 @lru_cache(maxsize=8)
-def _verify_onnx_cached(
+def _onnx_pin_mismatch_cached(
     model_dir: Path, model: WordAlignerModel, _onnx_key: tuple[str, int, int]
-) -> None:
-    """``verify_word_aligner_onnx``, remembered per (model pin, resolved path, size, mtime_ns).
+) -> str | None:
+    """``_onnx_pin_mismatch``, remembered per (model pin, resolved path, size, mtime_ns).
 
     Status polls (Pipeline config, bootstrap status) hash the ~360 MB snapshot once per
-    process. Only successes are remembered, because lru_cache does not cache a raised
-    error. A rewrite that keeps both size and mtime is not re-hashed here, but
+    process, whether it matches the pin or not, so queued polls on a corrupt snapshot do
+    not each re-hash it. A re-download (``--upgrade``) writes a new file, which changes the
+    key. A rewrite that keeps both size and mtime is not re-hashed here, but
     ``WordAligner.load`` and ``bootstrap_word_aligner`` call ``verify_word_aligner_onnx``
-    uncached every time, so a stale status never loads a tampered file.
+    uncached every time, so a stale status never loads a tampered file. An ``OSError``
+    (file vanished) is raised, not remembered.
     """
-    verify_word_aligner_onnx(model_dir, model)
+    return _onnx_pin_mismatch(model_dir, model)
 
 
 def _verify_word_aligner_onnx_once(model_dir: Path, model: WordAlignerModel) -> None:
     onnx = (model_dir / model.onnx_file).resolve()
     st = onnx.stat()
     with _VERIFY_LOCK:
-        _verify_onnx_cached(model_dir, model, (str(onnx), st.st_size, st.st_mtime_ns))
+        mismatch = _onnx_pin_mismatch_cached(
+            model_dir, model, (str(onnx), st.st_size, st.st_mtime_ns)
+        )
+    if mismatch is not None:
+        raise WordAlignerMissingError(model.id, mismatch)
 
 
 def word_aligner_override_dir() -> Path | None:
