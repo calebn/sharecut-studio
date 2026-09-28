@@ -56,13 +56,12 @@ def require_word_text(
         current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
         if collapse_whitespace(current) == collapse_whitespace(expected_text):
             return
-    span = (
-        f"word {start_word_index}"
-        if start_word_index == end_word_index
-        else f"words {start_word_index}-{end_word_index}"
-    )
+    if start_word_index == end_word_index:
+        span, pronoun = f"word {start_word_index}", "it"
+    else:
+        span, pronoun = f"words {start_word_index}-{end_word_index}", "them"
     raise TranscriptTextChangedError(
-        f"Transcript {span} on track {track_id!r} changed since you read it, "
+        f"Transcript {span} on track {track_id!r} changed since you read {pronoun}, "
         "so the edit was not applied. Re-read the transcript and try again."
     )
 

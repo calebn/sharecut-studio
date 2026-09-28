@@ -319,14 +319,22 @@ def test_require_word_text_matches(start: int, end: int, expected_text: str) -> 
 
 def test_require_word_text_mismatch_single_word_raises() -> None:
     p = _stale_guard_project()
-    with pytest.raises(TranscriptTextChangedError, match="word 0"):
+    with pytest.raises(TranscriptTextChangedError) as exc_info:
         require_word_text(p, "host", 0, 0, "the")
+    assert str(exc_info.value) == (
+        "Transcript word 0 on track 'host' changed since you read it, "
+        "so the edit was not applied. Re-read the transcript and try again."
+    )
 
 
 def test_require_word_text_mismatch_phrase_raises() -> None:
     p = _stale_guard_project()
-    with pytest.raises(TranscriptTextChangedError, match="words 1-2"):
+    with pytest.raises(TranscriptTextChangedError) as exc_info:
         require_word_text(p, "host", 1, 2, "quick dog")
+    assert str(exc_info.value) == (
+        "Transcript words 1-2 on track 'host' changed since you read them, "
+        "so the edit was not applied. Re-read the transcript and try again."
+    )
 
 
 def test_require_word_text_case_sensitive() -> None:

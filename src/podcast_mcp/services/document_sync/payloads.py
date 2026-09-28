@@ -164,7 +164,7 @@ class SetEffectBypassPayload(BaseModel):
 
 
 _EXPECTED_TEXT_DESCRIPTION = (
-    "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
+    "Optional stale-index guard: the word (or space-joined phrase) text the "
     "client saw at these indices. When it no longer matches (whitespace-collapsed, "
     "case-sensitive) or those indices no longer exist, the command is rejected with a 409 "
     "conflict and nothing changes. Omit to skip the check."
