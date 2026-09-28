@@ -1126,6 +1126,28 @@ def test_api_comments_create_resolve_action(minimal_project) -> None:
     assert resolved.json()["comment"]["resolved"] is True
 
 
+def test_api_comment_noop_patch_journals_nothing(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    path = str(minimal_project)
+    created = client.post(
+        "/api/comments",
+        json={"path": path, "body": "note", "author": "host", "timeline_start": 1.0},
+    )
+    assert created.status_code == 200
+    cid = created.json()["comment"]["id"]
+    seq = client.get("/api/project/meta", params={"path": path}).json()["server_seq"]
+
+    noop = client.patch(f"/api/comments/{cid}", json={"path": path})
+    assert noop.status_code == 200
+    assert noop.json()["comment"]["id"] == cid
+    assert client.get("/api/project/meta", params={"path": path}).json()["server_seq"] == seq
+
+
 def test_api_pipeline_steps() -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

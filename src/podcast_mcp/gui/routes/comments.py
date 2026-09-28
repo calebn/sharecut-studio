@@ -55,6 +55,7 @@ def patch_comment(
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     svc = CommentService(ws)
+    mutated = True
     try:
         if req.resolved is not None:
             if not req.by:
@@ -75,11 +76,13 @@ def patch_comment(
             )
         else:
             comment = svc.get(comment_id)
+            mutated = False  # read-only PATCH: nothing to journal
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    notify_comments_changed(path)
+    if mutated:
+        notify_comments_changed(path)
     return {"comment": comment}
 
 
