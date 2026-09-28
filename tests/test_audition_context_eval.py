@@ -91,3 +91,20 @@ def test_inject_hum_span_adds_hum_at_unity(tmp_path: Path) -> None:
     full = eng.measure_loudness_full(out)
     assert full is not None and full["true_peak_db"] is not None
     assert full["true_peak_db"] < 0.0
+
+
+def test_score_labeled_windows_skips_prosody(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = EpisodeProject.create("eval", str(tmp_path))
+    seen: list[dict[str, object]] = []
+
+    def context(_project: EpisodeProject, start: float, end: float, **kwargs: object):
+        seen.append(kwargs)
+        return {"hypotheses": []}
+
+    monkeypatch.setattr(evaluation, "build_audition_context", context)
+    evaluation.score_labeled_windows(
+        project, [{"code": "hum_in_window", "start": 1, "end": 2, "expect": False}]
+    )
+    assert seen and seen[0]["include_prosody"] is False

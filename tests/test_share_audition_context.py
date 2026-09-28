@@ -242,6 +242,56 @@ def test_guest_audition_context_denied_without_tool(
     assert denied["error"]["code"] == -32003
 
 
+def test_guest_audition_context_prosody_missing_has_no_host_hint(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    monkeypatch.setattr(
+        "podcast_mcp.edits.prosody_profile.prosody_window",
+        lambda *_a, **_k: {
+            "status": "missing",
+            "hint": "run podcast pipeline run --only analyze_prosody",
+        },
+    )
+    info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+    assert info["tracks"][0]["prosody"] == {"status": "missing"}
+    assert "podcast pipeline run" not in json.dumps(info)
+
+
+def test_guest_audition_context_prosody_error_is_generic(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+
+    def boom(*_a, **_k):
+        raise OSError(f"boom {tmp_workspace}/transcripts/prosody/x.json")
+
+    monkeypatch.setattr("podcast_mcp.edits.prosody_profile.prosody_window", boom)
+    info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+    assert info["tracks"][0]["prosody"] == {"status": "unavailable", "error": "prosody unavailable"}
+    assert str(tmp_workspace) not in json.dumps(info)
+
+
+def test_guest_audition_context_includes_fresh_prosody(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    monkeypatch.setattr(
+        "podcast_mcp.edits.prosody_profile.prosody_window",
+        lambda *_a, **_k: {
+            "status": "fresh",
+            "segments": [{"line": "F0 180Hz", "source_start": 0.0, "source_end": 1.0}],
+            "truncated": False,
+        },
+    )
+    info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+    assert info["tracks"][0]["prosody"]["status"] == "fresh"
+    assert info["prosody_notes"] == ["host: F0 180Hz"]
+
+
 def test_share_audition_context_errors(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])

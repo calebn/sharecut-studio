@@ -220,6 +220,8 @@ def score_labeled_windows(
                 # The evaluator gates hypotheses. PNG pixels are independently covered
                 # by FFmpeg and visual-context tests, and do not affect those gates.
                 render_visual_pngs=False,
+                # Prosody feeds no hypothesis gate; skip the per-track cache lookups.
+                include_prosody=False,
             )
             contexts[window] = ctx
         found = code in hypothesis_codes(ctx)
