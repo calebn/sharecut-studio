@@ -285,14 +285,17 @@ def test_run_prosody_analysis_holds_per_track_lock(tmp_workspace: Path, monkeypa
     path = _project_with_host(tmp_workspace)
     proj = load_project(path)
     seen: list[Path] = []
+    timeouts: list[float] = []
 
-    def fake_lock(lock_path, timeout):
+    def fake_lock(lock_path, *, timeout):
         seen.append(lock_path)
+        timeouts.append(timeout)
         return contextlib.nullcontext()
 
-    monkeypatch.setattr(pp, "shared_file_lock", fake_lock)
+    monkeypatch.setattr(pp, "hold_shared_file_lock", fake_lock)
     pp.run_prosody_analysis(proj, {})
     assert [p.name for p in seen] == ["host.lock"]
+    assert timeouts == [pp.PROSODY_LOCK_TIMEOUT_SEC]
 
 
 def test_version_bump_recomputes_and_supersedes_old_file(tmp_workspace: Path, monkeypatch) -> None:

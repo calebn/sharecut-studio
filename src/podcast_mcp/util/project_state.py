@@ -15,7 +15,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 from filelock import Timeout
 
 from podcast_mcp.models import EpisodeProject, project_file_path, workspace_artifacts_dir
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock, shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
 
@@ -131,12 +131,13 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     commit, so read-modify-write is serialized across processes (#213).
     Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
     """
-    with project_state_lock(project):
-        file_lock = shared_file_lock(
+    with (
+        project_state_lock(project),
+        hold_shared_file_lock(
             project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
-        )
-        with file_lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC):
-            yield
+        ),
+    ):
+        yield
 
 
 @contextmanager
@@ -156,13 +157,11 @@ def current_cancel_check() -> Callable[[], bool] | None:
 
 def render_lock_held(project: EpisodeProject) -> bool:
     """Whether this thread holds ``render_lock(project)`` (the file lock is thread-local)."""
-    return shared_file_lock(render_lock_path(project), timeout=RENDER_LOCK_TIMEOUT_SEC).is_locked
+    return shared_file_lock(render_lock_path(project)).is_locked
 
 
 def _commit_lock_held(project: EpisodeProject) -> bool:
-    return shared_file_lock(
-        project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
-    ).is_locked
+    return shared_file_lock(project_commit_lock_path(project)).is_locked
 
 
 @contextmanager
@@ -192,7 +191,7 @@ def render_lock(
     ``cancel_check`` (or the one set by ``render_cancel_scope``) returning true raises
     ``CancelledProgress``. After ``timeout`` it raises ``RenderBusyError``.
     """
-    lock = shared_file_lock(render_lock_path(project), timeout=RENDER_LOCK_TIMEOUT_SEC)
+    lock = shared_file_lock(render_lock_path(project))
     if not lock.is_locked and _commit_lock_held(project):
         raise RuntimeError(
             "render_lock taken while holding project_commit_lock; lock order is the render "

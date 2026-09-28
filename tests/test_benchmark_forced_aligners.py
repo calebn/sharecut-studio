@@ -13,6 +13,7 @@ import pytest
 
 from ctc_fakes import FakeBackend
 from podcast_mcp.engines.ctc_forced_align import CtcVocab
+from podcast_mcp.util.file_locks import shared_file_lock
 from script_loader import load_script
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -954,14 +955,12 @@ def test_prepare_items_holds_the_native_lock_while_resolving(tmp_path) -> None:
     inner = _tones_native()
 
     def fake_native(audio_path, model):
-        held.append(
-            bfa.shared_file_lock(lock_path, timeout=bfa.NATIVE_CACHE_LOCK_TIMEOUT_SEC).is_locked
-        )
+        held.append(shared_file_lock(lock_path).is_locked)
         return inner(audio_path, model)
 
     bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
     assert held == [True]
-    assert not bfa.shared_file_lock(lock_path, timeout=bfa.NATIVE_CACHE_LOCK_TIMEOUT_SEC).is_locked
+    assert not shared_file_lock(lock_path).is_locked
 
 
 def test_prepare_items_waits_for_another_pass_holding_the_native_lock(
