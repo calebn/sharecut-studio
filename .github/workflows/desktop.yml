@@ -129,7 +129,7 @@ jobs:
 
   # Run the cross-process project commit-lock tests (history + commit transaction,
   # review publication) on real Windows: review publication needs FFmpeg and fails
-  # closed on Windows outside its portable checks (tests/review_platform.py; see
+  # closed on Windows, so its staging tests skip there via the markers in tests/review_platform.py (see
   # docs/persistence.md's Inventory row for review publication).
   project-commit-lock-windows:
     runs-on: windows-latest
@@ -150,5 +150,5 @@ jobs:
       # Two separate steps: pwsh only fails the job on the last command's exit code.
       - name: Project commit-lock and history tests
         run: python -m pytest --no-cov -q -rs tests/test_project_commit_lock.py tests/test_history.py --timeout=180
-      - name: Portable review publication tests
-        run: python -m pytest --no-cov -q -rs tests/test_review_versions.py -k "publish or publication" --timeout=180
+      - name: Review publication tests
+        run: python -m pytest --no-cov -q -rs tests/test_review_versions.py --timeout=180

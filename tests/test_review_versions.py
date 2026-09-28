@@ -497,6 +497,7 @@ def test_staging_rejects_planted_output_symlink(minimal_project, sample_wav, mon
     assert not project.review.versions
 
 
+@requires_safe_failed_cleanup
 def test_service_sweeps_before_taking_state_lock(minimal_project, sample_wav, monkeypatch):
     _premix_project(minimal_project, sample_wav, monkeypatch)
     acquired: list[bool] = []
@@ -646,6 +647,7 @@ def test_quarantine_creation_stays_in_pinned_root_after_symlink_retarget(tmp_pat
     assert not list(pinned.glob(".failed-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_public_directory_invisible_during_encode(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     monkeypatch.setattr(review_versions, "_new_id", lambda: "invisible")
@@ -668,6 +670,7 @@ def test_public_directory_invisible_during_encode(minimal_project, sample_wav, m
     assert created[0] not in review_versions._active_stage_leases
 
 
+@requires_safe_failed_cleanup
 def test_other_process_claims_public_name_before_promotion(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -695,6 +698,7 @@ def test_other_process_claims_public_name_before_promotion(
     assert not list((art / "review").glob(".staging-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_other_process_replaces_name_during_quarantine(tmp_path, monkeypatch):
     version_dir, identity = _created_version_dir(tmp_path)
     original = version_dir.with_name("original")
@@ -722,6 +726,7 @@ def test_other_process_replaces_name_during_quarantine(tmp_path, monkeypatch):
     assert (original / "mix.wav").read_bytes() == b"partial"
 
 
+@requires_safe_failed_cleanup
 def test_staging_identity_failure_never_exposes_public_version(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -738,6 +743,7 @@ def test_staging_identity_failure_never_exposes_public_version(
     assert not list((art / "review").glob(".staging-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_initial_stage_stat_failure_uses_pinned_identity_for_cleanup(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -768,6 +774,7 @@ def test_initial_stage_stat_failure_uses_pinned_identity_for_cleanup(
     assert not list((art / "review").glob(".staging-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_staging_replacement_during_identity_read_is_rejected(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -899,6 +906,7 @@ def test_direct_publish_cleans_promoted_media_after_attach_failure(
     assert not list((art / "review").glob("[!.]*"))
 
 
+@requires_safe_failed_cleanup
 def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     real_promote = review_versions._rename_noreplace
@@ -916,6 +924,7 @@ def test_promotion_detects_replaced_staging_directory(minimal_project, sample_wa
     assert not project.review.versions
 
 
+@requires_safe_failed_cleanup
 def test_promotion_rejects_changed_wav_bytes(minimal_project, sample_wav, monkeypatch):
     project, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     real_promote = review_versions._rename_noreplace
@@ -954,6 +963,7 @@ def test_clean_created_version_keeps_directory_replaced_before_check(tmp_path, m
     assert not list(version_dir.parent.glob(".failed-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_clean_created_version_mkdtemp_failure_keeps_directory(tmp_path, monkeypatch):
     version_dir, identity = _created_version_dir(tmp_path)
 
@@ -1070,6 +1080,7 @@ def test_publish_id_collision_preserves_existing_directory(
     assert proj.review.versions == []
 
 
+@requires_safe_failed_cleanup
 def test_list_and_set_active(minimal_project, sample_wav, tmp_workspace):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -1107,6 +1118,7 @@ def _publish(minimal_project, sample_wav):
     return load_project(minimal_project), ver["id"]
 
 
+@requires_safe_failed_cleanup
 def test_version_paths_stay_under_review_root(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     root = review_artifacts_dir(p).resolve()
@@ -1116,6 +1128,7 @@ def test_version_paths_stay_under_review_root(minimal_project, sample_wav, tmp_w
     assert mp3.is_relative_to(root)
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("failure", [RuntimeError("encode failed"), KeyboardInterrupt()])
 def test_failed_mp3_retry_never_exposes_partial_file(
     minimal_project, sample_wav, tmp_workspace, failure
@@ -1158,6 +1171,7 @@ def test_failed_mp3_retry_never_exposes_partial_file(
     assert mp3.read_bytes() == b"complete mp3"
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("force_copy", [False, True])
 def test_mp3_retry_snapshot_survives_in_place_source_write(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, force_copy
@@ -1401,6 +1415,7 @@ def test_mp3_retry_caps_failed_stale_stat_attempts(
     assert mp3.read_bytes() == b"complete"
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_skips_cleanup_without_safe_directory_operations(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1421,6 +1436,7 @@ def test_mp3_retry_skips_cleanup_without_safe_directory_operations(
     assert mp3.read_bytes() == b"complete"
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -1451,6 +1467,7 @@ def test_mp3_retry_preserves_encode_error_if_temporary_cleanup_fails(
     assert review_guest_audio_path(project, version_id) == version_audio_path(project, version_id)
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_retargeted_review_root_preserves_other_media(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -1493,6 +1510,7 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
     assert version.model_dump() == original_metadata
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("fallback", [False, True], ids=["descriptor-walk", "path-fallback"])
 def test_mp3_retry_uses_separate_inode(minimal_project, sample_wav, request, fallback):
     project, version_id = _publish(minimal_project, sample_wav)
@@ -1513,6 +1531,7 @@ def test_mp3_retry_uses_separate_inode(minimal_project, sample_wav, request, fal
     encode_version_mp3(project, version_id, eng=InspectingEngine())
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_native_clone_avoids_full_copy(minimal_project, sample_wav, monkeypatch):
     project, version_id = _publish(minimal_project, sample_wav)
     version_mp3_path(project, version_id).unlink()
@@ -1538,6 +1557,7 @@ def test_mp3_retry_native_clone_avoids_full_copy(minimal_project, sample_wav, mo
     encode_version_mp3(project, version_id, eng=InspectingEngine())
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_copies_pinned_wav_when_clone_fails(minimal_project, sample_wav, monkeypatch):
     project, version_id = _publish(minimal_project, sample_wav)
     version_mp3_path(project, version_id).unlink()
@@ -1556,6 +1576,7 @@ def test_mp3_retry_copies_pinned_wav_when_clone_fails(minimal_project, sample_wa
     encode_version_mp3(project, version_id, eng=InspectingEngine())
 
 
+@requires_safe_failed_cleanup
 def test_mp3_retry_clones_pinned_source_after_path_swap(minimal_project, sample_wav, monkeypatch):
     project, version_id = _publish(minimal_project, sample_wav)
     version_mp3_path(project, version_id).unlink()
@@ -1581,12 +1602,14 @@ def test_mp3_retry_clones_pinned_source_after_path_swap(minimal_project, sample_
     encode_version_mp3(project, version_id, eng=InspectingEngine())
 
 
+@requires_safe_failed_cleanup
 def test_review_artifacts_dir_matches_writer_reldir(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     assert review_artifacts_dir(p) == p.workspace_path() / REVIEW_ARTIFACTS_RELDIR
     assert get_version(p, vid).audio_relpath.startswith(f"{REVIEW_ARTIFACTS_RELDIR}/")
 
 
+@requires_safe_failed_cleanup
 def test_shares_sidecar_lives_under_review_artifacts_dir(
     minimal_project, sample_wav, tmp_workspace
 ):
@@ -1596,6 +1619,7 @@ def test_shares_sidecar_lives_under_review_artifacts_dir(
     assert shares_path(p) == review_artifacts_dir(p) / "shares.json"
 
 
+@requires_safe_failed_cleanup
 def test_version_paths_accept_legacy_spellings(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     orig = get_version(p, vid).audio_relpath
@@ -1609,6 +1633,7 @@ def test_version_paths_accept_legacy_spellings(minimal_project, sample_wav, tmp_
     assert version_audio_path(p, vid) == expected
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize(
     "make_relpath",
     [
@@ -1635,6 +1660,7 @@ def test_version_audio_path_rejects_escape(
     assert abs_outside not in str(excinfo.value)
 
 
+@requires_safe_failed_cleanup
 def test_version_mp3_path_rejects_escape(minimal_project, sample_wav, tmp_workspace):
     p, vid = _publish(minimal_project, sample_wav)
     outside = tmp_workspace.parent / "outside.wav"
@@ -1652,6 +1678,7 @@ def test_version_mp3_path_rejects_escape(minimal_project, sample_wav, tmp_worksp
     assert get_version(p, vid).mp3_relpath == original_mp3_relpath
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("field", ["audio_relpath", "mp3_relpath"])
 def test_version_paths_reject_symlink_escape(minimal_project, sample_wav, tmp_workspace, field):
     p, vid = _publish(minimal_project, sample_wav)
@@ -1771,6 +1798,7 @@ def _premix_project(minimal_project, sample_wav, monkeypatch):
     return project, art
 
 
+@requires_safe_failed_cleanup
 def test_stage_version_creates_media_without_touching_project(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -1800,6 +1828,7 @@ def test_stage_version_requires_lease_owner_callback_before_creating_media(
     assert set(review_versions._active_stage_leases) == leases_before
 
 
+@requires_safe_failed_cleanup
 def test_attach_version_appends_and_optionally_activates(minimal_project, sample_wav, monkeypatch):
     project, _ = _premix_project(minimal_project, sample_wav, monkeypatch)
     first = publish_version(project, label="a", set_active=False)
@@ -1839,6 +1868,7 @@ def test_discard_created_version_logs_and_never_raises(tmp_path, monkeypatch, ca
     assert "Could not remove review version directory" in caplog.text
 
 
+@requires_safe_failed_cleanup
 def test_attach_version_leaves_audio_fingerprint_unchanged(
     minimal_project, sample_wav, monkeypatch
 ):
