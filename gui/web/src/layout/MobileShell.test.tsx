@@ -267,6 +267,39 @@ describe("MobileShell", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("offers Add chapter at playhead in More for a host", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(
+      screen.getByRole("button", { name: "Add chapter at playhead" }),
+    ).toBeTruthy();
+  });
+
+  it("hides Add chapter at playhead in More for a share guest", async () => {
+    const user = userEvent.setup();
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject(), "view", ["play"]);
+    render(
+      <DawProvider
+        projectPath="share:tok"
+        initialProject={minimalProject()}
+        guestMode="view"
+      >
+        <MobileShell />
+      </DawProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "More" }));
+    expect(
+      screen.queryByRole("button", { name: "Add chapter at playhead" }),
+    ).toBeNull();
+  });
+
   it("switches between the Gestures and keyboard cheatsheets without stacking", async () => {
     const user = userEvent.setup();
     render(

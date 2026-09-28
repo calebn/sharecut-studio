@@ -549,6 +549,8 @@ describe("TransportBar wide layout", () => {
     await userEvent.click(screen.getByRole("button", { name: "View" }));
     const view = screen.getByRole("menu", { name: "View menu" });
     expect(within(view).getByRole("group", { name: "Layers" })).toBeTruthy();
+    expect(within(view).getByRole("group", { name: "Zoom" })).toBeTruthy();
+    expect(within(view).queryByRole("group", { name: "Markers" })).toBeNull();
     const theme = within(view).getByRole("group", { name: "Theme" });
     expect(within(theme).getAllByRole("menuitemradio")).toHaveLength(3);
     expect(
@@ -571,8 +573,48 @@ describe("TransportBar wide layout", () => {
     const main = screen.getByRole("menu", { name: "Transport menu" });
     expect(within(main).queryByRole("group", { name: "Layers" })).toBeNull();
     expect(within(main).getByRole("group", { name: "Project" })).toBeTruthy();
+    expect(within(main).getByRole("group", { name: "Markers" })).toBeTruthy();
     expect(within(main).getByRole("group", { name: "Help" })).toBeTruthy();
     await expectNoA11yViolations(main);
+  });
+
+  it("offers Add chapter at playhead in the Menu's host-only Markers group", async () => {
+    render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ tracks: TRACKS })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const main = screen.getByRole("menu", { name: "Transport menu" });
+    const markers = within(main).getByRole("group", { name: "Markers" });
+    expect(
+      within(markers).getByRole("menuitem", {
+        name: "Add chapter at playhead",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("hides the Markers group from a share guest", async () => {
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject({ tracks: TRACKS }), "view", [
+        "play",
+      ]);
+    render(
+      <DawProvider
+        projectPath="share:tok"
+        initialProject={minimalProject({ tracks: TRACKS })}
+        guestMode="view"
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const main = screen.getByRole("menu", { name: "Transport menu" });
+    expect(within(main).queryByRole("group", { name: "Markers" })).toBeNull();
   });
 
   it("shows the audio error on the wide bar and in the collapsed Menu", async () => {

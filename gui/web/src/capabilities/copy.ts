@@ -394,6 +394,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "Drag clip bodies to move in time or onto another track · gaps and overlap allowed",
   },
+  "daw.edit.addChapter": {
+    label: "Add chapter at playhead",
+    tooltip: "Add a chapter marker at the playhead · turns Markers on",
+  },
   "daw.edit.rollClipJoin": {
     label: "Roll clip join",
     tooltip: "Drag join to roll both clip edges · clips stay flush",
@@ -421,7 +425,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   tightenPanel: "daw.tighten.goToHit",
   layoutChip: "daw.layout.default",
   "transport.layout": "daw.layout.timeline",
-  "transport.menu": "daw.media.import",
+  "transport.menu": "daw.edit.addChapter",
   editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
@@ -463,6 +467,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",
+  "mobileShell.more": "daw.edit.addChapter",
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",

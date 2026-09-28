@@ -131,7 +131,7 @@ export interface DawState {
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
   /** Current low-confidence walkthrough stop; outlives a TranscriptPanel remount, reset by a project switch (hydrate). */
   transcriptReviewCursor: TranscriptReviewCursor | null;
-  /** The overlay legend's + Chapter add is in flight for the current project; outlives a View-menu remount, reset by a project switch (hydrate). */
+  /** `edit.addChapter` (Menu › Markers, MobileShell More) is in flight for the current project; outlives a menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;

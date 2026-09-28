@@ -264,6 +264,7 @@ describe("command governance", () => {
       "export.deliverables",
       "share.manage",
       "record.openPanel",
+      "edit.addChapter",
     ];
     for (const id of hostProjectCommands) {
       expect(COMMANDS[id].when, id).toBe("hostProjectLoaded");
