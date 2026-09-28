@@ -15,6 +15,11 @@ on:
       - "scripts/build_sidecar.py"
       - "scripts/sidecar_*.rs"
       - "tests/test_pinned_media.py"
+      - "tests/test_project_commit_lock.py"
+      - "tests/test_history.py"
+      - "tests/test_review_versions.py"
+      - "tests/process_helpers.py"
+      - "tests/review_platform.py"
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
@@ -27,6 +32,11 @@ on:
       - "scripts/build_sidecar.py"
       - "scripts/sidecar_*.rs"
       - "tests/test_pinned_media.py"
+      - "tests/test_project_commit_lock.py"
+      - "tests/test_history.py"
+      - "tests/test_review_versions.py"
+      - "tests/process_helpers.py"
+      - "tests/review_platform.py"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 
@@ -116,3 +126,29 @@ jobs:
           pip install -e ".[gui,dev]"
       - name: Pinned media tests
         run: python -m pytest -q --no-cov tests/test_pinned_media.py
+
+  # Run the cross-process project commit-lock tests (history + commit transaction,
+  # review publication) on real Windows: review publication needs FFmpeg and fails
+  # closed on Windows outside its portable checks (tests/review_platform.py; see
+  # docs/persistence.md's Inventory row for review publication).
+  project-commit-lock-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install FFmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Check FFmpeg on PATH
+        run: ffmpeg -version
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui,dev]"
+      # Two separate steps: pwsh only fails the job on the last command's exit code.
+      - name: Project commit-lock and history tests
+        run: python -m pytest --no-cov -q -rs tests/test_project_commit_lock.py tests/test_history.py --timeout=180
+      - name: Portable review publication tests
+        run: python -m pytest --no-cov -q -rs tests/test_review_versions.py -k "publish or publication" --timeout=180
