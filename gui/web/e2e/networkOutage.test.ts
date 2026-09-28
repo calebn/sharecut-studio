@@ -113,6 +113,32 @@ describe("installNetworkOutage", () => {
     await expect(outage.drop()).resolves.toBeUndefined();
   });
 
+  it("does not reject when refusing a socket whose close() rejects while down", async () => {
+    const fp = fakePage();
+    const outage = await installNetworkOutage(fp.page, { webSocket: /\/ws/ });
+    await outage.drop();
+    const { route } = fakeWsRoute();
+    route.close.mockRejectedValueOnce(new Error("already closed"));
+
+    await expect(fp.triggerWs(route)).resolves.toBeUndefined();
+    expect(route.close).toHaveBeenCalledWith(OUTAGE_CLOSE);
+    expect(route.connectToServer).not.toHaveBeenCalled();
+  });
+
+  it("drop() forgets the sockets it closed, so a second drop() does not close them again", async () => {
+    const fp = fakePage();
+    const outage = await installNetworkOutage(fp.page, { webSocket: /\/ws/ });
+    const { route, server } = fakeWsRoute();
+    await fp.triggerWs(route);
+
+    await outage.drop();
+    outage.restore();
+    await outage.drop();
+
+    expect(route.close).toHaveBeenCalledTimes(1);
+    expect(server.close).toHaveBeenCalledTimes(1);
+  });
+
   it("routes matching HTTP with fallback() while up and abort() while down", async () => {
     const fp = fakePage();
     const matcher = (url: URL) => url.pathname.startsWith("/api/rec/");
