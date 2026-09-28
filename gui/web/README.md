@@ -271,6 +271,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `CommandButton` / `useCommand` | Pointer → `execute(commandId)` (default `skipWhen`) |
 | `Menu` / `CommandMenuItem` | Popup menus (Escape, arrows, outside click); closing returns focus to the opener unless focus already moved elsewhere (for example to a sibling menu's trigger) |
 | `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome |
+| `useResizeObserver` | Resize → callback (one observer, latest callback, `enabled`); never `new ResizeObserver` inline |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
 | `InlineError` | Non-pipeline error lines |
