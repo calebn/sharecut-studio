@@ -31,7 +31,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
 from process_helpers import reap
-from sync_helpers import _foreign_document_write, _foreign_session_write
+from sync_helpers import _foreign_document_write, _foreign_session_write, drain
 
 _CTX = mp.get_context("spawn")
 
@@ -40,18 +40,6 @@ _CTX = mp.get_context("spawn")
 def _stop_bridge_after():
     yield
     cross_process_bridge().stop_all()
-
-
-def _drain(q: asyncio.Queue) -> list[dict]:
-    """Pop everything currently queued and return only the ``Applied`` events."""
-    out: list[dict] = []
-    while True:
-        try:
-            event = q.get_nowait()
-        except asyncio.QueueEmpty:
-            return out
-        if event.get("type") == "Applied":
-            out.append(event)
 
 
 def test_plane_baselines_then_publishes_only_foreign_advances():
@@ -511,7 +499,7 @@ def test_watcher_publishes_a_foreign_agent_row_an_in_process_write_landed_on(min
 
         watcher.tick()
         loop.run_until_complete(asyncio.sleep(0))
-        events = _drain(q)
+        events = drain(q, "Applied")
 
         assert [e["command"]["command_id"] for e in events] == [
             own["command"]["command_id"],
@@ -526,7 +514,7 @@ def test_watcher_publishes_a_foreign_agent_row_an_in_process_write_landed_on(min
 
         watcher.tick()
         loop.run_until_complete(asyncio.sleep(0))
-        assert _drain(q) == []
+        assert drain(q, "Applied") == []
     finally:
         hub.unsubscribe(session_key, q)
         loop.close()
@@ -558,7 +546,7 @@ def test_watcher_reports_the_agent_row_when_two_foreign_writers_collapse(minimal
 
         watcher.tick()
         loop.run_until_complete(asyncio.sleep(0))
-        events = _drain(q)
+        events = drain(q, "Applied")
 
         assert len(events) == 1
         event = events[0]
@@ -595,7 +583,7 @@ def test_watcher_publishes_a_foreign_document_row_an_in_process_write_landed_on(
 
         watcher.tick()
         loop.run_until_complete(asyncio.sleep(0))
-        events = _drain(q)
+        events = drain(q, "Applied")
 
         assert len(events) == 2
         bridged = events[-1]
