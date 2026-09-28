@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { execute } from "../commands/execute";
+import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { minimalProject } from "../test/fixtures";
@@ -9,6 +11,11 @@ import { TrackHeader } from "./TrackHeader";
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
+
+function KeymapHost() {
+  useDawKeymapListener();
+  return null;
+}
 
 function projectWithTrack() {
   return minimalProject({
@@ -197,6 +204,35 @@ describe("TrackHeader", () => {
     expect(grip).toHaveAttribute("aria-roledescription", "drag handle");
     await user.click(grip);
     expect(onSelect).toHaveBeenCalledWith(false);
+  });
+
+  it("Space on the reorder grip selects the track instead of toggling play", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    vi.mocked(execute).mockClear();
+    const project = projectWithTrack();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <KeymapHost />
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={onSelect}
+          reorderEnabled
+        />
+      </DawProvider>,
+    );
+    useDawStore.setState({ timelineFocused: true });
+    const grip = screen.getByRole("button", { name: /Reorder track Guest/i });
+    grip.focus();
+    await user.keyboard(" ");
+    expect(onSelect).toHaveBeenCalledWith(false);
+    expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
+      "transport.togglePlay",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("shows no stem dot for a new track with no audio, matching the status bar", () => {

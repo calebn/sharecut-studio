@@ -108,6 +108,13 @@ export function TrackHeaderView({
             e.stopPropagation();
             onHandleSelect?.();
           }}
+          onKeyDown={(e) => {
+            // Space activates this button (selects the track) instead of
+            // reaching the window keymap, where it would toggle playback.
+            if (e.key === " ") {
+              e.stopPropagation();
+            }
+          }}
         />
       ) : null}
       <span className="track-title">
