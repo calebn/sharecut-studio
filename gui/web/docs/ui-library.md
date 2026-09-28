@@ -70,7 +70,7 @@ Returns `{ run, enabled, label, def }` from catalog + context.
 ### Tabs vs ToggleButton toolbars
 
 - **`role="tablist"` / `tab`:** real exclusive panels (e.g. CommandPalette categories).
-- **`ToggleButton` (`aria-pressed`):** toolbars and mode strips (shell tabs, audition Mix/FX/Raw, Select/Blade). Do not invent a third pattern.
+- **`ToggleButton` (`aria-pressed`):** toolbars and mode strips (shell tabs, audition Full mix / Edited stems / Original, Select/Blade). Do not invent a third pattern.
 
 ## A11y bar
 
@@ -94,7 +94,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`; `returnFocusRef` picks where focus returns) |
 | `useOutsidePointerDown` | Window `pointerdown` outside a floating panel and its trigger → close (`Menu`, the timeline join popover) |
 | `Icon` | Compact stroke icons for transport / tools (`currentColor`); play, pause, and stop are filled |
-| `SegmentedControl` | Track of quiet `ToggleButton`s (audition Mix/FX/Raw); themed on panes, dark in the transport, radio rows in a `Menu` |
+| `SegmentedControl` | Track of quiet `ToggleButton`s (audition Full mix / Edited stems / Original); themed on panes, dark in the transport, radio rows in a `Menu` |
 | `Pill` | Read-only status chip (`neutral` / `ok` / `warning` / `audition`) |
 | `Timecode` | Tabular playhead readout: large current time, muted total |
 | `EmptyState` | Quiet empty list or panel text (no fill or border, so it never reads as a disabled field). `as="li"` inside lists, `as="div"` in other blocks; do not add per-panel empty classes. Not for hints or notes (use the surface's note text) |
