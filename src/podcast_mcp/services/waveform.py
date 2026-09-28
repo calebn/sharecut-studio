@@ -34,6 +34,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Literal, TypeVar, cast
 
+from podcast_mcp.engines.ffmpeg import PCM_WINDOW_TIMEOUT_SEC
 from podcast_mcp.engines.waveform_media import (
     REASON_DECODE_FAILED,
     REASON_NO_MEDIA,
@@ -106,6 +107,9 @@ _PCM_MAX = 32  # decoded compressed blocks; each at most pcm_block_frames * 4 by
 # Process-wide, shared by every tab and project: one tab's fetchLimit (4) never trips it
 # alone; more tabs doing compressed deep zoom get a 503 the client re-queues (latency only).
 PCM_DECODE_MAX_CONCURRENT = 4
+# A request waiting on another's read of its block gives up (busy 503) after one decode
+# watchdog, so parked request threads stay bounded even if a read ever outlives it.
+_PCM_WAIT_SEC = PCM_WINDOW_TIMEOUT_SEC
 GC_MIN_AGE_SEC = 7 * 86_400.0
 
 log = logging.getLogger(__name__)
@@ -436,7 +440,9 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     ``PCM_DECODE_MAX_CONCURRENT`` process-wide slots without waiting
     (``WaveformBusyError`` when none is free). A decode runs to the end (at most the
     ffmpeg watchdog) even when its client has gone away and holds its slot until
-    then; its block is still cached.
+    then; its block is still cached. A request waiting on another's read of the
+    block gives up with ``WaveformBusyError`` after ``_PCM_WAIT_SEC`` (the ffmpeg
+    watchdog).
     """
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
@@ -455,9 +461,18 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         hit = _lru_get(_PCM, cache_key)
     if hit is not None:  # only compressed blocks are stored, and the key was checked live above
         return hit
+    lock = _PCM_LOCKS.get(cache_key)
     try:
-        with _PCM_LOCKS.get(cache_key):
+        if not lock.acquire(timeout=_PCM_WAIT_SEC):
+            raise WaveformBusyError(
+                RateLimitDecision(
+                    allowed=False, bucket=_PCM_DECODES.bucket_name, retry_after_sec=1.0
+                )
+            )
+        try:
             return _read_pcm_block_locked(entry, key, meta, start, frames, cache_key)
+        finally:
+            lock.release()
     finally:
         # The block is cached now (or the read failed and the next waiter reads it), so the
         # lock has done its job; a waiter already holding it re-checks the LRU.
