@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,7 @@ from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.dicts import deep_merge
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 
 _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
 
@@ -114,17 +115,19 @@ class TranscriptContext:
 CONTEXT_LOCK_TIMEOUT_SEC = 10.0
 
 
-def context_lock(workspace: Path) -> FileLock:
+def context_lock_path(workspace: Path) -> Path:
+    return workspace_artifacts_dir(workspace) / "transcript_context.yaml.lock"
+
+
+def context_lock(workspace: Path) -> AbstractContextManager[FileLock]:
     """Writer lock for ``transcript_context.yaml`` at ``artifacts/transcript_context.yaml.lock``.
 
-    One FileLock instance per workspace (``util.file_locks.shared_file_lock``), so
-    ``TranscriptContext.save`` can re-enter it while a service holds it across
+    One FileLock instance per workspace (``util.file_locks.shared_file_lock``), acquired with
+    this call's own ``CONTEXT_LOCK_TIMEOUT_SEC`` (``util.file_locks.hold_shared_file_lock``),
+    so ``TranscriptContext.save`` can re-enter it while a service holds it across
     load-modify-save. Raises ``filelock.Timeout`` after ``CONTEXT_LOCK_TIMEOUT_SEC``.
     """
-    return shared_file_lock(
-        workspace_artifacts_dir(workspace) / "transcript_context.yaml.lock",
-        timeout=CONTEXT_LOCK_TIMEOUT_SEC,
-    )
+    return hold_shared_file_lock(context_lock_path(workspace), timeout=CONTEXT_LOCK_TIMEOUT_SEC)
 
 
 def new_vocabulary_revision() -> str:

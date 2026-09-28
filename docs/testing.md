@@ -782,7 +782,7 @@ native words they re-timed. Point `pipeline` at the same runs dir as `run`
 (both default to `$LAB_RUNS_DIR/align/<target>`) and both passes score the
 exact same native words and audio; delete `<id>.native.json` to force a fresh
 Whisper pass. Each item's cache check, Whisper run and write hold
-`<id>.native.lock` in the runs dir (`util.file_locks.shared_file_lock`, up to
+`<id>.native.lock` in the runs dir (`util.file_locks.hold_shared_file_lock`, up to
 an hour), so a second pass started into the same dir waits for the first,
 then reuses its native words (or errors on a mismatch) instead of both
 running Whisper. A refusal (mismatched cached words, a bad runs dir, a lock

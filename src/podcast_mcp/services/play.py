@@ -48,7 +48,7 @@ from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
@@ -195,8 +195,7 @@ class PlayService:
         """Keep old generated auditions bounded without touching active outputs."""
         out_dir = self.project.artifacts_dir() / "play_cache"
         out_dir.mkdir(parents=True, exist_ok=True)
-        lock = shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC)
-        with lock.acquire(timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+        with hold_shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
             now = time.time()
             candidates: list[tuple[float, Path]] = []
             for path in protected:
@@ -242,8 +241,7 @@ class PlayService:
     def _mark_play_cache_used(self, path: Path) -> None:
         """Refresh an audition lease before returning a cached WAV to a caller."""
         out_dir = self.project.artifacts_dir() / "play_cache"
-        lock = shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC)
-        with lock.acquire(timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
+        with hold_shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
             self._refresh_cache_access(path, out_dir)
 
     def resolve_transport_path(

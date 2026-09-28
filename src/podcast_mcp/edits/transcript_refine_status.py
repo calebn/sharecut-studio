@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -13,7 +14,7 @@ from filelock import FileLock
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
 # Open words below this confidence count toward the refine brief's low_confidence_open_words.
@@ -75,8 +76,13 @@ def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
     return write_json_atomic(status_path(project), payload)
 
 
-def _status_lock(project: EpisodeProject) -> FileLock:
-    return shared_file_lock(Path(f"{status_path(project)}.lock"), timeout=-1)
+_STATUS_LOCK_TIMEOUT_SEC = -1.0
+
+
+def _status_lock(project: EpisodeProject) -> AbstractContextManager[FileLock]:
+    return hold_shared_file_lock(
+        Path(f"{status_path(project)}.lock"), timeout=_STATUS_LOCK_TIMEOUT_SEC
+    )
 
 
 def _write_status_unlocked(

@@ -274,14 +274,45 @@ def test_context_update_validates_entry_length(minimal_project: Path) -> None:
 
 
 def test_context_lock_is_reentrant_and_under_artifacts(tmp_path: Path) -> None:
-    from podcast_mcp.transcript_context import CONTEXT_LOCK_TIMEOUT_SEC, context_lock
+    from podcast_mcp.transcript_context import context_lock, context_lock_path
+    from podcast_mcp.util.file_locks import shared_file_lock
 
-    lock = context_lock(tmp_path)
-    assert lock is context_lock(tmp_path)
-    assert Path(lock.lock_file).parent == (tmp_path / "artifacts").resolve()
-    assert lock.timeout == CONTEXT_LOCK_TIMEOUT_SEC
-    with lock:
+    path = context_lock_path(tmp_path)
+    assert path.parent == (tmp_path / "artifacts").resolve()
+    with context_lock(tmp_path) as held:
+        assert held is shared_file_lock(path)
+        # Re-enters the same instance while already held (TranscriptContext.save does this).
         TranscriptContext(terms=["A"]).save(tmp_path)
     saved = yaml.safe_load((tmp_path / "transcript_context.yaml").read_text())
     assert saved["terms"] == ["A"]
     assert not (tmp_path / "transcript_context.yaml.lock").exists()
+
+
+def test_context_lock_times_out_after_context_lock_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    from filelock import Timeout
+
+    import podcast_mcp.transcript_context as tc_module
+
+    monkeypatch.setattr(tc_module, "CONTEXT_LOCK_TIMEOUT_SEC", 0.05)
+    started = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with tc_module.context_lock(tmp_path):
+            started.set()
+            release.wait(timeout=5)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        with pytest.raises(Timeout):
+            with tc_module.context_lock(tmp_path):
+                pass
+    finally:
+        release.set()
+        thread.join(timeout=5)

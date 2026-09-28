@@ -44,7 +44,7 @@ from podcast_mcp.engines.word_boundary_metrics import (
 )
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.atomic_json import write_bytes_atomic, write_json_atomic
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
 from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
@@ -578,7 +578,7 @@ def prepare_items(
     ``run_suite`` and a ``run_pipeline_pass`` pointed at the same ``runs_dir``
     score the exact same native words and audio. Each item's check, Whisper run
     and write hold ``<id>.native.lock`` in ``runs_dir``
-    (``util.file_locks.shared_file_lock``, up to ``NATIVE_CACHE_LOCK_TIMEOUT_SEC``),
+    (``util.file_locks.hold_shared_file_lock``, up to ``NATIVE_CACHE_LOCK_TIMEOUT_SEC``),
     so a pass started while another is resolving the same item waits for it and
     then reuses its words. Delete ``<id>.native.json`` to force a fresh Whisper
     pass.
@@ -596,10 +596,9 @@ def prepare_items(
         audio_paths[item.item_id] = audio_path
         sha = sha256_file(audio_path)
         native_path = runs_dir / f"{item.item_id}.native.json"
-        lock = shared_file_lock(
+        with hold_shared_file_lock(
             runs_dir / f"{item.item_id}.native.lock", timeout=NATIVE_CACHE_LOCK_TIMEOUT_SEC
-        )
-        with lock:
+        ):
             if item.words is not None:
                 payload = json.loads(item.words.read_text(encoding="utf-8"))
                 if payload["audio_sha256"] != sha:

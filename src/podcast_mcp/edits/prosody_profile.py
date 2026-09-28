@@ -43,7 +43,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcribe import TranscribeJob, cache_id_part, track_transcribe_job
 from podcast_mcp.models import EpisodeProject, Transcript
 from podcast_mcp.util.atomic_json import write_json_atomic
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -264,7 +264,7 @@ def _analyze_track(
 ) -> Literal["computed", "reused"]:
     """Compute or reuse one track's profile under a per-track lock, then prune."""
     lock_path = _lock_path(project, track_id)
-    with shared_file_lock(lock_path, timeout=PROSODY_LOCK_TIMEOUT_SEC):
+    with hold_shared_file_lock(lock_path, timeout=PROSODY_LOCK_TIMEOUT_SEC):
         existing = _existing_profile(project, track_id)
         sha, (size, mtime_ns) = audio_identity(job, existing)
         words = profile_words(project, track_id)
