@@ -332,6 +332,38 @@ def test_sanitize_guest_keeps_integer_word_index_lists_on_utterances():
     assert row["edge_suppressed_word_indices"] == [0]
 
 
+def test_sanitize_guest_view_drops_suppressed_only_rows():
+    """Guests never see a view-only suppressed_only row: its text is suppressed words (#758)."""
+    from podcast_mcp.services.share import sanitize_guest_project_view
+
+    out = sanitize_guest_project_view(
+        {
+            "meta": {"name": "ep", "hydration": {"transcript_words": True}},
+            "transcript": {
+                "utterances": [
+                    {
+                        "track_id": "host",
+                        "text": "to the",
+                        "words": [{"text": "welcome", "start": 0, "end": 0.3}],
+                        "ignored_word_indices": [0],
+                        "edge_suppressed_word_indices": [0],
+                    },
+                    {
+                        "track_id": "guest",
+                        "text": "um uh",
+                        "words": [{"text": "um", "start": 0, "end": 0.2}],
+                        "suppressed_only": True,
+                    },
+                ]
+            },
+        }
+    )
+    rows = out["transcript"]["utterances"]
+    assert len(rows) == 1
+    assert rows[0]["track_id"] == "host"
+    assert "words" not in rows[0]
+
+
 def test_sanitize_guest_tracks_patch_does_not_inject_keys():
     from podcast_mcp.services.share import sanitize_guest_project_view
 

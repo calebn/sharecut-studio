@@ -503,7 +503,9 @@ def test_edge_suppressed_word_indices_helper() -> None:
     result = _edge_suppressed_word_indices(utterances, words_by_track)
     # index 0 already overlaps utterance 0's own [0.0, 0.5) window - not an "edge" word, skipped.
     # index 1 sits exactly between the two utterances - the tie goes to the earlier one (position 0).
-    # "guest" has no utterance at all, so its suppressed word is never attached.
+    # "guest" has no utterance at all here (this helper alone does not add one) - its
+    # suppressed word is never attached; the mapper's _suppressed_only_rows lists it
+    # instead, on a synthetic row (#758).
     assert result == {0: [1]}
 
 
@@ -702,8 +704,7 @@ def test_map_transcript_edge_suppressed_ignored_word_in_ignored_indices() -> Non
     assert u["ignored_word_indices"] == [0]
 
 
-def test_map_transcript_all_suppressed_track_has_no_words() -> None:
-    """A track whose words are all suppressed has no utterance, so none of its words map (#752)."""
+def _guest_all_suppressed_project() -> EpisodeProject:
     p = _minimal()
     p.timeline.tracks.append(
         Track(
@@ -712,6 +713,9 @@ def test_map_transcript_all_suppressed_track_has_no_words() -> None:
             role=TrackRole.DIALOGUE,
             media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
         )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
     )
     p.transcripts = [
         Transcript(
@@ -729,15 +733,185 @@ def test_map_transcript_all_suppressed_track_has_no_words() -> None:
             ],
         ),
     ]
+    return p
+
+
+def test_map_transcript_all_suppressed_track_gets_suppressed_only_row() -> None:
+    """A track whose words are all suppressed gets a view-only suppressed_only row (#758)."""
+    p = _guest_all_suppressed_project()
     combined = TranscriptionEngine().merge_transcripts(p).model_dump()
     assert [u["track_id"] for u in combined["utterances"]] == ["host"]
+
     mapped = map_transcript_utterances_to_timeline(p, combined)
     assert mapped is not None
-    assert [u["track_id"] for u in mapped["utterances"]] == ["host"]
+    assert [u["track_id"] for u in mapped["utterances"]] == ["host", "guest"]
+
     host = mapped["utterances"][0]
     assert [w["word_index"] for w in host["words"]] == [0, 1]
     assert [w["text"] for w in host["words"]] == ["hello", "world"]
     assert "edge_suppressed_word_indices" not in host
+    assert "suppressed_only" not in host
+
+    guest = mapped["utterances"][1]
+    assert guest["suppressed_only"] is True
+    assert guest["text"] == "um uh"
+    assert guest["speaker"] == "guest"
+    assert (guest["start"], guest["end"]) == (0.1, 0.6)
+    assert guest["mappable"] is True
+    assert guest["timeline_start"] == pytest.approx(0.1)
+    assert [w["word_index"] for w in guest["words"]] == [0, 1]
+    assert all(w["suppressed"] for w in guest["words"])
+    assert "edge_suppressed_word_indices" not in guest
+
+    slim = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert slim is not None
+    guest_slim = slim["utterances"][1]
+    assert guest_slim["suppressed_only"] is True
+    assert "words" not in guest_slim
+
+
+def test_map_transcript_suppressed_only_rows_split_on_gaps() -> None:
+    """One suppressed_only row per gap-run, interleaved by start with other rows (#758)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="hi", start=1.0, end=1.2, confidence=0.9)],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="um", start=0.0, end=0.2, suppressed=True, confidence=0.4),
+                TranscriptWord(text="uh", start=0.3, end=0.5, suppressed=True, confidence=0.4),
+                TranscriptWord(text="er", start=2.0, end=2.2, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert [u["track_id"] for u in combined["utterances"]] == ["host"]
+
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    rows = mapped["utterances"]
+    assert [(r["track_id"], r["start"]) for r in rows] == [
+        ("guest", 0.0),
+        ("host", 1.0),
+        ("guest", 2.0),
+    ]
+    assert [w["word_index"] for w in rows[0]["words"]] == [0, 1]
+    assert [w["word_index"] for w in rows[2]["words"]] == [2]
+
+
+def test_map_transcript_suppressed_only_row_lists_ignored_indices() -> None:
+    """A suppressed_only row lists its ignored words, with and without word views (#758)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(
+                    text="um", start=0.0, end=0.2, suppressed=True, ignored=True, confidence=0.4
+                ),
+                TranscriptWord(text="uh", start=0.3, end=0.5, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = {"utterances": []}
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    row = mapped["utterances"][0]
+    assert row["ignored_word_indices"] == [0]
+
+    slim = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert slim is not None
+    assert slim["utterances"][0]["ignored_word_indices"] == [0]
+    assert "words" not in slim["utterances"][0]
+
+
+def test_map_transcript_suppressed_only_row_unmappable_without_clip() -> None:
+    """A suppressed_only row whose source window is cut away is unmappable, like any other row (#758)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=5.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="um", start=0.0, end=0.2, suppressed=True, confidence=0.4)],
+        ),
+    ]
+    combined = {"utterances": []}
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    row = mapped["utterances"][0]
+    assert row["mappable"] is False
+    assert row["timeline_spans"] == []
+
+
+def test_map_transcript_no_suppressed_only_row_for_stale_combined() -> None:
+    """A track with unsuppressed words but no input row is stale combined.json, not all-suppressed (#758)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9)],
+        ),
+    ]
+    combined = {"utterances": []}
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    assert mapped["utterances"] == []
+
+
+def test_map_transcript_no_suppressed_only_row_when_track_has_rows() -> None:
+    """A track that already has a row (the #752 first-word case) gets no suppressed_only rows (#758)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="welcome", start=0.0, end=0.3, suppressed=True, confidence=0.5),
+                TranscriptWord(text="to", start=0.5, end=0.7, confidence=0.9),
+                TranscriptWord(text="the", start=0.7, end=0.9, confidence=0.9),
+                TranscriptWord(text="show", start=0.9, end=1.1, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert mapped is not None
+    assert len(mapped["utterances"]) == 1
+    assert "suppressed_only" not in mapped["utterances"][0]
 
 
 def test_map_transcript_rows_list_edge_suppressed_indices() -> None:

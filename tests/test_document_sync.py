@@ -1227,6 +1227,72 @@ def test_document_suppress_edge_word_stays_in_detail_patch_and_unsuppresses(mini
     assert "edge_suppressed_word_indices" not in utterance2
 
 
+def test_document_suppress_every_word_keeps_suppressed_only_row_and_unsuppresses(minimal_project):
+    """Suppressing every word on a track leaves a view-only suppressed_only row, and
+    unsuppressing one word turns it back into a real row with an edge chip (#758)."""
+    _seed_host_words(minimal_project, ["um", "uh"])
+    svc = DocumentSyncService.open(minimal_project)
+
+    svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": True,
+                "expected_text": "um",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    suppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 1,
+                "suppressed": True,
+                "expected_text": "uh",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert suppressed["ok"]
+    patch = suppressed["snapshot"]["patch"]
+    utterances = patch["transcript"]["utterances"]
+    assert len(utterances) == 1
+    utterance = utterances[0]
+    assert utterance["suppressed_only"] is True
+    assert utterance["text"] == "um uh"
+    assert [w["word_index"] for w in utterance["words"]] == [0, 1]
+    assert all(w["suppressed"] for w in utterance["words"])
+
+    unsuppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": False,
+                "expected_text": "um",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=3,
+        )
+    )
+    assert unsuppressed["ok"]
+    patch2 = unsuppressed["snapshot"]["patch"]
+    utterance2 = patch2["transcript"]["utterances"][0]
+    assert utterance2["text"] == "um"
+    assert "suppressed_only" not in utterance2
+    assert utterance2["edge_suppressed_word_indices"] == [1]
+
+
 def test_document_set_transcript_words_ignored(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps

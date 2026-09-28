@@ -92,6 +92,27 @@ def test_full_includes_words(minimal_project) -> None:
     assert full.meta["hydration"]["transcript_words"] is True
 
 
+def test_shell_and_detail_carry_suppressed_only_rows(minimal_project) -> None:
+    """SHELL and DETAIL both carry a view-only suppressed_only row (#758)."""
+    ws = _with_transcript(minimal_project)
+    ws.project.transcripts[0].words[0].suppressed = True
+    ws.project.transcripts[0].words[1].suppressed = True
+    ws.project.combined_transcript = CombinedTranscript(utterances=[])
+    ws.save()
+
+    shell = build_project_view(ws, projection=ViewProjection.SHELL)
+    shell_uts = (shell.transcript or {}).get("utterances") or []
+    assert len(shell_uts) == 1
+    assert shell_uts[0]["suppressed_only"] is True
+    assert "words" not in shell_uts[0]
+
+    detail = dump_project_projection(ws, projection=ViewProjection.DETAIL)
+    detail_uts = detail["transcript"]["utterances"]
+    assert len(detail_uts) == 1
+    assert detail_uts[0]["suppressed_only"] is True
+    assert [w["word_index"] for w in detail_uts[0]["words"]] == [0, 1]
+
+
 def test_detail_patch_is_words_and_history(minimal_project) -> None:
     ws = _with_transcript(minimal_project)
     detail = dump_project_projection(ws, projection=ViewProjection.DETAIL)
