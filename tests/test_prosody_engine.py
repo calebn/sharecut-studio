@@ -9,10 +9,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.engines import prosody as prosody_engine
 from podcast_mcp.engines.prosody import (
     ProsodyParams,
     ProsodyUnavailable,
     WordSpan,
+    _boundaries,
     _voice_quality,
     parselmouth_version,
     segment_bounds,
@@ -57,6 +59,19 @@ def test_segment_bounds_splits_long_runs_at_max_segment_sec() -> None:
 def test_segment_bounds_empty_words_no_samples_returns_empty() -> None:
     params = ProsodyParams()
     assert segment_bounds([], total_dur=5.0, params=params) == []
+
+
+def test_boundaries_drop_weak_pauses_and_keep_strong_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(prosody_engine, "praat_call", None)  # pitch_reset = 0
+    words = [WordSpan("cat", 0.0, 0.3), WordSpan("dog", 0.32, 0.62), WordSpan("pig", 1.02, 1.32)]
+    # Equal duration per syllable -> lengthening 0.5 (0.15). Gap 0.02s -> 0.16 (< 0.3), dropped.
+    # Gap 0.4s -> 0.2 + 0.15 = 0.35, kept.
+    out = _boundaries(words, None, seg_start=0.0, seg_end=1.32, min_strength=0.3)
+    gaps = [b for b in out if b["kind"] == "word_gap"]
+    assert len(gaps) == 1
+    assert gaps[0]["time"] == pytest.approx(0.62)
+    assert gaps[0]["strength"] == pytest.approx(0.35, abs=1e-3)
+    assert out[-1]["kind"] == "segment_end"
 
 
 def test_voice_quality_flags_zero_hnr_as_low() -> None:

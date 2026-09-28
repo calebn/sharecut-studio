@@ -47,7 +47,7 @@ from podcast_mcp.util.workspace_paths import resolve_within
 log = logging.getLogger(__name__)
 
 PROFILE_SCHEMA = "prosody_profile.v1"
-ALGORITHM_VERSION = 2
+ALGORITHM_VERSION = 3
 MAX_WINDOW_SEGMENTS = 6
 PROSODY_LOCK_TIMEOUT_SEC = 600.0
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.

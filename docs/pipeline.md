@@ -58,7 +58,7 @@ Skills: **podcast-pipeline-run**, **podcast-edit-natural-language** (content-cut
 - **Energy** — mean/sd/slope (dB, linear regression over the segment), plus start/mid/end-third means, `drop_db` (start third − end third), and a `trend` (`falling` when `drop_db > 1.5`, `rising` when `< -1.5`, else `flat`).
 - **Voice quality** — jitter/shimmer/HNR (`Sound.to_harmonicity_cc`, `To PointProcess (periodic, cc)`), flagged against Praat's standard voice-report thresholds (jitter local > 1.04%, shimmer local > 3.81%, HNR < 7 dB) as `jitter_high` / `shimmer_high` / `hnr_low`. An unmeasured value (Praat undefined/NaN) reports `0.0` with its flag `false`; a measured 0 dB HNR is `hnr_low`.
 - **Prominent words** — up to `prosody.top_prominent_words` (5) per segment, ranked by a z-score fusion of F0 peak, energy peak, and duration-per-syllable (a crude vowel-group syllable count; no dependency).
-- **Boundaries** — `strength = 0.5·pause + 0.3·lengthening + 0.2·pitch_reset` per word gap (each term clamped to `[0, 1]`); boundaries at or above `prosody.boundary_min_strength` (0.3) are kept, and the segment end is always included (`kind: "segment_end"`) as a natural chapter/cut-point signal.
+- **Boundaries** — `strength = 0.5·pause + 0.3·lengthening + 0.2·pitch_reset` per word gap (each term clamped to `[0, 1]`); boundaries at or above `prosody.boundary_min_strength` (0.3) are kept (a weaker word gap is dropped even when it has a short pause), and the segment end is always included (`kind: "segment_end"`) as a natural chapter/cut-point signal.
 
 No `NaN` is ever returned: every stat falls back to `0.0` (or an empty list) when a segment has no voiced frames, no words, or too few samples to measure.
 
