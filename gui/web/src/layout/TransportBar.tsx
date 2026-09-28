@@ -51,6 +51,7 @@ import { ToolModeToggle } from "./ToolModeToggle";
 import { TransportFrame, TransportZone } from "./TransportFrame";
 import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
+import { transportMenuTitle } from "./transportMenuTitle";
 import { transportPlayHandlers } from "./transportPlay";
 import { WaveformViewSections } from "./WaveformViewSections";
 
@@ -506,11 +507,7 @@ export function TransportBar({
               "Menu",
               collapsed
                 ? "Layers, zoom, theme, and more"
-                : mayManage
-                  ? "Project, media, markers, and help"
-                  : mayIngest
-                    ? "Media and help"
-                    : "Help",
+                : transportMenuTitle({ mayManage, mayIngest }),
               <Icon name="menu" />,
             )}
           >
