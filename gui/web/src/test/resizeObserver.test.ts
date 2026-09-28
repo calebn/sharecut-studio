@@ -49,4 +49,12 @@ describe("FakeResizeObserver", () => {
       /no FakeResizeObserver watches <span/,
     );
   });
+
+  it("of() names an SVG target's class in its error", () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "clip-wave");
+    expect(() => FakeResizeObserver.of(svg)).toThrow(
+      'no FakeResizeObserver watches <svg class="clip-wave">',
+    );
+  });
 });
