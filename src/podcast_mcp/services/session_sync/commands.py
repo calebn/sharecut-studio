@@ -25,7 +25,9 @@ from podcast_mcp.util.timeline_zoom import min_viewport_span_sec
 # Share-guest client ids start with this; the GUI mirrors it (presence/followSync.ts).
 GUEST_CLIENT_ID_PREFIX = "guest-"
 
-ClientRole = Literal["agent", "viewer", "cli"]
+# ``authz.ClientRole`` minus "guest": share guests submit transport commands as
+# "viewer" (gui/routes/review_share.py).
+TransportRole = Literal["agent", "viewer", "cli"]
 
 
 def retry_command_id(
@@ -87,7 +89,7 @@ class SyncCommand:
     type: CommandType
     payload: dict[str, Any]
     client_id: str
-    role: ClientRole
+    role: TransportRole
     client_seq: int | None
     command_id: str = field(default_factory=lambda: uuid4().hex)
     causation_id: str | None = None
