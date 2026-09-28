@@ -258,6 +258,35 @@ def test_analyze_fillers_summary_counts_discourse_skips(minimal_project):
     assert not any((e.reason or "").startswith("filler:like") for e in proj.edit_decisions)
 
 
+def test_analyze_prosody_step_skips_when_disabled(minimal_project):
+    proj = load_project(minimal_project)
+    defaults = load_defaults()
+    defaults.setdefault("prosody", {})["enabled"] = False
+    assert steps.analyze_prosody(proj, defaults) == "skipped (prosody.enabled=false)"
+
+
+def test_analyze_prosody_step_summarizes_no_dialogue_tracks(minimal_project):
+    proj = load_project(minimal_project)
+    defaults = load_defaults()
+    defaults.setdefault("prosody", {})["enabled"] = True
+    summary = steps.analyze_prosody(proj, defaults)
+    assert summary is not None
+    assert "0 computed" in summary
+    assert "0 reused" in summary
+
+
+def test_analyze_prosody_step_noop_when_unavailable(minimal_project, monkeypatch):
+    from podcast_mcp.edits import prosody_profile as prosody_profile_mod
+
+    monkeypatch.setattr(prosody_profile_mod, "parselmouth_version", lambda: None)
+    proj = load_project(minimal_project)
+    defaults = load_defaults()
+    defaults.setdefault("prosody", {})["enabled"] = True
+    summary = steps.analyze_prosody(proj, defaults)
+    assert summary is not None
+    assert "not installed" in summary
+
+
 def test_analyze_fillers_step_honours_config_intensity(minimal_project):
     def hits(intensity: str) -> list[str]:
         proj = load_project(minimal_project)

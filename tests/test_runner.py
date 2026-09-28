@@ -293,7 +293,10 @@ def test_balance_runs_after_compress() -> None:
     assert idx == sorted(idx)
 
 
-@pytest.mark.parametrize(("step", "stale"), [("mix_with_music", False), ("balance_tracks", True)])
+@pytest.mark.parametrize(
+    ("step", "stale"),
+    [("mix_with_music", False), ("balance_tracks", True), ("analyze_prosody", False)],
+)
 def test_runner_marks_reconciliation_stale_only_for_dialogue_steps(
     minimal_project, monkeypatch, step, stale
 ):
@@ -309,3 +312,4 @@ def test_runner_marks_reconciliation_stale_only_for_dialogue_steps(
     PipelineRunner(defaults={}).run(proj, only_step=step)
     assert reconciliation_status(proj)["stale"] is stale
     assert ("mix_with_music" in runner_mod.AUDIO_AFFECTING_STEPS) is False
+    assert ("analyze_prosody" in runner_mod.AUDIO_AFFECTING_STEPS) is False

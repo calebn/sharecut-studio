@@ -992,8 +992,23 @@ def test_step_noop_reason():
     assert step_noop_reason("analyze_fillers_pauses", cfg) == "tighten.enabled=false"
     assert step_noop_reason("tighten_from_transcript", cfg) == "tighten.enabled=false"
     assert step_noop_reason("ingest_tracks", cfg) is None
+    # prosody.enabled defaults true, so analyze_prosody is not a no-op out of the box.
+    assert step_noop_reason("analyze_prosody", cfg) is None
     on_cfg = deep_merge(cfg, {"focus": {"enabled": True}})
     assert step_noop_reason("analyze_focus_cuts", on_cfg) is None
+    off_cfg = deep_merge(cfg, {"prosody": {"enabled": False}})
+    assert step_noop_reason("analyze_prosody", off_cfg) == "prosody.enabled=false"
+
+
+def test_analyze_prosody_enabled_by_default() -> None:
+    enabled = default_enabled_steps()
+    assert "analyze_prosody" in enabled
+
+
+def test_prosody_is_an_allowed_config_top_key() -> None:
+    assert whitelist_overrides({"prosody": {"enabled": False}, "evil": 1}) == {
+        "prosody": {"enabled": False}
+    }
 
 
 def test_parse_config_assignments_types_and_nesting() -> None:

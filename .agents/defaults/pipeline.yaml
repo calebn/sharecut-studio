@@ -32,6 +32,23 @@ compression:
   # only risks clipping the stem before the mix gain.
   makeup_db: 0.0
 
+prosody:
+  # On by default: the step (analyze_prosody) only caches a per-track profile
+  # for audition_context to read, no timeline mutation. See docs/pipeline.md
+  # § Prosody profile.
+  enabled: true
+  pitch_floor_hz: 75.0
+  pitch_ceiling_hz: 500.0
+  # Word gaps at or under this merge into one prosody segment.
+  segment_gap_sec: 1.0
+  # Longest a merged segment can grow before it is split.
+  max_segment_sec: 30.0
+  # Shortest interior sub-floor run counted as a pause.
+  pause_min_sec: 0.25
+  top_prominent_words: 5
+  # Boundaries at or above this strength are surfaced (segment_end always is).
+  boundary_min_strength: 0.3
+
 focus:
   enabled: false
   auto_apply: false
