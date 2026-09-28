@@ -2,9 +2,9 @@ import { act, render } from "@testing-library/react";
 import { Profiler } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { FakeResizeObserver } from "../test/resizeObserver";
 import {
   CLIP_FILL,
-  InstantResizeObserver,
   readyEntry as ready,
   restoreWaveformLayerDom,
   stubWaveformLayerDom,
@@ -201,7 +201,7 @@ describe("WaveformLayer", () => {
     expect(tiles()[0]!.height).toBe(50);
     const layer = container.querySelector(".clip-waveform") as Element;
     const watching = () =>
-      InstantResizeObserver.all.filter((o) => o.targets.includes(layer));
+      FakeResizeObserver.all.filter((o) => o.targets.includes(layer));
     expect(watching()).toHaveLength(1);
 
     dom.setClientHeight(90);

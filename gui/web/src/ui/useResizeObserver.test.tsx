@@ -1,41 +1,15 @@
 import { act, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { sourceFiles } from "../test/sourceFiles";
 import {
   type ResizeObserverTarget,
   useResizeObserver,
 } from "./useResizeObserver";
 
-/** ResizeObserver stub that records what it watches and fires on demand. */
-class RecordingResizeObserver {
-  static all: RecordingResizeObserver[] = [];
-  targets: Element[] = [];
-  disconnected = false;
-  private readonly cb: ResizeObserverCallback;
-  constructor(cb: ResizeObserverCallback) {
-    this.cb = cb;
-    RecordingResizeObserver.all.push(this);
-  }
-  observe(el: Element): void {
-    this.targets.push(el);
-  }
-  unobserve(): void {}
-  disconnect(): void {
-    this.disconnected = true;
-    this.targets = [];
-  }
-  fire(target: Element | undefined = this.targets[0]): void {
-    this.cb(
-      [{ target } as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
-}
-
 beforeEach(() => {
-  RecordingResizeObserver.all = [];
-  vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+  stubResizeObserver();
 });
 
 afterEach(() => {
@@ -63,11 +37,11 @@ describe("useResizeObserver", () => {
     const onResize = vi.fn();
     render(<Harness onResize={onResize} />);
     const box = screen.getByTestId("box");
-    expect(RecordingResizeObserver.all).toHaveLength(1);
-    expect(RecordingResizeObserver.all[0].targets).toEqual([box]);
+    expect(FakeResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all[0].targets).toEqual([box]);
 
     act(() => {
-      RecordingResizeObserver.all[0].fire();
+      FakeResizeObserver.all[0].fire();
     });
     expect(onResize).toHaveBeenCalledTimes(1);
     expect(onResize.mock.calls[0][0][0].target).toBe(box);
@@ -78,10 +52,10 @@ describe("useResizeObserver", () => {
     const { rerender } = render(<Harness onResize={first} />);
     const second = vi.fn();
     rerender(<Harness onResize={second} />);
-    expect(RecordingResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all).toHaveLength(1);
 
     act(() => {
-      RecordingResizeObserver.all[0].fire();
+      FakeResizeObserver.all[0].fire();
     });
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledTimes(1);
@@ -93,8 +67,8 @@ describe("useResizeObserver", () => {
     const onResize = vi.fn();
     const { rerender } = render(<Harness onResize={onResize} extra={[a, b]} />);
     rerender(<Harness onResize={onResize} extra={[b, a]} />);
-    expect(RecordingResizeObserver.all).toHaveLength(1);
-    expect(RecordingResizeObserver.all[0].disconnected).toBe(false);
+    expect(FakeResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all[0].disconnected).toBe(false);
   });
 
   it("observes several targets (ref, element, getter) with one observer, skipping nulls and duplicates", () => {
@@ -105,15 +79,15 @@ describe("useResizeObserver", () => {
       <Harness onResize={onResize} extra={[otherEl, () => otherEl, null]} />,
     );
     const box = screen.getByTestId("box");
-    expect(RecordingResizeObserver.all).toHaveLength(1);
-    expect(RecordingResizeObserver.all[0].targets).toEqual([box, otherEl]);
+    expect(FakeResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all[0].targets).toEqual([box, otherEl]);
     document.body.removeChild(otherEl);
   });
 
   it("disconnects on unmount", () => {
     const onResize = vi.fn();
     const { unmount } = render(<Harness onResize={onResize} />);
-    const ro = RecordingResizeObserver.all[0];
+    const ro = FakeResizeObserver.all[0];
     unmount();
     expect(ro.disconnected).toBe(true);
   });
@@ -122,14 +96,14 @@ describe("useResizeObserver", () => {
     const onResize = vi.fn();
     const { rerender } = render(<Harness onResize={onResize} />);
     const firstBox = screen.getByTestId("box");
-    const firstRo = RecordingResizeObserver.all[0];
+    const firstRo = FakeResizeObserver.all[0];
 
     rerender(<Harness onResize={onResize} swap />);
     const secondBox = screen.getByTestId("box");
     expect(secondBox).not.toBe(firstBox);
     expect(firstRo.disconnected).toBe(true);
-    expect(RecordingResizeObserver.all).toHaveLength(2);
-    expect(RecordingResizeObserver.all[1].targets).toEqual([secondBox]);
+    expect(FakeResizeObserver.all).toHaveLength(2);
+    expect(FakeResizeObserver.all[1].targets).toEqual([secondBox]);
   });
 
   it("re-observes when a getter target's element changes between renders", () => {
@@ -142,22 +116,22 @@ describe("useResizeObserver", () => {
       <Harness onResize={onResize} extra={[getter]} />,
     );
     const box = screen.getByTestId("box");
-    expect(RecordingResizeObserver.all).toHaveLength(1);
-    expect(RecordingResizeObserver.all[0].targets).toEqual([box]);
+    expect(FakeResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all[0].targets).toEqual([box]);
 
     // null -> element: the getter's target appears after the first commit.
     current = a;
     rerender(<Harness onResize={onResize} extra={[getter]} />);
-    expect(RecordingResizeObserver.all[0].disconnected).toBe(true);
-    expect(RecordingResizeObserver.all).toHaveLength(2);
-    expect(RecordingResizeObserver.all[1].targets).toEqual([box, a]);
+    expect(FakeResizeObserver.all[0].disconnected).toBe(true);
+    expect(FakeResizeObserver.all).toHaveLength(2);
+    expect(FakeResizeObserver.all[1].targets).toEqual([box, a]);
 
     // element A -> element B.
     current = b;
     rerender(<Harness onResize={onResize} extra={[getter]} />);
-    expect(RecordingResizeObserver.all[1].disconnected).toBe(true);
-    expect(RecordingResizeObserver.all).toHaveLength(3);
-    expect(RecordingResizeObserver.all[2].targets).toEqual([box, b]);
+    expect(FakeResizeObserver.all[1].disconnected).toBe(true);
+    expect(FakeResizeObserver.all).toHaveLength(3);
+    expect(FakeResizeObserver.all[2].targets).toEqual([box, b]);
   });
 
   it("observes nothing while disabled, then observes when enabled", () => {
@@ -165,14 +139,14 @@ describe("useResizeObserver", () => {
     const { rerender } = render(
       <Harness onResize={onResize} enabled={false} />,
     );
-    expect(RecordingResizeObserver.all).toHaveLength(0);
+    expect(FakeResizeObserver.all).toHaveLength(0);
 
     rerender(<Harness onResize={onResize} enabled />);
-    expect(RecordingResizeObserver.all).toHaveLength(1);
-    expect(RecordingResizeObserver.all[0].disconnected).toBe(false);
+    expect(FakeResizeObserver.all).toHaveLength(1);
+    expect(FakeResizeObserver.all[0].disconnected).toBe(false);
 
     rerender(<Harness onResize={onResize} enabled={false} />);
-    expect(RecordingResizeObserver.all[0].disconnected).toBe(true);
+    expect(FakeResizeObserver.all[0].disconnected).toBe(true);
   });
 
   it("is a no-op without ResizeObserver", () => {
