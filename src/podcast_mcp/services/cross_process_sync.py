@@ -6,8 +6,8 @@ but their hub publish reaches their own, empty hub. While at least one GUI socke
 (host ``/api/document/ws`` / ``/api/session/ws``, guest ``/daw/ws``) holds a lease on
 a workspace, one daemon thread polls both journals' ``server_seq`` every
 ``CROSS_PROCESS_POLL_S`` (a parse-free read, the same one the meta routes use) and
-republishes a head this process did not publish itself
-(``SessionHub.last_applied_seq``) through the services' ``publish_cross_process_head``.
+republishes rows this process did not publish itself
+(``SessionHub.unpublished_seqs``) through the services' ``publish_cross_process_head``.
 No lease, no thread.
 """
 
@@ -36,7 +36,14 @@ from podcast_mcp.services.workspace import ProjectWorkspace
 log = logging.getLogger(__name__)
 
 CROSS_PROCESS_POLL_S = 0.5
-"""Watcher cadence: another process's journal write reaches open tabs within about this long."""
+"""Watcher cadence: another process's journal write reaches open tabs within about this long.
+
+Costs two single-row reads per tick per workspace with an open socket (none without one);
+a host holding hundreds of workspaces open would want per-workspace backoff or one
+shared probe."""
+
+_PUBLISH_ATTEMPTS = 3
+"""Ticks a failing cross-process publish is tried on before its rows are left to the sanity poll."""
 
 
 @dataclass
@@ -46,8 +53,9 @@ class _Plane:
     name: str
     hub_key: str
     read_seq: Callable[[], int | None]
-    publish_head: Callable[[], dict[str, Any] | None]
+    publish_head: Callable[[int | None], dict[str, Any] | None]
     seen: int | None = None
+    failures: int = 0
 
     def baseline(self) -> None:
         self.seen = self.read_seq()
@@ -56,15 +64,26 @@ class _Plane:
         current = self.read_seq()
         if current is None:  # unreadable this tick; best_effort_meta logged it
             return None
-        if self.seen is None:  # the first good read is the baseline
-            self.seen = current
+        after = self.seen
+        if current == after:
             return None
-        if current == self.seen:
+        self.seen = current
+        if current == 0:
             return None
-        self.seen = current  # before publishing: a failing head is not retried every tick
-        if current == 0 or get_hub().last_applied_seq(self.hub_key) == current:
-            return None
-        return self.publish_head()
+        # after is None when the baseline read failed: publish_head checks the head alone.
+        if not get_hub().unpublished_seqs(self.hub_key, after, current):
+            return None  # every row since the last tick was written and published here
+        try:
+            event = self.publish_head(after)
+        except Exception:
+            self.failures += 1
+            if self.failures < _PUBLISH_ATTEMPTS:
+                self.seen = after  # retry these rows on the next tick
+            else:
+                self.failures = 0  # give up; the sanity poll converges the tabs
+            raise
+        self.failures = 0
+        return event
 
 
 class CrossProcessWatcher:
@@ -128,10 +147,10 @@ class CrossProcessWatcher:
                     exc_info=True,
                 )
 
-    def _publish_document_head(self) -> dict[str, Any] | None:
+    def _publish_document_head(self, after: int | None) -> dict[str, Any] | None:
         if self._document is None:
             self._document = DocumentSyncService.open(self._project_path)
-        return self._document.publish_cross_process_head()
+        return self._document.publish_cross_process_head(after)
 
     def _run(self) -> None:
         while not self._stop.wait(self._interval):

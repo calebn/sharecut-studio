@@ -28,6 +28,7 @@ from podcast_mcp.services.session_sync.log import (
     SyncStore,
     cached_sync_store,
     cached_sync_store_if_exists,
+    cross_process_command,
 )
 from podcast_mcp.services.session_sync.service import (
     best_effort_meta,
@@ -320,16 +321,19 @@ class DocumentSyncService:
                 )
                 return {"server_seq": server_seq, "resync": True}
 
-    def _publish_applied(self, row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
+    def _publish_applied(
+        self, row: dict[str, Any], api_snap: dict[str, Any], *, server_seq: int | None = None
+    ) -> dict[str, Any]:
         """Fan out ``Applied`` for journal ``row``. Call under the project lock (and, for a
         write, the journal write lock) so in-process subscribers see events in
-        ``server_seq`` order. publish only schedules (test_hub_publish_only_schedules_delivery)."""
+        ``server_seq`` order. publish only schedules (test_hub_publish_only_schedules_delivery).
+        ``server_seq`` overrides the row's seq: a collapsed cross-process event reports the head."""
         event = {
             "type": "Applied",
             "plane": "document",
             "command": row,
             "snapshot": api_snap,
-            "server_seq": row["server_seq"],
+            "server_seq": row["server_seq"] if server_seq is None else server_seq,
         }
         get_hub().publish(self._project_key, event)
         return event
@@ -473,16 +477,19 @@ class DocumentSyncService:
             api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
             return self._publish_applied(row, api_snap)
 
-    def publish_cross_process_head(self) -> dict[str, Any] | None:
-        """Fan out the document.db head when another process journaled it (#695).
+    def publish_cross_process_head(self, after: int | None = None) -> dict[str, Any] | None:
+        """Fan out rows another process journaled to document.db (#695).
 
-        Called by the cross-process watcher. Holds ``document_submit_lock``, the
+        The cross-process watcher calls this with ``after``, the head seq it saw on its last
+        tick (``None`` checks the head alone). It holds ``document_submit_lock``, the
         in-process project lock that every in-process writer holds through
-        ``ws.transaction()`` until its publish. A row this process wrote is therefore
-        already published (``SessionHub.last_applied_seq``) and is not re-sent, and events
-        stay in ``server_seq`` order with in-process ones. Always a SHELL snapshot:
-        several foreign rows within one tick collapse into one ``Applied``, and a narrower
-        projection would drop earlier rows' changes. Returns the event or ``None``.
+        ``ws.transaction()`` until its publish. Every row this process wrote is therefore
+        already published (``SessionHub.unpublished_seqs``), and events stay in
+        ``server_seq`` order. Foreign rows in ``(after, head]`` collapse into one
+        ``Applied`` at the head seq. Its ``command`` is the newest foreign agent row, else
+        the newest foreign row (``cross_process_command``). It always carries a SHELL
+        snapshot, because a narrower projection would drop earlier rows' changes. Returns
+        the event or ``None``.
         """
         with document_submit_lock(self.project):
             store = _existing_store_at(document_db_path(self.project))
@@ -490,14 +497,16 @@ class DocumentSyncService:
                 return None
             hub = get_hub()
             seq = _journal_server_seq(store)
-            if seq == 0 or hub.last_applied_seq(self._project_key) == seq:
+            if not hub.unpublished_seqs(self._project_key, after, seq):
                 return None
             api_snap = self._snapshot_or_resync("shell", seq)
             head = int(api_snap.get("server_seq") or seq)
-            row = store.command_at(head)
+            seqs = hub.unpublished_seqs(self._project_key, after, head)
+            row = cross_process_command(store, seqs)
             if row is None:
                 return None
-            return self._publish_applied(row, api_snap)
+            hub.mark_published(self._project_key, seqs)
+            return self._publish_applied(row, api_snap, server_seq=head)
 
     def _apply(
         self,
