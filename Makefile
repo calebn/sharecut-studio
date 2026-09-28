@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay golden-ear
 
 setup:
 	./install.sh
@@ -100,6 +100,18 @@ docs-sync:
 # Regenerate AGENTS.md § Docs in sync from contracts/docs-sync.json.
 docs-sync-table:
 	uv run python scripts/docs_sync.py table
+
+# Replay the working-tree contract over the last LIMIT merged PRs (default and max 100) for
+# triage. Needs gh and full history (`git fetch --unshallow`). The units go through a temp
+# file, not a pipe, so a gh failure fails the target instead of replaying nothing.
+docs-sync-replay:
+	@units=$$(mktemp) && \
+	gh api graphql -F owner='{owner}' -F repo='{repo}' -F n=$(or $(LIMIT),100) \
+	  -f query='query($$owner:String!,$$repo:String!,$$n:Int!){repository(owner:$$owner,name:$$repo){pullRequests(states:MERGED,last:$$n){nodes{number mergeCommit{oid} commits{totalCount}}}}}' \
+	  --jq '.data.repository.pullRequests.nodes[] | select(.mergeCommit != null) | {label: "#\(.number)", range: "\(.mergeCommit.oid)~\(.commits.totalCount)..\(.mergeCommit.oid)"} | tojson' \
+	  > "$$units" && \
+	uv run python scripts/docs_sync.py replay --units "$$units"; \
+	status=$$?; rm -f "$$units"; exit $$status
 
 # Document-command JSON Schema + docs-site catalog / guest OpenAPI from code.
 schema-export:

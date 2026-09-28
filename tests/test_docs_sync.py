@@ -394,6 +394,83 @@ def test_check_staged_never_blocks_on_a_broken_contract(
     assert "docs-sync (warn):" in capsys.readouterr().err
 
 
+# ---------------------------------------------------------------- replay / summarize
+
+
+def test_units_from_jsonl() -> None:
+    text = '{"label": "#744", "range": "abc1234~3..abc1234"}\n\n{"label": "#745", "range": "def5678~1..def5678"}\n'
+    assert ds.units_from_jsonl(text) == [
+        ("#744", "abc1234~3..abc1234"),
+        ("#745", "def5678~1..def5678"),
+    ]
+
+
+def test_guarded_range_passes_through_when_the_commit_count_matches(check_repo: Path) -> None:
+    _write(check_repo, "x")
+    _git(check_repo, "add", "x")
+    _git(check_repo, "commit", "-qm", "one")
+    sha = _git(check_repo, "rev-parse", "HEAD").strip()
+    spec = f"{sha}~1..{sha}"
+    assert ds._guarded_range("#1", spec) == (spec, None)
+
+
+def test_guarded_range_falls_back_when_the_commit_count_is_wrong(check_repo: Path) -> None:
+    _write(check_repo, "x")
+    _git(check_repo, "add", "x")
+    _git(check_repo, "commit", "-qm", "one")
+    sha = _git(check_repo, "rev-parse", "HEAD").strip()
+    spec = f"{sha}~3..{sha}"  # only 2 commits exist in this repo (base + "one"); sha~3 is invalid
+    guarded, note = ds._guarded_range("#1", spec)
+    assert guarded == f"{sha}^..{sha}"
+    assert note == f"#1: range {spec!r} has -1 commit(s), not 3; using {sha}^..{sha}"
+
+
+def test_guarded_range_ignores_non_gh_shaped_ranges() -> None:
+    assert ds._guarded_range("#1", "base...HEAD") == ("base...HEAD", None)
+
+
+def test_replay_units_and_summarize(check_repo: Path) -> None:
+    # Unit 1: violated (trigger only). Unit 2: satisfied (trigger + doc, one commit each).
+    _git(check_repo, "checkout", "-qb", "pr1", "base")
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(check_repo, "commit", "-qm", "pr1")
+
+    _git(check_repo, "checkout", "-qb", "pr2", "base")
+    _write(check_repo, "docs/ui-philosophy.md", "changed too\n")
+    _write(check_repo, "ux/pages/brief.md")
+    _git(check_repo, "add", ".")
+    _git(check_repo, "commit", "-qm", "pr2")
+
+    contract = ds.load_contract(None)
+    units = [("#1", "base..pr1"), ("#2", "base..pr2")]
+    results = ds.replay_units(contract, units)
+    assert [label for label, _report in results] == ["#1", "#2"]
+    assert results[0][1].findings[0].outcome == "violated"
+    assert results[1][1].findings[0].outcome == "satisfied"
+
+    stats = ds.summarize(report for _label, report in results)
+    assert stats == {
+        "ux-pack": ds.RuleStats(fired=2, satisfied=1, waived=0, violated=1, advisory=0)
+    }
+
+
+def test_replay_cli_writes_tsv(check_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _git(check_repo, "checkout", "-qb", "pr1", "base")
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(check_repo, "commit", "-qm", "pr1")
+
+    units_file = check_repo / "units.jsonl"
+    units_file.write_text('{"label": "#1", "range": "base..pr1"}\n', encoding="utf-8")
+    assert ds.main(["replay", "--units", str(units_file)]) == 0
+    out = capsys.readouterr().out
+    assert "label\trule\toutcome\ttriggered_by\tsatisfied_by" in out
+    assert "#1\tux-pack\tviolated\tdocs/ui-philosophy.md\t" in out
+    assert "rule\tfired\tsatisfied\twaived\tviolated\tadvisory" in out
+    assert "ux-pack\t1\t0\t0\t1\t0" in out
+
+
 # ---------------------------------------------------------------- render_table / splice_table
 
 
