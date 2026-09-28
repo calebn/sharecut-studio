@@ -7,6 +7,7 @@ import {
 } from "../document/cursor";
 import { minimalProject } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
+import { SANITY_POLL_MS } from "./useFileMetaPoll";
 import { useProjectPoll } from "./useProjectPoll";
 
 const loadProject = vi.fn();
@@ -47,7 +48,7 @@ describe("useProjectPoll", () => {
     noteDocumentFile({ project: {}, file: { mtime_ns: 2, size: 5 } });
 
     renderHook(() => useProjectPoll("/p.json", vi.fn()));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).not.toHaveBeenCalled();
   });
@@ -61,7 +62,7 @@ describe("useProjectPoll", () => {
     loadProjectMeta.mockResolvedValue({ mtime_ns: 3, size: 5, server_seq: 3 });
 
     renderHook(() => useProjectPoll("/p.json", vi.fn()));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).toHaveBeenCalledTimes(1);
     expect(applyDocumentSnapshot).toHaveBeenCalledTimes(1);
@@ -83,7 +84,7 @@ describe("useProjectPoll", () => {
     );
 
     renderHook(() => useProjectPoll("/p.json", vi.fn()));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
 
     noteDocumentSeq(10);
@@ -108,7 +109,7 @@ describe("useProjectPoll", () => {
     loadProjectMeta.mockResolvedValue({ mtime_ns: 4, size: 6, server_seq: 4 });
 
     renderHook(() => useProjectPoll("/p.json", vi.fn()));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
 
     noteDocumentSeq(4);
@@ -117,7 +118,7 @@ describe("useProjectPoll", () => {
       file: { mtime_ns: 4, size: 6 },
     });
 
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
   });
 
@@ -131,15 +132,25 @@ describe("useProjectPoll", () => {
     noteDocumentSeq(9);
 
     renderHook(() => useProjectPoll("/p.json", vi.fn()));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProject).not.toHaveBeenCalled();
   });
 
   it("does not poll meta at all when disabled", async () => {
     renderHook(() => useProjectPoll("/p.json", vi.fn(), false));
-    await vi.advanceTimersByTimeAsync(1500);
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
 
     expect(loadProjectMeta).not.toHaveBeenCalled();
+  });
+
+  it("no longer polls at the old 1.5 s cadence", async () => {
+    loadProjectMeta.mockResolvedValue({ mtime_ns: 1, size: 1, server_seq: 3 });
+
+    renderHook(() => useProjectPoll("/p.json", vi.fn()));
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(loadProjectMeta).toHaveBeenCalledTimes(1);
+    expect(loadProject).not.toHaveBeenCalled();
   });
 });

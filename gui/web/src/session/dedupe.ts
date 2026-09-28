@@ -46,6 +46,17 @@ export function advanceCursorIfNewer(
 }
 
 /**
+ * True when a meta poll's server_seq is no newer than the applied cursor, so the
+ * caller can skip the GET /api/session/state round trip (#662).
+ */
+export function sessionPollAlreadyApplied(
+  metaSeq: number | undefined,
+  cursor: AppliedCursor,
+): boolean {
+  return metaSeq !== undefined && metaSeq > 0 && metaSeq <= cursor.serverSeq;
+}
+
+/**
  * First WebSocket Snapshot: apply agent transport before marking command_id
  * applied (otherwise dedupe would no-op the in-flight agent play).
  */

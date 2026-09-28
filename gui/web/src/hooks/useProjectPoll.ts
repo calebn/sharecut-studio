@@ -9,11 +9,9 @@ import {
 import type { ProjectView } from "../types/project";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
-const POLL_MS = 1500;
-
-/** Reload ProjectView (shell) on an episode.project.json mtime/size change the document
-socket has not already delivered (a write from another process, or while the socket is
-down). */
+/** Sanity poll (every `SANITY_POLL_MS`, and on focus): reload ProjectView (shell) on an
+episode.project.json mtime/size/seq change the document socket has not already delivered
+— in practice a write from another process (#662). */
 export function useProjectPoll(
   projectPath: string,
   _setProject: (project: ProjectView) => void,
@@ -43,6 +41,5 @@ export function useProjectPoll(
       applyDocumentSnapshot({ project, server_seq: metaSeq }, { force: true });
       notePolledDocumentFile(meta);
     },
-    POLL_MS,
   );
 }
