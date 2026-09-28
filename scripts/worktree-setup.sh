@@ -1,7 +1,7 @@
 #!/bin/sh
 # Idempotent per-checkout dev setup (main checkout or any git worktree):
 #   - git hooks resolve to THIS checkout's .githooks (relative core.hooksPath)
-#   - Python venv with the same extras CI installs (dev, gui, relay)
+#   - Python venv with the same extras CI installs (dev, gui, relay, prosody)
 #   - gui/web node_modules (lint-staged + Biome for the pre-commit hook)
 # Safe to re-run; each step is a fast no-op when already current.
 # Also invoked automatically by .githooks/pre-commit when a worktree is unprovisioned.
@@ -17,7 +17,7 @@ git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit
 
 if command -v uv >/dev/null 2>&1; then
-  uv sync --quiet --extra dev --extra gui --extra relay
+  uv sync --quiet --extra dev --extra gui --extra relay --extra prosody
 else
   echo "worktree-setup: uv not found; install it (see docs/setup.md) or run ./install.sh" >&2
   exit 1
