@@ -470,6 +470,43 @@ def test_presence_heartbeat_reads_client_rows_once(minimal_project, monkeypatch)
         presence_fanout.set_timer_factory(threading.Timer)
 
 
+def test_steady_state_durable_command_adds_at_most_one_presence_delta(
+    minimal_project,
+) -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    key = str(proj.workspace_path())
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    q = hub.subscribe(key, loop)
+    presence_fanout.reset()
+    try:
+        # First run: Applied + a one-time full Presence catch-up.
+        svc.submit_control("SetPlayhead", {"playhead_sec": 1.0}, client_id="agent-x")
+        loop.run_until_complete(asyncio.sleep(0))
+        types = [e["type"] for e in _drain(q)]
+        assert types.count("Applied") == 1
+        assert "Presence" in types
+
+        presence_fanout.reset()  # Leave cooldown so the next call publishes immediately.
+        svc.submit_control("SetPlayhead", {"playhead_sec": 2.0}, client_id="agent-x")
+        loop.run_until_complete(asyncio.sleep(0))
+        types = [e["type"] for e in _drain(q)]
+        assert types.count("Applied") == 1
+        assert "Presence" not in types
+        assert types.count("PresenceDelta") <= 1
+    finally:
+        hub.unsubscribe(key, q)
+        loop.close()
+        get_roster_tracker().clear_key(key)
+        presence_fanout.reset()
+        presence_fanout.set_timer_factory(threading.Timer)
+
+
 def test_fanout_presence_after_commit_logs_and_swallows_a_store_error(
     minimal_project, monkeypatch, caplog
 ) -> None:
