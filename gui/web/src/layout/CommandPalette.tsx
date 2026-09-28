@@ -1,4 +1,4 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { clearKeymapOverride, setKeymapOverride } from "../keymap/remaps";
 import { useDaw } from "../state/useDaw";
 import { CommandPaletteView } from "./CommandPaletteView";
@@ -29,9 +29,7 @@ export function CommandPalette() {
         setCommandPaletteOpen(false);
         setGesturesSheetOpen(true);
       }}
-      onRun={(id) => {
-        void execute(id, {}, { skipWhen: true });
-      }}
+      onRun={(id) => runPointerCommand(id)}
       onRemap={(id, trimmedKey) => {
         if (!trimmedKey) {
           clearKeymapOverride(id);

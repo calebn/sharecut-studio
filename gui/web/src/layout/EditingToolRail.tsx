@@ -1,13 +1,9 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { useBladeCut } from "../hooks/useBladeCut";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { EditingToolRailView } from "./EditingToolRailView";
 import { ToolModeToggle } from "./ToolModeToggle";
-
-function runPointer(id: string): void {
-  void execute(id, {}, { skipWhen: true });
-}
 
 /** Ferrite-style bottom tool rail + blade confirm sheet (phone/tablet). */
 export function EditingToolRail() {
@@ -34,13 +30,13 @@ export function EditingToolRail() {
       bladeConfirmSec={bladeConfirmSec}
       trackIdsForCut={trackIdsForCut}
       toolToggle={<ToolModeToggle compact />}
-      onAddTrack={() => runPointer("track.add")}
-      onImport={() => runPointer("media.import")}
-      onCutAtPlayhead={() => runPointer("edit.bladeCut")}
-      onCancelCut={() => runPointer("edit.bladeCut.cancel")}
+      onAddTrack={() => runPointerCommand("track.add")}
+      onImport={() => runPointerCommand("media.import")}
+      onCutAtPlayhead={() => runPointerCommand("edit.bladeCut")}
+      onCancelCut={() => runPointerCommand("edit.bladeCut.cancel")}
       onConfirmCut={() => {
-        runPointer("edit.bladeCut.confirm");
-        runPointer("tool.blade");
+        runPointerCommand("edit.bladeCut.confirm");
+        runPointerCommand("tool.blade");
       }}
     />
   );
