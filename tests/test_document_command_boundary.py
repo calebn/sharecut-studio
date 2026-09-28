@@ -219,3 +219,58 @@ def test_guest_comment_http_rejects_overlong_body(
         },
     )
     assert r.status_code == 422
+
+
+_GUARDED_CORRECTION = {
+    "type": "CorrectTranscriptWord",
+    "payload": {"track_id": "host", "word_index": 0, "text": "x", "expected_text": "y"},
+    "client_id": "boundary-guest",
+    "client_seq": 1,
+}
+
+
+def test_guest_http_cannot_submit_guarded_transcript_correction(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Transcript corrections stay host-only even with expected_text (#650)."""
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _edit_share(ws, monkeypatch, tmp_workspace)
+    before = minimal_project.read_bytes()
+    client = TestClient(create_app())
+    r = client.post(f"/api/review/{share['token']}/daw/document/command", json=_GUARDED_CORRECTION)
+    assert r.status_code == 403
+    assert minimal_project.read_bytes() == before
+
+
+def test_guest_mcp_cannot_submit_guarded_transcript_correction(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _edit_share(ws, monkeypatch, tmp_workspace)
+    out = handle_mcp_jsonrpc(
+        share["token"],
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "guest_submit_document_command", "arguments": _GUARDED_CORRECTION},
+        },
+    )
+    assert out["error"]["code"] == -32003
+
+
+def test_host_mcp_stale_expected_text_is_conflict(minimal_project):
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
+    ]
+    ws.save()
+    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+        submit_host_document_command(
+            str(minimal_project),
+            "CorrectTranscriptWord",
+            {"track_id": "host", "word_index": 0, "text": "the", "expected_text": "tea"},
+        )
