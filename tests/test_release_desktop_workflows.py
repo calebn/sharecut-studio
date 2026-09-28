@@ -116,6 +116,42 @@ def test_desktop_workflow_runs_pinned_media_tests_on_windows_python_floor() -> N
     assert "tests/test_pinned_media.py" in run["run"]
 
 
+def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
+    data = load_github_yaml(DESKTOP_CHECK)
+    for trigger in ("pull_request", "push"):
+        paths = data["on"][trigger]["paths"]
+        assert "tests/test_project_commit_lock.py" in paths
+        assert "tests/test_history.py" in paths
+        assert "tests/test_review_versions.py" in paths
+        assert "tests/process_helpers.py" in paths
+        assert "tests/review_platform.py" in paths
+
+    job = data["jobs"]["project-commit-lock-windows"]
+    assert job["runs-on"] == "windows-latest"
+    setup = next(
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("actions/setup-python")
+    )
+    assert setup["with"]["python-version"] == "3.12"
+    ffmpeg = next(step for step in job["steps"] if step.get("name") == "Install FFmpeg")
+    assert "ffmpeg" in ffmpeg["run"]
+    check = next(step for step in job["steps"] if step.get("name") == "Check FFmpeg on PATH")
+    assert check["run"] == "ffmpeg -version"
+
+    lock_step = next(
+        step for step in job["steps"] if step.get("name") == "Project commit-lock and history tests"
+    )
+    assert "tests/test_project_commit_lock.py" in lock_step["run"]
+    assert "tests/test_history.py" in lock_step["run"]
+
+    publish_step = next(
+        step for step in job["steps"] if step.get("name") == "Portable review publication tests"
+    )
+    assert "tests/test_review_versions.py" in publish_step["run"]
+    assert '-k "publish or publication"' in publish_step["run"]
+
+
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     data = load_github_yaml(BUILD)
     prepare = data["jobs"]["prepare-extension-runtime"]
