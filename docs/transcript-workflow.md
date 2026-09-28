@@ -232,7 +232,10 @@ conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool e
 inline editor always sends the text it opened with; the Correct inspector sends the span
 text captured when the word was selected or End index last changed, and only when every
 word in that range is loaded and its loaded copies agree (otherwise it sends none and
-shows a hint under Apply); Suppress and Ignore send the word's currently rendered text.
+shows a hint under Apply); Suppress and Ignore send the word's currently rendered text,
+or no guard when that text can't be confirmed (a word in the range isn't loaded, or two
+loaded copies of an index disagree), same as Apply. When Select-mode Ignore/Restore sends
+no guard, its status message says "text not verified".
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
 `verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
 The fix for a rejected edit is to re-read the transcript and redo it against its current
