@@ -76,7 +76,9 @@ def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
     return write_json_atomic(status_path(project), payload)
 
 
-_STATUS_LOCK_TIMEOUT_SEC = -1.0
+# Bounded: holders only write a small JSON (or fingerprint-check then write), so a writer that
+# waits this long means a leaked or wedged holder; raise filelock.Timeout instead of hanging.
+_STATUS_LOCK_TIMEOUT_SEC = 30.0
 
 
 def _status_lock(project: EpisodeProject) -> AbstractContextManager[FileLock]:
