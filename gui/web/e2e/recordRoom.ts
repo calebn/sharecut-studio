@@ -225,6 +225,7 @@ export async function landedTrackPeak(
   }
   const sourceIds = [...new Set(clips.map((c) => c.source_id))];
   const projectDir = path.dirname(projectPath);
+  const rawDir = path.join(projectDir, "raw");
   let peak = 0;
   for (const sourceId of sourceIds) {
     if (sourceId === null) {
@@ -238,12 +239,19 @@ export async function landedTrackPeak(
         `clip on track ${label} references missing source ${sourceId}`,
       );
     }
-    if (!/^raw\//.test(source.path)) {
+    const resolved = path.resolve(projectDir, source.path);
+    const underRaw = path.relative(rawDir, resolved);
+    if (
+      underRaw === "" ||
+      underRaw === ".." ||
+      underRaw.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(underRaw)
+    ) {
       throw new Error(
         `source ${source.id} for track ${label} is not under raw/: ${source.path}`,
       );
     }
-    const buf = await readFile(path.join(projectDir, source.path));
+    const buf = await readFile(resolved);
     peak = Math.max(peak, wavPeak(new Uint8Array(buf)));
   }
   return peak;
