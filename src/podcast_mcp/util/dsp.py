@@ -7,6 +7,7 @@ level floors and pitch ranges cannot silently drift between private copies.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 
 import numpy as np
 
@@ -69,6 +70,27 @@ def frame_rms_db(
     loud = rms >= _SILENCE_RMS
     out[loud] = 20.0 * np.log10(rms[loud])
     return out
+
+
+def frame_rms_db_stream(
+    chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = -200.0
+) -> np.ndarray:
+    """:func:`frame_rms_db` over a forward-only chunk stream.
+
+    Same frames and values as on the concatenated samples, holding one chunk plus
+    fewer than ``frame`` carried samples.
+    """
+    if frame <= 0 or hop <= 0:
+        return np.empty(0, dtype=np.float64)
+    parts: list[np.ndarray] = []
+    carry = np.zeros(0, dtype=np.float32)
+    for chunk in chunks:
+        buf = np.concatenate([carry, np.asarray(chunk).reshape(-1)])
+        levels = frame_rms_db(buf, frame, hop, floor_db=floor_db)
+        if levels.size:
+            parts.append(levels)
+        carry = buf[levels.size * hop :]
+    return np.concatenate(parts) if parts else np.empty(0, dtype=np.float64)
 
 
 def autocorr_peak(
