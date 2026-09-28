@@ -355,7 +355,8 @@ Revocation stops new requests only.
   wakes both, via `waveformFetchGate.onRelease`, a `listenerSet`).
   - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
     overscan, prefetch), deduplicated, and fetched in runs of up to
-    `max_tiles_per_request`. A 429 holds the run back until `Retry-After` and then re-queues it. Any
+    `max_tiles_per_request`. A 429, or a 503 with `Retry-After`, holds the run back
+    until `Retry-After` and then re-queues it. Any
     other failure holds it back for 5 s. A 404, or tiles missing from a short
     response, are skipped until their key is ready again or for 30 s. Zoom and
     scroll never abort a fetch; only leaving the project does. When a ref
@@ -363,8 +364,9 @@ Revocation stops new requests only.
     levels when each has at most 8 tiles. `getBins` returns a copy, and
     missing bins have `rms = -1`.
   - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. A 409 or 404
-    polls status again. Failed blocks are held back the same way (429: until
-    `Retry-After`, then re-queued; otherwise 5 s).
+    polls status again. Failed blocks are held back the same way (429, or the
+    host's busy 503 with `Retry-After`: until `Retry-After`, then re-queued;
+    otherwise 5 s).
   - `pyramidMath.ts`: `levelFor` and the pyramid and PCM envelope
     reductions (the PCM one is the envelope of the piecewise-linear
     interpolant).

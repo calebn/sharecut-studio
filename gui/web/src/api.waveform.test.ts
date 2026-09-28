@@ -103,6 +103,25 @@ describe("waveform api", () => {
     expect((err as WaveformFetchError).retryAfterSec).toBe(3);
   });
 
+  it("throws the status and Retry-After on a busy 503", async () => {
+    stubFetch(
+      new Response("busy", {
+        status: 503,
+        headers: { "Retry-After": "1" },
+      }),
+    );
+    const err = await loadWaveformTiles("/tmp/p.json", {
+      key: MEDIA_HASH,
+      ref: "track:host",
+      level: 0,
+      start: 0,
+      count: 1,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WaveformFetchError);
+    expect((err as WaveformFetchError).status).toBe(503);
+    expect((err as WaveformFetchError).retryAfterSec).toBe(1);
+  });
+
   it("loads host PCM blocks and never asks a guest route", async () => {
     const fetchMock = stubFetch(new Response(new Int16Array([5, 6]).buffer));
     await loadWaveformPcm("/tmp/p.json", {

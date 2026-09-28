@@ -193,7 +193,7 @@ export class ByteLru<V> {
   }
 }
 
-/** How long a failed fetch (other than a 429 or 404) is held back before a request may try it again. */
+/** How long a failed fetch (other than a retry or 404) is held back before a request may try it again. */
 export const FAILED_FETCH_BACKOFF_MS = 5000;
 
 /** How long a tile that 404'd or came back short is skipped when its key does not become ready again. */
@@ -207,16 +207,20 @@ export type FetchFailure =
   | { kind: "drop" };
 
 /**
- * 429 re-queues after `Retry-After` (1 s without one); 404 means the key or
- * ref is gone; 409 means the PCM key is stale; anything else is dropped: the
- * data is held back for `FAILED_FETCH_BACKOFF_MS`, then the next request
- * tries again.
+ * 429, or a 503 that carries `Retry-After` (the host's busy PCM decoder),
+ * re-queues after `Retry-After` (1 s for a 429 without one); a 503 without it
+ * is dropped like any other failure. 404 means the key or ref is gone; 409
+ * means the PCM key is stale; anything else is dropped: the data is held
+ * back for `FAILED_FETCH_BACKOFF_MS`, then the next request tries again.
  */
 export function classifyFetchFailure(err: unknown): FetchFailure {
   if (!(err instanceof WaveformFetchError)) {
     return { kind: "drop" };
   }
-  if (err.status === 429) {
+  if (
+    err.status === 429 ||
+    (err.status === 503 && err.retryAfterSec !== null)
+  ) {
     return { kind: "retry", afterMs: (err.retryAfterSec ?? 1) * 1000 };
   }
   if (err.status === 404) {
@@ -228,7 +232,7 @@ export function classifyFetchFailure(err: unknown): FetchFailure {
   return { kind: "drop" };
 }
 
-/** How long to hold a failed fetch back: a 429's Retry-After, otherwise FAILED_FETCH_BACKOFF_MS. */
+/** How long to hold a failed fetch back: a retry's Retry-After (429, or a busy 503), otherwise FAILED_FETCH_BACKOFF_MS. */
 export function holdBackMs(failure: FetchFailure): number {
   return failure.kind === "retry" ? failure.afterMs : FAILED_FETCH_BACKOFF_MS;
 }
