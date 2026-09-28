@@ -514,6 +514,27 @@ def test_review_stop_outline_meets_non_text_contrast(theme: str) -> None:
         assert _contrast_ratio(outline, fill) >= 3.0, (theme, fill)
 
 
+_WASH_RE = re.compile(r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)")
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_prosody_marks_meet_non_text_contrast(theme: str) -> None:
+    """Prosody layer (#719, #732 review): boundary ticks, the energy contour and the
+    prominent-word dot sit on the lane (`--color-timeline-lane`), and the transcript
+    overline on `--color-bg-surface`. WCAG 1.4.11 needs 3:1 in both themes."""
+    roles = _studio_roles(theme)
+    lane = _resolve_hex("--color-timeline-lane", roles)
+    surface = _resolve_hex("--color-bg-surface", roles)
+    prominent = _resolve_hex("--color-prosody-prominent", roles)
+    assert _contrast_ratio(prominent, lane) >= 3.0, theme
+    assert _contrast_ratio(prominent, surface) >= 3.0, theme
+    for name in ("--color-prosody-boundary", "--color-prosody-contour"):
+        match = _WASH_RE.fullmatch(roles[name])
+        assert match, f"{name} must be one colour mixed over transparent: {roles[name]}"
+        ink = _mix(_resolve_hex(match.group(1), roles), lane, float(match.group(2)) / 100)
+        assert _contrast_ratio(ink, lane) >= 3.0, (theme, name)
+
+
 THEME_FIXED = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
 
 
