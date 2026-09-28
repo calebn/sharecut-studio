@@ -587,6 +587,10 @@ describe("TransportBar wide layout", () => {
         <TransportBar />
       </DawProvider>,
     );
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
+      "title",
+      "Project, media, markers, and help",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const main = screen.getByRole("menu", { name: "Transport menu" });
     const markers = within(main).getByRole("group", { name: "Markers" });
@@ -611,6 +615,10 @@ describe("TransportBar wide layout", () => {
       >
         <TransportBar />
       </DawProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
+      "title",
+      "Project, media, and help",
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const main = screen.getByRole("menu", { name: "Transport menu" });

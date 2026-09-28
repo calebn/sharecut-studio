@@ -495,7 +495,9 @@ export function TransportBar({
               "Menu",
               collapsed
                 ? "Layers, zoom, theme, and more"
-                : "Project, media, and help",
+                : mayManage
+                  ? "Project, media, markers, and help"
+                  : "Project, media, and help",
               <Icon name="menu" />,
             )}
           >
