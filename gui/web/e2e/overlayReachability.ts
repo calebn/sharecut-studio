@@ -176,8 +176,7 @@ export async function expectMenuLastItemReachable(page: Page): Promise<void> {
 export async function expectShareRecordRoomsReachable(
   page: Page,
 ): Promise<void> {
-  await openTransportMenu(page);
-  await page.getByRole("menuitem", { name: "Share…" }).click();
+  await openDialogFromMenu(page, "Share…");
   const dialog = page.getByRole("dialog", { name: "Share" });
   await expect(dialog).toBeVisible();
   const panel = dialog.locator(".command-palette-panel");
