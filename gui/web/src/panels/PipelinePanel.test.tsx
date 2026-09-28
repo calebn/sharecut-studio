@@ -1156,6 +1156,35 @@ describe("PipelinePanel", () => {
     ).not.toHaveClass("pipeline-param-highlight");
   });
 
+  it("shows an unapplied remote Analyze's reasons without highlights or a re-read", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(withMasterLufsParam());
+    waitForPipelineJob.mockResolvedValueOnce(
+      analyzeJobSnap({
+        id: "an-remote",
+        status: "ok",
+        message: "Analyze complete",
+        result: remoteAnalyzeResult({
+          patches: { master: { integrated_lufs: -14 } },
+          applied: false,
+        }),
+      }),
+    );
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    expect(
+      screen.getByText("Analyze suggestions (not applied)"),
+    ).toBeInTheDocument();
+    dawState.activityJob = null;
+    rerender(<PipelinePanel />);
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    expect(
+      screen.getByLabelText(/Master LUFS/i).closest("label"),
+    ).not.toHaveClass("pipeline-param-highlight");
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
