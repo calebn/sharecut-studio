@@ -303,3 +303,35 @@ def test_plan_retime_never_probes_jobs_that_do_not_need_it(job):
         plan_retime(p, plan, _RaisingEngine(None), language="en", allow_edited=False)
         assert plan.reused == [job]
         assert plan.run == []
+
+
+def test_plan_retime_context_is_reused_by_run_transcribe_plan(job, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    calls = []
+    ctx = TranscriptContext()
+
+    def fake_load(workspace_path):
+        calls.append(workspace_path)
+        return ctx
+
+    monkeypatch.setattr("podcast_mcp.edits.transcript_reuse.load_transcript_context", fake_load)
+
+    cached = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0, end=0.5)])
+    p, plan = _reused_plan(job, _tr())
+    engine = _FakeEngine(cached)
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    plan.audio_stats[job.key] = (0, 0)
+
+    stub = MagicMock()
+    stub.transcribe_all_dialogue.return_value = []
+    run_transcribe_plan(p, plan, lambda: stub, use_cache=True, language="en")
+
+    assert len(calls) == 1
+    assert plan.context is ctx
+    assert (
+        stub.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
+        == plan.context.initial_prompt_text()
+    )
