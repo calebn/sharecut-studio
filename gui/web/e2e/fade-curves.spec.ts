@@ -46,4 +46,36 @@ test.describe("Timeline fade curves", () => {
       }
     }
   });
+
+  test("reveals trim strips and zero fade corners on keyboard focus, both Tab directions", async ({
+    page,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    const clip = page.locator(".lane-row").first().locator(".clip-block");
+    await expect(clip).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    const corner = clip.locator("button.fade-corner.in.zero");
+    const trimIn = clip.locator(".trim-handle.in");
+    const trimOut = clip.locator(".trim-handle.out");
+    await expect(trimIn).toHaveCSS("opacity", "0");
+    await expect(corner).toHaveCSS("opacity", "0");
+    // Forward: Tab from the clip body lands on the zero fade corner, revealed.
+    await clip.locator(".clip-hit").focus();
+    await page.keyboard.press("Tab");
+    await expect(corner).toBeFocused();
+    await expect(corner).toHaveCSS("opacity", "1");
+    await expect(trimIn).toHaveCSS("opacity", "1");
+    // Reverse: leave the clip from its last control, then Shift+Tab back in.
+    await trimOut.focus();
+    await page.keyboard.press("Tab");
+    await expect(trimOut).not.toBeFocused();
+    await expect(trimOut).toHaveCSS("opacity", "0");
+    await page.keyboard.press("Shift+Tab");
+    await expect(trimOut).toBeFocused();
+    await expect(trimOut).toHaveCSS("opacity", "1");
+    await expectPageAxeClean(page, ".lane-row .clip-block");
+  });
 });
