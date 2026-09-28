@@ -57,5 +57,8 @@ def unmarked_tests_run_as_unsupported_platform(
     """
     if any(mark in _PLATFORM_MARKS for mark in request.node.iter_markers(name="skipif")):
         return
+    # review_versions freezes these flags as module constants at import, so patch them.
+    # conftest.py's pinned_media_fallback patches os.supports_dir_fd instead, because
+    # pinned_media.descriptor_walk_supported() re-reads it on every call.
     monkeypatch.setattr(review_versions, "_SAFE_STALE_CLEANUP_SUPPORTED", False)
     monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
