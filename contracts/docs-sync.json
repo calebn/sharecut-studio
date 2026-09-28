@@ -16,12 +16,7 @@
       "docs": [
         "docs/architecture.md"
       ],
-      "advisory": {
-        "include": [
-          "src/podcast_mcp/*/__init__.py",
-          "src/podcast_mcp/**/__init__.py"
-        ]
-      }
+      "advisory": null
     },
     {
       "id": "source-timeline-timebase-sessiontimeline-or",
@@ -101,7 +96,7 @@
         "docs/timeline-comments.md",
         ".agents/skills/"
       ],
-      "advisory": {
+      "gate": {
         "include": [
           "src/podcast_mcp/mcp/tools/",
           "src/podcast_mcp/mcp/server.py",
@@ -109,7 +104,8 @@
           "src/podcast_mcp/services/clip.py"
         ],
         "exclude": [
-          "src/podcast_mcp/mcp/tools/guest/"
+          "src/podcast_mcp/mcp/tools/guest/",
+          "src/podcast_mcp/mcp/tools/agent_notify.py"
         ]
       }
     },
@@ -128,7 +124,7 @@
         "src/podcast_mcp/engines/prosody.py",
         "src/podcast_mcp/edits/prosody_profile.py"
       ],
-      "advisory": {
+      "gate": {
         "include": [
           "src/podcast_mcp/engines/prosody.py",
           "src/podcast_mcp/edits/prosody_profile.py",
@@ -180,6 +176,9 @@
           "src/podcast_mcp/edits/review_shares.py",
           "src/podcast_mcp/services/share.py",
           "src/podcast_mcp/cli/review.py"
+        ],
+        "exclude": [
+          "src/podcast_mcp/services/share.py"
         ]
       }
     },
@@ -268,7 +267,7 @@
         ".agents/INSTRUCTIONS.md",
         ".agents/rules/engineering-standards.md"
       ],
-      "advisory": {
+      "gate": {
         "include": [
           "src/podcast_mcp/history/",
           "src/podcast_mcp/services/history.py",
@@ -634,19 +633,7 @@
         "contracts/capabilities.manifest.json",
         "docs/entry-points.md"
       ],
-      "advisory": {
-        "include": [
-          "gui/web/src/commands/catalog.ts",
-          "gui/web/src/keymap/registry.ts",
-          "gui/web/src/capabilities/",
-          "src/podcast_mcp/mcp/tools/",
-          "src/podcast_mcp/cli/",
-          ".agents/skills/"
-        ],
-        "exclude": [
-          "src/podcast_mcp/mcp/tools/guest/"
-        ]
-      }
+      "advisory": null
     },
     {
       "id": "sharecut-studio-shortcut-cheatsheet",
@@ -701,7 +688,8 @@
         ],
         "exclude": [
           "gui/desktop/package-lock.json",
-          "gui/desktop/src-tauri/Cargo.lock"
+          "gui/desktop/src-tauri/Cargo.lock",
+          "gui/desktop/splash/brand-tokens.css"
         ]
       }
     },
@@ -822,16 +810,19 @@
           "scripts/export_document_command_schema.py",
           "scripts/export_docs_site_contract.py",
           "scripts/export_capabilities_docs.py"
+        ],
+        "exclude": [
+          "src/podcast_mcp/gui/routes/review_share.py"
         ]
       }
     },
     {
       "id": "pipeline-defaults-or-export-paths",
       "when": "Pipeline defaults or export paths",
-      "update": "`.agents/defaults/pipeline.yaml`, pipeline docs under `docs/`",
+      "update": "`.agents/defaults/pipeline.yaml`, `docs/pipeline.md` and other pipeline docs",
       "docs": [
         ".agents/defaults/pipeline.yaml",
-        "docs/"
+        "docs/pipeline.md"
       ],
       "advisory": {
         "include": [
@@ -1011,10 +1002,8 @@
           "gui/web/src/commands/catalog.ts",
           "docs/gui-mobile.md",
           "docs/ui-philosophy.md",
-          "docs/gui-integration.md",
           "docs/daw-editing.md",
           "docs/host-online-relay.md",
-          "docs/session-sync.md",
           "docs/recording-session.md",
           "schemas/episode.project.schema.json"
         ]
