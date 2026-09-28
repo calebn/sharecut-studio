@@ -56,6 +56,11 @@ def schedule(
     ``leading`` optionally builds the leading-edge events instead of ``build_events``
     (e.g. from rows the caller already read); the trailing edge always runs
     ``build_events``.
+
+    Invariant: a call that lands in the cooldown window only stores ``build_events`` in
+    ``_pending``; the trailing edge is the only place that change is delivered (up to
+    ``min_interval_s`` late). Never skip the trailing edge because the leading edge
+    already ran, or a second commit inside the window is lost.
     """
     with _lock:
         if project_key in _in_cooldown:

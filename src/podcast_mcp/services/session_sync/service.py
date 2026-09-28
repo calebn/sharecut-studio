@@ -547,7 +547,8 @@ class SessionSyncService:
 
         ``live_rows``, when given, is used to build the leading-edge events instead of
         re-reading the store (the caller's commit already read them); the trailing edge
-        always re-reads.
+        always re-reads, and is what delivers a second commit that lands inside the same
+        coalescing window (up to ~100 ms late; see ``presence_fanout.schedule``).
 
         Best effort: the commit this follows already succeeded, so a fan-out failure on
         either edge (a locked/corrupt sync.db on the presence-only read) is logged and

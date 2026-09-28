@@ -180,7 +180,9 @@ def test_presence_fanout_uses_leading_builder_on_leading_edge_only() -> None:
                 break
         assert [e["n"] for e in first] == ["lead"]
         # Second call in the same cooldown window: only build() is stored for the trailing
-        # edge (leading is only consulted on the immediate publish).
+        # edge (leading is only consulted on the immediate publish). This trailing publish
+        # is the only delivery of that second call; it must never be skipped because the
+        # leading edge ran.
         presence_fanout.schedule(key, build, min_interval_s=0.1, leading=lead)
         assert _FakeTimer.instances
         _FakeTimer.instances[-1].fn()
