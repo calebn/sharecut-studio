@@ -205,8 +205,10 @@ export async function readSavedProject(
 
 /**
  * Peak (0..1, `wavPeak`) across every landed source WAV on the track labelled
- * `label`. Throws when the track, its clips, a clip's `raw/` source or a file
- * is missing, so a silent or absent landing cannot pass.
+ * `label`. Relies on the landing contract (`services/record/landing.py`):
+ * every landed clip has a non-null `source_id` whose source path is under the
+ * project's `raw/`. Throws when the track, its clips, a clip's `source_id` or
+ * `raw/` source, or a file is missing, so a silent or absent landing cannot pass.
  */
 export async function landedTrackPeak(
   projectPath: string,
@@ -225,6 +227,11 @@ export async function landedTrackPeak(
   const projectDir = path.dirname(projectPath);
   let peak = 0;
   for (const sourceId of sourceIds) {
+    if (sourceId === null) {
+      throw new Error(
+        `clip on track ${label} has no source_id (landing registers a raw/ source for every landed clip)`,
+      );
+    }
     const source = saved.sources.find((s) => s.id === sourceId);
     if (!source) {
       throw new Error(
