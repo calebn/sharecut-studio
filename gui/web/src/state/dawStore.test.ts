@@ -9,6 +9,7 @@ import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
 import { estimateTimelineViewportWidth, useDawStore } from "./dawStore";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
+import { SPOKEN_JOB_RESULT_LIMIT } from "./uiSlice";
 
 function testTimelineElement(el: HTMLElement | null) {
   timelineViewportRegistry.setTimelineElement(el);
@@ -370,6 +371,28 @@ describe("dawStore listen-first transport", () => {
     expect(s.playAbFollowup).toBeNull();
     expect(s.auditionEpoch).toBe(epoch + 1);
     expect(s.playUntilSec).toBe(8);
+  });
+});
+
+describe("dawStore job result announcements", () => {
+  it("markJobResultsSpoken settles pending results and keeps a bounded spoken list (#704)", () => {
+    useDawStore.setState({
+      pendingJobResults: { a: "A", b: null },
+      spokenJobResultIds: [],
+    });
+    useDawStore.getState().markJobResultsSpoken(["a"]);
+    expect(useDawStore.getState().pendingJobResults).toEqual({ b: null });
+    expect(useDawStore.getState().spokenJobResultIds).toEqual(["a"]);
+
+    useDawStore
+      .getState()
+      .markJobResultsSpoken(
+        Array.from({ length: SPOKEN_JOB_RESULT_LIMIT + 2 }, (_, i) => `j${i}`),
+      );
+    const spoken = useDawStore.getState().spokenJobResultIds;
+    expect(spoken).toHaveLength(SPOKEN_JOB_RESULT_LIMIT);
+    expect(spoken[0]).toBe("j2");
+    expect(spoken).not.toContain("a");
   });
 });
 

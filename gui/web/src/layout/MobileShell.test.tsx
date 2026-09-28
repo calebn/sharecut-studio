@@ -47,7 +47,7 @@ describe("MobileShell", () => {
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setConnected(true);
-    useDawStore.setState({ pendingJobResults: {}, spokenJobResultId: null });
+    useDawStore.setState({ pendingJobResults: {}, spokenJobResultIds: [] });
   });
 
   afterEach(() => {
