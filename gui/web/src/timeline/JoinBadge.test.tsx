@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setClipJoin } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -243,5 +244,24 @@ describe("JoinBadge (live)", () => {
     expect(useDawStore.getState().openJoinId).toBe("c1");
     unmount();
     expect(useDawStore.getState().openJoinId).toBeNull();
+  });
+
+  it("the badge does not close its popover while SetClipJoin is in flight", async () => {
+    vi.mocked(setClipJoin).mockImplementationOnce(() => new Promise(() => {}));
+    const user = userEvent.setup();
+    render(
+      <JoinBadge
+        left={left}
+        right={right}
+        seamSec={5}
+        zoomPxPerSec={50}
+        trackFadeMaxMs={null}
+      />,
+    );
+    const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
+    await user.click(badge);
+    await user.click(screen.getByRole("button", { name: "Crossfade" }));
+    await user.click(badge);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

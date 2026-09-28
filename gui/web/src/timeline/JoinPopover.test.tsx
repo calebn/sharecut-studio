@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { type RefObject, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
@@ -41,6 +41,7 @@ function Harness({
   const anchorRef = useRef<HTMLButtonElement>(
     null,
   ) as RefObject<HTMLButtonElement | null>;
+  const inFlightRef = useRef(false);
   return (
     <div>
       <button ref={anchorRef} type="button">
@@ -54,6 +55,7 @@ function Harness({
         trackFadeMaxMs={40}
         anchorRef={anchorRef}
         onClose={onClose}
+        inFlightRef={inFlightRef}
       />
     </div>
   );
@@ -148,5 +150,28 @@ describe("JoinPopover", () => {
   it("has no axe violations", async () => {
     render(<Harness />);
     await expectNoA11yViolations(document.body);
+  });
+
+  it("stays open while SetClipJoin is in flight, then shows its failure", async () => {
+    let reject: (e: Error) => void = () => {};
+    vi.mocked(setClipJoin).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Crossfade" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerDown(document.body);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => {
+      reject(new Error("nope"));
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

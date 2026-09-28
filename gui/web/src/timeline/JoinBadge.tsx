@@ -80,6 +80,7 @@ function JoinBadgeLive({
   trackFadeMaxMs,
 }: JoinBadgeProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const inFlightRef = useRef(false);
   const popoverId = useId();
   const joinId = right.id;
   const { open, setOpenJoinId } = useDaw((s) => ({
@@ -104,7 +105,13 @@ function JoinBadgeLive({
         zoomPxPerSec={zoomPxPerSec}
         expanded={open}
         popoverId={popoverId}
-        onClick={() => (open ? close() : setOpenJoinId(joinId))}
+        onClick={() => {
+          if (!open) {
+            setOpenJoinId(joinId);
+          } else if (!inFlightRef.current) {
+            close();
+          }
+        }}
       />
       {open ? (
         <JoinPopover
@@ -115,6 +122,7 @@ function JoinBadgeLive({
           trackFadeMaxMs={trackFadeMaxMs}
           anchorRef={buttonRef}
           onClose={close}
+          inFlightRef={inFlightRef}
         />
       ) : null}
     </>
