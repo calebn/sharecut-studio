@@ -292,6 +292,36 @@ def test_guest_audition_context_includes_fresh_prosody(
     assert info["prosody_notes"] == ["host: F0 180Hz"]
 
 
+def test_guest_audition_context_prosody_allowlist_drops_unknown_fields(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    monkeypatch.setattr(
+        "podcast_mcp.edits.prosody_profile.prosody_window",
+        lambda *_a, **_k: {
+            "status": "fresh",
+            "truncated": False,
+            "cache_file": "/abs/host.json",
+            "segments": [
+                {
+                    "line": "F0 180Hz",
+                    "source_start": 0.0,
+                    "source_end": 1.0,
+                    "debug_path": "/abs",
+                }
+            ],
+        },
+    )
+    info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+    assert info["tracks"][0]["prosody"] == {
+        "status": "fresh",
+        "truncated": False,
+        "segments": [{"line": "F0 180Hz", "source_start": 0.0, "source_end": 1.0}],
+    }
+    assert "/abs" not in json.dumps(info)
+
+
 def test_share_audition_context_errors(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
