@@ -83,6 +83,59 @@ def test_skips_chunks_wholly_before_first_window():
     assert reader.buffered_samples <= 2 * 100 + 100
 
 
+def test_window_samples_serves_exact_index_ranges():
+    samples = np.arange(100, dtype=np.float32)
+    reader = SequentialWindowReader(_chunks(samples, 7), sample_rate=10)
+
+    window, first = reader.window_samples(3, 17)
+    np.testing.assert_array_equal(window, samples[3:17])
+    assert first == 3
+
+    window, first = reader.window_samples(17, 17)
+    assert window.size == 0
+    assert first == 17
+
+
+def test_window_samples_clamps_negative_start_and_eof():
+    samples = np.arange(100, dtype=np.float32)
+    reader = SequentialWindowReader(_chunks(samples, 7), sample_rate=10)
+
+    window, first = reader.window_samples(-5, 4)
+    np.testing.assert_array_equal(window, samples[0:4])
+    assert first == 0
+
+    window, first = reader.window_samples(95, 200)
+    np.testing.assert_array_equal(window, samples[95:100])
+    assert first == 95
+    assert reader.end_sec == pytest.approx(10.0)
+
+    window, first = reader.window_samples(120, 130)
+    assert window.size == 0
+    assert first == 100
+
+
+def test_window_samples_earlier_start_raises():
+    samples = np.arange(100, dtype=np.float32)
+    reader = SequentialWindowReader(_chunks(samples, 7), sample_rate=10)
+
+    reader.window_samples(10, 20)
+
+    with pytest.raises(
+        ValueError, match=r"window start sample 5 precedes the previous start sample 10"
+    ):
+        reader.window_samples(5, 8)
+
+
+def test_window_and_window_samples_share_the_ordering_rule():
+    samples = np.arange(100, dtype=np.float32)
+    reader = SequentialWindowReader(_chunks(samples, 7), sample_rate=10)
+
+    reader.window(1.0, 3.0)
+
+    with pytest.raises(ValueError, match="precedes the previous start sample"):
+        reader.window_samples(5, 8)
+
+
 def test_close_closes_generator():
     closed = {"flag": False}
 
