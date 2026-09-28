@@ -139,12 +139,26 @@ describe("ensureHostRecordCommand", () => {
 });
 
 describe("clickHostTransport", () => {
+  function listenerHost(page: object) {
+    let handler: ((req: unknown) => void) | undefined;
+    const on = vi.fn((_event: string, fn: (req: unknown) => void) => {
+      handler = fn;
+    });
+    const off = vi.fn();
+    const firePost = () =>
+      handler?.({
+        method: () => "POST",
+        url: () => "http://localhost/api/record/command",
+      });
+    return { host: { ...page, on, off }, on, off, firePost };
+  }
+
   it("returns without requiring a POST when the click reaches the state", async () => {
     const { page, post } = hostWithRecordStates(["recording"], { ok: true });
-    const waitForRequest = vi.fn(async () => null);
+    const { host, on, off } = listenerHost(page);
     const button = { click: vi.fn(async () => {}) };
     await clickHostTransport(
-      { ...page, waitForRequest } as never,
+      host as never,
       button as never,
       "/p/x.json",
       "Start",
@@ -152,23 +166,43 @@ describe("clickHostTransport", () => {
     );
     expect(button.click).toHaveBeenCalledTimes(1);
     expect(post).not.toHaveBeenCalled();
+    expect(off).toHaveBeenCalledWith("request", on.mock.calls[0][1]);
   });
 
-  it("rejects when the UI never POSTs the command", async () => {
+  it("confirms the UI POST and then waits for the state", async () => {
+    const { page, post } = hostWithRecordStates(["stopped", "recording"], {
+      ok: true,
+    });
+    const { host, on, off, firePost } = listenerHost(page);
+    const button = { click: vi.fn(async () => firePost()) };
+    await clickHostTransport(
+      host as never,
+      button as never,
+      "/p/x.json",
+      "Start",
+      "recording",
+    );
+    expect(post).not.toHaveBeenCalled();
+    expect(off).toHaveBeenCalledWith("request", on.mock.calls[0][1]);
+  });
+
+  it("rejects and detaches the listener when the UI never POSTs the command", async () => {
     const { page } = hostWithRecordStates(["stopped", "stopped"], {
       ok: true,
     });
-    const waitForRequest = vi.fn(async () => null);
+    const { host, on, off } = listenerHost(page);
     const button = { click: vi.fn(async () => {}) };
     await expect(
       clickHostTransport(
-        { ...page, waitForRequest } as never,
+        host as never,
         button as never,
         "/p/x.json",
         "Start",
         "recording",
+        { postTimeout: 50 },
       ),
     ).rejects.toThrow(/did not POST \/api\/record\/command/);
+    expect(off).toHaveBeenCalledWith("request", on.mock.calls[0][1]);
   });
 });
 
