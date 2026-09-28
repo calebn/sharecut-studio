@@ -150,6 +150,17 @@ describe("TrackInspector", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("passes the effect name so per-effect units apply", () => {
+    render(
+      <TrackInspector
+        track={hostTrack}
+        effects={[{ effect: "deesser", params: { frequency: 0.5 } }]}
+      />,
+    );
+    expect(screen.getByText("frequency (0–1) 0.5")).toBeInTheDocument();
+    expect(screen.queryByText(/0\.5 Hz/)).toBeNull();
+  });
+
   it("smooths every join on the track from the track inspector", async () => {
     const user = userEvent.setup();
     render(<TrackInspector track={hostTrack} effects={[]} />);
