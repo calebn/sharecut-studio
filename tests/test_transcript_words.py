@@ -38,6 +38,17 @@ def test_assigning_words_wraps_and_bumps():
     assert words_revision() > before
 
 
+def test_assigning_another_transcripts_words_copies_the_list():
+    a = _tr()
+    b = _tr()
+    b.words = a.words
+    assert b.words is not a.words
+    assert b.words == a.words
+    b.words.append(TranscriptWord(text="z", start=1.0, end=1.1))
+    assert len(a.words) == 2
+    assert Transcript(track_id="c", words=a.words).words is not a.words
+
+
 _MUTATORS = [
     pytest.param(lambda words, w: words.__setitem__(0, w), id="setitem"),
     pytest.param(lambda words, w: operator.setitem(words, slice(0, 1), [w]), id="setitem_slice"),
