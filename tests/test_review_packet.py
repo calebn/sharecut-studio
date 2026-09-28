@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -16,6 +17,22 @@ _spec = importlib.util.spec_from_file_location(
 assert _spec and _spec.loader
 review_packet = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(review_packet)
+
+_DOCS_SYNC_SOURCE = (ROOT / "scripts" / "docs_sync.py").read_text(encoding="utf-8")
+_MIX_DOCS_CONTRACT = json.dumps(
+    {
+        "api_version": 1,
+        "rules": [
+            {
+                "id": "mix-docs",
+                "when": "Mix levels in services",
+                "update": "`docs/mix.md`",
+                "docs": ["docs/mix.md"],
+                "gate": {"include": ["src/podcast_mcp/services/mix.py"]},
+            }
+        ],
+    }
+)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -39,6 +56,8 @@ def _write(repo: Path, rel: str, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """``base`` predates the docs-sync checker (it is added in the ``change`` commit), so
+    tests exercise both the found-checker and the "unavailable at this ref" fallback."""
     _git(tmp_path, "init", "-q", "-b", "main")
     _write(tmp_path, "src/podcast_mcp/services/mix.py", "def level(x):\n    return x\n")
     _write(
@@ -47,18 +66,18 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "from podcast_mcp.services.mix import level\n\nlevel(1)\n",
     )
     _write(tmp_path, "tests/test_mix.py", "from podcast_mcp.services.mix import level\n")
-    _write(
-        tmp_path, "AGENTS.md", "| Mix levels in services | `docs/mix.md` |\n| Unrelated | `x` |\n"
-    )
     _git(tmp_path, "add", ".")
     _git(tmp_path, "commit", "-qm", "base")
     _git(tmp_path, "branch", "base")
+    _write(tmp_path, "scripts/docs_sync.py", _DOCS_SYNC_SOURCE)
+    _write(tmp_path, "contracts/docs-sync.json", _MIX_DOCS_CONTRACT)
     _write(
         tmp_path,
         "src/podcast_mcp/services/mix.py",
         "def level(x):\n    return x\n\n\ndef normalize_gain(x):\n    return level(x) * 2\n",
     )
-    _git(tmp_path, "commit", "-qam", "change")
+    _git(tmp_path, "add", ".")  # -am below only stages already-tracked files
+    _git(tmp_path, "commit", "-qm", "change")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -72,17 +91,17 @@ def test_packet_has_every_section_with_real_data(repo: Path) -> None:
         "## Importers of changed modules (second hop)",
         "## Twin paths (CLI / MCP / GUI adapters)",
         "## Related tests",
-        "## Applicable repo rules (AGENTS.md rows)",
+        "## Docs-sync rules (contracts/docs-sync.json)",
     ):
         assert title in packet, title
+    assert "## Applicable repo rules (AGENTS.md rows)" not in packet
     assert "+def normalize_gain(x):" in packet
     assert "### normalize_gain" in packet
     # The CLI adapter imports the changed service module: a twin path, unchanged in this diff.
     assert "src/podcast_mcp/cli/mix.py:1:" in packet
     assert "[unchanged]" in packet
     assert "tests/test_mix.py" in packet
-    assert "| Mix levels in services |" in packet
-    assert "| Unrelated |" not in packet
+    assert "VIOLATED  mix-docs  Mix levels in services" in packet
 
 
 def test_packet_is_capped(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,6 +121,18 @@ def test_main_writes_the_file(repo: Path, capsys: pytest.CaptureFixture[str]) ->
     assert review_packet.main(["--ref", "HEAD", "--range", "base..HEAD", "--out", str(out)]) == 0
     assert out.read_text(encoding="utf-8").startswith("## Diff stat")
     assert str(out) in capsys.readouterr().out
+
+
+def test_docs_sync_findings_reports_a_violation_at_the_given_ref(repo: Path) -> None:
+    findings = review_packet.docs_sync_findings("HEAD", "base..HEAD")
+    assert "  VIOLATED  mix-docs  Mix levels in services" in findings
+
+
+def test_docs_sync_findings_falls_back_before_the_checker_existed(repo: Path) -> None:
+    # "base" predates scripts/docs_sync.py, which is only added in the "change" commit.
+    assert review_packet.docs_sync_findings("base", "base..HEAD") == [
+        "(docs-sync unavailable at this ref)"
+    ]
 
 
 def test_symbols_ignore_tests_and_short_names() -> None:
