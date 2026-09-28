@@ -20,8 +20,6 @@ const projects: Project[] = [
   },
   {
     name: "webkit",
-    // WebKit core flow lands with #704; remove this line there.
-    testIgnore: ["**/core-flow.spec.ts"],
     use: { ...devices["Desktop Safari"] },
   },
 ];
