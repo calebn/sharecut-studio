@@ -69,6 +69,11 @@ pull request, every push to `main`, a weekly schedule, and manual dispatch. The 
 read-only repository permission, does not comment, and does not upload a finding artifact.
 The repository intentionally carries no `.gitleaksignore` baseline; test fixtures must use
 values that cannot be mistaken for live credentials.
+`.gitleaks.toml` extends the default rules with one allowlist on `generic-api-key`: lines in
+`src/podcast_mcp/whisper_models.py` / `word_aligner_models.py` that pin a model file by sha256
+(`_…_SHA256 = "<64 hex>"` constants and `("<file>", "<64 hex>")` entries). It matches lines,
+not commit fingerprints, so it still holds after a rebase-merge rewrites SHAs;
+`tests/test_secret_scan_workflow.py` checks its scope and that every pin line fits it.
 The companion public-tree provider/marker test scans blobs in the Git index, not ignored
 cache files or the mutable checkout, so staged public contents are the tested boundary.
 It also fails on any **public** (globally routable) IPv4 literal in a text blob, including

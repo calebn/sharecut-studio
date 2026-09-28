@@ -1,0 +1,22 @@
+# Gitleaks config for secret-scan.yml: the default rules plus one scoped allowlist.
+# See docs/testing.md § Credential history scanning.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+    [[rules.allowlists]]
+    description = "sha256 digests that pin downloaded model snapshot files (#728)"
+    condition = "AND"
+    paths = [
+      '''^src/podcast_mcp/whisper_models\.py$''',
+      '''^src/podcast_mcp/word_aligner_models\.py$''',
+    ]
+    regexTarget = "line"
+    regexes = [
+      # _EN_TOKENIZER_SHA256 = "<64 hex>"
+      '''_[A-Z0-9_]*_SHA256 = "[0-9a-f]{64}"''',
+      # ("tokenizer.json", "<64 hex>") manifest entries
+      '''\("[\w./-]+", "[0-9a-f]{64}"\)''',
+    ]

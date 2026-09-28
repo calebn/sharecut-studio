@@ -6,12 +6,18 @@ import ipaddress
 import os
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "secret-scan.yml"
+GITLEAKS_CONFIG = ROOT / ".gitleaks.toml"
+_PIN_MODULES = (
+    "src/podcast_mcp/whisper_models.py",
+    "src/podcast_mcp/word_aligner_models.py",
+)
 
 # Well-known resolver / placeholder addresses used as client IPs in tests.
 _PUBLIC_IPV4_ALLOWLIST = frozenset({"1.1.1.1", "9.9.9.9", "1.2.3.4"})
@@ -53,6 +59,63 @@ def test_secret_scan_covers_changes_and_scheduled_history() -> None:
 
 def test_gitleaks_has_no_committed_ignore_baseline() -> None:
     assert not (ROOT / ".gitleaksignore").exists()
+
+
+def test_gitleaks_config_extends_defaults_with_one_scoped_pin_allowlist() -> None:
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+
+    assert config["extend"] == {"useDefault": True}
+    assert "allowlist" not in config
+    assert "allowlists" not in config
+
+    assert [r["id"] for r in config["rules"]] == ["generic-api-key"]
+    rule = config["rules"][0]
+    assert "regex" not in rule  # inherits the default detector
+
+    assert len(rule["allowlists"]) == 1
+    allow = rule["allowlists"][0]
+    assert allow["condition"] == "AND"
+    assert allow["regexTarget"] == "line"
+    assert [p for p in _PIN_MODULES if any(re.fullmatch(pat, p) for pat in allow["paths"])] == list(
+        _PIN_MODULES
+    )
+    assert not any(re.fullmatch(pat, "src/podcast_mcp/other.py") for pat in allow["paths"])
+
+
+def test_gitleaks_pin_allowlist_matches_pin_lines_only() -> None:
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+    regexes = config["rules"][0]["allowlists"][0]["regexes"]
+    digest = "0123456789abcdef" * 4
+
+    def allowed(line: str) -> bool:
+        return any(re.search(pattern, line) for pattern in regexes)
+
+    assert allowed(f'_EN_TOKENIZER_SHA256 = "{digest}"')
+    assert allowed(f'            ("tokenizer.json", "{digest}"),')
+
+    assert not allowed(f'API_TOKEN = "{digest}"')
+    assert not allowed(f'api_key = "{digest}"')
+    assert not allowed(f'("tokenizer.json", "{digest[:-1]}")')
+    assert not allowed(f'_EN_TOKENIZER_SHA256 = "{digest.upper()}"')
+
+
+def test_every_model_pin_line_is_allowlisted_or_standalone() -> None:
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+    regexes = config["rules"][0]["allowlists"][0]["regexes"]
+    standalone = re.compile(r'^\s*"[0-9a-f]{64}",?\s*(#.*)?$')
+
+    offenders: list[str] = []
+    for module in _PIN_MODULES:
+        for line in (ROOT / module).read_text(encoding="utf-8").splitlines():
+            if not re.search(r"[0-9a-f]{64}", line):
+                continue
+            if any(re.search(pattern, line) for pattern in regexes):
+                continue
+            if standalone.match(line):
+                continue
+            offenders.append(f"{module}: {line}")
+
+    assert offenders == []
 
 
 def _skips_ipv4_scan(relative: Path, content: bytes) -> bool:
