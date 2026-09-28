@@ -749,7 +749,7 @@ def pipeline_prediction(
 
     Drives the exact call chain ``transcribe.py``'s ``_align_words`` uses:
     ``TranscriptWord`` -> ``WordAligner.align`` -> ``apply_word_spans`` (which also
-    receives the per-word scores too). ``aligner`` is a real ``WordAligner`` (or, in
+    receives the per-word scores). ``aligner`` is a real ``WordAligner`` (or, in
     tests, a stand-in with the same ``.align`` signature).
     """
     words = [TranscriptWord(text=w["text"], start=w["start"], end=w["end"]) for w in native_words]
