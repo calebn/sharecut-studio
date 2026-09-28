@@ -21,6 +21,7 @@ import { Button, EmptyState, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { getByPath, setByPath } from "../utils/configPath";
 import {
+  isAnalyzeJob,
   isPipelineKindJob,
   isPipelineRunning,
   isPipelineSlotBusy,
@@ -244,14 +245,21 @@ export function PipelinePanel() {
   const analyzeRequest = useLatestRequest();
   /** The newest config PUT, so Analyze can wait for a write that overlapped its scan. */
   const lastPersist = useRef<Promise<unknown>>(Promise.resolve());
+  /** Aborts the wait on the running Analyze job's stream (project switch / re-run). */
+  const analyzeAbort = useRef<AbortController | null>(null);
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
     (isPipelineSlotJob(activityJob) ? activityJob : null) ??
     (isPipelineSlotJob(pipelineJob) ? pipelineJob : null);
   const slotBusy = isPipelineSlotBusy(slotJob);
+  /** A running Analyze shows its own progress here instead of the slot-busy notice. */
+  const analyzeJob = slotBusy && isAnalyzeJob(slotJob) ? slotJob : null;
   const foreignSlotBusy =
-    slotBusy && slotJob != null && !isPipelineKindJob(slotJob);
+    slotBusy &&
+    slotJob != null &&
+    !isPipelineKindJob(slotJob) &&
+    analyzeJob == null;
   const pipelineRunning =
     isPipelineKindJob(pipelineJob) && isPipelineRunning(pipelineJob);
   const running = slotBusy;
@@ -260,6 +268,8 @@ export function PipelinePanel() {
     // A project switch drops in-flight writes and the previous project's Analyze results.
     persistRequest.invalidate();
     analyzeRequest.invalidate();
+    analyzeAbort.current?.abort();
+    analyzeAbort.current = null;
     setAnalyzing(false);
     setReasons([]);
     setTrackRows([]);
@@ -426,9 +436,25 @@ export function PipelinePanel() {
     setAnalyzing(true);
     const token = analyzeRequest.begin();
     const persistMark = persistRequest.peek();
+    analyzeAbort.current?.abort();
+    const abort = new AbortController();
+    analyzeAbort.current = abort;
     try {
-      const result = await analyzePipeline(projectPath, { apply: true });
+      const result = await analyzePipeline(projectPath, {
+        apply: true,
+        signal: abort.signal,
+        // Seed the slot job so Cancel + live progress show before the first SSE frame.
+        onJob: (started) => {
+          if (analyzeRequest.isCurrent(token)) {
+            setActivityJob(started);
+          }
+        },
+      });
       if (!analyzeRequest.isCurrent(token)) {
+        return;
+      }
+      if (result == null) {
+        // Cancelled before the scan finished: nothing was applied.
         return;
       }
       setReasons(result.reasons);
@@ -495,6 +521,9 @@ export function PipelinePanel() {
         setError(errorMessage(e));
       }
     } finally {
+      if (analyzeAbort.current === abort) {
+        analyzeAbort.current = null;
+      }
       if (analyzeRequest.isCurrent(token)) {
         setAnalyzing(false);
       }
@@ -607,9 +636,10 @@ export function PipelinePanel() {
   };
 
   const job: PipelineJobSnapshot | null =
-    isPipelineKindJob(pipelineJob) && !foreignSlotBusy ? pipelineJob : null;
+    analyzeJob ??
+    (isPipelineKindJob(pipelineJob) && !foreignSlotBusy ? pipelineJob : null);
   const pct = pipelineProgressPercent(job);
-  const units = pipelineUnitsLabel(job);
+  const units = pipelineUnitsLabel(job, analyzeJob ? "tracks" : "steps");
   const indeterminatePulse = showIndeterminatePulse(job);
 
   const failedStep = (id: string) =>
@@ -1049,40 +1079,42 @@ export function PipelinePanel() {
             </div>
           ) : null}
           {job.error && <InlineError message={job.error} />}
-          <table className="pipeline-steps">
-            <thead>
-              <tr>
-                <th>Step</th>
-                <th>Status</th>
-                <th>Time</th>
-                <th>Summary</th>
-              </tr>
-            </thead>
-            <tbody>
-              {job.steps.map((s) => (
-                <tr key={`${s.name}-${s.elapsed_sec}`}>
-                  <td>{s.name}</td>
-                  <td
-                    className={
-                      s.status === "running"
-                        ? "step-running"
-                        : s.status === "ok"
-                          ? "step-ok"
-                          : s.status === "error"
-                            ? "step-error"
-                            : undefined
-                    }
-                  >
-                    {s.status}
-                  </td>
-                  <td>{formatTimeShort(s.elapsed_sec)}</td>
-                  <td className="pipeline-step-summary">
-                    {s.error ?? s.summary ?? ""}
-                  </td>
+          {analyzeJob == null && (
+            <table className="pipeline-steps">
+              <thead>
+                <tr>
+                  <th>Step</th>
+                  <th>Status</th>
+                  <th>Time</th>
+                  <th>Summary</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {job.steps.map((s) => (
+                  <tr key={`${s.name}-${s.elapsed_sec}`}>
+                    <td>{s.name}</td>
+                    <td
+                      className={
+                        s.status === "running"
+                          ? "step-running"
+                          : s.status === "ok"
+                            ? "step-ok"
+                            : s.status === "error"
+                              ? "step-error"
+                              : undefined
+                      }
+                    >
+                      {s.status}
+                    </td>
+                    <td>{formatTimeShort(s.elapsed_sec)}</td>
+                    <td className="pipeline-step-summary">
+                      {s.error ?? s.summary ?? ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </>
       )}
 

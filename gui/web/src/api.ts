@@ -90,6 +90,7 @@ export {
   pipelineEventsUrl,
   putPipelineConfig,
   saveTranscriptVocabulary,
+  startPipelineAnalyze,
   startPipelineRun,
   startRenderPreview,
   waitForPipelineJob,

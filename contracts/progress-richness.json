@@ -4,6 +4,7 @@
   "rich": [
     "align_tracks",
     "agent",
+    "analyze",
     "analyze_fillers_pauses",
     "analyze_focus_cuts",
     "apply_bleed_suppression_tool",
