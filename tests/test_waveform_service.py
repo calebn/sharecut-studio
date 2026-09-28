@@ -659,6 +659,100 @@ def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
         pcm_block(project_path, "track:host", key, 0)
 
 
+def test_pcm_block_caches_compressed_blocks(tmp_path, monkeypatch):
+    _compressed(monkeypatch)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path, "track:host")
+    key_s, _ = _ready(project_path, "source:s_host")  # same underlying file
+    calls: list[int] = []
+    real = svc.read_pcm_minmax
+
+    def counting(*a, **k):
+        calls.append(a[1] if a else k.get("start_frame"))
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", counting)
+    a = pcm_block(project_path, "track:host", key, 0)
+    b = pcm_block(project_path, "track:host", key, 0)
+    c = pcm_block(project_path, "source:s_host", key_s, 0)
+    assert a == b == c
+    assert len(calls) == 1
+    pcm_block(project_path, "track:host", key, 1)
+    assert len(calls) == 2
+
+    # a cached block never needs a slot
+    sem = svc._PCM_DECODES
+    assert isinstance(sem, threading.BoundedSemaphore)
+    sem.acquire()
+    cached = pcm_block(project_path, "track:host", key, 0)
+    assert cached == a
+    sem.release()
+
+
+def test_pcm_block_cache_is_bounded(tmp_path, monkeypatch):
+    _compressed(monkeypatch)
+    monkeypatch.setattr(svc, "_PCM_MAX", 2)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    calls: list[int] = []
+    real = svc.read_pcm_minmax
+
+    def counting(*a, **k):
+        calls.append(1)
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", counting)
+    for block in (0, 1, 2):
+        pcm_block(project_path, "track:host", key, block)
+    assert len(svc._PCM) == 2
+    pcm_block(project_path, "track:host", key, 2)
+    assert len(calls) == 3  # no new read: block 2 still cached
+    pcm_block(project_path, "track:host", key, 0)
+    assert len(calls) == 4  # block 0 was evicted
+
+
+def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    calls: list[int] = []
+    real = svc.read_pcm_minmax
+
+    def counting(*a, **k):
+        calls.append(1)
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", counting)
+    pcm_block(project_path, "track:host", key, 0)
+    pcm_block(project_path, "track:host", key, 0)
+    assert len(calls) == 2
+    assert svc._PCM == {}
+
+    _compressed(monkeypatch)
+    real2 = svc.read_pcm_minmax
+
+    def boom(*_a, **_k):
+        raise RuntimeError("ffmpeg failed")
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", boom)
+    with pytest.raises(svc.WaveformDecodeError):
+        pcm_block(project_path, "track:host", key, 2)
+    assert svc._PCM == {}
+
+    audio = project_path.parent / "raw" / "host.wav"
+
+    def swapping(*a, **k):
+        out = real2(*a, **k)
+        st = audio.stat()
+        os.utime(audio, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        return out
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
+    with pytest.raises(StaleWaveformKeyError):
+        pcm_block(project_path, "track:host", key, 3)
+    assert svc._PCM == {}
+
+
 def test_media_index_sees_media_that_appears_later(tmp_path):
     project_path = waveform_project(tmp_path)
     assert media_index(project_path).unavailable["track:gone"] == "no-media"

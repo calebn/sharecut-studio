@@ -12,7 +12,7 @@ never imports services) and are re-exported here. This module adds:
 - ``tile_bytes`` — raw data-tile bins, with no project parse;
 - ``pcm_block`` — host-only int16 min/max PCM windows for deep zoom;
   compressed media take one of ``PCM_DECODE_MAX_CONCURRENT`` decode slots
-  (``WaveformBusyError`` when none is free);
+  (``WaveformBusyError`` when none is free) and land in a small block LRU;
 - ``gc_pyramids`` — once per process per project, drop orphaned pyramids.
 
 See ``docs/waveform.md``.
@@ -97,6 +97,7 @@ _PYRAMID_NAME_RE = re.compile(r"^([A-Za-z0-9_-]+)\.[0-9a-f]{20}\.wfpk$")
 
 _INDEX_MAX = 16
 _META_MAX = 256
+_PCM_MAX = 32  # decoded compressed blocks; each at most pcm_block_frames * 4 bytes (256 KiB)
 PCM_DECODE_MAX_CONCURRENT = 4  # the host viewer's fetchLimit, so one tab never trips it
 PCM_BUSY_RETRY_AFTER_SEC = 1
 GC_MIN_AGE_SEC = 7 * 86_400.0
@@ -136,6 +137,9 @@ _META_LOCK = Lock()
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
 _PCM_DECODES = BoundedSemaphore(PCM_DECODE_MAX_CONCURRENT)
+_PcmKey = tuple[str, str, int]  # (media path, pyramid key, block)
+_PCM: OrderedDict[_PcmKey, bytes] = OrderedDict()
+_PCM_LOCK = Lock()
 
 _K = TypeVar("_K")
 _V = TypeVar("_V")
@@ -375,7 +379,9 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     ``StaleWaveformKeyError`` when *key* is not the ref's current key, checked before
     and after the read. Media that needs ffmpeg (not the WAV fast path) takes one of
     ``PCM_DECODE_MAX_CONCURRENT`` slots without waiting (``WaveformBusyError`` when
-    none is free).
+    none is free). Compressed blocks are kept in an LRU of ``_PCM_MAX`` (32) keyed by
+    media path, key and block, so a repeat cold request never spawns ffmpeg again;
+    only bytes that passed the after-read key check are stored.
     """
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
@@ -395,12 +401,20 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         raise WaveformDecodeError("waveform media could not be decoded") from exc
     if not compressed:
         return _read_pcm_bytes(entry, key, meta, start, frames)
+    cache_key: _PcmKey = (str(entry.abs_path), key, block)
+    with _PCM_LOCK:
+        hit = _lru_get(_PCM, cache_key)
+    if hit is not None:  # the key was checked live above; a hit never needs a slot
+        return hit
     if not _PCM_DECODES.acquire(blocking=False):
         raise WaveformBusyError("waveform decoder busy")
     try:
-        return _read_pcm_bytes(entry, key, meta, start, frames)
+        body = _read_pcm_bytes(entry, key, meta, start, frames)
     finally:
         _PCM_DECODES.release()
+    with _PCM_LOCK:
+        _lru_put(_PCM, cache_key, body, _PCM_MAX)
+    return body
 
 
 def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
