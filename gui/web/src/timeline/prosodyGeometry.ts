@@ -1,4 +1,5 @@
 import type { ProsodyOverlayTrack, ProsodyStatus } from "../types/prosody";
+import { plural } from "../utils/format";
 
 /** Energy contour band inside the lane, % from the top. */
 export const PROSODY_ENERGY_TOP_PCT = 15;
@@ -56,7 +57,7 @@ export function prosodyStatusSummary(
 ): string | null {
   const parts = SUMMARY_PARTS.flatMap(([status, text]) => {
     const n = tracks.filter((t) => t.status === status).length;
-    return n ? [`${text} on ${n} ${n === 1 ? "track" : "tracks"}`] : [];
+    return n ? [`${text} on ${n} ${plural(n, "track")}`] : [];
   });
   return parts.length ? `Prosody: ${parts.join(", ")}` : null;
 }
