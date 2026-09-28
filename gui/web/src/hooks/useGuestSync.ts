@@ -22,6 +22,7 @@ import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
 import { requestGuestDrainLazy } from "../state/requestDrainLazy";
+import { detachSocket } from "../sync/detachSocket";
 import { enqueueInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
@@ -305,12 +306,7 @@ export function useGuestSync(
         clearTimeout(retry);
       }
       if (ws) {
-        // A late message or close from this socket must not touch the next run's state.
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.onerror = null;
-        ws.close();
+        detachSocket(ws);
       }
       wsOpenRef.current = false;
       sendRef.current = null;

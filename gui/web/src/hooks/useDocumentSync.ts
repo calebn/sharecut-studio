@@ -15,6 +15,7 @@ import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
+import { detachSocket } from "../sync/detachSocket";
 import { enqueueInbound } from "../sync/inboundQueue";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
@@ -144,12 +145,7 @@ export function useDocumentSync(
         clearTimeout(retry);
       }
       if (ws) {
-        // A late message or close from this socket must not touch the next run's state.
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.onerror = null;
-        ws.close();
+        detachSocket(ws);
       }
     };
   }, [projectPath, enabled]);

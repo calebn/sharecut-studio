@@ -23,6 +23,7 @@ import {
 import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
+import { detachSocket } from "../sync/detachSocket";
 import { enqueueInbound } from "../sync/inboundQueue";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { useFileMetaPoll } from "./useFileMetaPoll";
@@ -324,12 +325,7 @@ export function useSessionSync(
       }
       bindRecordHostSend(null);
       if (socket) {
-        // A late close or open from this socket must not touch the next run's state.
-        socket.onopen = null;
-        socket.onmessage = null;
-        socket.onclose = null;
-        socket.onerror = null;
-        socket.close();
+        detachSocket(socket);
       }
       sendRef.current = null;
       stopViewerStateWait(viewerStateWait);
