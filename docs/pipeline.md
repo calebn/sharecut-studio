@@ -283,9 +283,9 @@ or a changed renderable track set, keeps the new invalidations and fails before
 publishing `track_outputs.json`; retry the render for the new state. On-demand processed
 playback (`play processed:<id>`, `/api/audio`) decides the stem and segment-cache tiers
 from the same fingerprint; it deep-copies only for a segment render, and keys that cache
-by the snapshot's own hash (#358). On a 36,000-word project with 100 history entries, a
-warm decision costs ~3 ms (`stem_fingerprint`) instead of ~318 ms (a deep `snapshot_project`
-copy).
+by the snapshot's own hash (#358). A warm decision hashes only that track's own inputs and
+stats its files; it makes no deep copy of every track's transcript and the history, so its
+cost no longer grows with the project's history.
 
 Tighten proposal snapshots speaker profiles and speaker-ID settings once before
 parallel candidate analysis. The read-only snapshot gives every candidate the
