@@ -51,3 +51,12 @@ export async function opfsFileHandle(
   const dir = await opfsDirHandle(root, dirParts, create);
   return dir.getFileHandle(fileName, { create });
 }
+
+/**
+ * Segment index a keeper directory entry names (`<n>.wav` or its `<n>.json`
+ * metadata, case-insensitive); null for any other name.
+ */
+export function keeperSegmentIndex(name: string): number | null {
+  const match = /^(\d+)\.(?:wav|json)$/i.exec(name);
+  return match ? Number(match[1]) : null;
+}

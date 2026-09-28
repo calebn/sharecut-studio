@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   assertSafePart,
+  keeperSegmentIndex,
   opfsDirHandle,
   opfsFileHandle,
   splitOpfsPath,
@@ -86,5 +87,19 @@ describe("splitOpfsPath", () => {
   it("rejects an empty path or an unsafe file name", () => {
     expect(() => splitOpfsPath("")).toThrow(/invalid keeper path/);
     expect(() => splitOpfsPath("a/..")).toThrow(/invalid keeper path part/);
+  });
+});
+
+describe("keeperSegmentIndex", () => {
+  it("reads the index from a wav or json entry, ignoring case", () => {
+    expect(keeperSegmentIndex("3.wav")).toBe(3);
+    expect(keeperSegmentIndex("0.json")).toBe(0);
+    expect(keeperSegmentIndex("12.WAV")).toBe(12);
+  });
+
+  it("returns null for any other name", () => {
+    for (const name of ["notes.txt", "a.wav", "1.wav.tmp", "", "room-tone"]) {
+      expect(keeperSegmentIndex(name)).toBeNull();
+    }
   });
 });

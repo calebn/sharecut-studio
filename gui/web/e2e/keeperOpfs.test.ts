@@ -57,9 +57,10 @@ describe("segmentIndexesFromNames", () => {
         "0.json",
         "0.wav",
         "2.wav",
+        "3.WAV",
         "notes.txt",
       ]),
-    ).toEqual([0, 1, 2]);
+    ).toEqual([0, 1, 2, 3]);
   });
 
   it("returns [] for no matching names", () => {

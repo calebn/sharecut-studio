@@ -3,6 +3,7 @@ import { removeKeeperUnlessHeld } from "./deletionGuard";
 import {
   assertSafePart,
   KEEPER_OPFS_ROOT,
+  keeperSegmentIndex,
   opfsDirHandle,
   opfsFileHandle,
   splitOpfsPath,
@@ -412,9 +413,9 @@ function maxWavIndex(names: string[]): number {
   for (const name of names) {
     // Metadata (pending or complete) can outlive its WAV, e.g. after a landed
     // WAV is reclaimed. Count it so a later take never reuses an identity.
-    const match = /^(\d+)\.(?:wav|json)$/i.exec(name);
-    if (match) {
-      max = Math.max(max, Number(match[1]));
+    const index = keeperSegmentIndex(name);
+    if (index !== null) {
+      max = Math.max(max, index);
     }
   }
   return max + 1;
