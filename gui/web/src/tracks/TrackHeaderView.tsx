@@ -18,6 +18,7 @@ import {
   STEM_STATUS_LABEL,
   trackSubtitle,
 } from "./trackHeaderCopy";
+import { keepActivationKeys } from "./trackHeaderKeys";
 
 export interface TrackHeaderViewProps {
   track: TrackView;
@@ -93,6 +94,7 @@ export function TrackHeaderView({
         aria-expanded={selected}
         {...longPress}
         onClick={onSelect}
+        onKeyDown={keepActivationKeys}
       />
       {mayReorder ? (
         <button
@@ -108,13 +110,7 @@ export function TrackHeaderView({
             e.stopPropagation();
             onHandleSelect?.();
           }}
-          onKeyDown={(e) => {
-            // Space activates this button (selects the track) instead of
-            // reaching the window keymap, where it would toggle playback.
-            if (e.key === " ") {
-              e.stopPropagation();
-            }
-          }}
+          onKeyDown={keepActivationKeys}
         />
       ) : null}
       <span className="track-title">

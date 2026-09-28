@@ -1,6 +1,7 @@
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { ToggleButton } from "../ui";
 import type { MuteState } from "../utils/audio";
+import { keepActivationKeys } from "./trackHeaderKeys";
 import {
   MUTE_GLYPH,
   muteButtonLabel,
@@ -48,6 +49,7 @@ export function TrackMuteSoloButtonsView({
         data-mute-state={muteState}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "mute"))}
         onClick={onMute}
+        onKeyDown={keepActivationKeys}
       >
         {MUTE_GLYPH}
       </ToggleButton>
@@ -58,6 +60,7 @@ export function TrackMuteSoloButtonsView({
         title={soloButtonTitle(solo)}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "solo"))}
         onClick={onSolo}
+        onKeyDown={keepActivationKeys}
       >
         {SOLO_GLYPH}
       </ToggleButton>
