@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode, Ref } from "react";
 import type { VirtualRowSlotProps } from "../hooks/useVirtualRows";
 import type { TranscriptWordView } from "../types/project";
+import { PROMINENT_NOTE } from "./prominence";
 import { SILENCE_WARNING } from "./silenceWarning";
 
 export type TranscriptTurnWord = {
@@ -13,6 +14,8 @@ export type TranscriptTurnWord = {
   /** Current stop of the low-confidence walkthrough (#634). */
   reviewCurrent?: boolean;
   suspectHallucination?: boolean;
+  /** Prosodically prominent (Prosody layer, #719). */
+  prominent?: boolean;
   title?: string;
   ariaLabel?: string;
   anchorProps?: Record<string, string>;
@@ -107,6 +110,7 @@ export function TranscriptTurnView({
               item.reviewCurrent ? "review-current" : "",
               item.suspectHallucination ? "suspect-hallucination" : "",
               item.selected ? "selected" : "",
+              item.prominent ? "prominent" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -132,7 +136,12 @@ export function TranscriptTurnView({
                       aria-current={item.reviewCurrent ? "true" : undefined}
                       aria-label={
                         item.suspectHallucination
-                          ? [item.word.text, item.ariaLabel, SILENCE_WARNING]
+                          ? [
+                              item.word.text,
+                              item.prominent ? PROMINENT_NOTE : null,
+                              item.ariaLabel,
+                              SILENCE_WARNING,
+                            ]
                               .filter(Boolean)
                               .join(" · ")
                           : item.ariaLabel
@@ -140,6 +149,9 @@ export function TranscriptTurnView({
                       {...item.buttonProps}
                     >
                       {item.word.text}
+                      {item.prominent && !item.suspectHallucination ? (
+                        <span className="sr-only"> {PROMINENT_NOTE}</span>
+                      ) : null}
                     </button>
                   ) : (
                     <span
@@ -150,6 +162,9 @@ export function TranscriptTurnView({
                       {...item.anchorProps}
                     >
                       {item.word.text}
+                      {item.prominent && (
+                        <span className="sr-only"> {PROMINENT_NOTE}</span>
+                      )}
                       {item.suspectHallucination && (
                         <span className="sr-only"> {SILENCE_WARNING}</span>
                       )}

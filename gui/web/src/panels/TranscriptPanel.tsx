@@ -10,6 +10,7 @@ import {
   presenceAnchorProps,
   resolvePresenceAnchor,
 } from "../presence/anchors";
+import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
@@ -27,6 +28,11 @@ import {
   reviewCursorIndex,
   selectLowConfidenceStops,
 } from "../transcript/lowConfidence";
+import {
+  PROMINENT_TIP,
+  prominentWordKey,
+  prominentWordKeys,
+} from "../transcript/prominence";
 import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
@@ -133,6 +139,7 @@ export function TranscriptPanel() {
     transcriptInlineEditFailure,
     setTranscriptInlineEditFailure,
     transcriptReviewCursor,
+    showProsody,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -158,7 +165,10 @@ export function TranscriptPanel() {
     transcriptInlineEditFailure: s.transcriptInlineEditFailure,
     setTranscriptInlineEditFailure: s.setTranscriptInlineEditFailure,
     transcriptReviewCursor: s.transcriptReviewCursor,
+    showProsody: s.layers.showProsody,
   }));
+  const prosody = useProsodyOverlay(showProsody);
+  const prominentKeys = useMemo(() => prominentWordKeys(prosody), [prosody]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLElement | null>(null);
   const bindActiveRef = (active: boolean) =>
@@ -1050,6 +1060,9 @@ export function TranscriptPanel() {
                     wordIndex,
                   );
                   const lowConf = transcriptAnnotate && isLowConfidenceWord(w);
+                  const prominent =
+                    wordIndex != null &&
+                    prominentKeys.has(prominentWordKey(u.track_id, wordIndex));
                   const reviewCurrent =
                     transcriptAnnotate &&
                     wordIndex != null &&
@@ -1126,11 +1139,17 @@ export function TranscriptPanel() {
                     lowConfidence: lowConf,
                     reviewCurrent,
                     suspectHallucination: suspectChip,
+                    prominent,
                     interactive: wordInteractive,
                     activeRef: bindActiveRef(wActive),
                     anchorProps: wordAnchor,
                     title:
-                      [cutAwayTip ?? interactionTip, suspectTip, ignoredTip]
+                      [
+                        cutAwayTip ?? interactionTip,
+                        suspectTip,
+                        ignoredTip,
+                        prominent ? PROMINENT_TIP : undefined,
+                      ]
                         .filter(Boolean)
                         .join(" · ") || undefined,
                     ariaLabel: cutAwayTip,

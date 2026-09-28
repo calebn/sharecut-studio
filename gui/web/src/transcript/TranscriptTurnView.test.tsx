@@ -223,4 +223,76 @@ describe("TranscriptTurnView", () => {
     expect(current).toHaveAttribute("aria-current", "true");
     expect(current?.tagName).toBe("SPAN");
   });
+
+  it("marks an interactive prominent word and announces it (#719)", () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                { ...props.segments[0].words[0], prominent: true },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const word = container.querySelector(".utterance-word.prominent");
+    expect(word).not.toBeNull();
+    expect(word?.tagName).toBe("BUTTON");
+    expect(word?.textContent).toContain("emphasized");
+  });
+
+  it("marks a non-interactive prominent word and announces it (#719)", () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                props.segments[0].words[0],
+                { ...props.segments[0].words[1], prominent: true },
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const word = container.querySelector(".utterance-word.prominent");
+    expect(word).not.toBeNull();
+    expect(word?.tagName).toBe("SPAN");
+    expect(word?.textContent).toContain("emphasized");
+  });
+
+  it("folds prominent into the suspect aria-label join", () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                {
+                  ...props.segments[0].words[0],
+                  prominent: true,
+                  suspectHallucination: true,
+                  ariaLabel: "hello",
+                },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const word = container.querySelector(".utterance-word.prominent");
+    expect(word?.getAttribute("aria-label")).toContain("emphasized");
+  });
 });
