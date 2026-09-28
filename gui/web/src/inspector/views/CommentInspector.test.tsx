@@ -49,4 +49,12 @@ describe("CommentInspector resolve command", () => {
     render(<CommentInspector comment={sampleComment()} onSeek={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
   });
+
+  it("keeps resolve unavailable on a share project key without a guest mode", () => {
+    useDawStore
+      .getState()
+      .hydrate("share:tok", minimalProject({ comments: [sampleComment()] }));
+    render(<CommentInspector comment={sampleComment()} onSeek={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Resolve" })).toBeNull();
+  });
 });
