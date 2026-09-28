@@ -515,6 +515,28 @@ describe("transcriptSpanText", () => {
     expect(transcriptSpanText(project, "host", 1, 1)).toBe("quick");
   });
 
+  it("keeps the first listing when a duplicated index disagrees", () => {
+    const dup = {
+      transcript: {
+        utterances: [
+          u({
+            text: "a",
+            start: 0,
+            end: 1,
+            words: [{ text: "first", word_index: 0, start: 0, end: 1 }],
+          }),
+          u({
+            text: "b",
+            start: 0,
+            end: 1,
+            words: [{ text: "second", word_index: 0, start: 0, end: 1 }],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(transcriptSpanText(dup, "host", 0, 0)).toBe("first");
+  });
+
   it("returns null when an index in the range is missing", () => {
     const gap = {
       transcript: {

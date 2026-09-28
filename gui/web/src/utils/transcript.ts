@@ -39,6 +39,27 @@ export function findTranscriptWord(
   );
 }
 
+/** Indexed words on `trackId` with `lo <= word_index <= hi`, in transcript order (duplicates included). */
+function* trackWordsInRange(
+  project: ProjectView | null,
+  trackId: string,
+  lo: number,
+  hi: number,
+): Generator<{ index: number; word: TranscriptWordView }> {
+  for (const utterance of project?.transcript?.utterances ?? []) {
+    if (utterance.track_id !== trackId) {
+      continue;
+    }
+    for (const word of utterance.words ?? []) {
+      const index = word.word_index;
+      if (index == null || index < lo || index > hi) {
+        continue;
+      }
+      yield { index, word };
+    }
+  }
+}
+
 /** Inclusive indexed range on a track; uses mapped times when present. */
 export function transcriptWordRange(
   project: ProjectView | null,
@@ -65,20 +86,11 @@ export function transcriptWordRange(
   let start = Number.POSITIVE_INFINITY;
   let end = Number.NEGATIVE_INFINITY;
   const texts: string[] | null = options?.boundsOnly ? null : [];
-  for (const utterance of project?.transcript?.utterances ?? []) {
-    if (utterance.track_id !== trackId) {
-      continue;
-    }
-    for (const word of utterance.words ?? []) {
-      const index = word.word_index;
-      if (index == null || index < lo || index > hi) {
-        continue;
-      }
-      start = Math.min(start, word.timeline_start ?? word.start);
-      end = Math.max(end, word.timeline_end ?? word.end);
-      if (texts) {
-        texts.push(word.text);
-      }
+  for (const { word } of trackWordsInRange(project, trackId, lo, hi)) {
+    start = Math.min(start, word.timeline_start ?? word.start);
+    end = Math.max(end, word.timeline_end ?? word.end);
+    if (texts) {
+      texts.push(word.text);
     }
   }
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
@@ -90,7 +102,10 @@ export function transcriptWordRange(
 /**
  * Space-joined text of an inclusive word-index range on a track, or null unless
  * every index in the range is in this snapshot (#650 stale-correction guard).
- * A word listed under two utterances counts once.
+ * A word listed under two utterances (one straddling an utterance boundary)
+ * counts once, and the first listing wins: the mapper emits both listings
+ * from the same per-track word view, so their text is identical. Do not
+ * change this to last-wins.
  */
 export function transcriptSpanText(
   project: ProjectView | null,
@@ -106,18 +121,14 @@ export function transcriptSpanText(
     return null;
   }
   const byIndex = new Map<number, string>();
-  for (const utterance of project?.transcript?.utterances ?? []) {
-    if (utterance.track_id !== trackId) {
-      continue;
-    }
-    for (const word of utterance.words ?? []) {
-      const index = word.word_index;
-      if (index == null || index < startWordIndex || index > endWordIndex) {
-        continue;
-      }
-      if (!byIndex.has(index)) {
-        byIndex.set(index, word.text);
-      }
+  for (const { index, word } of trackWordsInRange(
+    project,
+    trackId,
+    startWordIndex,
+    endWordIndex,
+  )) {
+    if (!byIndex.has(index)) {
+      byIndex.set(index, word.text);
     }
   }
   if (byIndex.size !== endWordIndex - startWordIndex + 1) {
