@@ -361,12 +361,6 @@ describe("TransportBar guest Mix lock", () => {
         return 1200;
       },
     });
-    const OrigRO = globalThis.ResizeObserver;
-    globalThis.ResizeObserver = class {
-      observe(): void {}
-      unobserve(): void {}
-      disconnect(): void {}
-    } as unknown as typeof ResizeObserver;
     try {
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject(), "edit");
       render(
@@ -380,7 +374,6 @@ describe("TransportBar guest Mix lock", () => {
       );
       expectMixLocked(document.body, false);
     } finally {
-      globalThis.ResizeObserver = OrigRO;
       Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     }
   });
