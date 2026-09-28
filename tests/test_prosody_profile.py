@@ -298,6 +298,41 @@ def test_run_prosody_analysis_holds_per_track_lock(tmp_workspace: Path, monkeypa
     assert timeouts == [pp.PROSODY_LOCK_TIMEOUT_SEC]
 
 
+def test_run_prosody_analysis_times_out_on_held_track_lock(
+    tmp_workspace: Path, monkeypatch
+) -> None:
+    import threading
+
+    from filelock import Timeout
+
+    from podcast_mcp.util.file_locks import hold_shared_file_lock, shared_file_lock
+
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    lock_path = pp._lock_path(proj, "host")
+    monkeypatch.setattr(pp, "PROSODY_LOCK_TIMEOUT_SEC", 0.05)
+    started = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with hold_shared_file_lock(lock_path, timeout=5.0):
+            started.set()
+            release.wait(timeout=5)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        with pytest.raises(Timeout):
+            pp.run_prosody_analysis(proj, {})
+    finally:
+        release.set()
+        thread.join(timeout=5)
+    # Once the other holder releases, the real lock is acquired, the profile computed, and released.
+    assert pp.run_prosody_analysis(proj, {}).computed == ["host"]
+    assert not shared_file_lock(lock_path).is_locked
+
+
 def test_version_bump_recomputes_and_supersedes_old_file(tmp_workspace: Path, monkeypatch) -> None:
     path = _project_with_host(tmp_workspace)
     proj = load_project(path)
