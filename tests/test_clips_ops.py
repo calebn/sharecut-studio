@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     abutting_pairs,
@@ -9,6 +12,8 @@ from podcast_mcp.edits.clips_ops import (
     split_clip_at,
 )
 from podcast_mcp.models import Clip, EpisodeProject
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _clip(tl_start: float, src_start: float, dur: float, tid: str = "host") -> Clip:
@@ -62,3 +67,10 @@ def test_abutting_pairs_skips_gapped_neighbours() -> None:
 
     assert abutting_pairs([a, b, c]) == [(a, b)]
     assert abutting_pairs([a]) == []
+
+
+def test_join_gap_tolerance_matches_the_gui() -> None:
+    ts = (ROOT / "gui/web/src/edit/joinRender.ts").read_text(encoding="utf-8")
+    match = re.search(r"export const JOIN_GAP_TOLERANCE_SEC = ([\d.]+);", ts)
+    assert match
+    assert float(match.group(1)) == JOIN_GAP_TOLERANCE_SEC
