@@ -264,4 +264,20 @@ describe("transcript.next/prevLowConfidence", () => {
     expect(useDawStore.getState().transcriptAnnotate).toBe(false);
     expect(useDawStore.getState().transcriptReviewCursor).toBeNull();
   });
+
+  it("works for a guest share: seeks and scrolls", async () => {
+    useDawStore.setState({ projectPath: "share:tok" });
+    const result = await execute("transcript.nextLowConfidence", {});
+    expect(result).toEqual({ status: "ok" });
+    const s = useDawStore.getState();
+    expect(s.transcriptReviewCursor).toEqual({
+      trackId: "host",
+      wordIndex: 1,
+      order: 1,
+    });
+    expect(s.playheadSec).toBe(0.5);
+    expect(s.transcriptScrollRequest).toBe(
+      presenceAnchor("transcript", "word", "host", 1),
+    );
+  });
 });
