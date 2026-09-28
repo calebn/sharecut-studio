@@ -57,6 +57,7 @@ import {
   findTranscriptWordIn,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
+  isMappedUtterance,
   scrollChildIntoParent,
   selectUnmappedUtterances,
   transcriptAnchorTurnIndex,
@@ -440,7 +441,7 @@ export function TranscriptPanel() {
   // suppressed-only rows (#758) are view-only and excluded from the toolbar count.
   const mappedCount = useMemo(
     () =>
-      allUtterances.filter((u) => u.mappable !== false && !u.suppressed_only)
+      allUtterances.filter((u) => isMappedUtterance(u) && !u.suppressed_only)
         .length,
     [allUtterances],
   );
@@ -1023,17 +1024,17 @@ export function TranscriptPanel() {
           const labelSec = blockSeek ?? lead.start;
           const turnHasActive = turn.utterances.some(
             (u, j) =>
-              u.mappable !== false &&
+              isMappedUtterance(u) &&
               active.utterances.has(turn.startIndex + j),
           );
           const turnAllUnmapped = turn.utterances.every(
-            (u) => u.mappable === false,
+            (u) => !isMappedUtterance(u),
           );
           let flatWordIndex = 0;
           const segments: TranscriptTurnSegment[] = turn.utterances.map(
             (u, j) => {
               const flatIndex = turn.startIndex + j;
-              const unmapped = u.mappable === false;
+              const unmapped = !isMappedUtterance(u);
               const uttActive = !unmapped && active.utterances.has(flatIndex);
               const words = wordsForUtterance(u);
               const runsByLastPos = hostEditable

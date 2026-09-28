@@ -241,7 +241,7 @@ export function transcriptSpanText(
 
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */
 export function utteranceTimelineSpans(u: CombinedUtterance): TimelineSpan[] {
-  if (u.mappable === false) {
+  if (!isMappedUtterance(u)) {
     return [];
   }
   if (u.timeline_spans && u.timeline_spans.length > 0) {
@@ -307,10 +307,15 @@ export function isWordActive(
   return playheadSec >= w.timeline_start && playheadSec < end;
 }
 
+/** Whether `u` maps onto the current timeline (not cut away). */
+export function isMappedUtterance(u: CombinedUtterance): boolean {
+  return u.mappable !== false;
+}
+
 export function selectUnmappedUtterances(
   utterances: CombinedUtterance[],
 ): CombinedUtterance[] {
-  return utterances.filter((u) => u.mappable === false);
+  return utterances.filter((u) => !isMappedUtterance(u));
 }
 
 /** Whether the transcript panel lists `u`: cut-away ones only under Annotate + Show cut away. */
@@ -319,7 +324,7 @@ export function isTranscriptUtteranceVisible(
   annotate: boolean,
   showCutAway: boolean,
 ): boolean {
-  return (annotate && showCutAway) || u.mappable !== false;
+  return (annotate && showCutAway) || isMappedUtterance(u);
 }
 
 /** Utterances the transcript panel lists: cut-away ones only under Annotate + Show cut away. */
