@@ -73,6 +73,22 @@ Word times stay in **source-media seconds** at every layer — reconcile, precor
 
 **ASR timing flags:** After `transcribe_tracks`, words longer than `analysis.heuristics.max_word_audibility_sec` (default **2.0 s**) are soft-marked `audibility_status: deferred` and listed in `artifacts/transcript_timing.json`. Timestamps are **not** clamped — a stretched Whisper token often covers real under-transcribed speech. Precorrect copies those into `deferred_queue` (`kind: anomalous_word_duration`) for refine/audition. With `transcribe.forced_alignment.enabled`, the flag runs on the aligned spans; a re-timed word loses Whisper's `deferred` status and is re-judged. A word the aligner cannot place (a numeral or symbol) keeps Whisper's times clamped between its re-timed neighbours; one the clamp collapses is flagged `deferred`.
 
+**Threshold (#715):** `DEFAULT_MAX_WORD_DURATION_SEC` (`engines/asr_timing.py`) also
+sets `analysis.heuristics.max_word_audibility_sec`'s default, since both the
+aligner-off path and the audibility/bleed/precorrect checks share one constant.
+The rule, fixed before measuring: let L be the longest word the shipped forced
+aligner placed on the scored LibriSpeech clips, plus the worst `|duration
+error|` against MFA gold on those same clips (`word_boundary_metrics.
+duration_errors_sec` over `matched_word_pairs`). Keep the default only while
+`L + 0.5 <= DEFAULT_MAX_WORD_DURATION_SEC`; otherwise raise it to
+`ceil((L + 0.5) * 4) / 4`, and never lower it — real long words run 1-1.5 s,
+and nothing measured supports a smaller cap for unaligned words. Measured
+2026-09-28: L = 0.76 s (longest aligned word) + 0.22 s (worst duration error)
+= 0.98 s, so `0.98 + 0.5 = 1.48 <= 2.0` and the cap stays at **2.0 s**. See
+[docs/testing.md § Shipped pass results (#715)](testing.md#shipped-pass-results-715)
+for the full measured tables, including the 1.0-2.5 s lab duration-count
+sensitivity table this rule leans on.
+
 **Word-boundary benchmark:** `scripts/benchmark_word_boundaries.py` compares native
 Whisper or supplied candidate timestamps against the same real-audio reference
 fixture under `tests/fixtures/word_boundary/`. The reference times are published
