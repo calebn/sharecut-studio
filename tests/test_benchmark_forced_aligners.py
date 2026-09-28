@@ -831,6 +831,27 @@ def test_prepare_items_refuses_to_overwrite_native_words_from_another_model(tmp_
     assert native_path.read_text(encoding="utf-8") == before
 
 
+def test_prepare_items_refuses_cached_native_words_without_a_model(tmp_path) -> None:
+    """#715: a cached file for this audio with no provenance.model raises a usable message."""
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    calls: list[str] = []
+    runs_dir = tmp_path / "runs"
+    bfa.prepare_items([item], runs_dir=runs_dir, native=_tones_native(calls))
+    native_path = runs_dir / "tones.native.json"
+    payload = json.loads(native_path.read_text(encoding="utf-8"))
+    del payload["provenance"]["model"]
+    native_path.write_text(json.dumps(payload), encoding="utf-8")
+    before = native_path.read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"no provenance\.model") as excinfo:
+        bfa.prepare_items([item], runs_dir=runs_dir, native=_tones_native(calls))
+    assert "--native-model" not in str(excinfo.value)
+    assert calls == ["base"]
+    assert native_path.read_text(encoding="utf-8") == before
+
+
 def test_prepare_items_checks_cached_faster_whisper_version(tmp_path) -> None:
     """#715: cached faster-whisper words are reused only under the installed version."""
     from importlib.metadata import version

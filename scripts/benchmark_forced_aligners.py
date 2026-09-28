@@ -505,7 +505,8 @@ def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str
 
     A file for different audio (``audio_sha256`` mismatch) is a soft miss: its
     words are stale, so the caller re-runs Whisper and overwrites it. A file for
-    this audio from a different ``--native-model``, or (for faster-whisper words)
+    this audio with no ``provenance.model``, from a different ``--native-model``,
+    or (for faster-whisper words)
     from a different installed faster-whisper version, raises instead: an earlier
     pass's ``<id>.<label>.pred.json`` in the same runs dir was built from those
     words, and overwriting them would silently pair mismatched native words with
@@ -526,6 +527,11 @@ def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str
         return None
     provenance = payload.get("provenance") or {}
     cached_model = provenance.get("model")
+    if cached_model is None:
+        raise ValueError(
+            f"{path} holds native words with no provenance.model; use another "
+            "--runs-dir or delete the file to re-run Whisper"
+        )
     if cached_model != native_model:
         raise ValueError(
             f"{path} holds native words from Whisper model {cached_model!r}, not "
