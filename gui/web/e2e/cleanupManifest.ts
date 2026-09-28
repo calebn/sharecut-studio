@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isPathInside } from "./pathInside";
 
 export const cleanupManifestEnv = "DAW_E2E_CLEANUP_MANIFEST";
 
@@ -20,9 +21,8 @@ type ManifestRead =
 
 function managedTmpWorkspace(workspaceDir: string): string | undefined {
   const resolved = path.resolve(workspaceDir);
-  const tmp = `${path.resolve(os.tmpdir())}${path.sep}`;
   if (
-    !resolved.startsWith(tmp) ||
+    !isPathInside(os.tmpdir(), resolved) ||
     !path.basename(resolved).startsWith("sharecut-e2e-")
   ) {
     return undefined;

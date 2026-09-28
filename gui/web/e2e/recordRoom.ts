@@ -6,6 +6,7 @@ import {
   type Page,
   type Request,
 } from "@playwright/test";
+import { isPathInside } from "./pathInside";
 import { wavPeak } from "./wavPeak";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
@@ -248,13 +249,7 @@ export async function landedTrackPeak(
       );
     }
     const resolved = path.resolve(projectDir, source.path);
-    const underRaw = path.relative(rawDir, resolved);
-    if (
-      underRaw === "" ||
-      underRaw === ".." ||
-      underRaw.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(underRaw)
-    ) {
+    if (!isPathInside(rawDir, resolved)) {
       throw new Error(
         `source ${source.id} for track ${label} is not under raw/: ${source.path}`,
       );
