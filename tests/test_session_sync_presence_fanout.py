@@ -197,3 +197,48 @@ def test_presence_fanout_uses_leading_builder_on_leading_edge_only() -> None:
         loop.close()
         presence_fanout.reset()
         presence_fanout.set_timer_factory(threading.Timer)
+
+
+def test_presence_fanout_and_tracker_under_thread_contention() -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.presence_delta import PresenceRosterTracker
+
+    presence_fanout.reset()
+    presence_fanout.set_timer_factory(threading.Timer)
+    tracker = PresenceRosterTracker()
+    loop = asyncio.new_event_loop()
+    keys = [f"stress-{i}" for i in range(3)]
+    queues = {key: get_hub().subscribe(key, loop) for key in keys}
+    errors: list[BaseException] = []
+
+    def worker(n: int) -> None:
+        try:
+            for i in range(200):
+                key = keys[i % len(keys)]
+                rows = [
+                    {"client_id": f"c{j}", "last_seen_ns": i, "meta": {"n": n}}
+                    for j in range(3 + (i % 2))
+                ]
+                presence_fanout.schedule(
+                    key,
+                    lambda key=key, rows=rows: tracker.events(key, rows),
+                    min_interval_s=0.001,
+                )
+        except Exception as exc:  # surfaced below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
+    try:
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+        assert not any(t.is_alive() for t in threads), "deadlock: worker still running"
+        assert errors == []
+    finally:
+        presence_fanout.reset()
+        for key, q in queues.items():
+            get_hub().unsubscribe(key, q)
+        loop.close()
+        presence_fanout.set_timer_factory(threading.Timer)
