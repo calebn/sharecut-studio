@@ -336,4 +336,45 @@ describe("PresenceOverlay", () => {
     expect(spy.mock.calls.map(([c]) => c.client_id)).toEqual(["a"]);
     vi.restoreAllMocks();
   });
+
+  it("an unrelated store change re-renders no overlay row", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    const clients = ["a", "b", "c"].map((id) => ({
+      client_id: id,
+      role: "viewer",
+      playhead_sec: 2,
+      last_seen_ns: Date.now() * 1e6,
+      meta: { display_name: id.toUpperCase() },
+    }));
+    useDawStore.setState({
+      localClientId: "me",
+      sessionClients: sessionRoster(clients),
+    });
+    const project = useDawStore.getState().project!;
+    const spy = vi.spyOn(colors, "rosterDisplayName");
+    const { rerender } = render(
+      <PresenceOverlay
+        zoomPxPerSec={10}
+        height={72}
+        tracks={project.tracks}
+        clipsByTrack={project.clips.tracks}
+      />,
+    );
+    spy.mockClear();
+
+    act(() => {
+      useDawStore.setState({ statusAnnouncement: "x" });
+    });
+    rerender(
+      <PresenceOverlay
+        zoomPxPerSec={10}
+        height={72}
+        tracks={project.tracks}
+        clipsByTrack={project.clips.tracks}
+      />,
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
 });
