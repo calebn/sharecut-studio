@@ -9,6 +9,11 @@ import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { useDocumentSync } from "./useDocumentSync";
+import { SANITY_POLL_MS } from "./useFileMetaPoll";
+
+vi.mock("../state/requestDrainLazy", () => ({
+  requestHostDrainLazy: vi.fn(),
+}));
 
 const track = (id: string, label = id): TrackView => ({
   id,
@@ -196,5 +201,88 @@ describe("useDocumentSync", () => {
       });
     });
     expect(pollSnapshotAlreadyApplied({ ...F3, server_seq: 3 })).toBe(false);
+  });
+
+  it("drains the offline queue on the sanity cadence, plus online", async () => {
+    vi.useFakeTimers();
+    const { requestHostDrainLazy } = await import("../state/requestDrainLazy");
+    vi.mocked(requestHostDrainLazy).mockClear();
+    const { unmount } = renderHook(() =>
+      useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
+    );
+    try {
+      await act(async () => {
+        FakeWebSocket.instances[0].open();
+      });
+      expect(requestHostDrainLazy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(requestHostDrainLazy).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SANITY_POLL_MS - 10_000);
+      });
+      expect(requestHostDrainLazy).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        window.dispatchEvent(new Event("online"));
+      });
+      expect(requestHostDrainLazy).toHaveBeenCalledTimes(3);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("resyncs from the hello Snapshot after a reconnect, with no poll", async () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() =>
+      useDocumentSync("/tmp/ep.json", minimalProject(), () => undefined, true),
+    );
+    try {
+      await act(async () => {
+        FakeWebSocket.instances[0].open();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Applied",
+          server_seq: 2,
+          snapshot: { server_seq: 2, patch: { tracks: [track("mid")] } },
+        });
+      });
+      expect(useDawStore.getState().project?.tracks.map((t) => t.id)).toEqual([
+        "mid",
+      ]);
+
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1011);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+
+      await act(async () => {
+        FakeWebSocket.instances[1].open();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[1].emit({
+          type: "Snapshot",
+          server_seq: 5,
+          snapshot: {
+            server_seq: 5,
+            project: { ...minimalProject(), tracks: [track("after")] },
+          },
+        });
+      });
+      expect(useDawStore.getState().project?.tracks.map((t) => t.id)).toEqual([
+        "after",
+      ]);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
   });
 });

@@ -17,6 +17,7 @@ import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 import { isTerminalWsClose } from "../utils/wsClose";
+import { SANITY_POLL_MS } from "./useFileMetaPoll";
 
 function documentWsUrl(projectPath: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -47,6 +48,8 @@ type DocumentSnapshotMsg = {
  * A 4403 close (grant revoked by the post-accept authz recheck) is terminal: the session
  * token is read once per page, so reconnecting cannot succeed until reload. A refused
  * handshake closes before accept, which the browser reports as 1006, so it keeps retrying.
+ * The offline-queue drain timer also runs on the 30 s sanity cadence (another process's
+ * writes, #662); a dropped socket resyncs from the hello Snapshot on reconnect, not a poll.
  */
 export function useDocumentSync(
   projectPath: string,
@@ -119,7 +122,7 @@ export function useDocumentSync(
     connect();
     const onOnline = () => drain();
     window.addEventListener("online", onOnline);
-    const drainTimer = window.setInterval(drain, 10_000);
+    const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
     return () => {
       closed = true;
       window.removeEventListener("online", onOnline);
