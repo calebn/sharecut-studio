@@ -728,7 +728,7 @@ def run_pipeline_pass(
                 hf_repo=getattr(model, "hf_repo", ""),
                 revision=getattr(model, "revision", ""),
                 allow_patterns=(),
-                license="",
+                license=getattr(model, "license", "") or "unknown",
                 onnx_file=getattr(model, "onnx_file", None),
             ),
             audio_sha256=native_payload["audio_sha256"],

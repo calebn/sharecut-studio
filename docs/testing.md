@@ -896,3 +896,99 @@ checked-in fixture gold, then score it with
 - Full-length stems go through `$LAB/scripts/with-asr-lock.sh`.
 - Never commit lab audio, transcripts or word text, and never paste word
   text into PRs or issues. Aggregate numbers (MAE, RTF, counts) are fine.
+
+## Shipped pass results (#715)
+
+[#641](#word-boundary-benchmark) benchmarked forced-aligner *candidates*
+through the harness's own `align_prediction` (`retime_spans` against a bare
+backend). [#715](https://github.com/calebn/sharecut-studio/issues/715) instead
+measures the **shipped production pass** — `WordAligner.load` (pinned,
+sha256-verified) → `WordAligner.align` → `apply_word_spans`, exactly what
+`transcribe.py`'s `_align_words` drives — via `scripts/benchmark_forced_aligners.py
+pipeline` (see "Shipped-pass harness (#715)" above) and real
+`podcast pipeline run` timings. Measured 2026-09-28 on the same machine as
+#641: Apple M2 Pro (12 cores, 32 GiB RAM), macOS 26.6.2, onnxruntime 1.27.0,
+faster-whisper 1.2.1, Python 3.14.2, `onnx-base` pinned to
+`onnx-community/wav2vec2-base-960h-ONNX` rev `729c1a6730fb549c20a1c73a3d3f96f11020225e`.
+Reproduce with:
+
+```bash
+podcast bootstrap --component word-aligner
+uv run python scripts/benchmark_forced_aligners.py pipeline --target librispeech --runs-dir .lab-runs/align/librispeech-pipeline
+$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB" --runs-dir .lab-runs/align/lab-pipeline
+```
+
+**Table 3 — scored, LibriSpeech, shipped pass (`onnx-base-pipeline`), 3 clips (42
+matched / 48 reference words).** Checked in as
+`tests/fixtures/word_boundary/<id>.onnx-base-pipeline.json`; re-scored and pinned
+by `test_checked_in_shipped_pass_report_matches_pipeline_fixture`
+(`tests/test_word_boundary_metrics.py`) and reproduced live by the `e2e_real`
+`tests/test_word_align_real.py`.
+
+| Pass                        | matched/ref | MAE (ms) | over 150 ms  | start bias (ms) | end bias (ms) | align runtime (s, summed) | RTF    | load (s) | peak RSS (MiB) |
+| ---------------------------- | ----------- | -------- | ------------ | ---------------- | -------------- | -------------------------- | ------ | -------- | -------------- |
+| native `base` (Whisper only) | 42/48       | 82.26    | 15/42 (35.7%) | −62.38            | −85.95          | n/a (ASR)                   | n/a    | n/a      | n/a            |
+| `onnx-base` (#641 harness, `align_prediction`) | 42/48 | 42.98 | 2/42 (4.8%) | +43.81 | −40.24 | 0.81 | 0.044 | 0.67 | 843.9 |
+| `onnx-base-pipeline` (#715 shipped pass, `WordAligner.align`) | 42/48 | 42.98 | 2/42 (4.8%) | +43.81 | −40.24 | 1.04 | 0.056 | 0.73 | 569.3 |
+
+The shipped pass's scored numbers match the #641 harness's `onnx-base` row
+exactly (same model, same CTC Viterbi in `engines/ctc_forced_align.py`, same
+LibriSpeech clips) — this table exists to prove the shipped call chain, not the
+harness's own path, produces these numbers. `runtime`/`load`/`peak RSS` differ
+slightly: the shipped pass constructs `TranscriptWord`s and calls through
+`apply_word_spans` (production's clamp-unaligned-runs pass), one process, no
+per-candidate isolation, so peak RSS is lower than the harness's own
+per-`--candidate` process measurement.
+
+**Table 4 — lab agreement (real 3-speaker Zoom speech), shipped pass, 3 × 60 s
+(162/162 matched — every native word matched; no ground truth, agreement vs.
+native `base` only).**
+
+| Pass                 | MAE vs native (ms) | over 150 ms    | start bias (ms) | end bias (ms) | align runtime (s, summed) | RTF    | ASR runtime (s, summed) | load (s) |
+| --------------------- | ------------------- | --------------- | ---------------- | -------------- | --------------------------- | ------ | ------------------------- | -------- |
+| `onnx-base-pipeline`  | 115.56               | 53/162 (32.7%)  | +162.59           | +18.40          | 3.49                         | 0.019  | 6.06                       | 0.42     |
+
+Higher MAE and bias than the read-speech LibriSpeech table is expected —
+real 3-speaker Zoom audio has overlap, clipped consonants and quiet words
+that LibriSpeech doesn't exercise (see "Lab tape: alignment testing grounds"
+above); over-150 ms share (32.7%) is under the harness's 50%-by-ear-audit
+trigger. Not checked in (lab audio/words never enter the repo); reproduce
+with the `pipeline --target lab` command above.
+
+**Table 5 — `transcribe_tracks` runtime, flag off vs on** (2-minute lab
+excerpt, `source/zoom_excerpt_pan`, 3 tracks, 416 words, large-v3-turbo CPU,
+`podcast pipeline run --only transcribe_tracks --force`, 3 alternating reps
+under `with-asr-lock.sh`, median reported; wall time via `/usr/bin/time -l`).
+
+| Setting | Rep 1 (s) | Rep 2 (s) | Rep 3 (s) | Median (s) | Median align_sec (summed, 3 tracks) |
+| ------- | --------- | --------- | --------- | ---------- | ------------------------------------- |
+| `forced_alignment.enabled=false` | 55.02 | 54.77 | 53.85 | **54.77** | n/a |
+| `forced_alignment.enabled=true`  | 66.60 | 64.00 | 72.20 | **66.60** | **9.09** (9.09 / 8.77 / 10.25) |
+
+Forced alignment adds ~11.8 s median wall time (+21.6%) to `transcribe_tracks`
+on this 2-minute, 3-track excerpt — consistent with the summed `align_sec`
+(9.09 s median) transcribe.py now records per job (#715 Commit 1) plus process
+overhead. One full `podcast pipeline run` per setting (`--skip
+align_tracks,require_align_accept`, same excerpt) also passed, `export_qc.json`
+`ok`, both settings: flag off **69.08 s** real, flag on **77.44 s** real
+(+8.36 s, +12.1%; a smaller share than the `transcribe_tracks`-only delta
+above, since the rest of the pipeline's fixed steps — stems, reconcile,
+mix, master, export — take the same time either way).
+
+**Table 6 — word-duration sensitivity table** (`word_boundary_metrics.
+word_duration_profile`, `DURATION_THRESHOLDS_SEC`; counts strictly over each
+threshold, across all predicted words on that target).
+
+| Target | words | max (s) | p95 (s) | p99 (s) | over 1.00 | over 1.25 | over 1.50 | over 1.75 | over 2.00 | over 2.25 | over 2.50 |
+| ------ | ----- | ------- | ------- | ------- | --------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| LibriSpeech (46 predicted words, 3 clips) | 46 | 0.76 | 0.76 | 0.76 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Lab (163 predicted words, 3 × 60 s)       | 163 | 0.60 | 0.56 | 0.60 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+No word on either target — read speech or real 3-speaker Zoom audio — comes
+within 0.24 s of even the lowest 1.0 s threshold; the longest aligned word
+anywhere measured is 0.76 s (LibriSpeech). This is the data behind the
+Threshold (#715) rule in
+[docs/transcript-workflow.md § ASR timing flags](transcript-workflow.md#asr-timing-flags):
+L (longest aligned word 0.76 s + worst |duration error| vs gold 0.22 s) = 0.98
+s, so `L + 0.5 = 1.48 <= 2.0` and `DEFAULT_MAX_WORD_DURATION_SEC` stays **2.0
+s** (see the comment above the constant in `engines/asr_timing.py`).

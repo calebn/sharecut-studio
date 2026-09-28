@@ -377,6 +377,38 @@ def test_checked_in_candidate_reports_match_reference_fixture(
         assert provenance["settings"]["threads"] == 4  # README/docs: run --threads 4
 
 
+def test_checked_in_shipped_pass_report_matches_pipeline_fixture() -> None:
+    """#715 T6a: the shipped production pass (not the harness's own align_prediction)
+    beats native on every axis the checked-in *.onnx-base.json (#641 harness) report does,
+    and its exact measured numbers are pinned (measured 2026-09-28; see docs/testing.md
+    "Shipped pass results (#715)")."""
+    native_matched, native_reference, native_over, native_mae = _rescore_checked_in_reports(
+        "native-base"
+    )
+    matched, reference, over, mae = _rescore_checked_in_reports("onnx-base-pipeline")
+
+    assert (matched, reference) == (native_matched, native_reference)
+    assert mae < native_mae
+    assert over < native_over
+
+    assert (matched, reference, over) == (42, 48, 2)
+    assert mae == pytest.approx(42.9762, abs=0.0001)
+
+    from podcast_mcp.word_aligner_models import word_aligner_model
+
+    pinned = word_aligner_model()
+    fixture = Path(__file__).parent / "fixtures" / "word_boundary"
+    for report_path in sorted(fixture.glob("*.onnx-base-pipeline.json")):
+        provenance = json.loads(report_path.read_text(encoding="utf-8"))["provenance"]
+        assert provenance["model"] == pinned.hf_repo
+        assert provenance["version"] == pinned.revision
+        assert provenance["license"] == pinned.license
+        assert provenance["settings"]["onnx_file"] == pinned.onnx_file
+        # Marks this as the shipped WordAligner.align pass, not the harness's
+        # own align_prediction/retime_spans path (run/agree subcommands).
+        assert provenance["settings"]["pass"] == "pipeline"
+
+
 def test_matched_word_pairs_validates_and_returns_monotone_pairs() -> None:
     reference = [word("one", 0, 0.2), word("two", 0.2, 0.4), word("three", 0.4, 0.6)]
     prediction = [word("one", 0, 0.2), word("three", 0.4, 0.6)]
