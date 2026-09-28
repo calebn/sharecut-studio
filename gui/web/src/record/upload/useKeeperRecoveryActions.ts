@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useMountedRef } from "../../hooks/useMountedRef";
+import { useSingleFlight } from "../../hooks/useSingleFlight";
 import { errorMessage } from "../../utils/apiError";
 import type { ByteSink } from "../keeper/store";
 import {
@@ -43,10 +44,9 @@ export function useKeeperRecoveryActions(args: {
   onRecovered: () => void;
 }): KeeperRecoveryActions {
   const { sink, sessionId, participantId, takeIndex } = args;
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const busyRef = useRef(false);
+  const { busy, run: runSingle } = useSingleFlight();
   const allowedRef = useRef(args.recoverAllowed);
   allowedRef.current = args.recoverAllowed;
   const onRecoveredRef = useRef(args.onRecovered);
@@ -55,29 +55,23 @@ export function useKeeperRecoveryActions(args: {
 
   const run = useCallback(
     (action: () => Promise<string | null>, afterSuccess?: () => void) => {
-      if (busyRef.current) return;
-      busyRef.current = true;
-      setBusy(true);
-      setError(null);
-      setNotice(null);
-      void action()
-        .then((message) => {
+      void runSingle(async () => {
+        setError(null);
+        setNotice(null);
+        try {
+          const message = await action();
           if (!mountedRef.current) return;
           setNotice(message);
           afterSuccess?.();
-        })
-        .catch((failure: unknown) => {
+        } catch (failure: unknown) {
           if (!mountedRef.current) return;
           setError(errorMessage(failure));
           // A partial run may still have recovered segments; re-poll.
           afterSuccess?.();
-        })
-        .finally(() => {
-          busyRef.current = false;
-          if (mountedRef.current) setBusy(false);
-        });
+        }
+      });
     },
-    [mountedRef],
+    [mountedRef, runSingle],
   );
 
   const ready =

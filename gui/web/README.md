@@ -299,6 +299,8 @@ The DAW state is one Zustand store (`state/dawStore.ts`) composed from project, 
 
 Mutations: prefer `hooks/useProjectMutation()` (`busy` / `error` / `run` / `refresh`) over local try/catch boilerplate.
 
+Double-submit guards: use `hooks/useSingleFlight()` (`busy` / `run`) instead of a hand-written ref + state pair; it drops a second `run` before `busy` re-renders (used by `useBootstrapDownload`, keeper recovery actions and Pipeline **Re-time words**).
+
 For caught values, use `utils/apiError.errorMessage(error, fallback)` when the caller has a specific fallback for non-`Error` values. Omit the fallback only when showing the string form of any thrown value is intentional.
 
 Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentActions`).

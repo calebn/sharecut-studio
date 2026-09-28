@@ -17,6 +17,7 @@ import {
   waitForPipelineJob,
 } from "../api";
 import { useLatestRequest } from "../hooks/useLatestRequest";
+import { useSingleFlight } from "../hooks/useSingleFlight";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import { selectAgentPresent } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
@@ -293,9 +294,8 @@ export function PipelinePanel() {
   );
   const [highlightPaths, setHighlightPaths] = useState<Set<string>>(new Set());
   const [starting, setStarting] = useState(false);
-  const [retiming, setRetiming] = useState(false);
-  /** Synchronous guard: a second click before `retiming` re-renders must not start a second re-time. */
-  const retimeInFlight = useRef(false);
+  /** A second Re-time words click before `retiming` re-renders must not start a second re-time. */
+  const { busy: retiming, run: runRetime } = useSingleFlight();
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const persistRequest = useLatestRequest();
@@ -757,13 +757,8 @@ export function PipelinePanel() {
     }
   };
 
-  const onRetime = async () => {
-    if (retimeInFlight.current) {
-      return;
-    }
-    retimeInFlight.current = true;
-    setRetiming(true);
-    try {
+  const onRetime = () =>
+    runRetime(async () => {
       let edited: string[];
       try {
         edited =
@@ -776,11 +771,7 @@ export function PipelinePanel() {
       if (overwriteEdited !== null) {
         await onRun("retime", overwriteEdited);
       }
-    } finally {
-      retimeInFlight.current = false;
-      setRetiming(false);
-    }
-  };
+    });
 
   const onCancel = async () => {
     try {
