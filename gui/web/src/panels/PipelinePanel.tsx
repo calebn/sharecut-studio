@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import {
+  ANALYZE_WAIT_MS,
   analyzePipeline,
   cancelPipelineRun,
   loadPipelineConfig,
   putPipelineConfig,
   startPipelineRun,
+  waitForPipelineJob,
 } from "../api";
 import { useLatestRequest } from "../hooks/useLatestRequest";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
@@ -275,8 +277,10 @@ export function PipelinePanel() {
   const analyzeAbort = useRef<AbortController | null>(null);
   /** The Analyze job this tab started most recently; its own promise renders its result. */
   const ownAnalyzeId = useRef<string | null>(null);
-  /** A running Analyze started elsewhere (another tab or viewer); its result renders here when it lands. */
+  /** The last running Analyze started elsewhere (another tab or viewer) that this tab followed; its result renders here once. */
   const remoteAnalyzeId = useRef<string | null>(null);
+  /** Stops following that remote Analyze job's stream (project switch / unmount / a newer remote job). */
+  const remoteAnalyzeAbort = useRef<AbortController | null>(null);
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
@@ -324,42 +328,70 @@ export function PipelinePanel() {
       });
     return () => {
       cancelled = true;
+      // Stop following another viewer's Analyze (project switch or unmount).
+      remoteAnalyzeAbort.current?.abort();
+      remoteAnalyzeAbort.current = null;
     };
   }, [projectPath, persistRequest, analyzeRequest]);
 
+  /** Render a shared Analyze job's terminal result in a tab that watched it run elsewhere. */
+  const showRemoteAnalyze = useEffectEvent(
+    async (done: PipelineJobSnapshot, signal: AbortSignal) => {
+      if (signal.aborted || done.id === ownAnalyzeId.current) {
+        return;
+      }
+      if (done.result == null) {
+        return; // cancelled before a result: nothing was applied
+      }
+      const view = analyzeResultView(
+        done.result as unknown as PipelineAnalyzeResponse,
+      );
+      setReasons(view.reasons);
+      setTrackRows(view.trackRows);
+      setHighlightPaths(view.highlightPaths);
+      // The other viewer's apply patched the working set; re-read it.
+      const reload = persistRequest.begin();
+      const fresh = await loadPipelineConfig(projectPath);
+      if (!signal.aborted && persistRequest.isCurrent(reload)) {
+        setCfg(fresh);
+      }
+    },
+  );
+
   useEffect(() => {
     const j = activityJob;
-    if (j == null || !isAnalyzeJob(j) || j.id === ownAnalyzeId.current) {
+    if (
+      j == null ||
+      !isAnalyzeJob(j) ||
+      isTerminalJobStatus(j.status) ||
+      j.id === ownAnalyzeId.current ||
+      j.id === remoteAnalyzeId.current
+    ) {
       return;
     }
-    if (!isTerminalJobStatus(j.status)) {
-      // Started elsewhere: render its result here once it finishes.
-      remoteAnalyzeId.current = j.id;
-      return;
-    }
-    if (j.id !== remoteAnalyzeId.current) {
-      return;
-    }
-    remoteAnalyzeId.current = null;
-    if (j.result == null) {
-      return; // cancelled before a result: nothing was applied
-    }
-    const view = analyzeResultView(
-      j.result as unknown as PipelineAnalyzeResponse,
-    );
-    setReasons(view.reasons);
-    setTrackRows(view.trackRows);
-    setHighlightPaths(view.highlightPaths);
-    // The other viewer's apply patched the working set; re-read it.
-    const reload = persistRequest.begin();
-    void loadPipelineConfig(projectPath)
-      .then((fresh) => {
-        if (persistRequest.isCurrent(reload)) {
-          setCfg(fresh);
+    // Started elsewhere (another tab or viewer). Follow the job's own stream, not
+    // activityJob: a concurrent agent job can take over the Activity primary before
+    // Analyze finishes, so its terminal snapshot may never reach activityJob.
+    remoteAnalyzeId.current = j.id;
+    remoteAnalyzeAbort.current?.abort();
+    const abort = new AbortController();
+    remoteAnalyzeAbort.current = abort;
+    void waitForPipelineJob(j.id, {
+      timeoutMs: ANALYZE_WAIT_MS,
+      signal: abort.signal,
+    })
+      .then((done) => showRemoteAnalyze(done, abort.signal))
+      .catch((e) => {
+        if (!abort.signal.aborted) {
+          setError(errorMessage(e));
         }
       })
-      .catch((e) => setError(errorMessage(e)));
-  }, [activityJob, projectPath, persistRequest]);
+      .finally(() => {
+        if (remoteAnalyzeAbort.current === abort) {
+          remoteAnalyzeAbort.current = null;
+        }
+      });
+  }, [activityJob]);
 
   const stepsUnique = useMemo(() => (cfg ? uniqueSteps(cfg.steps) : []), [cfg]);
 

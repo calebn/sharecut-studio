@@ -20,6 +20,7 @@ const runBootstrap = vi.fn();
 const waitForBootstrapJob = vi.fn();
 const loadTranscriptVocabulary = vi.fn();
 const saveTranscriptVocabulary = vi.fn();
+const waitForPipelineJob = vi.fn();
 
 vi.mock("../api", () => ({
   loadPipelineConfig: (...args: unknown[]) => loadPipelineConfig(...args),
@@ -33,6 +34,8 @@ vi.mock("../api", () => ({
     loadTranscriptVocabulary(...args),
   saveTranscriptVocabulary: (...args: unknown[]) =>
     saveTranscriptVocabulary(...args),
+  waitForPipelineJob: (...args: unknown[]) => waitForPipelineJob(...args),
+  ANALYZE_WAIT_MS: 21_600_000,
 }));
 
 const setPipelineJob = vi.fn();
@@ -245,6 +248,9 @@ describe("PipelinePanel", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    waitForPipelineJob.mockReset();
+    // A running Analyze from another viewer stays running unless a test finishes it.
+    waitForPipelineJob.mockImplementation(() => new Promise(() => {}));
     mockState.projectPath = "/tmp/ep.project.json";
     dawState.pipelineJob = null;
     dawState.activityJob = null;
@@ -831,6 +837,17 @@ describe("PipelinePanel", () => {
     };
   }
 
+  function remoteAnalyzeResult(overrides: Record<string, unknown> = {}) {
+    return {
+      proposed_config: {},
+      patches: {},
+      reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
+      report_summary: { track_count: 1, reason_count: 1, tracks: [] },
+      applied: true,
+      ...overrides,
+    };
+  }
+
   it("starts Analyze as a job and seeds Activity chrome", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockImplementation(
@@ -942,24 +959,23 @@ describe("PipelinePanel", () => {
 
   it("renders a shared Analyze job's result that another viewer started", async () => {
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
-    await waitFor(() => {
-      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
-    });
-    dawState.activityJob = analyzeJobSnap({
-      id: "an-remote",
-      status: "ok",
-      message: "Analyze complete",
-      result: {
-        proposed_config: {},
-        patches: {},
-        reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
-        report_summary: { track_count: 1, reason_count: 1, tracks: [] },
-        applied: true,
-      },
-    });
-    rerender(<PipelinePanel />);
+    waitForPipelineJob.mockResolvedValueOnce(
+      analyzeJobSnap({
+        id: "an-remote",
+        status: "ok",
+        message: "Analyze complete",
+        result: remoteAnalyzeResult(),
+      }),
+    );
+    render(<PipelinePanel />);
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    expect(waitForPipelineJob).toHaveBeenCalledWith(
+      "an-remote",
+      expect.objectContaining({
+        timeoutMs: 21_600_000,
+        signal: expect.any(AbortSignal),
+      }),
+    );
     await waitFor(() => {
       expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
     });
@@ -984,6 +1000,59 @@ describe("PipelinePanel", () => {
     });
     expect(screen.queryByText("host: mains hum")).not.toBeInTheDocument();
     expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    expect(waitForPipelineJob).not.toHaveBeenCalled();
+  });
+
+  it("renders a shared Analyze result after an agent job takes the Activity primary", async () => {
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    let finish!: (job: unknown) => void;
+    waitForPipelineJob.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    });
+    // A host-MCP agent job becomes the Activity primary before Analyze finishes.
+    dawState.activityJob = analyzeJobSnap({
+      id: "agent-1",
+      kind: "agent",
+      label: "align_tracks",
+      tool_id: "align_tracks",
+      message: "Scoring bleed windows",
+      current: null,
+      total: null,
+    });
+    rerender(<PipelinePanel />);
+    await act(async () => {
+      finish(
+        analyzeJobSnap({
+          id: "an-remote",
+          status: "ok",
+          message: "Analyze complete",
+          result: remoteAnalyzeResult(),
+        }),
+      );
+    });
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops following a remote Analyze on project switch", async () => {
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    });
+    const signal = waitForPipelineJob.mock.calls[0][1].signal as AbortSignal;
+    mockState.projectPath = "/tmp/other.project.json";
+    rerender(<PipelinePanel />);
+    await waitFor(() => {
+      expect(signal.aborted).toBe(true);
+    });
   });
 
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
