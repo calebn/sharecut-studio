@@ -11,7 +11,6 @@ import { sessionSecOf } from "../utils/zoom";
 export function useFollowViewport(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
   const sessionClients = useDawStore((s) => s.sessionClients);
-  const serverClockOffsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
   const lastVp = useRef<string>("");
 
@@ -20,7 +19,7 @@ export function useFollowViewport(): void {
       lastVp.current = "";
       return;
     }
-    const now = serverNowMs(serverClockOffsetMs);
+    const now = serverNowMs();
     const target = resolveFollowTarget(sessionClients, followingClientId, now);
     if (!target) {
       useDawStore.getState().stopFollow("left");
@@ -46,5 +45,5 @@ export function useFollowViewport(): void {
       useDawStore.getState().setScrollLeft(scrollLeft);
       useDawStore.getState().markUserZoomed();
     });
-  }, [followingClientId, sessionClients, serverClockOffsetMs, shellBreakpoint]);
+  }, [followingClientId, sessionClients, shellBreakpoint]);
 }

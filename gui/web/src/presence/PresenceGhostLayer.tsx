@@ -71,8 +71,7 @@ function unionRect(
 export function PresenceGhostLayer({ rootRef }: Props) {
   const sessionClients = useDawStore((s) => s.sessionClients);
   const localClientId = useDawStore((s) => s.localClientId);
-  const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
-  const now = serverNowMs(offsetMs);
+  const now = serverNowMs();
   const others = remotePresenceClients(
     sessionClients,
     localClientId,

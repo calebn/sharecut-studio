@@ -185,8 +185,6 @@ export interface DawState {
   /** Presence roster from session Snapshot / Presence events. */
   sessionClients: SessionClient[];
   setSessionClients: (clients: SessionClient[]) => void;
-  serverClockOffsetMs: number;
-  setServerClockOffsetMs: (ms: number) => void;
   localClientId: string | null;
   setLocalClientId: (id: string | null) => void;
   followingClientId: string | null;

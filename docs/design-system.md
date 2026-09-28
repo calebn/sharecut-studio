@@ -157,7 +157,8 @@ and passes fixed geometry.
 overlays as props-only views. Each adapter (`EnvelopeOverlay.tsx`,
 `PresenceOverlay.tsx`, `CommentPlaybackBubble.tsx`) keeps every store, API and
 context read — `useDaw`/`useDawStore` selectors, `setEnvelope`, the session
-roster and server clock offset, the join/leave announcer, and
+roster and the module-level server clock (`presence/clock.ts`), the join/leave
+announcer, and
 `useTimelineMetrics`/`useTimelineGestureHold` — while its view takes plain
 props (`points`/`clients`/`comment`, geometry, callbacks) and keeps only local
 UI state: the envelope drag draft, the focused point id, and the presence

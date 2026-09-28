@@ -4,6 +4,7 @@ import {
   pollSnapshotAlreadyApplied,
   resetDocumentSeqForTests,
 } from "../document/cursor";
+import { currentServerClockOffsetMs } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
@@ -190,7 +191,7 @@ describe("useGuestSync", () => {
         clients: [],
       });
     });
-    expect(useDawStore.getState().serverClockOffsetMs).not.toBe(0);
+    expect(currentServerClockOffsetMs()).not.toBe(0);
   });
 
   it("merges comments when document snapshot has no project", async () => {

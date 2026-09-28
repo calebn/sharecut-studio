@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { currentServerClockOffsetMs } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
@@ -113,7 +114,7 @@ describe("useSessionSync presence", () => {
       } satisfies Partial<SessionState> & { type: string; clients: unknown });
     });
     expect(useDawStore.getState().sessionClients[0]?.client_id).toBe("x");
-    expect(useDawStore.getState().serverClockOffsetMs).not.toBe(0);
+    expect(currentServerClockOffsetMs()).not.toBe(0);
   });
 
   it("stores record-plane snapshots on the host record store", async () => {

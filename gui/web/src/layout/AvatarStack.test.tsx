@@ -28,7 +28,6 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        serverClockOffsetMs: 0,
         sessionClients: [
           {
             client_id: "me",
@@ -86,7 +85,6 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        serverClockOffsetMs: 0,
         sessionClients: [
           {
             client_id: "me",
@@ -145,7 +143,6 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: "a",
-        serverClockOffsetMs: 0,
         sessionClients: [
           {
             client_id: "me",
@@ -179,7 +176,6 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        serverClockOffsetMs: 0,
         sessionClients: [
           {
             client_id: "me",

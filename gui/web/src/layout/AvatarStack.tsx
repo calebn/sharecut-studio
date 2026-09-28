@@ -17,9 +17,8 @@ type Props = {
 function liveOthers(
   clients: SessionClient[],
   localId: string | null,
-  offsetMs: number,
 ): SessionClient[] {
-  return remotePresenceClients(clients, localId, serverNowMs(offsetMs));
+  return remotePresenceClients(clients, localId, serverNowMs());
 }
 
 function localClient(
@@ -37,11 +36,10 @@ export function AvatarStack({ variant = "inline" }: Props) {
   const sessionClients = useDawStore((s) => s.sessionClients);
   const localClientId = useDawStore((s) => s.localClientId);
   const followingClientId = useDawStore((s) => s.followingClientId);
-  const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
 
   const others = useMemo(
-    () => liveOthers(sessionClients, localClientId, offsetMs),
-    [sessionClients, localClientId, offsetMs],
+    () => liveOthers(sessionClients, localClientId),
+    [sessionClients, localClientId],
   );
   const self = localClient(sessionClients, localClientId);
   const names = useMemo(

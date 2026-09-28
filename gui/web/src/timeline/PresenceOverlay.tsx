@@ -58,11 +58,10 @@ const PRESENCE_STALENESS_TICK_MS = 5_000;
  * fresh heartbeat (a store update) re-renders and restarts it.
  */
 function useServerNowMs(
-  offsetMs: number,
   clients: SessionClient[],
   localId: string | null,
 ): number {
-  const nowMs = serverNowMs(offsetMs);
+  const nowMs = serverNowMs();
   const active = remotePresenceClients(clients, localId, nowMs).length > 0;
   useIntervalTick(PRESENCE_STALENESS_TICK_MS, active);
   return nowMs;
@@ -72,10 +71,9 @@ function useServerNowMs(
 export function PresenceOverlay(props: Props) {
   const clients = useDawStore((s) => s.sessionClients);
   const localClientId = useDawStore((s) => s.localClientId);
-  const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const project = useDawStore((s) => s.project);
   const { laneHeight } = useTimelineMetrics();
-  const nowMs = useServerNowMs(offsetMs, clients, localClientId);
+  const nowMs = useServerNowMs(clients, localClientId);
   usePresenceAnnouncer(clients, localClientId, nowMs);
 
   return (

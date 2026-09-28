@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  currentServerClockOffsetMs,
+  resetServerClock,
+  setServerClockOffsetForTests,
+} from "../presence/clock";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
 import { LANE_HEIGHT_STORAGE_KEY } from "../utils/laneHeightPref";
@@ -206,10 +211,14 @@ describe("dawStore listen-first transport", () => {
     });
   });
 
+  afterEach(() => {
+    resetServerClock();
+  });
+
   it("hydrate resets follow identity and clock offset", () => {
+    setServerClockOffsetForTests(12);
     useDawStore.setState({
       localClientId: "old",
-      serverClockOffsetMs: 12,
       followingClientId: "peer",
       followDegraded: { tab: "pipeline" },
       transcriptScrollRequest: "transcript:turn:0",
@@ -218,11 +227,17 @@ describe("dawStore listen-first transport", () => {
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     const s = useDawStore.getState();
     expect(s.localClientId).toBeNull();
-    expect(s.serverClockOffsetMs).toBe(0);
+    expect(currentServerClockOffsetMs()).toBe(0);
     expect(s.followingClientId).toBeNull();
     expect(s.followDegraded).toEqual({});
     expect(s.transcriptScrollRequest).toBeNull();
     expect(s.transcriptViewAnchor).toBeNull();
+  });
+
+  it("hydrate keeps the clock offset when the project path is unchanged", () => {
+    setServerClockOffsetForTests(12);
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    expect(currentServerClockOffsetMs()).toBe(12);
   });
 
   it("keeps local client id when hydrating the same project path", () => {
