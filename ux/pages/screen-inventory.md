@@ -80,16 +80,16 @@ flowchart TB
 
 The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, var(--menu-available-height))`) and scrolls so **Keyboard shortcuts** stays reachable on short laptop heights, including when guest/follow banners sit above the transport. The shortcut dialog explains that character keys apply when the timeline or transcript has focus.
 
-Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
-behind Menu → Project → Bounce…; the live `BounceDialog` keeps the job
-start/follow and DAW selection.
-
 **Collapsed when:** phone, tablet compact, or bar width ≤720px.
 
 ```
 ┌─ ▶  12:34 / 58:39  [Cmt*] [Fit*] [⋯*] ─┐
 │ * icon buttons (bubble / fit / menu)  │
 ```
+
+Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
+behind Menu → Project → Bounce…; the live `BounceDialog` keeps the job
+start/follow and DAW selection.
 
 ---
 
