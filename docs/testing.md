@@ -134,6 +134,8 @@ to match; find them with `git grep -n 'actions/checkout@v' tests/`.
 
 GitHub Actions runs the required full suite on public pushes and pull requests. Run focused tests locally while changing code, for example `uv run pytest -q --no-cov tests/test_effects_presets.py`; a single file cannot satisfy the repo-wide 95% coverage threshold. There is no pre-push full-CI hook or local CI stamp: contributors may push a branch and open a PR without running `make test` or `make ci` first, then use the GitHub results to make targeted fixes. Run local `make test` or `make ci` when changes are extensive or a failure needs full-suite diagnosis. Wait for the required GitHub checks on the latest PR head before merging.
 
+The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
+
 ## Fast inner loop
 
 The audio-audit cache regression tests use deterministic decoder-call counts

@@ -522,19 +522,34 @@
     {
       "id": "ux-pack",
       "when": "UX onboarding pack (shareable site)",
-      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; keep in sync via `scripts/check_ux_pack_sync.py` / pre-commit (triggers include GUI shells, `docs/ui-philosophy.md`, `docs/gui-mobile.md`, `docs/host-online-relay.md`, `docs/session-sync.md`, `docs/recording-session.md`, episode schema)",
+      "update": "`ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema)",
       "docs": [
         "ux/",
+        "ux/pages/",
+        "ux/assets/screens/",
         "ux/pages/brand.md",
+        "docs/daw-shortcuts.md",
         "tests/fixtures/sharecut_ux_demo/",
-        "scripts/check_ux_pack_sync.py",
-        "docs/ui-philosophy.md",
-        "docs/gui-mobile.md",
-        "docs/host-online-relay.md",
-        "docs/session-sync.md",
-        "docs/recording-session.md"
+        "scripts/build_ux_demo_fixture.py"
       ],
-      "advisory": null
+      "gate": {
+        "include": [
+          "gui/web/src/layout/",
+          "gui/web/src/styles/partials/responsive.css",
+          "gui/web/src/styles/partials/bottom-sheet.css",
+          "gui/web/src/ui/BottomSheet*",
+          "gui/web/src/keymap/",
+          "gui/web/src/commands/catalog.ts",
+          "docs/gui-mobile.md",
+          "docs/ui-philosophy.md",
+          "docs/gui-integration.md",
+          "docs/daw-editing.md",
+          "docs/host-online-relay.md",
+          "docs/session-sync.md",
+          "docs/recording-session.md",
+          "schemas/episode.project.schema.json"
+        ]
+      }
     },
     {
       "id": "play-modes",

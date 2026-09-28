@@ -20,5 +20,5 @@ elif command -v pre-commit >/dev/null 2>&1; then
 elif command -v uvx >/dev/null 2>&1; then
   uvx pre-commit run --hook-stage pre-commit --color always
 else
-  echo "pre-commit: neither pre-commit nor uvx found; skipping check-only hooks (ux-pack-sync, schema, capabilities, cheatsheet)." >&2
+  echo "pre-commit: neither pre-commit nor uvx found; skipping check-only hooks (docs-sync, schema, capabilities, cheatsheet)." >&2
 fi
