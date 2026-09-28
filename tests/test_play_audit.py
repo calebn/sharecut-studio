@@ -7,14 +7,17 @@ import pytest
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     clear_invalidations_if_current,
+    clear_stem_hash,
     dialogue_render_hashes,
     expected_stem_duration_sec,
     mix_render_hash,
     probe_wav_duration_sec,
     stem_duration_matches_timeline,
     stem_fingerprint,
+    stem_hash_matches,
     stem_is_fresh,
     stem_matches,
+    stem_path,
     track_render_hash,
     write_stem_hash,
 )
@@ -363,6 +366,25 @@ def test_stem_matches_uses_the_fingerprint_not_the_live_project(tmp_path, sample
 
     fp2 = stem_fingerprint(project, "host")
     assert stem_matches(project, "host", fp2) is False
+
+
+def test_stem_hash_matches_needs_the_wav_and_the_named_hash(tmp_path, sample_wav) -> None:
+    ws = tmp_path / "ws"
+    (ws / "artifacts" / "tracks").mkdir(parents=True)
+    project = EpisodeProject.create("shm", str(ws))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    h = write_stem_hash(project, "host")
+    assert stem_hash_matches(project, "host", h) is False  # sidecar, no WAV
+
+    stem_path(project, "host").write_bytes(sample_wav.read_bytes())
+    assert stem_hash_matches(project, "host", h) is True
+    assert stem_hash_matches(project, "host", "0" * 16) is False  # sidecar names another state
+
+    clear_stem_hash(project, "host")
+    assert stem_hash_matches(project, "host", h) is False  # WAV, no sidecar
 
 
 def test_changed_render_hashes() -> None:
