@@ -48,6 +48,9 @@ describe("TransportBar stale refresh", () => {
     const pill = screen.getByRole("button", { name: /Mix out of date/i });
     expect(pill.getAttribute("aria-disabled")).toBeNull();
     expect(pill).toHaveTextContent("Mix out of date · Refresh");
+    expect(pill.getAttribute("aria-label")).toMatch(
+      /^Mix out of date · Refresh\. /,
+    );
     await userEvent.hover(pill);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
     await userEvent.unhover(pill);
@@ -79,6 +82,7 @@ describe("TransportBar stale refresh", () => {
     expect(pill.getAttribute("aria-disabled")).toBe("true");
     expect(pill).toHaveTextContent(/^Mix out of date$/);
     expect(pill.textContent).not.toContain("Refresh");
+    expect(pill.getAttribute("aria-label")).toMatch(/^Mix out of date\. /);
     await userEvent.hover(pill);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
     await userEvent.click(pill);
@@ -98,7 +102,9 @@ describe("TransportBar stale refresh", () => {
         <TransportBar />
       </DawProvider>,
     );
-    const pill = screen.getByRole("button", { name: /Refresh mix/i });
+    const pill = screen.getByRole("button", {
+      name: /^Mix out of date · Refresh\. /,
+    });
     expect(pill.getAttribute("aria-disabled")).toBeNull();
     await userEvent.click(pill);
     expect(execute).toHaveBeenCalledWith(
