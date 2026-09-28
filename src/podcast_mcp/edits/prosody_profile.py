@@ -104,7 +104,8 @@ def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
     here.
 
     Callers must own ``project`` for the call (a per-request ``EpisodeProject``, as
-    ``audition_context`` and the guest share route build today) or hold
+    ``audition_context``, :func:`prosody_overlay` (``GET /api/project/prosody``) and the
+    guest share route build today) or hold
     ``util.project_state.project_state_lock(project)`` while another thread may edit its
     words in place; see ``TranscriptWords.memoized``.
     """
