@@ -67,11 +67,15 @@ def test_onnx_backend_normalizes_input_and_returns_log_probs(monkeypatch, tmp_pa
     assert np.exp(out).sum(axis=1) == pytest.approx(np.ones(5))
 
 
+def _snapshot(root, onnx_bytes: bytes = b""):
+    (root / "onnx").mkdir(parents=True)
+    (root / "vocab.json").write_text(json.dumps(HI_BYE_TOKENS))
+    (root / "onnx" / "model.onnx").write_bytes(onnx_bytes)
+    return root
+
+
 def test_word_aligner_load_uses_env_dir_and_vocab(tmp_path, monkeypatch) -> None:
-    model_dir = tmp_path / "snapshot"
-    (model_dir / "onnx").mkdir(parents=True)
-    (model_dir / "vocab.json").write_text(json.dumps(HI_BYE_TOKENS))
-    (model_dir / "onnx" / "model.onnx").write_bytes(b"")
+    model_dir = _snapshot(tmp_path / "snapshot")
     monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(model_dir))
     fake, _sessions = _fake_onnxruntime()
     monkeypatch.setitem(sys.modules, "onnxruntime", fake)
@@ -83,6 +87,7 @@ def test_word_aligner_load_uses_env_dir_and_vocab(tmp_path, monkeypatch) -> None
     assert aligner.supports_language(None)
     assert not aligner.supports_language("de")
     assert aligner.cache_identity()["revision"] == aligner.model.revision
+    assert aligner.cache_identity()["local_source"]["dir"] == str(model_dir.resolve())
 
 
 def test_word_aligner_load_without_model_raises_missing(tmp_path, monkeypatch) -> None:
@@ -222,3 +227,38 @@ def test_apply_word_spans_real_decode_keeps_unencodable_word_monotonic(tmp_path)
     assert words[1].start == pytest.approx(0.08)
     assert words[1].end == pytest.approx(0.08)
     assert words[1].audibility_status == "deferred"
+
+
+def test_override_snapshot_changes_cache_identity_and_key(
+    tmp_path, monkeypatch, minimal_project
+) -> None:
+    from podcast_mcp.engines.transcribe import TranscriptionEngine
+    from podcast_mcp.models import load_project
+    from podcast_mcp.models.episode import TranscriptWord as _TranscriptWord
+
+    fake, _sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+    words = [_TranscriptWord(text="hi", start=0.0, end=0.5)]
+    proj = load_project(minimal_project)
+    engine = TranscriptionEngine()
+    asr_cache = proj.transcripts_dir() / "host_0000000000000000_1111111111111111.json"
+
+    keys = []
+    for name in ("a", "b"):
+        monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(_snapshot(tmp_path / name)))
+        aligner = WordAligner.load()
+        assert aligner.cache_identity()["local_source"]["dir"].endswith(name)
+        keys.append(engine.word_align_cache_path(proj, "host", asr_cache, aligner, words))
+    assert keys[0] != keys[1]
+
+
+def test_pinned_snapshot_cache_identity_has_no_local_source(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.word_align.resolve_word_aligner_dir",
+        lambda _id: _snapshot(tmp_path / "pinned"),
+    )
+    fake, _sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+
+    assert "local_source" not in WordAligner.load().cache_identity()

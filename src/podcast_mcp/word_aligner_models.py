@@ -73,6 +73,12 @@ def _has_required_files(root: Path, model: WordAlignerModel) -> bool:
     return (root / "vocab.json").is_file() and (root / model.onnx_file).is_file()
 
 
+def word_aligner_override_dir() -> Path | None:
+    """The ``PODCAST_MCP_WORD_ALIGNER_MODEL`` directory, or None when unset."""
+    override = os.environ.get(WORD_ALIGNER_ENV)
+    return Path(override).expanduser() if override else None
+
+
 def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
     """A local snapshot directory for ``model_id``; never downloads.
 
@@ -80,13 +86,12 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
     """
     model = word_aligner_model(model_id)
 
-    override = os.environ.get(WORD_ALIGNER_ENV)
-    if override:
-        path = Path(override).expanduser()
-        if _has_required_files(path, model):
-            return path
+    override = word_aligner_override_dir()
+    if override is not None:
+        if _has_required_files(override, model):
+            return override
         raise WordAlignerMissingError(
-            model.id, f"{WORD_ALIGNER_ENV}={path} has no vocab.json or {model.onnx_file}"
+            model.id, f"{WORD_ALIGNER_ENV}={override} has no vocab.json or {model.onnx_file}"
         )
 
     from huggingface_hub import snapshot_download
