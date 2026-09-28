@@ -39,6 +39,7 @@ import {
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
+import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
@@ -185,17 +186,26 @@ export function TransportBar({
     </SegmentedControl>
   );
 
-  const staleTitle = mayRefresh
-    ? `${breakdown?.summary ?? ""}. Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
-    : (breakdown?.summary ?? "");
-  // The wide-bar pill reads just "Mix out of date" so the transport fits at
+  const refreshHint = mayRefresh
+    ? `Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
+    : null;
+  const staleTitle = [breakdown?.summary, refreshHint]
+    .filter(Boolean)
+    .join(". ");
+  // The wide-bar pill reads just MIX_STALE_LABEL so the transport fits at
   // 1280px; the refresh verb lives in its title, name, Mod+B and the
   // collapsed Menu item. Name starts with the visible text (WCAG 2.5.3).
+  // A summary that is only the label again (no specific cause) is dropped so
+  // the name never repeats a clause.
+  const staleCause =
+    breakdown?.summary && breakdown.summary !== MIX_STALE_LABEL
+      ? breakdown.summary
+      : null;
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
-    : mayRefresh
-      ? `Mix out of date. ${breakdown?.summary ?? ""}. Refresh mix.`
-      : `Mix out of date. ${breakdown?.summary ?? ""}`;
+    : `${[MIX_STALE_LABEL, staleCause, mayRefresh ? "Refresh mix" : null]
+        .filter(Boolean)
+        .join(". ")}.`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
@@ -386,10 +396,10 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : "Mix out of date"}
+            {renderPreviewBusy ? "Refreshing…" : MIX_STALE_LABEL}
           </CommandButton>
         ) : null}
-        {!collapsed && !stale ? <Pill tone="ok">Mix up to date</Pill> : null}
+        {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}
         {/* Like the stale pill, status moves into the Menu when collapsed
             (Mix status), where touch users can read the full message. */}
         {!collapsed && audioError && (
@@ -624,11 +634,11 @@ export function TransportBar({
                   >
                     {renderPreviewBusy
                       ? "Refreshing…"
-                      : "Mix out of date · Refresh"}
+                      : `${MIX_STALE_LABEL} · Refresh`}
                   </CommandMenuItem>
                 ) : (
                   <p className="transport-menu-note">
-                    {stale ? "Mix out of date" : "Mix up to date"}
+                    {stale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
                   </p>
                 )}
               </MenuSection>

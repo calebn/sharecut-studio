@@ -202,4 +202,26 @@ describe("TransportBar stale refresh", () => {
     await userEvent.click(refresh);
     expect(useDawStore.getState().highlightStaleRender).toBe(false);
   });
+
+  it("never repeats a clause when the mix is stale for no named cause", () => {
+    const project = minimalProject({
+      tracks: [sampleTrack({ stem_is_fresh: true })],
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: false },
+        premix: { exists: true },
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TransportBar />
+      </DawProvider>,
+    );
+    const pill = screen.getByRole("button", { name: /Mix out of date/i });
+    expect(pill).toHaveAttribute("aria-label", "Mix out of date. Refresh mix.");
+    expect(pill.getAttribute("title")).toMatch(
+      /^Mix out of date\. Click or .* to refresh mix\.$/,
+    );
+  });
 });
