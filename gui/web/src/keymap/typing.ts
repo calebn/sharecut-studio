@@ -11,3 +11,16 @@ export function isTypingTarget(el: EventTarget | null): boolean {
     el.isContentEditable
   );
 }
+
+/**
+ * True when Mod (Meta/Ctrl) or Alt is held, i.e. the key is part of a chord.
+ * Shift is not a command modifier: Shift+key is still a bare key here.
+ * Accepts DOM and React keyboard events.
+ */
+export function hasCommandModifier(e: {
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+}): boolean {
+  return e.metaKey || e.ctrlKey || e.altKey;
+}

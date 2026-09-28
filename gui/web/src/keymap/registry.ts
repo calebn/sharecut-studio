@@ -15,6 +15,7 @@ import type { ContextPredicateId } from "../commands/types";
 import { useDawStore } from "../state/dawStore";
 import { isApplePlatform } from "../utils/platform";
 import { getKeymapOverride } from "./remaps";
+import { hasCommandModifier } from "./typing";
 
 /** Keymap categories in display order (in-app palette tabs and generated cheatsheets); `KeymapCategory` and `keymapByCategory()` derive from it. */
 export const KEYMAP_CATEGORY_ORDER = [
@@ -805,7 +806,7 @@ export function matchKeymapCommands(
       }
     } else {
       const bare = cmd.bareKey !== false;
-      if (bare && (e.metaKey || e.ctrlKey || e.altKey)) {
+      if (bare && hasCommandModifier(e)) {
         continue;
       }
       if (cmd.requireShift === true && !e.shiftKey) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isTypingTarget } from "../keymap/typing";
+import { hasCommandModifier, isTypingTarget } from "../keymap/typing";
 import {
   liveTakeOpen,
   loadCommentQueue,
@@ -96,7 +96,7 @@ export function useRecordLiveComments(opts: {
       if (event.key !== "m" && event.key !== "M") {
         return;
       }
-      if (event.metaKey || event.ctrlKey || event.altKey) {
+      if (hasCommandModifier(event)) {
         return;
       }
       if (isTypingTarget(event.target)) {
