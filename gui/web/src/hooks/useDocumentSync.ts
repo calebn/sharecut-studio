@@ -50,6 +50,7 @@ type DocumentSnapshotMsg = {
  * handshake closes before accept, which the browser reports as 1006, so it keeps retrying.
  * The offline-queue drain timer also runs on the 30 s sanity cadence (another process's
  * writes, #662); a dropped socket resyncs from the hello Snapshot on reconnect, not a poll.
+ * `commands/trackMix.ts` sizes `QUEUED_SHOWN_MS` from this cadence; keep them in step.
  */
 export function useDocumentSync(
   projectPath: string,

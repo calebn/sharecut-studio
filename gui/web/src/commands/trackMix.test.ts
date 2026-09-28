@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { SANITY_POLL_MS } from "../hooks/useFileMetaPoll";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -8,6 +9,7 @@ import { clearRegisteredCommands, execute } from "./execute";
 import {
   _resetMixLanesForTests,
   flushPendingMix,
+  QUEUED_SHOWN_MS,
   registerTrackMixCommands,
   SAVED_MUTE_READ_ONLY,
   VOLUME_SAVE_DELAY_MS,
@@ -175,9 +177,17 @@ describe("track mix commands (#386)", () => {
     await execute("track.muteToggle");
     serverSends({ muted: false });
     expect(hostTrack()?.muted).toBe(true);
-    await vi.advanceTimersByTimeAsync(15_001);
+    // Still shown just before the next host drain tick.
+    await vi.advanceTimersByTimeAsync(SANITY_POLL_MS - 1);
+    serverSends({ muted: false });
+    expect(hostTrack()?.muted).toBe(true);
+    await vi.advanceTimersByTimeAsync(QUEUED_SHOWN_MS - SANITY_POLL_MS + 2);
     serverSends({ muted: false });
     expect(hostTrack()?.muted).toBe(false);
+  });
+
+  it("shows a queued value for longer than one host drain interval", () => {
+    expect(QUEUED_SHOWN_MS).toBeGreaterThan(SANITY_POLL_MS);
   });
 
   it("marks the premix behind as soon as the mix changes", async () => {
