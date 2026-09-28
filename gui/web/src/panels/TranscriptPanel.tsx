@@ -13,6 +13,7 @@ import {
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { isDetachedWordFailureMoot } from "../transcript/detachedWordFailure";
 import { EditBoundaryMark } from "../transcript/EditBoundaryMark";
 import {
   indexBoundaryPlacements,
@@ -368,12 +369,15 @@ export function TranscriptPanel() {
   useEffect(() => {
     if (
       transcriptInlineEditFailure &&
-      (transcriptInlineEditFailure.projectPath !== projectPath ||
+      isDetachedWordFailureMoot(
+        transcriptInlineEditFailure,
+        projectPath,
         findTranscriptWordIn(
           allUtterances,
           transcriptInlineEditFailure.trackId,
           transcriptInlineEditFailure.wordIndex,
-        )?.text !== transcriptInlineEditFailure.originalText)
+        ),
+      )
     ) {
       setTranscriptInlineEditFailure(null);
     }
@@ -1170,15 +1174,6 @@ export function TranscriptPanel() {
                             )
                           }
                           onBusyChange={setTranscriptInlineCommitPending}
-                          onDetachedError={(message) =>
-                            setTranscriptInlineEditFailure({
-                              projectPath,
-                              trackId: u.track_id,
-                              wordIndex,
-                              originalText: w.text,
-                              message,
-                            })
-                          }
                         />
                       ) : undefined,
                     buttonProps: wordInteractive
