@@ -97,10 +97,11 @@ def words_fingerprint(words: list[WordSpan]) -> str:
 def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
     """``words_fingerprint(profile_words(project, track_id))``, memoized on the transcript (#729).
 
-    Recomputed (~27 ms per track at 18k words) only after a transcript words change in
-    this process (``Transcript.memoize_words``), so an in-place edit such as
-    ``refresh_silence_flags`` is never missed. The revision is process-wide: a words
-    edit on any other track or project also forces one recompute here.
+    Recomputed (an O(words) sort + sha256, tens of ms at ~18k words) only after a
+    transcript words change in this process (``Transcript.memoize_words``), so an
+    in-place edit such as ``refresh_silence_flags`` is never missed. The revision is
+    process-wide: a words edit on any other track or project also forces one recompute
+    here.
 
     Callers must own ``project`` for the call (a per-request ``EpisodeProject``, as
     ``audition_context`` and the guest share route build today) or hold
