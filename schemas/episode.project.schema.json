@@ -229,6 +229,10 @@
           "type": ["string", "null"],
           "description": "Fingerprint of media, silence filter policy and word spans last used to set suspect hallucination flags; null requires rechecking."
         },
+        "word_aligner": {
+          "type": ["string", "null"],
+          "description": "Forced aligner (e.g. onnx-base) that re-timed these words when transcribe.forced_alignment.enabled ran; null keeps Whisper's own word times."
+        },
         "user_edited": {
           "type": "boolean",
           "default": false,

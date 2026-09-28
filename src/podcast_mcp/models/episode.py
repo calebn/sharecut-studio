@@ -166,6 +166,9 @@ class Transcript(BaseModel):
     audio_mtime_ns: int | None = None
     # Fingerprint of media, silence filter settings and word spans last used to set flags.
     silence_filter_fingerprint: str | None = None
+    # Forced aligner (word_aligner_models catalog id) that re-timed these words; None =
+    # Whisper's own times (transcribe.forced_alignment off, failed, or never run on them).
+    word_aligner: str | None = None
     # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
 

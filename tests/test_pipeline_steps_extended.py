@@ -1504,3 +1504,35 @@ def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
     assert "0 transcribed, 1 reused" in summary
     assert "0 words re-timed" in summary
     assert "1 reused track(s) not re-timed (Re-transcribe to re-time)" in summary
+
+
+def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
+    minimal_project, sample_wav, tmp_workspace
+):
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+    from podcast_mcp.engines.word_align import WordAlignResult
+    from podcast_mcp.word_aligner_models import word_aligner_model
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+    aligner = MagicMock()
+    aligner.model = word_aligner_model()
+    aligner.supports_language.return_value = True
+    aligner.cache_identity.return_value = {"model": "stub"}
+    aligner.align.return_value = WordAlignResult([(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01)
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
+    ):
+        first = steps.transcribe_tracks(proj, defaults)
+    assert "1 words re-timed" in first
+    assert proj.transcripts[0].word_aligner == "onnx-base"
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        second = steps.transcribe_tracks(proj, defaults)
+    eng_cls.assert_not_called()
+    assert "0 transcribed, 1 reused" in second
+    assert "not re-timed" not in second
