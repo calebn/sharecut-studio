@@ -760,6 +760,13 @@ def test_http_correction_past_shrunk_transcript_returns_409(minimal_project):
     assert response.json()["detail"]["conflict"] is True
 
 
+def test_apply_maps_stale_target_errors_to_conflict():
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+    from podcast_mcp.services.document_sync.service import STALE_TARGET_ERRORS
+
+    assert TranscriptTextChangedError in STALE_TARGET_ERRORS
+
+
 def test_document_correct_and_suppress_transcript(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
 
