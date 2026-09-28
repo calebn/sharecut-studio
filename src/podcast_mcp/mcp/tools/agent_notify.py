@@ -1,4 +1,10 @@
-"""MCP helper: notify document plane after agent project mutations."""
+"""MCP helper: notify document plane after agent project mutations.
+
+Journals a seq-advancing ``ExternalMutate`` row (#661). In the GUI process (MCP over
+``/mcp``) the row reaches open tabs over the socket at the new seq; from a stdio MCP
+process the row only reaches the shared ``document.db``, and the GUI's own tabs pick it
+up via their next ``/api/project/meta`` poll.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +20,8 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def agent_mutated(project: str | Path | ProjectWorkspace) -> None:
-    """Fan out a SHELL ProjectView to host Sharecut Studio tabs after MCP/CLI mutate."""
+    """Journal a seq-advancing ``ExternalMutate`` row and fan out a SHELL ProjectView to
+    host Sharecut Studio tabs after an MCP/CLI mutate (#661)."""
     after_agent_mutation(project)
 
 

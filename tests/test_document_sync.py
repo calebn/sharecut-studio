@@ -1186,7 +1186,7 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
         TrackRole,
         load_project,
     )
-    from podcast_mcp.services.document_sync.service import document_hub_key
+    from podcast_mcp.services.document_sync.service import document_hub_key, document_server_seq
     from podcast_mcp.services.session_sync.hub import get_hub
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -1208,6 +1208,7 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
         )
     ]
     ws.save()
+    before = document_server_seq(minimal_project)
 
     proj = load_project(minimal_project)
     key = document_hub_key(proj)
@@ -1220,9 +1221,15 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
         event = queue.get_nowait()
         assert event["type"] == "Applied"
         assert event["command"]["type"] == "ExternalMutate"
+        assert event["server_seq"] == before + 1
+        assert event["snapshot"]["server_seq"] == event["server_seq"]
+        assert event["command"]["client_id"] == "server:external"
+        assert event["command"]["role"] == "agent"
+        assert event["command"]["client_seq"] < 0
         assert "project" in event["snapshot"]
         pending = event["snapshot"]["project"].get("pending_edits") or []
         assert any(p.get("reason") == "pass6" for p in pending)
+        assert document_server_seq(minimal_project) == event["server_seq"]
     finally:
         get_hub().unsubscribe(key, queue)
         loop.close()
@@ -1237,8 +1244,123 @@ def test_comments_http_authz_loopback_ok(minimal_project):
     event = DocumentSyncService.open(minimal_project).publish_document_changed()
     assert event["type"] == "Applied"
     assert event["command"]["type"] == "ExternalMutate"
+    assert event["server_seq"] == 1
+    assert event["snapshot"]["server_seq"] == 1
+    assert event["command"]["payload"] == {"projection": "shell"}
     assert event["snapshot"]["project"]["meta"]["hydration"]["transcript_words"] is False
     assert event["snapshot"]["project"]["history"]["groups"] == []
+
+
+def test_external_mutate_rows_advance_server_seq_in_order(minimal_project):
+    from podcast_mcp.services.document_sync.service import notify_comments_changed
+    from podcast_mcp.services.document_sync.service import (
+        notify_document_changed as notify_shell_changed,
+    )
+
+    svc = DocumentSyncService.open(minimal_project)
+    first = svc.submit(_comment("first"))
+    assert first["server_seq"] == 1
+
+    notify_comments_changed(minimal_project)
+    notify_shell_changed(minimal_project)
+
+    svc2 = DocumentSyncService.open(minimal_project)
+    last = svc2.submit(_comment("second", client_id="c2"))
+    assert last["server_seq"] == 4
+
+    journal = _journal(svc2)
+    assert [row["type"] for row in journal] == [
+        "AddComment",
+        "ExternalMutate",
+        "ExternalMutate",
+        "AddComment",
+    ]
+    assert [row["server_seq"] for row in journal] == [1, 2, 3, 4]
+    assert [row["client_seq"] for row in journal[1:3]] == [-1, -2]
+    assert [row["payload"]["projection"] for row in journal[1:3]] == ["comments", "shell"]
+    assert [row["role"] for row in journal[1:3]] == ["viewer", "agent"]
+
+
+def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_project):
+    import asyncio
+
+    from podcast_mcp.services.comment import CommentService
+    from podcast_mcp.services.document_sync.service import (
+        document_hub_key,
+        notify_comments_changed,
+    )
+
+    ws = ProjectWorkspace.open(minimal_project)
+    key = document_hub_key(ws.project)
+    loop = asyncio.new_event_loop()
+    queue = get_hub().subscribe(key, loop)
+    try:
+        CommentService(ws).add(body="hi", author="viewer", timeline_start=1.0)
+        notify_comments_changed(minimal_project)
+        loop.call_soon(lambda: None)
+        loop.run_until_complete(asyncio.sleep(0))
+        event = queue.get_nowait()
+        assert event["server_seq"] == 1
+        assert len(event["snapshot"]["comments"]) == 1
+        assert "project" not in event["snapshot"]
+    finally:
+        get_hub().unsubscribe(key, queue)
+        loop.close()
+
+
+def test_external_mutate_journals_a_crash_saved_command_first(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    a = _comment("from-a", seq=1, client_id="a")
+    store._conn = FailingConnection(real, "INSERT INTO commands")  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite3.OperationalError):
+            svc.submit(a)
+    finally:
+        store._conn = real
+    assert _journal(svc) == []
+
+    svc2 = DocumentSyncService.open(minimal_project)
+    event = svc2.publish_document_changed()
+    assert event["server_seq"] == 2
+
+    journal = _journal(svc2)
+    assert [row["command_id"] for row in journal] == [a.command_id, event["command"]["command_id"]]
+    assert journal[0]["payload"]["result"] is None
+    assert journal[1]["type"] == "ExternalMutate"
+
+    retry = DocumentSyncService.open(minimal_project)
+    again = retry.submit(a)
+    assert again["idempotent"] is True
+    assert len(_journal(retry)) == 2
+
+
+def test_notify_swallows_a_busy_journal_and_a_lock_timeout(minimal_project, caplog):
+    from filelock import Timeout
+
+    from podcast_mcp.services.document_sync.service import (
+        DocumentSyncService as _Svc,
+    )
+    from podcast_mcp.services.document_sync.service import (
+        notify_comments_changed,
+        notify_document_changed,
+    )
+
+    svc = _Svc.open(minimal_project)
+    store = svc.store
+    real = store._conn
+    store._conn = FailingConnection(real, "BEGIN IMMEDIATE")  # type: ignore[assignment]
+    try:
+        with caplog.at_level(logging.WARNING):
+            notify_document_changed(minimal_project)
+        assert "Could not journal ExternalMutate" in caplog.text
+    finally:
+        store._conn = real
+    assert _journal(svc) == []
+
+    with patch.object(_Svc, "publish_document_changed", side_effect=Timeout("lock")):
+        notify_comments_changed(minimal_project)
 
 
 def test_document_add_track_and_set_media(minimal_project, sample_wav):

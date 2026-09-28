@@ -1252,7 +1252,7 @@ def share_add_comment(
         edit_decision_id=edit_decision_id,
         track_ids=track_ids,
     )
-    notify_comments_changed(ws.path)
+    notify_comments_changed(ws.path, role="guest")
     return comment
 
 
@@ -1267,7 +1267,7 @@ def share_add_reply(
     if not has_capability(row.get("capabilities"), "reply"):
         raise PermissionError("share does not allow replies")
     result = CommentService(ws).add_reply(comment_id, body=body, author=author)
-    notify_comments_changed(ws.path)
+    notify_comments_changed(ws.path, role="guest")
     return result
 
 
@@ -1291,7 +1291,7 @@ def share_set_action_done(
         done=done,
         by=by,
     )
-    notify_comments_changed(ws.path)
+    notify_comments_changed(ws.path, role="guest")
     return result
 
 

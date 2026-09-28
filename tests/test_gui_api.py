@@ -1103,6 +1103,10 @@ def test_api_comments_create_resolve_action(minimal_project) -> None:
     cid = comment["id"]
     aid = comment["action_items"][0]["id"]
 
+    meta = client.get("/api/project/meta", params={"path": path})
+    assert meta.status_code == 200
+    assert meta.json()["server_seq"] == 1
+
     view = client.get("/api/project", params={"path": path})
     assert view.status_code == 200
     assert any(c["id"] == cid for c in view.json().get("comments", []))

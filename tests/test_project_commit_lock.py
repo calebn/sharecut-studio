@@ -17,7 +17,11 @@ from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services import CommentService, ProjectWorkspace, ReviewService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
-from podcast_mcp.services.document_sync.service import document_db_path
+from podcast_mcp.services.document_sync.service import (
+    document_db_path,
+    document_server_seq,
+    notify_document_changed,
+)
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
@@ -184,6 +188,10 @@ def _child_add_comment(path, body) -> None:
     CommentService(ProjectWorkspace.open(path)).add(body=body, author="child", timeline_start=1.0)
 
 
+def _child_notify(path) -> None:
+    notify_document_changed(path)
+
+
 def _child_submit_comments(path, client_id, start, count) -> None:
     svc = DocumentSyncService.open(path)
     start.wait(60)
@@ -327,3 +335,28 @@ def test_same_sequence_race_across_processes_journals_only_the_applied_edit(mini
         store.close()
     assert len(rows) == 1
     assert rows[0]["payload"]["body"] == project.comments[0].body
+
+
+def test_external_mutate_from_another_process_advances_meta_server_seq(minimal_project):
+    from podcast_mcp.gui import jobs
+
+    p = Path(minimal_project)
+    DocumentSyncService.open(p).document_snapshot(projection="comments")
+    assert document_server_seq(p) == 0
+
+    child = _CTX.Process(target=_child_notify, args=(str(p),))
+    child.start()
+    assert reap(child, 120)
+    assert child.exitcode == 0
+
+    assert document_server_seq(p) == 1
+    assert jobs.project_meta(p)["server_seq"] == 1
+
+    project = load_project(p)
+    store = SyncStore(document_db_path(project))
+    try:
+        rows = store.commands_after(0)
+    finally:
+        store.close()
+    assert len(rows) == 1
+    assert rows[0]["type"] == "ExternalMutate"
