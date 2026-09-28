@@ -114,7 +114,13 @@ def play_context_cmd(
         help="summary | full | visual (visual adds waveform/spectrogram PNGs)",
     ),
 ) -> None:
-    """Per-track captions + clip-skew / stem freshness for a timeline window (v2)."""
+    """Per-track captions + clip-skew / stem freshness for a timeline window (v2).
+
+    Each track also carries a ``prosody`` window (pitch, rate, energy, prominent
+    words, phrase boundaries) read from the pipeline's cached profile; run
+    ``podcast pipeline run --only analyze_prosody`` first if it reports
+    missing or stale.
+    """
     ws = ProjectWorkspace.open(project)
     ctx = PlayService(ws).audition_context(
         parse_time_sec(start),

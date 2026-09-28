@@ -42,6 +42,7 @@ MAX_VISUAL_EVENTS = 20
 MAX_BURNED_LABELS = 8
 MAX_SUGGESTED_LISTEN = 4
 MAX_DSP_WINDOW_SEC = 60.0
+MAX_PROSODY_NOTES = 8
 
 # Dialogue tracks' source clocks at one timeline instant are reported on
 # ``tracks[].source_at_mid`` / ``clip_skew.pairs``. Unequal per-track cuts make
@@ -248,6 +249,38 @@ def build_visual_events(
     return cap_visual_events(other + word_events)
 
 
+def _prosody_for_track(
+    project: EpisodeProject,
+    st: SessionTimeline,
+    track_id: str,
+    spans: list[tuple[SourceSec, SourceSec]],
+) -> dict[str, Any]:
+    """The cached prosody window for one track, never raising into the response."""
+    from podcast_mcp.edits.prosody_profile import prosody_window
+
+    try:
+        return prosody_window(project, st, track_id, spans)
+    except (OSError, ValueError) as exc:
+        return {"status": "unavailable", "error": str(exc)}
+
+
+def _prosody_notes(tracks_out: list[dict[str, Any]]) -> list[str]:
+    """Up to ``MAX_PROSODY_NOTES`` one-line prosody summaries across tracks."""
+    notes: list[str] = []
+    for t in tracks_out:
+        prosody = t.get("prosody") or {}
+        if prosody.get("status") != "fresh":
+            continue
+        for seg in prosody.get("segments") or []:
+            line = seg.get("line")
+            if not line:
+                continue
+            notes.append(f"{t['track_id']}: {line}")
+            if len(notes) >= MAX_PROSODY_NOTES:
+                return notes
+    return notes
+
+
 def build_audition_context(
     project: EpisodeProject,
     timeline_start: float,
@@ -257,6 +290,7 @@ def build_audition_context(
     detail: DetailLevel = "summary",
     render_visual_pngs: bool | None = None,
     include_dsp: bool = True,
+    include_prosody: bool = True,
 ) -> dict[str, Any]:
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
@@ -306,6 +340,8 @@ def build_audition_context(
             "effects": _active_effects(project, tid),
             "muted": bool(getattr(project.track_by_id(tid), "muted", False)),
         }
+        if include_prosody:
+            track_info["prosody"] = _prosody_for_track(project, st, tid, spans)
         tracks_out.append(track_info)
 
     skew = _clip_skew_warnings(source_at_mid, skew_warn_sec=skew_warn_sec)
@@ -380,6 +416,7 @@ def build_audition_context(
         "limits": _limits(detail=detail, needs_rerender=bool(render_status.get("needs_rerender"))),
         "warnings": warnings,
         "summary": _summary(tracks_out, warnings, comments),
+        "prosody_notes": _prosody_notes(tracks_out) if include_prosody else [],
     }
     if speaker_roles is not None:
         out["speaker_roles"] = speaker_roles

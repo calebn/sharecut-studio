@@ -275,7 +275,7 @@ def load_track_profile(project: EpisodeProject, track_id: str) -> ProfileLookup:
             None,
             "missing",
             "No prosody profile yet; run the pipeline's analyze_prosody step "
-            "(podcast pipeline run --only-step analyze_prosody) or enable "
+            "(podcast pipeline run --only analyze_prosody) or enable "
             "prosody.enabled and re-run the pipeline.",
         )
     track = project.track_by_id(track_id)

@@ -182,7 +182,11 @@ def audition_context_tool(
     windowed hum/clip hypotheses; ``full`` expands edit/comment payloads;
     ``visual`` adds waveform/spectrogram PNGs (slower). Returns
     ``audition_context.v2`` (typed hypotheses, suggested_listen, explicit clocks).
-    Times are timeline (session) seconds. Does not play audio.
+    Each track also carries a ``prosody`` window (pitch, rate, energy, prominent
+    words, phrase boundaries) read from the pipeline's cached profile
+    (``analyze_prosody`` step); ``status`` is ``missing``/``stale`` with a hint
+    when no fresh profile is cached yet. Top-level ``prosody_notes`` has up to
+    8 one-line summaries. Times are timeline (session) seconds. Does not play audio.
     """
     ws = ProjectWorkspace.open(project_path)
     return json.dumps(
