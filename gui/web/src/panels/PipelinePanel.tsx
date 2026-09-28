@@ -263,6 +263,7 @@ export function PipelinePanel() {
   const [onlyStep, setOnlyStep] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<PipelineAnalyzeReason[]>([]);
+  const [reasonsApplied, setReasonsApplied] = useState(true);
   const [trackRows, setTrackRows] = useState<Array<Record<string, unknown>>>(
     [],
   );
@@ -348,6 +349,7 @@ export function PipelinePanel() {
         done.result as unknown as PipelineAnalyzeResponse,
       );
       setReasons(view.reasons);
+      setReasonsApplied(view.applied);
       setTrackRows(view.trackRows);
       if (!view.applied) {
         // Proposals only (`apply: false`): the working set is unchanged, so nothing is
@@ -595,6 +597,7 @@ export function PipelinePanel() {
       }
       const view = analyzeResultView(result);
       setReasons(view.reasons);
+      setReasonsApplied(view.applied);
       setTrackRows(view.trackRows);
       setHighlightPaths(view.highlightPaths);
       const patches = view.patches;
@@ -859,7 +862,11 @@ export function PipelinePanel() {
         <div className="pipeline-reasons">
           {reasons.length > 0 && (
             <>
-              <strong>Analyze suggestions applied</strong>
+              <strong>
+                {reasonsApplied
+                  ? "Analyze suggestions applied"
+                  : "Analyze suggestions (not applied)"}
+              </strong>
               <ul>
                 {reasons.map((r, i) => {
                   const evidence = formatAnalyzeFields(r.evidence ?? {});
