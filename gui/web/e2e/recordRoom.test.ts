@@ -298,6 +298,25 @@ describe("landedTrackPeak", () => {
     );
   });
 
+  it("rejects a clip with a null source_id", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, {
+      clips: [
+        {
+          track_id: "t1",
+          source_id: null,
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+      ],
+    });
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow(
+      /has no source_id/,
+    );
+  });
+
   it("rejects when a clip's source is not under raw/", async () => {
     const dir = tempWorkspace("landed-peak-");
     writeRawWavs(dir);
