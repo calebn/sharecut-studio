@@ -697,6 +697,30 @@ pass in `engines/word_align.py`, #714). Targets:
   and candidates against each other); `aligned_dialogue`'s canned transcript
   does not match its audio, so it has no ground-truth boundaries.
 
+**Shipped-pass harness (#715).** The `run`/`agree` subcommands above drive the
+harness's own `align_prediction` (`retime_spans` against a bare backend), not
+production code. A separate `pipeline` subcommand
+(`--target librispeech|lab`) instead scores the exact shipped call chain
+`transcribe.py`'s `_align_words` uses: `WordAligner.load` (pinned,
+sha256-verified) → `WordAligner.align` → `apply_word_spans`. It shares
+`prepare_items()` (decode audio, resolve or run native words) with `run`, so
+both passes score the same native words and audio, and writes
+`<id>.onnx-base-pipeline.json` predictions/reports plus a `summary.json` with
+`scored`, `agreement`, `load_sec`, `asr_runtime_sec` (fresh-ASR items only —
+`None` for `librispeech`, which reuses checked-in native words) and a
+per-item `duration_profile` (`word_boundary_metrics.word_duration_profile()`:
+max/p95/p99 and counts over each of `DURATION_THRESHOLDS_SEC` — 1.00, 1.25,
+1.50, 1.75, 2.00, 2.25, 2.50 s). `aligned_dialogue` is not a pipeline target:
+it has zero native words (above), so there is nothing to re-time. The label
+is `onnx-base-pipeline`, not `pipeline-onnx-base`, so it never matches the
+`run` harness's own `*.onnx-base.json` glob. See "Shipped pass results
+(#715)" below for the checked-in, measured numbers.
+
+```bash
+uv run python scripts/benchmark_forced_aligners.py pipeline --target librispeech --runs-dir .lab-runs/align/librispeech-pipeline
+$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB" --runs-dir .lab-runs/align/lab-pipeline
+```
+
 Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
 (Hugging Face repo + pinned revision + license). Nothing in CI checks those
 pins; run `uv run python scripts/benchmark_forced_aligners.py verify-candidates`

@@ -11,7 +11,12 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.engines.word_boundary_metrics import matched_word_pairs, measure_word_boundaries
+from podcast_mcp.engines.word_boundary_metrics import (
+    duration_errors_sec,
+    matched_word_pairs,
+    measure_word_boundaries,
+    word_duration_profile,
+)
 from podcast_mcp.util import atomic_json
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
@@ -84,6 +89,45 @@ def test_repeated_word_deletion_matches_later_timing() -> None:
     assert result.matched_words == 1
     assert result.missed_reference_words == 1
     assert result.boundary_mae_ms == 0
+
+
+def test_word_duration_profile_reports_max_percentiles_and_threshold_counts() -> None:
+    words = [
+        word("a", 0.0, 0.5),  # 0.5 s
+        word("b", 1.0, 2.0),  # 1.0 s
+        word("c", 3.0, 4.5),  # 1.5 s
+        word("d", 5.0, 7.0),  # 2.0 s
+        word("e", 8.0, 11.0),  # 3.0 s
+    ]
+
+    profile = word_duration_profile(words, thresholds=(1.0, 1.5, 2.0))
+
+    assert profile.words == 5
+    assert profile.max_sec == pytest.approx(3.0)
+    assert profile.p95_sec == pytest.approx(3.0)
+    assert profile.p99_sec == pytest.approx(3.0)
+    assert profile.over_sec == {"1.00": 3, "1.50": 2, "2.00": 1}
+
+
+def test_word_duration_profile_of_no_words_is_all_none() -> None:
+    profile = word_duration_profile([])
+
+    assert profile.words == 0
+    assert profile.max_sec is None
+    assert profile.p95_sec is None
+    assert profile.p99_sec is None
+    assert all(count == 0 for count in profile.over_sec.values())
+
+
+def test_duration_errors_sec_is_absolute_and_only_over_matched_pairs() -> None:
+    reference = [word("one", 0.0, 0.2), word("two", 0.2, 1.0), word("three", 1.0, 1.3)]
+    prediction = [word("one", 0.0, 0.3), word("extra", 1.0, 1.05), word("three", 1.0, 1.1)]
+
+    pairs = matched_word_pairs(reference, prediction)
+    errors = duration_errors_sec(pairs)
+
+    # "one": ref 0.2s vs pred 0.3s -> 0.1; "three": ref 0.3s vs pred 0.1s -> 0.2
+    assert errors == pytest.approx([0.1, 0.2])
 
 
 def test_zero_matches_reports_coverage_without_inventing_accuracy() -> None:

@@ -34,14 +34,17 @@ from podcast_mcp.engines.ctc_forced_align import (
     retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.word_align import OnnxCtcBackend
+from podcast_mcp.engines.word_align import DEFAULT_ALIGNER_THREADS, OnnxCtcBackend, apply_word_spans
 from podcast_mcp.engines.word_boundary_metrics import (
     matched_word_pairs,
     measure_word_boundaries,
+    word_duration_profile,
 )
+from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.atomic_json import write_bytes_atomic, write_json_atomic
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
+from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -50,6 +53,15 @@ SAMPLE_RATE = 16_000
 DEFAULT_LAB = Path("~/projects/ShareCut_Podcast_Test")
 DEFAULT_LAB_GLOB = "source/zoom_excerpt_pan/audio*.m4a"
 TARGETS = ("librispeech", "aligned_dialogue", "lab")
+PIPELINE_TARGETS = ("librispeech", "lab")  # aligned_dialogue has zero native words (#715)
+
+# #715: the shipped production pass (WordAligner.load -> WordAligner.align ->
+# apply_word_spans, i.e. exactly what transcribe.py's _align_words drives), scored
+# against the same native words the #638/#641 harness candidates used. Not
+# "pipeline-onnx-base": the #641 checked-in-report test globs "*.onnx-base.json",
+# and this label must not match that glob.
+PIPELINE_LABEL = f"{DEFAULT_WORD_ALIGNER}-pipeline"
+PIPELINE_PASS = "pipeline"
 
 
 @dataclass(frozen=True)
@@ -478,21 +490,23 @@ def aggregate(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def run_suite(
+def prepare_items(
     items: Sequence[BenchItem],
-    candidates: Sequence[Candidate],
     *,
     runs_dir: Path,
-    target: str = "",
     native_model: str = "base",
-    threads: int = 4,
-    model_dirs: Mapping[str, Path] | None = None,
-    backend_factory: Any = make_backend,
     native: Any = native_prediction,
-) -> dict[str, Any]:
-    model_dirs = model_dirs or {}
-    runs_dir.mkdir(parents=True, exist_ok=True)
+) -> tuple[dict[str, Path], dict[str, dict[str, Any]]]:
+    """Decode each item's audio and resolve its native words, shared by every pass.
 
+    A clipped item (``item.clip`` set) decodes its window and writes it as
+    ``<id>.wav`` under ``runs_dir``; a full item uses its audio path as-is. Native
+    words come from ``item.words`` when set (checked-in fixtures, e.g.
+    LibriSpeech's ``*.native-base.json``) or from a fresh ``native(...)`` (Whisper)
+    run otherwise. Both are written once, as ``<id>.native.json``, so ``run_suite``
+    and ``run_pipeline_pass`` score the exact same native words and audio.
+    """
+    runs_dir.mkdir(parents=True, exist_ok=True)
     audio_paths: dict[str, Path] = {}
     native_payloads: dict[str, dict[str, Any]] = {}
     for item in items:
@@ -514,6 +528,25 @@ def run_suite(
             native_payload = {"audio_sha256": sha, **native(audio_path, native_model)}
         native_payloads[item.item_id] = native_payload
         write_json_atomic(runs_dir / f"{item.item_id}.native.json", native_payload)
+    return audio_paths, native_payloads
+
+
+def run_suite(
+    items: Sequence[BenchItem],
+    candidates: Sequence[Candidate],
+    *,
+    runs_dir: Path,
+    target: str = "",
+    native_model: str = "base",
+    threads: int = 4,
+    model_dirs: Mapping[str, Path] | None = None,
+    backend_factory: Any = make_backend,
+    native: Any = native_prediction,
+) -> dict[str, Any]:
+    model_dirs = model_dirs or {}
+    audio_paths, native_payloads = prepare_items(
+        items, runs_dir=runs_dir, native_model=native_model, native=native
+    )
 
     scored: dict[str, list[dict[str, Any]]] = {c.label: [] for c in candidates}
     agreements: dict[str, list[dict[str, Any]]] = {c.label: [] for c in candidates}
@@ -605,6 +638,143 @@ def run_suite(
     return summary
 
 
+def pipeline_prediction(
+    audio_path: Path, native_words: Sequence[dict[str, Any]], aligner: Any
+) -> tuple[list[dict[str, Any]], dict[str, int], float]:
+    """Score the shipped production pass, not the harness's own align_prediction().
+
+    Drives the exact call chain ``transcribe.py``'s ``_align_words`` uses:
+    ``TranscriptWord`` -> ``WordAligner.align`` -> ``apply_word_spans``. ``aligner``
+    is a real ``WordAligner`` (or, in tests, a stand-in with the same ``.align``
+    signature).
+    """
+    words = [TranscriptWord(text=w["text"], start=w["start"], end=w["end"]) for w in native_words]
+    result = aligner.align(audio_path, words)
+    apply_word_spans(words, result.spans)
+    output = [
+        {"text": w.text, "start": w.start, "end": w.end, "aligned": span is not None}
+        for w, span in zip(words, result.spans, strict=True)
+    ]
+    output, dropped = _drop_zero_duration(output)
+    stats = {**result.stats.as_dict(), "dropped_zero_duration": dropped}
+    return output, stats, result.runtime_sec
+
+
+def _asr_runtime_total(
+    items: Sequence[BenchItem], native_payloads: Mapping[str, dict[str, Any]]
+) -> float | None:
+    """Sum of fresh-ASR ``runtime_sec`` for items with no checked-in native words.
+
+    ``None`` when every item reused checked-in native words (e.g. ``librispeech``),
+    since no ASR ran in this pass.
+    """
+    fresh = [native_payloads[item.item_id] for item in items if item.words is None]
+    if not fresh:
+        return None
+    total = 0.0
+    for payload in fresh:
+        runtime_sec = (payload.get("provenance") or {}).get("runtime_sec")
+        if runtime_sec is None:
+            return None
+        total += runtime_sec
+    return total
+
+
+def run_pipeline_pass(
+    items: Sequence[BenchItem],
+    *,
+    runs_dir: Path,
+    target: str,
+    native_model: str = "base",
+    threads: int | None = None,
+    aligner: Any = None,
+    native: Any = native_prediction,
+) -> dict[str, Any]:
+    """Score the shipped pass (see :func:`pipeline_prediction`) and profile word durations.
+
+    Writes ``<id>.<PIPELINE_LABEL>.pred.json`` / ``.report.json`` (gold items only)
+    and ``summary.json`` under ``runs_dir``, alongside anything ``run_suite`` wrote
+    there. ``aligner`` defaults to a real, threads-pinned ``WordAligner.load()``;
+    tests inject a stand-in so they never touch the network or the ONNX runtime.
+    """
+    audio_paths, native_payloads = prepare_items(
+        items, runs_dir=runs_dir, native_model=native_model, native=native
+    )
+
+    load_start = time.perf_counter()
+    if aligner is None:
+        from podcast_mcp.engines.word_align import WordAligner
+
+        aligner = WordAligner.load(threads=threads)
+    load_sec = time.perf_counter() - load_start
+
+    scored: list[dict[str, Any]] = []
+    agreements: list[dict[str, Any]] = []
+    duration_profiles: dict[str, Any] = {}
+    align_runtime_total = 0.0
+    model = getattr(aligner, "model", None)
+    for item in items:
+        audio_path = audio_paths[item.item_id]
+        native_payload = native_payloads[item.item_id]
+        words, stats, runtime_sec = pipeline_prediction(
+            audio_path, native_payload["words"], aligner
+        )
+        align_runtime_total += runtime_sec
+        audio_sec = len(load_audio(audio_path, None)) / SAMPLE_RATE
+        prediction = candidate_payload(
+            Candidate(
+                label=PIPELINE_LABEL,
+                backend="onnx",
+                hf_repo=getattr(model, "hf_repo", ""),
+                revision=getattr(model, "revision", ""),
+                allow_patterns=(),
+                license="",
+                onnx_file=getattr(model, "onnx_file", None),
+            ),
+            audio_sha256=native_payload["audio_sha256"],
+            words=words,
+            stats=stats,
+            runtime_sec=runtime_sec,
+            load_sec=load_sec,
+            audio_sec=audio_sec,
+            threads=threads or DEFAULT_ALIGNER_THREADS,
+            model_dir=Path("."),
+        )
+        prediction["provenance"]["settings"]["pass"] = PIPELINE_PASS
+        pred_path = runs_dir / f"{item.item_id}.{PIPELINE_LABEL}.pred.json"
+        write_json_atomic(pred_path, prediction)
+
+        if item.gold is not None:
+            report = benchmark(item.gold, prediction_path=pred_path, native_model=None)
+            write_json_atomic(runs_dir / f"{item.item_id}.{PIPELINE_LABEL}.report.json", report)
+            scored.append(report)
+
+        native_words, _ = _drop_zero_duration(native_payload["words"])
+        agreements.append(
+            {
+                "metrics": measure_word_boundaries(native_words, prediction["words"]).as_dict(),
+                "provenance": prediction["provenance"],
+            }
+        )
+        duration_profiles[item.item_id] = word_duration_profile(prediction["words"]).as_dict()
+
+    summary = {
+        "target": target,
+        "label": PIPELINE_LABEL,
+        "items": [item.item_id for item in items],
+        "scored": aggregate(scored) if scored else None,
+        "agreement": aggregate(agreements),
+        "load_sec": load_sec,
+        "asr_runtime_sec": _asr_runtime_total(items, native_payloads),
+        "align_runtime_sec": align_runtime_total,
+        "duration_profile": duration_profiles,
+    }
+    write_json_atomic(runs_dir / "summary.json", summary)
+    print(f"{PIPELINE_LABEL} scored: {json.dumps(summary['scored'])}")
+    print(f"{PIPELINE_LABEL} agreement: {json.dumps(summary['agreement'])}")
+    return summary
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -625,6 +795,15 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd.add_argument("--model-dir", action="append", dest="model_dirs", default=[])
     run_cmd.add_argument("--native-model", default="base")
     run_cmd.add_argument("--threads", type=int, default=4)
+
+    pipeline_cmd = sub.add_parser("pipeline")
+    pipeline_cmd.add_argument("--target", required=True, choices=PIPELINE_TARGETS)
+    pipeline_cmd.add_argument("--lab", type=Path)
+    pipeline_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
+    pipeline_cmd.add_argument("--clip-sec", type=float, default=60.0)
+    pipeline_cmd.add_argument("--runs-dir", type=Path)
+    pipeline_cmd.add_argument("--native-model", default="base")
+    pipeline_cmd.add_argument("--threads", type=int)
 
     agree_cmd = sub.add_parser("agree")
     agree_cmd.add_argument("--reference", type=Path, required=True)
@@ -665,6 +844,20 @@ def main(argv: list[str] | None = None) -> int:
             native_model=args.native_model,
             threads=args.threads,
             model_dirs=model_dirs,
+        )
+        return 0
+
+    if args.command == "pipeline":
+        items = resolve_target(
+            args.target, lab=args.lab, lab_glob=args.lab_glob, clip_sec=args.clip_sec
+        )
+        runs_dir = resolve_runs_dir(args.target, args.runs_dir, args.lab)
+        run_pipeline_pass(
+            items,
+            runs_dir=runs_dir,
+            target=args.target,
+            native_model=args.native_model,
+            threads=args.threads,
         )
         return 0
 
