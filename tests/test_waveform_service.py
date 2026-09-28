@@ -699,13 +699,23 @@ def test_pcm_block_caches_compressed_blocks(tmp_path, monkeypatch):
         return real(*a, **k)
 
     monkeypatch.setattr(svc, "read_pcm_minmax", counting)
+    probes: list[Path] = []
+    fake_probe = svc.probe_pcm_source
+
+    def counting_probe(p):
+        probes.append(p)
+        return fake_probe(p)
+
+    monkeypatch.setattr(svc, "probe_pcm_source", counting_probe)
     a = pcm_block(project_path, "track:host", key, 0)
     b = pcm_block(project_path, "track:host", key, 0)
     c = pcm_block(project_path, "source:s_host", key_s, 0)
     assert a == b == c
     assert len(calls) == 1
+    assert len(probes) == 1  # hits never open the media
     pcm_block(project_path, "track:host", key, 1)
     assert len(calls) == 2
+    assert len(probes) == 2
 
     # a cached block never needs a slot
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed

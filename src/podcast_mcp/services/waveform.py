@@ -402,17 +402,17 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     if block < 0 or start >= meta.total_frames:
         raise ValueError("block out of range")
     frames = min(frames_per_block, meta.total_frames - start)
+    cache_key: _PcmKey = (str(entry.abs_path), key, block)
+    with _PCM_LOCK:
+        hit = _lru_get(_PCM, cache_key)
+    if hit is not None:  # only compressed blocks are stored, and the key was checked live above
+        return hit
     try:
         source = probe_pcm_source(entry.abs_path)
     except OSError as exc:
         raise WaveformDecodeError("waveform media could not be decoded") from exc
     if not source.needs_decode:
         return _read_pcm_bytes(entry, key, meta, start, frames, source)
-    cache_key: _PcmKey = (str(entry.abs_path), key, block)
-    with _PCM_LOCK:
-        hit = _lru_get(_PCM, cache_key)
-    if hit is not None:  # the key was checked live above; a hit never needs a slot
-        return hit
     decision = _PCM_DECODES.try_enter(_PCM_GATE_KEY)
     if not decision.allowed:
         raise WaveformBusyError(decision)
