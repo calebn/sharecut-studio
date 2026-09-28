@@ -208,8 +208,11 @@ drag starts (`getRollBounds` → `rollNeighborBounds`) and commits
 `RollClipJoin` / `TrimClipEdge`; story callbacks are `fn()`.
 The boundary button keeps `aria-grabbed` while dragging, as before the
 extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review
-rather than a violation. If it is ever dropped, replace it with a
-live-region or `aria-description` drag message.
+(rule `aria-allowed-attr`, check `aria-no-deprecated-attr`, under
+`incomplete`) rather than a violation, and `EditBoundaryMark.test.tsx` pins
+that classification so an axe upgrade that changes it fails there. If it is
+ever dropped, replace it with a live-region or `aria-description` drag
+message.
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link
