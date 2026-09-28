@@ -189,11 +189,10 @@ export function TransportBar({
   const staleTitle = mayRefresh
     ? `${breakdown?.summary ?? ""}. Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : (breakdown?.summary ?? "");
+  // Name starts with the visible pill text (WCAG 2.5.3 label in name).
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
-    : mayRefresh
-      ? `Mix out of date. ${breakdown?.summary ?? ""}. Refresh mix.`
-      : `Mix out of date. ${breakdown?.summary ?? ""}`;
+    : `${stalePillLabel}. ${breakdown?.summary ?? ""}`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
