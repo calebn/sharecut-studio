@@ -768,6 +768,7 @@ def analyze_working_set(
         project, base_config=store.get(project_path).config, cancel_check=cancel_check
     )
     if apply:
+        # A cancel after this check still applies; the job keeps result (applied) on its cancelled snapshot.
         raise_if_cancel_requested(cancel_check, ANALYZE_CANCELLED)
         store.apply_patches(project_path, result["patches"])
         result["applied"] = True
