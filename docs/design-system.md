@@ -212,7 +212,9 @@ extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review
 `incomplete`) rather than a violation, and `EditBoundaryMark.test.tsx` pins
 that classification so an axe upgrade that changes it fails there. If it is
 ever dropped, replace it with a live-region or `aria-description` drag
-message.
+message. One drag runs at a time: a second finger on the button is ignored
+until the first lifts (Vitest, plus a real Chromium two-finger touch drag in
+`gui/web/e2e/edit-boundary-touch.spec.ts`).
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link

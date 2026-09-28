@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 
 test.describe("Applied-edit seam ticks", () => {
@@ -14,30 +15,9 @@ test.describe("Applied-edit seam ticks", () => {
     const scroll = page.locator(".timeline-scroll");
     const base = await scroll.evaluate((el) => el.scrollWidth);
 
-    const command = async (type: string, payload: Record<string, unknown>) => {
-      const res = await page.request.post(
-        `/api/document/command?path=${encodeURIComponent(e2eProjectPath)}`,
-        {
-          data: {
-            type,
-            payload,
-            client_id: "e2e-applied-seams",
-            role: "viewer",
-          },
-        },
-      );
-      expect(res.ok()).toBe(true);
-    };
-
-    const waive = async () => {
-      const res = await page.request.post("/api/transcript/refine/waive", {
-        data: { path: e2eProjectPath, reason: "e2e applied seams" },
-      });
-      // The gate may be off in this environment; only a genuine failure matters.
-      if (!res.ok() && res.status() !== 404) {
-        return;
-      }
-    };
+    const command = (type: string, payload: Record<string, unknown>) =>
+      postDocumentCommand(page, "e2e-applied-seams", type, payload);
+    const waive = () => waiveRefineGate(page, "e2e applied seams");
 
     try {
       await waive();
