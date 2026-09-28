@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { partial, rule } from "../test/cssRules";
+import { partial, rule, rules } from "../test/cssRules";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -75,22 +75,38 @@ describe("timeline styles", () => {
     expect(readout).toMatch(/top:\s*0\.75rem/);
   });
 
-  it("shows trim strips and zero-length fade corners only on hover, focus or selection", () => {
+  it("keeps hidden trim strips and zero-length fade corners focusable", () => {
     const css = partial("timeline.css");
     const trim = rule(css, ".trim-handle");
-    expect(trim).toMatch(/visibility:\s*hidden/);
+    expect(trim).toMatch(/opacity:\s*0;/);
+    expect(trim).toMatch(/pointer-events:\s*none/);
     expect(trim).toMatch(/top:\s*0/);
     expect(trim).toMatch(/bottom:\s*0/);
     expect(trim).not.toMatch(/height:/);
+    expect(trim).not.toMatch(/visibility/);
     expect(trim).toMatch(/z-index:\s*var\(--z-handle\)/);
-    expect(rule(css, ".fade-corner.zero")).toMatch(/visibility:\s*hidden/);
-    expect(rule(css, ".fade-corner")).not.toMatch(/visibility/);
-    expect(
-      rule(
-        css,
-        ".clip-block:hover .trim-handle, .clip-block:hover .fade-corner.zero, .clip-block:focus-within .trim-handle, .clip-block:focus-within .fade-corner.zero, .clip-block.selected .trim-handle, .clip-block.selected .fade-corner.zero, .clip-block.trim-dragging .trim-handle, .clip-block.fade-dragging .fade-corner",
-      ),
-    ).toMatch(/visibility:\s*visible/);
+    const zero = rule(css, ".fade-corner.zero");
+    expect(zero).toMatch(/opacity:\s*0;/);
+    expect(zero).toMatch(/pointer-events:\s*none/);
+    expect(zero).not.toMatch(/visibility/);
+    expect(rule(css, ".fade-corner")).not.toMatch(/visibility|opacity/);
+    const reveal = rule(
+      css,
+      ".clip-block:focus-within .trim-handle, .clip-block:focus-within .fade-corner.zero, .clip-block.selected .trim-handle, .clip-block.selected .fade-corner.zero, .clip-block.trim-dragging .trim-handle, .clip-block.fade-dragging .fade-corner",
+    );
+    expect(reveal).toMatch(/opacity:\s*1/);
+    expect(reveal).toMatch(/pointer-events:\s*auto/);
+  });
+
+  it("reveals clip handles on hover only with a fine pointer", () => {
+    const css = partial("timeline.css");
+    expect(css).toMatch(
+      /@media \(hover: hover\) and \(pointer: fine\) \{\s*\.clip-block:hover \.trim-handle,\s*\.clip-block:hover \.fade-corner\.zero \{\s*opacity: 1;\s*pointer-events: auto;\s*\}\s*\}/,
+    );
+    // rules() sees only top-level rules: no unguarded :hover reveal.
+    for (const [sel] of rules(css)) {
+      expect(sel).not.toMatch(/\.clip-block:hover/);
+    }
   });
 
   it("matches a grouped selector in any order or spacing", () => {

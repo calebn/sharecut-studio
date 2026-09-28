@@ -278,9 +278,9 @@
   pointer-events: none;
 }
 
-/* Trim strips (#677): full-height clip edges, hidden (no paint, pointer or
-   focus) until the clip is hovered, focused or selected. Under the fade
-   corner (--z-join) and the join diamond. */
+/* Trim strips (#677): full-height clip edges, transparent and click-through
+   (but still in the tab order) until the clip is hovered, focused or
+   selected. Under the fade corner (--z-join) and the join diamond. */
 .trim-handle {
   position: absolute;
   top: 0;
@@ -289,13 +289,13 @@
   padding: 0;
   border: 0;
   cursor: ew-resize;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: var(--z-handle);
   background: var(--color-overlay-white-25);
   appearance: none;
   box-sizing: border-box;
   touch-action: none;
-  visibility: hidden;
+  opacity: 0;
 }
 
 .trim-handle.in {
@@ -308,23 +308,35 @@
   border-left: 1px solid var(--color-overlay-white-55);
 }
 
-/* A zero-length fade draws no handle until the clip is hovered, focused or
-   selected (#677). */
+/* A zero-length fade's handle is transparent and click-through (but still
+   focusable) until the clip is hovered, focused or selected (#677). */
 .fade-corner.zero {
-  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
-/* Trim strips and zero-length fade corners show on hover, keyboard focus or
-   selection only; an active drag keeps its handle. */
-.clip-block:hover .trim-handle,
-.clip-block:hover .fade-corner.zero,
+/* Trim strips and zero-length fade corners show on keyboard focus or
+   selection, and an active drag keeps its handle. These reveal selectors must
+   out-rank the hide rules above (e2e/fade-curves.spec.ts checks the computed
+   opacity). */
 .clip-block:focus-within .trim-handle,
 .clip-block:focus-within .fade-corner.zero,
 .clip-block.selected .trim-handle,
 .clip-block.selected .fade-corner.zero,
 .clip-block.trim-dragging .trim-handle,
 .clip-block.fade-dragging .fade-corner {
-  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Hover reveals them only with a fine pointer: touch keeps :hover stuck after
+   a tap, so touch users select the clip. */
+@media (hover: hover) and (pointer: fine) {
+  .clip-block:hover .trim-handle,
+  .clip-block:hover .fade-corner.zero {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .clip-block.trim-dragging,
