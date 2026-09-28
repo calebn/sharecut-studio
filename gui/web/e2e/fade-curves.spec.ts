@@ -87,7 +87,7 @@ test.describe("Timeline fade curves", () => {
     await expectPageAxeClean(page, ".lane-row .clip-block");
   });
 
-  test("keeps the join badge clear of the fade corners and the join diamond", async ({
+  test("keeps the join badge clear of the fade corners, the join diamond and the marker lane", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -110,6 +110,13 @@ test.describe("Timeline fade curves", () => {
       const diamondBox = await lane.locator(".join-diamond").boundingBox();
       if (!diamondBox) throw new Error("join diamond has no box");
       expect(intersects(badgeBox, diamondBox)).toBe(false);
+      // The first track sits right under the marker lane; the badge must not paint over it.
+      const markerBox = await page
+        .locator(".marker-lane")
+        .first()
+        .boundingBox();
+      if (!markerBox) throw new Error("marker lane has no box");
+      expect(intersects(badgeBox, markerBox)).toBe(false);
       // Selecting a clip reveals its zero-length fade corners at the seam.
       await clips.nth(1).click();
       const cornerIn = clips.nth(1).locator("button.fade-corner.in");
@@ -123,6 +130,9 @@ test.describe("Timeline fade curves", () => {
       const outBox = await cornerOut.boundingBox();
       if (!outBox) throw new Error("fade-out corner has no box");
       expect(intersects(badgeBox, outBox)).toBe(false);
+      // Two clips with a drawn join badge and the seam clip's revealed zero fade corners.
+      await expectPageAxeClean(page, ".lane-row .clip-block");
+      await expectPageAxeClean(page, ".lane-row .join-badge");
     } finally {
       // Leave the shared live E2E project as later specs expect it.
       await page.keyboard.press("Escape");
