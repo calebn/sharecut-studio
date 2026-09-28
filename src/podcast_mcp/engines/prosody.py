@@ -32,7 +32,7 @@ from __future__ import annotations
 import math
 import re
 from bisect import bisect_left
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -41,6 +41,7 @@ import numpy as np
 from podcast_mcp.config import load_defaults
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db
 from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.progress import raise_if_cancel_requested
 
 try:  # pragma: no cover - exercised via ProsodyUnavailable / importorskip paths
     import parselmouth
@@ -60,6 +61,7 @@ _SHIMMER_NORMAL_MAX = 0.0381
 _HNR_NORMAL_MIN_DB = 7.0
 _JITTER_ARGS = (0.0001, 0.02, 1.3)
 _SHIMMER_ARGS = (0.0001, 0.02, 1.3, 1.6)
+_CANCEL_MSG = "Prosody analysis cancelled"
 
 
 class ProsodyUnavailable(RuntimeError):
@@ -521,6 +523,8 @@ def analyze_prosody(
     sr: int,
     words: Sequence[WordSpan],
     params: ProsodyParams,
+    *,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Compute the prosody profile for one track's audio.
 
@@ -528,6 +532,9 @@ def analyze_prosody(
     ``words`` are that same track's word timings in the same source-media clock
     (empty is fine; segments then come from energy runs). Raises
     :class:`ProsodyUnavailable` when ``praat-parselmouth`` is not installed.
+    ``cancel_check``, when given, is polled between Praat's whole-file contour
+    passes and before each segment (:class:`~podcast_mcp.util.progress.CancelledProgress`
+    on a true result); a single Praat pass itself is not interruptible.
     """
     _require_parselmouth()
     total_dur = float(samples.size) / float(sr) if sr else 0.0
@@ -543,11 +550,15 @@ def analyze_prosody(
         pitch_floor=params.pitch_floor_hz,
         pitch_ceiling=params.pitch_ceiling_hz,
     )
+    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
     intensity = snd.to_intensity()
+    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
     harmonicity = snd.to_harmonicity_cc()
+    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
     point_process = praat_call(
         snd, "To PointProcess (periodic, cc)", params.pitch_floor_hz, params.pitch_ceiling_hz
     )
+    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
 
     pitch_xs = pitch.xs()
     pitch_hz = pitch.selected_array["frequency"]
@@ -559,6 +570,7 @@ def analyze_prosody(
 
     segments: list[dict[str, Any]] = []
     for start, end in bounds:
+        raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
         seg_words = words_by_span.get((start, end), [])
         window = _frame_slice(intensity_xs, start, end)
         seg_db = intensity_db[window]

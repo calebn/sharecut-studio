@@ -294,6 +294,21 @@ def test_run_prosody_analysis_honors_cancel_check(tmp_workspace: Path) -> None:
     assert not list(pp.prosody_dir(proj).glob("*.json")) if pp.prosody_dir(proj).exists() else True
 
 
+def test_run_prosody_analysis_cancels_inside_a_track(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    calls = {"n": 0}
+
+    def cancel() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 1  # pass the per-track check, cancel inside analyze_prosody
+
+    with pytest.raises(CancelledProgress):
+        pp.run_prosody_analysis(proj, {"_pipeline_cancel_check": cancel})
+    assert calls["n"] == 2
+    assert not list(pp.prosody_dir(proj).glob("host_*.json"))
+
+
 def test_load_track_profile_missing(tmp_workspace: Path) -> None:
     path = _project_with_host(tmp_workspace)
     proj = load_project(path)

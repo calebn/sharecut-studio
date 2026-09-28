@@ -217,6 +217,17 @@ def test_analyze_prosody_synthetic_harmonic_signal() -> None:
                 assert np.isfinite(value)
 
 
+def test_analyze_prosody_honors_cancel_check() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody
+    from podcast_mcp.util.progress import CancelledProgress
+
+    sr = 16000
+    sig = (0.3 * np.sin(2 * np.pi * 150 * np.arange(sr) / sr)).astype(np.float32)
+    with pytest.raises(CancelledProgress):
+        analyze_prosody(sig, sr, [], ProsodyParams(), cancel_check=lambda: True)
+
+
 def test_analyze_prosody_no_nan_on_silence() -> None:
     pytest.importorskip("parselmouth")
     from podcast_mcp.engines.prosody import analyze_prosody
