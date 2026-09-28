@@ -1,6 +1,9 @@
 import type { Page } from "@playwright/test";
 import { PCM_WAV_HEADER_BYTES } from "../src/audio/wavHeader";
-import { KEEPER_OPFS_ROOT } from "../src/record/keeper/opfsPath";
+import {
+  KEEPER_OPFS_ROOT,
+  keeperSegmentIndex,
+} from "../src/record/keeper/opfsPath";
 import {
   KEEPER_FRAME_BYTES,
   KEEPER_SAMPLE_RATE,
@@ -82,16 +85,21 @@ export type KeeperRef = {
 };
 
 /**
- * Unique, ascending segment indexes named by `<n>.wav` or `<n>.json` entries.
- * A segment counts from either name, so a WAV still mid-write (locked, only
- * its `.json` sidecar readable, or vice versa) still counts.
+ * Unique, ascending segment indexes named by `<n>.wav` or `<n>.json` entries
+ * (`keeperSegmentIndex` in `src/record/keeper/opfsPath.ts`, shared with the
+ * keeper store). A segment counts from either name, so a WAV still mid-write
+ * (locked, only its `.json` sidecar readable, or vice versa) still counts. A
+ * segment whose WAV `pruneExpiredKeeperWavs` removed also still counts from
+ * its pruned marker `<n>.json` (`prunedKeeperMarker` in
+ * `src/record/keeper/store.ts`), so this lists every segment written, not
+ * only WAVs still on disk.
  */
 export function segmentIndexesFromNames(names: string[]): number[] {
   const indexes = new Set<number>();
   for (const name of names) {
-    const match = /^(\d+)\.(?:wav|json)$/.exec(name);
-    if (match) {
-      indexes.add(Number(match[1]));
+    const index = keeperSegmentIndex(name);
+    if (index !== null) {
+      indexes.add(index);
     }
   }
   return [...indexes].sort((a, b) => a - b);
@@ -101,6 +109,7 @@ export function segmentIndexesFromNames(names: string[]): number[] {
  * Segment indexes present in `keeper`'s OPFS directory, read from directory
  * entry names rather than opened files, so a WAV still being written (locked)
  * still counts. Returns `[]` when the keeper's directory does not exist yet.
+ * Pruned segments still count (see segmentIndexesFromNames).
  */
 export async function keeperSegmentIndexes(
   page: Page,
