@@ -4,7 +4,12 @@ import { keepActivationKeys } from "./trackHeaderKeys";
 
 const ev = (
   key: string,
-  mods: Partial<{ metaKey: boolean; ctrlKey: boolean; altKey: boolean }> = {},
+  mods: Partial<{
+    metaKey: boolean;
+    ctrlKey: boolean;
+    altKey: boolean;
+    shiftKey: boolean;
+  }> = {},
 ) => {
   const stopPropagation = vi.fn();
   const event = {
@@ -12,6 +17,7 @@ const ev = (
     metaKey: false,
     ctrlKey: false,
     altKey: false,
+    shiftKey: false,
     ...mods,
     stopPropagation,
   } as unknown as KeyboardEvent<HTMLElement>;
@@ -27,6 +33,18 @@ describe("keepActivationKeys", () => {
 
   it("stops propagation for a bare Enter", () => {
     const { event, stopPropagation } = ev("Enter");
+    keepActivationKeys(event);
+    expect(stopPropagation).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Shift+Space on the button (Shift is not a chord)", () => {
+    const { event, stopPropagation } = ev(" ", { shiftKey: true });
+    keepActivationKeys(event);
+    expect(stopPropagation).toHaveBeenCalledOnce();
+  });
+
+  it("keeps Shift+Enter on the button (Shift is not a chord)", () => {
+    const { event, stopPropagation } = ev("Enter", { shiftKey: true });
     keepActivationKeys(event);
     expect(stopPropagation).toHaveBeenCalledOnce();
   });
