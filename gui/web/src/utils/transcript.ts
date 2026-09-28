@@ -147,8 +147,8 @@ export function transcriptWordRange(
  * while that row's text is unchanged and otherwise marks the words incomplete
  * (the inspector then shows "Loading"). `document/projectPatch.test.ts` pins
  * that a SHELL overlay of a word listed under two utterances leaves both
- * listings agreeing or the words incomplete; the disagreement tests below use
- * hand-built fixtures.
+ * listings agreeing or the words incomplete; the disagreement tests in
+ * `utils/transcript.test.ts` use hand-built fixtures.
  */
 export function transcriptSpanText(
   project: ProjectView | null,
