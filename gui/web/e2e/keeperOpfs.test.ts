@@ -73,20 +73,22 @@ describe("keeperSegmentIndexes", () => {
   const keeper = { sessionId: "s1", takeIndex: 0, participantId: "p_host" };
 
   it("passes the keeper ref into the page evaluation and dedupes names", async () => {
-    const evaluate = vi.fn(async () => ["0.wav", "0.json", "1.wav"]);
+    const evaluate = vi.fn(async () => ({
+      names: ["0.wav", "0.json", "1.wav"],
+      wavBytes: 0,
+    }));
     await expect(
       keeperSegmentIndexes({ evaluate } as never, keeper),
     ).resolves.toEqual([0, 1]);
     expect(evaluate).toHaveBeenCalledWith(expect.any(Function), {
       rootName: KEEPER_OPFS_ROOT,
-      sessionId: "s1",
-      takeIndex: "0",
-      participantId: "p_host",
+      parts: ["s1", "0", "p_host"],
+      wavName: null,
     });
   });
 
   it("returns [] when the directory is missing", async () => {
-    const evaluate = vi.fn(async () => []);
+    const evaluate = vi.fn(async () => ({ names: [], wavBytes: 0 }));
     await expect(
       keeperSegmentIndexes({ evaluate } as never, keeper),
     ).resolves.toEqual([]);
@@ -96,18 +98,23 @@ describe("keeperSegmentIndexes", () => {
 describe("keeperSegmentWavBytes", () => {
   const keeper = { sessionId: "s1", takeIndex: 0, participantId: "p_host" };
 
-  it("matches the exact segment path", async () => {
-    const evaluate = vi.fn(async () => [
-      { path: "/s1/0/p_host/0.wav", size: 44, header: [] },
-      { path: "/s1/0/p_host/1.wav", size: 96044, header: [] },
-    ]);
+  it("opens the one segment WAV by name", async () => {
+    const evaluate = vi.fn(async () => ({
+      names: ["0.wav", "1.wav"],
+      wavBytes: 96044,
+    }));
     await expect(
       keeperSegmentWavBytes({ evaluate } as never, keeper, 1),
     ).resolves.toBe(96044);
+    expect(evaluate).toHaveBeenCalledWith(expect.any(Function), {
+      rootName: KEEPER_OPFS_ROOT,
+      parts: ["s1", "0", "p_host"],
+      wavName: "1.wav",
+    });
   });
 
   it("returns 0 when the segment is missing", async () => {
-    const evaluate = vi.fn(async () => []);
+    const evaluate = vi.fn(async () => ({ names: [], wavBytes: 0 }));
     await expect(
       keeperSegmentWavBytes({ evaluate } as never, keeper, 0),
     ).resolves.toBe(0);

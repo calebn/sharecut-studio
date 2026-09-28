@@ -105,57 +105,79 @@ export function segmentIndexesFromNames(names: string[]): number[] {
   return [...indexes].sort((a, b) => a - b);
 }
 
+/** Entry names of one keeper directory, plus one WAV's byte size when asked. */
+type KeeperDirRead = { names: string[]; wavBytes: number };
+
+/**
+ * In the page, open `keeper`'s OPFS directory directly (no tree walk), list its
+ * entry names, and read the byte size of `wavName` when given. A missing
+ * directory reads as no names; a missing or locked WAV reads as 0 bytes.
+ */
+async function readKeeperDir(
+  page: Page,
+  keeper: KeeperRef,
+  wavName: string | null,
+): Promise<KeeperDirRead> {
+  return page.evaluate(
+    async ({ rootName, parts, wavName }) => {
+      let dir: FileSystemDirectoryHandle =
+        await navigator.storage.getDirectory();
+      try {
+        for (const part of [rootName, ...parts]) {
+          dir = await dir.getDirectoryHandle(part);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") {
+          return { names: [], wavBytes: 0 };
+        }
+        throw error;
+      }
+      const names: string[] = [];
+      for await (const name of dir.keys()) {
+        names.push(name);
+      }
+      let wavBytes = 0;
+      if (wavName !== null && names.includes(wavName)) {
+        try {
+          wavBytes = (await (await dir.getFileHandle(wavName)).getFile()).size;
+        } catch {
+          // A keeper still being written can be locked; the next poll reads it.
+        }
+      }
+      return { names, wavBytes };
+    },
+    {
+      rootName: KEEPER_OPFS_ROOT,
+      parts: [keeper.sessionId, String(keeper.takeIndex), keeper.participantId],
+      wavName,
+    },
+  );
+}
+
 /**
  * Segment indexes present in `keeper`'s OPFS directory, read from directory
  * entry names rather than opened files, so a WAV still being written (locked)
- * still counts. Returns `[]` when the keeper's directory does not exist yet.
- * Pruned segments still count (see segmentIndexesFromNames).
+ * still counts. Pruned segments still count (see segmentIndexesFromNames).
+ * Returns `[]` when the keeper's directory does not exist yet.
  */
 export async function keeperSegmentIndexes(
   page: Page,
   keeper: KeeperRef,
 ): Promise<number[]> {
-  const names = await page.evaluate(
-    async ({ rootName, sessionId, takeIndex, participantId }) => {
-      const root = await navigator.storage.getDirectory();
-      try {
-        const rootDir = await root.getDirectoryHandle(rootName);
-        const sessionDir = await rootDir.getDirectoryHandle(sessionId);
-        const takeDir = await sessionDir.getDirectoryHandle(takeIndex);
-        const dir = await takeDir.getDirectoryHandle(participantId);
-        const out: string[] = [];
-        for await (const name of dir.keys()) {
-          out.push(name);
-        }
-        return out;
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "NotFoundError") {
-          return [];
-        }
-        throw error;
-      }
-    },
-    {
-      rootName: KEEPER_OPFS_ROOT,
-      sessionId: keeper.sessionId,
-      takeIndex: String(keeper.takeIndex),
-      participantId: keeper.participantId,
-    },
+  return segmentIndexesFromNames(
+    (await readKeeperDir(page, keeper, null)).names,
   );
-  return segmentIndexesFromNames(names);
 }
 
 /**
- * Byte size of one keeper segment WAV, found by an exact path match against
- * `recordingWavs` (which silently skips a locked file, so poll this rather
- * than reading it once). 0 when that segment has no readable WAV yet.
+ * Byte size of one keeper segment WAV, opened directly by path. A locked file
+ * reads as 0, so poll this rather than reading it once. 0 when that segment
+ * has no readable WAV yet.
  */
 export async function keeperSegmentWavBytes(
   page: Page,
   keeper: KeeperRef,
   segmentIndex: number,
 ): Promise<number> {
-  const target = `/${keeper.sessionId}/${keeper.takeIndex}/${keeper.participantId}/${segmentIndex}.wav`;
-  const wavs = (await recordingWavs(page)) ?? [];
-  return wavs.find((wav) => wav.path === target)?.size ?? 0;
+  return (await readKeeperDir(page, keeper, `${segmentIndex}.wav`)).wavBytes;
 }
