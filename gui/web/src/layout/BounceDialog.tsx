@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { startBounceJob } from "../api";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { useDaw } from "../state/useDaw";
-import { errorMessage } from "../utils/apiError";
+import { errorMessage, isAbortError } from "../utils/apiError";
 import { BounceDialogView, type BounceSourceMode } from "./BounceDialogView";
 
 /**
@@ -91,7 +91,7 @@ export function BounceDialog() {
       );
       setBounceDialogOpen(false);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (isAbortError(err)) {
         return;
       }
       setError(errorMessage(err));
