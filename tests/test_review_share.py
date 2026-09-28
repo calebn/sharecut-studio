@@ -1049,6 +1049,40 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
         assert "/Users/" not in blob
 
 
+def test_guest_daw_ws_leases_the_cross_process_watcher(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="LeaseWS")
+    share = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=["play", "view"],
+    )
+    token = share["token"]
+    client = TestClient(create_app())
+
+    events: list[str] = []
+
+    class _FakeLease:
+        def release(self) -> None:
+            events.append("release")
+
+    def _fake_watch(project_ws):
+        events.append("acquire")
+        return _FakeLease()
+
+    import podcast_mcp.gui.routes.review_share as review_share_routes
+
+    monkeypatch.setattr(review_share_routes, "watch_cross_process_writes", _fake_watch)
+
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+        guest_ws.receive_json()
+        guest_ws.receive_json()
+
+    assert events.count("acquire") == 1
+    assert events[-1] == "release"
+
+
 def test_guest_daw_ws_rejects_invalid_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

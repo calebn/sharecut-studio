@@ -41,6 +41,7 @@ from podcast_mcp.gui.routes.waveform import (
     waveform_call,
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
+from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
@@ -847,6 +848,7 @@ async def daw_ws(
     q_session = None
     q_doc = None
     q_progress = None
+    bridge_lease: CrossProcessLease | None = None
     progress_hub = guest_progress_hub()
     session_svc: SessionSyncService | None = None
     guest_client_id: str | None = None
@@ -860,6 +862,7 @@ async def daw_ws(
         q_session = hub.subscribe(session_key, loop)
         q_doc = hub.subscribe(doc_key, loop)
         q_progress = progress_hub.subscribe(token, loop)
+        bridge_lease = await asyncio.to_thread(watch_cross_process_writes, ws_proj)
 
         session_svc = SessionSyncService(ws_proj.project)
         doc_svc = DocumentSyncService(ws_proj)
@@ -966,6 +969,8 @@ async def daw_ws(
                 hub.unsubscribe(doc_key, q_doc)
             if q_progress is not None:
                 progress_hub.unsubscribe(token, q_progress)
+            if bridge_lease is not None:
+                bridge_lease.release()
             await conn.stop_tasks()
         finally:
             try:

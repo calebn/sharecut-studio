@@ -23,6 +23,7 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import document_command_from_body
@@ -119,6 +120,9 @@ async def document_ws(
 ):
     """Server→client document fan-out: hello shell ``Snapshot``, then hub ``Applied``.
 
+    Applied from this process's writers, and from other processes' journal writes via
+    the cross-process watcher (#695).
+
     Commands use ``POST /api/document/command``; inbound frames are ignored (#565).
     ``authorize_client`` runs on connect and every ``DOCUMENT_WS_AUTHZ_RECHECK_S``;
     a revoked grant closes ``4403`` and a failed hub pump closes ``1011`` (client
@@ -165,7 +169,11 @@ async def document_ws(
     loop = asyncio.get_running_loop()
     queue = hub.subscribe(key, loop)
     tasks = WsTaskSet(f"document ws client_id={client_id}")
+    bridge_lease: CrossProcessLease | None = None
     try:
+        # After subscribe, before the hello snapshot (#695): a foreign write in between
+        # is in the snapshot or published by the watcher.
+        bridge_lease = await run_in_threadpool(watch_cross_process_writes, ws_proj)
         initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
         await guard.send_json(
             {
@@ -200,4 +208,6 @@ async def document_ws(
                 break
     finally:
         hub.unsubscribe(key, queue)
+        if bridge_lease is not None:
+            bridge_lease.release()
         await tasks.stop()
