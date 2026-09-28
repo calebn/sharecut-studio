@@ -40,6 +40,15 @@ export async function openTransportMenu(page: Page): Promise<Locator> {
   return menu;
 }
 
+/** Open the transport Menu and choose `menuItem` (e.g. "Bounce…"). */
+export async function openDialogFromMenu(
+  page: Page,
+  menuItem: string,
+): Promise<void> {
+  await openTransportMenu(page);
+  await page.getByRole("menuitem", { name: menuItem }).click();
+}
+
 export async function expectOverflowYAuto(locator: Locator): Promise<void> {
   await expect
     .poll(async () => locator.evaluate((el) => getComputedStyle(el).overflowY))
