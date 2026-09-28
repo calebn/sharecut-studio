@@ -5,7 +5,7 @@ from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
-from podcast_mcp.util.text import has_meaningful_text
+from podcast_mcp.util.text import collapse_whitespace, has_meaningful_text
 
 T = TypeVar("T")
 
@@ -33,10 +33,6 @@ class TranscriptTextChangedError(ValueError):
     """A correction's word indices no longer hold the text the client saw (#650)."""
 
 
-def _collapse_ws(text: str) -> str:
-    return " ".join(text.split())
-
-
 def require_word_text(
     project: EpisodeProject,
     track_id: str,
@@ -56,7 +52,7 @@ def require_word_text(
     if tr is None or not 0 <= start_word_index <= end_word_index < len(tr.words):
         return
     current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
-    if _collapse_ws(current) == _collapse_ws(expected_text):
+    if collapse_whitespace(current) == collapse_whitespace(expected_text):
         return
     span = (
         f"word {start_word_index}"

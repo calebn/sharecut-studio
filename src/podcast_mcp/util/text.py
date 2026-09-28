@@ -4,8 +4,14 @@ import re
 import unicodedata
 
 
+def collapse_whitespace(text: str) -> str:
+    """Collapse each whitespace run to one space and trim both ends; case is preserved."""
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def normalize_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower()).strip()
+    """Case-insensitive comparison form: lowercase plus ``collapse_whitespace``."""
+    return collapse_whitespace(text.lower())
 
 
 def has_meaningful_text(text: str) -> bool:
