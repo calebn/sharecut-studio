@@ -51,6 +51,7 @@ log = logging.getLogger(__name__)
 PROFILE_SCHEMA = "prosody_profile.v1"
 ALGORITHM_VERSION = 4  # 4: per-segment windowed Praat over a streamed decode (#727)
 MAX_WINDOW_SEGMENTS = 6
+# Waiters time out only behind a track tens of hours long at ~0.31s/audio-min (docs/pipeline.md).
 PROSODY_LOCK_TIMEOUT_SEC = 600.0
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
 _PROFILE_SUFFIX_RE = re.compile(r"_[0-9a-f]{16}_[0-9a-f]{16}\.json")
