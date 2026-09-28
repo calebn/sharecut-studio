@@ -80,6 +80,36 @@ describe("lowConfidenceStops", () => {
     >([{ trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 1 }]);
   });
 
+  it("skips suppressed-only rows but still numbers their words", () => {
+    const utts: CombinedUtterance[] = [
+      u({
+        track_id: "guest",
+        text: "um",
+        suppressed_only: true,
+        words: [
+          {
+            text: "um",
+            start: 0,
+            end: 0.2,
+            word_index: 0,
+            confidence: 0.3,
+            suppressed: true,
+          },
+        ],
+      }),
+      u({
+        track_id: "host",
+        text: "so",
+        words: [
+          { text: "so", start: 1, end: 1.2, word_index: 0, confidence: 0.4 },
+        ],
+      }),
+    ];
+    expect(lowConfidenceStops(utts, true, true)).toEqual<LowConfidenceStop[]>([
+      { trackId: "host", wordIndex: 0, text: "so", seekSec: null, order: 1 },
+    ]);
+  });
+
   it("numbers hidden cut-away words too, so order is stable across Show cut away", () => {
     const utts: CombinedUtterance[] = [
       u({

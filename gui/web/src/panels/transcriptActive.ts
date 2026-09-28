@@ -66,6 +66,10 @@ export function transcriptActiveKey(
   const utterances: number[] = [];
   const words: string[] = [];
   index.forEach(({ utterance, words: uw, wordLo, wordHi }, i) => {
+    if (utterance.suppressed_only) {
+      // A suppressed-only row (#758) is never highlighted and never drives follow.
+      return;
+    }
     if (isUtteranceActive(utterance, sec)) {
       utterances.push(i);
     }

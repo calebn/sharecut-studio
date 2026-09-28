@@ -437,6 +437,13 @@ export function TranscriptPanel() {
     () => selectUnmappedUtterances(allUtterances).length,
     [allUtterances],
   );
+  // suppressed-only rows (#758) are view-only and excluded from the toolbar count.
+  const mappedCount = useMemo(
+    () =>
+      allUtterances.filter((u) => u.mappable !== false && !u.suppressed_only)
+        .length,
+    [allUtterances],
+  );
   const utterances = useMemo(
     // Cut-away reveal is nested under Annotate (clean view stays clean).
     () =>
@@ -735,7 +742,6 @@ export function TranscriptPanel() {
     toolbarHint = TRANSCRIPT_INLINE_SAVING_STATUS;
   }
 
-  const mappedCount = allUtterances.length - cutAwayCount;
   const dockWordEditor =
     layoutMode === "text" &&
     selection?.kind === "transcriptWord" &&
@@ -1046,6 +1052,7 @@ export function TranscriptPanel() {
                 key: `${u.track_id}-${u.start}-${flatIndex}`,
                 active: uttActive,
                 unmapped,
+                suppressedOnly: Boolean(u.suppressed_only),
                 activeRef: bindActiveRef(uttActive && !activeWord),
                 words: words.map((w, wi) => {
                   const afterWordIndex = flatWordIndex;
@@ -1059,7 +1066,10 @@ export function TranscriptPanel() {
                     u.track_id,
                     wordIndex,
                   );
-                  const lowConf = transcriptAnnotate && isLowConfidenceWord(w);
+                  const lowConf =
+                    transcriptAnnotate &&
+                    !u.suppressed_only &&
+                    isLowConfidenceWord(w);
                   const prominent =
                     wordIndex != null &&
                     prominentKeys.has(prominentWordKey(u.track_id, wordIndex));
@@ -1361,6 +1371,7 @@ export function TranscriptPanel() {
               }
               active={turnHasActive}
               unmapped={turnAllUnmapped}
+              suppressedOnly={turn.utterances.every((u) => u.suppressed_only)}
               turnIndex={turnIndex}
               slotProps={virtualItem ? slotProps(virtualItem) : undefined}
               anchorProps={presenceAnchorProps(

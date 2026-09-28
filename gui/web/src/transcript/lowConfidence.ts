@@ -41,7 +41,10 @@ export function lowConfidenceStops(
   const stops: LowConfidenceStop[] = [];
   let order = 0;
   for (const u of utterances) {
-    const listed = isTranscriptUtteranceVisible(u, annotate, showCutAway);
+    // suppressed-only rows are not stops; their words still count toward `order`
+    const listed =
+      !u.suppressed_only &&
+      isTranscriptUtteranceVisible(u, annotate, showCutAway);
     for (const w of wordsForUtterance(u)) {
       if (w.word_index == null) continue;
       const wordOrder = order++;
