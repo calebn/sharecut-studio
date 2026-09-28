@@ -5,6 +5,7 @@ import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useRecordHostStore } from "../record/hostStore";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -618,11 +619,32 @@ describe("TransportBar wide layout", () => {
     );
     expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
       "title",
-      "Project, media, and help",
+      "Help",
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const main = screen.getByRole("menu", { name: "Transport menu" });
     expect(within(main).queryByRole("group", { name: "Markers" })).toBeNull();
+  });
+
+  it("names only Media and Help in the Menu tooltip for an edit share", () => {
+    const key = shareProjectKey("editTok");
+    useDawStore
+      .getState()
+      .hydrate(key, minimalProject({ tracks: TRACKS }), "edit", ["edit"]);
+    render(
+      <DawProvider
+        projectPath={key}
+        initialProject={minimalProject({ tracks: TRACKS })}
+        guestMode="edit"
+        shareCapabilities={["edit"]}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Menu" })).toHaveAttribute(
+      "title",
+      "Media and help",
+    );
   });
 
   it("shows the audio error on the wide bar and in the collapsed Menu", async () => {
