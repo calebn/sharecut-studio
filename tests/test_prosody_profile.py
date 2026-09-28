@@ -83,17 +83,24 @@ def test_run_prosody_analysis_computes_and_caches(tmp_workspace: Path) -> None:
 def test_analyze_track_streams_without_full_decode(
     tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import podcast_mcp.engines.audio_audit as audio_audit_mod
+    # The step must go through the bounded-memory streamed entry point (#727),
+    # never a whole-file decode.
+    assert not hasattr(pp, "load_mono_full")
+    calls: list[Path] = []
+    real = pp.analyze_prosody_file
 
-    def _raise(*_args, **_kwargs):
-        raise AssertionError("run_prosody_analysis should not call load_mono_full (#727)")
+    def spy(path: Path, *args, **kwargs):
+        calls.append(Path(path))
+        return real(path, *args, **kwargs)
 
-    monkeypatch.setattr(audio_audit_mod, "load_mono_full", _raise)
+    monkeypatch.setattr(pp, "analyze_prosody_file", spy)
 
     path = _project_with_host(tmp_workspace)
     proj = load_project(path)
     result = pp.run_prosody_analysis(proj, {})
     assert result.computed == ["host"]
+    assert len(calls) == 1
+    assert calls[0].resolve() == (tmp_workspace / "raw" / "host.wav").resolve()
 
     cached = next(pp.prosody_dir(proj).glob("host_*.json"))
     payload = json.loads(cached.read_text(encoding="utf-8"))
