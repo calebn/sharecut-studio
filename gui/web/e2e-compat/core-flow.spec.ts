@@ -217,8 +217,9 @@ test.describe("core flow", () => {
               .filter({ hasText: "Bounced 1 file(s) to export/bounces/" }),
           ).toHaveCount(1);
 
+          // Poll: nothing pins the WAV write before the job's success status.
+          await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
           const wavs = await bouncedWavs(projectPath);
-          expect(wavs).toHaveLength(1);
           const bounced = wavs[0];
           expect(bounced).toBeTruthy();
           if (!bounced) return;
