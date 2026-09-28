@@ -310,7 +310,13 @@ def _applied_event(
     row: dict[str, Any], api_snap: dict[str, Any], *, roster_version: int
 ) -> dict[str, Any]:
     """The full session ``Applied`` event: ``submit()``'s return value and the HTTP/MCP
-    session responses (``author_client_id`` / ``roster_version`` added, full snapshot)."""
+    session responses (``author_client_id`` / ``roster_version`` added, full snapshot).
+
+    ``roster_version`` is the presence roster counter (``PresenceRosterTracker.version``)
+    when this command committed, the same counter ``Presence`` / ``PresenceDelta`` carry,
+    never a separate durable-plane version. ``author_client_id`` equals
+    ``command.client_id``: the author tag #567's multiplexed host socket will filter own
+    echoes by. No client reads either from ``Applied`` / ``Echo`` yet."""
     return {
         "type": "Applied",
         "command": row,
