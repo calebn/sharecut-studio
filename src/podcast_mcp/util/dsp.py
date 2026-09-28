@@ -19,6 +19,15 @@ def clamp01(value: float) -> float:
     return float(max(0.0, min(1.0, value)))
 
 
+def clamp(value: float, lo: float | None = None, hi: float | None = None) -> float:
+    """Clamp ``value`` to ``[lo, hi]``; a ``None`` bound is open and ``lo`` wins if ``hi < lo``."""
+    if hi is not None:
+        value = min(value, hi)
+    if lo is not None:
+        value = max(value, lo)
+    return value
+
+
 def linear_rms(samples: np.ndarray, *, epsilon: float = 0.0) -> float:
     """Linear RMS with caller-selected squared-amplitude floor."""
     if samples.size == 0:

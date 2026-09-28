@@ -29,6 +29,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     retime_spans,
 )
 from podcast_mcp.models.episode import TranscriptWord
+from podcast_mcp.util.dsp import clamp
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerModel,
@@ -191,16 +192,8 @@ def _clamp_unaligned_runs(
             hi = lo
         for word in words[i:j]:
             had_length = word.end > word.start
-            word.start = _clamp(word.start, lo, hi)
-            word.end = _clamp(word.end, lo, hi)
+            word.start = clamp(word.start, lo, hi)
+            word.end = clamp(word.end, lo, hi)
             if had_length and word.end <= word.start and word.audibility_status is None:
                 word.audibility_status = "deferred"
         i = j
-
-
-def _clamp(value: float, lo: float | None, hi: float | None) -> float:
-    if lo is not None:
-        value = max(value, lo)
-    if hi is not None:
-        value = min(value, hi)
-    return value

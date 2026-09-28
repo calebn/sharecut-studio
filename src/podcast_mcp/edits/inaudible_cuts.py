@@ -14,6 +14,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject, Track
+from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
@@ -90,10 +91,6 @@ class OptimizedCutRange:
 
 def detect_track_cut_mode(track: Track) -> CutMode:
     return "vocal_transcript_guided" if track.role.value == "dialogue" else "waveform_only"
-
-
-def _clamp(v: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, v))
 
 
 @dataclass(frozen=True)
@@ -623,8 +620,8 @@ def optimize_source_cut_range(
         except Exception as exc:
             log.debug("Could not snap cut boundaries for %s: %s", track_id, exc)
             src = None
-    start = _clamp(start, max(0.0, orig_start - max_shift), orig_start + max_shift)
-    end = _clamp(end, max(start + 0.001, orig_end - max_shift), orig_end + max_shift)
+    start = clamp(start, max(0.0, orig_start - max_shift), orig_start + max_shift)
+    end = clamp(end, max(start + 0.001, orig_end - max_shift), orig_end + max_shift)
     if end <= start + 1e-4:
         end = max(orig_end, start + 0.01)
     margin_sec = cfg.min_word_margin_ms / 1000.0
