@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     dialogue_render_hashes,
-    read_stem_hash,
+    stem_hash_matches,
 )
 from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
@@ -39,14 +39,15 @@ def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -
     compares against it, so a stem is stale exactly when its sidecar no longer matches,
     and fresh again when a redo returns to the state it was rendered at. Reconciliation
     is marked stale only when ``audio_state_fingerprint`` moved. The render cause journal
-    changes only for tracks whose render hash changed: one whose stem matches the
-    restored state drops its cause journal, else it gets a whole-track marker.
+    changes only for dialogue tracks whose render hash changed: one whose stem WAV exists
+    and whose sidecar matches the restored state drops its cause journal, and any other
+    changed track gets a whole-track marker.
     """
     after = dialogue_render_hashes(project)
     if audio_state_fingerprint(project) != before.fingerprint:
         mark_reconciliation_stale(project)
     changed = changed_render_hashes(before.render_hashes, after)
-    rendered = [tid for tid in changed if read_stem_hash(project, tid) == after[tid]]
+    rendered = [tid for tid in changed if stem_hash_matches(project, tid, after[tid])]
     clear_invalidations_for_tracks(project, rendered)
     replace_with_whole_track(
         project, [tid for tid in changed if tid not in rendered], reason="other"
