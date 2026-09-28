@@ -99,7 +99,8 @@ def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
 
     Recomputed (~27 ms per track at 18k words) only after a transcript words change in
     this process (``Transcript.memoize_words``), so an in-place edit such as
-    ``refresh_silence_flags`` is never missed.
+    ``refresh_silence_flags`` is never missed. The revision is process-wide: a words
+    edit on any other track or project also forces one recompute here.
     """
     tr = project.transcript_for_source(track_id, None)
     if tr is None:
@@ -364,8 +365,8 @@ def load_track_profile(
     :func:`run_prosody_analysis` prunes superseded profiles), one JSON read, one
     ``stat`` of the media, and a words fingerprint of the track's transcript
     (:func:`track_words_fingerprint`, memoized on the transcript's in-process words
-    revision (#729): O(words) only the first time after a words change, O(1) after),
-    checked cheapest first. No Praat run and no audio decode. When ``params`` is given
+    revision (#729): O(words) only the first time after any words change in this
+    process, O(1) after), checked cheapest first. No Praat run and no audio decode. When ``params`` is given
     (the staged pipeline working set's ``prosody.*`` settings), it also compares the
     stored ``params`` with it. ``None`` (nothing staged) trusts the stored params,
     because the working set is process-local and an unstaged process cannot know what
