@@ -1055,6 +1055,73 @@ describe("PipelinePanel", () => {
     });
   });
 
+  it("re-reads a remote Analyze's config only after an in-flight param PUT settles", async () => {
+    const user = userEvent.setup();
+    const merged = withMasterLufsParam();
+    merged.config.balance.dialogue_lufs = -18;
+    merged.config.master.integrated_lufs = -14;
+    loadPipelineConfig
+      .mockResolvedValueOnce(withMasterLufsParam())
+      .mockResolvedValueOnce(structuredClone(merged));
+    let resolvePut!: () => void;
+    putPipelineConfig.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolvePut = () => r(structuredClone(merged));
+        }),
+    );
+    let finish!: (job: unknown) => void;
+    waitForPipelineJob.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    );
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    });
+    // Activity moves on, so this tab can edit while the remote result is still in flight.
+    dawState.activityJob = null;
+    rerender(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    fireEvent.change(screen.getByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      finish(
+        analyzeJobSnap({
+          id: "an-remote",
+          status: "ok",
+          message: "Analyze complete",
+          result: remoteAnalyzeResult({
+            patches: { master: { integrated_lufs: -14 } },
+          }),
+        }),
+      );
+    });
+    // No GET while the PUT is pending: one served first would show the pre-edit value.
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolvePut();
+    });
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
+    expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-14);
+    expect(screen.getByLabelText(/Master LUFS/i).closest("label")).toHaveClass(
+      "pipeline-param-highlight",
+    );
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
