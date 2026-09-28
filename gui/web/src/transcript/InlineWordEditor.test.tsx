@@ -25,6 +25,7 @@ describe("InlineWordEditor", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
     useDawStore.getState().hydrate("/tmp/ep", minimalProject());
+    useDawStore.setState({ transcriptInlineEditFailure: null });
   });
 
   it("mounts focused with the text selected", () => {
@@ -322,7 +323,7 @@ describe("InlineWordEditor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("reports a failure that settles after unmount through onDetachedError", async () => {
+  it("reports a failure that settles after unmount to the transcript failure banner", async () => {
     let reject: (e: Error) => void = () => {};
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       () =>
@@ -331,7 +332,6 @@ describe("InlineWordEditor", () => {
         }),
     );
     const onClose = vi.fn();
-    const onDetachedError = vi.fn();
     const user = userEvent.setup();
     const { unmount } = render(
       <InlineWordEditor
@@ -339,7 +339,6 @@ describe("InlineWordEditor", () => {
         wordIndex={0}
         initialText="hello"
         onClose={onClose}
-        onDetachedError={onDetachedError}
       />,
     );
     const input = screen.getByRole("textbox", { name: /Correct word/ });
@@ -351,9 +350,13 @@ describe("InlineWordEditor", () => {
       reject(new Error("network down"));
     });
     await waitFor(() =>
-      expect(onDetachedError).toHaveBeenCalledWith(
-        "Could not fix “hello”: network down",
-      ),
+      expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
+        projectPath: "/tmp/ep",
+        trackId: "host",
+        wordIndex: 0,
+        originalText: "hello",
+        message: "Could not fix “hello”: network down",
+      }),
     );
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -367,7 +370,6 @@ describe("InlineWordEditor", () => {
         }),
     );
     const onClose = vi.fn();
-    const onDetachedError = vi.fn();
     const onBusyChange = vi.fn();
     const user = userEvent.setup();
     const { unmount } = render(
@@ -376,7 +378,6 @@ describe("InlineWordEditor", () => {
         wordIndex={0}
         initialText="hello"
         onClose={onClose}
-        onDetachedError={onDetachedError}
         onBusyChange={onBusyChange}
       />,
     );
@@ -389,7 +390,7 @@ describe("InlineWordEditor", () => {
       resolve();
     });
     expect(onClose).not.toHaveBeenCalled();
-    expect(onDetachedError).not.toHaveBeenCalled();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     expect(onBusyChange).toHaveBeenLastCalledWith(false);
   });
 

@@ -7,8 +7,11 @@ import { capabilityTooltip } from "../../capabilities/copy";
 import { useMountedRef } from "../../hooks/useMountedRef";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
-import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
+import {
+  type DetachedWordAction,
+  reportDetachedWordFailure,
+} from "../../transcript/detachedWordFailure";
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
   TRANSCRIPT_CORRECT_TIMING_NOTE,
@@ -26,7 +29,6 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
-import { errorMessage } from "../../utils/apiError";
 import { findTranscriptWord, wordSeekSec } from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -74,8 +76,11 @@ export function TranscriptWordInspector({
    * low-confidence walkthrough step) goes to the transcript's late-failure
    * banner instead of being lost or shown under the next word.
    */
-  const runForWord = async (fn: () => Promise<unknown>) => {
-    const originalText = word?.text ?? "";
+  const runForWord = async (
+    action: DetachedWordAction,
+    fn: () => Promise<unknown>,
+  ) => {
+    const before = { text: word?.text ?? "", suppressed, ignored };
     let failure: unknown;
     let failed = false;
     await run(async () => {
@@ -88,12 +93,13 @@ export function TranscriptWordInspector({
       }
     });
     if (failed && !mountedRef.current) {
-      useDawStore.getState().setTranscriptInlineEditFailure({
+      reportDetachedWordFailure({
         projectPath,
         trackId,
         wordIndex,
-        originalText,
-        message: `Could not update “${originalText}”: ${errorMessage(failure)}`,
+        word: before,
+        action,
+        failure,
       });
     }
   };
@@ -105,19 +111,19 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
-    await runForWord(() =>
+    await runForWord("fix", () =>
       submitWordCorrection(projectPath, trackId, wordIndex, endIndex, text),
     );
   };
 
   const toggleSuppress = async () => {
-    await runForWord(() =>
+    await runForWord("suppressed", () =>
       setTranscriptWordSuppressed(projectPath, trackId, wordIndex, !suppressed),
     );
   };
 
   const toggleIgnored = async () => {
-    await runForWord(() =>
+    await runForWord("ignored", () =>
       setTranscriptWordsIgnored(
         projectPath,
         trackId,

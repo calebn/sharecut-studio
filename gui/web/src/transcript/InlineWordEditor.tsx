@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useMountedRef } from "../hooks/useMountedRef";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { InlineError } from "../ui/InlineError";
-import { errorMessage } from "../utils/apiError";
+import { reportDetachedWordFailure } from "./detachedWordFailure";
 import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
 
 interface Props {
@@ -18,13 +18,6 @@ interface Props {
    * store.
    */
   onBusyChange?: (busy: boolean) => void;
-  /**
-   * A commit that fails after this editor unmounted (mode switch, word
-   * removed, editing no longer allowed) reports its message here, because
-   * the editor's own inline error is gone. The handler must outlive the
-   * parent panel too, e.g. write to the DAW store.
-   */
-  onDetachedError?: (message: string) => void;
 }
 
 /** In-place word text fix: Enter commits (one undo step), Esc / blur cancel. */
@@ -34,7 +27,6 @@ export function InlineWordEditor({
   initialText,
   onClose,
   onBusyChange,
-  onDetachedError,
 }: Props) {
   const { busy, error, setError, run, projectPath } = useProjectMutation();
   const [text, setText] = useState(initialText);
@@ -80,11 +72,17 @@ export function InlineWordEditor({
     busyRef.current = false;
     onBusyChange?.(false);
     if (!mountedRef.current) {
-      // Closed mid-request: nothing here to focus or show the error in.
+      // Closed mid-request (mode switch, word removed, editing no longer
+      // allowed): the transcript's late-failure banner shows the error.
       if (!ok) {
-        onDetachedError?.(
-          `Could not fix “${initialText}”: ${errorMessage(failure)}`,
-        );
+        reportDetachedWordFailure({
+          projectPath,
+          trackId,
+          wordIndex,
+          word: { text: initialText },
+          action: "fix",
+          failure,
+        });
       }
       return;
     }
