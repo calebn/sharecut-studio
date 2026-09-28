@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import type { TranscriptWordBooleanFlag } from "../types/project";
 import {
   detachedWordFailure,
   isDetachedWordFailureMoot,
@@ -9,6 +10,12 @@ import {
 describe("detachedWordFailure", () => {
   beforeEach(() => {
     useDawStore.setState({ transcriptInlineEditFailure: null });
+  });
+
+  it("keeps Suppress / Ignore on boolean-only word fields", () => {
+    expectTypeOf<TranscriptWordBooleanFlag>().toEqualTypeOf<
+      "suppressed" | "ignored"
+    >();
   });
 
   it("formats a failed text fix", () => {

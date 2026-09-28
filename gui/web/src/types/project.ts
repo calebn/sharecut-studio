@@ -208,6 +208,21 @@ export interface TranscriptWordView {
   suspect_hallucination?: boolean;
 }
 
+/**
+ * Word fields that a late Suppress / Ignore failure records and reads back
+ * with `Boolean()` (transcript/detachedWordFailure.ts). A field drops out of
+ * this union once it is no longer `boolean | undefined`, which breaks the
+ * build at those call sites instead of quietly merging states.
+ */
+export type TranscriptWordBooleanFlag = {
+  [K in keyof TranscriptWordView]-?: [TranscriptWordView[K]] extends [
+    boolean | undefined,
+  ]
+    ? K
+    : never;
+}[keyof TranscriptWordView] &
+  ("suppressed" | "ignored");
+
 export interface CombinedUtterance {
   track_id: string;
   speaker: string;

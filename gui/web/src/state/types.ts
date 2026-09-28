@@ -1,5 +1,9 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import type { ProjectView, Selection } from "../types/project";
+import type {
+  ProjectView,
+  Selection,
+  TranscriptWordBooleanFlag,
+} from "../types/project";
 import type {
   AuditionMode,
   PresenceMobileMode,
@@ -33,7 +37,7 @@ export interface TranscriptInlineEditFailure {
   /** Word text when the fix was submitted; different text means it was fixed since. */
   originalText: string;
   /** Failed Suppress / Ignore: that flag's value when the action was submitted; a different value means it was retried (or changed) since. Absent for a text fix. */
-  flag?: { name: "suppressed" | "ignored"; was: boolean };
+  flag?: { name: TranscriptWordBooleanFlag; was: boolean };
   message: string;
 }
 
