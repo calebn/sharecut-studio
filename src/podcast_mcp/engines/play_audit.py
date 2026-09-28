@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Callable, Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -262,6 +263,15 @@ def expected_stem_duration_sec(project: EpisodeProject, track_id: str) -> float 
     return float(extent[0])
 
 
+@lru_cache(maxsize=256)
+def _cached_wav_duration_sec(path: str, revision: FileRevision) -> float:
+    """ffprobe ``path`` once per ``file_revision``; ``revision`` is only a cache key."""
+    del revision  # cache key only
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    return float(FFmpegEngine().probe(Path(path)).duration_sec)
+
+
 def probe_wav_duration_sec(path: Path) -> float | None:
     """Duration of the WAV at ``path`` in seconds, or None when missing or unreadable.
 
@@ -269,13 +279,16 @@ def probe_wav_duration_sec(path: Path) -> float | None:
     readers ``services.golden_ear._wav_duration_sec`` (stdlib ``wave``) and
     ``services.record.landing._wav_duration_s`` (PCM uploads it already validates)
     stay separate on purpose: they avoid a subprocess per file.
+
+    Cached in-process per resolved path and ``file_revision`` (device, inode, size,
+    mtime), so render status and freshness checks on an unchanged stem spawn no ffprobe
+    (#427). Stems, premix and master are swapped in whole (``render_atomic``), so a
+    publish always re-probes. Failures are not cached.
     """
     if not path.is_file():
         return None
     try:
-        from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-        return float(FFmpegEngine().probe(path).duration_sec)
+        return _cached_wav_duration_sec(str(path.resolve()), file_revision(path))
     except Exception as exc:
         log.debug("probe failed for %s: %s", path, exc)
         return None

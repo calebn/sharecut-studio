@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     expected_stem_duration_sec,
     mix_render_hash,
+    probe_wav_duration_sec,
     stem_duration_matches_timeline,
     stem_is_fresh,
     track_render_hash,
@@ -259,3 +262,77 @@ def test_reconciliation_fingerprint_ignores_music_envelopes(tmp_path) -> None:
         AutomationEnvelope(track_id="host", points=[AutomationPoint(time=0.0, value=0.5)])
     )
     assert audio_state_fingerprint(project) != before
+
+
+def test_wav_duration_probe_is_cached_per_file_revision(tmp_path, sample_wav, monkeypatch) -> None:
+    import os
+
+    from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+
+    wav = tmp_path / "stem.wav"
+    wav.write_bytes(sample_wav.read_bytes())
+    calls: list[Path] = []
+
+    def fake(self, path, **_k):
+        calls.append(path)
+        return AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", fake)
+
+    assert probe_wav_duration_sec(wav) == 2.0
+    assert probe_wav_duration_sec(wav) == 2.0
+    assert len(calls) == 1
+
+    st = wav.stat()
+    os.utime(wav, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+
+    assert probe_wav_duration_sec(wav) == 2.0
+    assert len(calls) == 2
+
+
+def test_failed_wav_duration_probe_is_not_cached(tmp_path, sample_wav, monkeypatch) -> None:
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    wav = tmp_path / "stem.wav"
+    wav.write_bytes(sample_wav.read_bytes())
+    calls: list[Path] = []
+
+    def fake(self, path, **_k):
+        calls.append(path)
+        raise RuntimeError("probe failed")
+
+    monkeypatch.setattr(FFmpegEngine, "probe", fake)
+
+    assert probe_wav_duration_sec(wav) is None
+    assert probe_wav_duration_sec(wav) is None
+    assert len(calls) == 2
+
+
+def test_render_status_reuses_the_stem_probe(tmp_path, sample_wav, monkeypatch) -> None:
+    from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+    from podcast_mcp.engines.render_status import render_status_report
+
+    ws = tmp_path / "ws"
+    (ws / "artifacts" / "tracks").mkdir(parents=True)
+    project = EpisodeProject.create("reuse", str(ws))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    stem = ws / "artifacts" / "tracks" / "host.wav"
+    stem.write_bytes(sample_wav.read_bytes())
+    write_stem_hash(project, "host")
+    calls: list[Path] = []
+
+    def fake(self, path, **_k):
+        calls.append(path)
+        return AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", fake)
+
+    report1 = render_status_report(project)
+    report2 = render_status_report(project)
+
+    assert report1["tracks"]["host"]["stem_is_fresh"] is True
+    assert report2["tracks"]["host"]["stem_is_fresh"] is True
+    assert len(calls) == 1

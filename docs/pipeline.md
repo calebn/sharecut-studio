@@ -263,6 +263,13 @@ in-place rewrite re-measures when it changes the inode, size, mtime or either 64
 either end); only a same-size edit confined to the middle of the file that also keeps
 inode and mtime keeps the cached value until the GUI/MCP process restarts.
 
+The stem duration check (`probe_wav_duration_sec`, used by `stem_is_fresh`,
+`render_status_report` and the bleed-mute rewrite) is cached in-process per resolved
+path and `file_revision` the same way. Every document snapshot that carries
+`render_status` (MIX, CLIPS, FX, ENVELOPES, TRANSCRIPT_AUDIO, SHELL) re-reads hashes
+and stats but spawns no ffprobe for an unchanged stem. A publish swaps the file
+(`render_atomic`), so it always re-probes. Failures are not cached.
+
 Stem workers read one deep project snapshot captured before dispatch. Each
 worker renders and writes its cache hash from that snapshot. If an edit changes
 the live render hash, renderable track set, or committed project-file
