@@ -3,8 +3,10 @@ import { e2eProjectPath } from "./env";
 
 /**
  * One host document command should reach the timeline as exactly one socket
- * Applied frame, with no `/api/project` GET from the mtime poll skipping in
- * behind it (#657).
+ * Applied frame, with no `/api/project` GET from the sanity poll skipping in
+ * behind it (#657). The sanity poll ticks every 30 s (`SANITY_POLL_MS`,
+ * #662), so this forces one meta check with a focus event instead of waiting
+ * out the interval.
  */
 test.describe("Document poll double-apply", () => {
   test("a host commit is one socket frame and no project GET", async ({
@@ -76,9 +78,10 @@ test.describe("Document poll double-apply", () => {
       expect(res.ok()).toBe(true);
 
       await expect.poll(() => appliedFrames.length).toBe(1);
-      // More than two 1.5s meta poll ticks: give the poll every chance to
-      // (wrongly) fetch a second time before asserting it did not.
-      await page.waitForTimeout(4000);
+      // The sanity poll ticks every 30 s; a focus event runs one meta check
+      // now (#662), giving it a chance to (wrongly) fetch a second time.
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await page.waitForTimeout(1500);
 
       expect(appliedFrames).toHaveLength(1);
       expect(shellGets).toEqual([]);
