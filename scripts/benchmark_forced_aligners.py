@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import numpy as np
 
@@ -24,10 +24,14 @@ if str(Path(__file__).resolve().parent) not in sys.path:
 
 from benchmark_word_boundaries import benchmark, native_prediction
 from podcast_mcp.engines.ctc_forced_align import (
+    DEFAULT_MAX_GAP_SEC,
+    DEFAULT_MAX_WINDOW_SEC,
+    DEFAULT_PAD_SEC,
     CtcVocab,
-    align_words,
+    LogProbBackend,
     log_softmax,
-    plan_windows,
+    normalize_waveform,
+    retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.word_boundary_metrics import (
@@ -272,14 +276,6 @@ def write_wav16(path: Path, samples: np.ndarray) -> None:
     write_bytes_atomic(path, pcm_wav_header(len(data), sample_rate=SAMPLE_RATE) + data)
 
 
-class Backend(Protocol):
-    def log_probs(self, samples: np.ndarray) -> np.ndarray: ...
-
-
-def normalize(samples: np.ndarray) -> np.ndarray:
-    return (samples - samples.mean()) / np.sqrt(samples.var() + 1e-7)
-
-
 class OnnxBackend:
     def __init__(self, model_dir: Path, onnx_file: str, threads: int) -> None:
         try:
@@ -299,7 +295,7 @@ class OnnxBackend:
 
     def log_probs(self, samples: np.ndarray) -> np.ndarray:
         outputs = self._session.run(
-            None, {self._input_name: normalize(samples)[None, :].astype(np.float32)}
+            None, {self._input_name: normalize_waveform(samples)[None, :].astype(np.float32)}
         )
         return log_softmax(outputs[0][0])
 
@@ -320,12 +316,12 @@ class TorchBackend:
 
     def log_probs(self, samples: np.ndarray) -> np.ndarray:
         with self._torch.inference_mode():
-            inputs = self._torch.from_numpy(normalize(samples)[None, :].astype(np.float32))
+            inputs = self._torch.from_numpy(normalize_waveform(samples)[None, :].astype(np.float32))
             logits = self._model(inputs).logits[0].float().numpy()
         return log_softmax(logits)
 
 
-def make_backend(c: Candidate, model_dir: Path, threads: int) -> Backend:
+def make_backend(c: Candidate, model_dir: Path, threads: int) -> LogProbBackend:
     if c.backend == "onnx":
         assert c.onnx_file is not None
         return OnnxBackend(model_dir, c.onnx_file, threads)
@@ -333,53 +329,26 @@ def make_backend(c: Candidate, model_dir: Path, threads: int) -> Backend:
 
 
 def align_prediction(
-    samples: np.ndarray, words: list[dict[str, Any]], backend: Backend, vocab: CtcVocab
+    samples: np.ndarray, words: list[dict[str, Any]], backend: LogProbBackend, vocab: CtcVocab
 ) -> tuple[list[dict[str, Any]], dict[str, int], float]:
-    audio_sec = len(samples) / SAMPLE_RATE
-    order = sorted(range(len(words)), key=lambda i: words[i]["start"])
-    windows = plan_windows(
-        [(words[i]["start"], words[i]["end"]) for i in order], audio_sec=audio_sec
-    )
-
-    output = [dict(w, aligned=False) for w in words]
-    windows_count = 0
-    failed_windows = 0
-    aligned_words = 0
-
     start_time = time.perf_counter()
-    for win in windows:
-        windows_count += 1
-        start_sample = round(win.start_sec * SAMPLE_RATE)
-        end_sample = round(win.end_sec * SAMPLE_RATE)
-        chunk = samples[start_sample:end_sample]
-        lp = backend.log_probs(chunk)
-        indices = [order[j] for j in win.word_indices]
-        texts = [words[i]["text"] for i in indices]
-        spans = align_words(lp, texts, vocab, offset_sec=win.start_sec)
-        window_failed = True
-        for word_index, span in zip(indices, spans, strict=True):
-            if span is None:
-                continue
-            window_failed = False
-            output[word_index]["start"], output[word_index]["end"] = span
-            output[word_index]["aligned"] = True
-            aligned_words += 1
-        if window_failed:
-            failed_windows += 1
+    spans, retime = retime_spans(
+        samples,
+        [(w["text"], w["start"], w["end"]) for w in words],
+        backend,
+        vocab,
+        sample_rate=SAMPLE_RATE,
+    )
     runtime_sec = time.perf_counter() - start_time
-
+    output = [dict(w, aligned=False) for w in words]
+    for word, span in zip(output, spans, strict=True):
+        if span is not None:
+            word["start"], word["end"] = span
+            word["aligned"] = True
     # Unaligned native words keep their Whisper times; a start == end one would
     # fail every metric's 0 <= start < end validation, so drop and count it.
     output, dropped = _drop_zero_duration(output)
-    unaligned_words = len(words) - aligned_words
-    stats = {
-        "windows": windows_count,
-        "failed_windows": failed_windows,
-        "aligned_words": aligned_words,
-        "unaligned_words": unaligned_words,
-        "dropped_zero_duration": dropped,
-    }
-    return output, stats, runtime_sec
+    return output, {**retime.as_dict(), "dropped_zero_duration": dropped}, runtime_sec
 
 
 def _peak_rss_mb() -> float | None:
@@ -414,9 +383,9 @@ def candidate_payload(
             "onnx_file": c.onnx_file,
             "threads": threads,
             "sample_rate": SAMPLE_RATE,
-            "max_gap_sec": 1.0,
-            "max_window_sec": 20.0,
-            "pad_sec": 0.5,
+            "max_gap_sec": DEFAULT_MAX_GAP_SEC,
+            "max_window_sec": DEFAULT_MAX_WINDOW_SEC,
+            "pad_sec": DEFAULT_PAD_SEC,
         },
         "runtime_sec": runtime_sec,
         "load_sec": load_sec,

@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 
+from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend
 from podcast_mcp.engines.ctc_forced_align import (
+    DEFAULT_MAX_GAP_SEC,
+    DEFAULT_MAX_WINDOW_SEC,
+    DEFAULT_PAD_SEC,
     AlignmentWindow,
     CtcVocab,
+    RetimeStats,
     align_words,
     ctc_viterbi,
     log_softmax,
+    normalize_waveform,
     plan_windows,
+    retime_spans,
 )
 
 VOCAB = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "A": 2, "B": 3, "'": 4})
@@ -128,3 +137,59 @@ def test_plan_windows_overlapping_words_keep_unpadded_bounds() -> None:
     assert len(windows) == 2
     assert windows[0].end_sec == pytest.approx(2.0)
     assert windows[1].start_sec == pytest.approx(1.0)
+
+
+def test_retime_spans_places_words_in_start_order_and_counts_unaligned() -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    words = [("hi", 0.0, 0.5), ("42", 0.5, 0.7), ("bye", 0.7, 1.2)]
+    samples = np.zeros(round(1.2 * 16000), dtype=np.float32)
+
+    spans, stats = retime_spans(samples, words, backend, vocab)
+
+    assert spans[0] == pytest.approx((0.0, 0.04))
+    assert spans[1] is None
+    assert spans[2] == pytest.approx((0.08, 0.14))
+    assert stats == RetimeStats(windows=1, failed_windows=0, aligned_words=2, unaligned_words=1)
+
+
+def test_retime_spans_skips_windows_too_short_for_the_model() -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+
+    class ExplodingBackend:
+        def log_probs(self, samples: np.ndarray) -> np.ndarray:
+            raise AssertionError("backend should not be called for a too-short window")
+
+    samples = np.zeros(round(0.1 * 16000), dtype=np.float32)
+    spans, stats = retime_spans(samples, [("hi", 5.0, 5.2)], ExplodingBackend(), vocab)
+
+    assert spans == [None]
+    assert stats.failed_windows == 1
+    assert stats.aligned_words == 0
+
+
+def test_retime_spans_counts_a_window_with_no_placed_word_as_failed() -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, hot={}, frames=1, vocab_size=7)
+    samples = np.zeros(round(0.5 * 16000), dtype=np.float32)
+
+    _spans, stats = retime_spans(samples, [("bye", 0.0, 0.5)], backend, vocab)
+
+    assert stats.failed_windows == 1
+
+
+def test_normalize_waveform_is_zero_mean_unit_variance() -> None:
+    rng = np.random.default_rng(0)
+    samples = (rng.standard_normal(1000).astype(np.float32) * 5) + 3
+
+    normalized = normalize_waveform(samples)
+
+    assert normalized.mean() == pytest.approx(0.0, abs=1e-5)
+    assert normalized.var() == pytest.approx(1.0, abs=1e-3)
+
+
+def test_plan_windows_defaults_are_the_shared_constants() -> None:
+    params = inspect.signature(plan_windows).parameters
+    assert params["max_gap_sec"].default == DEFAULT_MAX_GAP_SEC
+    assert params["max_window_sec"].default == DEFAULT_MAX_WINDOW_SEC
+    assert params["pad_sec"].default == DEFAULT_PAD_SEC

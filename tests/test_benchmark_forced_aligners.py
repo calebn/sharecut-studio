@@ -10,7 +10,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from podcast_mcp.engines.ctc_forced_align import CtcVocab, log_softmax
+from ctc_fakes import FakeBackend
+from podcast_mcp.engines.ctc_forced_align import CtcVocab
 from script_loader import load_script
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -22,24 +23,6 @@ bfa = load_script("benchmark_forced_aligners", register=True)
 
 def _vocab_json(path: Path, token_map: dict[str, int]) -> None:
     path.write_text(json.dumps(token_map), encoding="utf-8")
-
-
-class FakeBackend:
-    """Deterministic backend: fixed logits regardless of the sample chunk."""
-
-    def __init__(self, vocab: CtcVocab, hot: dict[int, int], frames: int, vocab_size: int) -> None:
-        self._vocab = vocab
-        self._hot = hot
-        self._frames = frames
-        self._vocab_size = vocab_size
-
-    def log_probs(self, samples: np.ndarray) -> np.ndarray:
-        lp = np.full((self._frames, self._vocab_size), np.log(0.01))
-        lp[:, self._vocab.blank_id] = np.log(0.9)
-        for frame, token in self._hot.items():
-            lp[frame, :] = np.log(0.01)
-            lp[frame, token] = np.log(0.9)
-        return log_softmax(lp)
 
 
 def test_resolve_target_librispeech_lists_scored_items() -> None:
