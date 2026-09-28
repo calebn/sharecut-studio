@@ -174,13 +174,26 @@ _COMMAND_HANDLERS: dict[str, Callable[[dict[str, Any], Callable[[str, Any], None
 }
 
 
+def attribution_fields(row: dict[str, Any]) -> dict[str, Any]:
+    """Last-writer fields naming journal/command ``row``: ``last_command_id``,
+    ``last_client_id``, ``last_role`` and ``origin`` (``agent``/``viewer``; any other role
+    maps to ``agent``). Shared by ``apply_command`` and the cross-process publish (#695).
+    """
+    role = row["role"]
+    return {
+        "last_command_id": row["command_id"],
+        "last_client_id": row["client_id"],
+        "last_role": role,
+        "origin": role if role in ("agent", "viewer") else "agent",
+    }
+
+
 def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
     """Apply one logged command onto a snapshot (mutates and returns snap)."""
     ctype = cmd["type"]
     payload = cmd.get("payload") or {}
     server_seq = int(cmd["server_seq"])
     client_id = cmd["client_id"]
-    role = cmd["role"]
 
     def set_f(key: str, value: Any) -> None:
         _set_field(snap, key, value, server_seq=server_seq, client_id=client_id)
@@ -191,10 +204,7 @@ def apply_command(snap: dict[str, Any], cmd: dict[str, Any]) -> dict[str, Any]:
 
     snap["server_seq"] = server_seq
     snap["updated_at_ns"] = int(cmd.get("ts_ns") or time.time_ns())
-    snap["last_command_id"] = cmd["command_id"]
-    snap["last_client_id"] = client_id
-    snap["last_role"] = role
-    snap["origin"] = role if role in ("agent", "viewer") else "agent"
+    snap.update(attribution_fields(cmd))
     snap["version"] = SNAPSHOT_VERSION
     # Ensure all transport keys exist
     for key in TRANSPORT_FIELDS:

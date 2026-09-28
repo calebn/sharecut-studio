@@ -36,6 +36,7 @@ from podcast_mcp.services.session_sync.log import (
 from podcast_mcp.services.session_sync.presence_fanout import schedule as schedule_presence
 from podcast_mcp.services.session_sync.snapshot import (
     apply_command,
+    attribution_fields,
     empty_snapshot,
     flatten_for_api,
 )
@@ -308,18 +309,6 @@ def _applied_event(row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, A
     }
 
 
-def _attributed_to(api_snap: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
-    """``api_snap`` with its last-writer fields naming journal ``row``, as ``apply_command`` sets them."""
-    role = row["role"]
-    return {
-        **api_snap,
-        "last_command_id": row["command_id"],
-        "last_client_id": row["client_id"],
-        "last_role": role,
-        "origin": role if role in ("agent", "viewer") else "agent",
-    }
-
-
 class SessionSyncService:
     def __init__(self, project: EpisodeProject) -> None:
         self.project = project
@@ -396,7 +385,7 @@ class SessionSyncService:
             row = cross_process_command(store, seqs)
             if row is None:
                 return None
-            api_snap = _attributed_to(flatten_for_api(snap, store.list_clients()), row)
+            api_snap = {**flatten_for_api(snap, store.list_clients()), **attribution_fields(row)}
             event = {**_applied_event(row, api_snap), "server_seq": head}
             hub.mark_published(self._project_key, seqs)
             hub.publish(self._project_key, event)

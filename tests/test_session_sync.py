@@ -28,6 +28,7 @@ from podcast_mcp.services.session_sync.service import (
 )
 from podcast_mcp.services.session_sync.snapshot import (
     apply_command,
+    attribution_fields,
     empty_snapshot,
     flatten_for_api,
 )
@@ -1631,6 +1632,30 @@ def test_snapshot_apply_edge_commands(minimal_project) -> None:
         },
     )
     assert snap["origin"] == "agent"  # cli maps to agent alias
+
+
+@pytest.mark.parametrize(
+    ("role", "origin"), [("agent", "agent"), ("viewer", "viewer"), ("cli", "agent")]
+)
+def test_attribution_fields_match_apply_command(role: str, origin: str) -> None:
+    row = {
+        "type": "SetPlayhead",
+        "payload": {"playhead_sec": 1.0},
+        "server_seq": 1,
+        "client_id": "c1",
+        "role": role,
+        "command_id": "cmd1",
+        "ts_ns": 1,
+    }
+    fields = attribution_fields(row)
+    assert fields == {
+        "last_command_id": "cmd1",
+        "last_client_id": "c1",
+        "last_role": role,
+        "origin": origin,
+    }
+    snap = apply_command(empty_snapshot(), row)
+    assert {k: snap[k] for k in fields} == fields
 
 
 @pytest.mark.parametrize(
