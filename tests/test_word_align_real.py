@@ -11,7 +11,6 @@ tests/test_word_align_real.py``.
 from __future__ import annotations
 
 import json
-import wave
 from pathlib import Path
 
 import numpy as np
@@ -56,24 +55,6 @@ def test_pipeline_pass_reproduces_checked_in_mae_below_native(tmp_path: Path) ->
     assert scored["boundary_mae_ms"] < NATIVE_LIBRISPEECH_MAE_MS
 
 
-def _read_wav_float32(path: Path) -> tuple[np.ndarray, int]:
-    with wave.open(str(path), "rb") as handle:
-        rate = handle.getframerate()
-        assert handle.getsampwidth() == 2 and handle.getnchannels() == 1
-        pcm = handle.readframes(handle.getnframes())
-    samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
-    return samples, rate
-
-
-def _write_wav_float32(path: Path, samples: np.ndarray, rate: int) -> None:
-    pcm16 = np.clip(np.round(samples * 32768.0), -32768, 32767).astype("<i2")
-    with wave.open(str(path), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(rate)
-        handle.writeframes(pcm16.tobytes())
-
-
 def _native_words(fixture_id: str) -> list[TranscriptWord]:
     data = json.loads((WORD_BOUNDARY_DIR / f"{fixture_id}.native-base.json").read_text())
     return [TranscriptWord(text=w["text"], start=w["start"], end=w["end"]) for w in data["words"]]
@@ -90,6 +71,7 @@ def test_evidence_floor_separates_real_words_from_silence_and_noise_probes(
 
     Measured numbers go in docs/testing.md "Aligner evidence floor (#195)".
     """
+    bfa = load_script("benchmark_forced_aligners", register=True)
     aligner = WordAligner.load(threads=4)
     floor = AsrOptions().forced_alignment_min_word_score
 
@@ -104,7 +86,8 @@ def test_evidence_floor_separates_real_words_from_silence_and_noise_probes(
 
     # Probes: a real clip, then digital silence, then seeded low-level noise.
     clip_id = "1988-147956-0023"
-    samples, rate = _read_wav_float32(WORD_BOUNDARY_DIR / f"{clip_id}.wav")
+    samples = bfa.load_audio(WORD_BOUNDARY_DIR / f"{clip_id}.wav", None)
+    rate = bfa.SAMPLE_RATE  # word_boundary fixtures are 16 kHz mono
     duration = samples.size / rate
 
     silence = np.zeros(round(PROBE_SILENCE_SEC * rate), dtype=np.float32)
@@ -113,7 +96,7 @@ def test_evidence_floor_separates_real_words_from_silence_and_noise_probes(
     noise = rng.standard_normal(round(PROBE_NOISE_SEC * rate)).astype(np.float32) * noise_amplitude
 
     probe_path = tmp_path / "probe.wav"
-    _write_wav_float32(probe_path, np.concatenate([samples, silence, noise]), rate)
+    bfa.write_wav16(probe_path, np.concatenate([samples, silence, noise]))
 
     probe_words = _native_words(clip_id)
     d = duration
