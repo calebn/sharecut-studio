@@ -6,7 +6,13 @@ type Props = {
   onChange: (name: string) => void;
 };
 
-/** "Commenting as <name> · Change": the name is read-only until Change opens an inline field. */
+/**
+ * "Commenting as <name> · Change": the name is read-only until Change opens an
+ * inline field. Focus goes back to Change only after Enter / Escape (a blur
+ * keeps focus where it landed), the same rule as
+ * `transcript/InlineWordEditor.tsx`'s `onClose(restoreFocus)`. A third
+ * inline-edit field should reuse one of these rather than add another variant.
+ */
 export function CommentAuthorLine({ name, onChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name);
