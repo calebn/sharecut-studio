@@ -74,6 +74,7 @@ values that cannot be mistaken for live credentials.
 (`_…_SHA256 = "<64 hex>"` constants and `("<file>", "<64 hex>")` entries). It matches lines,
 not commit fingerprints, so it still holds after a rebase-merge rewrites SHAs;
 `tests/test_secret_scan_workflow.py` checks its scope and that every pin line fits it.
+Do not add inline `# gitleaks:allow` comments to those modules; the same test rejects them.
 The companion public-tree provider/marker test scans blobs in the Git index, not ignored
 cache files or the mutable checkout, so staged public contents are the tested boundary.
 It also fails on any **public** (globally routable) IPv4 literal in a text blob, including
