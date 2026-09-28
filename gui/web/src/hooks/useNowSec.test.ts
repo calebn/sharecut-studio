@@ -41,4 +41,20 @@ describe("useNowSec", () => {
     rerender({ enabled: true });
     expect(result.current).toBeGreaterThanOrEqual(frozen + 5);
   });
+
+  it("holds the last value across re-renders while disabled", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useNowSec(enabled),
+      { initialProps: { enabled: false } },
+    );
+    const frozen = result.current;
+    vi.setSystemTime(new Date("2026-09-18T12:00:09Z"));
+    rerender({ enabled: false });
+    expect(result.current).toBe(frozen);
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+    setIntervalSpy.mockRestore();
+  });
 });
