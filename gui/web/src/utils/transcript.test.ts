@@ -16,6 +16,8 @@ import {
   isUtteranceActive,
   isWordActive,
   selectUnmappedUtterances,
+  spanTextFromIndex,
+  trackWordTexts,
   transcriptAnchorTurnIndex,
   transcriptSpanText,
   transcriptWordAnchor,
@@ -623,6 +625,121 @@ describe("transcriptSpanText", () => {
 
   it("ignores words on another track", () => {
     expect(transcriptSpanText(project, "guest", 0, 0)).toBeNull();
+  });
+});
+
+describe("trackWordTexts / spanTextFromIndex", () => {
+  const project = {
+    transcript: {
+      utterances: [
+        u({
+          text: "the quick",
+          start: 0,
+          end: 9,
+          words: [
+            { text: "the", word_index: 0, start: 0, end: 1 },
+            { text: "quick", word_index: 1, start: 1, end: 2 },
+          ],
+        }),
+        u({
+          track_id: "guest",
+          text: "ignore",
+          start: 0,
+          end: 9,
+          words: [{ text: "ignore", word_index: 2, start: 0, end: 9 }],
+        }),
+        u({
+          text: "quick fox",
+          start: 1,
+          end: 3,
+          words: [
+            { text: "quick", word_index: 1, start: 1, end: 2 },
+            { text: "fox", word_index: 2, start: 2, end: 3 },
+          ],
+        }),
+      ],
+    },
+  } as ProjectView;
+
+  it("returns the full span", () => {
+    const texts = trackWordTexts(project, "host");
+    expect(spanTextFromIndex(texts, 0, 2)).toBe("the quick fox");
+  });
+
+  it("returns a single word", () => {
+    const texts = trackWordTexts(project, "host");
+    expect(spanTextFromIndex(texts, 0, 0)).toBe("the");
+  });
+
+  it("counts an agreeing duplicate once", () => {
+    const texts = trackWordTexts(project, "host");
+    expect(spanTextFromIndex(texts, 1, 1)).toBe("quick");
+  });
+
+  it("maps a disagreeing duplicate to null", () => {
+    const dup = {
+      transcript: {
+        utterances: [
+          u({
+            text: "a",
+            start: 0,
+            end: 1,
+            words: [{ text: "first", word_index: 0, start: 0, end: 1 }],
+          }),
+          u({
+            text: "b",
+            start: 0,
+            end: 1,
+            words: [{ text: "second", word_index: 0, start: 0, end: 1 }],
+          }),
+        ],
+      },
+    } as ProjectView;
+    const texts = trackWordTexts(dup, "host");
+    expect(texts.get(0)).toBeNull();
+    expect(spanTextFromIndex(texts, 0, 0)).toBeNull();
+  });
+
+  it("returns null for a missing index", () => {
+    const gap = {
+      transcript: {
+        utterances: [
+          u({
+            text: "the fox",
+            start: 0,
+            end: 9,
+            words: [
+              { text: "the", word_index: 0, start: 0, end: 1 },
+              { text: "fox", word_index: 2, start: 2, end: 3 },
+            ],
+          }),
+        ],
+      },
+    } as ProjectView;
+    const texts = trackWordTexts(gap, "host");
+    expect(spanTextFromIndex(texts, 0, 2)).toBeNull();
+  });
+
+  it("returns null for end < start and for NaN", () => {
+    const texts = trackWordTexts(project, "host");
+    expect(spanTextFromIndex(texts, 2, 0)).toBeNull();
+    expect(spanTextFromIndex(texts, Number.NaN, 0)).toBeNull();
+  });
+
+  it("excludes another track", () => {
+    const texts = trackWordTexts(project, "guest");
+    expect(spanTextFromIndex(texts, 0, 0)).toBeNull();
+  });
+
+  it("agrees with transcriptSpanText over a grid of ranges", () => {
+    const texts = trackWordTexts(project, "host");
+    for (let start = -1; start <= 3; start++) {
+      for (let end = -1; end <= 3; end++) {
+        expect(spanTextFromIndex(texts, start, end)).toBe(
+          transcriptSpanText(project, "host", start, end),
+        );
+      }
+    }
   });
 });
 
