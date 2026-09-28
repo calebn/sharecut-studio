@@ -139,10 +139,12 @@ describe("timeline styles", () => {
       css.indexOf(".lane-inner > * {"),
     );
     // A --join-hit-min (24 px, px canvas) wide hit area inside the gutter (WCAG 2.5.8), never taller than the badge.
+    // Source text only: the negative inset (100% minus the target) is what grows it. e2e/join-popover.spec.ts
+    // (expectHitAreaReaches24px, at the default and a 12px root) is the test that checks the geometry.
     const hit = rule(css, ".join-badge::before");
     expect(hit).toMatch(/inset-block:\s*0/);
     expect(hit).toMatch(
-      /inset-inline:\s*calc\(\(var\(--join-hit-min\) - 100%\) \/ 2\)/,
+      /inset-inline:\s*calc\(\(100% - var\(--join-hit-min\)\) \/ 2\)/,
     );
     expect(
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
