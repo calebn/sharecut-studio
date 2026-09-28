@@ -99,6 +99,14 @@ def test_publish_requires_mix(minimal_project):
         publish_version(proj, label="x")
 
 
+def test_publish_reports_a_missing_mix_before_the_platform_refusal(minimal_project, monkeypatch):
+    """The portable "no mix" check runs before the platform-support refusal."""
+    monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
+    proj = load_project(minimal_project)
+    with pytest.raises(FileNotFoundError):
+        publish_version(proj, label="x")
+
+
 def test_resolve_source_mix_ships_hashless_master_without_premix(minimal_project, sample_wav):
     """An episode with only mastered.wav (no premix to compare) publishes it as-is."""
     proj = load_project(minimal_project)
