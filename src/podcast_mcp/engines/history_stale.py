@@ -42,8 +42,9 @@ def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -
     is marked stale only when ``audio_state_fingerprint`` moved. The render cause journal
     changes only for dialogue tracks whose render hash changed: one whose stem WAV exists
     and whose sidecar matches the restored state drops its cause journal, and any other
-    changed track gets a whole-track marker. A track the move removed loses its
-    cause-journal rows.
+    changed track gets a whole-track marker. A track the move removed, or took out of
+    the dialogue role (an undone role change), loses its cause-journal rows: only
+    dialogue tracks carry them.
 
     Runs inside the undo/redo transaction without ``render_lock`` (taking it there would
     invert the lock order) and reads stem hash sidecars. That is safe only because
