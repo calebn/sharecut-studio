@@ -13,7 +13,7 @@ export interface InspectorSeekFooterViewProps {
   onPreviewModeChange?: (mode: PreviewMode) => void;
   suggestDisabled?: boolean;
   suggestDisabledReason?: string | null;
-  /** Disables the play action (e.g. guests hear Mix only); the reason becomes its tooltip. */
+  /** Disables the play action (e.g. guests hear Full mix only); the reason becomes its tooltip. */
   playDisabled?: boolean;
   playDisabledReason?: string;
   /** Seek action; the live adapter moves the DAW playhead. */

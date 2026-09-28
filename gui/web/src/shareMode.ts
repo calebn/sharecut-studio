@@ -64,7 +64,7 @@ function shareGranted(
   return hasShareCapability(capabilities, cap);
 }
 
-/** Share guests hear Mix only — never FX/Raw. */
+/** Share guests hear Full mix only — never Edited stems / Original. */
 export function guestHearsMixOnly(guestMode: string | null): boolean {
   return guestMode != null;
 }

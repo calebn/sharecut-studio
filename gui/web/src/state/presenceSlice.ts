@@ -123,7 +123,7 @@ export const createPresenceSlice: StateCreator<
         };
     // Only agents may remotely drive transport. Viewer echoes/polls update
     // selection-ish fields without stomping local play/pause or auto-stop.
-    // Guests hear Mix only — never copy host audition / mute / solo maps.
+    // Guests hear Full mix only — never copy host audition / mute / solo maps.
     if (fromAgent) {
       const nextSel = selectionFromWire(
         state.selection,
