@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import re
 import subprocess
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -111,17 +112,28 @@ def related_tests(ref: str, files: Iterable[str]) -> list[str]:
     return list(hits)
 
 
-def applicable_rules(files: Iterable[str]) -> list[str]:
-    agents = Path("AGENTS.md")
-    if not agents.exists():
-        return []
-    rows = [row for row in agents.read_text(encoding="utf-8").splitlines() if row.startswith("| ")]
-    keys = {
-        part for path in files for part in Path(path).parts[:3] if len(part) > 3 and "." not in part
-    }
-    keys |= {Path(path).stem for path in files if len(Path(path).stem) > 4}
-    picked = [row for row in rows if any(key in row for key in keys)]
-    return [row[:300] for row in picked[:15]]
+def docs_sync_findings(ref: str, rng: str) -> list[str]:
+    """Docs-sync report for the PR, from the checker and contract at ``ref``.
+
+    review_packet.py itself runs from a git object via process substitution
+    (``.claude/workflows/issue-pipeline.js`` ~L534: ``python3 <(git show
+    origin/<branch>:scripts/review_packet.py)``), so it cannot import a sibling module;
+    the checker at ``ref`` is piped into ``python3 -`` the same way. A ref that predates
+    the checker (no scripts/docs_sync.py at that commit) reports unavailable rather than
+    failing the packet. The exit code is ignored: this section is advisory in the packet.
+    """
+    try:
+        checker = git("show", f"{ref}:scripts/docs_sync.py")
+    except subprocess.CalledProcessError:
+        return ["(docs-sync unavailable at this ref)"]
+    result = subprocess.run(
+        [sys.executable, "-", "check", "--range", rng],
+        input=checker,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return (result.stdout or result.stderr).splitlines()
 
 
 def section(title: str, lines: list[str], empty: str = "(none)") -> str:
@@ -164,7 +176,11 @@ def build(ref: str, rng: str) -> str:
             section("Importers of changed modules (second hop)", second_hop),
             section("Twin paths (CLI / MCP / GUI adapters)", twins),
             section("Related tests", related_tests(ref, files)),
-            section("Applicable repo rules (AGENTS.md rows)", applicable_rules(files)),
+            section(
+                "Docs-sync rules (contracts/docs-sync.json)",
+                docs_sync_findings(ref, rng),
+                empty="(no rule fired)",
+            ),
         ]
     )
     if len(packet) > MAX_CHARS:
