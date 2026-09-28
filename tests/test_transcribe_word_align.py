@@ -8,10 +8,30 @@ import pytest
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.ctc_forced_align import RetimeStats
-from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
+from podcast_mcp.engines.transcribe import (
+    TranscribeJob,
+    TranscriptionEngine,
+    cached_audio_keys,
+    forced_alignment_succeeded,
+)
 from podcast_mcp.engines.word_align import WordAlignResult
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligner_model
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected"),
+    [
+        ({"status": "aligned", "aligned_words": 3}, True),
+        ({"status": "cached", "aligned_words": 1}, True),
+        ({"status": "aligned", "aligned_words": 0}, False),
+        ({"status": "failed", "aligned_words": 0}, False),
+        ({"status": "skipped", "aligned_words": 0}, False),
+        ({"label": "Track host"}, False),
+    ],
+)
+def test_forced_alignment_succeeded(entry, expected) -> None:
+    assert forced_alignment_succeeded(entry) is expected
 
 
 class StubAligner:

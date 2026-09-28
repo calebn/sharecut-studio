@@ -5,7 +5,7 @@ import json
 import logging
 import math
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -50,6 +50,15 @@ log = logging.getLogger(__name__)
 TRANSCRIBE_CANCELLED = "Transcription cancelled"
 
 _T = TypeVar("_T")
+
+# ``forced_alignment_jobs`` statuses where the aligner's times replaced Whisper's
+# (set in ``_align_words``); ``keep_whisper`` records ``failed`` / ``skipped``.
+ALIGNMENT_SUCCESS_STATUSES = frozenset({"aligned", "cached"})
+
+
+def forced_alignment_succeeded(entry: Mapping[str, Any]) -> bool:
+    """True when a ``forced_alignment_jobs`` entry re-timed at least one word."""
+    return entry.get("status") in ALIGNMENT_SUCCESS_STATUSES and entry.get("aligned_words", 0) > 0
 
 
 def cache_id_part(raw: str) -> str:
