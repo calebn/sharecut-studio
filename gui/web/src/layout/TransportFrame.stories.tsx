@@ -90,7 +90,7 @@ function TransportTemplate({
                 className={`ui-control ${pillClassName("warning", "pill--action")}`}
                 title="Stale stems: reference, guest. Click to refresh mix."
               >
-                Mix out of date · Refresh
+                Mix out of date
               </button>
             ) : (
               <Pill tone="ok">Mix up to date</Pill>

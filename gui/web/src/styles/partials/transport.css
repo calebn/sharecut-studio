@@ -96,6 +96,12 @@
     flex: 0 1 auto;
     min-inline-size: 3rem;
   }
+
+  /* The episode total gives way before the controls do; the playhead stays
+     and the timecode's title still carries "current / total". */
+  .transport:not(.transport--collapsed) .timecode-total {
+    display: none;
+  }
 }
 
 .transport--collapsed .transport-zone {

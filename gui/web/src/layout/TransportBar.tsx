@@ -183,16 +183,17 @@ export function TransportBar({
     </SegmentedControl>
   );
 
-  const stalePillLabel = mayRefresh
-    ? "Mix out of date · Refresh"
-    : "Mix out of date";
   const staleTitle = mayRefresh
     ? `${breakdown?.summary ?? ""}. Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : (breakdown?.summary ?? "");
-  // Name starts with the visible pill text (WCAG 2.5.3 label in name).
+  // The wide-bar pill reads just "Mix out of date" so the transport fits at
+  // 1280px; the refresh verb lives in its title, name, Mod+B and the
+  // collapsed Menu item. Name starts with the visible text (WCAG 2.5.3).
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
-    : `${stalePillLabel}. ${breakdown?.summary ?? ""}`;
+    : mayRefresh
+      ? `Mix out of date. ${breakdown?.summary ?? ""}. Refresh mix.`
+      : `Mix out of date. ${breakdown?.summary ?? ""}`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
@@ -383,7 +384,7 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : stalePillLabel}
+            {renderPreviewBusy ? "Refreshing…" : "Mix out of date"}
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">Mix up to date</Pill> : null}
@@ -617,7 +618,9 @@ export function TransportBar({
                     onFocus={() => setStaleHighlight(true)}
                     onBlur={() => setStaleHighlight(false)}
                   >
-                    {renderPreviewBusy ? "Refreshing…" : stalePillLabel}
+                    {renderPreviewBusy
+                      ? "Refreshing…"
+                      : "Mix out of date · Refresh"}
                   </CommandMenuItem>
                 ) : (
                   <p className="transport-menu-note">
