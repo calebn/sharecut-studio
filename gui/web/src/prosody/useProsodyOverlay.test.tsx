@@ -133,4 +133,31 @@ describe("useProsodyOverlay", () => {
     });
     expect(result.current).toEqual(PAYLOAD);
   });
+
+  it("drops the payload when a refetch fails", async () => {
+    const { result } = renderHook(() => useProsodyOverlay(true));
+    await settle();
+    expect(result.current).toEqual(PAYLOAD);
+    loadProsodyOverlay.mockRejectedValueOnce(new TypeError("network"));
+    act(() => {
+      useDawStore.setState((s) => ({ project: { ...s.project! } }));
+    });
+    await settle();
+    expect(result.current).toBeNull();
+  });
+
+  it("keeps the payload when a pending fetch is aborted by a newer request", async () => {
+    const { result } = renderHook(() => useProsodyOverlay(true));
+    await settle();
+    expect(result.current).toEqual(PAYLOAD);
+    act(() => {
+      useDawStore.setState((s) => ({ project: { ...s.project! } }));
+    });
+    act(() => {
+      useDawStore.setState((s) => ({ project: { ...s.project! } }));
+    });
+    await settle();
+    expect(result.current).toEqual(PAYLOAD);
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
+  });
 });
