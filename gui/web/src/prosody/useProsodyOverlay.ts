@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { loadProsodyOverlay } from "../api/prosody";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -89,18 +89,20 @@ function request(
 
 const getSnapshot = () => entry;
 
+export type ProsodyOverlayViews = {
+  /** Last payload for the current project (transcript emphasis, timeline status summary). */
+  latest: ProsodyOverlay | null;
+  /** `latest` only while it was mapped against the current clip layout (timeline geometry); null after a clip edit until the refetch lands. */
+  aligned: ProsodyOverlay | null;
+};
+
 /**
  * The host's cached prosody overlay while `enabled` (#719). It refetches (debounced) when the project
  * object changes, a pipeline or agent job starts or ends, or the layer is turned back on.
- * Always null for share keys (host-only route).
- *
- * `alignedToLayout` returns null while the payload was computed for another clip layout (the
- * timeline). The transcript keys words by word_index and keeps the last payload.
+ * Always null for share keys (host-only route). One call gives both views of the same snapshot,
+ * so a consumer that needs both cannot gate two hook calls differently (#732 review).
  */
-export function useProsodyOverlay(
-  enabled: boolean,
-  { alignedToLayout = false }: { alignedToLayout?: boolean } = {},
-): ProsodyOverlay | null {
+export function useProsodyOverlayViews(enabled: boolean): ProsodyOverlayViews {
   const projectPath = useDawStore((s) => s.projectPath);
   const project = useDawStore((s) => s.project);
   // Pipeline-tab runs (pipelineJob) and host-MCP agent runs (activityJob) both can write the cache.
@@ -121,10 +123,16 @@ export function useProsodyOverlay(
     if (!enabled) resetProsodyOverlay();
   }, [enabled]);
   const snap = useSyncExternalStore(changes.subscribe, getSnapshot);
-  if (!active || snap.projectPath !== projectPath) return null;
-  // Timeline geometry: only a payload mapped against the current clip layout (a clip edit hides it until the refetch lands).
-  if (alignedToLayout && snap.payloadClips !== project?.clips) return null;
-  return snap.payload;
+  const latest =
+    active && snap.projectPath === projectPath ? snap.payload : null;
+  const aligned =
+    latest && snap.payloadClips === project?.clips ? latest : null;
+  return useMemo(() => ({ latest, aligned }), [latest, aligned]);
+}
+
+/** The latest payload only (the transcript keys words by word_index, so clip moves do not matter). */
+export function useProsodyOverlay(enabled: boolean): ProsodyOverlay | null {
+  return useProsodyOverlayViews(enabled).latest;
 }
 
 /** Forget the shared entry and cancel any pending fetch (the layer turning off; also a test seam). */
