@@ -824,6 +824,10 @@ describe("TranscriptWordInspector", () => {
     await act(async () => {
       reject(new ApiError("stale", null, 409));
     });
+    expect(
+      screen.getByText(/Apply again to retry against the current text/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("stale")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await vi.waitFor(() => {
       expect(correctTranscriptPhrase).toHaveBeenNthCalledWith(
