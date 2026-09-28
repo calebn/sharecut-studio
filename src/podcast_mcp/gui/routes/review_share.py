@@ -743,7 +743,9 @@ def _handle_guest_presence_frame(
             log.info("guest presence rejected token-rate token=%s", token[:8])
             return GuestFrameResult(seq, malformed, None)
     if msg.get("type") == ROSTER_REQUEST:
-        if not ws_roster_request_allowed(f"guest:{token}:{id(websocket)}"):
+        # Keyed by the assigned guest client id (stable across reconnects, like the host
+        # socket's ``host:{client_id}``), so a reconnect does not reset the budget.
+        if not ws_roster_request_allowed(f"guest:{guest_client_id}"):
             return GuestFrameResult(seq, malformed, None)
         reply = _guest_session_frame(session_svc.roster_event(), guest_client_id=guest_client_id)
         return GuestFrameResult(seq, malformed, None, reply=reply)
