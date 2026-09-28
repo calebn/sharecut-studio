@@ -8,9 +8,7 @@ import {
 import { loadSessionMeta, loadSessionState, postSessionState } from "../api";
 import { applyServerClock } from "../presence/clock";
 import {
-  applyPresenceFrame,
-  carriesFullRoster,
-  isPresenceOnlyFrame,
+  handlePresenceWsFrame,
   type PresenceCarryingFrame,
 } from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
@@ -202,13 +200,7 @@ export function useSessionSync(
       if (cancelled) {
         return;
       }
-      if (carriesFullRoster(msg)) {
-        rosterRequester.onRosterReceived();
-      }
-      if (applyPresenceFrame(msg)) {
-        rosterRequester.request();
-      }
-      if (isPresenceOnlyFrame(msg)) {
+      if (handlePresenceWsFrame(msg, rosterRequester)) {
         return;
       }
       if (
