@@ -81,7 +81,9 @@ describe("StatusBarView", () => {
     await user.click(screen.getByRole("button", { name: /^Pending:/ }));
     expect(onOpenTab).toHaveBeenCalledTimes(1);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
-    await user.click(screen.getByRole("button", { name: /^Unmapped:/ }));
+    await user.click(
+      screen.getByRole("button", { name: /^Edits in removed audio \(/ }),
+    );
     expect(onOpenTab).toHaveBeenCalledTimes(2);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
     await user.click(screen.getByRole("button", { name: /^Render:/ }));
@@ -101,7 +103,7 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/^Unmapped:/)).toBeNull();
+    expect(screen.queryByText(/^Edits in removed audio/)).toBeNull();
     expect(screen.queryByText(/^Social:/)).toBeNull();
     expect(screen.queryByText(/^Cut /)).toBeNull();
   });

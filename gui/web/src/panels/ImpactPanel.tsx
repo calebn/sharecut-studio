@@ -14,7 +14,7 @@ import {
 } from "../timeline/appliedEditTicks";
 import { Button, InlineError } from "../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
-import { selectUnmappedPending } from "../utils/edits";
+import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 
 export function ImpactPanel() {
   const { project, projectPath, setSelection } = useDaw((s) => ({
@@ -73,7 +73,7 @@ export function ImpactPanel() {
         <dd>{imp.pending_review_count}</dd>
         {unmappable.length > 0 && (
           <>
-            <dt>Unmapped pending</dt>
+            <dt>{UNMAPPED_PENDING_TITLE}</dt>
             <dd>
               {unmappable.length}{" "}
               <Button
