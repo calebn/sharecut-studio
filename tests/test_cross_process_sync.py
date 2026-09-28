@@ -127,6 +127,12 @@ def test_watcher_tick_publishes_foreign_session_and_document_heads(minimal_proje
         assert session_event["type"] == "Applied"
         assert session_event["command"]["type"] == "SetPlayhead"
 
+        # publish_cross_process_head also schedules a presence roster catch-up
+        # (_fanout_presence_after_commit): the first fan-out for this key in this process,
+        # so the roster tracker sends one full Presence alongside the compact Applied.
+        roster_event = q_session.get_nowait()
+        assert roster_event["type"] == "Presence"
+
         document_event = q_document.get_nowait()
         assert document_event["type"] == "Applied"
         assert document_event["command"]["type"] == "ExternalMutate"
@@ -186,7 +192,10 @@ def test_watcher_does_not_republish_in_process_writes(minimal_project):
                 document_count += 1
             except asyncio.QueueEmpty:
                 break
-        assert session_count == 1
+        # submit_control's Applied plus its presence roster catch-up (first fan-out for
+        # this key in this process; see the same note in the tick-publishes test above).
+        # The document plane has no presence fan-out, so it stays at one.
+        assert session_count == 2
         assert document_count == 1
     finally:
         hub.unsubscribe(session_key, q_session)

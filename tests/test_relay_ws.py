@@ -780,6 +780,7 @@ def test_relay_presence_frames_use_presence_bucket(monkeypatch):
 
     reset_relay_limiters_for_tests()
     assert is_presence_ws_text('{"type":"Presence","x":1}')
+    assert is_presence_ws_text('{"type":"RosterRequest"}')
     assert not is_presence_ws_text('{"type":"Command"}')
     with _live_relay(monkeypatch) as base:
         tunnel = _tunnel_hello_register(

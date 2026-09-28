@@ -33,12 +33,17 @@ from podcast_mcp.services.session_sync.log import (
     cached_sync_store_if_exists,
     cross_process_command,
 )
+from podcast_mcp.services.session_sync.presence_delta import (
+    get_roster_tracker,
+    presence_roster_event,
+)
 from podcast_mcp.services.session_sync.presence_fanout import schedule as schedule_presence
 from podcast_mcp.services.session_sync.snapshot import (
     apply_command,
     attribution_fields,
     empty_snapshot,
     flatten_for_api,
+    wire_snapshot,
 )
 from podcast_mcp.util.keyed_lock import KeyedLocks
 
@@ -300,13 +305,31 @@ def session_meta(project_path: str | Path) -> dict[str, Any]:
     )
 
 
-def _applied_event(row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
+def _applied_event(
+    row: dict[str, Any], api_snap: dict[str, Any], *, roster_version: int
+) -> dict[str, Any]:
+    """The full session ``Applied`` event: ``submit()``'s return value and the HTTP/MCP
+    session responses (``author_client_id`` / ``roster_version`` added, full snapshot)."""
     return {
         "type": "Applied",
         "command": row,
         "snapshot": api_snap,
         "server_seq": row["server_seq"],
+        "author_client_id": row["client_id"],
+        "roster_version": roster_version,
     }
+
+
+def wire_session_event(
+    row: dict[str, Any], api_snap: dict[str, Any], *, roster_version: int
+) -> dict[str, Any]:
+    """Compact twin of ``_applied_event`` for the hub publish and the WS ``Echo``: the
+    snapshot drops ``clients`` / ``fields`` (``snapshot.wire_snapshot``), so a durable
+    session ``Applied`` stays a flat, fixed-size transport view. Roster fan-out is the
+    separate per-client-delta path (``presence_delta.py``, ``_fanout_presence_after_commit``)."""
+    event = _applied_event(row, api_snap, roster_version=roster_version)
+    event["snapshot"] = wire_snapshot(api_snap)
+    return event
 
 
 class SessionSyncService:
@@ -331,6 +354,9 @@ class SessionSyncService:
         ws = ProjectWorkspace.open(project_path)
         return cls(ws.project)
 
+    def _roster_version(self) -> int:
+        return get_roster_tracker().version(self._project_key)
+
     def snapshot(self) -> dict[str, Any]:
         store = self._store_optional()
         if store is None:
@@ -340,6 +366,7 @@ class SessionSyncService:
             clients = store.list_clients()
             out = flatten_for_api(snap, clients)
         out["server_time_ns"] = time.time_ns()
+        out["roster_version"] = self._roster_version()
         return out
 
     def state_or_none(self) -> dict[str, Any] | None:
@@ -386,10 +413,12 @@ class SessionSyncService:
             if row is None:
                 return None
             api_snap = {**flatten_for_api(snap, store.list_clients()), **attribution_fields(row)}
-            event = {**_applied_event(row, api_snap), "server_seq": head}
+            event = wire_session_event(row, api_snap, roster_version=self._roster_version())
+            event["server_seq"] = head
             hub.mark_published(self._project_key, seqs)
             hub.publish(self._project_key, event)
-            return event
+        self._fanout_presence_after_commit()
+        return event
 
     def submit(self, command: SyncCommand) -> dict[str, Any]:
         """Append command, materialize snapshot, fanout. Idempotent on client_seq."""
@@ -433,14 +462,8 @@ class SessionSyncService:
         if existing is not None:
             store.require_same_command_id(existing, command.command_id)
             api_snap = self.snapshot()
-            return {
-                "ok": True,
-                "type": "Applied",
-                "command": existing,
-                "snapshot": api_snap,
-                "server_seq": existing["server_seq"],
-                "idempotent": True,
-            }
+            event = _applied_event(existing, api_snap, roster_version=api_snap["roster_version"])
+            return {"ok": True, "idempotent": True, **event}
 
         with _publish_lock(self._project_key):
             row, snap, idempotent = store.append_and_apply(
@@ -456,14 +479,8 @@ class SessionSyncService:
             )
             if idempotent:
                 api_snap = flatten_for_api(snap, store.list_clients())
-                return {
-                    "ok": True,
-                    "type": "Applied",
-                    "command": row,
-                    "snapshot": api_snap,
-                    "server_seq": row["server_seq"],
-                    "idempotent": True,
-                }
+                event = _applied_event(row, api_snap, roster_version=self._roster_version())
+                return {"ok": True, "idempotent": True, **event}
             store.touch_client(
                 command.client_id,
                 role=command.role,
@@ -472,18 +489,44 @@ class SessionSyncService:
             )
             clients = store.list_clients()
             api_snap = flatten_for_api(snap, clients)
-            event = _applied_event(row, api_snap)
-            get_hub().publish(self._project_key, event)
-            return {"ok": True, **event}
+            roster_version = self._roster_version()
+            full_event = _applied_event(row, api_snap, roster_version=roster_version)
+            wire_event = wire_session_event(row, api_snap, roster_version=roster_version)
+            get_hub().publish(self._project_key, wire_event)
+        self._fanout_presence_after_commit()
+        return {"ok": True, **full_event}
 
-    def _presence_event(self) -> dict[str, Any]:
-        snap = self.snapshot()
-        return {
-            "type": "Presence",
-            "clients": snap.get("clients") or [],
-            "server_seq": snap.get("server_seq", 0),
-            "server_time_ns": snap.get("server_time_ns") or time.time_ns(),
-        }
+    def _presence_events(self) -> list[dict[str, Any]]:
+        """The roster fan-out events for the current live client rows (``presence_delta``'s
+        diff against what this project key last fanned out). Reads the store directly,
+        never ``snapshot()`` (no need to materialize or flatten the durable snapshot for a
+        presence-only run)."""
+        store = self._store_optional()
+        if store is None:
+            return []
+        return get_roster_tracker().events(self._project_key, store.list_clients())
+
+    def _fanout_presence_after_commit(self) -> None:
+        """Schedule the roster fan-out (coalesced to <=10 Hz per project key) after a
+        commit that may have changed a client's roster row: a presence heartbeat/follow,
+        a client join/leave, or a durable command's own-client touch.
+
+        Best effort: the commit this follows already succeeded, so a fan-out failure (a
+        locked/corrupt sync.db on the presence-only read) is logged and swallowed rather
+        than failing the caller.
+        """
+        try:
+            schedule_presence(self._project_key, self._presence_events)
+        except Exception:
+            log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
+
+    def roster_event(self) -> dict[str, Any]:
+        """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: today's live
+        roster at the current version. No version bump: nothing changed, a client just
+        missed a delta (a stale/unknown version) and needs to resync."""
+        store = self._store_optional()
+        live_rows = store.list_clients() if store is not None else []
+        return presence_roster_event(live_rows, roster_version=self._roster_version())
 
     def _touch_and_fanout(
         self,
@@ -504,7 +547,7 @@ class SessionSyncService:
             "server_seq": snap.get("server_seq", 0),
             "server_time_ns": snap.get("server_time_ns") or time.time_ns(),
         }
-        schedule_presence(self._project_key, self._presence_event, immediate=event)
+        self._fanout_presence_after_commit()
         return {"ok": True, **event, "snapshot": snap, "command": command.to_row()}
 
     def claim_client(self, client_id: str) -> int:
@@ -515,7 +558,7 @@ class SessionSyncService:
         if store is None:
             return
         store.remove_client(client_id, generation=generation)
-        schedule_presence(self._project_key, self._presence_event)
+        self._fanout_presence_after_commit()
 
     # --- Convenience builders (agent / CLI / play) ---
 

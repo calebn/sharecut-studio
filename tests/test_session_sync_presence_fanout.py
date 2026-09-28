@@ -37,9 +37,9 @@ def test_presence_fanout_coalesces_trailing_publish() -> None:
     try:
         n = {"i": 0}
 
-        def build() -> dict:
+        def build() -> list[dict]:
             n["i"] += 1
-            return {"type": "Presence", "n": n["i"]}
+            return [{"type": "Presence", "n": n["i"]}]
 
         for _ in range(25):
             presence_fanout.schedule(key, build, min_interval_s=0.1)
@@ -74,7 +74,7 @@ def test_presence_fanout_publish_failure_clears_cooldown() -> None:
     presence_fanout.set_timer_factory(_FakeTimer)
     key = "fail-key"
 
-    def boom() -> dict:
+    def boom() -> list[dict]:
         raise RuntimeError("publish build failed")
 
     try:
@@ -82,9 +82,9 @@ def test_presence_fanout_publish_failure_clears_cooldown() -> None:
             presence_fanout.schedule(key, boom, min_interval_s=0.1)
         n = {"i": 0}
 
-        def build() -> dict:
+        def build() -> list[dict]:
             n["i"] += 1
-            return {"type": "Presence", "n": n["i"]}
+            return [{"type": "Presence", "n": n["i"]}]
 
         loop = __import__("asyncio").new_event_loop()
         q = get_hub().subscribe(key, loop)
@@ -114,7 +114,7 @@ def test_presence_fanout_clears_on_last_unsubscribe() -> None:
     loop = __import__("asyncio").new_event_loop()
     q = get_hub().subscribe(key, loop)
     try:
-        presence_fanout.schedule(key, lambda: {"type": "Presence"}, min_interval_s=0.1)
+        presence_fanout.schedule(key, lambda: [{"type": "Presence"}], min_interval_s=0.1)
         assert key in presence_fanout._in_cooldown
     finally:
         get_hub().unsubscribe(key, q)
@@ -132,10 +132,10 @@ def test_presence_fanout_trailing_publish_failure_clears_cooldown() -> None:
     loop = __import__("asyncio").new_event_loop()
     q = get_hub().subscribe(key, loop)
 
-    def ok() -> dict:
-        return {"type": "Presence", "n": 1}
+    def ok() -> list[dict]:
+        return [{"type": "Presence", "n": 1}]
 
-    def boom() -> dict:
+    def boom() -> list[dict]:
         raise RuntimeError("trailing publish failed")
 
     try:

@@ -1,4 +1,4 @@
-"""Coalesce Presence hub publishes to at most 10 Hz per project key."""
+"""Coalesce presence hub publishes to at most 10 Hz per project key."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 
 _lock = threading.Lock()
 _in_cooldown: set[str] = set()
-_pending: dict[str, Callable[[], dict[str, Any]]] = {}
+_pending: dict[str, Callable[[], list[dict[str, Any]]]] = {}
 _timers: dict[str, threading.Timer] = {}
 _timer_factory: Callable[[float, Callable[[], None]], threading.Timer] = threading.Timer
 
@@ -44,26 +44,34 @@ def set_timer_factory(
 
 def schedule(
     project_key: str,
-    build_event: Callable[[], dict[str, Any]],
+    build_events: Callable[[], list[dict[str, Any]]],
     *,
     min_interval_s: float = 0.1,
-    immediate: dict[str, Any] | None = None,
 ) -> None:
-    """Publish immediately or coalesce into the trailing tick for ``project_key``."""
+    """Publish now, or coalesce into the trailing tick, for ``project_key``.
+
+    ``build_events`` runs on both the leading and the trailing edge (its own diffing
+    decides what changed since the last run) and its events are published in order.
+    """
     with _lock:
         if project_key in _in_cooldown:
-            _pending[project_key] = build_event
+            _pending[project_key] = build_events
             return
         _in_cooldown.add(project_key)
     try:
-        payload = immediate if immediate is not None else build_event()
-        get_hub().publish(project_key, payload)
+        _publish_all(project_key, build_events())
     except Exception:
         with _lock:
             _in_cooldown.discard(project_key)
             _pending.pop(project_key, None)
         raise
     _arm(project_key, min_interval_s)
+
+
+def _publish_all(project_key: str, events: list[dict[str, Any]]) -> None:
+    hub = get_hub()
+    for event in events:
+        hub.publish(project_key, event)
 
 
 def _arm(project_key: str, min_interval_s: float) -> None:
@@ -75,7 +83,7 @@ def _arm(project_key: str, min_interval_s: float) -> None:
                 _timers.pop(project_key, None)
                 return
         try:
-            get_hub().publish(project_key, pending())
+            _publish_all(project_key, pending())
         except Exception:
             with _lock:
                 _in_cooldown.discard(project_key)

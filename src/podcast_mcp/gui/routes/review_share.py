@@ -8,6 +8,8 @@ import json
 import logging
 import re
 import secrets
+import time
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -62,6 +64,10 @@ from podcast_mcp.services.session_sync.commands import (
     sanitize_display_name,
 )
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.services.session_sync.presence_delta import (
+    ROSTER_REQUEST,
+    is_own_presence_echo,
+)
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.share import (
     lookup_share,
@@ -687,6 +693,36 @@ def _share_progress_still_valid(token: str, *, restricted: bool, websocket: WebS
     return (not restricted) or _restricted_principal_ok(websocket, token)
 
 
+def _guest_session_frame(event: dict[str, Any], *, guest_client_id: str) -> dict[str, Any]:
+    """Sanitize and tag one session-plane event (a hub event, or a direct ``RosterRequest``
+    reply) for the guest wire: adds ``plane`` / the guest's assigned ``client_id``."""
+    return sanitize_guest_session_event({**event, "plane": "session", "client_id": guest_client_id})
+
+
+@dataclass
+class _RosterThrottle:
+    """Per-connection ``RosterRequest`` reply throttle: at most one reply per second."""
+
+    last_at: float = 0.0
+
+    def allow(self, now: float, *, min_interval_s: float = 1.0) -> bool:
+        if now - self.last_at < min_interval_s:
+            return False
+        self.last_at = now
+        return True
+
+
+@dataclass
+class GuestFrameResult:
+    """One inbound guest frame's outcome: the next ``seq``, the malformed-frame count, an
+    optional close reason, and an optional reply to send only to this connection."""
+
+    seq: int
+    malformed: int
+    close_reason: str | None
+    reply: dict[str, Any] | None = None
+
+
 def _handle_guest_presence_frame(
     text: str,
     *,
@@ -697,28 +733,34 @@ def _handle_guest_presence_frame(
     token: str,
     websocket: WebSocket,
     malformed: int,
-) -> tuple[int, int, str | None]:
-    """Parse one guest inbound frame. Returns (seq, malformed, close_reason)."""
+    roster_throttle: _RosterThrottle,
+) -> GuestFrameResult:
+    """Parse one guest inbound frame (``Presence`` or ``RosterRequest``)."""
     if len(text) > GUEST_FRAME_MAX_BYTES:
         log.info("guest presence rejected size token=%s", token[:8])
-        return seq, malformed + 1, None
+        return GuestFrameResult(seq, malformed + 1, None)
     try:
         msg = json.loads(text)
     except ValueError:
         log.info("guest presence rejected malformed token=%s", token[:8])
-        return seq, malformed + 1, None
-    if not isinstance(msg, dict) or msg.get("type") != "Presence":
+        return GuestFrameResult(seq, malformed + 1, None)
+    if not isinstance(msg, dict) or msg.get("type") not in ("Presence", ROSTER_REQUEST):
         log.info("guest presence rejected type token=%s", token[:8])
-        return seq, malformed + 1, None
+        return GuestFrameResult(seq, malformed + 1, None)
     if host_rate_limit_enabled():
         lim = get_host_limiters()
         conn_key = f"{token}:{id(websocket)}"
         if not lim.guest_ws_presence.allow(conn_key).allowed:
             log.info("guest presence rejected rate token=%s", token[:8])
-            return seq, malformed, None
+            return GuestFrameResult(seq, malformed, None)
         if not lim.guest_ws_presence_token.allow(token).allowed:
             log.info("guest presence rejected token-rate token=%s", token[:8])
-            return seq, malformed, None
+            return GuestFrameResult(seq, malformed, None)
+    if msg.get("type") == ROSTER_REQUEST:
+        if not roster_throttle.allow(time.monotonic()):
+            return GuestFrameResult(seq, malformed, None)
+        reply = _guest_session_frame(session_svc.roster_event(), guest_client_id=guest_client_id)
+        return GuestFrameResult(seq, malformed, None, reply=reply)
     try:
         _, seq = apply_ws_client_message(
             session_svc,
@@ -730,10 +772,10 @@ def _handle_guest_presence_frame(
         )
     except (ValueError, TypeError, KeyError):
         log.info("guest presence rejected validation token=%s", token[:8])
-        return seq, malformed + 1, None
+        return GuestFrameResult(seq, malformed + 1, None)
     if malformed > GUEST_MALFORMED_LIMIT:
-        return seq, malformed, "too many malformed frames"
-    return seq, malformed, None
+        return GuestFrameResult(seq, malformed, "too many malformed frames")
+    return GuestFrameResult(seq, malformed, None)
 
 
 async def _pump_guest_progress(
@@ -906,10 +948,10 @@ async def daw_ws(
                 try:
                     while True:
                         event = await q_session.get()
+                        if is_own_presence_echo(event, guest_client_id):
+                            continue
                         await guard.send_json(
-                            sanitize_guest_session_event(
-                                {**event, "plane": "session", "client_id": guest_client_id}
-                            )
+                            _guest_session_frame(event, guest_client_id=guest_client_id)
                         )
                 except asyncio.CancelledError:
                     raise
@@ -936,6 +978,7 @@ async def daw_ws(
             conn.spawn(_pump_session())
             conn.spawn(_pump_document())
             conn.spawn(_pump_guest_progress(token, guard, q_progress))
+            roster_throttle = _RosterThrottle()
             while True:
                 try:
                     text = await websocket.receive_text()
@@ -944,8 +987,7 @@ async def daw_ws(
                 if not guard.share_ok_on_frame():
                     await guard.close(4403, "share revoked or expired")
                     break
-                close_reason: str | None
-                seq, guard.malformed, close_reason = _handle_guest_presence_frame(
+                result = _handle_guest_presence_frame(
                     text,
                     session_svc=session_svc,
                     guest_client_id=guest_client_id,
@@ -954,12 +996,16 @@ async def daw_ws(
                     token=token,
                     websocket=websocket,
                     malformed=guard.malformed,
+                    roster_throttle=roster_throttle,
                 )
+                seq, guard.malformed = result.seq, result.malformed
+                if result.reply is not None:
+                    await guard.send_json(result.reply)
                 if guard.malformed > GUEST_MALFORMED_LIMIT:
                     await guard.close(4400, "too many malformed frames")
                     break
-                if close_reason:
-                    await guard.close(4400, close_reason)
+                if result.close_reason:
+                    await guard.close(4400, result.close_reason)
                     break
     finally:
         try:
