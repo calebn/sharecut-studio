@@ -194,9 +194,10 @@ class CrossProcessBridge:
         worker thread, after subscribing to the hub and before reading the hello snapshot,
         so a write between the two is either in the snapshot or published. Never raises: a
         failure logs and returns a no-op lease (tabs keep the 30 s sanity poll)."""
-        key = str(ws.project.workspace_path())
+        key: str | None = None
         watcher: CrossProcessWatcher | None = None
         try:
+            key = str(ws.project.workspace_path())
             with self._lock:
                 entry = self._entries.get(key)
                 if entry is None:
@@ -214,9 +215,9 @@ class CrossProcessBridge:
                 ws.path,
                 exc_info=True,
             )
-            if watcher is not None:
+            if key is not None and watcher is not None:
                 self.release(key, watcher)
-            return CrossProcessLease(None, key, None)
+            return CrossProcessLease(None, key or "", None)
         return CrossProcessLease(self, key, watcher)
 
     def release(self, key: str, watcher: CrossProcessWatcher) -> None:

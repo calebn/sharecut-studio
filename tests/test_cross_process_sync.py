@@ -669,6 +669,26 @@ def test_cross_process_lease_releases_a_lease_acquired_after_cancellation(
     assert released.is_set()
 
 
+def test_bridge_acquire_returns_a_noop_lease_when_the_workspace_path_fails(
+    minimal_project, monkeypatch, caplog
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    bridge = CrossProcessBridge(interval=0.01)
+    key = str(ws.project.workspace_path())
+
+    def _boom(self):
+        raise OSError("workspace gone")
+
+    monkeypatch.setattr(type(ws.project), "workspace_path", _boom)
+    with caplog.at_level(logging.WARNING):
+        lease = bridge.acquire(ws)
+    monkeypatch.undo()
+
+    assert not bridge.watching(key)
+    assert any("Could not watch" in r.message for r in caplog.records)
+    lease.release()  # does not raise
+
+
 def test_plane_retries_a_failing_publish_then_gives_up():
     values: list[int | None] = [1]
     attempts: list[int | None] = []
