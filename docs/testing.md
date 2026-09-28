@@ -542,21 +542,36 @@ pointer, viewport-derived x/y bounds), and the recording guest's
 microphone-consent-to-level path.
 
 `e2e-compat/core-flow.spec.ts` walks the core flow in one test on a disposable
-`aligned_dialogue` copy, with one `test.step` per stage, and runs on the
-Chromium projects only until #704 turns it on for WebKit (`testIgnore` on the
-`webkit` project). Chromium's fake capture device
+`aligned_dialogue` copy, with one `test.step` per stage, and runs on both the
+`chromium` and `webkit` projects (#704). Chromium's fake capture device
 (`--use-fake-device-for-media-stream`) feeds the real `getUserMedia`, and the
 guest keeper goes through the AudioWorklet and OPFS writer, uploads, and lands
-with a non-silent peak (`landedTrackPeak`). The episode transcript hydrates;
-"transcribe" is the browser rendering only, because live ASR is server-side
-(`make e2e-slow`). The Tighten panel opens on its empty state. A transcript
-word is corrected and undone with Mod+Z. A viewer review share plays the
-per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on Play). A
-host Bounce dialog passes full-page axe (`expectPageAxeClean`) and writes one
-non-silent WAV under `export/bounces/`. The stages run
-serially in one test because export bounces the landed track, so with
-`retries: 0` a failing stage skips the later ones until it is fixed; the
-report names the failing `test.step`.
+with a non-silent peak (`landedTrackPeak`; about 0.636 on WebKit against a
+higher Chromium peak — see the PR that turned WebKit on). WebKit needs its own
+harness handling for the host and guest pages, both recorders:
+`newContext({ permissions: ["microphone"] })` (`RECORDER_CONTEXT`) so real
+`getUserMedia` resolves to WebKit's built-in "Mock audio device 1" instead of
+staying blocked, and — because WebKit's ephemeral `browser.newContext()`
+rejects `navigator.storage.getDirectory()` with `UnknownError` —
+`browserType.launchPersistentContext("")` instead of `browser.newContext()`
+for every page (`keeperContextSource`, `gui/web/e2e/keeperContexts.ts`), which
+also has WebKit's `createSyncAccessHandle` working inside a worker. Both are
+harness-only; the app needs no change for either. A WebKit run takes about
+16–18 s end to end, against about 12.5 s on Chromium. The episode transcript
+hydrates; "transcribe" is the browser rendering only, because live ASR is
+server-side (`make e2e-slow`). The Tighten panel opens on its empty state. A
+transcript word is corrected and undone with Mod+Z. A viewer review share
+plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
+Play). A host Bounce dialog passes full-page axe (`expectPageAxeClean`) and
+writes one non-silent WAV under `export/bounces/` — its own terminal-result
+copy is held as `jobResultAnnouncement` (`announceJobResult`) until
+`StatusBar` sees that job's chip go terminal, so it wins the live region over
+the generic Activity headline instead of racing it (real bug, not WebKit-only:
+`BounceDialog.tsx`, `StatusBar.tsx`, and `export.deliverables` in
+`commands/host.ts` share the same fix). The stages run serially in one test
+because export bounces the landed track, so with `retries: 0` a failing stage
+skips the later ones until it is fixed; the report names the failing
+`test.step`.
 
 `e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy
 to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
@@ -575,10 +590,11 @@ meter until it reads a non-zero value. Chromium keeps its native Permissions
 API; WebKit hides `navigator.permissions` so the matrix exercises Safari's
 missing-`permissions.query` branch (`src/record/micPermission.ts`). It does not
 verify native permission prompts or hardware capture; keeper audio and upload
-are covered on Chromium by the core-flow spec above.
+are covered on both engines by the core-flow spec above.
 Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
-`landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
+`landParticipant`), `gui/web/e2e/keeperContexts.ts` (`RECORDER_CONTEXT`,
+`keeperContextSource`) and `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
 `gui/web/e2e/wavPeak.ts` (landed and bounced WAV peaks, via `landedTrackPeak`
 (and `landedTrackPeakOrPending` for polling) in `recordRoom.ts` and
 `bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
