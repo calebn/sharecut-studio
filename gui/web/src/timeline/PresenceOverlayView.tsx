@@ -187,6 +187,10 @@ type PresenceOverlayRowProps = {
  * client's row: every other client keeps its prior object identity
  * (`SessionRoster`'s per-entry stability), and the shared per-render values
  * below (zoom, lanes, project) change together for every row anyway.
+ *
+ * `tracks` / `clipsByTrack` / `project` must be store-stable references
+ * (`TimelineView` passes `project.tracks` / `project.clips.tracks`); a
+ * per-render derived array here would defeat the memo for every row.
  */
 const PresenceOverlayRow = memo(function PresenceOverlayRow({
   client: c,
