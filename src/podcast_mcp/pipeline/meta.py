@@ -404,8 +404,9 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         path="transcribe.forced_alignment.min_word_score",
         label="Aligner evidence floor",
         description=(
-            "With precise word boundaries on, words the aligner places with a mean character "
-            "probability below this are flagged suspect_hallucination (never deleted). 0 = off."
+            "Words the forced aligner (precise word boundaries) placed with a mean character "
+            "probability below this are flagged suspect_hallucination (never deleted). Stored "
+            "scores keep flagging after precise word boundaries is turned off. 0 = off."
         ),
         type="number",
         default=0.01,
