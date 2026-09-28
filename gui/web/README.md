@@ -65,6 +65,10 @@ join, a trim preview with its ghost, a fade readout, a read-only clip and a
 360px clip with its track name. The live `ClipBlock` (memo over
 `ClipBlockLive`) owns the gestures and commits; the catalog omits the
 store-bound waveform.
+`Templates/JoinBadge` previews the production `JoinBadgeView` in the shared
+lane shell: cut, fade, crossfade and a blocked crossfade, one story each plus
+all four side by side, so the glyphs can be compared at lane scale. The live
+`TrackLane` decides which joins draw one.
 `Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
 `Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
 as props-only views (`EnvelopeOverlayView`, `PresenceOverlayView`,
