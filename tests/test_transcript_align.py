@@ -72,6 +72,15 @@ def test_find_phrase_interval_edge_cases():
     assert find_phrase_interval(single, "world") == (2.0, 2.4)
 
 
+def test_find_phrase_interval_normalizes_case_and_whitespace() -> None:
+    words = [
+        WordToken("Today", 1.4, 1.8, 0.9),
+        WordToken("Going", 1.8, 2.1, 0.9),
+    ]
+    hit = find_phrase_interval(words, "  TODAY   going  ")
+    assert hit == (1.4, 2.1)
+
+
 def test_first_phrase_before_filters_by_time():
     words = [
         WordToken("early", 1.0, 1.2, 0.9),
