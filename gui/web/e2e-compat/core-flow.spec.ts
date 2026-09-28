@@ -32,6 +32,13 @@ import { wavPeak } from "../e2e/wavPeak";
  */
 const AUDIBLE_PEAK = 0.01;
 
+/**
+ * One serial walk on purpose: the export stage bounces a mix that includes the
+ * track the record stage landed, and #704 mirrors this walk on WebKit. The
+ * cost: with `retries: 0`, a failing stage stops the later ones, so a
+ * record-stage failure hides share and Bounce results until it is fixed. The
+ * report names the failing `test.step`.
+ */
 test.describe("core flow", () => {
   test("records, transcribes, tightens, edits, shares and exports", async ({
     browser,
