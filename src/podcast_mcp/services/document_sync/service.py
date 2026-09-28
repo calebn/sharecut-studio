@@ -5,14 +5,16 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import sqlite3
 import threading
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
-from podcast_mcp.services.document_sync.commands import DocumentCommand
+from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.projection_types import (
@@ -37,6 +39,12 @@ from podcast_mcp.util.project_state import FileRevision, project_file_revision, 
 
 log = logging.getLogger(__name__)
 
+EXTERNAL_MUTATE = "ExternalMutate"
+"""Journal ``type`` for an out-of-band mutate that ``publish_document_changed`` appends (#661)."""
+
+EXTERNAL_MUTATE_CLIENT_ID = "server:external"
+"""``client_id`` of an ``ExternalMutate`` row; never equals a tab's ``documentClientId()``."""
+
 
 def document_db_path_for_workspace(workspace: Path) -> Path:
     return session_dir_for_workspace(workspace) / "document.db"
@@ -53,10 +61,11 @@ def document_hub_key(project: EpisodeProject) -> str:
 def document_submit_lock(project: EpisodeProject) -> threading.RLock:
     """Return the in-process read lock for document snapshots.
 
-    ``document_snapshot``, ``dump_projection_locked`` and ``publish_document_changed``
-    acquire it so hello WS / comments GET cannot tear ``server_seq`` vs history
-    against a concurrent ``submit``. Writers use ``ProjectWorkspace.transaction()``,
-    which also excludes other processes. The lock is reentrant.
+    ``document_snapshot`` and ``dump_projection_locked`` acquire it so hello WS /
+    comments GET cannot tear ``server_seq`` vs history against a concurrent
+    ``submit``. Writers (``submit`` and ``publish_document_changed``) hold it
+    through ``ProjectWorkspace.transaction()``, which also excludes other
+    processes. The lock is reentrant.
     """
     return project_state_lock(project)
 
@@ -400,20 +409,43 @@ class DocumentSyncService:
                 event = self._publish_applied(row, api_snap)
         return {"ok": True, **event}
 
-    def publish_document_changed(self, *, projection: str = "shell") -> dict[str, Any]:
-        """Fanout a document snapshot after an out-of-band project mutate."""
-        with document_submit_lock(self.project):
-            api_snap = self.document_snapshot(projection=projection)
-            event = {
-                "type": "Applied",
-                "plane": "document",
-                "command": {"type": "ExternalMutate"},
-                "snapshot": api_snap,
-                "server_seq": api_snap.get("server_seq", 0),
-            }
-            # publish only schedules (test_hub_publish_only_schedules_delivery).
-            get_hub().publish(self._project_key, event)
-        return event
+    def publish_document_changed(
+        self, *, projection: str = "shell", role: ClientRole = "agent"
+    ) -> dict[str, Any]:
+        """Journal an out-of-band project mutate as an ``ExternalMutate`` row, then fan it
+        out (#661).
+
+        Advances ``server_seq`` like any other journal row, so an in-process tab's socket
+        event carries the new seq and its next meta poll agrees
+        (``pollSnapshotAlreadyApplied``, #657 rule A). A mutation from another process
+        reaches this process's hub with nothing to publish to, but the row still commits
+        to the shared ``document.db``: the GUI process then sees ``meta.server_seq`` move
+        past its applied seq on its next ``/api/project/meta`` poll (#662).
+
+        Lock order matches ``submit``: the project lock (via ``ws.transaction()``), then a
+        crash-saved command is journaled first (``journal_saved_command``, #575) so it is
+        not orphaned by a seq that moves past its ``base_server_seq``, then one
+        ``document.db`` write transaction holds the row append, the snapshot and the hub
+        publish.
+        """
+        store = self.store
+        with self.ws.transaction():
+            self.project = self.ws.project
+            journal_saved_command(store, self.project)
+            with store.write_transaction():
+                row, _snap, _idempotent = store.append_and_apply(
+                    command_id=uuid4().hex,
+                    client_id=EXTERNAL_MUTATE_CLIENT_ID,
+                    client_seq=None,
+                    role=role,
+                    type=EXTERNAL_MUTATE,
+                    payload={"projection": projection},
+                    causation_id=None,
+                    apply_fn=_journal_snapshot,
+                    empty_snap_fn=_empty_journal_snapshot,
+                )
+                api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
+                return self._publish_applied(row, api_snap)
 
     def _apply(
         self,
@@ -512,12 +544,21 @@ class DocumentSyncService:
         return result
 
 
-def notify_document_changed(project_path: str | Path) -> None:
-    """Best-effort document fanout after MCP/CLI (or REST) project mutations."""
+def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRole) -> None:
+    """Best effort: the mutation is already saved, so a lock timeout
+    (``filelock.Timeout`` is an ``OSError``) or a busy/corrupt ``document.db`` only logs
+    a warning instead of failing the caller."""
     try:
-        DocumentSyncService.open(project_path).publish_document_changed()
-    except OSError:
-        return
+        DocumentSyncService.open(project_path).publish_document_changed(
+            projection=projection, role=role
+        )
+    except (OSError, sqlite3.Error):
+        log.warning("Could not journal ExternalMutate for %s", project_path, exc_info=True)
+
+
+def notify_document_changed(project_path: str | Path, *, role: ClientRole = "agent") -> None:
+    """Best-effort document fanout after MCP/CLI (or REST) project mutations."""
+    _notify_changed(project_path, projection="shell", role=role)
 
 
 def _document_server_seq_at(db_path: Path) -> int | None:
@@ -561,15 +602,18 @@ def document_poll_meta(project_path: Path) -> dict[str, Any]:
     return meta
 
 
-def notify_comments_changed(project_path: str | Path) -> None:
+def notify_comments_changed(project_path: str | Path, *, role: ClientRole = "viewer") -> None:
     """Best-effort document fanout after REST CommentService mutations."""
-    try:
-        DocumentSyncService.open(project_path).publish_document_changed(projection="comments")
-    except OSError:
-        return
+    _notify_changed(project_path, projection="comments", role=role)
 
 
 def after_agent_mutation(project_path: str | Path | ProjectWorkspace) -> None:
-    """Notify open Sharecut Studio tabs after an agent/CLI mutation (not document submit)."""
+    """Notify open Sharecut Studio tabs after an agent/CLI mutation (not document submit).
+
+    Journals a seq-advancing ``ExternalMutate`` row (#661): in the GUI process it reaches
+    tabs over the socket at the new seq, and from another process (e.g. stdio MCP) only
+    the row reaches the shared ``document.db``, so the GUI's own tabs see it on their next
+    ``/api/project/meta`` poll instead.
+    """
     path = project_path.path if isinstance(project_path, ProjectWorkspace) else project_path
     notify_document_changed(path)

@@ -356,3 +356,31 @@ def test_share_object_store_warning_and_daw_meta(
     assert share_hard_expired({"expires_at": past}) is True
     naive = (datetime.now(UTC) - timedelta(days=1)).replace(tzinfo=None).isoformat()
     assert share_hard_expired({"expires_at": naive}) is True
+
+
+def test_share_comment_journals_a_guest_external_mutate(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.document_sync.service import document_db_path
+    from podcast_mcp.services.session_sync.log import SyncStore
+
+    ws, _ver, share = _seed_share(
+        minimal_project,
+        sample_wav,
+        tmp_workspace,
+        monkeypatch,
+        caps=["play", "comment"],
+    )
+    tok = share["token"]
+    share_add_comment(tok, body="hello", author="guest", timeline_start=0.0)
+
+    store = SyncStore(document_db_path(ws.project))
+    try:
+        rows = store.commands_after(0)
+    finally:
+        store.close()
+    assert rows
+    last = rows[-1]
+    assert last["type"] == "ExternalMutate"
+    assert last["role"] == "guest"
+    assert last["payload"] == {"projection": "comments"}
