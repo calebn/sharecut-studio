@@ -380,3 +380,10 @@ def test_reconciliation_fingerprint_accepts_precomputed_render_hashes(tmp_path) 
     assert audio_state_fingerprint(project, dialogue_render_hashes(project)) == (
         audio_state_fingerprint(project)
     )
+
+
+def test_wav_duration_cache_is_bounded_by_the_named_size() -> None:
+    from podcast_mcp.engines import play_audit
+
+    info = play_audit._cached_wav_duration_sec.cache_info()
+    assert info.maxsize == play_audit.WAV_DURATION_CACHE_SIZE == 1024

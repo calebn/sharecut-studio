@@ -265,7 +265,8 @@ inode and mtime keeps the cached value until the GUI/MCP process restarts.
 
 The stem duration check (`probe_wav_duration_sec`, used by `stem_is_fresh`,
 `render_status_report` and the bleed-mute rewrite) is cached in-process per resolved
-path and `file_revision` the same way. Every document snapshot that carries
+path and `file_revision` the same way (up to 1024 file revisions per process, shared by
+every open project). Every document snapshot that carries
 `render_status` (MIX, CLIPS, FX, ENVELOPES, TRANSCRIPT_AUDIO, SHELL) re-reads hashes
 and stats but spawns no ffprobe for an unchanged stem. A publish swaps the file
 (`render_atomic`), so it always re-probes. Failures are not cached. Writers must replace
