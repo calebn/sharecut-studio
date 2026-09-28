@@ -185,6 +185,9 @@ export function TransportBar({
     </SegmentedControl>
   );
 
+  const stalePillLabel = mayRefresh
+    ? "Mix out of date · Refresh"
+    : "Mix out of date";
   const staleTitle = mayRefresh
     ? `${breakdown?.summary ?? ""}. Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : (breakdown?.summary ?? "");
@@ -383,7 +386,7 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : "Mix out of date · Refresh"}
+            {renderPreviewBusy ? "Refreshing…" : stalePillLabel}
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">Mix up to date</Pill> : null}
@@ -615,9 +618,7 @@ export function TransportBar({
                     onFocus={() => setStaleHighlight(true)}
                     onBlur={() => setStaleHighlight(false)}
                   >
-                    {renderPreviewBusy
-                      ? "Refreshing…"
-                      : "Mix out of date · Refresh"}
+                    {renderPreviewBusy ? "Refreshing…" : stalePillLabel}
                   </CommandMenuItem>
                 ) : (
                   <p className="transport-menu-note">
