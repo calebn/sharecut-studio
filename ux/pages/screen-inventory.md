@@ -206,7 +206,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | | |
 |--|--|
 | **Purpose** | Read/fix transcript; seek by word; suggest cut-away |
-| **Primary actions** | Follow playhead · Correct / Select modes (hint states text-only vs audio) · double-click word → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) |
+| **Primary actions** | Follow playhead · Correct / Select modes (hint states text-only vs audio) · double-click word → inline fix (one at a time; a pending save finishes first and the mode hint says it is saving; a late failure shows under the hint with Dismiss) · tap word → sheet · suppress / correct / ignore (Ignore strikes through and mutes at render, no cut; Restore brings it back — always visible under touch, no hover needed) · Annotate → Previous / Next low-confidence word (wraps) |
 | **Data shown** | Speaker labels · `transcripts` words (text, confidence, suppressed, ignored, suspect_hallucination) · selection range |
 | **Empty / loading** | No transcript yet · low-confidence chips when present |
 | **Out of scope** | Full desktop bottom-tab bundle |
@@ -285,7 +285,7 @@ flowchart TB
 | **Impact** | Pending count · bulk approve/reject · removed duration |
 | **Tighten** | Filler/pause/repetition/restart list · search/filters · preview/skip/apply · apply-all (avoid harsh) · Intensity (Light/Medium/Aggressive) + Find hits |
 | **Pipeline** | Checklist (empty state until Analyze) · param inspector · Analyze (runs as a cancellable job with a live phase headline + `n/N tracks` bar; each reason shows its evidence as key=value, an Uncheck-step hint when applicable, and a collapsible per-track measurements list; other viewers of a running Analyze also show its result) · Batch vs leave-gates (align + refine) · Terms and guest-name vocabulary editor with a re-transcribe action when the saved list changes · SSE progress (live headline) |
-| **Transcript** | Follow/edit (also layout `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns |
+| **Transcript** | Follow/edit (also layout `text`); Follow unlocks only on wheel / touch / scrollbar / scroll-key input. Long transcripts (≥200 turns) render only nearby turns plus the active, selected and focused ones — browser find-in-page reaches only rendered turns; Annotate → Previous / Next low-confidence walkthrough |
 | **Status** | Actionable chips (**Presence: You + N guests**, **Cut m:ss of m:ss** (dialogue source vs dialogue timeline length), pending, **Render: fresh/stale** from the same state as the transport pill, **Transcript: needs sync** only when stale); chips only switch tabs (when the current layout does not show that tab, they restore the default layout first); overflow-x on narrow |
 
 ### Layouts (desktop/tablet)
