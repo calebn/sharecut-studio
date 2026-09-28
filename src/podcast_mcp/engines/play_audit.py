@@ -9,7 +9,7 @@ from typing import Any
 
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import clips_for_track
-from podcast_mcp.edits.mute_regions import mute_regions_payload
+from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
@@ -56,8 +56,10 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         for e in project.edit_decisions
         if e.track_id == track_id and e.applied
     ]
-    clips = [
-        {
+    clips = []
+    ignored_lookup = IgnoredWordRegions(project)
+    for c in clips_for_track(project, track_id):
+        clip_payload: dict[str, Any] = {
             "source_start": c.source_start,
             "source_end": c.source_end,
             "timeline_start": c.timeline_start,
@@ -66,8 +68,10 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
             "join_in_mode": c.join_in_mode.value,
             "mute_regions": mute_regions_payload(c.mute_regions),
         }
-        for c in clips_for_track(project, track_id)
-    ]
+        ignored_regions = mute_regions_payload(ignored_lookup.for_clip(c))
+        if ignored_regions:
+            clip_payload["ignored_words"] = ignored_regions
+        clips.append(clip_payload)
     payload: dict[str, Any] = {
         "render_rev": RENDER_SEMANTICS_REV,
         "track_id": track_id,

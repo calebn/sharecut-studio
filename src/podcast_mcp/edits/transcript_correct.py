@@ -118,6 +118,47 @@ def set_word_suppressed(
     }
 
 
+def set_words_ignored(
+    project: EpisodeProject,
+    track_id: str,
+    start_word_index: int,
+    end_word_index: int,
+    ignored: bool,
+) -> dict:
+    """Toggle ``ignored`` on ``[start_word_index, end_word_index]`` (#633).
+
+    Text-and-audio hide, not text-only suppression: the combined transcript is not
+    rebuilt, since ignored words stay in the transcript text (only muted at render).
+
+    Resolves the transcript with ``transcript_for_track`` — the track-level one
+    ``gui/mapper.py`` maps ``word_index`` from. Render (``IgnoredWordRegions``)
+    applies a transcript's ignored spans only to clips whose ``source_id``
+    resolves to it via ``transcript_for_source``, so an extra source's clip on a
+    multi-source track is never muted by another source's word times.
+    """
+    tr = project.transcript_for_track(track_id)
+    if not tr:
+        raise ValueError(f"no transcript for track {track_id!r}")
+    if start_word_index < 0 or end_word_index >= len(tr.words):
+        raise ValueError("word index range out of bounds")
+    if end_word_index < start_word_index:
+        raise ValueError("end_word_index must be >= start_word_index")
+
+    changed = 0
+    for i in range(start_word_index, end_word_index + 1):
+        w = tr.words[i]
+        if w.ignored != ignored:
+            tr.words[i] = w.model_copy(update={"ignored": ignored})
+            changed += 1
+    return {
+        "track_id": track_id,
+        "start_word_index": start_word_index,
+        "end_word_index": end_word_index,
+        "ignored": ignored,
+        "changed": changed,
+    }
+
+
 DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.7
 
 

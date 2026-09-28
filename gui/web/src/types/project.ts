@@ -202,6 +202,8 @@ export interface TranscriptWordView {
   word_index?: number;
   confidence?: number | null;
   suppressed?: boolean;
+  /** Struck-through and muted at render, non-destructively (no cut/pending edit, #633). */
+  ignored?: boolean;
   /** Own-track audio under the word is digital silence (possible Whisper hallucination). */
   suspect_hallucination?: boolean;
 }
@@ -218,6 +220,8 @@ export interface CombinedUtterance {
   mappable?: boolean;
   /** Per-word timings for seek / Edit-mode selection (GUI view). */
   words?: TranscriptWordView[];
+  /** Sorted per-track `word_index` of each ignored word in this utterance, only present when non-empty (#633). */
+  ignored_word_indices?: number[];
 }
 
 export interface EditBoundaryView {

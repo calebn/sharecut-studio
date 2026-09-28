@@ -159,20 +159,33 @@ already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe
 CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; forcing skips
 the ASR disk cache (both cache names) and re-runs Whisper. Changed
 media re-transcribes automatically. Transcripts edited through `correct_word`,
-`correct_phrase`, `set_word_suppressed`, `verify_transcript` or transcript cleanup
-are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before
+`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript` or transcript
+cleanup are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before
 any ASR, both when overwrite was requested and when its audio changed (its word
 times are stale); the error names each track and reason. Run attended to replace
 them with a warning, or use Studio Re-transcribe, which names the edited tracks and asks before replacing them.
 
 **What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
-`correct_phrase`, `set_word_suppressed`, `verify_transcript`, transcript cleanup),
+`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
 which MCP tools, CLI `podcast transcript correct` and Studio document commands all
 use, and only when the words actually changed. Automated passes stay unmarked on
 purpose because re-running the pipeline re-derives them: precorrect (glossary and
 cross-track), reconciliation, speaker attribution, audio-quality and bleed
 suppression, and transcript sync. Editing `episode.project.json` by hand is not
 detected; set `"user_edited": true` on that transcript to protect it.
+
+**Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
+Ignore/Restore button, and the Correct word inspector's Ignore action all call
+`set_words_ignored` — a text-and-audio hide for review passes. The word (or word
+range) stays struck through in the transcript and in `combined.json`; only its
+audio is muted, computed from the transcript at render time and never written to
+`Clip.mute_regions`, so restore always un-mutes exactly what ignore muted and
+never an unrelated tighten mute. This is different from `set_word_suppressed`,
+which is text-only: a suppressed word is dropped from the combined transcript but
+its audio is untouched. Reconcile and speaker attribution never flip `ignored`
+automatically. No `EditDecision`, cut, or `edit_log` record is created either
+way, but ignore additionally creates none of the mute-region bookkeeping that a
+`tighten.edit_mode: mute` cut would.
 
 CLI `podcast transcribe` and MCP `transcribe_track` are the explicit re-transcribe
 path: they run ASR even when a transcript exists (the ASR disk cache still counts),

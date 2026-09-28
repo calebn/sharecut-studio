@@ -8,7 +8,7 @@ import type {
   ProjectView,
 } from "../types/project";
 import { mergeProjectPatch, projectFromDocumentSnapshot } from "./projectPatch";
-import { reuseUnchanged } from "./reuseUnchanged";
+import { reuseUnchanged, sameItems } from "./reuseUnchanged";
 
 function clip(
   id: string,
@@ -409,5 +409,26 @@ describe("reuseUnchanged", () => {
     expect(out.applied_edits.records[0]).not.toBe(
       prev.applied_edits.records[0],
     );
+  });
+});
+
+describe("sameItems", () => {
+  it("is true for the same array and for equal items in order", () => {
+    const a = [1, 2, 3];
+    expect(sameItems(a, a)).toBe(true);
+    expect(sameItems([1, 2, 3], [1, 2, 3])).toBe(true);
+    expect(sameItems([], [])).toBe(true);
+  });
+
+  it("is false for a different length, item or order", () => {
+    expect(sameItems([1, 2], [1, 2, 3])).toBe(false);
+    expect(sameItems([1, 2, 3], [1, 2, 4])).toBe(false);
+    expect(sameItems([1, 2], [2, 1])).toBe(false);
+  });
+
+  it("compares items with the given equality", () => {
+    const byX = (p: { x: number }, q: { x: number }) => p.x === q.x;
+    expect(sameItems([{ x: 1 }], [{ x: 1 }])).toBe(false);
+    expect(sameItems([{ x: 1 }], [{ x: 1 }], byX)).toBe(true);
   });
 });

@@ -140,6 +140,10 @@ class TranscriptWord(BaseModel):
     speaker_match_score: float | None = None
     # Own-track audio under this word is digital silence (Whisper hallucination, #521).
     suspect_hallucination: bool = False
+    # Text-and-audio hide: struck through in the transcript and muted at render time
+    # without a cut, pending edit, or EditDecision (#633). Distinct from `suppressed`
+    # (a bleed/wrong-mic word dropped from the combined transcript text).
+    ignored: bool = False
 
 
 # One transcript per (track_id, source_id) within a project.
@@ -592,6 +596,20 @@ class EpisodeProject(BaseModel):
     @transcripts.setter
     def transcripts(self, value: list[Transcript]) -> None:
         self.transcript_data.per_track = value
+
+    def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
+        """The transcript for ``track_id`` whose ``source_id`` matches, else the
+        first track-level transcript (``source_id is None``)."""
+        fallback: Transcript | None = None
+        for tr in self.transcripts:
+            if tr.track_id != track_id:
+                continue
+            sid = getattr(tr, "source_id", None)
+            if source_id and sid == source_id:
+                return tr
+            if sid is None and fallback is None:
+                fallback = tr
+        return fallback
 
     @property
     def combined_transcript(self) -> CombinedTranscript | None:

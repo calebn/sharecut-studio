@@ -134,4 +134,41 @@ describe("TranscriptTurnView", () => {
     expect(queryByRole("button", { name: "hello" })).toBeNull();
     expect(container).toBeTruthy();
   });
+
+  it("marks an ignored word chip and renders its restore control (#633)", () => {
+    const { container, getByRole } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                {
+                  ...props.segments[0].words[0],
+                  word: { ...props.segments[0].words[0].word, ignored: true },
+                  restoreControl: (
+                    <button type="button" aria-label="Restore ignored: hello">
+                      Restore
+                    </button>
+                  ),
+                },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const chip = container.querySelector(".utterance-word.ignored");
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toContain("hello");
+    const restore = getByRole("button", { name: "Restore ignored: hello" });
+    expect(restore).toBeInTheDocument();
+    // The run's last word wrapper anchors the overlaid control (#672 review).
+    expect(restore.parentElement).toHaveClass("utterance-restore-anchor");
+    expect(
+      container.querySelectorAll(".utterance-restore-anchor"),
+    ).toHaveLength(1);
+  });
 });

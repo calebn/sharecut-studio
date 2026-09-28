@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { setTranscriptWordSuppressed } from "../../api";
+import {
+  setTranscriptWordSuppressed,
+  setTranscriptWordsIgnored,
+} from "../../api";
+import { capabilityTooltip } from "../../capabilities/copy";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
-import { TRANSCRIPT_CORRECT_TIMING_NOTE } from "../../transcript/transcriptModeCopy";
+import {
+  TRANSCRIPT_CORRECT_TIMING_NOTE,
+  TRANSCRIPT_SUPPRESS_TIP,
+  TRANSCRIPT_UNSUPPRESS_TIP,
+} from "../../transcript/transcriptModeCopy";
 import {
   submitWordCorrection,
   wordCorrectionError,
@@ -54,6 +62,7 @@ export function TranscriptWordInspector({
 
   const editable = !isShareProjectKey(projectPath);
   const suppressed = Boolean(word?.suppressed);
+  const ignored = Boolean(word?.ignored);
   const lowConf = word?.confidence != null && word.confidence < LOW_CONFIDENCE;
 
   const applyText = async () => {
@@ -75,6 +84,18 @@ export function TranscriptWordInspector({
         trackId,
         wordIndex,
         !suppressed,
+      );
+    });
+  };
+
+  const toggleIgnored = async () => {
+    await run(async () => {
+      await setTranscriptWordsIgnored(
+        projectPath,
+        trackId,
+        wordIndex,
+        wordIndex,
+        !ignored,
       );
     });
   };
@@ -114,9 +135,21 @@ export function TranscriptWordInspector({
           ? [
               {
                 label: suppressed ? "Unsuppress" : "Suppress",
-                variant: "primary",
+                variant: "default",
                 disabled: busy,
                 onClick: () => void toggleSuppress(),
+                title: suppressed
+                  ? TRANSCRIPT_UNSUPPRESS_TIP
+                  : TRANSCRIPT_SUPPRESS_TIP,
+              },
+              {
+                label: ignored ? "Restore" : "Ignore",
+                variant: "primary",
+                disabled: busy,
+                onClick: () => void toggleIgnored(),
+                title: capabilityTooltip("daw.transcript.ignore", {
+                  pressed: ignored,
+                }),
               },
             ]
           : undefined
@@ -140,6 +173,7 @@ export function TranscriptWordInspector({
           {lowConf ? " (low)" : ""}
         </DefItem>
         <DefItem label="Suppressed">{suppressed ? "yes" : "no"}</DefItem>
+        <DefItem label="Ignored">{ignored ? "yes" : "no"}</DefItem>
         {editable ? (
           <>
             <DefItem label="Text">

@@ -58,6 +58,10 @@
 
   /* Unmapped/suppressed transcript (≥4.5:1 on --color-bg-surface). */
   --color-text-unmapped: var(--primitive-neutral-475);
+  /* Ignored transcript words (#633): double-strike ink. A neutral, not the
+     danger red (ignore is a reversible review state, not an error); ≥3:1 on
+     --color-bg-surface. */
+  --color-transcript-ignored: var(--color-text-secondary);
   /* Text/links on dark surfaces (≥4.5:1 on --color-bg-sunken). */
   --color-accent-fg: var(--color-accent);
   /* Neutral status badges. */

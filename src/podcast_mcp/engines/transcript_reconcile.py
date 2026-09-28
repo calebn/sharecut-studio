@@ -62,6 +62,8 @@ def _reconcile_word(
     end_sec: float | None,
 ) -> None:
     w = tr.words[i]
+    if w.ignored:
+        return
     status = row["audibility_status"]
     dominant = row.get("dominant_track")
     in_window = _in_time_window(w.start, start_sec=start_sec, end_sec=end_sec)

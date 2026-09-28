@@ -9,6 +9,7 @@ vi.mock("../../api", async (orig) => ({
   correctTranscriptWord: vi.fn(async () => {}),
   correctTranscriptPhrase: vi.fn(async () => {}),
   setTranscriptWordSuppressed: vi.fn(async () => {}),
+  setTranscriptWordsIgnored: vi.fn(async () => {}),
   refreshProject: vi.fn(),
 }));
 
@@ -16,7 +17,11 @@ vi.mock("../../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
 
-import { correctTranscriptPhrase, correctTranscriptWord } from "../../api";
+import {
+  correctTranscriptPhrase,
+  correctTranscriptWord,
+  setTranscriptWordsIgnored,
+} from "../../api";
 
 function project() {
   return minimalProject({
@@ -61,6 +66,7 @@ describe("TranscriptWordInspector", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
     vi.mocked(correctTranscriptPhrase).mockClear();
+    vi.mocked(setTranscriptWordsIgnored).mockClear();
     useDawStore.setState({ project: project(), projectPath: "/tmp/ep" });
   });
 
@@ -114,6 +120,58 @@ describe("TranscriptWordInspector", () => {
         "Hello there",
       );
     });
+  });
+
+  it("Ignore calls setTranscriptWordsIgnored(i, i, true)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        0,
+        true,
+      );
+    });
+  });
+
+  it("Restore calls setTranscriptWordsIgnored(i, i, false) for an ignored word", async () => {
+    const withIgnored = project();
+    withIgnored.transcript!.utterances[0].words![0].ignored = true;
+    useDawStore.setState({ project: withIgnored, projectPath: "/tmp/ep" });
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore" })).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Restore:/),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        0,
+        false,
+      );
+    });
+  });
+
+  it("marks which action changes audio", () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    const suppress = screen.getByRole("button", { name: "Suppress" });
+    expect(suppress).toHaveAttribute(
+      "title",
+      expect.stringMatching(/audio is unchanged/),
+    );
+    expect(suppress.className).not.toMatch(/\bprimary\b/);
+    const ignore = screen.getByRole("button", { name: "Ignore" });
+    expect(ignore.className).toMatch(/\bprimary\b/);
+    expect(ignore).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Ignore:.*mute/),
+    );
   });
 
   it("shows an error for empty text", () => {

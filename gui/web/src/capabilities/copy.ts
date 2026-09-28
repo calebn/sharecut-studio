@@ -350,7 +350,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.transcript.correct": {
     label: "Correct transcript",
     tooltip:
-      "Correct: click a word to fix ASR text or suppress (text only; audio and timing unchanged)",
+      "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
     tooltip_pressed: "Exit Correct (restore seek-on-click)",
     toggle: true,
   },
@@ -360,6 +360,13 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
       "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
     tooltip_pressed: "Exit Select (restore seek-on-click)",
     toggle: true,
+  },
+  "daw.transcript.ignore": {
+    label: "Ignore / restore transcript words",
+    tooltip:
+      "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
+    tooltip_pressed:
+      "Restore: un-mute the selection and remove its strikethrough",
   },
   "daw.view.showCutAway": {
     label: "Show cut away",
@@ -446,6 +453,9 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
   "transcript.inlineEdit": "daw.transcript.correct",
   "transcript.select": "daw.transcript.select",
+  "transcript.ignore": "daw.transcript.ignore",
+  "transcript.restoreIgnored": "daw.transcript.ignore",
+  "inspector.word.ignore": "daw.transcript.ignore",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",

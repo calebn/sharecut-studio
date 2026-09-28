@@ -55,6 +55,7 @@ export {
   setTrackMetaCommand,
   setTrackMuteCommand,
   setTranscriptWordSuppressed,
+  setTranscriptWordsIgnored,
   splitAtTime,
   submitDocumentCommand,
   suggestPendingEdit,

@@ -6,7 +6,7 @@ import type {
   TranscriptWordView,
 } from "../types/project";
 import type { DocumentFileSignature } from "./cursor";
-import { reuseUnchanged } from "./reuseUnchanged";
+import { reuseUnchanged, sameItems } from "./reuseUnchanged";
 
 export type ProjectHydration = {
   transcript_words?: boolean;
@@ -135,6 +135,11 @@ function remapOverlayWords(
   });
 }
 
+/** Same ignored words (by per-track `word_index`) on both utterance rows (#633). */
+function sameIgnoredWords(a: CombinedUtterance, b: CombinedUtterance): boolean {
+  return sameItems(a.ignored_word_indices ?? [], b.ignored_word_indices ?? []);
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
@@ -154,7 +159,11 @@ function overlayTranscriptWords(
       return utterance;
     }
     const prior = previousBySource.get(utteranceSourceKey(utterance));
-    if (!prior?.words || prior.text !== utterance.text) {
+    if (
+      !prior?.words ||
+      prior.text !== utterance.text ||
+      !sameIgnoredWords(prior, utterance)
+    ) {
       complete = false;
       return utterance;
     }

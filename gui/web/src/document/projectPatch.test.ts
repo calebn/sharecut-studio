@@ -286,6 +286,203 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.meta.hydration?.transcript_words).toBe(false);
   });
 
+  it("refuses the word overlay when the shell ignored words differ", () => {
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            words: [
+              {
+                text: "hello",
+                start: 0,
+                end: 0.4,
+                timeline_start: 0,
+                ignored: false,
+              },
+              {
+                text: "world",
+                start: 0.4,
+                end: 0.8,
+                timeline_start: 0.4,
+                ignored: false,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            ignored_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  it("keeps the word overlay when the shell ignored words match", () => {
+    const words = [
+      {
+        text: "hello",
+        start: 0,
+        end: 0.4,
+        timeline_start: 0,
+        ignored: false,
+        word_index: 0,
+      },
+      {
+        text: "world",
+        start: 0.4,
+        end: 0.8,
+        timeline_start: 0.4,
+        ignored: true,
+        word_index: 1,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            words,
+            ignored_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            ignored_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeDefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(true);
+  });
+
+  it("refuses the word overlay when a same-size run of different words is ignored", () => {
+    const words = [
+      {
+        text: "hello",
+        start: 0,
+        end: 0.4,
+        timeline_start: 0,
+        ignored: true,
+        word_index: 0,
+      },
+      {
+        text: "world",
+        start: 0.4,
+        end: 0.8,
+        timeline_start: 0.4,
+        ignored: false,
+        word_index: 1,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            words,
+            ignored_word_indices: [0],
+          },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            ignored_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
   it("leaves unmatched restored utterances wordless and not fully hydrated", () => {
     const prev = minimalProject({
       meta: {

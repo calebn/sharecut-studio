@@ -129,6 +129,56 @@ def test_guest_detail_skips_words_and_history_groups(
     }
 
 
+def test_transcript_audio_projection_is_detail_plus_freshness(minimal_project) -> None:
+    ws = _with_transcript(minimal_project)
+    ws.project.transcripts[0].words[0] = (
+        ws.project.transcripts[0].words[0].model_copy(update={"ignored": True})
+    )
+    ws.save()
+    ta = dump_project_projection(ws, projection=ViewProjection.TRANSCRIPT_AUDIO)
+    assert ta["transcript"]["utterances"][0]["words"][0]["ignored"] is True
+    assert ta["transcript"]["utterances"][0]["ignored_word_indices"] == [0]
+    assert "tracks" in ta
+    assert "render_status" in ta
+    assert "groups" in ta["history"]
+
+
+def test_transcript_audio_projection_guest_gets_hydration_and_freshness(
+    minimal_project,
+) -> None:
+    ws = _with_transcript(minimal_project)
+    ta = dump_project_projection(ws, projection=ViewProjection.TRANSCRIPT_AUDIO, audience="guest")
+    assert "transcript" not in ta
+    assert ta["meta"]["hydration"] == {
+        "transcript_words": False,
+        "history_groups": False,
+    }
+    assert "tracks" in ta
+    assert "render_status" in ta
+
+
+def test_shell_utterance_carries_ignored_word_indices(minimal_project) -> None:
+    ws = _with_transcript(minimal_project)
+    ws.project.transcripts[0].words[0] = (
+        ws.project.transcripts[0].words[0].model_copy(update={"ignored": True})
+    )
+    ws.save()
+    shell = build_project_view(ws, projection=ViewProjection.SHELL)
+    uts = (shell.transcript or {}).get("utterances") or []
+    assert uts[0]["ignored_word_indices"] == [0]
+
+    ws.project.transcripts[0].words[0] = (
+        ws.project.transcripts[0].words[0].model_copy(update={"ignored": False})
+    )
+    ws.project.transcripts[0].words[1] = (
+        ws.project.transcripts[0].words[1].model_copy(update={"ignored": True})
+    )
+    ws.save()
+    shell = build_project_view(ws, projection=ViewProjection.SHELL)
+    uts = (shell.transcript or {}).get("utterances") or []
+    assert uts[0]["ignored_word_indices"] == [1]
+
+
 def test_tracks_projection(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     dumped = dump_project_projection(ws, projection=ViewProjection.TRACKS)
@@ -314,6 +364,7 @@ def test_projection_for_command() -> None:
     assert projection_for_command("CorrectTranscriptWord") is ViewProjection.DETAIL
     assert projection_for_command("CorrectTranscriptPhrase") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordSuppressed") is ViewProjection.DETAIL
+    assert projection_for_command("SetTranscriptWordsIgnored") is ViewProjection.TRANSCRIPT_AUDIO
     from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS
     from podcast_mcp.services.document_sync.projections import TRANSCRIPT_WORD_COMMANDS
 

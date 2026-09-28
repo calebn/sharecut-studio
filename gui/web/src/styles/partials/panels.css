@@ -408,6 +408,59 @@
   text-decoration: line-through;
 }
 
+/* Ignored (#633): double strike in its own colour, so text-only Suppress
+   (single dim strike) and audio-muting Ignore read differently. */
+.utterance-word.ignored {
+  color: var(--color-text-unmapped);
+  text-decoration-line: line-through;
+  text-decoration-style: double;
+  text-decoration-color: var(--color-transcript-ignored);
+}
+
+/*
+ * Restore control after an ignored run (#633): revealed on segment hover or
+ * focus-visible, always shown under a coarse pointer (no hover to reveal it).
+ */
+/* Wrapper of the word that ends an ignored run: the Restore control's
+   containing block, inside the scroller, so the control follows its run. */
+.utterance-restore-anchor {
+  position: relative;
+}
+
+.utterance-restore {
+  /* Out of flow so the hidden control reserves no gap after the run. It
+     hangs just below the run's last word, right-aligned to it, so it never
+     reaches past the line end or widens `.transcript-list` with horizontal
+     overflow (#672 review). */
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: var(--z-bubble);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--color-field);
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .utterance-restore {
+    transition: opacity var(--motion-hover) var(--motion-ease-out);
+  }
+}
+
+.utterance-seg:hover .utterance-restore,
+.utterance-restore:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .utterance-word.low-confidence {
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
 }
@@ -449,6 +502,14 @@
   .comment-card-main {
     user-select: none;
     -webkit-touch-callout: none;
+  }
+
+  .utterance-restore {
+    /* Always visible on touch, so it may take its inline space. */
+    position: static;
+    margin-left: var(--space-1);
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 

@@ -642,6 +642,77 @@ def test_document_correct_and_suppress_transcript(minimal_project):
     assert HistoryService(ws5).status()["can_undo"]
 
 
+def test_document_set_transcript_words_ignored(minimal_project):
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    ]
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="so", start=0.0, end=0.4, confidence=0.9),
+                TranscriptWord(text="um", start=0.5, end=0.9, confidence=0.9),
+            ],
+        )
+    ]
+    ws.save()
+
+    svc = DocumentSyncService.open(minimal_project)
+    ignored = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordsIgnored",
+            payload={
+                "track_id": "host",
+                "start_word_index": 0,
+                "end_word_index": 1,
+                "ignored": True,
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert ignored["ok"]
+    patch = ignored["snapshot"]["patch"]
+    words = patch["transcript"]["utterances"][0]["words"]
+    assert all(w["ignored"] is True for w in words)
+    assert "tracks" in patch
+    assert "render_status" in patch
+
+    ws2 = ProjectWorkspace.open(minimal_project)
+    assert all(w.ignored for w in ws2.project.transcripts[0].words)
+    assert HistoryService(ws2).status()["can_undo"]
+
+    restored = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordsIgnored",
+            payload={
+                "track_id": "host",
+                "start_word_index": 0,
+                "end_word_index": 1,
+                "ignored": False,
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert restored["ok"]
+    ws3 = ProjectWorkspace.open(minimal_project)
+    assert not any(w.ignored for w in ws3.project.transcripts[0].words)
+
+    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(["edit"])
+
+
 def test_document_markers_envelope_and_suggest(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [

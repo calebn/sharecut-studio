@@ -192,6 +192,13 @@ class SetTranscriptWordSuppressedPayload(BaseModel):
     suppressed: bool
 
 
+class SetTranscriptWordsIgnoredPayload(BaseModel):
+    track_id: str
+    start_word_index: int = Field(ge=0)
+    end_word_index: int = Field(ge=0)
+    ignored: bool
+
+
 class AddChapterPayload(BaseModel):
     time: float
     title: str
@@ -478,6 +485,11 @@ class SetTranscriptWordSuppressedCommand(DocumentCommandEnvelope):
     payload: SetTranscriptWordSuppressedPayload
 
 
+class SetTranscriptWordsIgnoredCommand(DocumentCommandEnvelope):
+    type: Literal["SetTranscriptWordsIgnored"] = "SetTranscriptWordsIgnored"
+    payload: SetTranscriptWordsIgnoredPayload
+
+
 class AddChapterCommand(DocumentCommandEnvelope):
     type: Literal["AddChapter"] = "AddChapter"
     payload: AddChapterPayload
@@ -617,6 +629,7 @@ DocumentCommandBody = Annotated[
     | CorrectTranscriptWordCommand
     | CorrectTranscriptPhraseCommand
     | SetTranscriptWordSuppressedCommand
+    | SetTranscriptWordsIgnoredCommand
     | AddChapterCommand
     | UpdateChapterCommand
     | DeleteChapterCommand
@@ -720,6 +733,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,
     "CorrectTranscriptPhrase": CorrectTranscriptPhrasePayload,
     "SetTranscriptWordSuppressed": SetTranscriptWordSuppressedPayload,
+    "SetTranscriptWordsIgnored": SetTranscriptWordsIgnoredPayload,
     "AddChapter": AddChapterPayload,
     "UpdateChapter": UpdateChapterPayload,
     "DeleteChapter": DeleteChapterPayload,

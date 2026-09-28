@@ -144,6 +144,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
 | Correct transcript | `transcript.correctIntent` | Project loaded |  |
 | Select transcript range | `transcript.selectIntent` | Project loaded |  |
+| Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
 | Trim clip edge | `edit.trimClipEdge` | Host or shared edit mode | Pointer trim handles on clip blocks (start / end) |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |

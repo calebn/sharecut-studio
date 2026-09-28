@@ -229,6 +229,9 @@ def dump_project_projection(
     ``sanitize_guest_project_view`` only strips paths. CLIPS/FX/ENVELOPES include
     ``tracks`` + ``render_status`` so stem freshness updates with the slice; MIX
     is just those two (a fader or mute change stales the premix).
+    ``TRANSCRIPT_AUDIO`` is DETAIL plus that same ``tracks``/``render_status``
+    freshness patch, for a transcript-audio mutation (ignore/restore, #633) whose
+    stem the GUI must know to re-render.
     """
     proj = (
         projection
@@ -253,9 +256,9 @@ def dump_project_projection(
             ws,
             {"envelopes": [e.model_dump() for e in ws.project.mix.automation_envelopes]},
         )
-    if proj is ViewProjection.DETAIL:
+    if proj in (ViewProjection.DETAIL, ViewProjection.TRANSCRIPT_AUDIO):
         if audience == "guest":
-            return {
+            base: dict[str, Any] = {
                 "meta": {
                     "hydration": _hydration(
                         transcript_words=False,
@@ -263,17 +266,21 @@ def dump_project_projection(
                     ),
                 },
             }
-        hist = history if history is not None else HistoryService(ws).list_entries()
-        transcript = map_transcript_utterances_to_timeline(
-            ws.project,
-            _raw_transcript(ws),
-            include_words=True,
-        )
-        return {
-            "transcript": transcript,
-            "history": hist,
-            "meta": {
-                "hydration": _hydration(transcript_words=True, history_groups=True),
-            },
-        }
+        else:
+            hist = history if history is not None else HistoryService(ws).list_entries()
+            transcript = map_transcript_utterances_to_timeline(
+                ws.project,
+                _raw_transcript(ws),
+                include_words=True,
+            )
+            base = {
+                "transcript": transcript,
+                "history": hist,
+                "meta": {
+                    "hydration": _hydration(transcript_words=True, history_groups=True),
+                },
+            }
+        if proj is ViewProjection.TRANSCRIPT_AUDIO:
+            return _freshness_patch(ws, base)
+        return base
     return build_project_view(ws, projection=proj, history=history).model_dump()

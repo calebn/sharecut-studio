@@ -44,7 +44,6 @@ from podcast_mcp.models import (
     SpeakerIngestAlignment,
     Track,
     TrackRole,
-    Transcript,
     TranscriptWord,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
@@ -213,17 +212,7 @@ def transcript_for_clip(
     source_id: str | None,
 ) -> list[WordToken]:
     """Prefer transcript matching source_id; else track-level transcript."""
-    matches: list[Transcript] = []
-    fallback: list[Transcript] = []
-    for tr in project.transcripts:
-        if tr.track_id != track_id:
-            continue
-        sid = getattr(tr, "source_id", None)
-        if source_id and sid == source_id:
-            matches.append(tr)
-        elif sid is None:
-            fallback.append(tr)
-    chosen = matches[0] if matches else (fallback[0] if fallback else None)
+    chosen = project.transcript_for_source(track_id, source_id)
     if chosen is None:
         return []
     return words_to_tokens(list(chosen.words or []))

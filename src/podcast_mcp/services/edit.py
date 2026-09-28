@@ -107,6 +107,7 @@ from podcast_mcp.edits.transcript_correct import (
     list_low_confidence,
     run_user_transcript_edit,
     set_word_suppressed,
+    set_words_ignored,
     verify_words,
 )
 from podcast_mcp.edits.transcript_cuts import (
@@ -1120,6 +1121,23 @@ class EditService:
             "after set word suppressed",
             _user_transcript_edit(
                 track_id, lambda p: set_word_suppressed(p, track_id, word_index, suppressed)
+            ),
+        )
+
+    def set_words_ignored(
+        self,
+        track_id: str,
+        start_word_index: int,
+        end_word_index: int,
+        ignored: bool,
+    ) -> dict:
+        """Text-and-audio hide for a word range, muted at render without a cut (#633)."""
+        return self.ws.mutate(
+            "before set words ignored",
+            "after set words ignored",
+            _user_transcript_edit(
+                track_id,
+                lambda p: set_words_ignored(p, track_id, start_word_index, end_word_index, ignored),
             ),
         )
 

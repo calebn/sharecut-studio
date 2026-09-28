@@ -63,6 +63,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |
 | `SetTrackMute` | `muted` (boolean), `track_id` (string) | — |
 | `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | — |
+| `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | — |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
 | `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `source_sec` (number) | `mode` (string) |
@@ -72,7 +73,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 46 command types._
+_Generated 47 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

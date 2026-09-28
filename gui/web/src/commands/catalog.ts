@@ -482,6 +482,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     paletteRunnable: false,
   },
+  "transcript.ignoreWords": {
+    id: "transcript.ignoreWords",
+    category: "edit",
+    label: "Ignore / restore transcript words",
+    when: "hasProject",
+    paletteRunnable: false,
+    notes:
+      "Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only",
+  },
   "view.showCutAway": {
     id: "view.showCutAway",
     category: "view",

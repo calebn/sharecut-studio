@@ -8,7 +8,7 @@ from podcast_mcp.edits.clips_ops import (
     crossfade_ms_at_join,
     uses_crossfade_join,
 )
-from podcast_mcp.edits.mute_regions import mute_spans_for_source_window
+from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_spans_for_source_window
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
@@ -152,7 +152,9 @@ def render_track_from_timeline(
 
     src = paths[0] if paths else primary
     placed: list[PlacedSegment] = []
+    ignored_lookup = IgnoredWordRegions(project)
     for i, clip in enumerate(track_clips):
+        ignored = ignored_lookup.for_clip(clip)
         mapped = edits_for_clip_source(timeline_edits, track.id, clip)
         segments = eng.segments_after_edits(
             clip.source_end - clip.source_start,
@@ -188,6 +190,7 @@ def render_track_from_timeline(
                         clip,
                         seg.start + clip.source_start,
                         seg.end + clip.source_start,
+                        extra=ignored,
                     ),
                 )
             )
@@ -235,7 +238,9 @@ def _render_multi_source_track(
     delayed: list[Path] = []
     tmp_dir = Path(tempfile.mkdtemp(prefix="daw_multi_src_"))
     try:
+        ignored_lookup = IgnoredWordRegions(project)
         for i, (clip, src) in enumerate(zip(sorted_clips, paths, strict=True)):
+            ignored = ignored_lookup.for_clip(clip)
             mapped = edits_for_clip_source(timeline_edits, track.id, clip)
             segments = eng.segments_after_edits(
                 clip.source_end - clip.source_start,
@@ -252,7 +257,9 @@ def _render_multi_source_track(
                     part,
                     src_start,
                     src_end,
-                    mute_spans=mute_spans_for_source_window(clip, src_start, src_end),
+                    mute_spans=mute_spans_for_source_window(
+                        clip, src_start, src_end, extra=ignored
+                    ),
                 )
                 clip_parts.append(part)
             if not clip_parts:
@@ -444,11 +451,13 @@ def render_track_segment(
 
     placed: list[PlacedSegment] = []
     timeline_cursor = timeline_start
+    ignored_lookup = IgnoredWordRegions(project)
     for clip_i, clip, ov_tl_start, ov_tl_end in overlapping:
         src_bounds = clip_timeline_overlap_to_source(clip, ov_tl_start, ov_tl_end)
         if src_bounds is None:
             continue
         src_start, src_end = src_bounds
+        ignored = ignored_lookup.for_clip(clip)
         mapped = edits_for_clip_source(timeline_edits, track.id, clip)
         segs = eng.segments_after_edits(
             clip.source_end - clip.source_start,
@@ -493,7 +502,9 @@ def render_track_segment(
                     gap_before_sec=gap_before if first else 0.0,
                     crossfade_prev_sec=crossfade_prev if first else 0.0,
                     overlap_prev_sec=0.0,
-                    mute_spans=mute_spans_for_source_window(clip, isect_start, isect_end),
+                    mute_spans=mute_spans_for_source_window(
+                        clip, isect_start, isect_end, extra=ignored
+                    ),
                 )
             )
             gap_before = 0.0
