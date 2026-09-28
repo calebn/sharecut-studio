@@ -12,6 +12,7 @@ import { selectAgentPresent } from "../presence/presenceSummary";
 import { useDaw } from "../state/useDaw";
 import type {
   PipelineAnalyzeReason,
+  PipelineAnalyzeResponse,
   PipelineConfigResponse,
   PipelineJobSnapshot,
   PipelineParamField,
@@ -26,6 +27,7 @@ import {
   isPipelineRunning,
   isPipelineSlotBusy,
   isPipelineSlotJob,
+  isTerminalJobStatus,
 } from "../utils/pipeline";
 import {
   pipelineKindLabel,
@@ -75,6 +77,29 @@ function uniqueSteps(steps: PipelineStepMeta[]): PipelineStepMeta[] {
 /** Analyze patch leaves are JSON scalars or arrays, so JSON text equality is exact. */
 function sameLeafValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** What an Analyze response shows: reasons, per-track rows and the patched leaf paths. */
+function analyzeResultView(result: PipelineAnalyzeResponse) {
+  const patches = result.patches ?? {};
+  const highlightPaths = new Set<string>();
+  const walk = (obj: Record<string, unknown>, prefix: string) => {
+    for (const [k, v] of Object.entries(obj)) {
+      const p = prefix ? `${prefix}.${k}` : k;
+      if (v != null && typeof v === "object" && !Array.isArray(v)) {
+        walk(v as Record<string, unknown>, p);
+      } else {
+        highlightPaths.add(p);
+      }
+    }
+  };
+  walk(patches, "");
+  return {
+    reasons: result.reasons,
+    trackRows: result.report_summary?.tracks ?? [],
+    highlightPaths,
+    patches,
+  };
 }
 
 function ParamControl({
@@ -248,6 +273,10 @@ export function PipelinePanel() {
   const lastPersist = useRef<Promise<unknown>>(Promise.resolve());
   /** Aborts the wait on the running Analyze job's stream (project switch / re-run). */
   const analyzeAbort = useRef<AbortController | null>(null);
+  /** The Analyze job this tab started most recently; its own promise renders its result. */
+  const ownAnalyzeId = useRef<string | null>(null);
+  /** A running Analyze started elsewhere (another tab or viewer); its result renders here when it lands. */
+  const remoteAnalyzeId = useRef<string | null>(null);
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
 
   const slotJob =
@@ -271,6 +300,7 @@ export function PipelinePanel() {
     analyzeRequest.invalidate();
     analyzeAbort.current?.abort();
     analyzeAbort.current = null;
+    remoteAnalyzeId.current = null;
     setAnalyzing(false);
     setReasons([]);
     setTrackRows([]);
@@ -296,6 +326,40 @@ export function PipelinePanel() {
       cancelled = true;
     };
   }, [projectPath, persistRequest, analyzeRequest]);
+
+  useEffect(() => {
+    const j = activityJob;
+    if (j == null || !isAnalyzeJob(j) || j.id === ownAnalyzeId.current) {
+      return;
+    }
+    if (!isTerminalJobStatus(j.status)) {
+      // Started elsewhere: render its result here once it finishes.
+      remoteAnalyzeId.current = j.id;
+      return;
+    }
+    if (j.id !== remoteAnalyzeId.current) {
+      return;
+    }
+    remoteAnalyzeId.current = null;
+    if (j.result == null) {
+      return; // cancelled before a result: nothing was applied
+    }
+    const view = analyzeResultView(
+      j.result as unknown as PipelineAnalyzeResponse,
+    );
+    setReasons(view.reasons);
+    setTrackRows(view.trackRows);
+    setHighlightPaths(view.highlightPaths);
+    // The other viewer's apply patched the working set; re-read it.
+    const reload = persistRequest.begin();
+    void loadPipelineConfig(projectPath)
+      .then((fresh) => {
+        if (persistRequest.isCurrent(reload)) {
+          setCfg(fresh);
+        }
+      })
+      .catch((e) => setError(errorMessage(e)));
+  }, [activityJob, projectPath, persistRequest]);
 
   const stepsUnique = useMemo(() => (cfg ? uniqueSteps(cfg.steps) : []), [cfg]);
 
@@ -446,6 +510,7 @@ export function PipelinePanel() {
         signal: abort.signal,
         // Seed the slot job so Cancel + live progress show before the first SSE frame.
         onJob: (started) => {
+          ownAnalyzeId.current = started.id;
           if (analyzeRequest.isCurrent(token)) {
             setActivityJob(started);
           }
@@ -458,22 +523,11 @@ export function PipelinePanel() {
         // Cancelled before the scan finished: nothing was applied.
         return;
       }
-      setReasons(result.reasons);
-      setTrackRows(result.report_summary?.tracks ?? []);
-      const paths = new Set<string>();
-      const walk = (obj: Record<string, unknown>, prefix: string) => {
-        for (const [k, v] of Object.entries(obj)) {
-          const p = prefix ? `${prefix}.${k}` : k;
-          if (v != null && typeof v === "object" && !Array.isArray(v)) {
-            walk(v as Record<string, unknown>, p);
-          } else {
-            paths.add(p);
-          }
-        }
-      };
-      const patches = result.patches ?? {};
-      walk(patches, "");
-      setHighlightPaths(paths);
+      const view = analyzeResultView(result);
+      setReasons(view.reasons);
+      setTrackRows(view.trackRows);
+      setHighlightPaths(view.highlightPaths);
+      const patches = view.patches;
       const next = result.config ?? (await loadPipelineConfig(projectPath));
       if (!analyzeRequest.isCurrent(token)) {
         return;
