@@ -10,11 +10,11 @@ while the revision is unchanged. In-memory only: never persisted, restarts per p
 from __future__ import annotations
 
 import functools
-import threading
+import itertools
 from collections.abc import Callable
 from typing import Any
 
-_lock = threading.Lock()
+_counter = itertools.count(1)
 _revision = 0
 
 
@@ -24,10 +24,14 @@ def words_revision() -> int:
 
 
 def bump_words_revision() -> None:
-    """Advance the revision. Call after the change, never before it (a reader stamps first)."""
+    """Advance the revision. Call after the change, never before it (a reader stamps first).
+
+    Lock-free: ``next`` on an ``itertools.count`` is atomic, so every bump stores a value
+    no other bump stores. Two racing bumps may store theirs out of order, but a stamp
+    matches only the single interval its value was current, never after a later bump.
+    """
     global _revision
-    with _lock:  # monotonic under threads: a stamp never matches a later revision
-        _revision += 1
+    _revision = next(_counter)
 
 
 def bumps_words_revision(method: Callable[..., Any]) -> Any:
