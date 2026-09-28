@@ -331,6 +331,57 @@ def test_stem_rejects_track_added_during_render(
     assert not (proj.artifacts_dir() / "track_outputs.json").exists()
 
 
+def test_stem_step_with_every_stem_fresh_copies_no_project(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """Every stem fresh: the step decides from fingerprints and never deep-copies (#358)."""
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    out_dir = proj.artifacts_dir() / "tracks"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for track_id in ("host", "bed"):
+        (out_dir / f"{track_id}.wav").write_bytes(b"RIFF")
+        write_stem_hash(proj, track_id)
+
+    monkeypatch.setattr(
+        "podcast_mcp.util.project_state.snapshot_project",
+        MagicMock(side_effect=AssertionError("stale path copied the project")),
+    )
+    monkeypatch.setattr(steps, "ffmpeg", MagicMock())
+    monkeypatch.setattr(steps, "schedule_stem_waveforms", lambda *_a, **_k: None)
+
+    result = steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+
+    assert result == "0 rendered, 2 cached (2 total)"
+    assert (proj.artifacts_dir() / "track_outputs.json").is_file()
+
+
+def test_stem_rejects_edit_to_a_cached_stem_during_render(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    """A stem found fresh (and so never re-rendered) still guards its fingerprint hash."""
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    out_dir = proj.artifacts_dir() / "tracks"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "bed.wav").write_bytes(b"RIFF")
+    write_stem_hash(proj, "bed")
+
+    class MutatingEngine:
+        def render_dialogue_track(self, _snapshot, _track, out, _defaults):
+            with project_state_lock(proj):
+                proj.track_by_id("bed").gain_db = 3.0
+            out.write_bytes(b"host audio")
+            return out
+
+    monkeypatch.setattr(steps, "ffmpeg", MutatingEngine)
+    with pytest.raises(RuntimeError, match="project changed during stem rendering"):
+        steps.assemble_timeline(proj, {"performance": {"max_workers": 2}})
+    assert not (proj.artifacts_dir() / "track_outputs.json").exists()
+
+
 def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_workspace):
     eng = FFmpegEngine()
     if not eng.check_available()[0]:

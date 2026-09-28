@@ -25,7 +25,9 @@ from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     publish_stem,
+    stem_fingerprint,
     stem_is_fresh,
+    stem_matches,
     stem_path,
     stem_revision,
     track_render_hash,
@@ -503,9 +505,11 @@ class PlayService:
         *,
         rerender: bool,
     ) -> tuple[Path, str, float, float]:
-        render_project = snapshot_project(self.project)
-        edit_hash = track_render_hash(render_project, track_id)
-        stem = stem_path(render_project, track_id)
+        # Decide from a bounded fingerprint read under the state lock; deep-copy the
+        # project only when a segment must render (#358).
+        fingerprint = stem_fingerprint(self.project, track_id)
+        edit_hash = fingerprint.render_hash
+        stem = stem_path(self.project, track_id)
         window = max(0.0, timeline_end - timeline_start)
 
         use_stem = True
@@ -528,8 +532,8 @@ class PlayService:
         # to segment render so timeline seconds are never treated as source offsets.
         # Read the stem's identity before its hash: a publish that swaps the stem while we
         # extract must not have its bytes played under this hash (#356).
-        revision = stem_revision(render_project, track_id)
-        fresh = stem_is_fresh(render_project, track_id)
+        revision = stem_revision(self.project, track_id)
+        fresh = stem_matches(self.project, track_id, fingerprint)
         if use_stem and fresh and revision is not None:
             out = self._cache_path(
                 f"stem_{track_id}_{edit_hash}",
@@ -544,7 +548,7 @@ class PlayService:
                         stem, tmp, timeline_start, timeline_end
                     ),
                 )
-            if stem_revision(render_project, track_id) == revision:
+            if stem_revision(self.project, track_id) == revision:
                 peak = _wav_peak_abs(out)
                 if peak is not None and peak > 1e-5:
                     return out, "stem", timeline_start, timeline_end
@@ -554,6 +558,14 @@ class PlayService:
         if cache.is_file() and not rerender:
             return cache, "segment_cache", timeline_start, timeline_end
 
+        # Miss: render one snapshot and key the cache by that snapshot's hash, so the key
+        # names the rendered bytes even if an edit landed after the fingerprint (#220).
+        render_project = snapshot_project(self.project)
+        render_hash = track_render_hash(render_project, track_id)
+        if render_hash != edit_hash:
+            cache = self._segment_cache_path(track_id, timeline_start, timeline_end, render_hash)
+            if cache.is_file() and not rerender:
+                return cache, "segment_cache", timeline_start, timeline_end
         render_track_segment(
             render_project,
             track_id,

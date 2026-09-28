@@ -95,14 +95,6 @@ def project_file_revision(project: EpisodeProject) -> FileRevision | None:
         return None
 
 
-def snapshot_project_with_revision(
-    project: EpisodeProject,
-) -> tuple[EpisodeProject, tuple[int, int, int, int] | None]:
-    """Capture in-memory render state and the workspace's durable revision together."""
-    with project_state_lock(project):
-        return project.model_copy(deep=True), project_file_revision(project)
-
-
 @contextmanager
 def step_copy(live: EpisodeProject, work: EpisodeProject) -> Iterator[None]:
     """Mark ``work`` as a pipeline step's private copy of ``live`` for this context (#357)."""

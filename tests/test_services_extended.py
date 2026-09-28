@@ -442,7 +442,13 @@ def test_play_processed_stem_fresh_path(minimal_project, sample_wav) -> None:
         return out
 
     mock_extract = MagicMock(side_effect=_extract)
-    with patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls:
+    with (
+        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
+        patch(
+            "podcast_mcp.services.play.snapshot_project",
+            side_effect=AssertionError("warm path copied the project"),
+        ),
+    ):
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5),
@@ -521,22 +527,28 @@ def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
     cache = ws.project.artifacts_dir() / "play_cache" / f"processed_host_0.00_0.50_{edit_hash}.wav"
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_bytes(sample_wav.read_bytes())
-    result = PlayService(ws).play(
-        PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5),
-        dry_run=True,
-    )
+    with patch(
+        "podcast_mcp.services.play.snapshot_project",
+        side_effect=AssertionError("warm path copied the project"),
+    ):
+        result = PlayService(ws).play(
+            PlayRequest(source="processed:host", start_sec=0.0, end_sec=0.5),
+            dry_run=True,
+        )
     assert result.tier == "segment_cache"
     assert result.wav_path == cache
 
 
-def test_play_segment_cache_key_and_render_use_same_snapshot(minimal_project, sample_wav) -> None:
+def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decision_edit(
+    minimal_project, sample_wav
+) -> None:
     from podcast_mcp.engines.play_audit import track_render_hash
 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     before_hash = track_render_hash(ws.project, "host")
     rendered = []
 
-    def change_live_project(_snapshot, _track_id):
+    def change_live_project(_project, _track_id, _fingerprint):
         ws.mutate(
             "before cut",
             "after cut",
@@ -551,14 +563,55 @@ def test_play_segment_cache_key_and_render_use_same_snapshot(minimal_project, sa
         return cache
 
     with (
-        patch("podcast_mcp.services.play.stem_is_fresh", side_effect=change_live_project),
+        patch("podcast_mcp.services.play.stem_matches", side_effect=change_live_project),
         patch("podcast_mcp.services.play.render_track_segment", side_effect=render),
     ):
         result = PlayService(ws)._processed_audio("host", 0.0, 0.5, rerender=False)
 
-    assert rendered == [(2.0, before_hash)]
-    assert before_hash in result[0].name
-    assert track_render_hash(ws.project, "host") != before_hash
+    # The mid-decision edit lands during the freshness check; the miss path re-snapshots
+    # and keys the cache from that (rendered) snapshot, not the pre-edit fingerprint (#220).
+    after_hash = track_render_hash(ws.project, "host")
+    assert rendered == [(1.0, after_hash)]
+    assert after_hash in result[0].name
+    assert before_hash not in result[0].name
+
+
+def test_play_segment_render_reuses_the_cache_of_the_snapshot_hash(
+    minimal_project, sample_wav
+) -> None:
+    from podcast_mcp.engines.play_audit import track_render_hash
+    from podcast_mcp.models import load_project
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    svc = PlayService(ws)
+
+    # The hash the mid-decision edit below will move the project to (computed against an
+    # independent reload, so the setup does not touch ``ws.project`` itself).
+    scratch = load_project(minimal_project)
+    scratch.clips[0].source_end = 1.0
+    edited_hash = track_render_hash(scratch, "host")
+
+    cache = svc._segment_cache_path("host", 0.0, 0.5, edited_hash)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_bytes(sample_wav.read_bytes())
+
+    def change_live_project(_project, _track_id, _fingerprint):
+        ws.mutate(
+            "before cut",
+            "after cut",
+            lambda live: setattr(live.clips[0], "source_end", 1.0),
+        )
+        return False
+
+    with (
+        patch("podcast_mcp.services.play.stem_matches", side_effect=change_live_project),
+        patch("podcast_mcp.services.play.render_track_segment") as render_seg,
+    ):
+        result = svc._processed_audio("host", 0.0, 0.5, rerender=False)
+
+    render_seg.assert_not_called()
+    assert result[1] == "segment_cache"
+    assert result[0] == cache
 
 
 def test_ensure_stem_clears_live_invalidation_after_snapshot_render(
@@ -667,7 +720,7 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
     with (
         patch.object(PlayService, "ensure_stem", mock_render),
         patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.stem_is_fresh", return_value=True),
+        patch("podcast_mcp.services.play.stem_matches", return_value=True),
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=_extract)
         result = PlayService(ws).play(

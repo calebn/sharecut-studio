@@ -10,7 +10,9 @@ from podcast_mcp.engines.play_audit import (
     mix_render_hash,
     probe_wav_duration_sec,
     stem_duration_matches_timeline,
+    stem_fingerprint,
     stem_is_fresh,
+    stem_matches,
     track_render_hash,
     write_stem_hash,
 )
@@ -336,3 +338,26 @@ def test_render_status_reuses_the_stem_probe(tmp_path, sample_wav, monkeypatch) 
     assert report1["tracks"]["host"]["stem_is_fresh"] is True
     assert report2["tracks"]["host"]["stem_is_fresh"] is True
     assert len(calls) == 1
+
+
+def test_stem_matches_uses_the_fingerprint_not_the_live_project(tmp_path, sample_wav) -> None:
+    ws = tmp_path / "ws"
+    (ws / "artifacts" / "tracks").mkdir(parents=True)
+    project = EpisodeProject.create("fp", str(ws))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    stem = ws / "artifacts" / "tracks" / "host.wav"
+    stem.write_bytes(sample_wav.read_bytes())
+    write_stem_hash(project, "host")
+    assert stem_is_fresh(project, "host")
+
+    fp = stem_fingerprint(project, "host")
+
+    project.clips[0].source_end = 1.0
+    assert stem_matches(project, "host", fp) is True
+    assert stem_is_fresh(project, "host") is False
+
+    fp2 = stem_fingerprint(project, "host")
+    assert stem_matches(project, "host", fp2) is False
