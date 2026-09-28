@@ -153,3 +153,47 @@ def test_presence_fanout_trailing_publish_failure_clears_cooldown() -> None:
         loop.close()
         presence_fanout.reset()
         presence_fanout.set_timer_factory(threading.Timer)
+
+
+def test_presence_fanout_uses_leading_builder_on_leading_edge_only() -> None:
+    presence_fanout.reset()
+    _FakeTimer.instances = []
+    presence_fanout.set_timer_factory(_FakeTimer)
+    key = "leading-key"
+    loop = __import__("asyncio").new_event_loop()
+    q = get_hub().subscribe(key, loop)
+
+    def build() -> list[dict]:
+        return [{"type": "Presence", "n": "build"}]
+
+    def lead() -> list[dict]:
+        return [{"type": "Presence", "n": "lead"}]
+
+    try:
+        presence_fanout.schedule(key, build, min_interval_s=0.1, leading=lead)
+        loop.run_until_complete(__import__("asyncio").sleep(0))
+        first = []
+        while True:
+            try:
+                first.append(q.get_nowait())
+            except Exception:
+                break
+        assert [e["n"] for e in first] == ["lead"]
+        # Second call in the same cooldown window: only build() is stored for the trailing
+        # edge (leading is only consulted on the immediate publish).
+        presence_fanout.schedule(key, build, min_interval_s=0.1, leading=lead)
+        assert _FakeTimer.instances
+        _FakeTimer.instances[-1].fn()
+        loop.run_until_complete(__import__("asyncio").sleep(0))
+        second = []
+        while True:
+            try:
+                second.append(q.get_nowait())
+            except Exception:
+                break
+        assert [e["n"] for e in second] == ["build"]
+    finally:
+        get_hub().unsubscribe(key, q)
+        loop.close()
+        presence_fanout.reset()
+        presence_fanout.set_timer_factory(threading.Timer)

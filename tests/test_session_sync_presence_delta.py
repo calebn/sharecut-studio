@@ -409,13 +409,45 @@ def test_roster_request_over_the_host_ws(minimal_project) -> None:
         assert any(c["client_id"] == "roster-a" for c in reply["clients"])
 
 
+def test_presence_heartbeat_reads_client_rows_once(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import log as sync_log
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+
+    counts = {"n": 0}
+    real_list_clients = sync_log.SyncStore.list_clients
+
+    def _counting_list_clients(self, *args, **kwargs):
+        counts["n"] += 1
+        return real_list_clients(self, *args, **kwargs)
+
+    monkeypatch.setattr(sync_log.SyncStore, "list_clients", _counting_list_clients)
+
+    _FakeTimer.instances = []
+    presence_fanout.set_timer_factory(_FakeTimer)
+    try:
+        presence_fanout.reset()
+        counts["n"] = 0
+        _presence(svc, "c1", seq=1)
+        assert counts["n"] == 1
+
+        presence_fanout.reset()
+        counts["n"] = 0
+        svc.submit_control("SetPlayhead", {"playhead_sec": 1.0}, client_id="agent-x")
+        assert counts["n"] == 1
+    finally:
+        presence_fanout.reset()
+        presence_fanout.set_timer_factory(threading.Timer)
+
+
 def test_fanout_presence_after_commit_logs_and_swallows_a_store_error(
     minimal_project, monkeypatch, caplog
 ) -> None:
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
 
-    def _boom(self):
+    def _boom(self, live_rows=None):
         raise RuntimeError("store unavailable")
 
     monkeypatch.setattr(SessionSyncService, "_presence_events", _boom)
