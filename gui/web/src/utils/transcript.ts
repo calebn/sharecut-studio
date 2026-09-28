@@ -136,10 +136,17 @@ export function transcriptWordRange(
  * Space-joined text of an inclusive word-index range on a track, or null unless
  * every index in the range is in this snapshot (#650 stale-correction guard).
  * A word listed under two utterances (one straddling an utterance boundary)
- * normally counts once, since the mapper emits both listings from the same
- * per-track word view, so their text is identical. If two loaded listings for
- * the same index disagree on text, the span is unverifiable and this returns
- * null rather than guessing which listing is current.
+ * counts once: the mapper emits both listings from the same per-track word
+ * view, so their text is identical. If two loaded listings still disagree, the
+ * span is unverifiable and this returns null (no guard; the inspector says so)
+ * rather than guessing which listing is current.
+ *
+ * That branch is defensive. The only way listings come from different
+ * snapshots is the SHELL overlay (`overlayTranscriptWords` in
+ * `document/projectPatch.ts`), which reuses a row's previous `words[]` only
+ * while that row's text is unchanged and otherwise marks the words incomplete
+ * (the inspector then shows "Loading"). No live sequence is known to leave two
+ * disagreeing listings marked complete; the tests use hand-built fixtures.
  */
 export function transcriptSpanText(
   project: ProjectView | null,
