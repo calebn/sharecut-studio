@@ -18,7 +18,8 @@ import { refKind } from "./types";
  * Host deep-zoom PCM: per-frame `(min, max)` pairs in blocks of
  * `pcm_block_frames` frames (S8 budget, the shared fetch gate). Guests never
  * reach this store. A 409 means the key is stale, so the status is polled
- * again; a 429 re-queues after `Retry-After`.
+ * again; a 429, or a 503 with `Retry-After` (every host decode slot busy),
+ * re-queues after `Retry-After`.
  */
 
 type Block = { projectPath: string; ref: string; key: string; block: number };
@@ -36,7 +37,7 @@ const retries = new Set<{
   id: string;
   timer: ReturnType<typeof setTimeout>;
 }>();
-/** Block ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
+/** Block ids held back after a failed fetch (a 429 or busy 503 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
 const cooling = new Set<string>();
 const listeners = keyedListeners();
 
@@ -117,7 +118,7 @@ function dispatch(id: string, block: Block): void {
       if (failure.kind === "stale" || failure.kind === "missing") {
         refreshWaveformStatus(block.projectPath, refKind(block.ref));
       }
-      // Hold the block back: a 429 until Retry-After (then re-queue it), anything else briefly.
+      // Hold the block back: a 429 or busy 503 until Retry-After (then re-queue it), anything else briefly.
       cooling.add(id);
       const retry = {
         projectPath: block.projectPath,

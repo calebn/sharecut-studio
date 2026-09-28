@@ -158,6 +158,17 @@ describe("pcmStore", () => {
     expect(calls.map((c) => c.req.block)).toEqual([4]);
   });
 
+  it("re-queues after Retry-After on a busy 503", async () => {
+    vi.useFakeTimers();
+    requestPcm(source, 5, 5);
+    calls.shift()!.reject(new WaveformFetchError(503, 1));
+    await flush();
+    requestPcm(source, 5, 5);
+    expect(calls).toHaveLength(0);
+    vi.advanceTimersByTime(1000);
+    expect(calls.map((c) => c.req.block)).toEqual([5]);
+  });
+
   it("aborts only when leaving the project", () => {
     requestPcm(source, 0, 0);
     retainPcm("/tmp/p.json");

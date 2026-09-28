@@ -134,6 +134,20 @@ describe("classifyFetchFailure", () => {
     expect(classifyFetchFailure(new Error("offline")).kind).toBe("drop");
   });
 
+  it("retries a 503 only when it carries Retry-After", () => {
+    expect(classifyFetchFailure(new WaveformFetchError(503, 2))).toEqual({
+      kind: "retry",
+      afterMs: 2000,
+    });
+    expect(classifyFetchFailure(new WaveformFetchError(503, 0))).toEqual({
+      kind: "retry",
+      afterMs: 0,
+    });
+    expect(classifyFetchFailure(new WaveformFetchError(503, null)).kind).toBe(
+      "drop",
+    );
+  });
+
   it("holds a 429 back for Retry-After and anything else for FAILED_FETCH_BACKOFF_MS", () => {
     expect(holdBackMs({ kind: "retry", afterMs: 2000 })).toBe(2000);
     expect(holdBackMs({ kind: "drop" })).toBe(FAILED_FETCH_BACKOFF_MS);

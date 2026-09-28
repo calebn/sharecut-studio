@@ -50,7 +50,7 @@ const retries = new Set<{
   ids: string[];
   timer: ReturnType<typeof setTimeout>;
 }>();
-/** Tile ids held back after a failed fetch (a 429 until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
+/** Tile ids held back after a failed fetch (a 429 or a 503 with Retry-After until Retry-After, otherwise FAILED_FETCH_BACKOFF_MS). */
 const cooling = new Set<string>();
 /**
  * Tile ids that 404'd or came back short under their key, with the time they
@@ -237,7 +237,7 @@ function dispatch(run: Pending[]): void {
         noteWaveformTileMissing(head.projectPath, head.ref, head.meta.key);
         return;
       }
-      // Hold the run back: a 429 until Retry-After (then re-queue it), anything else briefly.
+      // Hold the run back: a 429 or a 503 with Retry-After until Retry-After (then re-queue it), anything else briefly.
       for (const id of ids) {
         cooling.add(id);
       }
