@@ -112,6 +112,12 @@
   flex-wrap: wrap;
 }
 
+.modifier-footer-actions > .modifier-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .track-sheet-mixer {
   display: flex;
   flex-direction: column;
@@ -237,7 +243,7 @@
   display: block;
   font-size: var(--font-size-micro);
   opacity: 0.75;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .fx-bypass-toggle {

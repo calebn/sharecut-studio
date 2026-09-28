@@ -26,7 +26,9 @@ import {
   DefItem,
   DefinitionList,
   FieldRow,
+  InspectorSeekFooterView,
 } from "../../ui";
+import { formatEffectParams } from "../../utils/effectParams";
 import { playTimelineRange } from "../../utils/playRange";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -142,19 +144,14 @@ export function TrackInspector({
       subtitle={track.label && track.label !== track.id ? track.id : undefined}
       error={error}
       footer={
-        <div className="modifier-footer-actions">
-          <Button variant="link" onClick={() => setPlayheadSec(0)}>
-            Seek start
-          </Button>
-          <Button
-            variant="link"
-            disabled={mixOnly}
-            title={mixOnly ? "Guests listen in Mix" : undefined}
-            onClick={playFxAround}
-          >
-            Play FX around start
-          </Button>
-        </div>
+        <InspectorSeekFooterView
+          seekLabel="Go to start"
+          playLabel="Preview effects at track start"
+          playDisabled={mixOnly}
+          playDisabledReason="Guests listen in Mix"
+          onSeek={() => setPlayheadSec(0)}
+          onPlay={playFxAround}
+        />
       }
     >
       <div className="track-sheet-mixer" role="group" aria-label="Track mixer">
@@ -244,10 +241,10 @@ export function TrackInspector({
       <DefinitionList>
         <DefItem label="Stem">
           {track.stem_is_fresh === true
-            ? "fresh"
+            ? "Up to date"
             : track.stem_is_fresh === false
-              ? "stale"
-              : "unknown"}
+              ? "Out of date"
+              : "Unknown"}
         </DefItem>
         <DefItem label="Media">{track.media_path ?? "none"}</DefItem>
       </DefinitionList>
@@ -264,9 +261,9 @@ export function TrackInspector({
                 >
                   <div className="fx-chain-main">
                     <span className="fx-chain-name">{e.effect}</span>
-                    <code className="fx-chain-params">
-                      {JSON.stringify(e.params)}
-                    </code>
+                    <span className="fx-chain-params">
+                      {formatEffectParams(e.params) || "Default settings"}
+                    </span>
                   </div>
                   {editable ? (
                     <label className="fx-bypass-toggle">

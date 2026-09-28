@@ -85,18 +85,69 @@ describe("TrackInspector", () => {
     });
   });
 
-  it("does not switch a guest to FX via Play FX around start", async () => {
+  it("does not switch a guest to FX via Preview effects at track start", async () => {
     useDawStore
       .getState()
       .hydrate("/tmp/ep.json", minimalProject({ tracks: [hostTrack] }), "view");
     render(<TrackInspector track={hostTrack} effects={[]} />);
-    const playFx = screen.getByRole("button", { name: "Play FX around start" });
+    const playFx = screen.getByRole("button", {
+      name: "Preview effects at track start",
+    });
     expect(playFx).toBeDisabled();
     expect(await execute("transport.audition", { mode: "fx" })).toEqual({
       status: "disabled",
       reason: "guests hear Mix only",
     });
     expect(useDawStore.getState().auditionMode).toBe("mix");
+  });
+
+  it("Go to start moves the playhead to 0", async () => {
+    const user = userEvent.setup();
+    useDawStore.getState().setPlayheadSec(5);
+    render(<TrackInspector track={hostTrack} effects={[]} />);
+    await user.click(screen.getByRole("button", { name: "Go to start" }));
+    expect(useDawStore.getState().playheadSec).toBe(0);
+  });
+
+  it("stem freshness reads Up to date / Out of date / Unknown", () => {
+    const { rerender } = render(
+      <TrackInspector
+        track={{ ...hostTrack, stem_is_fresh: true }}
+        effects={[]}
+      />,
+    );
+    expect(screen.getByText("Up to date")).toBeInTheDocument();
+    rerender(
+      <TrackInspector
+        track={{ ...hostTrack, stem_is_fresh: false }}
+        effects={[]}
+      />,
+    );
+    expect(screen.getByText("Out of date")).toBeInTheDocument();
+    rerender(
+      <TrackInspector
+        track={{ ...hostTrack, stem_is_fresh: null }}
+        effects={[]}
+      />,
+    );
+    expect(screen.getByText("Unknown")).toBeInTheDocument();
+  });
+
+  it("effect params read as text, not JSON", async () => {
+    const { container } = render(
+      <TrackInspector
+        track={hostTrack}
+        effects={[
+          {
+            effect: "acompressor",
+            params: { threshold_db: -18, ratio: 3 },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("threshold -18 dB · ratio 3")).toBeInTheDocument();
+    expect(container.textContent).not.toContain("{");
+    await expectNoA11yViolations(container);
   });
 
   it("smooths every join on the track from the track inspector", async () => {

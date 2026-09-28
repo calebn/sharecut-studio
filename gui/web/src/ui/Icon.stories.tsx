@@ -25,6 +25,7 @@ const ICONS = {
   fitHeight: true,
   check: true,
   refresh: true,
+  seek: true,
 } satisfies Record<IconName, true>;
 
 const NAMES = Object.keys(ICONS) as IconName[];

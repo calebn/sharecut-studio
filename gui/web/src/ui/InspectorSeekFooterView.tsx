@@ -1,6 +1,7 @@
 import { useId } from "react";
 import type { PreviewMode } from "../utils/playRange";
 import { Button } from "./Button";
+import { Icon } from "./Icon";
 import { SegmentedControl } from "./SegmentedControl";
 import { ToggleButton } from "./ToggleButton";
 
@@ -12,8 +13,9 @@ export interface InspectorSeekFooterViewProps {
   onPreviewModeChange?: (mode: PreviewMode) => void;
   suggestDisabled?: boolean;
   suggestDisabledReason?: string | null;
-  /** Seek and play buttons: quiet links (default) or full buttons. */
-  actionVariant?: "link" | "default";
+  /** Disables the play action (e.g. guests hear Mix only); the reason becomes its tooltip. */
+  playDisabled?: boolean;
+  playDisabledReason?: string;
   /** Seek action; the live adapter moves the DAW playhead. */
   onSeek: () => void;
   /** Play action; the live adapter auditions the range in the chosen preview mode. */
@@ -27,8 +29,9 @@ const PREVIEW_MODES: { id: PreviewMode; label: string }[] = [
 ];
 
 /**
- * Props-only seek + play-around footer for modifier inspectors. The live
- * `InspectorSeekFooter` adapter supplies DAW-store seek and audition callbacks.
+ * Props-only seek + play-around footer for modifier inspectors. Seek and play
+ * are always buttons with an icon (#701). The live `InspectorSeekFooter`
+ * adapter supplies DAW-store seek and audition callbacks.
  */
 export function InspectorSeekFooterView({
   seekLabel = "Seek",
@@ -38,18 +41,25 @@ export function InspectorSeekFooterView({
   onPreviewModeChange,
   suggestDisabled = false,
   suggestDisabledReason,
-  actionVariant = "link",
+  playDisabled,
+  playDisabledReason,
   onSeek,
   onPlay,
 }: InspectorSeekFooterViewProps) {
   const reasonId = useId();
   return (
     <div className="modifier-footer-actions">
-      <Button variant={actionVariant} onClick={onSeek}>
+      <Button onClick={onSeek}>
+        <Icon name="seek" />
         {seekLabel}
       </Button>
       {showPlay ? (
-        <Button variant={actionVariant} onClick={onPlay}>
+        <Button
+          onClick={onPlay}
+          disabled={playDisabled}
+          title={playDisabled ? playDisabledReason : undefined}
+        >
+          <Icon name="play" />
           {playLabel}
         </Button>
       ) : null}

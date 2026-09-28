@@ -116,21 +116,10 @@ describe("InspectorSeekFooter", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("renders quiet links by default and buttons on request", () => {
-    const { rerender } = render(
-      <InspectorSeekFooter seekSec={1} playStart={1} playEnd={2} />,
-    );
-    const link = screen.getByRole("button", { name: "Seek" }).className;
-    rerender(
-      <InspectorSeekFooter
-        seekSec={1}
-        playStart={1}
-        playEnd={2}
-        actionVariant="default"
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Seek" }).className).not.toBe(
-      link,
+  it("renders buttons, not links", () => {
+    render(<InspectorSeekFooter seekSec={1} playStart={1} playEnd={2} />);
+    expect(screen.getByRole("button", { name: "Seek" }).className).not.toMatch(
+      /linkish/,
     );
   });
 });
