@@ -158,6 +158,17 @@ is not an ASR cache input, so toggling the flag never re-runs Whisper. The cache
 best-effort: a failed write logs a warning and keeps the aligned spans. Writing a new
 alignment cache deletes older ones for the same ASR cache.
 
+The run-only `retime_words` flag (Studio **Re-time words** next to the Pipeline tab's
+Precise word boundaries field, CLI `pipeline run --retime-words`, MCP
+`pipeline_run(retime_words=true)`) re-times stored transcripts without re-running Whisper:
+it reads Whisper's cached words for the track's current model, language, vocabulary prompt
+and decode options (`TranscriptionEngine.read_asr_cache`, the same lookup `transcribe_job`
+uses), then aligns them and replaces the stored transcript, going through the alignment
+cache above like any other alignment. Reused transcripts with no ASR cache for the current
+inputs only Re-transcribe can rebuild them. Hand-edited transcripts are re-timed only with
+the same `overwrite_edited` confirmation Re-transcribe uses; CLI and MCP never send that
+confirmation, so they always skip edited transcripts and report them.
+
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)
 and decodes with `hallucination_silence_threshold`. VAD keeps quiet speech down to about

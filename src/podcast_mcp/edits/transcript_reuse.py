@@ -13,6 +13,7 @@ from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, c
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.transcript_context import load_transcript_context
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.word_aligner_models import WordAlignerModel, word_aligner_model
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,9 @@ class TranscribePlan:
     reused: list[TranscribeJob] = field(default_factory=list)
     adopted: list[TranscriptKey] = field(default_factory=list)
     overwrite_edited: list[str] = field(default_factory=list)
+    retime: list[TranscribeJob] = field(default_factory=list)
+    retime_skipped_edited: list[str] = field(default_factory=list)
+    retime_skipped_no_cache: list[str] = field(default_factory=list)
 
 
 class HasAudioIdentity(Protocol):
@@ -132,6 +136,65 @@ def plan_transcription(
     if refused_forced or refused_changed:
         raise TranscriptOverwriteRefused(_refusal_message(refused_forced, refused_changed))
     return plan
+
+
+def needs_retime(transcript: Transcript, model: WordAlignerModel) -> bool:
+    """Words ``model`` could re-time that it has not (none, unsupported language or re-timed never count)."""
+    return (
+        bool(transcript.words)
+        and model.supports_language(transcript.language)
+        and transcript.word_aligner != model.id
+    )
+
+
+def plan_retime(
+    project: EpisodeProject,
+    plan: TranscribePlan,
+    engine: TranscriptionEngine,
+    *,
+    language: str | None,
+    allow_edited: bool,
+) -> None:
+    """Move reused jobs whose ASR cache is on disk into ``plan.run`` so only alignment runs.
+
+    ``run_transcribe_plan`` then reads Whisper's cached words (``use_cache`` stays true) and
+    re-aligns them, replacing the stored transcript. Hand-edited transcripts move only with
+    ``allow_edited`` (Studio's confirmation); jobs with no ASR cache for the current model,
+    language, vocabulary prompt and decode options stay reused and are reported.
+
+    Note: ``run_transcribe_plan`` reloads the transcript context to build the prompt. A
+    vocabulary save between the two loads makes that job a cache miss, and Whisper then runs
+    for it: the result is the same as Re-transcribe, and the race is accepted.
+    """
+    model = word_aligner_model()
+    stored = {t.key: t for t in project.transcripts}
+    prompt = load_transcript_context(project.workspace_path()).initial_prompt_text()
+    kept: list[TranscribeJob] = []
+    for job in plan.reused:
+        current = stored.get(job.key)
+        if current is None or not needs_retime(current, model):
+            kept.append(job)
+            continue
+        if current.user_edited and not allow_edited:
+            plan.retime_skipped_edited.append(job.label)
+            kept.append(job)
+            continue
+        _, cached = engine.read_asr_cache(
+            project,
+            job,
+            language=language,
+            initial_prompt=prompt,
+            audio_sha256=plan.audio_hashes[job.key],
+        )
+        if cached is None:
+            plan.retime_skipped_no_cache.append(job.label)
+            kept.append(job)
+            continue
+        if current.user_edited:
+            plan.overwrite_edited.append(job.track_id)
+        plan.retime.append(job)
+        plan.run.append(job)
+    plan.reused = kept
 
 
 def merge_transcripts_by_key(project: EpisodeProject, new: list[Transcript]) -> None:

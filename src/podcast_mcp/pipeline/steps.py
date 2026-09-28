@@ -97,6 +97,8 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.pipeline_unattended import is_unattended
     from podcast_mcp.edits.transcript_reuse import (
+        needs_retime,
+        plan_retime,
         plan_transcription,
         refresh_reused_silence_flags,
         run_transcribe_plan,
@@ -124,21 +126,36 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     engines: list[TranscriptionEngine] = []
 
     def make_engine() -> TranscriptionEngine:
-        # Built only when ASR runs (model validation stays lazy); kept for the skip count.
-        engine = TranscriptionEngine(
-            model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
-            device="cpu",
-            options=options,
+        # One engine per step, built only when ASR or re-timing runs (model validation stays
+        # lazy); kept for the skip count and the forced-alignment report.
+        if not engines:
+            engines.append(
+                TranscriptionEngine(
+                    model_size=cfg.get("model", DEFAULT_WHISPER_MODEL),
+                    device="cpu",
+                    options=options,
+                )
+            )
+        return engines[0]
+
+    language = cfg.get("language", "en")
+    # Run-only (Studio Re-time words, CLI --retime-words, MCP retime_words); never in yaml.
+    retime = options.forced_alignment_enabled and bool(cfg.get("retime_words", False))
+    if retime:
+        plan_retime(
+            project,
+            plan,
+            make_engine(),
+            language=language,
+            allow_edited=bool(cfg.get("overwrite_edited", False)),
         )
-        engines.append(engine)
-        return engine
 
     transcripts = run_transcribe_plan(
         project,
         plan,
         make_engine,
         use_cache=not overwrite,
-        language=cfg.get("language", "en"),
+        language=language,
         max_word_sec=pol.max_word_audibility_sec,
     )
     reflag_skipped = refresh_reused_silence_flags(project, plan, options)
@@ -154,6 +171,17 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         if options.forced_alignment_enabled
         else []
     )
+    forced_alignment: dict[str, Any] = {
+        "enabled": options.forced_alignment_enabled,
+        "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
+        "jobs": align_jobs,
+    }
+    if retime:
+        forced_alignment["retime"] = {
+            "retimed": [j.label for j in plan.retime],
+            "skipped_edited": plan.retime_skipped_edited,
+            "skipped_no_asr_cache": plan.retime_skipped_no_cache,
+        }
     timing_path = artifact(project, "transcript_timing.json")
     timing_path.write_text(
         json.dumps(
@@ -161,17 +189,13 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                 "max_word_sec": pol.max_word_audibility_sec,
                 "flag_count": len(timing_flags),
                 "flags": timing_flags,
-                "forced_alignment": {
-                    "enabled": options.forced_alignment_enabled,
-                    "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
-                    "jobs": align_jobs,
-                },
+                "forced_alignment": forced_alignment,
             },
             indent=2,
         ),
         encoding="utf-8",
     )
-    summary = f"{len(transcripts)} transcribed, {len(plan.reused)} reused, {words} words"
+    summary = f"{len(transcripts) - len(plan.retime)} transcribed, {len(plan.reused)} reused, {words} words"
     if plan.overwrite_edited:
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if timing_flags:
@@ -190,19 +214,32 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", silence filter skipped on {skipped} track(s)"
     if options.forced_alignment_enabled:
         summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
-        reused_keys = {j.key for j in plan.reused}
-        # Only transcripts the aligner could place: no words or an unsupported language never re-time.
-        aligner_model = word_aligner_model()
-        not_retimed = sum(
-            1
-            for t in project.transcripts
-            if t.key in reused_keys
-            and t.words
-            and aligner_model.supports_language(t.language)
-            and t.word_aligner != aligner_model.id
-        )
-        if not_retimed:
-            summary += f", {not_retimed} reused track(s) not re-timed (Re-transcribe to re-time)"
+        if plan.retime:
+            summary += f", {len(plan.retime)} reused track(s) re-timed from the ASR cache"
+        if retime:
+            if plan.retime_skipped_edited:
+                summary += (
+                    f", {len(plan.retime_skipped_edited)} edited track(s) not re-timed "
+                    "(confirm replacing their edits to re-time)"
+                )
+            if plan.retime_skipped_no_cache:
+                summary += (
+                    f", {len(plan.retime_skipped_no_cache)} track(s) with no ASR cache not "
+                    "re-timed (Re-transcribe to re-time)"
+                )
+        else:
+            reused_keys = {j.key for j in plan.reused}
+            # Only transcripts the aligner could place: no words or an unsupported language never re-time.
+            aligner_model = word_aligner_model()
+            not_retimed = sum(
+                1
+                for t in project.transcripts
+                if t.key in reused_keys and needs_retime(t, aligner_model)
+            )
+            if not_retimed:
+                summary += (
+                    f", {not_retimed} reused track(s) not re-timed (Re-time words to re-time)"
+                )
         kept = sum(1 for j in align_jobs if j.get("status") in ("failed", "skipped"))
         if kept:
             summary += f", forced alignment kept Whisper timestamps on {kept} track(s)"

@@ -319,6 +319,35 @@ class TranscriptionEngine:
         name = f"{cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
 
+    def read_asr_cache(
+        self,
+        project: EpisodeProject,
+        job: TranscribeJob,
+        *,
+        language: str | None,
+        initial_prompt: str | None,
+        audio_sha256: str,
+    ) -> tuple[Path, Transcript | None]:
+        """This job's ASR cache path and its cached words (new name, then legacy when trusted).
+
+        The transcript is None on a miss; Whisper never runs here.
+        """
+        cache = self.cache_path(
+            project,
+            job.cache_id,
+            job.audio,
+            language=language,
+            initial_prompt=initial_prompt,
+            audio_sha256=audio_sha256,
+        )
+        transcript = _read_cache(cache)
+        # The legacy name does not encode model or prompt, so it is only
+        # trusted when no prompt shaped the words and decoding matches
+        # faster-whisper's own defaults (VAD / temperature change the words).
+        if transcript is None and not initial_prompt and self.options.is_faster_whisper_default:
+            transcript = _read_cache(legacy_cache_path(project, job.cache_id, audio_sha256))
+        return cache, transcript
+
     def _load_word_aligner(self) -> WordAligner:
         # The load, or its failure, is kept for this engine's lifetime (one pipeline run or
         # one TranscriptService request): a corrupt snapshot is hashed once per run, not
@@ -495,22 +524,20 @@ class TranscriptionEngine:
         use_cache=False skips both caches.
         """
         sha = audio_sha256 or sha256_file(job.audio)
-        cache = self.cache_path(
-            project,
-            job.cache_id,
-            job.audio,
-            language=language,
-            initial_prompt=initial_prompt,
-            audio_sha256=sha,
-        )
         transcript: Transcript | None = None
         if use_cache:
-            transcript = _read_cache(cache)
-            # The legacy name does not encode model or prompt, so it is only
-            # trusted when no prompt shaped the words and decoding matches
-            # faster-whisper's own defaults (VAD / temperature change the words).
-            if transcript is None and not initial_prompt and self.options.is_faster_whisper_default:
-                transcript = _read_cache(legacy_cache_path(project, job.cache_id, sha))
+            cache, transcript = self.read_asr_cache(
+                project, job, language=language, initial_prompt=initial_prompt, audio_sha256=sha
+            )
+        else:
+            cache = self.cache_path(
+                project,
+                job.cache_id,
+                job.audio,
+                language=language,
+                initial_prompt=initial_prompt,
+                audio_sha256=sha,
+            )
         fresh = transcript is None
         if transcript is None:
             transcript = self.transcribe_file(
