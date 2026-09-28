@@ -404,6 +404,18 @@ def test_reconciliation_fingerprint_accepts_precomputed_render_hashes(tmp_path) 
     )
 
 
+def test_reconciliation_fingerprint_takes_the_track_set_from_the_project(tmp_path) -> None:
+    project = EpisodeProject.create("fp", str(tmp_path))
+    for tid in ("host", "guest"):
+        project.timeline.tracks.append(Track(id=tid, label=tid, role=TrackRole.DIALOGUE))
+    hashes = dialogue_render_hashes(project)
+    assert audio_state_fingerprint(project, {**hashes, "gone": "0" * 16}) == (
+        audio_state_fingerprint(project)
+    )
+    with pytest.raises(KeyError):
+        audio_state_fingerprint(project, {"host": hashes["host"]})
+
+
 def test_wav_duration_cache_is_bounded_by_the_named_size() -> None:
     from podcast_mcp.engines import play_audit
 

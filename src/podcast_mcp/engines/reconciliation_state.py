@@ -8,6 +8,7 @@ from typing import Any
 from podcast_mcp.edits.mute_regions import mute_regions_payload
 from podcast_mcp.engines.play_audit import dialogue_render_hashes, envelope_audio_payload
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 
 def audio_state_fingerprint(
@@ -16,11 +17,14 @@ def audio_state_fingerprint(
     """Hash of the audio state reconciliation measures: dialogue tracks only.
 
     ``render_hashes`` is this project's ``dialogue_render_hashes`` when the caller already
-    has it; passing it skips hashing every dialogue track a second time.
+    has it; passing it skips hashing every dialogue track a second time. It must be
+    computed from this same state: the track set always comes from the project, so a
+    map missing a dialogue track raises ``KeyError``, but a stale hash value would go
+    unnoticed.
     """
     hashes = dialogue_render_hashes(project) if render_hashes is None else render_hashes
     parts: list[str] = []
-    dialogue = sorted(hashes)
+    dialogue = sorted(dialogue_track_ids(project))
     for tid in dialogue:
         parts.append(hashes[tid])
         track = project.track_by_id(tid)
