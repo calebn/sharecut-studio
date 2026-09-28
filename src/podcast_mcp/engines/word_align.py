@@ -153,6 +153,11 @@ class WordAligner:
             spans, stats = retime_spans_stream(
                 reader, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
             )
+            # Only a decode with no samples at all, and only once a window read drained
+            # the stream (end_sec stays None if every padded window ended at sample <= 0,
+            # which ASR timestamps cannot produce). Not full decode validation: a short
+            # but nonzero decode (truncated media) is not an error; its windows fall
+            # under MIN_WINDOW_SAMPLES and those words keep Whisper's times.
             if words and reader.end_sec == 0.0:
                 raise NoAudioDecodedError(audio_path)
         return WordAlignResult(spans, stats, time.perf_counter() - start)

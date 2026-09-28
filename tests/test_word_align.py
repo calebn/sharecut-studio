@@ -193,6 +193,30 @@ def test_word_aligner_align_raises_on_empty_decode(tmp_path) -> None:
     assert result.spans == []
 
 
+def test_word_aligner_align_short_decode_keeps_whisper_times(tmp_path) -> None:
+    # Truncated media: 0.1 s decoded, words at 5-6.3 s. Not an error; the window
+    # past EOF is too short for the model and counts as failed.
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    aligner = WordAligner(word_aligner_model(), backend, vocab)
+    fake = FakeStreamEngine(
+        np.zeros(round(0.1 * SAMPLE_RATE_WAV2VEC2), dtype=np.float32), SAMPLE_RATE_WAV2VEC2
+    )
+    words = [
+        TranscriptWord(text="hi", start=5.0, end=5.5),
+        TranscriptWord(text="bye", start=6.0, end=6.3),
+    ]
+
+    result = aligner.align(tmp_path / "clip.wav", words, engine=fake)
+
+    assert result.spans == [None, None]
+    assert result.stats.windows == 1
+    assert result.stats.failed_windows == 1
+    assert result.stats.aligned_words == 0
+    assert result.stats.unaligned_words == 2
+    assert fake.closed
+
+
 def test_apply_word_spans_keeps_unaligned_and_clears_deferred_only_when_retimed() -> None:
     words = [
         TranscriptWord(text="a", start=0.0, end=5.0, audibility_status="deferred"),
