@@ -225,7 +225,9 @@ test.describe("core flow", () => {
               .filter({ hasText: "Bounced 1 file(s) to export/bounces/" }),
           ).toHaveCount(1);
 
-          // Poll: nothing pins the WAV write before the job's success status.
+          // The bounce job succeeds only after write_audio_formats returns
+          // (services/bounce.py), but no test pins that order; the poll guards
+          // against the status and the file write coming apart.
           await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
           const wavs = await bouncedWavs(projectPath);
           const bounced = wavs[0];
