@@ -27,7 +27,11 @@ export type BrowserContextSource = Pick<Browser, "newContext">;
  * empty `userDataDir` is Playwright's own ephemeral-persistent-context
  * idiom — no profile written to disk) does not have that gap, including for
  * `createSyncAccessHandle` inside a worker. The app needs no change for
- * this: it is purely a harness gap.
+ * this: it is purely a harness gap. Each `launchPersistentContext("")` call
+ * gets its own fresh temporary profile directory (Playwright: "Pass an empty
+ * string to create a temporary directory"), and `withBrowserPages` opens its
+ * contexts one after another, so the host, guest and reviewer launches never
+ * share or lock a profile.
  */
 export function keeperContextSource(browser: Browser): BrowserContextSource {
   const browserType = browser.browserType();

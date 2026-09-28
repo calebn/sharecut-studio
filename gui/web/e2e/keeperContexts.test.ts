@@ -63,4 +63,24 @@ describe("keeperContextSource", () => {
     expect(launchPersistentContext).toHaveBeenNthCalledWith(3, "", {});
     expect(context.close).toHaveBeenCalledTimes(3);
   });
+
+  it("launches WebKit persistent contexts one at a time through withBrowserPages", async () => {
+    const { browser, launchPersistentContext, context } = fakeBrowser("webkit");
+    let inFlight = 0;
+    let maxInFlight = 0;
+    launchPersistentContext.mockImplementation(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+      return context;
+    });
+    await withBrowserPages(
+      keeperContextSource(browser as never),
+      [RECORDER_CONTEXT, RECORDER_CONTEXT, {}],
+      async () => "done",
+    );
+    expect(launchPersistentContext).toHaveBeenCalledTimes(3);
+    expect(maxInFlight).toBe(1);
+  });
 });
