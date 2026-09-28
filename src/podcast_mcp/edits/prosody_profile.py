@@ -101,6 +101,11 @@ def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
     this process (``Transcript.memoize_words``), so an in-place edit such as
     ``refresh_silence_flags`` is never missed. The revision is process-wide: a words
     edit on any other track or project also forces one recompute here.
+
+    Callers must own ``project`` for the call (a per-request ``EpisodeProject``, as
+    ``audition_context`` and the guest share route build today) or hold
+    ``util.project_state.project_state_lock(project)`` while another thread may edit its
+    words in place; see ``TranscriptWords.memoized``.
     """
     tr = project.transcript_for_source(track_id, None)
     if tr is None:
@@ -366,11 +371,14 @@ def load_track_profile(
     ``stat`` of the media, and a words fingerprint of the track's transcript
     (:func:`track_words_fingerprint`, memoized on the transcript's in-process words
     revision (#729): O(words) only the first time after any words change in this
-    process, O(1) after), checked cheapest first. No Praat run and no audio decode. When ``params`` is given
-    (the staged pipeline working set's ``prosody.*`` settings), it also compares the
-    stored ``params`` with it. ``None`` (nothing staged) trusts the stored params,
-    because the working set is process-local and an unstaged process cannot know what
-    the last run used.
+    process, O(1) after), checked cheapest first. No Praat run and no audio decode.
+    When ``params`` is given (the staged pipeline working set's ``prosody.*`` settings),
+    it also compares the stored ``params`` with it. ``None`` (nothing staged) trusts the
+    stored params, because the working set is process-local and an unstaged process
+    cannot know what the last run used.
+
+    Same threading contract as :func:`track_words_fingerprint`: pass a project this call
+    owns, or hold ``project_state_lock(project)`` while other threads may edit its words.
     """
     profile = _existing_profile(project, track_id)
     if profile is None:
