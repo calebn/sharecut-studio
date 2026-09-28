@@ -278,7 +278,9 @@ def refresh_reused_silence_flags(
 
     Reused transcripts skip ASR. Decode an envelope only when their stored flags do not
     match the current media, settings, word spans and flag state. Legacy transcripts
-    have no fingerprint and are checked once. Returns labels whose audio could not be decoded.
+    have no fingerprint and are checked once. Returns labels whose audio could not be
+    decoded; their fingerprint is cleared so the next run retries (their evidence flags
+    still apply).
     """
     stored = {t.key: t for t in project.transcripts}
     skipped: list[str] = []
