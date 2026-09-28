@@ -284,6 +284,7 @@ describe("dawStore listen-first transport", () => {
       playbackRate: 1.25,
       viewerMute: { host: true },
       renderPreviewBusy: true,
+      chapterAddPending: true,
     });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     const same = useDawStore.getState();
@@ -294,9 +295,11 @@ describe("dawStore listen-first transport", () => {
     expect(same.playbackRate).toBe(1.25);
     expect(same.viewerMute).toEqual({ host: true });
     expect(same.renderPreviewBusy).toBe(true);
+    expect(same.chapterAddPending).toBe(true);
 
     same.hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
+    expect(useDawStore.getState().chapterAddPending).toBe(false);
   });
 
   it("beginAudition bumps epoch", () => {

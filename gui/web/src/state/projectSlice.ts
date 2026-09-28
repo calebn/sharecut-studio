@@ -91,6 +91,7 @@ export const createProjectSlice: StateCreator<
             auditionEpoch: 0,
             highlightStaleRender: false,
             renderPreviewBusy: false,
+            chapterAddPending: false,
             ...waveformViewState(projectPath),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),
