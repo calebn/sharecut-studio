@@ -92,7 +92,11 @@ export function JoinPopover({
 
   useOutsidePointerDown([panelRef, anchorRef], dismiss);
 
+  // One SetClipJoin at a time: a second one would clear the first's busy/error early.
   const mutate = (fn: () => Promise<unknown>) => {
+    if (inFlightRef.current) {
+      return;
+    }
     inFlightRef.current = true;
     void run(fn).finally(() => {
       inFlightRef.current = false;
