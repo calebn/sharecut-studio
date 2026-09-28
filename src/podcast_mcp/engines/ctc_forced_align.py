@@ -1,18 +1,37 @@
 """Numpy-only CTC forced alignment of known words over frame log-probabilities.
 
-Benchmark harness only (#640/#641); integration is #639.
+Shared by the opt-in pipeline pass (``engines/word_align.py``, #714) and
+``scripts/benchmark_forced_aligners.py``.
 """
 
 from __future__ import annotations
 
 import unicodedata
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from itertools import pairwise
+from typing import Protocol
 
 import numpy as np
 
 FRAME_SEC_WAV2VEC2 = 0.02  # wav2vec2 conv stride: 320 samples @ 16 kHz
+SAMPLE_RATE_WAV2VEC2 = 16_000
+# wav2vec2's feature encoder needs 400 samples (25 ms) for one frame.
+MIN_WINDOW_SAMPLES = 400
+DEFAULT_MAX_GAP_SEC = 1.0
+DEFAULT_MAX_WINDOW_SEC = 20.0
+DEFAULT_PAD_SEC = 0.5
+
+
+class LogProbBackend(Protocol):
+    """Frame log-probabilities (T x vocab) for a mono float32 chunk at 16 kHz."""
+
+    def log_probs(self, samples: np.ndarray) -> np.ndarray: ...
+
+
+def normalize_waveform(samples: np.ndarray) -> np.ndarray:
+    """Zero-mean / unit-variance input, as wav2vec2's feature extractor does."""
+    return (samples - samples.mean()) / np.sqrt(samples.var() + 1e-7)
 
 
 @dataclass(frozen=True)
@@ -161,9 +180,9 @@ def plan_windows(
     spans: Sequence[tuple[float, float]],
     *,
     audio_sec: float,
-    max_gap_sec: float = 1.0,
-    max_window_sec: float = 20.0,
-    pad_sec: float = 0.5,
+    max_gap_sec: float = DEFAULT_MAX_GAP_SEC,
+    max_window_sec: float = DEFAULT_MAX_WINDOW_SEC,
+    pad_sec: float = DEFAULT_PAD_SEC,
 ) -> list[AlignmentWindow]:
     """Group word spans into padded alignment windows.
 
@@ -220,3 +239,56 @@ def plan_windows(
     for group, (start, end) in zip(groups, padded, strict=True):
         windows.append(AlignmentWindow(start_sec=start, end_sec=end, word_indices=tuple(group)))
     return windows
+
+
+@dataclass(frozen=True)
+class RetimeStats:
+    windows: int
+    failed_windows: int
+    aligned_words: int
+    unaligned_words: int
+
+    def as_dict(self) -> dict[str, int]:
+        return asdict(self)
+
+
+def retime_spans(
+    samples: np.ndarray,
+    words: Sequence[tuple[str, float, float]],
+    backend: LogProbBackend,
+    vocab: CtcVocab,
+    *,
+    sample_rate: int = SAMPLE_RATE_WAV2VEC2,
+) -> tuple[list[tuple[float, float] | None], RetimeStats]:
+    """Force-align ``(text, start, end)`` words in padded windows around their current spans.
+
+    Returns one span per input word (None = not placed; the caller keeps the old
+    times). Windows shorter than MIN_WINDOW_SAMPLES (e.g. words past the end of
+    the audio) count as failed without calling the backend.
+    """
+    audio_sec = len(samples) / sample_rate
+    order = sorted(range(len(words)), key=lambda i: words[i][1])
+    windows = plan_windows([(words[i][1], words[i][2]) for i in order], audio_sec=audio_sec)
+    spans: list[tuple[float, float] | None] = [None] * len(words)
+    failed = 0
+    for win in windows:
+        start_sample = round(win.start_sec * sample_rate)
+        end_sample = round(win.end_sec * sample_rate)
+        indices = [order[j] for j in win.word_indices]
+        if end_sample - start_sample < MIN_WINDOW_SAMPLES:
+            failed += 1
+            continue
+        lp = backend.log_probs(samples[start_sample:end_sample])
+        placed = align_words(lp, [words[i][0] for i in indices], vocab, offset_sec=win.start_sec)
+        if all(span is None for span in placed):
+            failed += 1
+        for index, span in zip(indices, placed, strict=True):
+            if span is not None:
+                spans[index] = span
+    aligned = sum(span is not None for span in spans)
+    return spans, RetimeStats(
+        windows=len(windows),
+        failed_windows=failed,
+        aligned_words=aligned,
+        unaligned_words=len(words) - aligned,
+    )
