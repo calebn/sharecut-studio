@@ -1,5 +1,5 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import { isPipelineKindJob, isPipelineRunning } from "./pipeline";
+import { isAnalyzeJob, isPipelineKindJob, isPipelineRunning } from "./pipeline";
 
 /** True when the job has an honest determinate total (no fake %). */
 export function hasDeterminateProgress(
@@ -27,6 +27,13 @@ export function pipelineUnitsLabel(
     return null;
   }
   return `${job.current}/${job.total} ${unit}`;
+}
+
+/** Unit noun for a job's `current/total`: Analyze counts dialogue tracks, everything else steps. */
+export function pipelineUnitNoun(
+  kind: PipelineJobSnapshot["kind"] | undefined,
+): string {
+  return isAnalyzeJob({ kind }) ? "tracks" : "steps";
 }
 
 export function truncateHeadline(
@@ -86,7 +93,7 @@ export function pipelineChromeLabel(
   if (headline) {
     parts.push(headline);
   }
-  const units = pipelineUnitsLabel(job);
+  const units = pipelineUnitsLabel(job, pipelineUnitNoun(job.kind));
   if (units) {
     parts.push(units);
   }

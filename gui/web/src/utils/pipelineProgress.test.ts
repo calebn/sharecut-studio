@@ -13,6 +13,7 @@ import {
   pipelineKindLabel,
   pipelineProgressPercent,
   pipelineStatusLabel,
+  pipelineUnitNoun,
   pipelineUnitsLabel,
   STALE_AFTER_S,
   showIndeterminatePulse,
@@ -84,12 +85,31 @@ describe("pipelineProgress", () => {
         }),
       ),
     ).toBe("Pipeline: running · Whisper encode");
+    expect(
+      pipelineChromeLabel(
+        job({
+          kind: "analyze",
+          status: "running",
+          message: "Scanned host (1/2)",
+          current: 1,
+          total: 2,
+        }),
+      ),
+    ).toBe("Activity: running · Scanned host (1/2) · 1/2 tracks");
   });
 
-  it("labels bounce/export/render_preview as Activity, not Pipeline tab jobs", () => {
+  it("uses tracks for Analyze and steps otherwise", () => {
+    expect(pipelineUnitNoun("analyze")).toBe("tracks");
+    expect(pipelineUnitNoun("pipeline")).toBe("steps");
+    expect(pipelineUnitNoun("bounce")).toBe("steps");
+    expect(pipelineUnitNoun(undefined)).toBe("steps");
+  });
+
+  it("labels bounce/export/render_preview/analyze as Activity, not Pipeline tab jobs", () => {
     expect(pipelineKindLabel("bounce")).toBe("Activity");
     expect(pipelineKindLabel("export")).toBe("Activity");
     expect(pipelineKindLabel("render_preview")).toBe("Activity");
+    expect(pipelineKindLabel("analyze")).toBe("Activity");
     expect(pipelineKindLabel("pipeline")).toBe("Pipeline");
     expect(isPipelineKindJob(job({ kind: "bounce" }))).toBe(false);
     expect(isPipelineKindJob(job({ kind: "export" }))).toBe(false);

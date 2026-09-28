@@ -31,6 +31,7 @@ import {
   pipelineKindLabel,
   pipelineProgressPercent,
   pipelineStatusLabel,
+  pipelineUnitNoun,
   pipelineUnitsLabel,
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
@@ -639,7 +640,7 @@ export function PipelinePanel() {
     analyzeJob ??
     (isPipelineKindJob(pipelineJob) && !foreignSlotBusy ? pipelineJob : null);
   const pct = pipelineProgressPercent(job);
-  const units = pipelineUnitsLabel(job, analyzeJob ? "tracks" : "steps");
+  const units = pipelineUnitsLabel(job, pipelineUnitNoun(job?.kind));
   const indeterminatePulse = showIndeterminatePulse(job);
 
   const failedStep = (id: string) =>
