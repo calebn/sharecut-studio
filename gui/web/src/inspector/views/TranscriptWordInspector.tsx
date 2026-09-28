@@ -176,12 +176,24 @@ export function TranscriptWordInspector({
       ),
     );
     if (!failed) {
-      // Re-seed from what the server actually wrote (#746). The typed draft
-      // (`text`) is kept — this only moves the baseline End index / expected
-      // text forward so the next Apply guards against the text just applied.
+      // Re-seed the baseline from what the server actually wrote (#746). The
+      // typed draft (`text`) is kept. `appliedCorrectionSpan` predicts the new
+      // End index; the baseline text is read from the store, which
+      // `applyDocumentResult` already updated with the host's result, so it
+      // does not depend on the JS and Python tokenizers agreeing. If the store
+      // does not read as the predicted text (tokenizer drift, or a queued
+      // offline send with no result yet), the baseline is null and the
+      // unverified-span hint shows.
       const applied = appliedCorrectionSpan(wordIndex, endIndex, text);
+      const stored = transcriptSpanText(
+        useDawStore.getState().project,
+        trackId,
+        wordIndex,
+        applied.endWordIndex,
+      );
+      const baseline = stored === applied.text ? stored : null;
       setEndIndexStr(String(applied.endWordIndex));
-      setExpectedText(applied.text);
+      setExpectedText(baseline);
       return;
     }
     if (failure instanceof ApiError && failure.status === 409) {

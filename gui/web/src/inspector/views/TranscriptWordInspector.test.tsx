@@ -92,6 +92,32 @@ function projectWithDisagreeingDuplicate() {
   return dup;
 }
 
+/** `project()` whose host words 0.. read `texts`, as the store holds them once `applyDocumentResult` lands a correction. */
+function projectWithWords(texts: string[]) {
+  const next = project();
+  const utterance = next.transcript!.utterances[0]!;
+  utterance.text = texts.join(" ");
+  utterance.end = texts.length;
+  utterance.timeline_end = texts.length;
+  utterance.words = texts.map((text, i) => ({
+    text,
+    start: i,
+    end: i + 1,
+    timeline_start: i,
+    timeline_end: i + 1,
+    word_index: i,
+    confidence: 0.9,
+  }));
+  return next;
+}
+
+/** A correction mock that succeeds and leaves the store reading `texts`. */
+function applyingWords(texts: string[]) {
+  return async () => {
+    useDawStore.setState({ project: projectWithWords(texts) });
+  };
+}
+
 /** `project()` with word 1 already suppressed, still listed in its utterance
  * (as the mapper places a suppressed chip's run inside an utterance window). */
 function projectWithSuppressedWord() {
@@ -551,6 +577,9 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("a second single-word Apply sends the first Apply's text (#746)", async () => {
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      applyingWords(["Hello", "there"]),
+    );
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
@@ -583,6 +612,9 @@ describe("TranscriptWordInspector", () => {
   });
 
   it("a phrase Apply that adds a word moves End index to 2 and the baseline to the new text (#746)", async () => {
+    vi.mocked(correctTranscriptPhrase).mockImplementationOnce(
+      applyingWords(["Hello", "there", "new"]),
+    );
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there new" },
@@ -617,6 +649,33 @@ describe("TranscriptWordInspector", () => {
         "Hello there new",
       );
     });
+  });
+
+  it("a successful Apply the store does not read back leaves the baseline unverified (#746)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(
+      screen.getByText(/can't check whether someone else changed/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "World" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      0,
+      "World",
+      null,
+    );
   });
 
   it('after a 409, the second Apply sends the store\'s new span text ("hello where") (#746)', async () => {
