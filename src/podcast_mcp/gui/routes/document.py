@@ -23,7 +23,7 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
+from podcast_mcp.services.cross_process_sync import cross_process_lease
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import document_command_from_body
@@ -169,45 +169,42 @@ async def document_ws(
     loop = asyncio.get_running_loop()
     queue = hub.subscribe(key, loop)
     tasks = WsTaskSet(f"document ws client_id={client_id}")
-    bridge_lease: CrossProcessLease | None = None
     try:
         # After subscribe, before the hello snapshot (#695): a foreign write in between
         # is in the snapshot or published by the watcher.
-        bridge_lease = await run_in_threadpool(watch_cross_process_writes, ws_proj)
-        initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
-        await guard.send_json(
-            {
-                "type": "Snapshot",
-                "plane": "document",
-                "snapshot": initial_snapshot,
-            }
-        )
+        async with cross_process_lease(ws_proj):
+            initial_snapshot = await run_in_threadpool(svc.document_snapshot, projection="shell")
+            await guard.send_json(
+                {
+                    "type": "Snapshot",
+                    "plane": "document",
+                    "snapshot": initial_snapshot,
+                }
+            )
 
-        async def _pump_hub() -> None:
-            try:
-                while True:
-                    event = await queue.get()
-                    await guard.send_json(event)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception("document pump failed client_id=%s", client_id)
-                with contextlib.suppress(Exception):
-                    await guard.close(1011, "document pump failed")
-                raise
+            async def _pump_hub() -> None:
+                try:
+                    while True:
+                        event = await queue.get()
+                        await guard.send_json(event)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception("document pump failed client_id=%s", client_id)
+                    with contextlib.suppress(Exception):
+                        await guard.close(1011, "document pump failed")
+                    raise
 
-        tasks.spawn(_pump_hub())
-        tasks.spawn(guard.recheck_loop())
-        # Server→client only (#565): every send (hello Snapshot, _pump_hub, the authz
-        # recheck's 4403 close) goes through guard's write lock. Inbound frames are drained
-        # only to notice the disconnect; commands go through POST /api/document/command.
-        # Raw receive(), not receive_text(): a binary frame must not raise KeyError.
-        while True:
-            message = await websocket.receive()
-            if message["type"] == "websocket.disconnect":
-                break
+            tasks.spawn(_pump_hub())
+            tasks.spawn(guard.recheck_loop())
+            # Server→client only (#565): every send (hello Snapshot, _pump_hub, the authz
+            # recheck's 4403 close) goes through guard's write lock. Inbound frames are drained
+            # only to notice the disconnect; commands go through POST /api/document/command.
+            # Raw receive(), not receive_text(): a binary frame must not raise KeyError.
+            while True:
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
     finally:
         hub.unsubscribe(key, queue)
-        if bridge_lease is not None:
-            bridge_lease.release()
         await tasks.stop()

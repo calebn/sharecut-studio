@@ -1071,9 +1071,9 @@ def test_guest_daw_ws_leases_the_cross_process_watcher(
         events.append("acquire")
         return _FakeLease()
 
-    import podcast_mcp.gui.routes.review_share as review_share_routes
+    import podcast_mcp.services.cross_process_sync as cross_process_sync_module
 
-    monkeypatch.setattr(review_share_routes, "watch_cross_process_writes", _fake_watch)
+    monkeypatch.setattr(cross_process_sync_module, "watch_cross_process_writes", _fake_watch)
 
     with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
         guest_ws.receive_json()
