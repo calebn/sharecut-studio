@@ -187,3 +187,71 @@ def test_bounce_job_reporter_units_and_cancel_copy(minimal_project, monkeypatch)
     assert job.message == "Bounce cancelled"
     assert job.result is not None
     assert job.result["paths"][0].endswith("x.wav")
+
+
+def test_analyze_job_reporter_counts_tracks_per_phase(minimal_project) -> None:
+    from podcast_mcp.gui.jobs import _cancelled_copy, _JobProgressReporter
+
+    assert _cancelled_copy("analyze") == "Analyze cancelled"
+
+    job = PipelineJob(
+        id="a1",
+        project_path=str(minimal_project),
+        from_step=None,
+        only_step=None,
+        kind="analyze",
+        label="Analyze",
+    )
+    rep = _JobProgressReporter(job)
+    rep.start("pipeline_analyze", "Analyzing audio")
+    rep.message("pipeline_analyze", "Measuring track health…", phase="health")
+    rep.start("analyze_health", "Measuring track health")
+    rep.update("analyze_health", 0, total=2)
+    rep.update("analyze_health", 1, message="track host")
+    assert job.current == 1
+    assert job.total == 2
+    rep.end("analyze_health")
+    rep.start("analyze_silence", "Scanning dialogue for digital silence", total=2)
+    assert job.current == 0
+    assert job.total == 2
+    rep.update("analyze_silence", 2, message="Scanned guest (2/2)")
+    assert job.current == 2
+    assert job.message == "Scanned guest (2/2)"
+    assert rep._event_label() == "Analyze"
+    rep.close()
+
+
+def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypatch) -> None:
+    def fake_analyze_working_set(project_path, project, *, apply, cancel_check=None):
+        assert callable(cancel_check)
+        return {"reasons": [], "patches": {}, "applied": apply}
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline_config.analyze_working_set",
+        fake_analyze_working_set,
+    )
+
+    mgr = PipelineJobManager()
+    job = mgr.start_analyze(Path(minimal_project), apply=True)
+    mgr.wait(job, timeout=5)
+    assert job.kind == "analyze"
+    assert job.status == "ok"
+    snap = job.snapshot()
+    assert snap["result"]["applied"] is True
+    assert snap["label"] == "Analyze"
+
+    running = PipelineJob(
+        id="running-pipe",
+        project_path=str(minimal_project),
+        from_step=None,
+        only_step=None,
+        status="running",
+        started_at=1.0,
+        kind="pipeline",
+    )
+    mgr._job = running
+    try:
+        mgr.start_analyze(Path(minimal_project), apply=True)
+        raise AssertionError("analyze should take the pipeline lock")
+    except RuntimeError as exc:
+        assert "already running" in str(exc)

@@ -61,25 +61,56 @@ export async function putPipelineConfig(
   return res.json() as Promise<PipelineConfigResponse>;
 }
 
-export async function analyzePipeline(
+/** Start heuristic Analyze as a `kind=analyze` pipeline-slot job (409 while one runs). */
+export async function startPipelineAnalyze(
   projectPath: string,
   opts?: { apply?: boolean },
-): Promise<PipelineAnalyzeResponse> {
+): Promise<PipelineJobSnapshot> {
   if (isShareProjectKey(projectPath)) {
     throw new Error("Pipeline analyze is not available for shared guests");
   }
   const res = await hostFetch("/api/pipeline/analyze", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: projectPath,
-      apply: opts?.apply ?? false,
-    }),
+    body: JSON.stringify({ path: projectPath, apply: opts?.apply ?? false }),
   });
   if (!res.ok) {
     throw new Error(await readApiError(res));
   }
-  return res.json() as Promise<PipelineAnalyzeResponse>;
+  const data = (await res.json()) as { job: PipelineJobSnapshot };
+  return data.job;
+}
+
+/** Analyze decodes every dialogue track; a multi-hour episode can outlast the 10 min default (stays under the 2^31-1 ms timer cap). */
+export const ANALYZE_WAIT_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Start Analyze, hand its job to `onJob` (seed Studio chrome), then follow it to a
+ * terminal snapshot. Resolves the Analyze response carried on `result` (also for a
+ * cancel that landed after the working set was patched), `null` when it was cancelled
+ * before a result, and throws the job error when it failed.
+ */
+export async function analyzePipeline(
+  projectPath: string,
+  opts?: {
+    apply?: boolean;
+    signal?: AbortSignal;
+    onJob?: (job: PipelineJobSnapshot) => void;
+  },
+): Promise<PipelineAnalyzeResponse | null> {
+  const job = await startPipelineAnalyze(projectPath, { apply: opts?.apply });
+  opts?.onJob?.(job);
+  const done = await waitForPipelineJob(job.id, {
+    timeoutMs: ANALYZE_WAIT_MS,
+    signal: opts?.signal,
+  });
+  if (done.result) {
+    return done.result as unknown as PipelineAnalyzeResponse;
+  }
+  if (done.status === "cancelled") {
+    return null;
+  }
+  throw new Error(done.error || "Analyze failed");
 }
 
 export async function loadPipelineStatus(init?: {

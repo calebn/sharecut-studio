@@ -16,6 +16,7 @@ export interface PipelineJobSnapshot {
     | "render_preview"
     | "bounce"
     | "export"
+    | "analyze"
     | "agent"
     | (string & {});
   label?: string | null;

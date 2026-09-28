@@ -98,7 +98,16 @@ def _guest_tools() -> set[str]:
 
 
 def _gui_jobs() -> set[str]:
-    return {"pipeline", "render_preview", "bootstrap", "agent", "bounce", "export", "diagnostics"}
+    return {
+        "pipeline",
+        "render_preview",
+        "bootstrap",
+        "agent",
+        "bounce",
+        "export",
+        "diagnostics",
+        "analyze",
+    }
 
 
 def main() -> int:

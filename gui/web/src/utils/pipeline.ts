@@ -5,20 +5,28 @@ const PIPELINE_SLOT_KINDS = new Set<string>([
   "bounce",
   "export",
   "render_preview",
+  "analyze",
 ]);
 
-/** Pipeline tab jobs — not bounce/export/agent/render-preview chrome. */
+/** Pipeline tab jobs — not bounce/export/agent/render-preview/analyze chrome. */
 export function isPipelineKindJob(
   job: Pick<PipelineJobSnapshot, "kind"> | null | undefined,
 ): boolean {
   return (job?.kind ?? "pipeline") === "pipeline";
 }
 
-/** Single-flight slot jobs (pipeline / bounce / export / render_preview). */
+/** Single-flight slot jobs (pipeline / bounce / export / render_preview / analyze). */
 export function isPipelineSlotJob(
   job: Pick<PipelineJobSnapshot, "kind"> | null | undefined,
 ): boolean {
   return PIPELINE_SLOT_KINDS.has(job?.kind ?? "pipeline");
+}
+
+/** Pipeline tab Analyze (kind=analyze): a slot job whose progress the Pipeline tab shows itself. */
+export function isAnalyzeJob(
+  job: Pick<PipelineJobSnapshot, "kind"> | null | undefined,
+): boolean {
+  return job?.kind === "analyze";
 }
 
 export function isPipelineRunning(

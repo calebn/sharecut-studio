@@ -810,6 +810,143 @@ describe("PipelinePanel", () => {
     });
   });
 
+  function analyzeJobSnap(
+    overrides: Partial<import("../types/pipeline").PipelineJobSnapshot> = {},
+  ): import("../types/pipeline").PipelineJobSnapshot {
+    return {
+      id: "an-1",
+      project_path: "/tmp/ep.project.json",
+      from_step: null,
+      only_step: null,
+      kind: "analyze",
+      label: "Analyze",
+      status: "running",
+      current: 1,
+      total: 2,
+      message: "Scanned host (1/2)",
+      error: null,
+      elapsed_sec: 3,
+      steps: [],
+      ...overrides,
+    };
+  }
+
+  it("starts Analyze as a job and seeds Activity chrome", async () => {
+    const user = userEvent.setup();
+    analyzePipeline.mockImplementation(
+      async (
+        _path: string,
+        opts: { onJob: (job: unknown) => void; signal?: AbortSignal },
+      ) => {
+        opts.onJob(
+          analyzeJobSnap({ status: "queued", current: null, total: null }),
+        );
+        return {
+          proposed_config: {},
+          patches: {},
+          reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
+          report_summary: { track_count: 1, reason_count: 1, tracks: [] },
+          applied: true,
+          config: structuredClone(baseConfig),
+        };
+      },
+    );
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() => {
+      expect(analyzePipeline).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        expect.objectContaining({
+          apply: true,
+          signal: expect.any(AbortSignal),
+        }),
+      );
+    });
+    expect(setActivityJob).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "an-1", kind: "analyze" }),
+    );
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+  });
+
+  it("shows a running Analyze job's per-track progress with Cancel", async () => {
+    const user = userEvent.setup();
+    dawState.activityJob = analyzeJobSnap();
+    const { container } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getByText("Scanned host (1/2)")).toBeInTheDocument();
+    });
+    expect(screen.getByText("1/2 tracks")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "50",
+    );
+    expect(
+      screen.queryByText(/Cancel frees the pipeline slot/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /run pipeline/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled();
+    cancelPipelineRun.mockResolvedValue(
+      analyzeJobSnap({ message: "Cancel requested…" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(cancelPipelineRun).toHaveBeenCalledWith("an-1");
+    });
+    await expectNoA11yViolations(container);
+  });
+
+  it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
+    const user = userEvent.setup();
+    analyzePipeline.mockResolvedValue(null);
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+    });
+    expect(
+      screen.queryByText("Analyze suggestions applied"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(putPipelineConfig).not.toHaveBeenCalled();
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the Analyze wait on project switch", async () => {
+    const user = userEvent.setup();
+    let captured: AbortSignal | undefined;
+    analyzePipeline.mockImplementation(
+      (
+        _path: string,
+        opts: { onJob: (job: unknown) => void; signal?: AbortSignal },
+      ) =>
+        new Promise(() => {
+          captured = opts.signal;
+        }),
+    );
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() => {
+      expect(captured).toBeInstanceOf(AbortSignal);
+    });
+    mockState.projectPath = "/tmp/other.project.json";
+    rerender(<PipelinePanel />);
+    await waitFor(() => {
+      expect(captured?.aborted).toBe(true);
+    });
+  });
+
   it("keeps ticking last-update copy outside the live region", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     vi.setSystemTime(new Date("2026-09-18T12:00:00Z"));

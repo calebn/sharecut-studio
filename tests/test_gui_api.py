@@ -1833,20 +1833,95 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     assert "master_loudness" in body["enabled_steps"]
     assert "export_deliverables" in body["enabled_steps"]
 
+    jobs = client.app.state.jobs
+
     an = client.post(
         "/api/pipeline/analyze",
         json={"path": path, "apply": True},
     )
     assert an.status_code == 200
-    assert an.json()["applied"] is True
-    assert an.json()["reasons"][0]["code"] == "test"
+    an_body = an.json()
+    assert an_body["job"]["kind"] == "analyze"
+    an_job = jobs.get_job(an_body["job"]["id"])
+    jobs.wait(an_job, timeout=5)
+    assert an_job.status == "ok"
+    an_result = an_job.snapshot()["result"]
+    assert an_result["applied"] is True
+    assert an_result["reasons"][0]["code"] == "test"
 
     preview = client.post(
         "/api/pipeline/analyze",
         json={"path": path, "apply": False},
     )
     assert preview.status_code == 200
-    assert preview.json()["applied"] is False
+    preview_job = jobs.get_job(preview.json()["job"]["id"])
+    jobs.wait(preview_job, timeout=5)
+    assert preview_job.status == "ok"
+    assert preview_job.snapshot()["result"]["applied"] is False
+
+
+def test_api_pipeline_analyze_job_cancel_and_slot(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    import threading
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.util.progress import raise_if_cancel_requested
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking_suggest(project, *, base_config=None, cancel_check=None):
+        started.set()
+        release.wait(timeout=5)
+        raise_if_cancel_requested(cancel_check, "Analyze cancelled")
+        return {
+            "proposed_config": {"balance": {"dialogue_lufs": -19.0}},
+            "patches": {"balance": {"dialogue_lufs": -19.0}},
+            "reasons": [{"code": "test", "message": "ok", "track_id": "t1"}],
+            "report_summary": {"track_count": 1, "reason_count": 1},
+        }
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        blocking_suggest,
+    )
+
+    client = TestClient(create_app())
+    path = str(minimal_project)
+
+    an = client.post("/api/pipeline/analyze", json={"path": path, "apply": True})
+    assert an.status_code == 200
+    job_id = an.json()["job"]["id"]
+    assert started.wait(timeout=2)
+
+    run_conflict = client.post("/api/pipeline/run", json={"path": path})
+    assert run_conflict.status_code == 409
+
+    analyze_conflict = client.post("/api/pipeline/analyze", json={"path": path, "apply": True})
+    assert analyze_conflict.status_code == 409
+
+    cancel_res = client.post("/api/pipeline/cancel", json={"job_id": job_id})
+    assert cancel_res.status_code == 200
+    release.set()
+
+    jobs = client.app.state.jobs
+    job = jobs.get_job(job_id)
+    jobs.wait(job, timeout=5)
+    assert job.status == "cancelled"
+    assert job.snapshot()["message"] == "Analyze cancelled"
+    assert job.snapshot()["result"] is None
+
+    cfg = client.get("/api/pipeline/config", params={"path": path}).json()["config"]
+    assert cfg["balance"]["dialogue_lufs"] != -19.0
+
+    for _ in range(50):
+        st = client.get("/api/pipeline/status").json()
+        if not st["running"]:
+            break
+        time.sleep(0.05)
 
 
 def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> None:

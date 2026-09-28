@@ -24,7 +24,7 @@ from podcast_mcp.util.progress import (
     bind_progress,
 )
 
-JobKind = Literal["pipeline", "render_preview", "bounce", "export", "agent"]
+JobKind = Literal["pipeline", "render_preview", "bounce", "export", "analyze", "agent"]
 
 _GUI_FAIL_MAX = 200
 _AGENT_LIVE_LIMIT = 8
@@ -60,16 +60,22 @@ def _gui_fail_message(message: str | None, phase: str | None = None) -> str | No
 class _KindMeta:
     cancelled: str
     event_label: str
-    unit_task: str | None
+    unit_tasks: frozenset[str]
 
 
-# Per-kind chrome + determinate-bar ownership (unit_task matches progress_task ids).
+# Per-kind chrome + determinate-bar ownership (unit_tasks match progress_task ids).
+# Analyze owns both per-track children, so the bar restarts at 0/N for the silence phase.
 _KIND_META: dict[str, _KindMeta] = {
-    "pipeline": _KindMeta("Pipeline cancelled", "Pipeline", "pipeline"),
-    "bounce": _KindMeta("Bounce cancelled", "Bounce", "bounce"),
-    "export": _KindMeta("Export cancelled", "Export", "export"),
-    "render_preview": _KindMeta("Render preview cancelled", "Render preview", "render"),
-    "agent": _KindMeta("Activity cancelled", "Activity", None),
+    "pipeline": _KindMeta("Pipeline cancelled", "Pipeline", frozenset({"pipeline"})),
+    "bounce": _KindMeta("Bounce cancelled", "Bounce", frozenset({"bounce"})),
+    "export": _KindMeta("Export cancelled", "Export", frozenset({"export"})),
+    "render_preview": _KindMeta(
+        "Render preview cancelled", "Render preview", frozenset({"render"})
+    ),
+    "analyze": _KindMeta(
+        "Analyze cancelled", "Analyze", frozenset({"analyze_health", "analyze_silence"})
+    ),
+    "agent": _KindMeta("Activity cancelled", "Activity", frozenset()),
 }
 
 
@@ -82,8 +88,8 @@ def _job_owns_task(job: PipelineJob, task_id: str) -> bool:
     if job.kind == "agent":
         return bool(job.tool_id) and task_id == job.tool_id
     meta = _KIND_META.get(job.kind)
-    unit = meta.unit_task if meta is not None else job.kind
-    return task_id == unit
+    units = meta.unit_tasks if meta is not None else frozenset({job.kind})
+    return task_id in units
 
 
 @dataclass
@@ -892,6 +898,10 @@ class PipelineJobManager:
         """Rebuild stems/premix via ``PipelineService.render_preview``."""
         return self._spawn(project_path, kind="render_preview", label="Render preview")
 
+    def start_analyze(self, project_path: Path, *, apply: bool) -> PipelineJob:
+        """Heuristic Analyze via ``analyze_working_set`` (same single-flight slot as pipeline)."""
+        return self._spawn(project_path, kind="analyze", label="Analyze", config={"apply": apply})
+
     def start_bounce(
         self,
         project_path: Path,
@@ -1075,6 +1085,17 @@ class PipelineJobManager:
                 cancel_check=cancel_check,
             )
             return "Bounce complete", {"paths": [str(p) for p in paths]}
+        if job.kind == "analyze":
+            from podcast_mcp.services.pipeline_config import analyze_working_set
+
+            cfg = job.config or {}
+            result = analyze_working_set(
+                Path(job.project_path),
+                ws.project,
+                apply=bool(cfg.get("apply")),
+                cancel_check=cancel_check,
+            )
+            return "Analyze complete", result
         svc = PipelineService(ws)
         if job.kind == "export":
             cfg = job.config or {}

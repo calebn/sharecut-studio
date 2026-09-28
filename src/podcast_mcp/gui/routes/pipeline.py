@@ -17,7 +17,6 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.pipeline import STEP_NAMES
 from podcast_mcp.services.pipeline_config import (
-    analyze_working_set,
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,
@@ -25,7 +24,6 @@ from podcast_mcp.services.pipeline_config import (
     skip_steps_from_enabled,
     transcribe_run_config,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
 router = APIRouter()
@@ -78,10 +76,14 @@ def pipeline_analyze(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
+    """Heuristic Analyze as a ``kind=analyze`` pipeline-slot job (progress via ``/events``)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
-    ws = ProjectWorkspace.open(project_path)
-    return analyze_working_set(project_path, ws.project, apply=req.apply)
+    try:
+        job = _jobs(request).start_analyze(project_path, apply=req.apply)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"job": job.snapshot()}
 
 
 @router.get("/api/pipeline/status")
