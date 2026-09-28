@@ -2,7 +2,9 @@
  * Server clock offset as module state, outside the DAW store. The offset is
  * read far more often (every presence render) than it changes, and it never
  * needs to trigger a store notify or a component re-render on its own — see
- * `serverNowMs`.
+ * `serverNowMs`. One offset per JS runtime: this assumes a single DAW
+ * store/session per page; a multi-store app would need it keyed per store.
+ * `test/setup.ts` resets it after every test.
  */
 let offsetMs = 0;
 

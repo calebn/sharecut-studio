@@ -45,6 +45,10 @@ let lastKey = "";
  * store change (the playhead, `project`, `sessionClients`, …) returns the
  * same string reference instead of a new one — keeping `dawApp.tsx` from
  * re-rendering on every frame just because it reads this selector.
+ *
+ * The memo is module state: it assumes the single `useDawStore`. Selecting
+ * it against a second store would share (and thrash) the memo, so key it per
+ * store before adding one. `test/setup.ts` resets it after every test.
  */
 export function selectPublishKey(s: DawState): string {
   const deps = depsOf(s);
