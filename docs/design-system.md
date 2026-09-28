@@ -434,8 +434,9 @@ unchanged for callers and continue to read DAW state and dispatch through
 - 2026-09-27 — Closed #611: added props-only `ToolModeToggleView`,
   `EditingToolRailView` and `CommandPaletteView`, extracted from
   `ToolModeToggle`, `EditingToolRail` and `CommandPalette` following the
-  `TrackHeaderView` pattern; removed follow-up D from the Catalog boundary
-  list.
+  `TrackHeaderView` pattern, with `Templates/ToolModeToggle`,
+  `Templates/EditingToolRail` and `Templates/CommandPalette` stories; removed
+  follow-up D from the Catalog boundary list.
 - 2026-09-27 — Closed #610: extracted props-only `StatusBarView`,
   `AvatarStackView`, `OverlayLegendView` and `PresenceStatusView` from their
   live adapters and added `Templates/StatusBar`, `Templates/AvatarStack` and

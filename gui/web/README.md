@@ -98,8 +98,10 @@ hands off to the live shortcuts owner; the story does not render that owner.
 `Templates/ToolModeToggle`, `Templates/EditingToolRail` and
 `Templates/CommandPalette` show the production `ToolModeToggleView`,
 `EditingToolRailView` and `CommandPaletteView`, each driven by a local-state
-preview so clicking Select/Blade/Comment or confirming a blade cut behaves
-like the live tool cluster without mounting the DAW store; the live
+preview so clicking Select/Blade/Comment, confirming a blade cut, or
+switching shortcut tabs and remap fields behaves like the live surface
+without mounting the DAW store; the palette story uses fixed shortcut rows
+rather than the live keymap registry; the live
 `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters keep reading
 DAW state and dispatching through `execute`.
 
