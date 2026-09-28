@@ -26,7 +26,13 @@ from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
 from process_helpers import reap
-from review_platform import requires_safe_failed_cleanup
+from review_platform import requires_safe_failed_cleanup, run_unmarked_test_as_unsupported_platform
+
+
+@pytest.fixture(autouse=True)
+def _unmarked_tests_run_as_unsupported_platform(request, monkeypatch):
+    run_unmarked_test_as_unsupported_platform(request, monkeypatch)
+
 
 _CTX = mp.get_context("spawn")
 
