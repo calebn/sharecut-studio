@@ -163,13 +163,14 @@ def get_host_limiters() -> HostLimiters:
     return _LIMITERS
 
 
-def ws_roster_request_allowed(conn_key: str) -> bool:
-    """Throttle ``RosterRequest`` replies per connection (host ``/api/session/ws`` and guest
-    ``/daw/ws``): one per second by default. A full roster is the one amplifying reply a
+def ws_roster_request_allowed(client_key: str) -> bool:
+    """Throttle ``RosterRequest`` replies per client id (``host:{client_id}`` on
+    ``/api/session/ws``, ``guest:{guest client id}`` on the guest ``/daw/ws``; both survive
+    a reconnect): one per second by default. A full roster is the one amplifying reply a
     client can ask for. Off with ``PODCAST_RATE_LIMIT=0``, like every host limiter."""
     if not host_rate_limit_enabled():
         return True
-    return get_host_limiters().ws_roster_request.allow(conn_key).allowed
+    return get_host_limiters().ws_roster_request.allow(client_key).allowed
 
 
 def reset_host_limiters_for_tests(*, clock: Callable[[], float] | None = None) -> None:

@@ -1811,6 +1811,17 @@ def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
     again = _handle_guest_presence_frame('{"type":"RosterRequest"}', **kwargs)
     assert again.reply is None
 
+    # A reconnect (new socket, same assigned guest client id) does not reset the budget.
+    reconnect = _handle_guest_presence_frame(
+        '{"type":"RosterRequest"}', **{**kwargs, "websocket": MagicMock()}
+    )
+    assert reconnect.reply is None
+    # A different guest client gets its own budget.
+    other = _handle_guest_presence_frame(
+        '{"type":"RosterRequest"}', **{**kwargs, "guest_client_id": "guest-abcd-tab2"}
+    )
+    assert other.reply is not None
+
 
 def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.edits.review_versions import get_version

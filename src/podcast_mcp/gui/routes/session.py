@@ -130,8 +130,9 @@ def apply_ws_client_message(
     if mtype == "Record":
         return None, seq
     if mtype == ROSTER_REQUEST:
-        # Throttled per client (one reply/s by default): a throttled request gets no
-        # reply and the client's 2 s RosterRequest retry asks again.
+        # Throttled per client id (one reply/s by default; the guest socket keys by its
+        # assigned guest client id the same way): a throttled request gets no reply and
+        # the client's 2 s RosterRequest retry asks again.
         if not ws_roster_request_allowed(f"host:{client_id}"):
             return None, seq
         # Sent directly, not via the hub queue: order vs hub frames is not guaranteed;

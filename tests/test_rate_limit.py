@@ -415,7 +415,7 @@ def test_host_review_and_mcp_info_read_429(minimal_project, sample_wav, tmp_work
     reset_host_limiters_for_tests()
 
 
-def test_ws_roster_request_allowed_throttles_per_connection_and_honours_the_flag(
+def test_ws_roster_request_allowed_throttles_per_key_and_honours_the_flag(
     monkeypatch,
 ) -> None:
     reset_host_limiters_for_tests(clock=lambda: 0.0)
