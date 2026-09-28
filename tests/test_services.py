@@ -735,6 +735,37 @@ def test_edit_service_set_words_ignored_undo_restores_flag(minimal_project):
     assert reloaded.project.transcripts[0].words[1].ignored is False
 
 
+def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_project):
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+
+    with pytest.raises(TranscriptTextChangedError, match="changed since this correction started"):
+        svc.set_word_suppressed("host", 0, True, expected_text="the")
+    assert ws.project.transcripts[0].words[0].suppressed is False
+
+    out = svc.set_word_suppressed("host", 0, True, expected_text="teh")
+    assert out["suppressed"] is True
+    assert ws.project.transcripts[0].words[0].suppressed is True
+
+
+def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_project):
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+
+    with pytest.raises(TranscriptTextChangedError, match="changed since this correction started"):
+        svc.set_words_ignored("host", 0, 1, True, expected_text="nope")
+    assert not any(w.ignored for w in ws.project.transcripts[0].words)
+
+    out = svc.set_words_ignored("host", 0, 1, True, expected_text="teh end")
+    assert out["changed"] == 2
+
+
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)

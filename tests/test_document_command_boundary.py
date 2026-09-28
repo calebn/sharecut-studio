@@ -221,29 +221,56 @@ def test_guest_comment_http_rejects_overlong_body(
     assert r.status_code == 422
 
 
-_GUARDED_CORRECTION = {
-    "type": "CorrectTranscriptWord",
-    "payload": {"track_id": "host", "word_index": 0, "text": "x", "expected_text": "y"},
-    "client_id": "boundary-guest",
-    "client_seq": 1,
+_GUARDED_COMMANDS = {
+    "CorrectTranscriptWord": {
+        "type": "CorrectTranscriptWord",
+        "payload": {"track_id": "host", "word_index": 0, "text": "x", "expected_text": "y"},
+        "client_id": "boundary-guest",
+        "client_seq": 1,
+    },
+    "SetTranscriptWordSuppressed": {
+        "type": "SetTranscriptWordSuppressed",
+        "payload": {
+            "track_id": "host",
+            "word_index": 0,
+            "suppressed": True,
+            "expected_text": "y",
+        },
+        "client_id": "boundary-guest",
+        "client_seq": 1,
+    },
+    "SetTranscriptWordsIgnored": {
+        "type": "SetTranscriptWordsIgnored",
+        "payload": {
+            "track_id": "host",
+            "start_word_index": 0,
+            "end_word_index": 0,
+            "ignored": True,
+            "expected_text": "y",
+        },
+        "client_id": "boundary-guest",
+        "client_seq": 1,
+    },
 }
 
 
-def test_guest_http_cannot_submit_guarded_transcript_correction(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+@pytest.mark.parametrize("command", _GUARDED_COMMANDS.values(), ids=_GUARDED_COMMANDS.keys())
+def test_guest_http_cannot_submit_guarded_transcript_command(
+    command, minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """Transcript corrections stay host-only even with expected_text (#650)."""
+    """Corrections and the suppress/ignore toggles stay host-only even with expected_text (#650, #744)."""
     ws = _seed_premix(minimal_project, sample_wav)
     share = _edit_share(ws, monkeypatch, tmp_workspace)
     before = minimal_project.read_bytes()
     client = TestClient(create_app())
-    r = client.post(f"/api/review/{share['token']}/daw/document/command", json=_GUARDED_CORRECTION)
+    r = client.post(f"/api/review/{share['token']}/daw/document/command", json=command)
     assert r.status_code == 403
     assert minimal_project.read_bytes() == before
 
 
-def test_guest_mcp_cannot_submit_guarded_transcript_correction(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+@pytest.mark.parametrize("command", _GUARDED_COMMANDS.values(), ids=_GUARDED_COMMANDS.keys())
+def test_guest_mcp_cannot_submit_guarded_transcript_command(
+    command, minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
     share = _edit_share(ws, monkeypatch, tmp_workspace)
@@ -253,7 +280,7 @@ def test_guest_mcp_cannot_submit_guarded_transcript_correction(
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
-            "params": {"name": "guest_submit_document_command", "arguments": _GUARDED_CORRECTION},
+            "params": {"name": "guest_submit_document_command", "arguments": command},
         },
     )
     assert out["error"]["code"] == -32003

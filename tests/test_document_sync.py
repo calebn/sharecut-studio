@@ -847,6 +847,175 @@ def test_apply_maps_stale_target_errors_to_conflict():
     assert TranscriptTextChangedError in STALE_TARGET_ERRORS
 
 
+def test_document_set_word_suppressed_rejects_stale_expected_text(minimal_project):
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+    seq_before = svc.store.get_snapshot()
+    history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+
+    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+        svc.submit(
+            DocumentCommand(
+                type="SetTranscriptWordSuppressed",
+                payload={
+                    "track_id": "host",
+                    "word_index": 0,
+                    "suppressed": True,
+                    "expected_text": "the",
+                },
+                client_id="c1",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+    ws_after = ProjectWorkspace.open(minimal_project)
+    assert ws_after.project.transcripts[0].words[0].suppressed is False
+    assert svc.store.get_snapshot() == seq_before
+    assert HistoryService(ws_after).list_entries() == history_before
+
+    applied = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": True,
+                "expected_text": "teh",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert applied["ok"]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].suppressed is True
+
+
+def test_document_set_words_ignored_rejects_stale_expected_text(minimal_project):
+    _seed_host_words(minimal_project, ["the", "quick", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+    seq_before = svc.store.get_snapshot()
+    history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+
+    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+        svc.submit(
+            DocumentCommand(
+                type="SetTranscriptWordsIgnored",
+                payload={
+                    "track_id": "host",
+                    "start_word_index": 1,
+                    "end_word_index": 2,
+                    "ignored": True,
+                    "expected_text": "quick dog",
+                },
+                client_id="c1",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+    ws_after = ProjectWorkspace.open(minimal_project)
+    assert not any(w.ignored for w in ws_after.project.transcripts[0].words)
+    assert svc.store.get_snapshot() == seq_before
+    assert HistoryService(ws_after).list_entries() == history_before
+
+    applied = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordsIgnored",
+            payload={
+                "track_id": "host",
+                "start_word_index": 1,
+                "end_word_index": 2,
+                "ignored": True,
+                "expected_text": "quick fox",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert applied["ok"]
+    words_after = ProjectWorkspace.open(minimal_project).project.transcripts[0].words
+    assert words_after[1].ignored is True
+    assert words_after[2].ignored is True
+
+
+def test_document_suppress_and_ignore_without_expected_text_keep_behavior(minimal_project):
+    _seed_host_words(minimal_project, ["the", "quick", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+
+    suppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={"track_id": "host", "word_index": 0, "suppressed": True},
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert suppressed["ok"]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].suppressed is True
+
+    ignored = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordsIgnored",
+            payload={
+                "track_id": "host",
+                "start_word_index": 1,
+                "end_word_index": 1,
+                "ignored": True,
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert ignored["ok"]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[1].ignored is True
+
+    assert (
+        validate_payload(
+            "SetTranscriptWordSuppressed",
+            {"track_id": "host", "word_index": 0, "suppressed": True},
+        )["expected_text"]
+        is None
+    )
+    assert (
+        validate_payload(
+            "SetTranscriptWordsIgnored",
+            {"track_id": "host", "start_word_index": 1, "end_word_index": 1, "ignored": True},
+        )["expected_text"]
+        is None
+    )
+
+
+def test_http_stale_word_suppressed_returns_409(minimal_project):
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/document/command",
+        params={"path": str(minimal_project)},
+        json={
+            "type": "SetTranscriptWordSuppressed",
+            "payload": {
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": True,
+                "expected_text": "the",
+            },
+            "client_id": "v1",
+            "role": "viewer",
+            "client_seq": 1,
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["conflict"] is True
+    assert (
+        ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].suppressed is False
+    )
+
+
 def test_document_correct_and_suppress_transcript(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
 
