@@ -83,7 +83,8 @@ function wsUrl(projectPath: string, clientId: string): string {
 
 /**
  * Session sync: WebSocket primary (Applied fanout), HTTP publish fallback, and
- * a 30 s meta sanity poll for other processes' writes.
+ * a 30 s meta sanity poll. Other processes' commands arrive over the socket
+ * via the server's cross-process watcher (#695); the poll is a sanity net.
  *
  * Presence and durable deltas (`ViewerState`) publish over WS while it is
  * open. POST /api/session/state is the socket-down / rejected / unechoed
@@ -339,8 +340,9 @@ export function useSessionSync(
   }, []);
   usePresencePublisher(wsReady ? sendPresence : null, "Host");
 
-  // The sanity poll catches session commands written by another process
-  // (stdio MCP, `podcast session` / `podcast play`).
+  // Other processes' commands (stdio MCP, `podcast session` / `podcast play`)
+  // arrive over the socket via the server's cross-process watcher (#695);
+  // this poll is only a sanity net.
   useFileMetaPoll(
     enabled && Boolean(projectPath),
     () => loadSessionMeta(projectPath),
