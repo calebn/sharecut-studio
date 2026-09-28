@@ -1,5 +1,4 @@
 import {
-  followExportJob,
   hostLandRecord,
   refreshProject,
   startExportJob,
@@ -23,6 +22,7 @@ import {
 } from "../record/liveCommentQueue";
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { seedStudioJob } from "../state/seedStudioJob";
 import { errorMessage } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
@@ -256,13 +256,10 @@ export function registerHostCommands(): void {
     exportDeliverablesInFlight = true;
     s.announceStatus("Exporting deliverables…");
     try {
-      const job = await startExportJob(s.projectPath);
-      seedStudioJob(job);
-      const paths = await followExportJob(job.id, "Export failed");
-      s.announceJobResult(
-        job.id,
-        `Exported ${paths.length} file(s) to export/`,
-      );
+      await runAnnouncedJob(() => startExportJob(s.projectPath), {
+        failLabel: "Export failed",
+        resultCopy: (paths) => `Exported ${paths.length} file(s) to export/`,
+      });
       return { status: "ok" };
     } catch (err) {
       const reason = errorMessage(err);

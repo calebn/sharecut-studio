@@ -48,6 +48,7 @@ describe("export.deliverables", () => {
       project: minimalProject(),
       guestMode: null,
       statusAnnouncement: "",
+      pendingJobResults: {},
     });
   });
 
@@ -87,14 +88,26 @@ describe("export.deliverables", () => {
     followMock.mockResolvedValue(["export/a.wav"]);
 
     expect((await execute("export.deliverables")).status).toBe("ok");
-    // The result is the job's own copy, held for StatusBar to announce once
-    // that job's chip goes terminal (#704), not written to statusAnnouncement here.
-    expect(useDawStore.getState().jobResultAnnouncement).toEqual({
-      jobId: "job-1",
-      message: "Exported 1 file(s) to export/",
+    // The result is the job's own copy, held for useJobStatusAnnouncement to
+    // speak once that job's chip goes terminal (#704), not written to
+    // statusAnnouncement here.
+    expect(useDawStore.getState().pendingJobResults).toEqual({
+      "job-1": "Exported 1 file(s) to export/",
     });
     expect((await execute("export.deliverables")).status).toBe("ok");
     expect(startMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops the pending result when the export job fails", async () => {
+    startMock.mockResolvedValue(jobSnapshot("job-1"));
+    followMock.mockRejectedValue(new Error("render failed"));
+
+    const result = await execute("export.deliverables");
+    expect(result.status).toBe("disabled");
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Export failed: render failed",
+    );
   });
 
   it("clears the guard when the export fails", async () => {
