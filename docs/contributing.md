@@ -22,7 +22,7 @@ Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI
 
 For play adapters, preserve their public CLI flags and MCP tool names while translating once into `PlayRequest`; keep playback decisions in `PlayService`. Pass transcript-query playback booleans by keyword. `util.process.run` intentionally keeps `subprocess.run` meanings for `check`, `capture_output`, and `text`, while rejecting shell strings.
 
-Use [`util.hashing.sha256_file`](../src/podcast_mcp/util/hashing.py) for streamed full-file SHA-256 digests. Apply any shortened cache-key representation at its caller.
+Use [`util.hashing.sha256_file`](../src/podcast_mcp/util/hashing.py) for streamed full-file SHA-256 digests. Apply any shortened cache-key representation at its caller. Pinned model snapshots declare a `util.model_manifest` `FileManifest` (every downloaded file with its sha256) and verify it with `manifest_mismatch`; do not add a one-file pin.
 Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_paths.py) for path containment. Keep caller-specific path syntax and error messages at the call site; the utility resolves symlinks and rejects escapes from the allowed root.
 
 ## Adding a feature

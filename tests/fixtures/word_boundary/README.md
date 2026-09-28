@@ -52,6 +52,12 @@ the aggregate numbers and the recommendation are in
 [docs/testing.md § Word-boundary benchmark](../../../docs/testing.md#word-boundary-benchmark).
 `onnx-base` is also the production pin in `src/podcast_mcp/word_aligner_models.py`,
 kept equal to this file by `test_catalog_pin_matches_benchmarked_candidate`.
+`candidates.json`'s `onnx-base` entry also carries a `file_sha256` manifest (every
+downloaded file's sha256, not just the ONNX), kept equal to the production catalog
+by the same test. The hashes were obtained from a clean download of the pinned
+revision: the hub's LFS sha256 for the ONNX weights, and the sha256 of the small
+config/vocab files' bytes, whose git blob id and size were checked against the hub
+metadata for that revision — see `src/podcast_mcp/util/model_manifest.py`.
 
 ## Shipped production pass (#715)
 

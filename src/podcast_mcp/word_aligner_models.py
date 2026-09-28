@@ -5,11 +5,12 @@ snapshots for the CTC forced-alignment pass (``engines/word_align.py``,
 #714). Nothing here downloads on import or during a run — a run only ever
 reads a local snapshot (``local_files_only=True``); ``bootstrap_word_aligner``
 is the only network path, driven by ``podcast bootstrap --component
-word-aligner``.
+word-aligner``. Every file in the snapshot is pinned by sha256
+(``file_sha256``, see ``util/model_manifest.py``, #728), not just the ONNX.
 
 No lock of our own guards the shared snapshot cache: concurrent
 ``bootstrap`` runs and a pipeline resolving mid-download rely on
-``snapshot_download``'s own file locking, and ``_has_required_files`` turns a
+``snapshot_download``'s own file locking, and ``missing_files`` turns a
 half-written snapshot into ``WordAlignerMissingError`` (Whisper's times kept),
 as ``whisper_models.py`` does.
 """
@@ -17,16 +18,20 @@ as ``whisper_models.py`` does.
 from __future__ import annotations
 
 import os
-import threading
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.model_manifest import (
+    FileManifest,
+    manifest_files,
+    manifest_mismatch,
+    missing_files,
+)
 
 DEFAULT_WORD_ALIGNER = "onnx-base"
 WORD_ALIGNER_ENV = "PODCAST_MCP_WORD_ALIGNER_MODEL"
+WORD_ALIGNER_BOOTSTRAP = "podcast bootstrap --component word-aligner"
 
 
 @dataclass(frozen=True)
@@ -38,13 +43,14 @@ class WordAlignerModel:
     hf_repo: str
     revision: str
     onnx_file: str
-    onnx_sha256: str
+    # every file the snapshot downloads, sha256 at `revision` (#728)
+    file_sha256: FileManifest
     license: str
     languages: tuple[str, ...]
 
     @property
     def allow_patterns(self) -> list[str]:
-        return ["vocab.json", "config.json", "preprocessor_config.json", self.onnx_file]
+        return manifest_files(self.file_sha256)
 
     def supports_language(self, language: str | None) -> bool:
         """True when this aligner can re-time a transcript in ``language`` (None means English)."""
@@ -60,7 +66,15 @@ WORD_ALIGNER_CATALOG: tuple[WordAlignerModel, ...] = (
         hf_repo="onnx-community/wav2vec2-base-960h-ONNX",
         revision="729c1a6730fb549c20a1c73a3d3f96f11020225e",
         onnx_file="onnx/model.onnx",
-        onnx_sha256="00b7cc69516c1ab63c429e63a2b543e4d42bb77441ec5b98ee935de175b00de1",
+        file_sha256=(
+            ("vocab.json", "4178db26b3c7570f6a47f14ac6a1c7b32950b8c2800fb097287e53776934f1c5"),
+            ("config.json", "15c7cf6378153bdcb33fce27780ab9aae37fd154fbb674cacc3347992055d323"),
+            (
+                "preprocessor_config.json",
+                "8cdfd65ff4115423185a1512bdae100e2e0cd744f5b322417429944aaafd0827",
+            ),
+            ("onnx/model.onnx", "00b7cc69516c1ab63c429e63a2b543e4d42bb77441ec5b98ee935de175b00de1"),
+        ),
         license="apache-2.0",
         languages=("en",),
     ),
@@ -68,12 +82,28 @@ WORD_ALIGNER_CATALOG: tuple[WordAlignerModel, ...] = (
 
 
 class WordAlignerMissingError(RuntimeError):
-    def __init__(self, model_id: str, detail: str = "") -> None:
+    def __init__(
+        self,
+        model_id: str,
+        detail: str = "",
+        *,
+        problem: str = "is not downloaded",
+        fix: str = WORD_ALIGNER_BOOTSTRAP,
+    ) -> None:
         self.model_id = model_id
         suffix = f" ({detail})" if detail else ""
+        super().__init__(f"Word aligner {model_id!r} {problem}{suffix}. Run: {fix}")
+
+
+class WordAlignerPinMismatchError(WordAlignerMissingError):
+    """A downloaded pinned snapshot whose files are not the pinned bytes (corrupt or swapped)."""
+
+    def __init__(self, model_id: str, detail: str) -> None:
         super().__init__(
-            f"Word aligner {model_id!r} is not downloaded{suffix}. "
-            "Run: podcast bootstrap --component word-aligner"
+            model_id,
+            detail,
+            problem="does not match its pinned download",
+            fix=f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
         )
 
 
@@ -89,54 +119,13 @@ def _has_required_files(root: Path, model: WordAlignerModel) -> bool:
     return (root / "vocab.json").is_file() and (root / model.onnx_file).is_file()
 
 
-def _onnx_pin_mismatch(model_dir: Path, model: WordAlignerModel) -> str | None:
-    """Why the snapshot's ONNX file is not the pinned bytes, or None when it is."""
-    digest = sha256_file(model_dir / model.onnx_file)
-    if digest == model.onnx_sha256:
-        return None
-    return (
-        f"{model.onnx_file} sha256 {digest[:12]} does not match the pin; re-download with --upgrade"
-    )
-
-
-def verify_word_aligner_onnx(model_dir: Path, model: WordAlignerModel) -> None:
-    """Fail closed when the snapshot's ONNX file is not the pinned bytes (corrupt or swapped)."""
-    mismatch = _onnx_pin_mismatch(model_dir, model)
+def verify_word_aligner_snapshot(
+    model_dir: Path, model: WordAlignerModel, *, memoize: bool = False
+) -> None:
+    """Fail closed when any pinned file in the snapshot is not the pinned bytes (#728)."""
+    mismatch = manifest_mismatch(model_dir, model.file_sha256, memoize=memoize)
     if mismatch is not None:
-        raise WordAlignerMissingError(model.id, mismatch)
-
-
-# Serialises the cached check so overlapping status requests hash the ONNX once, not each
-# (pass or fail).
-_VERIFY_LOCK = threading.Lock()
-
-
-@lru_cache(maxsize=8)
-def _onnx_pin_mismatch_cached(
-    model_dir: Path, model: WordAlignerModel, _onnx_key: tuple[str, int, int]
-) -> str | None:
-    """``_onnx_pin_mismatch``, remembered per (model pin, resolved path, size, mtime_ns).
-
-    Status polls (Pipeline config, bootstrap status) hash the ~360 MB snapshot once per
-    process, whether it matches the pin or not, so queued polls on a corrupt snapshot do
-    not each re-hash it. A re-download (``--upgrade``) writes a new file, which changes the
-    key. A rewrite that keeps both size and mtime is not re-hashed here, but
-    ``WordAligner.load`` and ``bootstrap_word_aligner`` call ``verify_word_aligner_onnx``
-    uncached every time, so a stale status never loads a tampered file. An ``OSError``
-    (file vanished) is raised, not remembered.
-    """
-    return _onnx_pin_mismatch(model_dir, model)
-
-
-def _verify_word_aligner_onnx_once(model_dir: Path, model: WordAlignerModel) -> None:
-    onnx = (model_dir / model.onnx_file).resolve()
-    st = onnx.stat()
-    with _VERIFY_LOCK:
-        mismatch = _onnx_pin_mismatch_cached(
-            model_dir, model, (str(onnx), st.st_size, st.st_mtime_ns)
-        )
-    if mismatch is not None:
-        raise WordAlignerMissingError(model.id, mismatch)
+        raise WordAlignerPinMismatchError(model.id, mismatch)
 
 
 def word_aligner_override_dir() -> Path | None:
@@ -177,20 +166,32 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
         )
     except LocalEntryNotFoundError as exc:
         raise WordAlignerMissingError(model.id) from exc
-    if not _has_required_files(path, model):
+    if missing_files(path, model.file_sha256):
         raise WordAlignerMissingError(model.id, "partial download")
     return path
 
 
-def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
-    """A complete local snapshot; the pinned one (not an override) must also match its sha256."""
+def word_aligner_problem(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerMissingError | None:
+    """Why ``model_id`` is not ready (never downloads), or None when it is.
+
+    The pinned snapshot (not an override dir) must match its manifest; that check is
+    memoised per file, so status polls hash the snapshot once per process.
+    """
+    model = word_aligner_model(model_id)
     try:
-        path = resolve_word_aligner_dir(model_id)
+        path = resolve_word_aligner_dir(model.id)
         if word_aligner_override_dir() is None:
-            _verify_word_aligner_onnx_once(path, word_aligner_model(model_id))
-    except (WordAlignerMissingError, OSError):
-        return False
-    return True
+            verify_word_aligner_snapshot(path, model, memoize=True)
+    except WordAlignerMissingError as exc:
+        return exc
+    except OSError as exc:  # a pinned file vanished mid-check
+        return WordAlignerMissingError(model.id, str(exc))
+    return None
+
+
+def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
+    """A complete local snapshot; the pinned one must also match every file's sha256."""
+    return word_aligner_problem(model_id) is None
 
 
 def bootstrap_word_aligner(
@@ -210,5 +211,5 @@ def bootstrap_word_aligner(
         cache_dir=str(word_aligner_cache_dir()),
         force_download=force,
     )
-    verify_word_aligner_onnx(Path(path), model)
+    verify_word_aligner_snapshot(Path(path), model)
     return {"ok": True, "model": model.id, "path": str(path)}

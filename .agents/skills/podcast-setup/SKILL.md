@@ -102,7 +102,7 @@ podcast track add --project /path/to/my_episode/episode.project.json \
 | `bootstrap` ffmpeg | Static ffmpeg/ffprobe in cache | Only if no system FFmpeg |
 | `bootstrap` whisper / rnnoise | Model cache (`large-v3-turbo` default) | Whisper required before pipeline/transcribe Run (no silent download) |
 | `bootstrap` nisqa | Neural join QC weights (opt-in; default URL may 404 — use `PODCAST_MCP_NISQA_MODEL`) | No |
-| `bootstrap` word-aligner | Forced-aligner ONNX snapshot (opt-in; English) for `transcribe.forced_alignment.enabled`; a sha256 mismatch fails closed (keeps Whisper's times) — re-download with `--upgrade`, or Studio Pipeline tab **Download word aligner** | No |
+| `bootstrap` word-aligner | Forced-aligner ONNX snapshot (opt-in; English) for `transcribe.forced_alignment.enabled`; a sha256 mismatch in any snapshot file (`vocab.json`, configs, ONNX) fails closed (keeps Whisper's times) — re-download with `--upgrade`, or Studio Pipeline tab **Download word aligner**; `podcast doctor` reports `[fail]` | No |
 | pip `speaker` / `joinqc` | torch (+ CUDA wheels on Linux) — **large** | No — `uv sync --all-extras` or per-extra |
 | npm `gui/web` | `node_modules` + `dist` | No — only for Sharecut Studio HTML UI |
 

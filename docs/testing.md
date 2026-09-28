@@ -751,7 +751,9 @@ $LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py
 ```
 
 Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
-(Hugging Face repo + pinned revision + license). Nothing in CI checks those
+(Hugging Face repo + pinned revision + license; `onnx-base` also pins a
+per-file `file_sha256` manifest checked against the production catalog).
+Nothing in CI checks those
 pins; run `uv run python scripts/benchmark_forced_aligners.py verify-candidates`
 (network, metadata only — no weights) before relying on them. It exits 1 and
 lists each candidate whose revision or repo no longer resolves, whose repo is

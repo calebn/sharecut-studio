@@ -18,6 +18,7 @@ from podcast_mcp.whisper_models import (
     validate_whisper_model,
     whisper_model_is_cached,
 )
+from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError, word_aligner_problem
 
 DoctorStatus = Literal["ok", "fail", "warn"]
 
@@ -121,6 +122,10 @@ def run_doctor_checks(
                 err=True,
             )
         )
+
+    aligner_problem = word_aligner_problem()
+    if isinstance(aligner_problem, WordAlignerPinMismatchError):
+        report.checks.append(DoctorCheck("fail", f"word-aligner: {aligner_problem}", err=True))
 
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
