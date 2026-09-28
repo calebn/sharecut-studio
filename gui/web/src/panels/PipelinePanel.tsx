@@ -81,7 +81,7 @@ function sameLeafValue(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** What an Analyze response shows: reasons, per-track rows and the patched leaf paths. */
+/** What an Analyze response shows: reasons, per-track rows, the patched leaf paths and whether they were applied. */
 function analyzeResultView(result: PipelineAnalyzeResponse) {
   const patches = result.patches ?? {};
   const highlightPaths = new Set<string>();
@@ -101,6 +101,7 @@ function analyzeResultView(result: PipelineAnalyzeResponse) {
     trackRows: result.report_summary?.tracks ?? [],
     highlightPaths,
     patches,
+    applied: result.applied === true,
   };
 }
 
@@ -348,6 +349,12 @@ export function PipelinePanel() {
       );
       setReasons(view.reasons);
       setTrackRows(view.trackRows);
+      if (!view.applied) {
+        // Proposals only (`apply: false`): the working set is unchanged, so nothing is
+        // highlighted as changed and there is nothing to re-read.
+        setHighlightPaths(new Set());
+        return;
+      }
       setHighlightPaths(view.highlightPaths);
       // The other viewer's apply patched the working set; re-read it once any local
       // config write settles, so a GET served before that PUT cannot win.
