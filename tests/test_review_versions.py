@@ -1724,32 +1724,36 @@ def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):
     assert not root.exists() or not any(root.iterdir())
 
 
-@requires_safe_failed_cleanup
-def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sample_wav):
+def _premix_and_master_workspace(minimal_project, sample_wav):
+    """Write identical premix.wav and mastered.wav (no master hash) and open the workspace."""
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
     for name in ("premix", "mastered"):
         (art / f"{name}.wav").write_bytes(sample_wav.read_bytes())
     save_project(proj, minimal_project)
+    return ProjectWorkspace.open(minimal_project), art
 
-    ws = ProjectWorkspace.open(minimal_project)
+
+def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sample_wav):
+    ws, _ = _premix_and_master_workspace(minimal_project, sample_wav)
     with pytest.raises(ValueError, match=r"mastered\.wav has no record"):
         ReviewService(ws).publish(label="m", prefer="mastered")
+    assert load_project(minimal_project).review.versions == []
+    root = review_artifacts_dir(ws.project)
+    assert not root.exists() or not any(root.iterdir())
+
+
+@requires_safe_failed_cleanup
+def test_publish_mastered_accepts_a_master_once_its_hash_is_written(minimal_project, sample_wav):
+    ws, _ = _premix_and_master_workspace(minimal_project, sample_wav)
     write_mastered_hash(ws.project, master_source_hash(ws.project))
     ver = ReviewService(ws).publish(label="m", prefer="mastered")
     assert ver["source"] == "mastered"
 
 
 def test_publish_mastered_refuses_a_master_from_another_premix(minimal_project, sample_wav):
-    proj = load_project(minimal_project)
-    art = Path(proj.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    for name in ("premix", "mastered"):
-        (art / f"{name}.wav").write_bytes(sample_wav.read_bytes())
-    save_project(proj, minimal_project)
-
-    ws = ProjectWorkspace.open(minimal_project)
+    ws, art = _premix_and_master_workspace(minimal_project, sample_wav)
     write_mastered_hash(ws.project, master_source_hash(ws.project))
     premix = art / "premix.wav"
     st = premix.stat()
