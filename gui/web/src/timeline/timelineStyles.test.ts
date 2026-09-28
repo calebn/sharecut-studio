@@ -138,10 +138,15 @@ describe("timeline styles", () => {
     expect(css.indexOf(".join-badge {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
-    // A 24 px wide hit area inside the gutter (WCAG 2.5.8), never taller than the badge.
+    // A --join-hit-min (24 px, px canvas) wide hit area inside the gutter (WCAG 2.5.8), never taller than the badge.
     const hit = rule(css, ".join-badge::before");
     expect(hit).toMatch(/inset-block:\s*0/);
-    expect(hit).toMatch(/inset-inline:\s*-0\.3125rem/);
+    expect(hit).toMatch(
+      /inset-inline:\s*calc\(\(var\(--join-hit-min\) - 100%\) \/ 2\)/,
+    );
+    expect(
+      readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
+    ).toMatch(/--join-hit-min:\s*calc\(3 \* var\(--clip-inset-top\)\);/);
   });
 
   it("fixes the join popover above the shell at the menu layer", () => {

@@ -421,15 +421,16 @@ button.join-diamond {
   outline-offset: var(--focus-ring-offset);
 }
 
-/* WCAG 2.5.8: a 24 px wide hit area (the 1rem badge minus its 1px borders,
-   plus 2 × 0.3125rem) that stays in the lane's top gutter, clear of the fade
+/* WCAG 2.5.8: a --join-hit-min (24 px) wide hit area at any root font size.
+   The inset is measured from the badge's padding box (100%), so the rem badge
+   width drops out. It stays in the lane's top gutter, clear of the fade
    corners below and the lane above. The gutter's px height bounds it
    vertically; the inspector's Join control is the full-size equivalent. */
 .join-badge::before {
   content: "";
   position: absolute;
   inset-block: 0;
-  inset-inline: -0.3125rem;
+  inset-inline: calc((var(--join-hit-min) - 100%) / 2);
 }
 
 /* A crossfade render cannot blend (join_crossfade_blocked). */
