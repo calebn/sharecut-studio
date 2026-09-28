@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
-import { userEvent, within } from "storybook/test";
+import { DialogLauncher } from "../test/DialogLauncher";
+import { openDialogByLauncher } from "../test/storyDialog";
 import { BottomSheet, Button } from "./index";
 
 const meta: Meta<typeof BottomSheet> = {
@@ -22,26 +22,28 @@ export default meta;
 type Story = StoryObj<typeof BottomSheet>;
 
 function DemoSheet({ title }: { title?: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <Button onClick={() => setOpen(true)}>Open sheet</Button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title={title}>
-        <p style={{ color: "var(--color-text-secondary)" }}>
-          Sheet content goes here — quick actions or the tablet/phone inspector.
-        </p>
-        <Button onClick={() => setOpen(false)}>Done</Button>
-      </BottomSheet>
-    </>
+    <DialogLauncher label="Open sheet" initiallyOpen={false}>
+      {(open, close) => (
+        <BottomSheet open={open} onClose={close} title={title}>
+          <p style={{ color: "var(--color-text-secondary)" }}>
+            Sheet content goes here — quick actions or the tablet/phone
+            inspector.
+          </p>
+          <Button onClick={close}>Done</Button>
+        </BottomSheet>
+      )}
+    </DialogLauncher>
   );
 }
 
 export const Default: Story = {
   render: () => <DemoSheet title="Inspector" />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Open sheet" }),
-    );
+    await openDialogByLauncher(canvasElement, {
+      launcherName: "Open sheet",
+      dialogName: "Inspector",
+    });
   },
 };
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { DialogLauncher } from "../test/DialogLauncher";
 import { Button, Dialog } from "./index";
 
 const meta: Meta<typeof Dialog> = {
@@ -20,30 +20,30 @@ function DemoDialog({
   confirmVariant?: "primary" | "danger";
   confirmLabel?: string;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <>
-      <Button onClick={() => setOpen(true)}>Open dialog</Button>
-      <Dialog open={open} onClose={() => setOpen(false)} title={title}>
-        <p style={{ color: "var(--color-text-secondary)" }}>
-          This is the modal dialog chrome: scrim, labelled panel, focus trap,
-          and Escape to dismiss.
-        </p>
-        <div
-          style={{
-            display: "flex",
-            gap: "var(--space-3)",
-            justifyContent: "flex-end",
-            marginTop: "var(--space-3)",
-          }}
-        >
-          <Button onClick={() => setOpen(false)}>Cancel</Button>
-          <Button variant={confirmVariant} onClick={() => setOpen(false)}>
-            {confirmLabel}
-          </Button>
-        </div>
-      </Dialog>
-    </>
+    <DialogLauncher label="Open dialog" initiallyOpen={false}>
+      {(open, close) => (
+        <Dialog open={open} onClose={close} title={title}>
+          <p style={{ color: "var(--color-text-secondary)" }}>
+            This is the modal dialog chrome: scrim, labelled panel, focus trap,
+            and Escape to dismiss.
+          </p>
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-3)",
+              justifyContent: "flex-end",
+              marginTop: "var(--space-3)",
+            }}
+          >
+            <Button onClick={close}>Cancel</Button>
+            <Button variant={confirmVariant} onClick={close}>
+              {confirmLabel}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+    </DialogLauncher>
   );
 }
 
