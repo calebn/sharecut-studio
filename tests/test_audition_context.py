@@ -780,12 +780,13 @@ def _single_track_project(minimal_project, tmp_workspace):
 def _seed_prosody_profile(proj, tmp_workspace):
     """Write a fake cached profile directly, bypassing analyze_prosody/parselmouth."""
     from podcast_mcp.edits.prosody_profile import (
+        ALGORITHM_VERSION,
         ProsodyProfile,
         profile_path,
         profile_words,
         words_fingerprint,
     )
-    from podcast_mcp.engines.prosody import ProsodyParams
+    from podcast_mcp.engines.prosody import ProsodyParams, parselmouth_version
     from podcast_mcp.util.atomic_json import write_json_atomic
     from podcast_mcp.util.tracks import track_audio_path
 
@@ -838,8 +839,9 @@ def _seed_prosody_profile(proj, tmp_workspace):
         audio_size=stat.st_size,
         audio_mtime_ns=stat.st_mtime_ns,
         words_fingerprint=words_fingerprint(profile_words(proj, "host")),
+        algorithm_version=ALGORITHM_VERSION,
         params=ProsodyParams.from_defaults({}).key(),
-        engine={"backend": "parselmouth", "version": "0.0.0"},
+        engine={"backend": "parselmouth", "version": parselmouth_version() or "0.0.0"},
         segments=[segment],
         computed_at=0.0,
     )
