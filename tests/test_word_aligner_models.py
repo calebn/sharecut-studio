@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -209,12 +210,12 @@ def test_is_cached_hashes_an_unchanged_snapshot_once(tmp_path, monkeypatch) -> N
 
     monkeypatch.setattr("podcast_mcp.util.model_manifest.sha256_file", counting_sha256)
 
-    assert word_aligner_is_cached() is True
-    assert word_aligner_is_cached() is True
+    assert word_aligner_is_cached(memoize=True) is True
+    assert word_aligner_is_cached(memoize=True) is True
     assert len(calls) == 4  # one hash per manifest file, then remembered
 
     (snap / "onnx" / "model.onnx").write_bytes(b"xy")
-    assert word_aligner_is_cached() is False
+    assert word_aligner_is_cached(memoize=True) is False
     assert len(calls) == 5
 
 
@@ -253,7 +254,8 @@ def test_is_cached_hashes_once_under_concurrent_status_checks(tmp_path, monkeypa
 
     results: list[bool] = []
     threads = [
-        threading.Thread(target=lambda: results.append(word_aligner_is_cached())) for _ in range(2)
+        threading.Thread(target=lambda: results.append(word_aligner_is_cached(memoize=True)))
+        for _ in range(2)
     ]
     for t in threads:
         t.start()
@@ -272,15 +274,15 @@ def test_is_cached_remembers_a_pin_mismatch_until_the_file_changes(tmp_path, mon
     )
     (snap / "onnx" / "model.onnx").write_bytes(b"tampered bytes")
 
-    assert word_aligner_is_cached() is False
-    assert word_aligner_is_cached() is False
+    assert word_aligner_is_cached(memoize=True) is False
+    assert word_aligner_is_cached(memoize=True) is False
 
     model = word_aligner_model()
     manifest = dict(model.file_sha256)
     real_bytes = f"fake {model.onnx_file}".encode()
     assert manifest[model.onnx_file] != model_manifest.sha256_file(snap / model.onnx_file)
     (snap / model.onnx_file).write_bytes(real_bytes)
-    assert word_aligner_is_cached() is True
+    assert word_aligner_is_cached(memoize=True) is True
 
 
 def test_word_aligner_problem_is_none_when_ready(tmp_path, monkeypatch) -> None:
@@ -326,3 +328,19 @@ def test_unreadable_hub_cache_reads_as_not_downloaded(monkeypatch) -> None:
     with pytest.raises(WordAlignerMissingError, match="local cache unreadable"):
         resolve_word_aligner_dir()
     assert word_aligner_is_cached() is False
+
+
+def test_bootstrap_skip_check_rehashes_a_file_a_status_poll_remembered(
+    tmp_path, monkeypatch
+) -> None:
+    snap = pin_word_aligner_to_fake_snapshot(tmp_path / "snap", monkeypatch)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    assert word_aligner_is_cached(memoize=True) is True
+    target = snap / "vocab.json"
+    st = target.stat()
+    target.write_bytes(b"x" * st.st_size)
+    os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))
+    assert word_aligner_is_cached(memoize=True) is True  # stale poll memo
+    assert isinstance(word_aligner_problem(), WordAlignerPinMismatchError)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -255,9 +256,9 @@ def test_status_check_memoises_whisper_hashes(
 
     monkeypatch.setattr("podcast_mcp.util.model_manifest.sha256_file", counting_sha256)
 
-    assert whisper_model_is_cached("small.en") is True
+    assert whisper_model_is_cached("small.en", memoize=True) is True
     assert len(calls) == len(pin.file_sha256)
-    assert whisper_model_is_cached("small.en") is True
+    assert whisper_model_is_cached("small.en", memoize=True) is True
     assert len(calls) == len(pin.file_sha256)
     assert snap.exists()
 
@@ -465,3 +466,21 @@ def test_resolve_whisper_model_path_maps_a_vanishing_file_to_missing(
         resolve_whisper_model_path("small.en")
     assert not isinstance(excinfo.value, WhisperPinMismatchError)
     assert "podcast bootstrap --component whisper" in str(excinfo.value)
+
+
+def test_run_gate_rehashes_a_file_a_status_poll_remembered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "whisper"
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
+    assert whisper_model_is_cached("small.en", memoize=True) is True
+    target = snap / "vocabulary.txt"
+    st = target.stat()
+    target.write_bytes(b"x" * st.st_size)  # same size ...
+    os.utime(target, ns=(st.st_atime_ns, st.st_mtime_ns))  # ... and mtime the poll saw
+    assert whisper_model_is_cached("small.en", memoize=True) is True  # stale poll memo
+    with pytest.raises(WhisperPinMismatchError, match=r"vocabulary\.txt"):
+        ensure_whisper_model_cached("small.en")
+    with pytest.raises(WhisperPinMismatchError, match=r"vocabulary\.txt"):
+        resolve_whisper_model_path("small.en")

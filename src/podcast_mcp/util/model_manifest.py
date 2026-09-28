@@ -3,9 +3,10 @@
 A pinned Hugging Face snapshot (the Whisper catalog in ``whisper_models.py``, the
 forced aligner in ``word_aligner_models.py``) lists every file it downloads with the
 sha256 of its bytes at the pinned revision. Bootstrap and load verify the whole
-manifest uncached. Status checks (Pipeline badges, bootstrap status, doctor) pass
-``memoize=True``, which hashes each file once per process per (resolved path, size,
-mtime_ns), whether it matches or not.
+manifest uncached. Status checks (Pipeline badges, bootstrap status, the catalog picker,
+doctor) pass ``memoize=True``, which hashes each file once per process per (resolved path,
+size, mtime_ns), whether it matches or not. The pre-run gate and bootstrap's skip check
+hash uncached.
 
 How pins are obtained: LFS files (weights) use the hub's LFS sha256 from
 ``HfApi().model_info(repo, revision=<pin>, files_metadata=True)``. Small non-LFS files

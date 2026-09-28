@@ -76,7 +76,7 @@ def word_aligner_component() -> dict[str, Any]:
         "opt_in": True,
     }
     try:
-        problem = word_aligner_problem(model.id)
+        problem = word_aligner_problem(model.id, memoize=True)
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
         return {**base, "ok": False, "hint": str(exc), "bootstrap": WORD_ALIGNER_BOOTSTRAP}
     if problem is None:
