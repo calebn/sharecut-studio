@@ -9,7 +9,7 @@ import type {
   CommandPaletteCategory,
 } from "./commandPaletteRows";
 
-/** Fixed, representative rows (the live adapter builds these from the keymap registry). */
+/** Fixed, representative rows (the live adapter builds these from the keymap registry); commandPaletteRows.test.ts checks ids, labels, categories and default keys against the registry and catalog. */
 const CATEGORIES: CommandPaletteCategory[] = [
   {
     category: "transport",
