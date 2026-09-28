@@ -449,7 +449,7 @@ def _boundaries(
                 semitones = abs(12.0 * math.log2(f0_start / f0_end))
                 pitch_reset = clamp01(semitones / 12.0)
         strength = 0.5 * pause_score + 0.3 * lengthening + 0.2 * pitch_reset
-        if strength >= min_strength or pause_sec > 0:
+        if strength >= min_strength:
             out.append(
                 {
                     "time": cur.end,
