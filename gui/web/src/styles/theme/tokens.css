@@ -90,6 +90,9 @@
      fills. px like --lane-height, so it holds at any root font size. */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas clip inset vs lane height */
   --clip-inset-top: 8px;
+  /* WCAG 2.5.8 24 px target for the join badge's hit area (.join-badge::before):
+     three --clip-inset-top gutters, so it stays canvas px at any root font size. */
+  --join-hit-min: calc(3 * var(--clip-inset-top));
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
   --transport-height: 3.5rem;

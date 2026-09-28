@@ -20,16 +20,30 @@ test.describe("Join badge popover", () => {
     let modeChanged = false;
     try {
       const badge = lane.getByRole("button", { name: /join at/ });
-      // The hit area reaches 24 px wide: points just outside the 16 px badge still hit it.
-      const box = await badge.boundingBox();
-      if (!box) throw new Error("join badge has no box");
-      for (const dx of [-11, 11]) {
-        const hit = await page.evaluate(
-          ([x, y]) =>
-            document.elementFromPoint(x, y)?.closest(".join-badge") != null,
-          [box.x + box.width / 2 + dx, box.y + box.height / 2] as const,
-        );
-        expect(hit).toBe(true);
+      // The hit area is 24 px wide at any root font size: points 11 px either
+      // side of the badge's centre hit it (the badge itself is 1rem).
+      const expectHitAreaReaches24px = async () => {
+        const box = await badge.boundingBox();
+        if (!box) throw new Error("join badge has no box");
+        for (const dx of [-11, 11]) {
+          const hit = await page.evaluate(
+            ([x, y]) =>
+              document.elementFromPoint(x, y)?.closest(".join-badge") != null,
+            [box.x + box.width / 2 + dx, box.y + box.height / 2] as const,
+          );
+          expect(hit).toBe(true);
+        }
+      };
+      await expectHitAreaReaches24px();
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "12px";
+      });
+      try {
+        await expectHitAreaReaches24px();
+      } finally {
+        await page.evaluate(() => {
+          document.documentElement.style.fontSize = "";
+        });
       }
       await badge.click();
       const popover = page.getByRole("dialog", { name: /join at/ });
