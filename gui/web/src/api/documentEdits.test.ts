@@ -32,6 +32,7 @@ import {
 } from "../state/offlineStore";
 import { ApiError } from "../utils/apiError";
 import {
+  clearSupersededCorrectionConflicts,
   correctTranscriptPhrase,
   correctTranscriptWord,
   setTranscriptWordSuppressed,
@@ -444,5 +445,18 @@ describe("transcript correction clears superseded Needs attention entries (#746)
     await expect(
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi"),
     ).resolves.toBeUndefined();
+  });
+
+  it("is a no-op for a non-correction command", async () => {
+    await clearSupersededCorrectionConflicts(
+      "/tmp/ep",
+      "SetTranscriptWordSuppressed",
+      {
+        track_id: "host",
+        word_index: 0,
+      },
+    );
+    expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    expect(removeConflictsWhere).not.toHaveBeenCalled();
   });
 });

@@ -8,8 +8,12 @@ const submit = vi.fn();
 const hostQueue = vi.fn();
 const guestQueue = vi.fn();
 const removeHostQueuedCommands = vi.fn();
+const clearSuperseded = vi.fn(async () => {});
 
 vi.mock("../api", () => ({ submitDocumentCommand: submit }));
+vi.mock("../api/documentEdits", () => ({
+  clearSupersededCorrectionConflicts: clearSuperseded,
+}));
 vi.mock("./offlineStore", () => ({
   loadCommandQueue: guestQueue,
   loadHostCommandQueue: hostQueue,
@@ -579,6 +583,7 @@ describe("replayQueuedCommands", () => {
     hostQueue.mockReset();
     guestQueue.mockReset();
     removeHostQueuedCommands.mockReset().mockResolvedValue(undefined);
+    clearSuperseded.mockClear();
   });
 
   const rec = (id: string): QueuedCommand => ({
@@ -624,5 +629,55 @@ describe("replayQueuedCommands", () => {
       "c",
       "d",
     ]);
+  });
+
+  it("clears superseded correction refusals after a replayed correction lands", async () => {
+    const { replayQueuedCommands } = await import("./drainOfflineQueue");
+    const queue = [
+      {
+        ...rec("a"),
+        type: "CorrectTranscriptWord",
+        payload: { track_id: "host", word_index: 2, text: "hi" },
+      },
+      rec("b"),
+    ];
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => queue,
+    });
+
+    expect(clearSuperseded).toHaveBeenCalledWith(
+      "/projects/driver.project.json",
+      "CorrectTranscriptWord",
+      { track_id: "host", word_index: 2, text: "hi" },
+    );
+    expect(clearSuperseded).toHaveBeenCalledWith(
+      "/projects/driver.project.json",
+      "SetTrackMeta",
+      {},
+    );
+  });
+
+  it("does not clear refusals for a correction the host rejected or left queued", async () => {
+    const { replayQueuedCommands } = await import("./drainOfflineQueue");
+    const correction = {
+      ...rec("a"),
+      type: "CorrectTranscriptWord",
+      payload: { track_id: "host", word_index: 2, text: "hi" },
+    };
+
+    submit.mockRejectedValueOnce(new ApiError("stale", null, 409));
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => [correction],
+    });
+    expect(clearSuperseded).not.toHaveBeenCalled();
+
+    submit.mockResolvedValueOnce({ queued: true });
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => [correction],
+    });
+    expect(clearSuperseded).not.toHaveBeenCalled();
   });
 });
