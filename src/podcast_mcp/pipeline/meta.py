@@ -376,7 +376,8 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         label="Precise word boundaries",
         description=(
             "Re-time Whisper's words with a local forced aligner (English). Download it "
-            "first: podcast bootstrap --component word-aligner. Off keeps Whisper's timestamps."
+            "first: podcast bootstrap --component word-aligner. Off keeps Whisper's timestamps. "
+            "Existing transcripts are re-timed by Re-transcribe."
         ),
         type="boolean",
         default=False,

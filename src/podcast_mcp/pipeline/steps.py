@@ -190,6 +190,10 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", silence filter skipped on {skipped} track(s)"
     if options.forced_alignment_enabled:
         summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
+        if plan.reused:
+            summary += (
+                f", {len(plan.reused)} reused track(s) not re-timed (Re-transcribe to re-time)"
+            )
         kept = sum(1 for j in align_jobs if j.get("status") in ("failed", "skipped"))
         if kept:
             summary += f", forced alignment kept Whisper timestamps on {kept} track(s)"
