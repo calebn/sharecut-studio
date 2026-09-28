@@ -652,6 +652,11 @@ def _render_track_stems(
     rendered: dict[str, Path] = {}
     expected: dict[str, str] = {}  # track id -> render hash its published stem matches
     stale: set[str] = set()
+    # stem_matches reads the stem, its sidecar and its cached duration outside the state
+    # lock, and a track counted fresh here is never re-rendered. The final
+    # _stem_inputs_changed / _saved_stem_inputs_changed gate below is what rejects an edit
+    # that lands after this check (test_stem_rejects_edit_to_a_cached_stem_during_render);
+    # do not weaken that gate.
     for track_id, fingerprint in fingerprints.items():
         if stem_matches(project, track_id, fingerprint):
             rendered[track_id] = out_dir / f"{track_id}.wav"
@@ -700,6 +705,7 @@ def _render_track_stems(
             if to_render:
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
+    # This gate also covers the stems counted fresh without the lock above; keep it.
     with project_state_lock(project):
         if _stem_inputs_changed(live, expected, render_roles) or (
             project_file_revision(project) != initial_revision
