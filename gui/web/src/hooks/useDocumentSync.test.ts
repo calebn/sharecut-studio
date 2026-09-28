@@ -383,4 +383,14 @@ describe("useDocumentSync", () => {
       ["late"],
     );
   });
+
+  it("drops malformed and non-document frames at receipt without queuing", async () => {
+    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    const socket = FakeWebSocket.instances[0];
+    const { pendingInboundCount } = await import("../sync/inboundQueue");
+    socket.onmessage?.({ data: "{not json" });
+    socket.deliver({ type: "Presence", clients: [] });
+    socket.deliver({ type: "Applied", server_seq: 3 });
+    expect(pendingInboundCount()).toBe(0);
+  });
 });

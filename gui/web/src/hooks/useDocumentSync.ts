@@ -77,19 +77,26 @@ export function useDocumentSync(
         drain();
       };
       ws.onmessage = (ev) => {
+        let msg: DocumentSnapshotMsg;
+        try {
+          msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
+        } catch {
+          return; // ignore malformed
+        }
+        if (msg.type !== "Applied" && msg.type !== "Snapshot") {
+          return;
+        }
+        const snap = msg.snapshot;
+        if (!snap) {
+          return;
+        }
+        // Parsed at receipt like the session and guest hooks; the seq/file
+        // bookkeeping and the apply run in order from the per-frame queue.
         enqueueInbound(() => {
           if (closed) {
             return;
           }
           try {
-            const msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
-            if (msg.type !== "Applied" && msg.type !== "Snapshot") {
-              return;
-            }
-            const snap = msg.snapshot;
-            if (!snap) {
-              return;
-            }
             noteDocumentFile(snap);
             if (
               !shouldApplyDocumentEvent({
@@ -115,7 +122,7 @@ export function useDocumentSync(
               });
             }
           } catch {
-            // ignore malformed
+            // An apply error drops this frame only, as it did before queuing.
           }
         });
       };
