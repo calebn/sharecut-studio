@@ -62,6 +62,9 @@ PIPELINE_TARGETS = ("librispeech", "lab")  # aligned_dialogue has zero native wo
 # and this label must not match that glob.
 PIPELINE_LABEL = f"{DEFAULT_WORD_ALIGNER}-pipeline"
 PIPELINE_PASS = "pipeline"
+# Never "summary.json": run_suite writes that (a different schema) to the same
+# default runs dir, $LAB_RUNS_DIR/align/<target>.
+PIPELINE_SUMMARY = f"summary.{PIPELINE_LABEL}.json"
 
 
 @dataclass(frozen=True)
@@ -712,8 +715,9 @@ def run_pipeline_pass(
     """Score the shipped pass (see :func:`pipeline_prediction`) and profile word durations.
 
     Writes ``<id>.<PIPELINE_LABEL>.pred.json`` / ``.report.json`` (gold items only)
-    and ``summary.json`` under ``runs_dir``, alongside anything ``run_suite`` wrote
-    there. ``aligner`` defaults to a real, threads-pinned ``WordAligner.load()``;
+    and ``PIPELINE_SUMMARY`` (``summary.onnx-base-pipeline.json``) under ``runs_dir``,
+    so it never replaces the ``summary.json`` that ``run_suite`` writes to the same dir.
+    ``aligner`` defaults to a real, threads-pinned ``WordAligner.load()``;
     tests inject a stand-in so they never touch the network or the ONNX runtime.
     """
     audio_paths, native_payloads = prepare_items(
@@ -779,7 +783,7 @@ def run_pipeline_pass(
         "align_runtime_sec": align_runtime_total,
         "duration_profile": duration_profiles,
     }
-    write_json_atomic(runs_dir / "summary.json", summary)
+    write_json_atomic(runs_dir / PIPELINE_SUMMARY, summary)
     print(f"{PIPELINE_LABEL} scored: {json.dumps(summary['scored'])}")
     print(f"{PIPELINE_LABEL} agreement: {json.dumps(summary['agreement'])}")
     return summary
