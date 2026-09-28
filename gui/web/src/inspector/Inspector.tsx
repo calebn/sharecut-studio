@@ -116,8 +116,10 @@ export function Inspector() {
       return <CommentInspector comment={comment} onSeek={setPlayheadSec} />;
     }
     case "transcriptWord":
+      // Keyed per word: an in-flight action keeps its own busy/error state (#634).
       return (
         <TranscriptWordInspector
+          key={`${selection.trackId}:${selection.wordIndex}`}
           trackId={selection.trackId}
           wordIndex={selection.wordIndex}
         />

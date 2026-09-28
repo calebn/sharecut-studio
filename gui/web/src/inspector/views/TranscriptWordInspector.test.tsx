@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
@@ -20,6 +20,7 @@ vi.mock("../../commands/execute", () => ({
 import {
   correctTranscriptPhrase,
   correctTranscriptWord,
+  setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "../../api";
 
@@ -67,7 +68,12 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptWord).mockClear();
     vi.mocked(correctTranscriptPhrase).mockClear();
     vi.mocked(setTranscriptWordsIgnored).mockClear();
-    useDawStore.setState({ project: project(), projectPath: "/tmp/ep" });
+    vi.mocked(setTranscriptWordSuppressed).mockClear();
+    useDawStore.setState({
+      project: project(),
+      projectPath: "/tmp/ep",
+      transcriptInlineEditFailure: null,
+    });
   });
 
   it("shows the timing note for a host", () => {
@@ -182,5 +188,46 @@ describe("TranscriptWordInspector", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.getByText("Text cannot be empty")).toBeInTheDocument();
     expect(correctTranscriptWord).not.toHaveBeenCalled();
+  });
+
+  it("sends a failure that settles after the selection moved to the late-failure banner, not the next word (#634)", async () => {
+    let reject!: (e: Error) => void;
+    vi.mocked(setTranscriptWordSuppressed).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    const { rerender } = render(
+      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
+    rerender(
+      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+    );
+    expect(screen.getByRole("button", { name: "Suppress" })).toBeEnabled();
+    await act(async () => {
+      reject(new Error("boom"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 0,
+      originalText: "hello",
+      message: "Could not update “hello”: boom",
+    });
+  });
+
+  it("shows a failure under the same word while it is still open", async () => {
+    vi.mocked(setTranscriptWordSuppressed).mockRejectedValueOnce(
+      new Error("boom"),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+    expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
   });
 });
