@@ -60,8 +60,19 @@ _INSTALL_RE = re.compile(r"\bplaywright install\b([^\n]*)")
 
 
 def spec_checks(source: str) -> list[str]:
-    """A spec's matrix checks: its `test.step` titles, else its test titles."""
-    return _STEP_RE.findall(source) or _TEST_RE.findall(source)
+    """A spec's matrix checks: its `test.step` titles, else its test titles.
+
+    A spec that uses `test.step` must wrap the steps in exactly one `test()`,
+    so a second top-level test cannot hide behind the steps undocumented.
+    """
+    steps = _STEP_RE.findall(source)
+    tests = _TEST_RE.findall(source)
+    if not steps:
+        return tests
+    assert len(tests) == 1, (
+        f"a spec with test.step titles must have exactly one test() wrapping them; found {tests}"
+    )
+    return steps
 
 
 def compat_specs() -> dict[str, str]:
@@ -247,6 +258,15 @@ def test_spec_checks_prefer_steps_over_test_titles() -> None:
     });
     """
     assert spec_checks(grouped) == ["plays"]
+
+    mixed = """
+    test("walks", async ({ page }) => {
+      await test.step("record: go", async () => {});
+    });
+    test("new smoke check", async ({ page }) => {});
+    """
+    with pytest.raises(AssertionError, match="exactly one test"):
+        spec_checks(mixed)
 
 
 def test_compat_projects_reads_names_and_test_ignore() -> None:

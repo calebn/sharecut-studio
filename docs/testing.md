@@ -586,7 +586,10 @@ Not covered, so still manual:
 0, if the `frontend-e2e` job stops running `npm run test:e2e:compat` or stops
 installing an engine with a Pass cell, or if one of #30's areas (Audio
 playback, getUserMedia, WebSocket, IndexedDB, CSS / layout) loses its last row
-passing on both Chromium and WebKit. A new spec or step, a `testIgnore` or a
+passing on both Chromium and WebKit. It reads the spec and config sources with
+regexes, so it fails loudly on shapes it cannot read: a spec that mixes
+`test.step` with a second `test()`, or a `testIgnore` entry that is not a
+`"**/<file>.spec.ts"` string literal. A new spec or step, a `testIgnore` or a
 Firefox project fails the guard until this table is updated.
 
 ### Browser compatibility matrix
