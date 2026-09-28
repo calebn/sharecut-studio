@@ -1,8 +1,8 @@
 import type { ComponentProps, ReactNode, Ref } from "react";
 import type { VirtualRowSlotProps } from "../hooks/useVirtualRows";
 import type { TranscriptWordView } from "../types/project";
+import { HALLUCINATION_WARNING } from "./hallucinationWarning";
 import { PROMINENT_NOTE } from "./prominence";
-import { SILENCE_WARNING } from "./silenceWarning";
 
 export type TranscriptTurnWord = {
   word: TranscriptWordView;
@@ -140,7 +140,7 @@ export function TranscriptTurnView({
                               item.word.text,
                               item.prominent ? PROMINENT_NOTE : null,
                               item.ariaLabel,
-                              SILENCE_WARNING,
+                              HALLUCINATION_WARNING,
                             ]
                               .filter(Boolean)
                               .join(" · ")
@@ -166,7 +166,10 @@ export function TranscriptTurnView({
                         <span className="sr-only"> {PROMINENT_NOTE}</span>
                       )}
                       {item.suspectHallucination && (
-                        <span className="sr-only"> {SILENCE_WARNING}</span>
+                        <span className="sr-only">
+                          {" "}
+                          {HALLUCINATION_WARNING}
+                        </span>
                       )}
                     </span>
                   ))}

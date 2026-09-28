@@ -1161,3 +1161,34 @@ Threshold (#715) rule in
 L (longest aligned word 0.76 s + worst |duration error| vs gold 0.22 s) = 0.98
 s, so `L + 0.5 = 1.48 <= 2.0` and `DEFAULT_MAX_WORD_DURATION_SEC` stays **2.0
 s** (see the comment above the constant in `engines/asr_timing.py`).
+
+### Aligner evidence floor (#195)
+
+`test_evidence_floor_separates_real_words_from_silence_and_noise_probes`
+(`tests/test_word_align_real.py`, `e2e_real`) force-aligns every LibriSpeech
+word in `tests/fixtures/word_boundary/*.native-base.json` (46 words, 3 clips)
+with the real, locally cached `onnx-base` aligner, then appends two probes
+after `1988-147956-0023.wav`: 1.5 s of digital silence and 1.5 s of seeded
+(`np.random.default_rng(0)`) Gaussian noise at −50 dBFS RMS, each given a
+plausible word span. Reproduce with:
+
+```bash
+podcast bootstrap --component word-aligner
+uv run pytest --no-cov -q -s -m e2e_real tests/test_word_align_real.py -k evidence
+```
+
+Measured 2026-09-28 on the same machine as #715 and #641: Apple M2 Pro (12
+cores, macOS 26.6.2), 4 aligner threads.
+
+| Signal | n | min | p5 | median |
+| ------ | - | --- | -- | ------ |
+| Real LibriSpeech words | 46 | 0.2499 | 0.8760 | 0.9765 |
+| Digital-silence probe | 1 | 0.0008 | — | — |
+| Low-level (−50 dBFS) noise probe | 1 | 0.0001 | — | — |
+
+**Rule applied:** the real-word minimum (0.2499) is well above 10× the
+shipped default (10 × 0.01 = 0.1), and both probes score far below the
+default floor. Branch 1 (lower the default) and branch 2 (turn the signal
+off) do not apply; the shipped default stays **`min_word_score: 0.01`** in
+`.agents/defaults/pipeline.yaml`, `AsrOptions.forced_alignment_min_word_score`
+and the `transcribe.forced_alignment.min_word_score` `ParamField`.

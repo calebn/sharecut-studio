@@ -21,6 +21,7 @@ import {
   type PlacementTurn,
   placeEditBoundaries,
 } from "../transcript/editBoundaryPlacement";
+import { HALLUCINATION_WARNING } from "../transcript/hallucinationWarning";
 import { InlineWordEditor } from "../transcript/InlineWordEditor";
 import { ignoredRuns, selectionAllIgnored } from "../transcript/ignoredWords";
 import {
@@ -33,7 +34,6 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
-import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
   TranscriptTurnView,
@@ -1103,7 +1103,9 @@ export function TranscriptPanel() {
                   const cutAwayTip = cutAwayChip
                     ? TRANSCRIPT_CUT_AWAY_WORD_TIP
                     : undefined;
-                  const suspectTip = suspectChip ? SILENCE_WARNING : undefined;
+                  const suspectTip = suspectChip
+                    ? HALLUCINATION_WARNING
+                    : undefined;
                   const ignoredTip = w.ignored
                     ? TRANSCRIPT_IGNORED_WORD_TIP
                     : undefined;

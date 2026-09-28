@@ -401,6 +401,21 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("transcribe_tracks",),
     ),
     ParamField(
+        path="transcribe.forced_alignment.min_word_score",
+        label="Aligner evidence floor",
+        description=(
+            "With precise word boundaries on, words the aligner places with a mean character "
+            "probability below this are flagged suspect_hallucination (never deleted). 0 = off."
+        ),
+        type="number",
+        default=0.01,
+        group="advanced",
+        section="transcribe",
+        affects=("transcribe_tracks",),
+        minimum=0.0,
+        maximum=1.0,
+    ),
+    ParamField(
         path="transcribe.decode.no_speech_threshold",
         label="No-speech threshold",
         description="A window counts as silent when Whisper's no-speech probability is above this and its log probability is low.",

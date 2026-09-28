@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import wave
 from unittest.mock import patch
 
@@ -35,11 +36,16 @@ def test_forced_alignment_succeeded(entry, expected) -> None:
 
 
 class StubAligner:
-    def __init__(self, spans, n_aligned, n_unaligned):
+    def __init__(self, spans, n_aligned, n_unaligned, scores=None):
         self.model = word_aligner_model()
         self.calls = 0
         self._spans = spans
         self._stats = RetimeStats(1, 0, n_aligned, n_unaligned)
+        self._scores = (
+            tuple(scores)
+            if scores is not None
+            else tuple(None if s is None else 0.9 for s in spans)
+        )
 
     def supports_language(self, language):
         return (language or "en") == "en"
@@ -49,7 +55,7 @@ class StubAligner:
 
     def align(self, audio_path, words):
         self.calls += 1
-        return WordAlignResult(list(self._spans), self._stats, 0.01)
+        return WordAlignResult(list(self._spans), self._stats, 0.01, self._scores)
 
 
 class RaisingAligner(StubAligner):
@@ -180,6 +186,43 @@ def test_second_run_reuses_alignment_cache_and_use_cache_false_realigns(minimal_
         assert engine.forced_alignment_jobs[-1]["status"] == "aligned"
 
 
+def test_alignment_scores_are_stored_and_reused_from_cache(minimal_project, tmp_path):
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0, scores=(0.8, 0.002))
+    engine._word_aligner = stub
+
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert [w.alignment_score for w in tr.words] == [0.8, 0.002]
+
+    from podcast_mcp.util.hashing import sha256_file
+
+    sha = sha256_file(job.audio)
+    asr_cache = engine.cache_path(proj, job.cache_id, job.audio, language="en", audio_sha256=sha)
+    align_files = list(proj.transcripts_dir().glob("*.word_align_*.json"))
+    assert len(align_files) == 1
+    body = json.loads(align_files[0].read_text(encoding="utf-8"))
+    assert body["scores"] == [0.8, 0.002]
+    assert align_files[0].name.startswith(asr_cache.stem)
+
+    with patcher:
+        tr2 = engine.transcribe_job(proj, job, language="en")
+    assert stub.calls == 1
+    assert engine.forced_alignment_jobs[-1]["status"] == "cached"
+    assert [w.alignment_score for w in tr2.words] == [0.8, 0.002]
+
+
+def test_failed_alignment_leaves_no_scores(minimal_project, tmp_path):
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    engine._word_aligner = RaisingAligner([], n_aligned=0, n_unaligned=2)
+
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert [w.alignment_score for w in tr.words] == [None, None]
+
+
 def test_stretched_word_is_undeferred_only_when_aligned(minimal_project, tmp_path):
     from podcast_mcp.engines.transcribe import flag_anomalous_asr_durations
 
@@ -267,6 +310,45 @@ def test_align_error_keeps_whisper_times_and_writes_no_alignment_cache(minimal_p
     assert cached_audio_keys(proj, job.cache_id) == {sha[:16]}
 
 
+def test_no_evidence_word_is_flagged_and_counted(minimal_project, tmp_path):
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0, scores=(0.8, 0.002))
+    engine._word_aligner = stub
+
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert tr.words[0].suspect_hallucination is False
+    assert tr.words[1].suspect_hallucination is True
+    assert engine.forced_alignment_jobs[0]["no_evidence_words"] == 1
+
+
+def test_min_word_score_zero_never_flags_or_counts(minimal_project, tmp_path):
+    proj = load_project(minimal_project)
+    wav = tmp_path / "clip.wav"
+    _write_wav(wav)
+    job = TranscribeJob(track_id="host", source_id=None, audio=wav)
+    engine = TranscriptionEngine(
+        options=AsrOptions(forced_alignment_enabled=True, forced_alignment_min_word_score=0.0)
+    )
+
+    def _fresh_asr(*args, **kwargs):
+        return Transcript(
+            track_id="",
+            language="en",
+            words=[TranscriptWord(text=w[0], start=w[1], end=w[2]) for w in HI_BYE_WORDS],
+        )
+
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0, scores=(0.8, 0.002))
+    engine._word_aligner = stub
+
+    with patch.object(engine, "transcribe_file", side_effect=_fresh_asr):
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert [w.suspect_hallucination for w in tr.words] == [False, False]
+    assert "no_evidence_words" not in engine.forced_alignment_jobs[0]
+
+
 def test_non_english_transcript_is_skipped(minimal_project, tmp_path):
     proj, job, engine, patcher = _setup(
         minimal_project, tmp_path, words=HI_BYE_WORDS, language="de"
@@ -284,7 +366,14 @@ def test_non_english_transcript_is_skipped(minimal_project, tmp_path):
 
 @pytest.mark.parametrize(
     "cache_body",
-    ['{"', '{"spans": [[0.1, 0.3]]}', '{"spans": [[0.3, 0.1], null]}'],
+    [
+        '{"',
+        '{"spans": [[0.1, 0.3]]}',
+        '{"spans": [[0.3, 0.1], null]}',
+        '{"spans": [[0.1, 0.3], [0.6, 0.9]]}',
+        '{"spans": [[0.1, 0.3], [0.6, 0.9]], "scores": [1.5, 0.5]}',
+        '{"spans": [null, [0.6, 0.9]], "scores": [0.5, 0.5]}',
+    ],
 )
 def test_corrupt_or_mismatched_alignment_cache_is_a_miss(minimal_project, tmp_path, cache_body):
     proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)

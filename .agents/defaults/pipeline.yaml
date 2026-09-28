@@ -249,6 +249,9 @@ transcribe:
   # Whisper. Not a yaml key: run-only, like overwrite_edited.
   forced_alignment:
     enabled: false
+    # Aligned words whose mean character posterior is below this get
+    # suspect_hallucination (flag only, never deleted; #195). 0 = off.
+    min_word_score: 0.01
 
 align:
   # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.

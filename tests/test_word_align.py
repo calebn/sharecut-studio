@@ -15,7 +15,12 @@ from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
 from model_pin_helpers import pin_word_aligner_to_fake_snapshot
 from pcm_fakes import FakeStreamEngine
 from podcast_mcp.engines.audio_audit import load_mono_full
-from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2, CtcVocab, retime_spans
+from podcast_mcp.engines.ctc_forced_align import (
+    ALIGNMENT_SCORE_METHOD,
+    SAMPLE_RATE_WAV2VEC2,
+    CtcVocab,
+    retime_spans,
+)
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.word_align import (
     OnnxCtcBackend,
@@ -99,6 +104,7 @@ def test_word_aligner_load_uses_env_dir_and_vocab(tmp_path, monkeypatch) -> None
     assert not aligner.supports_language("de")
     assert aligner.cache_identity()["revision"] == aligner.model.revision
     assert aligner.cache_identity()["local_source"]["dir"] == str(model_dir.resolve())
+    assert aligner.cache_identity()["score"] == ALIGNMENT_SCORE_METHOD
 
 
 def test_word_aligner_load_without_model_raises_missing(tmp_path, monkeypatch) -> None:
@@ -134,6 +140,30 @@ def test_word_aligner_align_decodes_audio_and_retimes(tmp_path) -> None:
     assert result.spans[2] == pytest.approx((0.08, 0.14))
     assert result.stats.aligned_words == 2
     assert result.runtime_sec >= 0
+
+
+def test_word_aligner_align_returns_one_score_per_placed_word(tmp_path) -> None:
+    wav_path = tmp_path / "clip.wav"
+    with wave.open(str(wav_path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"\x00\x00" * round(1.2 * 16000))
+
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    aligner = WordAligner(word_aligner_model(), backend, vocab)
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="42", start=0.5, end=0.7),
+        TranscriptWord(text="bye", start=0.7, end=1.2),
+    ]
+
+    result = aligner.align(wav_path, words)
+
+    assert len(result.scores) == len(result.spans)
+    for span, score in zip(result.spans, result.scores, strict=True):
+        assert (span is None) == (score is None)
 
 
 def test_word_aligner_align_streams_the_decode_once(monkeypatch, tmp_path) -> None:
@@ -308,6 +338,25 @@ def test_apply_word_spans_keeps_unaligned_and_clears_deferred_only_when_retimed(
     assert words[1].start == pytest.approx(5.0)
     assert words[1].end == pytest.approx(9.0)
     assert words[1].audibility_status == "deferred"
+
+
+def test_apply_word_spans_sets_scores_only_on_placed_words() -> None:
+    words = [
+        TranscriptWord(text="a", start=0.0, end=5.0),
+        TranscriptWord(text="b", start=5.0, end=9.0, alignment_score=0.3),
+    ]
+    spans: list[tuple[float, float] | None] = [(0.0, 0.5), None]
+
+    apply_word_spans(words, spans, [0.7, None])
+
+    assert words[0].alignment_score == pytest.approx(0.7)
+    assert words[1].alignment_score is None
+
+
+def test_apply_word_spans_rejects_score_length_mismatch() -> None:
+    words = [TranscriptWord(text="a", start=0.0, end=0.5)]
+    with pytest.raises(ValueError, match="words/scores"):
+        apply_word_spans(words, [(0.0, 0.5)], [0.5, 0.6])
 
 
 def test_apply_word_spans_rejects_length_mismatch() -> None:

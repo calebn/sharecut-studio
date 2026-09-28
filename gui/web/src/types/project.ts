@@ -204,7 +204,7 @@ export interface TranscriptWordView {
   suppressed?: boolean;
   /** Struck-through and muted at render, non-destructively (no cut/pending edit, #633). */
   ignored?: boolean;
-  /** Own-track audio under the word is digital silence (possible Whisper hallucination). */
+  /** Own-track audio under the word is digital silence, or the forced aligner found no acoustic evidence (possible Whisper hallucination). */
   suspect_hallucination?: boolean;
 }
 

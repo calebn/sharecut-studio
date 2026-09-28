@@ -1535,6 +1535,42 @@ def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav,
     assert "3 words re-timed" in summary
     assert "forced alignment kept Whisper timestamps on 1 track(s)" in summary
     assert "not re-timed" not in summary
+    assert "acoustic evidence" not in summary
+
+
+def test_transcribe_tracks_reports_no_evidence_words(minimal_project, sample_wav, tmp_workspace):
+    import copy
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+
+    align_jobs = [
+        {
+            "label": "Track host",
+            "status": "aligned",
+            "aligned_words": 3,
+            "unaligned_words": 0,
+            "no_evidence_words": 2,
+        },
+        {
+            "label": "Track guest",
+            "status": "failed",
+            "reason": "x",
+            "aligned_words": 0,
+            "unaligned_words": 2,
+        },
+    ]
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            _asr_result(),
+            _asr_result(),
+        ]
+        eng_cls.return_value.forced_alignment_jobs = align_jobs
+        eng_cls.return_value.silence_filter_skipped = []
+        summary = steps.transcribe_tracks(proj, defaults)
+
+    assert "2 aligned word(s) with no acoustic evidence" in summary
 
 
 def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
@@ -1602,7 +1638,9 @@ def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
     aligner.model = word_aligner_model()
     aligner.supports_language.return_value = True
     aligner.cache_identity.return_value = {"model": "stub"}
-    aligner.align.return_value = WordAlignResult([(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01)
+    aligner.align.return_value = WordAlignResult(
+        [(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01, (0.9,)
+    )
     with (
         patch.object(Engine, "transcribe_file", return_value=_asr_result()),
         patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
@@ -1636,7 +1674,9 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     aligner.model = word_aligner_model()
     aligner.supports_language.return_value = True
     aligner.cache_identity.return_value = {"model": "stub"}
-    aligner.align.return_value = WordAlignResult([(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01)
+    aligner.align.return_value = WordAlignResult(
+        [(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01, (0.9,)
+    )
     with (
         patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
         patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
@@ -1672,7 +1712,9 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
     aligner.model = word_aligner_model()
     aligner.supports_language.return_value = True
     aligner.cache_identity.return_value = {"model": "stub"}
-    aligner.align.return_value = WordAlignResult([(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01)
+    aligner.align.return_value = WordAlignResult(
+        [(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01, (0.9,)
+    )
 
     defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
     with (

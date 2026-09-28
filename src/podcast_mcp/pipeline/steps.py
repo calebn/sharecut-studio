@@ -226,6 +226,9 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", silence filter skipped on {skipped} track(s)"
     if options.forced_alignment_enabled:
         summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
+        no_evidence = sum(j.get("no_evidence_words", 0) for j in align_jobs)
+        if no_evidence:
+            summary += f", {no_evidence} aligned word(s) with no acoustic evidence"
         if retime:
             if retimed:
                 summary += f", {len(retimed)} reused track(s) re-timed from the ASR cache"

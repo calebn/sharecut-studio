@@ -10,17 +10,21 @@ import pytest
 
 from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
 from podcast_mcp.engines.ctc_forced_align import (
+    ALIGNMENT_SCORE_METHOD,
     DEFAULT_MAX_GAP_SEC,
     DEFAULT_MAX_WINDOW_SEC,
     DEFAULT_PAD_SEC,
     MIN_WINDOW_SAMPLES,
     AlignmentWindow,
     CtcVocab,
+    PlacedWord,
     RetimeStats,
     align_words,
     ctc_viterbi,
     log_softmax,
     normalize_waveform,
+    place_spans_stream,
+    place_words,
     plan_windows,
     retime_spans,
     retime_spans_stream,
@@ -83,6 +87,28 @@ def test_align_words_infeasible_window_returns_all_none() -> None:
     lp = emissions(1, {})
     result = align_words(lp, ["ab", "b"], VOCAB)
     assert result == [None, None]
+
+
+def test_alignment_score_method_is_a_non_empty_identifier() -> None:
+    assert ALIGNMENT_SCORE_METHOD
+
+
+def test_place_words_scores_mean_posterior_of_emitting_frames() -> None:
+    lp = emissions(10, {2: 2, 3: 3})
+    result = place_words(lp, ["ab", "b"], VOCAB)
+    assert result[0] == PlacedWord(0.04, 0.08, 0.9)
+    assert result[1] is not None
+    assert result[1].score == pytest.approx(0.01)
+
+
+def test_align_words_is_place_words_spans() -> None:
+    lp = emissions(10, {2: 2, 3: 3, 5: 1, 7: 3})
+    words = ["ab", "42", "b"]
+    placed = place_words(lp, words, VOCAB)
+    spans = align_words(lp, words, VOCAB)
+    assert spans == [None if p is None else (p.start, p.end) for p in placed]
+    assert spans[1] is None
+    assert placed[1] is None
 
 
 def test_log_softmax_normalizes_large_logits() -> None:
@@ -166,6 +192,26 @@ def test_retime_spans_places_words_in_start_order_and_counts_unaligned() -> None
     assert spans[1] is None
     assert spans[2] == pytest.approx((0.08, 0.14))
     assert stats == RetimeStats(windows=1, failed_windows=0, aligned_words=2, unaligned_words=1)
+
+
+def test_place_spans_stream_matches_retime_spans_stream_spans() -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    words = [("hi", 0.0, 0.5), ("42", 0.5, 0.7), ("bye", 0.7, 1.2)]
+    samples = np.zeros(round(1.2 * 16000), dtype=np.float32)
+
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    with contextlib.closing(SequentialWindowReader([samples], 16000)) as reader:
+        placed, placed_stats = place_spans_stream(reader, words, backend, vocab)
+
+    backend2 = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    with contextlib.closing(SequentialWindowReader([samples], 16000)) as reader2:
+        spans, span_stats = retime_spans_stream(reader2, words, backend2, vocab)
+
+    assert [None if p is None else (p.start, p.end) for p in placed] == spans
+    assert placed_stats == span_stats
+    for p in placed:
+        if p is not None:
+            assert 0 < p.score <= 1
 
 
 def test_retime_spans_skips_windows_too_short_for_the_model() -> None:
