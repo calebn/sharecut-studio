@@ -87,7 +87,7 @@ test.describe("Timeline fade curves", () => {
     await expectPageAxeClean(page, ".lane-row .clip-block");
   });
 
-  test("keeps the join badge clear of the fade corners, the join diamond and the marker lane", async ({
+  test("keeps the join badge clear of the fade corners, the join diamond and the marker lane at any root font size", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -105,35 +105,61 @@ test.describe("Timeline fade curves", () => {
     try {
       const badge = lane.locator(".join-badge");
       await expect(badge).toHaveCount(1);
-      const badgeBox = await badge.boundingBox();
-      if (!badgeBox) throw new Error("join badge has no box");
-      const diamondBox = await lane.locator(".join-diamond").boundingBox();
-      if (!diamondBox) throw new Error("join diamond has no box");
-      expect(intersects(badgeBox, diamondBox)).toBe(false);
-      // The first track sits right under the marker lane; the badge must not paint over it.
-      const markerBox = await page
-        .locator(".marker-lane")
-        .first()
-        .boundingBox();
-      if (!markerBox) throw new Error("marker lane has no box");
-      expect(intersects(badgeBox, markerBox)).toBe(false);
-      // Selecting a clip reveals its zero-length fade corners at the seam.
-      await clips.nth(1).click();
-      const cornerIn = clips.nth(1).locator("button.fade-corner.in");
-      await expect(cornerIn).toHaveCSS("opacity", "1");
-      const inBox = await cornerIn.boundingBox();
-      if (!inBox) throw new Error("fade-in corner has no box");
-      expect(intersects(badgeBox, inBox)).toBe(false);
-      await clips.nth(0).click();
-      const cornerOut = clips.nth(0).locator("button.fade-corner.out");
-      await expect(cornerOut).toHaveCSS("opacity", "1");
-      const outBox = await cornerOut.boundingBox();
-      if (!outBox) throw new Error("fade-out corner has no box");
-      expect(intersects(badgeBox, outBox)).toBe(false);
+
+      const expectBadgeClear = async () => {
+        const badgeBox = await badge.boundingBox();
+        if (!badgeBox) throw new Error("join badge has no box");
+        const diamondBox = await lane.locator(".join-diamond").boundingBox();
+        if (!diamondBox) throw new Error("join diamond has no box");
+        expect(intersects(badgeBox, diamondBox)).toBe(false);
+        // The first track sits right under the marker lane; the badge must not paint over it.
+        const markerBox = await page
+          .locator(".marker-lane")
+          .first()
+          .boundingBox();
+        if (!markerBox) throw new Error("marker lane has no box");
+        expect(intersects(badgeBox, markerBox)).toBe(false);
+        // Selecting a clip reveals its zero-length fade corners at the seam.
+        await clips.nth(1).click();
+        const cornerIn = clips.nth(1).locator("button.fade-corner.in");
+        await expect(cornerIn).toHaveCSS("opacity", "1");
+        const inBox = await cornerIn.boundingBox();
+        if (!inBox) throw new Error("fade-in corner has no box");
+        expect(intersects(badgeBox, inBox)).toBe(false);
+        await clips.nth(0).click();
+        const cornerOut = clips.nth(0).locator("button.fade-corner.out");
+        await expect(cornerOut).toHaveCSS("opacity", "1");
+        const outBox = await cornerOut.boundingBox();
+        if (!outBox) throw new Error("fade-out corner has no box");
+        expect(intersects(badgeBox, outBox)).toBe(false);
+        // The glyph stays inside the badge (it fills the gutter's content box).
+        const glyphBox = await badge.locator(".join-badge-glyph").boundingBox();
+        if (!glyphBox) throw new Error("join badge glyph has no box");
+        const eps = 0.01;
+        expect(glyphBox.x).toBeGreaterThanOrEqual(badgeBox.x - eps);
+        expect(glyphBox.y).toBeGreaterThanOrEqual(badgeBox.y - eps);
+        expect(glyphBox.x + glyphBox.width).toBeLessThanOrEqual(
+          badgeBox.x + badgeBox.width + eps,
+        );
+        expect(glyphBox.y + glyphBox.height).toBeLessThanOrEqual(
+          badgeBox.y + badgeBox.height + eps,
+        );
+      };
+
+      await expectBadgeClear();
+      // A larger browser text size grows rem chrome but not the px clip gutter the badge fills.
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "24px";
+      });
+      await expectBadgeClear();
+
       // Two clips with a drawn join badge and the seam clip's revealed zero fade corners.
       await expectPageAxeClean(page, ".lane-row .clip-block");
       await expectPageAxeClean(page, ".lane-row .join-badge");
     } finally {
+      await page.evaluate(() => {
+        document.documentElement.style.fontSize = "";
+      });
       // Leave the shared live E2E project as later specs expect it.
       await page.keyboard.press("Escape");
       await page.keyboard.press("ControlOrMeta+Z");

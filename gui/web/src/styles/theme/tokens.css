@@ -86,6 +86,10 @@
   --ruler-height: 24px;
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas marker lane height */
   --marker-lane-height: 72px;
+  /* Clip top (and bottom) inset inside a lane: the top gutter the join badge
+     fills. px like --lane-height, so it holds at any root font size. */
+  /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas clip inset vs lane height */
+  --clip-inset-top: 8px;
   --header-width: 11.25rem;
   --inspector-width: 17.5rem;
   --transport-height: 3.5rem;
