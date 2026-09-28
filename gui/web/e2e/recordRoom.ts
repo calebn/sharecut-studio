@@ -203,6 +203,14 @@ export async function readSavedProject(
   return JSON.parse(await readFile(projectPath, "utf8")) as SavedRecordProject;
 }
 
+/** `landedTrackPeak` found no landed track or clips yet; landing may still be committing. */
+export class LandingPendingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LandingPendingError";
+  }
+}
+
 /**
  * Peak (0..1, `wavPeak`) across every landed source WAV on the track labelled
  * `label`. Relies on the landing contract (`services/record/landing.py`):
@@ -217,11 +225,11 @@ export async function landedTrackPeak(
   const saved = await readSavedProject(projectPath);
   const track = saved.timeline.tracks.find((t) => t.label === label);
   if (!track) {
-    throw new Error(`no landed track labelled ${label}`);
+    throw new LandingPendingError(`no landed track labelled ${label}`);
   }
   const clips = saved.timeline.clips.filter((c) => c.track_id === track.id);
   if (clips.length === 0) {
-    throw new Error(`no landed clips on track labelled ${label}`);
+    throw new LandingPendingError(`no landed clips on track labelled ${label}`);
   }
   const sourceIds = [...new Set(clips.map((c) => c.source_id))];
   const projectDir = path.dirname(projectPath);
@@ -255,6 +263,32 @@ export async function landedTrackPeak(
     peak = Math.max(peak, wavPeak(new Uint8Array(buf)));
   }
   return peak;
+}
+
+/**
+ * `landedTrackPeak`, or 0 while landing is still pending: no landed track or
+ * clips yet (`LandingPendingError`), a missing project or WAV file (ENOENT),
+ * or a half-written project JSON (`SyntaxError`). Every other error, such as a
+ * null `source_id`, a missing source or a path outside `raw/`, is rethrown so
+ * a structural landing regression fails an `expect.poll` right away with its
+ * own message.
+ */
+export async function landedTrackPeakOrPending(
+  projectPath: string,
+  label: string,
+): Promise<number> {
+  try {
+    return await landedTrackPeak(projectPath, label);
+  } catch (error) {
+    if (
+      error instanceof LandingPendingError ||
+      error instanceof SyntaxError ||
+      (error as NodeJS.ErrnoException | null)?.code === "ENOENT"
+    ) {
+      return 0;
+    }
+    throw error;
+  }
 }
 
 /**

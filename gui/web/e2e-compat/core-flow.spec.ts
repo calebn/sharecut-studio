@@ -10,7 +10,7 @@ import {
   createRecordRoom,
   HOST_PARTICIPANT_ID,
   joinAsGuest,
-  landedTrackPeak,
+  landedTrackPeakOrPending,
   landParticipant,
   markSharecutE2e,
   openHostRecordRoom,
@@ -106,9 +106,12 @@ test.describe("core flow", () => {
             ),
           ).toBeVisible({ timeout: 30_000 });
 
-          // Poll: nothing pins landing's project write before the landed UI signal.
+          // Landing commits the project (ProjectWorkspace.mutate, atomic
+          // save_project) before mark_landed drives the landed UI, but no test
+          // pins that order. The poll absorbs only a not-yet-landed read and
+          // fails fast on any other landedTrackPeak error.
           await expect
-            .poll(() => landedTrackPeak(projectPath, "Ava").catch(() => 0), {
+            .poll(() => landedTrackPeakOrPending(projectPath, "Ava"), {
               timeout: 15_000,
             })
             .toBeGreaterThan(AUDIBLE_PEAK);
