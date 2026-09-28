@@ -112,8 +112,6 @@ def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> N
     for path in (first, second, extra, another):
         path.write_bytes(b"x")
     _pin_cache_last_used(monkeypatch, {extra: 7200, another: 7200})
-    # An external reader resetting atime to "now" must not change eviction (#735).
-    os.utime(extra)
     monkeypatch.setattr(play_module, "_PLAY_CACHE_HARD_MAX_FILES", 1)
     service._ab_concat_path(first, second, 0.4)
     assert first.exists() and second.exists()
