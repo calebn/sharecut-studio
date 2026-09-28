@@ -627,7 +627,7 @@ def test_document_correct_transcript_phrase_rejects_stale_expected_text(minimal_
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since you read it"):
+    with pytest.raises(DocumentConflictError, match="changed since you read"):
         svc.submit(
             DocumentCommand(
                 type="CorrectTranscriptPhrase",
@@ -788,11 +788,70 @@ def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
     assert saved == winner
 
 
-@pytest.mark.parametrize("kind", ["correct_word", "correct_phrase"])
+@pytest.mark.parametrize("kind", ["set_word_suppressed", "set_words_ignored"])
+def test_concurrent_guarded_toggle_and_correction_apply_consistently(minimal_project, kind):
+    """A guarded toggle racing a guarded correction on the same word loses no update (#744).
+
+    A toggle never changes the word text, so it can't invalidate the correction's guard:
+    the correction always applies and a stale toggle save must not revert its text. The
+    toggle applies or conflicts depending on who wins, and the persisted flag matches.
+    A check-then-act split is indistinguishable here from the toggle winning; the
+    shared critical section is pinned by
+    ``test_guarded_correction_check_and_edit_share_one_outer_transaction``.
+    """
+    import threading
+
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+    from podcast_mcp.services.edit import EditService
+
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    barrier = threading.Barrier(2)
+
+    def run_correction() -> str:
+        ws = ProjectWorkspace.open(minimal_project)
+        barrier.wait(timeout=10)
+        try:
+            EditService(ws).correct_word("host", 0, "the", expected_text="teh")
+        except TranscriptTextChangedError:
+            return "conflict"
+        return "applied"
+
+    def run_toggle() -> str:
+        ws = ProjectWorkspace.open(minimal_project)
+        barrier.wait(timeout=10)
+        svc = EditService(ws)
+        try:
+            if kind == "set_word_suppressed":
+                svc.set_word_suppressed("host", 0, True, expected_text="teh")
+            else:
+                svc.set_words_ignored("host", 0, 0, True, expected_text="teh")
+        except TranscriptTextChangedError:
+            return "conflict"
+        return "applied"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        correction_future = pool.submit(run_correction)
+        toggle_future = pool.submit(run_toggle)
+        correction_outcome = correction_future.result(timeout=10)
+        toggle_outcome = toggle_future.result(timeout=10)
+
+    assert correction_outcome == "applied"
+    word = ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0]
+    assert word.text == "the"
+    if kind == "set_word_suppressed":
+        assert word.suppressed == (toggle_outcome == "applied")
+    else:
+        assert word.ignored == (toggle_outcome == "applied")
+
+
+@pytest.mark.parametrize(
+    "kind", ["correct_word", "correct_phrase", "set_word_suppressed", "set_words_ignored"]
+)
 def test_guarded_correction_check_and_edit_share_one_outer_transaction(
     minimal_project, monkeypatch, kind
 ):
-    """The #650 stale-text check and the mutation run inside one outer transaction (#742)."""
+    """The stale-text check and the mutation run inside one outer transaction, for every
+    guarded transcript edit (#650, #742, #744)."""
     import podcast_mcp.services.edit as edit_mod
     from podcast_mcp.services.edit import EditService
 
@@ -816,28 +875,34 @@ def test_guarded_correction_check_and_edit_share_one_outer_transaction(
 
     monkeypatch.setattr(edit_mod, "require_word_text", spy_require)
 
-    orig_correct_word = edit_mod.correct_word
-    orig_correct_phrase = edit_mod.correct_phrase
+    for name in ("correct_word", "correct_phrase", "set_word_suppressed", "set_words_ignored"):
+        orig_edit = getattr(edit_mod, name)
 
-    def spy_correct_word(*args, **kwargs):
-        events.append(("edit", ws._transaction_depth))
-        return orig_correct_word(*args, **kwargs)
+        def spy_edit(*args, _orig_edit=orig_edit, **kwargs):
+            events.append(("edit", ws._transaction_depth))
+            return _orig_edit(*args, **kwargs)
 
-    def spy_correct_phrase(*args, **kwargs):
-        events.append(("edit", ws._transaction_depth))
-        return orig_correct_phrase(*args, **kwargs)
-
-    monkeypatch.setattr(edit_mod, "correct_word", spy_correct_word)
-    monkeypatch.setattr(edit_mod, "correct_phrase", spy_correct_phrase)
+        monkeypatch.setattr(edit_mod, name, spy_edit)
 
     svc = EditService(ws)
     if kind == "correct_word":
         svc.correct_word("host", 0, "the", expected_text="teh")
-    else:
+    elif kind == "correct_phrase":
         svc.correct_phrase("host", 0, 1, "the quick", expected_text="teh quikc")
+    elif kind == "set_word_suppressed":
+        svc.set_word_suppressed("host", 0, True, expected_text="teh")
+    else:
+        svc.set_words_ignored("host", 0, 1, True, expected_text="teh quikc")
 
     assert events == [("outer", 0), ("check", 1), ("edit", 2)]
-    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].text == "the"
+    words = ProjectWorkspace.open(minimal_project).project.transcripts[0].words
+    if kind in ("correct_word", "correct_phrase"):
+        assert words[0].text == "the"
+    elif kind == "set_word_suppressed":
+        assert words[0].suppressed is True
+    else:
+        assert words[0].ignored is True
+        assert words[1].ignored is True
 
 
 def test_apply_maps_stale_target_errors_to_conflict():
@@ -898,7 +963,7 @@ def test_document_set_words_ignored_rejects_stale_expected_text(minimal_project)
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since you read it"):
+    with pytest.raises(DocumentConflictError, match="changed since you read"):
         svc.submit(
             DocumentCommand(
                 type="SetTranscriptWordsIgnored",

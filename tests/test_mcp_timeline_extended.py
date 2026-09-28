@@ -87,7 +87,7 @@ def test_mcp_transcript_correction_expected_text_guard(tmp_path, sample_wav):
     )
     assert corrected["text"] == "Hi"
 
-    with pytest.raises(ValueError, match="changed since you read it"):
+    with pytest.raises(ValueError, match="changed since you read"):
         mcp_timeline.correct_transcript_phrase_tool(
             path, "host", 0, 1, "Hi earth", expected_text="nope"
         )
@@ -114,7 +114,7 @@ def test_mcp_suppress_and_ignore_expected_text_guard(tmp_path, sample_wav):
     )
     assert suppressed["suppressed"] is True
 
-    with pytest.raises(ValueError, match="changed since you read it"):
+    with pytest.raises(ValueError, match="changed since you read"):
         mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="nope")
     proj = load_project(Path(path))
     assert not any(w.ignored for w in proj.transcripts[0].words)
