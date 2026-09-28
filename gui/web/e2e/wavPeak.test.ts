@@ -72,6 +72,13 @@ describe("wavPeak", () => {
     expect(wavPeak(wav)).toBe(0.75);
   });
 
+  it("handles five seconds of 48 kHz audio without overflowing the stack", () => {
+    const samples = new Array<number>(48000 * 5).fill(0);
+    samples[123_456] = -16384;
+    const wav = buildWav({ samples });
+    expect(wavPeak(wav)).toBeCloseTo(0.5, 4);
+  });
+
   it("returns the peak of the bytes present when the data chunk is truncated", () => {
     const full = buildWav({ samples: [10000, 32767, 5000] });
     // Keep the header (which still claims 3 samples) but cut the bytes off
