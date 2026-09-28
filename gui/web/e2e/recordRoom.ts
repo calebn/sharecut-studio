@@ -1,5 +1,10 @@
 import { readFile } from "node:fs/promises";
-import { expect, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+} from "@playwright/test";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
 export type RecordRoom = {
@@ -226,7 +231,8 @@ export async function ensureHostRecordCommand(
 
 /**
  * Click a host transport button and confirm it POSTed `/api/record/command`,
- * unless the state was already reached (a race with the previous click).
+ * unless the state was already reached (a race with the previous click). The
+ * request listener is removed before returning, so nothing outlives the call.
  */
 export async function clickHostTransport(
   host: Page,
@@ -234,23 +240,29 @@ export async function clickHostTransport(
   projectPath: string,
   commandType: string,
   expectedState: string,
+  { postTimeout = 5_000 }: { postTimeout?: number } = {},
 ): Promise<void> {
-  const uiPost = host
-    .waitForRequest(
-      (req) =>
-        req.method() === "POST" && req.url().includes("/api/record/command"),
-      { timeout: 5_000 },
-    )
-    .catch(() => null);
-  await button.click();
-  if ((await hostRecordState(host, projectPath)) === expectedState) {
-    return;
+  let fired = false;
+  const onRequest = (req: Request) => {
+    if (req.method() === "POST" && req.url().includes("/api/record/command")) {
+      fired = true;
+    }
+  };
+  host.on("request", onRequest);
+  try {
+    await button.click();
+    if ((await hostRecordState(host, projectPath)) === expectedState) {
+      return;
+    }
+    await expect
+      .poll(() => fired, {
+        message: "host transport button did not POST /api/record/command",
+        timeout: postTimeout,
+      })
+      .toBe(true);
+  } finally {
+    host.off("request", onRequest);
   }
-  const fired = await uiPost;
-  expect(
-    fired,
-    "host transport button did not POST /api/record/command",
-  ).toBeTruthy();
   await ensureHostRecordCommand(host, projectPath, commandType, expectedState);
 }
 
