@@ -114,7 +114,7 @@ export interface DawState {
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
-  /** The overlay legend's + Chapter add is in flight; outlives a View-menu remount. */
+  /** The overlay legend's + Chapter add is in flight for the current project; outlives a View-menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;

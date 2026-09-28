@@ -110,6 +110,62 @@ describe("OverlayLegend", () => {
     expect(reopened).not.toBeDisabled();
   });
 
+  it("drops a settled add after a project switch and leaves the new project's flag alone", async () => {
+    let resolveAdd: () => void = () => {};
+    addChapterMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        }),
+    );
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <OverlayLegend />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "+ Chapter" }));
+    act(() => {
+      useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    });
+    expect(useDawStore.getState().chapterAddPending).toBe(false);
+    act(() => {
+      useDawStore.setState({ chapterAddPending: true, statusAnnouncement: "" });
+    });
+    await act(async () => {
+      resolveAdd();
+    });
+    expect(useDawStore.getState().chapterAddPending).toBe(true);
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+  });
+
+  it("drops a rejected add after a project switch and leaves the new project's flag alone", async () => {
+    let rejectAdd: (err: unknown) => void = () => {};
+    addChapterMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectAdd = reject;
+        }),
+    );
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <OverlayLegend />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "+ Chapter" }));
+    act(() => {
+      useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    });
+    act(() => {
+      useDawStore.setState({ chapterAddPending: true, statusAnnouncement: "" });
+    });
+    await act(async () => {
+      rejectAdd(new Error("boom"));
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+    expect(useDawStore.getState().chapterAddPending).toBe(true);
+  });
+
   it("announces a failed add and does not select a chapter", async () => {
     addChapterMock.mockRejectedValueOnce(new Error("boom"));
     render(

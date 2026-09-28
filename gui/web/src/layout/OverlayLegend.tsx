@@ -34,10 +34,19 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
       return;
     }
     setChapterAddPending(true);
-    const playheadSec = useDawStore.getState().playheadSec;
+    const { playheadSec, projectEpoch } = useDawStore.getState();
     const title = `Chapter ${playheadSec.toFixed(1)}s`;
+    // A project switch while the add is in flight resets chapterAddPending
+    // (hydrate) and bumps projectEpoch. The settled add belongs to the old
+    // project, so it must not select, announce, or clear the new project's flag.
+    const sameProject = () =>
+      useDawStore.getState().projectEpoch === projectEpoch;
+    announceStatus(`Adding chapter at ${playheadSec.toFixed(1)}s…`);
     try {
       await addChapter(projectPath, playheadSec, title);
+      if (!sameProject()) {
+        return;
+      }
       setSelection({
         kind: "chapter",
         id: title,
@@ -45,9 +54,14 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
       });
       announceStatus(`Chapter added at ${playheadSec.toFixed(1)}s`);
     } catch (err) {
+      if (!sameProject()) {
+        return;
+      }
       announceStatus(`Add chapter failed: ${errorMessage(err)}`);
     } finally {
-      setChapterAddPending(false);
+      if (sameProject()) {
+        setChapterAddPending(false);
+      }
     }
   };
 
