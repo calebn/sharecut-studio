@@ -307,6 +307,31 @@ def test_sanitize_guest_forces_transcript_words_false_when_words_omitted():
     assert "words" not in patch["transcript"]["utterances"][0]
 
 
+def test_sanitize_guest_keeps_integer_word_index_lists_on_utterances():
+    """Guests get per-track word indices (integers only), never ``words[]`` (#633, #752)."""
+    from podcast_mcp.services.share import sanitize_guest_project_view
+
+    out = sanitize_guest_project_view(
+        {
+            "meta": {"name": "ep", "hydration": {"transcript_words": True}},
+            "transcript": {
+                "utterances": [
+                    {
+                        "text": "to the",
+                        "words": [{"text": "welcome", "start": 0, "end": 0.3}],
+                        "ignored_word_indices": [0],
+                        "edge_suppressed_word_indices": [0],
+                    }
+                ]
+            },
+        }
+    )
+    row = out["transcript"]["utterances"][0]
+    assert "words" not in row
+    assert row["ignored_word_indices"] == [0]
+    assert row["edge_suppressed_word_indices"] == [0]
+
+
 def test_sanitize_guest_tracks_patch_does_not_inject_keys():
     from podcast_mcp.services.share import sanitize_guest_project_view
 

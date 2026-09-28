@@ -854,9 +854,10 @@ describe("TranscriptPanel", () => {
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     });
 
-    // The ProjectView mapper drops a suppressed word from the utterances, so a
-    // successful Suppress retry clears the banner because the word is gone.
-    it("clears a late Suppress failure once a retry drops the word from the view", () => {
+    // isDetachedWordFailureMoot also clears a late failure once the word it
+    // named leaves the view outright (an edge-suppressed word's own utterance
+    // can still disappear, e.g. its track loses all utterances, #752).
+    it("clears a late Suppress failure once the word leaves the view", () => {
       useDawStore.setState({
         transcriptInlineEditFailure: {
           projectPath: "/tmp/ep",
@@ -874,6 +875,33 @@ describe("TranscriptPanel", () => {
       const words = retried.transcript?.utterances[0]?.words;
       if (!words) throw new Error("fixture words missing");
       words.splice(0, 1);
+      act(() => useDawStore.setState({ project: retried }));
+      expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    });
+
+    // The mapper now keeps an edge-suppressed word's chip instead of dropping
+    // it (#752), so a successful Suppress/Unsuppress retry clears the banner
+    // via the flag-changed branch of isDetachedWordFailureMoot, not because
+    // the word disappeared.
+    it("clears a late Suppress failure once a retry flips the suppressed flag", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          projectPath: "/tmp/ep",
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          flag: { name: "suppressed", was: false },
+          message: "Could not update “hello”: boom",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      act(() => useDawStore.setState({ project: project() }));
+      expect(container.querySelector(".inline-error")).not.toBeNull();
+      const retried = project();
+      const words = retried.transcript?.utterances[0]?.words;
+      if (!words) throw new Error("fixture words missing");
+      words[0] = { ...words[0], suppressed: true };
       act(() => useDawStore.setState({ project: retried }));
       expect(container.querySelector(".inline-error")).toBeNull();
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();

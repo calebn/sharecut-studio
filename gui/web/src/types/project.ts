@@ -237,6 +237,8 @@ export interface CombinedUtterance {
   words?: TranscriptWordView[];
   /** Sorted per-track `word_index` of each ignored word in this utterance, only present when non-empty (#633). */
   ignored_word_indices?: number[];
+  /** Sorted per-track `word_index` of each edge-suppressed word the mapper attached to this row (outside its own window), only present when non-empty (#752). */
+  edge_suppressed_word_indices?: number[];
 }
 
 export interface EditBoundaryView {

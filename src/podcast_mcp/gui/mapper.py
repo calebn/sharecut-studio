@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -107,20 +108,25 @@ class _MappedWordIndex:
     views: list[dict[str, Any]]
 
 
+def _raw_word_intervals(words: Sequence[Any]) -> HalfOpenIntervalIndex:
+    """Source-clock overlap index over a track's raw words (zero-length words padded).
+
+    Pure: never maps words onto the timeline (``SessionTimeline.map_word_spans``).
+    """
+    return HalfOpenIntervalIndex.build(word_source_span(w.start, w.end) for w in words)
+
+
 def _mapped_word_index(
     project: EpisodeProject, timeline: SessionTimeline, track_id: str
 ) -> _MappedWordIndex:
     tr = project.transcript_for_track(track_id)
     words = tr.words if tr is not None else []
-    source_spans = [word_source_span(w.start, w.end) for w in words]
     mapped = timeline.map_word_spans(track_id, [(w.start, w.end) for w in words])
     views = [
         _word_view(timeline, track_id, i, w, spans)
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]
-    intervals = HalfOpenIntervalIndex.build(
-        (float(start), float(end)) for start, end in source_spans
-    )
+    intervals = _raw_word_intervals(words)
     return _MappedWordIndex(intervals, words, views)
 
 
@@ -131,6 +137,28 @@ def _word_in_utterance(word: Any, source_start: float, source_end: float) -> boo
     return not (word.end <= source_start or word.start >= source_end)
 
 
+def _covered_word_ordinals(
+    words: Sequence[Any],
+    intervals: HalfOpenIntervalIndex,
+    source_start: float,
+    source_end: float,
+) -> set[int]:
+    """Per-track word indices an utterance's own source window covers (#752).
+
+    The one coverage predicate shared by the row's word listing, its
+    ``ignored_word_indices`` and the edge-suppressed coverage check, so they
+    cannot disagree. A zero-length window (``merge_transcripts`` emits one for a
+    lone zero-duration word) is padded like a zero-length word
+    (``word_source_span``), so it covers its own word and any word straddling it.
+    """
+    start, end = word_source_span(source_start, source_end)
+    return {
+        word_index
+        for word_index in intervals.overlapping_ordinals(start, end)
+        if _word_in_utterance(words[word_index], start, end)
+    }
+
+
 def _words_for_utterance(
     project: EpisodeProject,
     timeline: SessionTimeline,
@@ -138,35 +166,125 @@ def _words_for_utterance(
     source_start: float,
     source_end: float,
     index: _MappedWordIndex | None = None,
+    *,
+    extra_indices: Sequence[int] = (),
 ) -> list[dict[str, Any]]:
-    """Per-track words overlapping the utterance, including suppressed chips."""
+    """Per-track words overlapping the utterance, including suppressed chips.
+
+    ``extra_indices`` adds edge-suppressed words this utterance owns per
+    ``_edge_suppressed_word_indices`` — words outside this utterance's own
+    ``[source_start, source_end)`` window on this track (#752).
+    """
     index = index if index is not None else _mapped_word_index(project, timeline, track_id)
-    selected: list[int] = []
-    for word_index in index.intervals.overlapping_ordinals(source_start, source_end):
-        word = index.words[word_index]
-        if not _word_in_utterance(word, source_start, source_end):
-            continue
-        selected.append(word_index)
+    selected = _covered_word_ordinals(index.words, index.intervals, source_start, source_end)
+    selected.update(extra_indices)
     return [index.views[i] for i in sorted(selected)]
 
 
 def _ignored_word_indices_for_utterance(
-    words: list[Any],
+    words: Sequence[Any],
+    intervals: HalfOpenIntervalIndex,
     source_start: float,
     source_end: float,
+    *,
+    extra_indices: Sequence[int] = (),
 ) -> list[int]:
     """Sorted per-track `word_index` values of ignored words overlapping the utterance (#633).
 
-    Takes the track's raw (unmapped) words: never triggers a timeline word
-    mapping (``SessionTimeline.map_word_spans``) on its own — that stays
-    reserved for ``include_words=True``.
+    Takes the track's raw (unmapped) words and their ``_raw_word_intervals``
+    index, so each utterance visits only the words near its window and never
+    triggers a timeline word mapping (``SessionTimeline.map_word_spans``) —
+    that stays reserved for ``include_words=True``. ``extra_indices`` folds in
+    the edge-suppressed words attached to this utterance that are also
+    ignored (#752).
     """
-    return [
+    selected = {
         index
-        for index, word in enumerate(words)
-        if bool(getattr(word, "ignored", False))
-        and _word_in_utterance(word, source_start, source_end)
-    ]
+        for index in _covered_word_ordinals(words, intervals, source_start, source_end)
+        if bool(getattr(words[index], "ignored", False))
+    }
+    selected.update(
+        index
+        for index in extra_indices
+        if index < len(words) and bool(getattr(words[index], "ignored", False))
+    )
+    return sorted(selected)
+
+
+def _source_gap(word: Any, span: tuple[float, float]) -> float:
+    """Source-time gap between ``word`` and an utterance window it lies outside."""
+    return max(span[0] - float(word.end), float(word.start) - span[1])
+
+
+def _edge_suppressed_word_indices(
+    utterances: Sequence[dict[str, Any]],
+    words_by_track: Mapping[str, Sequence[Any]],
+    intervals_by_track: Mapping[str, HalfOpenIntervalIndex] | None = None,
+) -> dict[int, list[int]]:
+    """Attach edge-suppressed words to their nearest same-track utterance (#752).
+
+    A suppressed word that falls outside every same-track utterance
+    ``[start, end)`` window — an utterance's first or last word, or a
+    suppressed run between two utterances — is attached to exactly one
+    utterance: the nearest by source-time gap, ties going to the earlier
+    utterance. Words already covered by any same-track utterance's own
+    window, per ``_covered_word_ordinals`` (the same predicate the row's word
+    listing uses, with a zero-length window padded like a zero-length word),
+    are left alone, because attaching them again would duplicate the chip. A
+    track whose words are all suppressed has no utterance to attach to, so it
+    is skipped — out of scope (see docs/gui-integration.md).
+
+    Neighbours come from a ``HalfOpenIntervalIndex`` over each track's
+    utterance windows; a zero-length window is padded like a zero-length word
+    so it stays a candidate. The previous/next pick by start assumes
+    same-track windows never overlap, which ``merge_transcripts`` guarantees
+    by construction (a new utterance starts only after a gap above its
+    threshold). Were two windows to overlap, a word could attach to a
+    farther-than-nearest utterance, but coverage is checked against every
+    same-track window, so a chip is never duplicated.
+
+    ``intervals_by_track`` reuses each track's ``_raw_word_intervals`` index
+    when the caller already built it; it is built here otherwise.
+
+    Returns a mapping of utterance position (index into ``utterances``) to
+    the ascending per-track word indices it owns.
+    """
+    positions_by_track: dict[str, list[int]] = {}
+    for position, utterance in enumerate(utterances):
+        track_id = str(utterance.get("track_id", ""))
+        positions_by_track.setdefault(track_id, []).append(position)
+
+    result: dict[int, list[int]] = {}
+    for track_id, words in words_by_track.items():
+        positions = positions_by_track.get(track_id)
+        if not positions:
+            continue
+        spans = [
+            (
+                float(utterances[position].get("start", 0.0)),
+                float(utterances[position].get("end", 0.0)),
+            )
+            for position in positions
+        ]
+        index = HalfOpenIntervalIndex.build(word_source_span(start, end) for start, end in spans)
+        word_intervals = (
+            intervals_by_track[track_id]
+            if intervals_by_track is not None and track_id in intervals_by_track
+            else _raw_word_intervals(words)
+        )
+        covered: set[int] = set()
+        for start, end in spans:
+            covered.update(_covered_word_ordinals(words, word_intervals, start, end))
+        for word_index, word in enumerate(words):
+            if word_index in covered or not bool(getattr(word, "suppressed", False)):
+                continue
+            rank = index.start_rank(float(word.start))
+            # (previous, next) neighbours by start; min() keeps the earlier on a tie.
+            neighbours = index.ordinals[max(rank - 1, 0) : rank + 1]
+            gaps = {ordinal: _source_gap(word, spans[ordinal]) for ordinal in neighbours}
+            target = min(neighbours, key=gaps.__getitem__)
+            result.setdefault(positions[target], []).append(word_index)
+    return result
 
 
 def _word_view(
@@ -230,20 +348,23 @@ def map_transcript_utterances_to_timeline(
     if not isinstance(utterances, list):
         return transcript
     timeline = SessionTimeline(project)
-    mapped: list[dict[str, Any]] = []
-    word_indexes: dict[str, _MappedWordIndex] = {}
+    rows: list[dict[str, Any]] = []
     raw_words_by_track: dict[str, list[Any]] = {}
+    raw_intervals_by_track: dict[str, HalfOpenIntervalIndex] = {}
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
         track_id = str(utterance.get("track_id", ""))
         source_start = float(utterance.get("start", 0.0))
         source_end = float(utterance.get("end", 0.0))
+        # Pad a zero-length window (a lone zero-duration word) like a zero-length
+        # word, so a zero-length row on kept audio is mappable (#752).
         mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
-            timeline, track_id, source_start, source_end
+            timeline, track_id, *word_source_span(source_start, source_end)
         )
         row: dict[str, Any] = {
             **utterance,
+            "track_id": track_id,
             "start": source_start,
             "end": source_end,
             "timeline_start": timeline_start,
@@ -252,17 +373,43 @@ def map_transcript_utterances_to_timeline(
             "mappable": mappable,
         }
         row.pop("words", None)
+        if track_id not in raw_words_by_track:
+            tr = project.transcript_for_track(track_id)
+            raw_words_by_track[track_id] = list(tr.words) if tr is not None else []
+            raw_intervals_by_track[track_id] = _raw_word_intervals(raw_words_by_track[track_id])
+        rows.append(row)
+
+    edge_suppressed = _edge_suppressed_word_indices(
+        rows, raw_words_by_track, raw_intervals_by_track
+    )
+
+    mapped: list[dict[str, Any]] = []
+    word_indexes: dict[str, _MappedWordIndex] = {}
+    for position, row in enumerate(rows):
+        track_id = row["track_id"]
+        source_start = row["start"]
+        source_end = row["end"]
+        extra_indices = edge_suppressed.get(position, [])
+        if extra_indices:
+            row["edge_suppressed_word_indices"] = sorted(extra_indices)
         if include_words:
             if track_id not in word_indexes:
                 word_indexes[track_id] = _mapped_word_index(project, timeline, track_id)
             row["words"] = _words_for_utterance(
-                project, timeline, track_id, source_start, source_end, word_indexes[track_id]
+                project,
+                timeline,
+                track_id,
+                source_start,
+                source_end,
+                word_indexes[track_id],
+                extra_indices=extra_indices,
             )
-        if track_id not in raw_words_by_track:
-            tr = project.transcript_for_track(track_id)
-            raw_words_by_track[track_id] = list(tr.words) if tr is not None else []
         ignored_word_indices = _ignored_word_indices_for_utterance(
-            raw_words_by_track[track_id], source_start, source_end
+            raw_words_by_track[track_id],
+            raw_intervals_by_track[track_id],
+            source_start,
+            source_end,
+            extra_indices=extra_indices,
         )
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
