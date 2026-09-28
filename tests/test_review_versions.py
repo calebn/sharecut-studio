@@ -407,6 +407,13 @@ def test_review_publication_support_matches_the_ci_platform():
     operations. If a future Windows/Python change made these flags True there,
     CI would silently stop exercising publication anywhere. Conversely, POSIX CI
     must keep running them, or the publication paths go untested everywhere.
+
+    This is a deliberate tripwire, not a capability probe. The flags derive from
+    ``os.supports_dir_fd`` / ``os.supports_fd`` and ``shutil.rmtree.avoids_symlink_attacks``
+    (``review_versions.py``), so a runner or Python build with partial ``dir_fd`` support
+    can flip one flag or make the two diverge. When that happens, update this guard, the
+    markers in ``tests/review_platform.py`` and the ``project-commit-lock-windows`` job
+    together; do not loosen the assertion on its own.
     """
     if sys.platform.startswith("win"):
         assert not REVIEW_STALE_CLEANUP_SUPPORTED
@@ -414,6 +421,7 @@ def test_review_publication_support_matches_the_ci_platform():
     else:
         assert REVIEW_STALE_CLEANUP_SUPPORTED
         assert REVIEW_FAILED_CLEANUP_SUPPORTED
+    assert REVIEW_STALE_CLEANUP_SUPPORTED == REVIEW_FAILED_CLEANUP_SUPPORTED
 
 
 def _fail_publication(stage, project, project_path, monkeypatch):
