@@ -7,6 +7,7 @@ import {
   clipIdsBeforeCut,
   cutFadeHint,
   isCutJoin,
+  JOIN_AUDITION_PAD_SEC,
   JOIN_MODE_OPTIONS,
   joinModeLabel,
   joinRenderNote,
@@ -200,7 +201,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           seekSec={joinSec}
           playStart={joinSec}
           playEnd={joinSec}
-          padSec={0.75}
+          padSec={JOIN_AUDITION_PAD_SEC}
           seekLabel="Seek join"
           playLabel="Play across join"
           actionVariant="default"

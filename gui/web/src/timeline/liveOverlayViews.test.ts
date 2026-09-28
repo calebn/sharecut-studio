@@ -16,6 +16,7 @@ const VIEW_FILES = [
   "timeline/CommentPlaybackBubbleView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
   "timeline/PresenceOverlayView.tsx",
+  "timeline/JoinPopoverView.tsx",
 ];
 
 const FORBIDDEN = [

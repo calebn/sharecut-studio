@@ -1,4 +1,5 @@
 import type { ClipRow, JoinMode } from "../types/project";
+import { formatRulerTime } from "../utils/time";
 
 export const JOIN_MODE_OPTIONS: { value: JoinMode; label: string }[] = [
   { value: "cut", label: "Cut (no fade)" },
@@ -91,12 +92,37 @@ export function joinGlyph(right: Pick<ClipRow, "join_in_mode">): JoinGlyph {
   return right.join_in_mode === "crossfade" ? "crossfade" : "fade";
 }
 
-/** Short mode words for the join badge (and #691's popover). */
+/** Short mode words for the join badge (and the join popover). */
 export const JOIN_MODE_SHORT: Record<JoinGlyph, string> = {
   cut: "Cut",
   fade: "Fade",
   crossfade: "Crossfade",
 };
+
+/** The join modes in popover order. */
+export const JOIN_GLYPHS: readonly JoinGlyph[] = ["cut", "fade", "crossfade"];
+
+/** Seconds of context either side of the seam when auditioning a join (inspector footer and popover). */
+export const JOIN_AUDITION_PAD_SEC = 0.75;
+
+/** "Fade join at 0:05.0": the join badge's name and the popover's title. */
+export function joinSeamLabel(glyph: JoinGlyph, seamSec: number): string {
+  return `${JOIN_MODE_SHORT[glyph]} join at ${formatRulerTime(seamSec, 0.1)}`;
+}
+
+/**
+ * The join's current length (ms) for the popover slider: render's overlap for an
+ * unblocked crossfade (`join_crossfade_ms`), else the longer of the two edge fades.
+ */
+export function joinLengthMs(
+  left: Pick<ClipRow, "fade_out_ms">,
+  right: Pick<ClipRow, "fade_in_ms" | "join_in_mode" | "join_crossfade_ms">,
+): number {
+  if (isCrossfadeJoin(right) && (right.join_crossfade_ms ?? 0) > 0) {
+    return right.join_crossfade_ms as number;
+  }
+  return Math.max(left.fade_out_ms, right.fade_in_ms);
+}
 
 /** Ids of clips whose outgoing join is a cut (render drops their fade-out). */
 export function clipIdsBeforeCut(

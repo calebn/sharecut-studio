@@ -3,6 +3,7 @@ import {
   clampClipFades,
   clampFadeMs,
   edgeFadeMaxMs,
+  joinLengthMaxMs,
   maxFadeMs,
 } from "./fadeLimits";
 
@@ -37,6 +38,44 @@ describe("edgeFadeMaxMs", () => {
     expect(edgeFadeMaxMs(0.06, 40, 40)).toBe(20);
     expect(edgeFadeMaxMs(2, 40, 0)).toBe(40);
     expect(edgeFadeMaxMs(1, null, 5000)).toBe(0);
+  });
+});
+
+describe("joinLengthMaxMs", () => {
+  it("is the min of the left's remaining room and the right's cap, uncapped", () => {
+    expect(
+      joinLengthMaxMs(
+        { durationSec: 2, fadeInMs: 500 },
+        { durationSec: 3 },
+        null,
+      ),
+    ).toBe(1500);
+  });
+
+  it("a track fade cap wins over both edges' room", () => {
+    expect(
+      joinLengthMaxMs({ durationSec: 2, fadeInMs: 0 }, { durationSec: 2 }, 40),
+    ).toBe(40);
+  });
+
+  it("the left clip's fade-in eats into the room its fade-out can take", () => {
+    expect(
+      joinLengthMaxMs(
+        { durationSec: 0.06, fadeInMs: 40 },
+        { durationSec: 2 },
+        null,
+      ),
+    ).toBe(20);
+  });
+
+  it("never goes negative", () => {
+    expect(
+      joinLengthMaxMs(
+        { durationSec: 0.01, fadeInMs: 50 },
+        { durationSec: 2 },
+        null,
+      ),
+    ).toBe(0);
   });
 });
 
