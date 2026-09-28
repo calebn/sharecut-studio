@@ -17,6 +17,8 @@ export interface CommandPaletteShortcutRow {
   label: string;
   shortcut: string;
   defaultKey?: string;
+  /** A shared-key collision note (see `KeymapCommand.collision`), shown under the row. */
+  note?: string;
 }
 
 export interface CommandPaletteCategory {
@@ -41,6 +43,7 @@ export function commandPaletteCategories(): CommandPaletteCategory[] {
       label: cmd.label,
       shortcut: formatShortcutKeys(cmd),
       defaultKey: cmd.keys[0],
+      note: cmd.collision,
     })),
   }));
 }

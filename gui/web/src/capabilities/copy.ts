@@ -220,8 +220,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Redo",
   },
   "daw.ui.toggleCommandPalette": {
-    label: "Command cheatsheet",
-    tooltip: "Command cheatsheet",
+    label: "Keyboard shortcuts",
+    tooltip: "Keyboard shortcuts",
   },
   "daw.render.refreshMix": {
     label: "Refresh mix",
@@ -272,12 +272,12 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Connect agent…",
   },
   "daw.help.diagnosticsBundle": {
-    label: "Help…",
+    label: "Export diagnostics…",
     tooltip: "Create a sanitized diagnostics bundle",
   },
   "daw.export.deliverables": {
-    label: "Export deliverables",
-    tooltip: "Export deliverables",
+    label: "Export deliverables…",
+    tooltip: "Export deliverables…",
   },
   "daw.project.new": {
     label: "New project",

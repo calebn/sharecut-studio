@@ -15,7 +15,13 @@ const CATEGORIES: CommandPaletteCategory[] = [
         shortcut: "V",
         defaultKey: "v",
       },
-      { id: "tool.blade", label: "Blade tool", shortcut: "C", defaultKey: "c" },
+      {
+        id: "tool.blade",
+        label: "Blade tool",
+        shortcut: "C",
+        defaultKey: "c",
+        note: "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
+      },
     ],
   },
   {
@@ -116,6 +122,25 @@ describe("CommandPaletteView", () => {
       />,
     );
     expect(screen.queryByRole("tab", { name: "Actions" })).toBeNull();
+  });
+
+  it("renders a row's collision note and links it via aria-describedby", async () => {
+    const { container } = render(
+      <CommandPaletteView
+        open
+        categories={CATEGORIES}
+        unbound={UNBOUND}
+        {...actions()}
+      />,
+    );
+    const note = screen.getByText(
+      "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
+    );
+    const bladeButton = screen.getByRole("button", { name: /Blade tool/ });
+    expect(bladeButton.getAttribute("aria-describedby")).toBe(note.id);
+    const selectButton = screen.getByRole("button", { name: /Select tool/ });
+    expect(selectButton.hasAttribute("aria-describedby")).toBe(false);
+    await expectNoA11yViolations(container);
   });
 
   it("omits a tab for a category with no rows", () => {

@@ -1219,7 +1219,7 @@
     },
     {
       "id": "daw.ui.toggleCommandPalette",
-      "label": "Command cheatsheet",
+      "label": "Keyboard shortcuts",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -1233,7 +1233,7 @@
         "keyboard": "?"
       },
       "omit": {},
-      "tooltip": "Command cheatsheet",
+      "tooltip": "Keyboard shortcuts",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -1577,7 +1577,7 @@
     },
     {
       "id": "daw.help.diagnosticsBundle",
-      "label": "Help\u2026",
+      "label": "Export diagnostics\u2026",
       "service": "DiagnosticsService",
       "industry_standard_key": false,
       "gates": [
@@ -1604,7 +1604,7 @@
     },
     {
       "id": "daw.export.deliverables",
-      "label": "Export deliverables",
+      "label": "Export deliverables…",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1625,7 +1625,7 @@
       "omit": {
         "guest": true
       },
-      "tooltip": "Export deliverables",
+      "tooltip": "Export deliverables…",
       "presence": {
         "cursor": "none",
         "follow": "none"

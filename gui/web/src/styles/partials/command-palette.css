@@ -162,6 +162,13 @@
   opacity: 0.8;
 }
 
+.command-palette-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
 .command-palette-remap {
   display: flex;
   align-items: center;

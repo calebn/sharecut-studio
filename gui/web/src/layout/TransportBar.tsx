@@ -530,7 +530,7 @@ export function TransportBar({
                   respectWhen
                   onSelect={closeMenu}
                 >
-                  Export deliverables
+                  Export deliverables…
                 </CommandMenuItem>
               </MenuSection>
             ) : null}
@@ -611,7 +611,7 @@ export function TransportBar({
                   commandId="help.diagnosticsBundle"
                   onSelect={closeMenu}
                 >
-                  Help…
+                  Export diagnostics…
                 </CommandMenuItem>
               ) : null}
               <CommandMenuItem

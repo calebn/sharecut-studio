@@ -316,7 +316,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",
     category: "ui",
-    label: "Command cheatsheet",
+    label: "Keyboard shortcuts",
     when: "always",
   },
   "render.refreshMix": {
@@ -393,14 +393,14 @@ export const COMMANDS: Record<string, CommandDef> = {
   "help.diagnosticsBundle": {
     id: "help.diagnosticsBundle",
     category: "ui",
-    label: "Help…",
+    label: "Export diagnostics…",
     when: "canManageProjects",
     notes: "Host-only sanitized diagnostics zip for bug reports",
   },
   "export.deliverables": {
     id: "export.deliverables",
     category: "ui",
-    label: "Export deliverables",
+    label: "Export deliverables…",
     when: "hostProjectLoaded",
     notes: "Master encode to export/ (same as MCP export_audio). Mod+Shift+E",
   },

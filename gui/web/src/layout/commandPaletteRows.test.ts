@@ -35,6 +35,23 @@ describe("commandPaletteCategories", () => {
     const row = tools?.rows.find((r) => r.id === "tool.select");
     expect(row).toMatchObject({ label: "Select tool", shortcut: "V" });
   });
+
+  it("carries a collision note for tool.blade's shared C key", () => {
+    const tools = commandPaletteCategories().find(
+      (c) => c.category === "tools",
+    );
+    const row = tools?.rows.find((r) => r.id === "tool.blade");
+    expect(row?.note).toBe(keymapCommandById("tool.blade")?.collision);
+    expect(row?.note).toContain("Copy");
+  });
+
+  it("omits the note for a row with no collision", () => {
+    const tools = commandPaletteCategories().find(
+      (c) => c.category === "tools",
+    );
+    const row = tools?.rows.find((r) => r.id === "tool.select");
+    expect(row?.note).toBeUndefined();
+  });
 });
 
 describe("commandPaletteUnbound", () => {

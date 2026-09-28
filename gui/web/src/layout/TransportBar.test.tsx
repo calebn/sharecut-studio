@@ -200,7 +200,11 @@ describe("TransportBar collapsed", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const menu = within(screen.getByRole("menu"));
-    const hostProjectItems = ["Bounce…", "Record room…", "Export deliverables"];
+    const hostProjectItems = [
+      "Bounce…",
+      "Record room…",
+      "Export deliverables…",
+    ];
     for (const name of hostProjectItems) {
       expect(menu.getByRole("menuitem", { name })).toBeDisabled();
     }
@@ -331,9 +335,9 @@ describe("TransportBar guest Mix lock", () => {
     expectMixLocked(screen.getByRole("menu"), true);
   });
 
-  it("never offers Help or project actions to a share guest", async () => {
-    // Help… (diagnostics bundle) and the Project group are host-only; the
-    // inline mayManage check is their only client-side gate.
+  it("never offers Export diagnostics or project actions to a share guest", async () => {
+    // Export diagnostics… (diagnostics bundle) and the Project group are
+    // host-only; the inline mayManage check is their only client-side gate.
     const project = minimalProject({ tracks: TRACKS });
     useDawStore.getState().hydrate("share:tok", project, "view", ["play"]);
     render(
@@ -347,7 +351,9 @@ describe("TransportBar guest Mix lock", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const menu = screen.getByRole("menu", { name: "Transport menu" });
-    expect(within(menu).queryByRole("menuitem", { name: /^Help/ })).toBeNull();
+    expect(
+      within(menu).queryByRole("menuitem", { name: /^Export diagnostics/ }),
+    ).toBeNull();
     expect(within(menu).queryByRole("group", { name: "Project" })).toBeNull();
     expect(
       within(menu).queryByRole("menuitem", { name: /New project/ }),

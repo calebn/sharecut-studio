@@ -117,7 +117,8 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
     for (const cmd of rows) {
       const shortcut = defaultShortcut(cmd);
       const when = WHEN_HINTS[cmd.when] ?? cmd.when;
-      const notes = (cmd.notes ?? "").replace(/\|/g, "\\|");
+      const noteParts = [cmd.notes, cmd.collision].filter(Boolean);
+      const notes = noteParts.join(" — ").replace(/\|/g, "\\|");
       lines.push(
         `| \`${shortcut}\` | ${cmd.label} (\`${cmd.id}\`) | ${when} | ${notes} |`,
       );
