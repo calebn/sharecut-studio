@@ -581,7 +581,7 @@ def test_document_correct_transcript_word_rejects_stale_expected_text(minimal_pr
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
         svc.submit(
             DocumentCommand(
                 type="CorrectTranscriptWord",
@@ -627,7 +627,7 @@ def test_document_correct_transcript_phrase_rejects_stale_expected_text(minimal_
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
         svc.submit(
             DocumentCommand(
                 type="CorrectTranscriptPhrase",
@@ -853,7 +853,7 @@ def test_document_set_word_suppressed_rejects_stale_expected_text(minimal_projec
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
         svc.submit(
             DocumentCommand(
                 type="SetTranscriptWordSuppressed",
@@ -898,7 +898,7 @@ def test_document_set_words_ignored_rejects_stale_expected_text(minimal_project)
     seq_before = svc.store.get_snapshot()
     history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
 
-    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
         svc.submit(
             DocumentCommand(
                 type="SetTranscriptWordsIgnored",
