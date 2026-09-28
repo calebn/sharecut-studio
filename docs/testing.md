@@ -765,10 +765,15 @@ snapshot) covers both `onnx/model.onnx` and `onnx/model_int8.onnx` together;
 `pytorch_model.bin` plus config files. Native's row is faster-whisper ASR, not
 a forced aligner, so its runtime/RTF/RSS aren't comparable to the candidates.
 
-The `load` and `peak RSS` columns come from the one-`--candidate`-per-process
-runs (`--runs-dir .lab-runs/align/librispeech-<label>` above). Every other
+The `load` and `peak RSS` columns are a single local measurement (the machine
+and date above) from the one-`--candidate`-per-process runs
+(`--runs-dir .lab-runs/align/librispeech-<label>` above). Those per-candidate
+reports are not checked in, so no test re-verifies these two columns; re-run
+the three per-candidate commands above to reproduce them. Every other
 candidate column comes from the combined `run --target librispeech` whose
-reports are checked in as `tests/fixtures/word_boundary/<id>.<label>.json`.
+reports are checked in as `tests/fixtures/word_boundary/<id>.<label>.json` and
+re-scored by `test_checked_in_candidate_reports_match_reference_fixture` in
+`tests/test_word_boundary_metrics.py`.
 `load_sec` is measured once per candidate per run and copied into each clip's
 provenance, so it is reported once here, not summed across clips. The
 checked-in combined-run reports record `load_sec` 0.61 / 0.12 / 47.70 s and a
