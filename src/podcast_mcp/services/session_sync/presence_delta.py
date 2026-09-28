@@ -129,6 +129,14 @@ class PresenceRosterTracker:
         with self._lock:
             return self._versions.get(project_key, 0)
 
+    def _base_roster(self, project_key: str) -> tuple[list[dict[str, Any]], int] | None:
+        """The tracked base rows and version for ``project_key``, or None without a base.
+        Caller holds ``self._lock``."""
+        base = self._bases.get(project_key)
+        if base is None:
+            return None
+        return [dict(row) for row in base.values()], self._versions.get(project_key, 0)
+
     def roster(
         self,
         project_key: str,
@@ -137,15 +145,26 @@ class PresenceRosterTracker:
         """Rows and version for a ``RosterRequest`` reply, read together under the lock.
 
         Returns the base rows last fanned out for ``project_key``: exactly what later
-        ``PresenceDelta``s diff against, so the pair is consistent by construction. Before
-        any fan-out (no base) it falls back to ``read_rows()``, called outside the lock.
+        ``PresenceDelta``s diff against, so the pair is consistent by construction. Without
+        a base (before the key's first fan-out, or after ``clear_key`` dropped it on a
+        failed fan-out read) it returns ``read_rows()`` (called outside the lock) at a
+        freshly bumped version, so the reply never reuses a version that already meant
+        different rows; the base is not seeded, so the next ``events()`` still sends a full
+        ``Presence`` at a higher version. If a concurrent ``events()`` set a base meanwhile,
+        that base is returned instead.
         """
         with self._lock:
-            base = self._bases.get(project_key)
-            version = self._versions.get(project_key, 0)
-            if base is not None:
-                return [dict(row) for row in base.values()], version
-        return read_rows(), version
+            tracked = self._base_roster(project_key)
+        if tracked is not None:
+            return tracked
+        rows = read_rows()
+        with self._lock:
+            tracked = self._base_roster(project_key)
+            if tracked is not None:
+                return tracked
+            version = self._versions.get(project_key, 0) + 1
+            self._versions[project_key] = version
+            return rows, version
 
     def clear_key(self, project_key: str) -> None:
         """Drop the tracked base for ``project_key`` (the hub's ``_key_idle``, or a failed
