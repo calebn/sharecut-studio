@@ -705,9 +705,11 @@ production code. A separate `pipeline` subcommand
 sha256-verified) → `WordAligner.align` → `apply_word_spans`. It shares
 `prepare_items()` (decode audio, resolve or run native words) with `run`, so
 both passes score the same native words and audio, and writes
-`<id>.onnx-base-pipeline.json` predictions/reports plus a `summary.json` with
-`scored`, `agreement`, `load_sec`, `asr_runtime_sec` (fresh-ASR items only —
-`None` for `librispeech`, which reuses checked-in native words) and a
+`<id>.onnx-base-pipeline.json` predictions/reports plus a
+`summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
+share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`
+(fresh-ASR items only — `None` for `librispeech`, which reuses checked-in
+native words) and a
 per-item `duration_profile` (`word_boundary_metrics.word_duration_profile()`:
 max/p95/p99 and counts over each of `DURATION_THRESHOLDS_SEC` — 1.00, 1.25,
 1.50, 1.75, 2.00, 2.25, 2.50 s). `aligned_dialogue` is not a pipeline target:
