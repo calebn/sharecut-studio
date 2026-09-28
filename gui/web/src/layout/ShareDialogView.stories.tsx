@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import type { ComponentProps } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { hostShareRow } from "../test/fixtures";
-import { openDialogByLauncher } from "../test/storyDialog";
+import { openDialogByLauncher, useArgState } from "../test/storyDialog";
 import { ShareDialogView } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
@@ -43,10 +43,10 @@ function ShareDialogPreview({
   initiallyOpen,
   ...args
 }: ComponentProps<typeof ShareDialogView> & { initiallyOpen: boolean }) {
-  const [role, setRole] = useState(args.role);
-  const [withMcp, setWithMcp] = useState(args.withMcp);
-  const [rows, setRows] = useState(args.rows);
-  const [copiedKey, setCopiedKey] = useState<ShareCopiedKey | null>(
+  const [role, setRole] = useArgState(args.role);
+  const [withMcp, setWithMcp] = useArgState(args.withMcp);
+  const [rows, setRows] = useArgState(args.rows);
+  const [copiedKey, setCopiedKey] = useArgState<ShareCopiedKey | null>(
     args.copiedKey,
   );
   return (
