@@ -144,7 +144,7 @@ def test_mcp_pipeline_analyze_tool(tmp_path, sample_wav, monkeypatch):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
 
-    def fake_suggest(project, *, base_config=None):
+    def fake_suggest(project, *, base_config=None, cancel_check=None):
         return {
             "proposed_config": {"balance": {"dialogue_lufs": -19.0}},
             "patches": {"balance": {"dialogue_lufs": -19.0}},
@@ -176,7 +176,7 @@ def test_mcp_pipeline_analyze_tool_reports_phases(tmp_path, sample_wav, monkeypa
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
     )
     monkeypatch.setattr(
         "podcast_mcp.engines.asr_silence.digital_silence_fraction",

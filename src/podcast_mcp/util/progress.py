@@ -892,6 +892,14 @@ class CancelledProgress(Exception):
     """Raised (or caught) when cooperative cancel should end a progress_task."""
 
 
+def raise_if_cancel_requested(
+    cancel_check: Callable[[], bool] | None, message: str = "cancelled"
+) -> None:
+    """Raise ``CancelledProgress(message)`` once ``cancel_check()`` is true (cooperative cancel)."""
+    if cancel_check is not None and cancel_check():
+        raise CancelledProgress(message)
+
+
 def progress_task(
     task_id: str,
     label: str,

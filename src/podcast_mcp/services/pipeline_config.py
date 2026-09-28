@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import threading
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ from podcast_mcp.pipeline.meta import (
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
 from podcast_mcp.util.dicts import deep_merge, get_by_path
-from podcast_mcp.util.progress import resolve_progress_task
+from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
@@ -79,6 +79,8 @@ NOISE_FLOOR_WARN_DB = -50.0
 # engines.asr_silence.peak_envelope) is at or above this as a gated stem, and
 # argues for turning transcribe.vad.enabled on.
 DIGITAL_SILENCE_VAD_FRACTION = 0.8
+
+ANALYZE_CANCELLED = "Analyze cancelled"
 
 
 def default_enabled_steps(config: dict[str, Any] | None = None) -> list[str]:
@@ -498,12 +500,13 @@ def _track_silence_fraction(
 
 
 def _dialogue_silence_fractions(
-    project: Any, *, peak_dbfs: float
+    project: Any, *, peak_dbfs: float, cancel_check: Callable[[], bool] | None = None
 ) -> tuple[dict[str, tuple[Path, float]], dict[str, str]]:
     """Digital-silence fraction of each dialogue track's source audio.
 
     Returns ``(measured, skipped)``: ``skipped`` maps a track id to why it was not
     measured (``missing_audio`` or ``decode_failed``) so callers can report it.
+    ``cancel_check`` is polled before each track (``CancelledProgress``).
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -514,6 +517,7 @@ def _dialogue_silence_fractions(
         "analyze_silence", "Scanning dialogue for digital silence", total=len(ids) or None
     ) as task:
         for done, tid in enumerate(ids, start=1):
+            raise_if_cancel_requested(cancel_check, ANALYZE_CANCELLED)
             outcome = _track_silence_fraction(project, tid, peak_dbfs=peak_dbfs)
             if isinstance(outcome, str):
                 skipped[tid] = outcome
@@ -524,7 +528,11 @@ def _dialogue_silence_fractions(
 
 
 def _measure_analyze_inputs(
-    project: Any, *, policy: Any, peak_dbfs: float
+    project: Any,
+    *,
+    policy: Any,
+    peak_dbfs: float,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> tuple[dict[str, Any], dict[str, tuple[Path, float]], dict[str, str]]:
     """Run health analysis then digital-silence scanning as named Analyze phases."""
     from podcast_mcp.engines.audio_audit import analyze_cleanup
@@ -532,9 +540,11 @@ def _measure_analyze_inputs(
     with resolve_progress_task("pipeline_analyze", "Analyzing audio", prefer_parent=True) as task:
         task.set_phase("health", "Measuring track health…")
         with task.child("analyze_health", "Measuring track health"):
-            report = analyze_cleanup(project, policy=policy)
+            report = analyze_cleanup(project, policy=policy, cancel_check=cancel_check)
         task.set_phase("digital_silence", "Scanning dialogue for digital silence…")
-        silence, skipped = _dialogue_silence_fractions(project, peak_dbfs=peak_dbfs)
+        silence, skipped = _dialogue_silence_fractions(
+            project, peak_dbfs=peak_dbfs, cancel_check=cancel_check
+        )
     return report, silence, skipped
 
 
@@ -542,8 +552,12 @@ def suggest_pipeline_tuning(
     project: Any,
     *,
     base_config: dict[str, Any] | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Heuristic Analyze: propose config patches from cleanup/health signals."""
+    """Heuristic Analyze: propose config patches from cleanup/health signals.
+
+    ``cancel_check`` stops the scan between dialogue tracks (``CancelledProgress``).
+    """
     from podcast_mcp.edits.conversation_align import DURATION_EPS_SEC, equal_duration_dialogue
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
 
@@ -555,7 +569,7 @@ def suggest_pipeline_tuning(
     # the proposed value.
     asr = AsrOptions.from_defaults(base)
     report, silence, silence_skipped = _measure_analyze_inputs(
-        project, policy=policy, peak_dbfs=asr.silence_peak_dbfs
+        project, policy=policy, peak_dbfs=asr.silence_peak_dbfs, cancel_check=cancel_check
     )
     proposed = copy.deepcopy(base)
     reasons: list[dict[str, Any]] = []
@@ -736,14 +750,25 @@ def suggest_pipeline_tuning(
     }
 
 
-def analyze_working_set(project_path: Path, project: Any, *, apply: bool) -> dict[str, Any]:
+def analyze_working_set(
+    project_path: Path,
+    project: Any,
+    *,
+    apply: bool,
+    cancel_check: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
     """Analyze against the staged working set; with ``apply``, merge only its patches back.
 
-    Shared by GUI ``POST /api/pipeline/analyze`` and MCP ``pipeline_analyze_tool``.
+    Shared by the GUI ``kind=analyze`` job (``POST /api/pipeline/analyze``) and MCP
+    ``pipeline_analyze_tool``. ``cancel_check`` stops the scan between dialogue tracks and
+    is checked again before ``apply`` so a cancelled Analyze never patches the working set.
     """
     store = config_store()
-    result = suggest_pipeline_tuning(project, base_config=store.get(project_path).config)
+    result = suggest_pipeline_tuning(
+        project, base_config=store.get(project_path).config, cancel_check=cancel_check
+    )
     if apply:
+        raise_if_cancel_requested(cancel_check, ANALYZE_CANCELLED)
         store.apply_patches(project_path, result["patches"])
         result["applied"] = True
         result["config"] = build_config_payload(project_path)

@@ -1859,7 +1859,7 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
-        lambda project, base_config=None: {
+        lambda project, base_config=None, cancel_check=None: {
             "proposed_config": {"balance": {"dialogue_lufs": -19.0}},
             "patches": {"balance": {"dialogue_lufs": -19.0}},
             "reasons": [{"code": "test", "message": "ok", "track_id": "t1"}],
