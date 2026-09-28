@@ -418,6 +418,238 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.meta.hydration?.transcript_words).toBe(true);
   });
 
+  it("refuses the word overlay when a row's edge-suppressed attachment changes", () => {
+    const utterance = {
+      track_id: "host",
+      speaker: "Host",
+      start: 0.5,
+      end: 0.9,
+      text: "to the",
+      timeline_start: 0.5,
+      timeline_end: 0.9,
+    };
+    const words = [
+      {
+        text: "to",
+        start: 0.5,
+        end: 0.7,
+        timeline_start: 0.5,
+        ignored: false,
+        word_index: 1,
+      },
+      {
+        text: "the",
+        start: 0.7,
+        end: 0.9,
+        timeline_start: 0.7,
+        ignored: false,
+        word_index: 2,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [{ ...utterance, words }],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [{ ...utterance, edge_suppressed_word_indices: [0] }],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  it("keeps the word overlay when the edge-suppressed attachment matches", () => {
+    const utterance = {
+      track_id: "host",
+      speaker: "Host",
+      start: 0.5,
+      end: 0.9,
+      text: "to the",
+      timeline_start: 0.5,
+      timeline_end: 0.9,
+    };
+    const words = [
+      {
+        text: "welcome",
+        start: 0,
+        end: 0.3,
+        timeline_start: 0,
+        ignored: false,
+        suppressed: true,
+        word_index: 0,
+      },
+      {
+        text: "to",
+        start: 0.5,
+        end: 0.7,
+        timeline_start: 0.5,
+        ignored: false,
+        word_index: 1,
+      },
+      {
+        text: "the",
+        start: 0.7,
+        end: 0.9,
+        timeline_start: 0.7,
+        ignored: false,
+        word_index: 2,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          { ...utterance, words, edge_suppressed_word_indices: [0] },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [{ ...utterance, edge_suppressed_word_indices: [0] }],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeDefined();
+    expect(next?.transcript?.utterances[0]?.words).toHaveLength(3);
+    expect(next?.meta.hydration?.transcript_words).toBe(true);
+  });
+
+  it("refetches DETAIL when a neighbour's removal and restore move edge-suppressed attachments", () => {
+    const meta = (transcriptWords: boolean) => ({
+      name: "Test",
+      workspace_dir: "/tmp",
+      hydration: { transcript_words: transcriptWords, history_groups: false },
+    });
+    const first = {
+      track_id: "host",
+      speaker: "Host",
+      start: 0.5,
+      end: 0.9,
+      text: "to the",
+      timeline_start: 0.5,
+      timeline_end: 0.9,
+    };
+    const second = {
+      track_id: "host",
+      speaker: "Host",
+      start: 3,
+      end: 3.3,
+      text: "bye",
+      timeline_start: 3,
+      timeline_end: 3.3,
+    };
+    const firstWords = [
+      {
+        text: "to",
+        start: 0.5,
+        end: 0.7,
+        timeline_start: 0.5,
+        ignored: false,
+        word_index: 0,
+      },
+      {
+        text: "the",
+        start: 0.7,
+        end: 0.9,
+        timeline_start: 0.7,
+        ignored: false,
+        word_index: 1,
+      },
+    ];
+    const um = {
+      text: "um",
+      start: 2.5,
+      end: 2.6,
+      timeline_start: 2.5,
+      ignored: false,
+      suppressed: true,
+      word_index: 2,
+    };
+    const bye = {
+      text: "bye",
+      start: 3,
+      end: 3.3,
+      timeline_start: 3,
+      ignored: false,
+      suppressed: false,
+      word_index: 3,
+    };
+    // DETAIL: the suppressed "um" rides on the nearer second row.
+    const detail = minimalProject({
+      meta: meta(true),
+      transcript: {
+        utterances: [
+          { ...first, words: firstWords },
+          { ...second, words: [um, bye], edge_suppressed_word_indices: [2] },
+        ],
+      },
+    });
+    // SHELL after suppressing "bye": the second row is gone; the first row gains [2, 3] (absent -> non-empty).
+    const afterSuppress = projectFromDocumentSnapshot(detail, {
+      project: minimalProject({
+        meta: meta(false),
+        transcript: {
+          utterances: [{ ...first, edge_suppressed_word_indices: [2, 3] }],
+        },
+      }),
+    });
+    expect(afterSuppress?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(afterSuppress?.meta.hydration?.transcript_words).toBe(false);
+    // DETAIL refetch rehydrates the first row with both edge chips.
+    const hydrated = projectFromDocumentSnapshot(afterSuppress, {
+      project: minimalProject({
+        meta: meta(true),
+        transcript: {
+          utterances: [
+            {
+              ...first,
+              words: [...firstWords, um, { ...bye, suppressed: true }],
+              edge_suppressed_word_indices: [2, 3],
+            },
+          ],
+        },
+      }),
+    });
+    expect(hydrated?.transcript?.utterances[0]?.words).toHaveLength(4);
+    // SHELL after undo: the second row returns; the first row's attachment goes non-empty -> absent.
+    const afterUndo = projectFromDocumentSnapshot(hydrated, {
+      project: minimalProject({
+        meta: meta(false),
+        transcript: {
+          utterances: [
+            { ...first },
+            { ...second, edge_suppressed_word_indices: [2] },
+          ],
+        },
+      }),
+    });
+    expect(afterUndo?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(afterUndo?.transcript?.utterances[1]?.words).toBeUndefined();
+    expect(afterUndo?.meta.hydration?.transcript_words).toBe(false);
+  });
+
   it("refuses the word overlay when a same-size run of different words is ignored", () => {
     const words = [
       {

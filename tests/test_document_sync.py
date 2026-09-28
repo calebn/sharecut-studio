@@ -1175,6 +1175,58 @@ def test_document_correct_and_suppress_transcript(minimal_project):
     assert HistoryService(ws5).status()["can_undo"]
 
 
+def test_document_suppress_edge_word_stays_in_detail_patch_and_unsuppresses(minimal_project):
+    """A suppressed utterance-edge word keeps its chip in the DETAIL transcript patch,
+    and unsuppressing it brings the word back into the combined utterance text (#752)."""
+    _seed_host_words(minimal_project, ["welcome", "to", "the", "show"])
+    svc = DocumentSyncService.open(minimal_project)
+
+    suppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": True,
+                "expected_text": "welcome",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert suppressed["ok"]
+    patch = suppressed["snapshot"]["patch"]
+    utterance = patch["transcript"]["utterances"][0]
+    assert utterance["text"] == "to the show"
+    words = utterance["words"]
+    assert words[0]["text"] == "welcome"
+    assert words[0]["suppressed"] is True
+    assert words[0]["word_index"] == 0
+    assert utterance["edge_suppressed_word_indices"] == [0]
+
+    unsuppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "suppressed": False,
+                "expected_text": "welcome",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert unsuppressed["ok"]
+    patch2 = unsuppressed["snapshot"]["patch"]
+    utterance2 = patch2["transcript"]["utterances"][0]
+    assert utterance2["text"] == "welcome to the show"
+    assert utterance2["words"][0]["suppressed"] is False
+    assert "edge_suppressed_word_indices" not in utterance2
+
+
 def test_document_set_transcript_words_ignored(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps

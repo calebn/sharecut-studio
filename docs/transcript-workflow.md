@@ -270,10 +270,15 @@ audio is muted, computed from the transcript at render time and never written to
 `Clip.mute_regions`, so restore always un-mutes exactly what ignore muted and
 never an unrelated tighten mute. This is different from `set_word_suppressed`,
 which is text-only: a suppressed word is dropped from the combined transcript but
-its audio is untouched. Reconcile and speaker attribution never flip `ignored`
-automatically. No `EditDecision`, cut, or `edit_log` record is created either
-way, but ignore additionally creates none of the mute-region bookkeeping that a
-`tighten.edit_mode: mute` cut would.
+its audio is untouched. When that drop would otherwise take the word out of every
+same-track utterance's `[start, end)` window — its utterance's first or last word,
+or a run between two utterances — Sharecut Studio's view mapper still lists it as
+a chip, attached to the nearest same-track utterance (`_edge_suppressed_word_indices`,
+#752); `combined.json` itself is unaffected, so Correct still opens the word and
+Unsuppress brings it back into the combined text. Reconcile and speaker attribution
+never flip `ignored` automatically. No `EditDecision`, cut, or `edit_log` record is
+created either way, but ignore additionally creates none of the mute-region
+bookkeeping that a `tighten.edit_mode: mute` cut would.
 
 **Low-confidence walkthrough (#634):** it uses the same 0.7 threshold as
 `low_confidence_words_tool`; Sharecut Studio walks those words Next/Previous

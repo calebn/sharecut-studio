@@ -15,6 +15,17 @@ def test_half_open_index_preserves_input_ordinals_and_long_overlaps() -> None:
     assert not index.overlaps(9.0, 9.1)
 
 
+def test_half_open_index_start_rank() -> None:
+    index = HalfOpenIntervalIndex.build([(5.0, 6.0), (1.0, 2.0), (3.0, 3.0)])
+    assert index.starts == (1.0, 5.0)
+    assert index.ordinals == (1, 0)
+    assert index.start_rank(0.5) == 0
+    assert index.start_rank(1.0) == 1
+    assert index.start_rank(4.0) == 1
+    assert index.start_rank(5.0) == 2
+    assert index.start_rank(9.0) == 2
+
+
 def test_intersect_intervals() -> None:
     assert intersect_intervals([(0, 2), (3, 6)], [(1, 4), (5, 9)]) == [(1, 2), (3, 4), (5, 6)]
     assert intersect_intervals([(0, 1)], [(2, 3)]) == []

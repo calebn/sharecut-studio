@@ -140,6 +140,17 @@ function sameIgnoredWords(a: CombinedUtterance, b: CombinedUtterance): boolean {
   return sameItems(a.ignored_word_indices ?? [], b.ignored_word_indices ?? []);
 }
 
+/** Same edge-suppressed attachments (by per-track `word_index`) on both utterance rows (#752). */
+function sameEdgeSuppressedWords(
+  a: CombinedUtterance,
+  b: CombinedUtterance,
+): boolean {
+  return sameItems(
+    a.edge_suppressed_word_indices ?? [],
+    b.edge_suppressed_word_indices ?? [],
+  );
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
@@ -162,7 +173,8 @@ function overlayTranscriptWords(
     if (
       !prior?.words ||
       prior.text !== utterance.text ||
-      !sameIgnoredWords(prior, utterance)
+      !sameIgnoredWords(prior, utterance) ||
+      !sameEdgeSuppressedWords(prior, utterance)
     ) {
       complete = false;
       return utterance;

@@ -52,6 +52,14 @@ class HalfOpenIntervalIndex:
         lower = bisect_right(self.max_ends, start, 0, upper)
         return tuple(self.ordinals[i] for i in range(lower, upper) if self.ends[i] > start)
 
+    def start_rank(self, point: float) -> int:
+        """Count of indexed spans starting at or before ``point``.
+
+        ``ordinals[rank - 1]`` is the last span starting at or before ``point``
+        and ``ordinals[rank]`` the first starting after it (ties by input order).
+        """
+        return bisect_right(self.starts, point)
+
 
 def merge_intervals(
     intervals: Iterable[tuple[float, float]], *, gap: float = 0.0

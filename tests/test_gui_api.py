@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 import pytest
 
+from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import (
     is_tighten_reason,
     join_risk_from_decision,
@@ -341,6 +343,450 @@ def test_map_transcript_includes_suppressed_within_utterance() -> None:
     slim = map_transcript_utterances_to_timeline(p, transcript, include_words=False)
     assert slim is not None
     assert "words" not in slim["utterances"][0]
+
+
+def test_map_transcript_edge_suppressed_first_word_kept() -> None:
+    """A suppressed word before the first non-suppressed word stays a chip on that utterance (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="welcome", start=0.0, end=0.3, suppressed=True, confidence=0.9),
+                TranscriptWord(text="to", start=0.5, end=0.7, confidence=0.9),
+                TranscriptWord(text="the", start=0.7, end=0.9, confidence=0.9),
+                TranscriptWord(text="show", start=0.9, end=1.1, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 1
+    assert combined["utterances"][0]["start"] == pytest.approx(0.5)
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    u = mapped["utterances"][0]
+    assert [w["word_index"] for w in u["words"]] == [0, 1, 2, 3]
+    assert u["words"][0]["text"] == "welcome"
+    assert u["words"][0]["suppressed"] is True
+
+
+def test_map_transcript_edge_suppressed_last_word_kept() -> None:
+    """A suppressed word after the last non-suppressed word stays a chip on that utterance (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(text="world", start=0.4, end=0.6, confidence=0.9),
+                TranscriptWord(text="done", start=0.7, end=0.9, suppressed=True, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 1
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    u = mapped["utterances"][0]
+    assert [w["word_index"] for w in u["words"]] == [0, 1, 2]
+    assert u["words"][2]["text"] == "done"
+    assert u["words"][2]["suppressed"] is True
+
+
+def test_map_transcript_edge_suppressed_gap_run_nearest_utterance() -> None:
+    """A suppressed run between two utterances splits to the nearest one, each word once (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=0.0, end=0.2, confidence=0.9),
+                TranscriptWord(text="b", start=0.2, end=0.4, confidence=0.9),
+                TranscriptWord(text="x1", start=1.0, end=1.1, suppressed=True, confidence=0.5),
+                TranscriptWord(text="x2", start=1.5, end=1.6, suppressed=True, confidence=0.5),
+                TranscriptWord(text="c", start=2.0, end=2.2, confidence=0.9),
+                TranscriptWord(text="d", start=2.2, end=2.4, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 2
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    first, second = mapped["utterances"]
+    assert [w["word_index"] for w in first["words"]] == [0, 1, 2]
+    assert first["words"][2]["text"] == "x1"
+    assert [w["word_index"] for w in second["words"]] == [3, 4, 5]
+    assert second["words"][0]["text"] == "x2"
+    all_indices = [w["word_index"] for w in first["words"]] + [
+        w["word_index"] for w in second["words"]
+    ]
+    assert sorted(all_indices) == [0, 1, 2, 3, 4, 5]
+    assert len(all_indices) == len(set(all_indices))
+
+
+def test_map_transcript_edge_suppressed_uneven_gap_run() -> None:
+    """An uneven suppressed run splits word by word to the nearer utterance (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=0.0, end=0.2, confidence=0.9),
+                TranscriptWord(text="b", start=0.2, end=0.4, confidence=0.9),
+                TranscriptWord(text="x1", start=0.6, end=0.7, suppressed=True, confidence=0.5),
+                TranscriptWord(text="x2", start=0.9, end=1.0, suppressed=True, confidence=0.5),
+                TranscriptWord(text="x3", start=1.2, end=1.3, suppressed=True, confidence=0.5),
+                TranscriptWord(text="x4", start=2.6, end=2.7, suppressed=True, confidence=0.5),
+                TranscriptWord(text="c", start=3.0, end=3.2, confidence=0.9),
+                TranscriptWord(text="d", start=3.2, end=3.4, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 2
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    first, second = mapped["utterances"]
+    assert [w["word_index"] for w in first["words"]] == [0, 1, 2, 3, 4]
+    assert [w["word_index"] for w in second["words"]] == [5, 6, 7]
+    assert first["edge_suppressed_word_indices"] == [2, 3, 4]
+    assert second["edge_suppressed_word_indices"] == [5]
+
+
+def test_map_transcript_edge_suppressed_word_next_to_cut_away_utterance() -> None:
+    """Attachment is by source gap: a kept word nearest a cut-away row rides on that row (#752)."""
+    p = _with_cut_gap()  # source [3, 7) cut away
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=6.0, end=6.2, confidence=0.9),
+                TranscriptWord(text="b", start=6.2, end=6.5, confidence=0.9),
+                TranscriptWord(text="x", start=7.1, end=7.2, suppressed=True, confidence=0.5),
+                TranscriptWord(text="c", start=9.0, end=9.2, confidence=0.9),
+                TranscriptWord(text="d", start=9.2, end=9.4, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 2
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    first, second = mapped["utterances"]
+    assert first["mappable"] is False
+    assert [w["word_index"] for w in first["words"]] == [0, 1, 2]
+    chip = first["words"][2]
+    assert chip["text"] == "x"
+    assert chip["mappable"] is True
+    assert chip["timeline_start"] == pytest.approx(3.1)
+    assert [w["word_index"] for w in second["words"]] == [3, 4]
+
+
+def test_edge_suppressed_word_indices_helper() -> None:
+    """Unit-tests _edge_suppressed_word_indices: ties, other tracks, no-utterance tracks (#752)."""
+    from podcast_mcp.gui.mapper import _edge_suppressed_word_indices
+
+    host_words = [
+        TranscriptWord(text="in-window", start=0.1, end=0.3, suppressed=True),
+        TranscriptWord(text="tie", start=1.0, end=1.0, suppressed=True),
+        TranscriptWord(text="not-suppressed", start=5.0, end=5.2),
+    ]
+    guest_words = [
+        TranscriptWord(text="orphan", start=0.5, end=0.7, suppressed=True),
+    ]
+    utterances = [
+        {"track_id": "host", "start": 0.0, "end": 0.5},
+        {"track_id": "host", "start": 1.5, "end": 2.0},
+    ]
+    words_by_track = {"host": host_words, "guest": guest_words}
+    result = _edge_suppressed_word_indices(utterances, words_by_track)
+    # index 0 already overlaps utterance 0's own [0.0, 0.5) window - not an "edge" word, skipped.
+    # index 1 sits exactly between the two utterances - the tie goes to the earlier one (position 0).
+    # "guest" has no utterance at all, so its suppressed word is never attached.
+    assert result == {0: [1]}
+
+
+def test_edge_suppressed_word_indices_never_duplicates_a_covered_word() -> None:
+    """A word inside any same-track window is not attached, even if windows overlap (#752)."""
+    from podcast_mcp.gui.mapper import _edge_suppressed_word_indices
+
+    words = [TranscriptWord(text="inside-long", start=2.0, end=2.1, suppressed=True)]
+    utterances = [
+        {"track_id": "host", "start": 0.0, "end": 3.0},
+        {"track_id": "host", "start": 1.0, "end": 1.5},
+    ]
+    assert _edge_suppressed_word_indices(utterances, {"host": words}) == {}
+
+
+def test_edge_suppressed_word_indices_zero_length_window_is_a_candidate() -> None:
+    """A zero-length utterance window still receives a nearby edge-suppressed word (#752)."""
+    from podcast_mcp.gui.mapper import _edge_suppressed_word_indices
+
+    words = [TranscriptWord(text="x", start=1.5, end=1.6, suppressed=True)]
+    utterances = [{"track_id": "host", "start": 1.0, "end": 1.0}]
+    assert _edge_suppressed_word_indices(utterances, {"host": words}) == {0: [0]}
+
+
+def test_covered_word_ordinals_pads_a_zero_length_window() -> None:
+    """A zero-length window covers its own word and a straddling word, not a word ending at it (#752)."""
+    from podcast_mcp.gui.mapper import _covered_word_ordinals, _raw_word_intervals
+
+    words = [
+        TranscriptWord(text="ends-at", start=1.8, end=2.0),
+        TranscriptWord(text="straddles", start=1.9, end=2.1, suppressed=True),
+        TranscriptWord(text="own", start=2.0, end=2.0),
+        TranscriptWord(text="after", start=2.5, end=2.6),
+    ]
+    assert _covered_word_ordinals(words, _raw_word_intervals(words), 2.0, 2.0) == {1, 2}
+
+
+def test_map_transcript_zero_length_utterance_lists_straddling_suppressed_word() -> None:
+    """A suppressed word straddling a zero-length utterance window is listed on that row, once, and the row is mappable on kept audio (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(text="um", start=1.9, end=2.1, suppressed=True, confidence=0.5),
+                TranscriptWord(text="yeah", start=2.0, end=2.0, confidence=0.9),
+                TranscriptWord(text="bye", start=5.0, end=5.3, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert [(u["start"], u["end"]) for u in combined["utterances"]] == [
+        (0.0, 0.3),
+        (2.0, 2.0),
+        (5.0, 5.3),
+    ]
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    rows = mapped["utterances"]
+    assert [[w["text"] for w in u["words"]] for u in rows] == [
+        ["hello"],
+        ["um", "yeah"],
+        ["bye"],
+    ]
+    assert all("edge_suppressed_word_indices" not in u for u in rows)
+    indices = [w["word_index"] for u in rows for w in u["words"]]
+    assert sorted(indices) == [0, 1, 2, 3]
+    zero = rows[1]
+    assert (zero["start"], zero["end"]) == (2.0, 2.0)
+    assert zero["mappable"] is True
+    assert zero["timeline_start"] == pytest.approx(2.0)
+    assert zero["timeline_end"] == pytest.approx(2.001)
+    assert len(zero["timeline_spans"]) == 1
+
+
+def test_map_transcript_zero_length_utterance_on_cut_audio_stays_unmappable() -> None:
+    """Padding a zero-length row never makes cut-away audio mappable (#752)."""
+    p = _minimal()
+    p.timeline.clips = [c for c in p.timeline.clips if c.id != "c1"]
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="yeah", start=2.0, end=2.0, confidence=0.9),
+                TranscriptWord(text="bye", start=5.0, end=5.3, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    zero = next(u for u in mapped["utterances"] if u["start"] == u["end"] == 2.0)
+    assert zero["mappable"] is False
+    assert zero["timeline_spans"] == []
+
+
+def _random_track_words(rng: random.Random) -> list[TranscriptWord]:
+    words: list[TranscriptWord] = []
+    t = 0.0
+    for i in range(rng.randint(1, 14)):
+        t = round(t + rng.choice([0.0, 0.1, 0.2, 0.5, 0.9, 1.5]), 1)
+        duration = rng.choice([0.0, 0.0, 0.1, 0.2, 0.3])
+        words.append(
+            TranscriptWord(
+                text=f"w{i}",
+                start=t,
+                end=round(t + duration, 1),
+                suppressed=rng.random() < 0.4,
+                ignored=rng.random() < 0.3,
+            )
+        )
+    return words
+
+
+def test_indexed_word_paths_match_brute_force_on_random_layouts() -> None:
+    """Index-based coverage, ignored indices and edge attachment equal a brute-force scan (#752).
+
+    Layouts come from ``merge_transcripts`` on a 0.1 s grid with zero-length words, so
+    they hit tied starts, words ending exactly at a window edge and zero-length windows.
+    """
+    from podcast_mcp.engines.session_timeline import word_source_span
+    from podcast_mcp.gui.mapper import (
+        _covered_word_ordinals,
+        _edge_suppressed_word_indices,
+        _ignored_word_indices_for_utterance,
+        _raw_word_intervals,
+        _word_in_utterance,
+    )
+
+    def brute_covered(words: list[TranscriptWord], start: float, end: float) -> set[int]:
+        s, e = word_source_span(start, end)
+        return {i for i, w in enumerate(words) if _word_in_utterance(w, s, e)}
+
+    rng = random.Random(752)
+    for _ in range(300):
+        project = _minimal()
+        words = _random_track_words(rng)
+        project.transcripts = [Transcript(track_id="host", words=words)]
+        rows = TranscriptionEngine().merge_transcripts(project).model_dump()["utterances"]
+        intervals = _raw_word_intervals(words)
+        covered: set[int] = set()
+        for row in rows:
+            expected = brute_covered(words, row["start"], row["end"])
+            assert _covered_word_ordinals(words, intervals, row["start"], row["end"]) == expected
+            covered |= expected
+        expected_edge: dict[int, list[int]] = {}
+        for i, w in enumerate(words):
+            if not w.suppressed or i in covered or not rows:
+                continue
+            gaps = [max(r["start"] - w.end, w.start - r["end"]) for r in rows]
+            expected_edge.setdefault(gaps.index(min(gaps)), []).append(i)
+        edge = _edge_suppressed_word_indices(rows, {"host": words})
+        assert edge == expected_edge, (words, rows)
+        for position, row in enumerate(rows):
+            extras = edge.get(position, [])
+            expected_ignored = sorted(
+                i
+                for i in brute_covered(words, row["start"], row["end"]) | set(extras)
+                if words[i].ignored
+            )
+            assert (
+                _ignored_word_indices_for_utterance(
+                    words, intervals, row["start"], row["end"], extra_indices=extras
+                )
+                == expected_ignored
+            )
+
+
+def test_map_transcript_edge_suppressed_ignored_word_in_ignored_indices() -> None:
+    """An edge-suppressed word that is also ignored lands in ignored_word_indices (#752, #633)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="welcome",
+                    start=0.0,
+                    end=0.3,
+                    suppressed=True,
+                    ignored=True,
+                    confidence=0.5,
+                ),
+                TranscriptWord(text="to", start=0.5, end=0.7, confidence=0.9),
+                TranscriptWord(text="the", start=0.7, end=0.9, confidence=0.9),
+                TranscriptWord(text="show", start=0.9, end=1.1, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert mapped is not None
+    u = mapped["utterances"][0]
+    assert "words" not in u
+    assert u["ignored_word_indices"] == [0]
+
+
+def test_map_transcript_all_suppressed_track_has_no_words() -> None:
+    """A track whose words are all suppressed has no utterance, so none of its words map (#752)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(text="world", start=0.4, end=0.6, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="um", start=0.1, end=0.2, suppressed=True, confidence=0.4),
+                TranscriptWord(text="uh", start=0.5, end=0.6, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert [u["track_id"] for u in combined["utterances"]] == ["host"]
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    assert [u["track_id"] for u in mapped["utterances"]] == ["host"]
+    host = mapped["utterances"][0]
+    assert [w["word_index"] for w in host["words"]] == [0, 1]
+    assert [w["text"] for w in host["words"]] == ["hello", "world"]
+    assert "edge_suppressed_word_indices" not in host
+
+
+def test_map_transcript_rows_list_edge_suppressed_indices() -> None:
+    """Rows list attached edge-suppressed words, SHELL (include_words=False) included (#752)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="welcome", start=0.0, end=0.3, suppressed=True, confidence=0.9),
+                TranscriptWord(text="to", start=0.3, end=0.5, suppressed=True, confidence=0.9),
+                TranscriptWord(text="the", start=2.0, end=2.2, confidence=0.9),
+                TranscriptWord(text="show", start=2.2, end=2.4, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 1
+    for include_words in (True, False):
+        mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
+        assert mapped is not None
+        assert mapped["utterances"][0]["edge_suppressed_word_indices"] == [0, 1]
+    words = p.transcripts[0].words
+    words[0] = words[0].model_copy(update={"suppressed": False})
+    words[1] = words[1].model_copy(update={"suppressed": False})
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert len(combined["utterances"]) == 2
+    mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert mapped is not None
+    assert all("edge_suppressed_word_indices" not in u for u in mapped["utterances"])
+
+
+def test_map_transcript_ignored_zero_length_word_in_ignored_indices() -> None:
+    """A zero-length ignored word inside the window is found through the raw-word index (#633)."""
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(text="uh", start=0.4, end=0.4, ignored=True, confidence=0.4),
+                TranscriptWord(text="world", start=0.5, end=0.8, confidence=0.9),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert mapped is not None
+    assert mapped["utterances"][0]["ignored_word_indices"] == [1]
 
 
 def test_map_transcript_utterances_unmappable() -> None:
