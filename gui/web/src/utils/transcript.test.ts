@@ -17,6 +17,7 @@ import {
   isWordActive,
   selectUnmappedUtterances,
   transcriptAnchorTurnIndex,
+  transcriptSpanText,
   transcriptWordAnchor,
   transcriptWordRange,
   turnKey,
@@ -466,6 +467,80 @@ describe("indexed transcript word lookup", () => {
       end: 7,
       text: "point",
     });
+  });
+});
+
+describe("transcriptSpanText", () => {
+  const project = {
+    transcript: {
+      utterances: [
+        u({
+          text: "the quick",
+          start: 0,
+          end: 9,
+          words: [
+            { text: "the", word_index: 0, start: 0, end: 1 },
+            { text: "quick", word_index: 1, start: 1, end: 2 },
+          ],
+        }),
+        u({
+          track_id: "guest",
+          text: "ignore",
+          start: 0,
+          end: 9,
+          words: [{ text: "ignore", word_index: 2, start: 0, end: 9 }],
+        }),
+        u({
+          text: "quick fox",
+          start: 1,
+          end: 3,
+          words: [
+            { text: "quick", word_index: 1, start: 1, end: 2 },
+            { text: "fox", word_index: 2, start: 2, end: 3 },
+          ],
+        }),
+      ],
+    },
+  } as ProjectView;
+
+  it("returns a single word's text", () => {
+    expect(transcriptSpanText(project, "host", 0, 0)).toBe("the");
+  });
+
+  it("joins a span across two utterances", () => {
+    expect(transcriptSpanText(project, "host", 0, 2)).toBe("the quick fox");
+  });
+
+  it("counts a word duplicated across utterances once", () => {
+    expect(transcriptSpanText(project, "host", 1, 1)).toBe("quick");
+  });
+
+  it("returns null when an index in the range is missing", () => {
+    const gap = {
+      transcript: {
+        utterances: [
+          u({
+            text: "the fox",
+            start: 0,
+            end: 9,
+            words: [
+              { text: "the", word_index: 0, start: 0, end: 1 },
+              { text: "fox", word_index: 2, start: 2, end: 3 },
+            ],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(transcriptSpanText(gap, "host", 0, 2)).toBeNull();
+  });
+
+  it("returns null for an invalid range", () => {
+    expect(transcriptSpanText(project, "host", 2, 0)).toBeNull();
+    expect(transcriptSpanText(project, "host", Number.NaN, 0)).toBeNull();
+  });
+
+  it("ignores words on another track", () => {
+    expect(transcriptSpanText(project, "guest", 0, 0)).toBeNull();
   });
 });
 

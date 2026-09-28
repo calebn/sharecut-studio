@@ -18,6 +18,9 @@ export function wordCorrectionError(
 /**
  * Send a single-word (start === end) or phrase correction as one document
  * command (EditService → ProjectWorkspace.mutate: one undoable step).
+ *
+ * @param expectedText the text the user saw at these indices; the server refuses the fix
+ * with a 409 when it changed (#650).
  */
 export async function submitWordCorrection(
   projectPath: string,
@@ -25,10 +28,17 @@ export async function submitWordCorrection(
   startWordIndex: number,
   endWordIndex: number,
   text: string,
+  expectedText?: string | null,
 ): Promise<void> {
   const next = text.trim();
   if (endWordIndex === startWordIndex) {
-    await correctTranscriptWord(projectPath, trackId, startWordIndex, next);
+    await correctTranscriptWord(
+      projectPath,
+      trackId,
+      startWordIndex,
+      next,
+      expectedText,
+    );
     return;
   }
   await correctTranscriptPhrase(
@@ -37,5 +47,6 @@ export async function submitWordCorrection(
     startWordIndex,
     endWordIndex,
     next,
+    expectedText,
   );
 }

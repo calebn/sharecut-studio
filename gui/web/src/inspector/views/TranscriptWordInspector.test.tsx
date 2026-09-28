@@ -103,6 +103,7 @@ describe("TranscriptWordInspector", () => {
         "host",
         0,
         "Hello",
+        "hello",
       );
     });
     expect(correctTranscriptPhrase).not.toHaveBeenCalled();
@@ -124,6 +125,28 @@ describe("TranscriptWordInspector", () => {
         0,
         1,
         "Hello there",
+        "hello there",
+      );
+    });
+  });
+
+  it("Apply with an end index past the loaded words sends null expected text", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        5,
+        "Hello there",
+        null,
       );
     });
   });

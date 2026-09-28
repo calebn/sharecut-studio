@@ -87,6 +87,49 @@ export function transcriptWordRange(
   return texts ? { start, end, text: texts.join(" ") } : { start, end };
 }
 
+/**
+ * Space-joined text of an inclusive word-index range on a track, or null unless
+ * every index in the range is in this snapshot (#650 stale-correction guard).
+ * A word listed under two utterances counts once.
+ */
+export function transcriptSpanText(
+  project: ProjectView | null,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+): string | null {
+  if (
+    !Number.isInteger(startWordIndex) ||
+    !Number.isInteger(endWordIndex) ||
+    endWordIndex < startWordIndex
+  ) {
+    return null;
+  }
+  const byIndex = new Map<number, string>();
+  for (const utterance of project?.transcript?.utterances ?? []) {
+    if (utterance.track_id !== trackId) {
+      continue;
+    }
+    for (const word of utterance.words ?? []) {
+      const index = word.word_index;
+      if (index == null || index < startWordIndex || index > endWordIndex) {
+        continue;
+      }
+      if (!byIndex.has(index)) {
+        byIndex.set(index, word.text);
+      }
+    }
+  }
+  if (byIndex.size !== endWordIndex - startWordIndex + 1) {
+    return null;
+  }
+  const texts: string[] = [];
+  for (let i = startWordIndex; i <= endWordIndex; i += 1) {
+    texts.push(byIndex.get(i) ?? "");
+  }
+  return texts.join(" ");
+}
+
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */
 export function utteranceTimelineSpans(u: CombinedUtterance): TimelineSpan[] {
   if (u.mappable === false) {
