@@ -1,11 +1,16 @@
 """Numpy-only CTC forced alignment of known words over frame log-probabilities.
 
 Shared by the opt-in pipeline pass (``engines/word_align.py``, #714) and
-``scripts/benchmark_forced_aligners.py``.
+``scripts/benchmark_forced_aligners.py``. ``retime_spans_stream`` (#730) reads
+windows through a forward-only ``SequentialWindowReader`` so a caller never
+needs the whole decode resident at once; ``retime_spans`` wraps it for
+callers that already hold a full in-memory array.
 """
 
 from __future__ import annotations
 
+import contextlib
+import math
 import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -13,6 +18,8 @@ from itertools import pairwise
 from typing import Protocol
 
 import numpy as np
+
+from podcast_mcp.util.pcm_stream import SequentialWindowReader
 
 FRAME_SEC_WAV2VEC2 = 0.02  # wav2vec2 conv stride: 320 samples @ 16 kHz
 SAMPLE_RATE_WAV2VEC2 = 16_000
@@ -179,7 +186,7 @@ class AlignmentWindow:
 def plan_windows(
     spans: Sequence[tuple[float, float]],
     *,
-    audio_sec: float,
+    audio_sec: float = math.inf,
     max_gap_sec: float = DEFAULT_MAX_GAP_SEC,
     max_window_sec: float = DEFAULT_MAX_WINDOW_SEC,
     pad_sec: float = DEFAULT_PAD_SEC,
@@ -189,6 +196,10 @@ def plan_windows(
     ``spans`` must be sorted by start time (ties allowed): grouping is a single
     left-to-right pass. Windows split on gaps over ``max_gap_sec`` or spans over
     ``max_window_sec`` and never pad across the midpoint to the next window.
+    ``audio_sec`` defaults to unbounded: only the padded right edge is clamped
+    to it, so a caller that streams the decode (``retime_spans_stream``) can
+    plan windows before it knows the media's length and let the reader clamp
+    the final window at EOF instead.
     """
     if not spans:
         return []
@@ -233,7 +244,10 @@ def plan_windows(
         # midpoint; never clamp tighter than the words themselves.
         padded[i] = (left, max(min(right, mid), prev_max_end))
         nleft, nright = padded[i + 1]
-        padded[i + 1] = (min(max(nleft, mid), next_first_start), nright)
+        # An inverted span (end < start) can push mid before this window's own
+        # padded left edge; never let a later window start earlier than an
+        # earlier one (the reader is forward-only).
+        padded[i + 1] = (min(max(nleft, mid, padded[i][0]), next_first_start), nright)
 
     windows: list[AlignmentWindow] = []
     for group, (start, end) in zip(groups, padded, strict=True):
@@ -264,21 +278,40 @@ def retime_spans(
 
     Returns one span per input word (None = not placed; the caller keeps the old
     times). Windows shorter than MIN_WINDOW_SAMPLES (e.g. words past the end of
-    the audio) count as failed without calling the backend.
+    the audio) count as failed without calling the backend. Wraps
+    :func:`retime_spans_stream` over a single-chunk reader; prefer that
+    function when the decode is already being streamed.
     """
-    audio_sec = len(samples) / sample_rate
+    with contextlib.closing(SequentialWindowReader([samples], sample_rate)) as reader:
+        return retime_spans_stream(reader, words, backend, vocab)
+
+
+def retime_spans_stream(
+    reader: SequentialWindowReader,
+    words: Sequence[tuple[str, float, float]],
+    backend: LogProbBackend,
+    vocab: CtcVocab,
+) -> tuple[list[tuple[float, float] | None], RetimeStats]:
+    """``retime_spans``, but pulling windows from a forward-only ``SequentialWindowReader``.
+
+    Windows are planned without an ``audio_sec`` bound; the reader clamps
+    each window's samples at EOF, so the result is identical to a whole-file
+    decode (#730).
+    """
+    sample_rate = reader.sample_rate
     order = sorted(range(len(words)), key=lambda i: words[i][1])
-    windows = plan_windows([(words[i][1], words[i][2]) for i in order], audio_sec=audio_sec)
+    windows = plan_windows([(words[i][1], words[i][2]) for i in order])
     spans: list[tuple[float, float] | None] = [None] * len(words)
     failed = 0
     for win in windows:
-        start_sample = round(win.start_sec * sample_rate)
-        end_sample = round(win.end_sec * sample_rate)
         indices = [order[j] for j in win.word_indices]
-        if end_sample - start_sample < MIN_WINDOW_SAMPLES:
+        chunk, _ = reader.window_samples(
+            round(win.start_sec * sample_rate), round(win.end_sec * sample_rate)
+        )
+        if chunk.size < MIN_WINDOW_SAMPLES:
             failed += 1
             continue
-        lp = backend.log_probs(samples[start_sample:end_sample])
+        lp = backend.log_probs(chunk)
         placed = align_words(lp, [words[i][0] for i in indices], vocab, offset_sec=win.start_sec)
         if all(span is None for span in placed):
             failed += 1
