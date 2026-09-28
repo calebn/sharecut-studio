@@ -29,11 +29,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from podcast_mcp.edits.transcript_reuse import audio_identity
-from podcast_mcp.engines.audio_audit import load_mono_full
 from podcast_mcp.engines.prosody import (
     ProsodyParams,
     WordSpan,
-    analyze_prosody,
+    analyze_prosody_file,
     parselmouth_version,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -50,7 +49,7 @@ from podcast_mcp.util.workspace_paths import resolve_cache_file
 log = logging.getLogger(__name__)
 
 PROFILE_SCHEMA = "prosody_profile.v1"
-ALGORITHM_VERSION = 3
+ALGORITHM_VERSION = 4  # 4: per-segment windowed Praat over a streamed decode (#727)
 MAX_WINDOW_SEGMENTS = 6
 PROSODY_LOCK_TIMEOUT_SEC = 600.0
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
@@ -248,8 +247,7 @@ def _analyze_track(
             write_json_atomic(path, existing.to_json())
             outcome = "reused"
         else:
-            samples = load_mono_full(job.audio, sample_rate=16000)
-            analysis = analyze_prosody(samples, 16000, words, params, cancel_check=cancel_check)
+            analysis = analyze_prosody_file(job.audio, words, params, cancel_check=cancel_check)
             profile = ProsodyProfile(
                 track_id=track_id,
                 audio_sha256=sha,

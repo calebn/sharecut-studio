@@ -4,7 +4,9 @@ Praat reference spot check against tests/fixtures/word_boundary."""
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -246,16 +248,22 @@ def test_analyze_prosody_no_nan_on_silence() -> None:
 # --- Praat reference spot check (real speech) --------------------------------
 
 
-def test_prosody_matches_praat_reference_on_fixture() -> None:
+@pytest.mark.parametrize("entry", ["array", "file"])
+def test_prosody_matches_praat_reference_on_fixture(entry: str) -> None:
     pytest.importorskip("parselmouth")
+    if entry == "file" and shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not available")
     from podcast_mcp.engines.audio_audit import load_mono_full
-    from podcast_mcp.engines.prosody import analyze_prosody
+    from podcast_mcp.engines.prosody import analyze_prosody, analyze_prosody_file
 
     assert parselmouth_version() is not None
     gold = json.loads(GOLD.read_text(encoding="utf-8"))
     words = [WordSpan(w["text"], w["start"], w["end"]) for w in gold["words"]]
-    samples = load_mono_full(FIXTURE, sample_rate=16000)
-    result = analyze_prosody(samples, 16000, words, ProsodyParams.from_defaults({}))
+    if entry == "array":
+        samples = load_mono_full(FIXTURE, sample_rate=16000)
+        result = analyze_prosody(samples, 16000, words, ProsodyParams.from_defaults({}))
+    else:
+        result = analyze_prosody_file(FIXTURE, words, ProsodyParams.from_defaults({}))
     segs = result["segments"]
     assert len(segs) == 1
     seg = segs[0]
@@ -273,3 +281,171 @@ def test_prosody_matches_praat_reference_on_fixture() -> None:
     assert abs(seg["f0"]["mean_hz"] - ref_f0) <= ref_f0 * 0.05
     assert abs(seg["energy"]["mean_db"] - ref_intensity) <= 1.5
     assert 2.0 <= seg["rate"]["speech_rate"] <= 8.0
+
+
+# --- Bounded-memory streaming (analyze_prosody_file, #727) --------------------
+
+
+def _two_copy_track() -> tuple[np.ndarray, list[WordSpan], list[WordSpan], int]:
+    """Loud fixture copy, then a 0.1x quiet copy, separated by silence, with gold words."""
+    from podcast_mcp.engines.audio_audit import load_mono_full
+
+    sr = 16000
+    s = load_mono_full(FIXTURE, sample_rate=sr)
+    gold = json.loads(GOLD.read_text(encoding="utf-8"))
+    gold_words = [WordSpan(w["text"], w["start"], w["end"]) for w in gold["words"]]
+    pad = np.zeros(int(3.0 * sr), dtype=np.float32)
+    track = np.concatenate([pad, s, pad, (0.1 * s).astype(np.float32)])
+    offset0 = 3.0
+    offset1 = 3.0 + len(s) / sr + 3.0
+    words0 = [WordSpan(w.text, w.start + offset0, w.end + offset0) for w in gold_words]
+    words1 = [WordSpan(w.text, w.start + offset1, w.end + offset1) for w in gold_words]
+    return track, words0, words1, sr
+
+
+class _FakeStreamEngine:
+    """A ``FFmpegEngine.stream_mono_f32`` stand-in over an in-memory track.
+
+    Tracks how many streams were opened and whether the most recently opened
+    stream's generator was closed (its ``finally`` ran).
+    """
+
+    def __init__(self, track: np.ndarray, sr: int, chunk_frames: int = 4000) -> None:
+        self.track = track
+        self.sr = sr
+        self.chunk_frames = chunk_frames
+        self.calls = 0
+        self.closed = False
+
+    def stream_mono_f32(
+        self, path: Path, *, sample_rate: int, chunk_frames: int | None = None
+    ) -> Any:
+        assert sample_rate == self.sr
+        self.calls += 1
+        track = self.track
+        size = self.chunk_frames
+
+        def gen() -> Any:
+            try:
+                for i in range(0, track.size, size):
+                    yield track[i : i + size]
+            finally:
+                self.closed = True
+
+        return gen()
+
+
+def test_analyze_prosody_is_invariant_to_loudness_elsewhere() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody
+
+    track, words0, words1, sr = _two_copy_track()
+    result = analyze_prosody(track, sr, words0 + words1, ProsodyParams.from_defaults({}))
+    segs = result["segments"]
+    assert len(segs) == 2
+    seg0, seg1 = segs
+
+    # Whole-file (pre-#727) analysis over this same track gave the quiet copy an
+    # F0 mean of ~232 Hz against ~205 Hz for the loud copy, and an undefined HNR:
+    # Praat's silence/voicing thresholds are relative to the whole Sound's peak.
+    # Per-window analysis is gain-invariant.
+    f0_0, f0_1 = seg0["f0"]["mean_hz"], seg1["f0"]["mean_hz"]
+    assert abs(f0_1 - f0_0) <= 0.01 * f0_0
+    assert abs((seg0["energy"]["mean_db"] - seg1["energy"]["mean_db"]) - 20.0) < 1.0
+    assert abs(seg1["voice_quality"]["hnr_db"] - seg0["voice_quality"]["hnr_db"]) < 0.5
+
+
+def test_analyze_prosody_file_matches_array_path_with_bounded_windows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody, analyze_prosody_file
+    from podcast_mcp.util.pcm_stream import SequentialWindowReader
+
+    track, words0, words1, sr = _two_copy_track()
+    words = words0 + words1
+    params = ProsodyParams.from_defaults({})
+    fake = _FakeStreamEngine(track, sr)
+
+    window_lengths: list[int] = []
+    original_window = SequentialWindowReader.window
+
+    def spy_window(self: SequentialWindowReader, start_sec: float, end_sec: float):
+        samples, t0 = original_window(self, start_sec, end_sec)
+        window_lengths.append(len(samples))
+        return samples, t0
+
+    monkeypatch.setattr(SequentialWindowReader, "window", spy_window)
+
+    file_result = analyze_prosody_file(Path("x.wav"), words, params, engine=fake)  # type: ignore[arg-type]
+    array_result = analyze_prosody(track, sr, words, params)
+
+    assert file_result == array_result
+    assert fake.calls == 1
+    max_len = int((params.max_segment_sec + 2 * 0.5) * sr) + 2
+    assert window_lengths and all(length <= max_len for length in window_lengths)
+
+
+def test_analyze_prosody_file_energy_path_decodes_twice() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody, analyze_prosody_file
+
+    track, _words0, _words1, sr = _two_copy_track()
+    params = ProsodyParams.from_defaults({})
+    fake = _FakeStreamEngine(track, sr)
+
+    file_result = analyze_prosody_file(Path("x.wav"), [], params, engine=fake)  # type: ignore[arg-type]
+    array_result = analyze_prosody(track, sr, [], params)
+
+    assert file_result == array_result
+    assert fake.calls == 2
+
+
+def test_analyze_prosody_file_closes_stream_on_cancel() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody_file
+    from podcast_mcp.util.progress import CancelledProgress
+
+    track, words0, words1, sr = _two_copy_track()
+    words = words0 + words1
+    params = ProsodyParams.from_defaults({})
+    fake = _FakeStreamEngine(track, sr)
+    polls = {"n": 0}
+
+    def cancel_check() -> bool:
+        polls["n"] += 1
+        return polls["n"] >= 2  # False on segment 1's poll, True on segment 2's
+
+    with pytest.raises(CancelledProgress):
+        analyze_prosody_file(
+            Path("x.wav"),
+            words,
+            params,
+            cancel_check=cancel_check,
+            engine=fake,  # type: ignore[arg-type]
+        )
+
+    assert fake.closed is True
+
+
+def test_analyze_prosody_file_clamps_segments_past_end_of_audio() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody_file
+
+    sr = 16000
+    t = np.arange(int(sr * 2.0)) / sr
+    tone = (0.3 * np.sin(2 * np.pi * 150 * t)).astype(np.float32)
+    fake = _FakeStreamEngine(tone, sr)
+    words = [
+        WordSpan("a", 0.2, 1.0),
+        WordSpan("b", 1.5, 2.8),
+        WordSpan("c", 5.0, 5.5),
+    ]
+    params = ProsodyParams.from_defaults({})
+
+    result = analyze_prosody_file(Path("x.wav"), words, params, engine=fake)  # type: ignore[arg-type]
+
+    segs = result["segments"]
+    assert len(segs) == 1
+    assert segs[0]["start"] == pytest.approx(0.2)
+    assert segs[0]["end"] == pytest.approx(2.0)
