@@ -7,6 +7,7 @@ import logging
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from unittest.mock import patch
@@ -1055,6 +1056,31 @@ def test_submit_file_before_reflects_an_out_of_band_write(minimal_project):
     r2 = svc.submit(add(2, "second"))
     assert r2["snapshot"]["file_before"]["mtime_ns"] == st.st_mtime_ns + 5_000_000_000
     assert r2["snapshot"]["file_before"] != r1["snapshot"]["file"]
+
+
+def test_submit_and_external_mutate_share_the_journal_write_lock(minimal_project, monkeypatch):
+    entered: list[str] = []
+    real = DocumentSyncService._journal_write_lock
+
+    @contextmanager
+    def spy(self):
+        with real(self) as store:
+            entered.append("in")
+            yield store
+
+    monkeypatch.setattr(DocumentSyncService, "_journal_write_lock", spy)
+    svc = DocumentSyncService.open(minimal_project)
+    svc.submit(
+        DocumentCommand(
+            type="AddComment",
+            payload={"body": "n", "author": "a", "timeline_start": 1.0},
+            client_id="c-lock",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    svc.publish_document_changed()
+    assert entered == ["in", "in"]
 
 
 def test_idempotent_retry_applied_carries_file_before(minimal_project):
