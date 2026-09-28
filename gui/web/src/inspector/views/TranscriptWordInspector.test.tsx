@@ -770,6 +770,48 @@ describe("TranscriptWordInspector", () => {
     );
   });
 
+  it("an Undo of an Apply sent unguarded goes back to sending no text, not a stale baseline (#746)", async () => {
+    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      applyingWords(["hello", "There"]),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    const input = screen.getByLabelText("Corrected text");
+    const apply = () =>
+      act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+      });
+    fireEvent.change(input, { target: { value: "There" } });
+    await apply();
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/ep",
+      "host",
+      1,
+      "There",
+      null,
+    );
+    expect(
+      screen.queryByText(/can't check whether someone else changed/),
+    ).toBeNull();
+    act(() => {
+      useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
+    }); // Undo
+    expect(
+      screen.getByText(/can't check whether someone else changed/),
+    ).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "Again" } });
+    await apply();
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      1,
+      "Again",
+      null,
+    );
+  });
+
   it("a peer edit to text this inspector never applied still sends the old baseline (#746)", async () => {
     vi.mocked(correctTranscriptWord).mockImplementationOnce(
       applyingWords(["Hello", "there"]),

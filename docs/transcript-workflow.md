@@ -246,7 +246,9 @@ returned — the End index moves to match a phrase's applied word count — so t
 guards against the correction just made; if those words do not read as the applied text,
 it sends none and shows the hint under Apply. An Undo or Redo of the inspector's own Apply
 (the words go back to a span it applied or replaced) moves the captured text and End index
-with them, so the next Apply does not conflict. After a 409, Studio loads the host's
+with them, so the next Apply does not conflict. An Undo of an Apply that went out without
+span text (the hint was showing) returns the inspector to sending none, with the hint under
+Apply, rather than a stale baseline. After a 409, Studio loads the host's
 current transcript words (the `detail` phase) before reporting the refusal; the inspector
 keeps the typed draft, re-captures the span text from them, and says Apply again retries
 against the current text.
