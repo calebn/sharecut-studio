@@ -503,6 +503,64 @@ describe("PipelinePanel", () => {
     });
   });
 
+  it("Re-time words stays busy until the run request settles", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, true));
+    loadTranscriptVocabulary.mockResolvedValue({
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: false,
+      edited_tracks: [],
+    });
+    let resolveRun!: (v: unknown) => void;
+    startPipelineRun.mockReturnValue(
+      new Promise((r) => {
+        resolveRun = r;
+      }),
+    );
+
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    const btn = await screen.findByRole("button", { name: "Re-time words" });
+    const vocabCalls = loadTranscriptVocabulary.mock.calls.length;
+    fireEvent.click(btn);
+    await waitFor(() => {
+      expect(startPipelineRun).toHaveBeenCalledTimes(1);
+    });
+    // Vocabulary loaded, run request still pending: the button stays busy.
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(btn);
+    expect(loadTranscriptVocabulary.mock.calls.length).toBe(vocabCalls + 1);
+    expect(startPipelineRun).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRun({
+        id: "job1",
+        project_path: "/tmp/ep.project.json",
+        from_step: "transcribe_tracks",
+        only_step: null,
+        status: "running",
+        current: 0,
+        total: 3,
+        message: "Running",
+        error: null,
+        elapsed_sec: 0,
+        steps: [],
+      });
+    });
+    expect(
+      screen.queryByRole("button", { name: "Re-timing…" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("has no axe violations with the aligner badge", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
