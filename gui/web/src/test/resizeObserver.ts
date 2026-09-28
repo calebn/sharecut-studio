@@ -30,6 +30,19 @@ export class FakeResizeObserver {
     this.disconnected = true;
     this.targets = [];
   }
+  /**
+   * The observer watching `target`; throws when none does, so a missed lookup
+   * fails with a clear message instead of a `TypeError` on `undefined`.
+   */
+  static of(target: Element): FakeResizeObserver {
+    const ro = FakeResizeObserver.all.find((o) => o.targets.includes(target));
+    if (!ro) {
+      throw new Error(
+        `no FakeResizeObserver watches <${target.tagName.toLowerCase()} class="${target.className}">`,
+      );
+    }
+    return ro;
+  }
   /** Report a resize of `target` (the first target by default); `entry` adds fields such as `contentRect`. */
   fire(
     target: Element | undefined = this.targets[0],

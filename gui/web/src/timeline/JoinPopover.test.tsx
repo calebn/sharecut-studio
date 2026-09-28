@@ -230,10 +230,9 @@ describe("JoinPopover", () => {
     try {
       render(<Harness />);
       const panel = screen.getByRole("dialog");
-      const ro = FakeResizeObserver.all.find((o) => o.targets.includes(panel));
-      expect(ro).toBeTruthy();
+      const ro = FakeResizeObserver.of(panel);
       panel.style.top = "";
-      ro?.fire(panel);
+      ro.fire(panel);
       expect(panel.style.top).toMatch(/px$/);
     } finally {
       vi.stubGlobal("ResizeObserver", original);
