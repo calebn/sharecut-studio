@@ -424,6 +424,33 @@ def test_fanout_presence_after_commit_logs_and_swallows_a_store_error(
     assert any("presence fan-out failed" in r.message for r in caplog.records)
 
 
+def test_tracker_roster_before_any_fanout_reads_live_rows() -> None:
+    tracker = PresenceRosterTracker()
+    row = {"client_id": "c1", "last_seen_ns": 1}
+    rows, version = tracker.roster("k", lambda: [row])
+    assert rows == [row]
+    assert version == 0
+
+
+def test_tracker_roster_returns_base_rows_and_version_together() -> None:
+    tracker = PresenceRosterTracker()
+    row_a = {"client_id": "a", "last_seen_ns": 1}
+    tracker.events("k", [row_a])
+
+    def _boom():
+        raise AssertionError("read_rows should not be called once a base exists")
+
+    rows, version = tracker.roster("k", _boom)
+    assert rows == [row_a]
+    assert version == tracker.version("k")
+
+    row_a_changed = {"client_id": "a", "last_seen_ns": 2}
+    tracker.events("k", [row_a_changed])
+    rows2, version2 = tracker.roster("k", _boom)
+    assert rows2 == [row_a_changed]
+    assert version2 == version
+
+
 def test_normalize_presence_meta_drops_unknown_and_reserved_keys() -> None:
     assert normalize_presence_meta(
         {"__proto__": {"x": 1}, "constructor": "c", "display_name": "A"}

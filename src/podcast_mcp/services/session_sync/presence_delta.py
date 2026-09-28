@@ -21,6 +21,7 @@ from __future__ import annotations
 import itertools
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 PRESENCE_DELTA = "PresenceDelta"
@@ -134,6 +135,24 @@ class PresenceRosterTracker:
         """The roster version last handed out for ``project_key`` (0 before any fan-out)."""
         with self._lock:
             return self._versions.get(project_key, 0)
+
+    def roster(
+        self,
+        project_key: str,
+        read_rows: Callable[[], list[dict[str, Any]]],
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Rows and version for a ``RosterRequest`` reply, read together under the lock.
+
+        Returns the base rows last fanned out for ``project_key``: exactly what later
+        ``PresenceDelta``s diff against, so the pair is consistent by construction. Before
+        any fan-out (no base) it falls back to ``read_rows()``, called outside the lock.
+        """
+        with self._lock:
+            base = self._bases.get(project_key)
+            version = self._versions.get(project_key, 0)
+            if base is not None:
+                return [dict(row) for row in base.values()], version
+        return read_rows(), version
 
     def clear_key(self, project_key: str) -> None:
         """Drop tracked state for ``project_key`` (mirrors ``presence_fanout.clear_key``,

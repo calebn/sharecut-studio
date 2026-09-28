@@ -521,12 +521,17 @@ class SessionSyncService:
             log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
 
     def roster_event(self) -> dict[str, Any]:
-        """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: today's live
-        roster at the current version. No version bump: nothing changed, a client just
+        """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: the tracker's
+        last fanned-out rows at their version, read atomically
+        (``PresenceRosterTracker.roster``). No version bump: nothing changed, a client just
         missed a delta (a stale/unknown version) and needs to resync."""
         store = self._store_optional()
-        live_rows = store.list_clients() if store is not None else []
-        return presence_roster_event(live_rows, roster_version=self._roster_version())
+
+        def _live_rows() -> list[dict[str, Any]]:
+            return store.list_clients() if store is not None else []
+
+        rows, version = get_roster_tracker().roster(self._project_key, _live_rows)
+        return presence_roster_event(rows, roster_version=version)
 
     def _touch_and_fanout(
         self,
