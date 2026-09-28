@@ -871,6 +871,37 @@ describe("PipelinePanel", () => {
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
   });
 
+  it("seeds Analyze as the Activity primary even while an agent job is live", async () => {
+    const user = userEvent.setup();
+    dawState.activityJob = analyzeJobSnap({
+      id: "agent-1",
+      kind: "agent",
+      label: "align_tracks",
+      tool_id: "align_tracks",
+      message: "Scoring bleed windows",
+      current: null,
+      total: null,
+    });
+    analyzePipeline.mockImplementation(
+      async (_path: string, opts: { onJob: (job: unknown) => void }) => {
+        opts.onJob(
+          analyzeJobSnap({ status: "queued", current: null, total: null }),
+        );
+        return null;
+      },
+    );
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() => {
+      expect(setActivityJob).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "an-1", kind: "analyze" }),
+      );
+    });
+  });
+
   it("shows a running Analyze job's per-track progress with Cancel", async () => {
     const user = userEvent.setup();
     dawState.activityJob = analyzeJobSnap();
