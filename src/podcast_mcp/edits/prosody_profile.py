@@ -6,17 +6,20 @@ audio-identity reuse (``edits.transcript_reuse.audio_identity``), and the
 timeline-mapped window handed to ``audition_context`` (see #196).
 
 The reader (:func:`load_track_profile`) never hashes audio or reads pipeline config:
-it globs the cache prefix, picks the newest profile, and compares its stored
-``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint. The
-writer (:func:`run_prosody_analysis`) is the only thing that hashes audio or reruns
-Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content change).
+it lists this track's cache files (one after the writer prunes), picks the newest, and
+compares its stored ``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words
+fingerprint. The writer (:func:`run_prosody_analysis`) is the only thing that hashes
+audio or reruns Praat, and refreshes those stat fields on a reuse (e.g. a touch with no
+content change).
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +37,8 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcribe import TranscribeJob, cache_id_part, track_transcribe_job
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -42,9 +47,11 @@ from podcast_mcp.util.workspace_paths import resolve_within
 log = logging.getLogger(__name__)
 
 PROFILE_SCHEMA = "prosody_profile.v1"
-ALGORITHM_VERSION = 1
+ALGORITHM_VERSION = 2
 MAX_WINDOW_SEGMENTS = 6
-MAX_PROSODY_NOTE_LINES = 8
+PROSODY_LOCK_TIMEOUT_SEC = 600.0
+# ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
+_PROFILE_SUFFIX_RE = re.compile(r"_[0-9a-f]{16}_[0-9a-f]{16}\.json")
 
 
 def prosody_dir(project: EpisodeProject) -> Path:
@@ -101,6 +108,7 @@ class ProsodyProfile:
     audio_size: int | None = None
     audio_mtime_ns: int | None = None
     words_fingerprint: str = ""
+    algorithm_version: int = 0
     params: dict[str, Any] = field(default_factory=dict)
     engine: dict[str, Any] = field(default_factory=dict)
     segments: list[dict[str, Any]] = field(default_factory=list)
@@ -114,6 +122,7 @@ class ProsodyProfile:
             "audio_size": self.audio_size,
             "audio_mtime_ns": self.audio_mtime_ns,
             "words_fingerprint": self.words_fingerprint,
+            "algorithm_version": self.algorithm_version,
             "params": self.params,
             "engine": self.engine,
             "segments": self.segments,
@@ -129,6 +138,7 @@ class ProsodyProfile:
             audio_size=data.get("audio_size"),
             audio_mtime_ns=data.get("audio_mtime_ns"),
             words_fingerprint=str(data.get("words_fingerprint", "")),
+            algorithm_version=int(data.get("algorithm_version") or 0),
             params=dict(data.get("params") or {}),
             engine=dict(data.get("engine") or {}),
             segments=list(data.get("segments") or []),
@@ -157,23 +167,95 @@ class ProsodyRunResult:
         return ", ".join(parts)
 
 
-def _existing_profile(project: EpisodeProject, track_id: str) -> ProsodyProfile | None:
-    prefix = f"{cache_id_part(track_id)}_"
+def _track_profile_paths(project: EpisodeProject, track_id: str) -> list[Path]:
+    """This track's cache files only (exact ``{id}_{audio16}_{inputs16}.json`` names)."""
+    stem = cache_id_part(track_id)
     directory = prosody_dir(project)
     if not directory.is_dir():
-        return None
-    candidates = sorted(
-        (p for p in directory.glob(f"{prefix}*.json") if p.is_file()),
-        key=lambda p: p.stat().st_mtime_ns,
-        reverse=True,
-    )
-    for path in candidates:
+        return []
+    return [
+        p
+        for p in directory.glob(f"{stem}_*.json")
+        if _PROFILE_SUFFIX_RE.fullmatch(p.name[len(stem) :])
+    ]
+
+
+def _existing_profile(project: EpisodeProject, track_id: str) -> ProsodyProfile | None:
+    stamped: list[tuple[int, Path]] = []
+    for path in _track_profile_paths(project, track_id):
+        try:
+            stamped.append((path.stat().st_mtime_ns, path))
+        except OSError:  # removed between listing and stat (a concurrent prune)
+            continue
+    for _mtime, path in sorted(stamped, reverse=True):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
+        if not isinstance(data, dict) or data.get("schema") != PROFILE_SCHEMA:
+            continue
         return ProsodyProfile.from_json(data)
     return None
+
+
+def _prune_superseded(project: EpisodeProject, track_id: str, keep: Path) -> None:
+    """Delete this track's other cache files once ``keep`` is written."""
+    for path in _track_profile_paths(project, track_id):
+        if path.name != keep.name:
+            with contextlib.suppress(OSError):
+                path.unlink()
+
+
+def _engine_matches(profile: ProsodyProfile) -> bool:
+    """The profile came from this algorithm and, when installed, this parselmouth."""
+    if profile.algorithm_version != ALGORITHM_VERSION:
+        return False
+    installed = parselmouth_version()
+    return installed is None or profile.engine.get("version") == installed
+
+
+def _analyze_track(
+    project: EpisodeProject, track_id: str, job: TranscribeJob, params: ProsodyParams
+) -> Literal["computed", "reused"]:
+    """Compute or reuse one track's profile under a per-track lock, then prune."""
+    lock_path = prosody_dir(project) / f"{cache_id_part(track_id)}.lock"
+    with shared_file_lock(lock_path, timeout=PROSODY_LOCK_TIMEOUT_SEC):
+        existing = _existing_profile(project, track_id)
+        sha, (size, mtime_ns) = audio_identity(job, existing)
+        words = profile_words(project, track_id)
+        words_fp = words_fingerprint(words)
+        path = profile_path(project, track_id, sha[:16], inputs_key(params, words_fp))
+        outcome: Literal["computed", "reused"]
+        if (
+            existing is not None
+            and existing.audio_sha256 == sha
+            and existing.words_fingerprint == words_fp
+            and existing.params == params.key()
+            and _engine_matches(existing)
+        ):
+            existing.audio_size = size
+            existing.audio_mtime_ns = mtime_ns
+            write_json_atomic(path, existing.to_json())
+            outcome = "reused"
+        else:
+            samples = load_mono_full(job.audio, sample_rate=16000)
+            analysis = analyze_prosody(samples, 16000, words, params)
+            profile = ProsodyProfile(
+                track_id=track_id,
+                audio_sha256=sha,
+                audio_size=size,
+                audio_mtime_ns=mtime_ns,
+                words_fingerprint=words_fp,
+                algorithm_version=ALGORITHM_VERSION,
+                params=params.key(),
+                engine=analysis["engine"],
+                segments=analysis["segments"],
+                computed_at=time.time(),
+            )
+            write_json_atomic(path, profile.to_json())
+            outcome = "computed"
+        _prune_superseded(project, track_id, keep=path)
+        return outcome
 
 
 def run_prosody_analysis(
@@ -214,43 +296,10 @@ def run_prosody_analysis(
                 task.advance(n, total=len(track_ids), message=f"{track_id}: no media")
                 continue
 
-            existing = _existing_profile(project, track_id)
-            sha, (size, mtime_ns) = audio_identity(job, existing)
-            words = profile_words(project, track_id)
-            words_fp = words_fingerprint(words)
-            key = inputs_key(params, words_fp)
-
-            if (
-                existing is not None
-                and existing.audio_sha256 == sha
-                and existing.words_fingerprint == words_fp
-                and existing.params == params.key()
-            ):
-                existing.audio_size = size
-                existing.audio_mtime_ns = mtime_ns
-                path = profile_path(project, track_id, sha[:16], key)
-                write_json_atomic(path, existing.to_json())
-                result.reused.append(track_id)
-                task.advance(n, total=len(track_ids), message=f"{track_id}: reused")
-                continue
-
-            samples = load_mono_full(job.audio, sample_rate=16000)
-            analysis = analyze_prosody(samples, 16000, words, params)
-            profile = ProsodyProfile(
-                track_id=track_id,
-                audio_sha256=sha,
-                audio_size=size,
-                audio_mtime_ns=mtime_ns,
-                words_fingerprint=words_fp,
-                params=params.key(),
-                engine=analysis["engine"],
-                segments=analysis["segments"],
-                computed_at=time.time(),
-            )
-            path = profile_path(project, track_id, sha[:16], key)
-            write_json_atomic(path, profile.to_json())
-            result.computed.append(track_id)
-            task.advance(n, total=len(track_ids), message=f"{track_id}: analyzed")
+            outcome = _analyze_track(project, track_id, job, params)
+            (result.computed if outcome == "computed" else result.reused).append(track_id)
+            message = "analyzed" if outcome == "computed" else "reused"
+            task.advance(n, total=len(track_ids), message=f"{track_id}: {message}")
 
     result.compute_sec = time.monotonic() - started
     return result
@@ -266,8 +315,10 @@ class ProfileLookup:
 def load_track_profile(project: EpisodeProject, track_id: str) -> ProfileLookup:
     """Read the newest cached profile for ``track_id`` without hashing audio.
 
-    Freshness is a stat + words-fingerprint comparison only, so this is cheap
-    enough to call on every ``audition_context`` request.
+    Per call: a listing of this track's cache files (normally one, since
+    :func:`run_prosody_analysis` prunes superseded profiles), one JSON read, one
+    ``stat`` of the media, and an O(words) fingerprint of the track's transcript,
+    checked cheapest first. No Praat run and no audio decode.
     """
     profile = _existing_profile(project, track_id)
     if profile is None:
@@ -275,8 +326,15 @@ def load_track_profile(project: EpisodeProject, track_id: str) -> ProfileLookup:
             None,
             "missing",
             "No prosody profile yet; run the pipeline's analyze_prosody step "
-            "(podcast pipeline run --only analyze_prosody) or enable "
+            "(podcast pipeline run --only analyze_prosody, after reconcile/precorrect) or enable "
             "prosody.enabled and re-run the pipeline.",
+        )
+    if not _engine_matches(profile):
+        return ProfileLookup(
+            profile,
+            "stale",
+            "Prosody algorithm or engine changed since the profile was computed; "
+            "re-run analyze_prosody.",
         )
     track = project.track_by_id(track_id)
     if track is None or not track.media:
@@ -327,10 +385,6 @@ def _segment_line(segment: dict[str, Any]) -> str:
     return ", ".join(parts)
 
 
-def _overlaps(seg_start: float, seg_end: float, spans: list[tuple[float, float]]) -> bool:
-    return any(seg_start < b and seg_end > a for a, b in spans)
-
-
 def prosody_window(
     project: EpisodeProject,
     st: SessionTimeline,
@@ -349,9 +403,11 @@ def prosody_window(
             out["hint"] = lookup.hint
         return out
 
-    plain_spans = [(float(a), float(b)) for a, b in source_spans]
+    index = HalfOpenIntervalIndex.build((float(a), float(b)) for a, b in source_spans)
     overlapping = [
-        seg for seg in lookup.profile.segments if _overlaps(seg["start"], seg["end"], plain_spans)
+        seg
+        for seg in lookup.profile.segments
+        if index.overlaps(float(seg["start"]), float(seg["end"]))
     ]
     truncated = len(overlapping) > MAX_WINDOW_SEGMENTS
     shown = overlapping[:MAX_WINDOW_SEGMENTS]

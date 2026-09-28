@@ -4,6 +4,7 @@ timeline-mapped audition-context window. Uses the word_boundary fixture
 
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 from pathlib import Path
@@ -127,6 +128,143 @@ def test_run_prosody_analysis_recomputes_on_words_change(tmp_workspace: Path) ->
     result = pp.run_prosody_analysis(proj3, {})
     assert result.computed == ["host"]
     assert result.reused == []
+
+
+def test_run_prosody_analysis_recomputes_on_params_change(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    proj2 = load_project(path)
+    result = pp.run_prosody_analysis(proj2, {"prosody": {"pitch_floor_hz": 90.0}})
+    assert result.computed == ["host"]
+
+
+def test_run_prosody_analysis_recomputes_on_parselmouth_upgrade(
+    tmp_workspace: Path, monkeypatch
+) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    proj2 = load_project(path)
+    monkeypatch.setattr(pp, "parselmouth_version", lambda: "999.0")
+    result = pp.run_prosody_analysis(proj2, {})
+    assert result.computed == ["host"]
+
+
+def test_load_track_profile_stale_after_algorithm_bump(tmp_workspace: Path, monkeypatch) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    proj2 = load_project(path)
+    monkeypatch.setattr(pp, "ALGORITHM_VERSION", pp.ALGORITHM_VERSION + 1)
+    lookup = pp.load_track_profile(proj2, "host")
+    assert lookup.status == "stale"
+    assert lookup.hint is not None and "algorithm" in lookup.hint
+
+
+def test_run_prosody_analysis_prunes_superseded_profiles(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    proj2 = load_project(path)
+    proj2.transcripts[0].words.append(TranscriptWord(text="extra", start=5.97, end=6.1))
+    save_project(proj2, path)
+
+    proj3 = load_project(path)
+    result = pp.run_prosody_analysis(proj3, {})
+    assert result.computed == ["host"]
+    assert len(list(pp.prosody_dir(proj3).glob("host_*.json"))) == 1
+
+
+def test_prefix_sibling_track_cache_is_not_read_or_pruned(tmp_workspace: Path) -> None:
+    import os
+
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    sibling = pp.prosody_dir(proj) / f"host_b_{'a' * 16}_{'b' * 16}.json"
+    sibling.write_text(
+        json.dumps(
+            pp.ProsodyProfile(track_id="host_b", algorithm_version=pp.ALGORITHM_VERSION).to_json()
+        ),
+        encoding="utf-8",
+    )
+    future = sibling.stat().st_mtime + 10
+    os.utime(sibling, (future, future))
+
+    assert pp._existing_profile(proj, "host").track_id == "host"
+
+    proj2 = load_project(path)
+    proj2.transcripts[0].words.append(TranscriptWord(text="extra", start=5.97, end=6.1))
+    save_project(proj2, path)
+    proj3 = load_project(path)
+    pp.run_prosody_analysis(proj3, {})
+    assert sibling.exists()
+
+
+def test_existing_profile_skips_other_schema(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    bogus = pp.prosody_dir(proj) / f"host_{'0' * 16}_{'1' * 16}.json"
+    bogus.parent.mkdir(parents=True, exist_ok=True)
+    bogus.write_text(
+        json.dumps({"schema": "prosody_profile.v999", "track_id": "host"}), encoding="utf-8"
+    )
+    assert pp._existing_profile(proj, "host") is None
+    assert pp.load_track_profile(proj, "host").status == "missing"
+
+
+def test_existing_profile_tolerates_file_removed_before_stat(
+    tmp_workspace: Path, monkeypatch
+) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+
+    real = pp._track_profile_paths(proj, "host")
+    ghost = pp.prosody_dir(proj) / f"host_{'f' * 16}_{'e' * 16}.json"
+    monkeypatch.setattr(pp, "_track_profile_paths", lambda *_a: [ghost, *real])
+    assert pp._existing_profile(proj, "host") is not None
+
+
+def test_run_prosody_analysis_holds_per_track_lock(tmp_workspace: Path, monkeypatch) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    seen: list[Path] = []
+
+    def fake_lock(lock_path, timeout):
+        seen.append(lock_path)
+        return contextlib.nullcontext()
+
+    monkeypatch.setattr(pp, "shared_file_lock", fake_lock)
+    pp.run_prosody_analysis(proj, {})
+    assert [p.name for p in seen] == ["host.lock"]
+
+
+def test_version_bump_recomputes_and_supersedes_old_file(tmp_workspace: Path, monkeypatch) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+    (old_file,) = pp.prosody_dir(proj).glob("host_*.json")
+
+    monkeypatch.setattr(pp, "ALGORITHM_VERSION", pp.ALGORITHM_VERSION + 1)
+    proj2 = load_project(path)
+    assert pp.load_track_profile(proj2, "host").status == "stale"
+    result = pp.run_prosody_analysis(proj2, {})
+    assert result.computed == ["host"]
+    assert result.reused == []
+
+    files = list(pp.prosody_dir(proj2).glob("host_*.json"))
+    assert len(files) == 1
+    assert files[0].name != old_file.name
+    payload = json.loads(files[0].read_text(encoding="utf-8"))
+    assert payload["algorithm_version"] == pp.ALGORITHM_VERSION
+    assert pp.load_track_profile(load_project(path), "host").status == "fresh"
 
 
 def test_run_prosody_analysis_not_installed(tmp_workspace: Path, monkeypatch) -> None:
@@ -277,6 +415,18 @@ def test_prosody_window_truncates_and_caps_segments(tmp_workspace: Path) -> None
     assert window["status"] == "fresh"
     assert len(window["segments"]) == pp.MAX_WINDOW_SEGMENTS
     assert window["truncated"] is True
+
+
+def test_prosody_window_excludes_segments_outside_spans(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    pp.run_prosody_analysis(proj, {})
+    proj2 = load_project(path)
+    st = SessionTimeline(proj2)
+    window = pp.prosody_window(proj2, st, "host", [(SourceSec(100.0), SourceSec(101.0))])
+    assert window["status"] == "fresh"
+    assert window["segments"] == []
+    assert window["truncated"] is False
 
 
 def test_words_fingerprint_is_order_independent() -> None:
