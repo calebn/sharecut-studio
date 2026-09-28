@@ -52,3 +52,24 @@ the aggregate numbers and the recommendation are in
 [docs/testing.md § Word-boundary benchmark](../../../docs/testing.md#word-boundary-benchmark).
 `onnx-base` is also the production pin in `src/podcast_mcp/word_aligner_models.py`,
 kept equal to this file by `test_catalog_pin_matches_benchmarked_candidate`.
+
+## Shipped production pass (#715)
+
+`<id>.onnx-base-pipeline.json` are the measured
+[#715](https://github.com/calebn/sharecut-studio/issues/715) reports: produced by
+`scripts/benchmark_forced_aligners.py pipeline --target librispeech`, which drives
+the shipped call chain (`WordAligner.load` → `WordAligner.align` →
+`apply_word_spans`, i.e. `transcribe.py`'s `_align_words`) rather than the `run` /
+`agree` harness's own `align_prediction`. Copied unchanged from
+`<runs-dir>/<id>.onnx-base-pipeline.report.json`. The label is not
+`pipeline-onnx-base`: the #641 test above globs `*.onnx-base.json`, and
+`onnx-base-pipeline` must never match it. Re-scoring these against the gold
+fixtures, and pinning the exact measured values, is asserted in
+`tests/test_word_boundary_metrics.py::test_checked_in_shipped_pass_report_matches_pipeline_fixture`;
+`tests/test_word_align_real.py` (`e2e_real`) reproduces them with a fresh run. The
+full measured tables (LibriSpeech, lab agreement, `transcribe_tracks` runtime, and
+the word-duration sensitivity table behind the `DEFAULT_MAX_WORD_DURATION_SEC`
+threshold rule) are in
+[docs/testing.md § Shipped pass results (#715)](../../../docs/testing.md#shipped-pass-results-715).
+No lab audio, transcripts or word text are checked in here — only the LibriSpeech
+clips above and their aggregate numbers.

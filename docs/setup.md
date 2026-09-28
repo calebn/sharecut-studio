@@ -119,6 +119,13 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
 | `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **opt-in only**; not in `--component all`; ONNX file checked against a pinned sha256 at download, at load and when bootstrap checks the cache, so a corrupt snapshot reports [fail] with an --upgrade hint instead of [skip]; a failed load is not retried for the rest of that run) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir |
 
+**Word aligner tiers.** `word-aligner` bootstraps the single pinned tier the
+pipeline uses (`onnx-base`); `scripts/benchmark_forced_aligners.py` also
+benchmarks a heavier `torch-large` candidate, which is not wired into
+`transcribe.forced_alignment` and not part of any bootstrap component. The
+shipped `onnx-base` tier's measured cost and accuracy on real audio are in
+[docs/testing.md § Shipped pass results (#715)](testing.md#shipped-pass-results-715).
+
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights. Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 
 ```bash
