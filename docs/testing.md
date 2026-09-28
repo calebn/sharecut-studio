@@ -202,7 +202,15 @@ Subprocess tests race promotion and quarantine against an independent writer. Sw
 keep fresh and symlinked entries, enforce the 32-entry cap, and retarget an ancestor
 symlink during root-relative quarantine creation. An identity-read failure retains only
 a private stage.
-Unsupported descriptor platforms fail closed before public promotion.
+Unsupported descriptor platforms fail closed before public promotion; `resolve_source_mix` runs
+before that platform check, so a missing or stale mix reports its own portable error even when
+`_SAFE_FAILED_CLEANUP_SUPPORTED` is `False` (`test_publish_reports_a_missing_mix_before_the_platform_refusal`).
+`tests/review_platform.py` holds the shared `requires_safe_cleanup` / `requires_safe_failed_cleanup`
+skip markers so `test_review_versions.py` and `test_project_commit_lock.py` skip the same
+staging/quarantine/publication tests together on a platform without safe, descriptor-relative
+directory operations (Windows); `test_review_publication_support_matches_the_ci_platform` guards
+that those flags are `True` on POSIX and `False` on Windows, so CI cannot silently start skipping
+them everywhere.
 
 Tests that need object storage mock `load_object_store_config` / `ObjectStoreClient` explicitly (see `tests/test_review_media_object_store.py`).
 
