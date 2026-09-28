@@ -248,6 +248,13 @@ def _analyze_track(
             outcome = "reused"
         else:
             analysis = analyze_prosody_file(job.audio, words, params, cancel_check=cancel_check)
+            after = job.audio.stat()
+            if (after.st_size, after.st_mtime_ns) != (size, mtime_ns):
+                # Rewritten after hashing (e.g. between the two no-transcript decodes):
+                # the profile no longer matches the audio identity it would be cached under.
+                raise RuntimeError(
+                    f"{track_id}: media changed during prosody analysis; re-run the step"
+                )
             profile = ProsodyProfile(
                 track_id=track_id,
                 audio_sha256=sha,

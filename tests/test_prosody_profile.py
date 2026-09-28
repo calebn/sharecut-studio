@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -105,6 +106,26 @@ def test_analyze_track_streams_without_full_decode(
     cached = next(pp.prosody_dir(proj).glob("host_*.json"))
     payload = json.loads(cached.read_text(encoding="utf-8"))
     assert payload["algorithm_version"] == pp.ALGORITHM_VERSION == 4
+
+
+def test_analyze_track_refuses_to_cache_when_media_changes_mid_analysis(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    media = tmp_workspace / "raw" / "host.wav"
+    real = pp.analyze_prosody_file
+
+    def touching(p: Path, *args, **kwargs):
+        out = real(p, *args, **kwargs)
+        st = media.stat()
+        os.utime(media, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+        return out
+
+    monkeypatch.setattr(pp, "analyze_prosody_file", touching)
+    with pytest.raises(RuntimeError, match="media changed"):
+        pp.run_prosody_analysis(proj, {})
+    assert list(pp.prosody_dir(proj).glob("host_*.json")) == []
 
 
 def test_run_prosody_analysis_reuses_when_unchanged(tmp_workspace: Path) -> None:
