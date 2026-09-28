@@ -26,13 +26,10 @@ from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
 from process_helpers import reap
-from review_platform import requires_safe_failed_cleanup, run_unmarked_test_as_unsupported_platform
-
-
-@pytest.fixture(autouse=True)
-def _unmarked_tests_run_as_unsupported_platform(request, monkeypatch):
-    run_unmarked_test_as_unsupported_platform(request, monkeypatch)
-
+from review_platform import requires_safe_failed_cleanup
+from review_platform import (
+    unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
+)
 
 _CTX = mp.get_context("spawn")
 
@@ -88,6 +85,12 @@ def test_lock_is_reentrant_and_shared_per_workspace(minimal_project):
         assert project_commit_lock_path(project).is_file()
     assert project_commit_lock_path(project).parent.name == "artifacts"
     assert "history" not in project_commit_lock_path(project).parts
+
+
+def test_unmarked_tests_run_with_publication_support_forced_off():
+    """The autouse fixture imported from review_platform applies in this module too."""
+    assert review_versions._SAFE_STALE_CLEANUP_SUPPORTED is False
+    assert review_versions._SAFE_FAILED_CLEANUP_SUPPORTED is False
 
 
 def test_commit_waits_for_lock_held_by_another_process(minimal_project, monkeypatch):

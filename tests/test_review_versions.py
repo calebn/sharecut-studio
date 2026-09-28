@@ -47,13 +47,10 @@ from review_platform import (
     REVIEW_STALE_CLEANUP_SUPPORTED,
     requires_safe_cleanup,
     requires_safe_failed_cleanup,
-    run_unmarked_test_as_unsupported_platform,
 )
-
-
-@pytest.fixture(autouse=True)
-def _unmarked_tests_run_as_unsupported_platform(request, monkeypatch):
-    run_unmarked_test_as_unsupported_platform(request, monkeypatch)
+from review_platform import (
+    unmarked_tests_run_as_unsupported_platform as unmarked_tests_run_as_unsupported_platform,
+)
 
 
 @requires_safe_failed_cleanup
@@ -422,6 +419,12 @@ def test_review_publication_support_matches_the_ci_platform():
         assert REVIEW_STALE_CLEANUP_SUPPORTED
         assert REVIEW_FAILED_CLEANUP_SUPPORTED
     assert REVIEW_STALE_CLEANUP_SUPPORTED == REVIEW_FAILED_CLEANUP_SUPPORTED
+
+
+def test_unmarked_tests_run_with_publication_support_forced_off():
+    """The autouse fixture imported from review_platform forces both flags off here."""
+    assert review_versions._SAFE_STALE_CLEANUP_SUPPORTED is False
+    assert review_versions._SAFE_FAILED_CLEANUP_SUPPORTED is False
 
 
 def _fail_publication(stage, project, project_path, monkeypatch):
