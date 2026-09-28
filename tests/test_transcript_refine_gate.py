@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -325,6 +326,32 @@ def test_runner_unattended_flag_waives(minimal_project):
     run = runner.run(proj, only_step="require_transcript_refine", unattended=True)
     assert run.steps[0].status == "ok"
     assert "waived" in (run.steps[0].message or "")
+
+
+@pytest.mark.refine_gate
+def test_runner_waiver_refresh_lock_timeout_is_best_effort(minimal_project, monkeypatch, caplog):
+    from filelock import Timeout
+
+    import podcast_mcp.pipeline.runner as runner_mod
+
+    proj = _with_words(minimal_project)
+    mark_refine_pending(proj)
+    calls: list[dict] = []
+
+    def busy(project, **kwargs):
+        calls.append(kwargs)
+        raise Timeout("transcript_refine_status.json.lock")
+
+    monkeypatch.setattr(runner_mod, "refresh_unattended_waiver", busy)
+    runner = PipelineRunner(
+        defaults={"analysis": {"transcript_refine": {"mode": "waive_unattended"}}}
+    )
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.runner"):
+        run = runner.run(proj, only_step="require_transcript_refine", unattended=True)
+    assert calls
+    assert run.steps[0].status == "ok"
+    assert "refine status lock stayed busy" in caplog.text
+    assert load_status(proj)["status"] == "waived"
 
 
 @pytest.mark.refine_gate

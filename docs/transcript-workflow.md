@@ -48,7 +48,9 @@ The status must still be the same gate decision at completion; a newer explicit
 refine decision wins. Partial runs that skip the gate, runs with refine mode
 `off`, pending, done, and explicit user/agent/CLI/MCP waivers remain stale and
 require a new intentional refine decision. A lock beside the status file
-coordinates status writers across local processes.
+coordinates status writers across local processes. The post-run refresh is
+best effort: if that lock stays busy past its 30 s limit, the run still
+succeeds, logs a warning and leaves the waiver stale.
 
 In the host GUI, an approval blocked by this gate offers a **Waive with
 reason** recovery form. The waiver is recorded as a user decision; it does not
