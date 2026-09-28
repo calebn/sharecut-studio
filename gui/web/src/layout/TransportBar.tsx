@@ -500,7 +500,9 @@ export function TransportBar({
                 ? "Layers, zoom, theme, and more"
                 : mayManage
                   ? "Project, media, markers, and help"
-                  : "Project, media, and help",
+                  : mayIngest
+                    ? "Media and help"
+                    : "Help",
               <Icon name="menu" />,
             )}
           >
