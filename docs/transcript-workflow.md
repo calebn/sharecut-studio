@@ -229,7 +229,8 @@ read them. A document command mismatch is a 409 conflict, same shape as other st
 conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. In Studio the
 inline editor always sends the text it opened with; the Correct inspector sends the span
 text captured when the word was selected or End index last changed, and only when every
-word in that range is loaded (otherwise it sends none and shows a hint under Apply).
+word in that range is loaded and its loaded copies agree (otherwise it sends none and
+shows a hint under Apply).
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
 `verify_transcript` paths do not send it, and omitting it keeps the correction unguarded.
 The fix for a rejected correction is to re-read the transcript and redo the correction

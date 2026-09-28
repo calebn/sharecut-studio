@@ -515,7 +515,7 @@ describe("transcriptSpanText", () => {
     expect(transcriptSpanText(project, "host", 1, 1)).toBe("quick");
   });
 
-  it("keeps the first listing when a duplicated index disagrees", () => {
+  it("returns null when a duplicated index disagrees", () => {
     const dup = {
       transcript: {
         utterances: [
@@ -534,7 +534,7 @@ describe("transcriptSpanText", () => {
         ],
       },
     } as ProjectView;
-    expect(transcriptSpanText(dup, "host", 0, 0)).toBe("first");
+    expect(transcriptSpanText(dup, "host", 0, 0)).toBeNull();
   });
 
   it("returns null when an index in the range is missing", () => {

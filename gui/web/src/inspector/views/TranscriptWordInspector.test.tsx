@@ -184,6 +184,53 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
+  it("Apply with a duplicated index that disagrees sends null expected text", async () => {
+    const dup = project();
+    dup.transcript!.utterances.push({
+      track_id: "host",
+      speaker: "Host",
+      start: 2,
+      end: 3,
+      text: "where",
+      mappable: true,
+      timeline_start: 2,
+      timeline_end: 3,
+      words: [
+        {
+          text: "where",
+          start: 2,
+          end: 3,
+          timeline_start: 2,
+          timeline_end: 3,
+          word_index: 1,
+          confidence: 0.9,
+        },
+      ],
+    });
+    useDawStore.setState({ project: dup });
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    expect(
+      screen.getByText(/can't check whether someone else changed/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there",
+        null,
+      );
+    });
+  });
+
   it("Ignore calls setTranscriptWordsIgnored(i, i, true)", async () => {
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
