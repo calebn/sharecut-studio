@@ -310,14 +310,18 @@ describe("TransportBar guest Mix lock", () => {
       : within(scope).getByRole("group", { name: "Audition mode" });
     const role = menu ? "menuitemradio" : "button";
     expect(
-      within(audition).getByRole(role, { name: "Mix" }),
+      within(audition).getByRole(role, { name: "Full mix" }),
     ).not.toBeDisabled();
-    const fx = within(audition).getByRole(role, { name: "FX" });
-    const raw = within(audition).getByRole(role, { name: "Raw" });
+    const fx = within(audition).getByRole(role, { name: "Edited stems" });
+    const raw = within(audition).getByRole(role, { name: "Original" });
     expect(fx).toBeDisabled();
     expect(raw).toBeDisabled();
-    expect(fx.getAttribute("aria-description")).toBe("Guests listen in Mix");
-    expect(raw.getAttribute("aria-description")).toBe("Guests listen in Mix");
+    expect(fx.getAttribute("aria-description")).toBe(
+      "Guests listen in Full mix",
+    );
+    expect(raw.getAttribute("aria-description")).toBe(
+      "Guests listen in Full mix",
+    );
   }
 
   it("disables FX and Raw in the compact Menu for a viewer", async () => {

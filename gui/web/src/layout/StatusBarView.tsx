@@ -102,7 +102,7 @@ export function StatusBarView({
         title={renderSummary}
         onClick={() => onOpenTab("pipeline")}
       >
-        Render: {renderStale ? "stale" : "fresh"}
+        {renderStale ? "Mix out of date" : "Mix up to date"}
       </button>
       {transcriptNeedsSync ? (
         <span className={reconcileHighlight ? "stale-highlight" : undefined}>

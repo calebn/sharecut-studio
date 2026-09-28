@@ -49,7 +49,7 @@ make ux-demo-screens   # refresh Pages screenshots
 | Timeline | Pending filler cut overlay, chapters, levels envelope |
 | Text | Low-confidence “documented”, suppressed “um” |
 | Impact / More | Pending review cut |
-| Mix / FX | Audition Mix/FX/Raw in transport; volume envelope on Levels |
+| Mix / FX | Audition Full mix/Edited stems/Original in transport; volume envelope on Levels |
 | Social | One clip candidate |
 
 Audio is **symlinked** from `aligned_dialogue/raw` so the demo stays on the same stems as CI smoke.

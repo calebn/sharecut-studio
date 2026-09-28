@@ -25,9 +25,9 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
 | **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
 | **Remote agent link** | MCP URL for an external agent: `{base}/mcp/{token}/mcp` |
-| **Mix / FX / Raw** | What you’re hearing (session mix, with effects, or raw take) |
+| **Full mix / Edited stems / Original** | What you’re hearing (session mix, with effects, or raw take) |
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
-| **Stale render** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
+| **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
 
 ---
@@ -142,7 +142,7 @@ flowchart LR
 |----------|---------------|-------|
 | Now | session playhead | Timeline |
 | Duration | `timeline.duration_sec` (or derived) | Timeline |
-| Audition | Mix / FX / Raw client mode | — |
+| Audition | Full mix / Edited stems / Original client mode | — |
 
 ### Comment row
 

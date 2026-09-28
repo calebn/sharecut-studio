@@ -134,7 +134,7 @@ describe("MobileShell", () => {
     useRecordHostStore.getState().setTakeClipping(null);
   });
 
-  it("does not show Stale render for a new empty project", () => {
+  it("does not show Mix out of date for a new empty project", () => {
     const project = minimalProject({
       render_status: {
         needs_rerender: true,
@@ -151,10 +151,10 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
 
-    expect(screen.queryByText("Stale render")).toBeNull();
+    expect(screen.queryByText("Mix out of date")).toBeNull();
   });
 
-  it("shows Stale render when a project with media has no mix preview", () => {
+  it("shows Mix out of date when a project with media has no mix preview", () => {
     const project = minimalProject({
       tracks: [
         {
@@ -185,7 +185,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
 
-    expect(screen.getByText("Stale render")).toBeTruthy();
+    expect(screen.getByText("Mix out of date")).toBeTruthy();
   });
 
   it("shows queued host commands in the attention banner", async () => {

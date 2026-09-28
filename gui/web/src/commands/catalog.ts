@@ -24,7 +24,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "transport.audition": {
     id: "transport.audition",
     category: "transport",
-    label: "Audition Mix / FX / Raw",
+    label: "Audition Full mix / Edited stems / Original",
     when: "hasProject",
     paletteRunnable: false,
     notes: "Args: { mode: mix | fx | raw }",

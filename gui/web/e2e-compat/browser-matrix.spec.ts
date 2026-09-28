@@ -38,7 +38,7 @@ test.describe("browser compatibility matrix", () => {
     await expect(play).toBeEnabled();
     await page
       .getByRole("group", { name: "Audition mode" })
-      .getByRole("button", { name: "Raw" })
+      .getByRole("button", { name: "Original" })
       .click();
     const clock = page.locator("header.transport .timecode-current");
     const initial = parseTimecodeSec(await clock.innerText());

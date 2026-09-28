@@ -30,7 +30,7 @@ const meta: Meta<typeof TransportFrame> = {
 export default meta;
 type Story = StoryObj<typeof TransportFrame>;
 
-const MODES = ["Mix", "FX", "Raw"] as const;
+const MODES = ["Full mix", "Edited stems", "Original"] as const;
 
 function TransportTemplate({
   collapsed = false,
@@ -42,7 +42,7 @@ function TransportTemplate({
   initiallyPlaying?: boolean;
 }) {
   const [playing, setPlaying] = useState(initiallyPlaying);
-  const [mode, setMode] = useState<(typeof MODES)[number]>("Mix");
+  const [mode, setMode] = useState<(typeof MODES)[number]>("Full mix");
   return (
     <>
       <div style={{ blockSize: "var(--transport-height)" }}>
@@ -90,10 +90,10 @@ function TransportTemplate({
                 className={`ui-control ${pillClassName("warning", "pill--action")}`}
                 title="Stale stems: reference, guest. Click to refresh mix."
               >
-                Stale render
+                Mix out of date · Refresh
               </button>
             ) : (
-              <Pill tone="ok">Fresh</Pill>
+              <Pill tone="ok">Mix up to date</Pill>
             )}
             <div className="transport-primary-actions">
               <Button

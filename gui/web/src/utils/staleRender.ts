@@ -96,7 +96,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     wholeTrackIds: [],
     regionalOnlyTrackIds: [],
     allStaleAreWholeTrack: false,
-    summary: "Fresh",
+    summary: "Mix up to date",
   };
 }
 
@@ -219,7 +219,11 @@ export function staleRenderBreakdown(
     wholeTrackIds: [...wholeTrackIds],
     regionalOnlyTrackIds,
     allStaleAreWholeTrack,
-    summary: parts.length ? parts.join(" · ") : "Fresh",
+    summary: stale
+      ? parts.length
+        ? parts.join(" · ")
+        : "Mix out of date"
+      : "Mix up to date",
   };
 }
 

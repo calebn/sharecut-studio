@@ -85,7 +85,7 @@ Agent, CLI, and DAW tabs are clients of `SessionSyncService` (typed commands →
 | `get_session_state_tool` | Before “cut from here”, “what am I hearing?”, or any prompt that needs playhead/selection/region |
 | `get_session_presence_tool` | Who is looking at what — cursor (time or chrome `anchor`), selection, viewport, transport, follow, and `ui` (tab, audition, mute/solo). Humans can follow the Agent avatar while it auditions. |
 | `seek_session_tool` / `set_session_playing_tool` / `stop_session_tool` | Move or pause the DAW **without** OS `afplay` (`stop_session_tool` pauses in place; the GUI Stop / K returns to the play start) |
-| `set_session_mode_tool` | Switch Mix / FX / Raw in the viewer |
+| `set_session_mode_tool` | Switch Full mix / Edited stems / Original in the viewer |
 | `set_session_region_tool` | Highlight a span; optional `playing=true` for browser-only audition |
 | `play_*` tools | OS audio (`dry_run=false` → `PlayOsAudio`) **or** DAW browser (`dry_run=true` → `AuditionInViewer`); both seek/highlight. Real play does **not** start browser transport (avoids double audio). |
 

@@ -32,7 +32,7 @@ describe("staleRenderBreakdown", () => {
       }),
     );
     expect(b.stale).toBe(false);
-    expect(b.summary).toBe("Fresh");
+    expect(b.summary).toBe("Mix up to date");
     expect(b.invalidations).toEqual([]);
   });
 
@@ -50,7 +50,7 @@ describe("staleRenderBreakdown", () => {
       }),
     );
     expect(b.stale).toBe(false);
-    expect(b.summary).toBe("Fresh");
+    expect(b.summary).toBe("Mix up to date");
     expect(b.premixMissing).toBe(false);
   });
 
@@ -88,7 +88,7 @@ describe("staleRenderBreakdown", () => {
       }),
     );
     expect(b.stale).toBe(false);
-    expect(b.summary).toBe("Fresh");
+    expect(b.summary).toBe("Mix up to date");
   });
 
   it("still flags a project with source media but no premix", () => {
@@ -335,7 +335,36 @@ describe("staleRenderBreakdown", () => {
     );
     expect(b.stale).toBe(false);
     expect(b.invalidations).toHaveLength(1);
-    expect(b.summary).toBe("Fresh");
+    expect(b.summary).toBe("Mix up to date");
+  });
+
+  it("falls back to a generic 'Mix out of date' summary when stale has no explained parts", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: true,
+            media_path: "/tmp/host.wav",
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true, stale_vs_stems: false },
+          invalidations: [],
+        },
+      }),
+    );
+    expect(b.stale).toBe(true);
+    expect(b.summary).toBe("Mix out of date");
   });
 
   it("flags a premix mixed before a volume or mute change (#386)", () => {

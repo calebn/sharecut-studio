@@ -257,7 +257,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           </button>
         ) : null}
         {stale ? (
-          <span className="status-chip warning">Stale render</span>
+          <span className="status-chip warning">Mix out of date</span>
         ) : null}
         {chipJob ? (
           <PipelineStatusChip

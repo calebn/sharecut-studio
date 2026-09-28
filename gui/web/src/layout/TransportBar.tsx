@@ -19,7 +19,6 @@ import {
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import type { AuditionMode } from "../types/session";
 import {
   CommandButton,
   CommandMenuItem,
@@ -34,6 +33,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
+import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { AvatarStack } from "./AvatarStack";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
@@ -45,12 +45,6 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { transportPlayHandlers } from "./transportPlay";
 import { WaveformViewSections } from "./WaveformViewSections";
-
-const MODES: { id: AuditionMode; label: string; title: string }[] = [
-  { id: "mix", label: "Mix", title: "Full premix (all tracks)" },
-  { id: "fx", label: "FX", title: "Processed stems (edits + effects)" },
-  { id: "raw", label: "Raw", title: "Raw source audio (no FX)" },
-];
 
 /** Transport collapses labeled chrome when shell is tablet/phone or bar width ≤ this. */
 export const TRANSPORT_COLLAPSE_PX = 720;
@@ -154,7 +148,7 @@ export function TransportBar({
       role={menu ? "none" : "group"}
       label="Audition mode"
     >
-      {MODES.map((m) => (
+      {AUDITION_MODES.map((m) => (
         <ToggleButton
           key={m.id}
           quiet
@@ -163,11 +157,11 @@ export function TransportBar({
           className={m.id === "mix" && premixCue ? "stale-highlight" : ""}
           title={
             guestMixOnly && m.id !== "mix"
-              ? `${m.title} (guests listen in Mix)`
+              ? `${m.title} (${GUESTS_HEAR_FULL_MIX})`
               : m.title
           }
           aria-description={
-            guestMixOnly && m.id !== "mix" ? "Guests listen in Mix" : undefined
+            guestMixOnly && m.id !== "mix" ? GUESTS_HEAR_FULL_MIX : undefined
           }
           {...presenceAnchorProps(presenceAnchor("audition", m.id))}
           role={menu ? "menuitemradio" : undefined}
@@ -191,8 +185,8 @@ export function TransportBar({
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
     : mayRefresh
-      ? `Stale render. ${breakdown?.summary ?? ""}. Refresh mix.`
-      : `Stale render. ${breakdown?.summary ?? ""}`;
+      ? `Mix out of date. ${breakdown?.summary ?? ""}. Refresh mix.`
+      : `Mix out of date. ${breakdown?.summary ?? ""}`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
@@ -382,12 +376,12 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : "Stale render"}
+            {renderPreviewBusy ? "Refreshing…" : "Mix out of date · Refresh"}
           </CommandButton>
         ) : null}
-        {!collapsed && !stale ? <Pill tone="ok">Fresh</Pill> : null}
+        {!collapsed && !stale ? <Pill tone="ok">Mix up to date</Pill> : null}
         {/* Like the stale pill, status moves into the Menu when collapsed
-            (Render status), where touch users can read the full message. */}
+            (Mix status), where touch users can read the full message. */}
         {!collapsed && audioError && (
           <Pill tone="warning" className="audio-error" title={audioError}>
             <span aria-hidden="true">{audioErrorLabel(audioError)}</span>
@@ -578,7 +572,7 @@ export function TransportBar({
               </MenuSection>
             ) : null}
             {collapsed ? (
-              <MenuSection label="Render status">
+              <MenuSection label="Mix status">
                 {audioError ? (
                   <p className="transport-menu-note audio-error-note">
                     {audioErrorLabel(audioError)}: {audioError}
@@ -595,11 +589,13 @@ export function TransportBar({
                     onFocus={() => setStaleHighlight(true)}
                     onBlur={() => setStaleHighlight(false)}
                   >
-                    {renderPreviewBusy ? "Refreshing…" : "Refresh mix (stale)"}
+                    {renderPreviewBusy
+                      ? "Refreshing…"
+                      : "Mix out of date · Refresh"}
                   </CommandMenuItem>
                 ) : (
                   <p className="transport-menu-note">
-                    Render: {stale ? "Stale" : "Fresh"}
+                    {stale ? "Mix out of date" : "Mix up to date"}
                   </p>
                 )}
               </MenuSection>
