@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import wave
 from itertools import pairwise
 from pathlib import Path
@@ -143,6 +144,15 @@ def test_large_project_fixture_rejects_invalid_arguments(tmp_path, kwargs, match
     with pytest.raises(ValueError, match=match):
         _load_fixture_builder().build_project(tmp_path / "invalid", **kwargs)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_large_project_fixture_default_history_reaches_the_virtualized_list():
+    # large-project.spec.ts only profiles the virtualized History list when
+    # historyEntries / 2 >= VIRTUALIZE_ON_ROWS and silently skips it otherwise.
+    ts = (REPO / "gui/web/src/hooks/virtualRowThresholds.ts").read_text(encoding="utf-8")
+    match = re.search(r"export const VIRTUALIZE_ON_ROWS = (\d+);", ts)
+    assert match
+    assert int(match.group(1)) <= _load_fixture_builder().DEFAULT_HISTORY_STEPS
 
 
 def test_large_project_fixture_rejects_history_over_commit_cap(tmp_path):
