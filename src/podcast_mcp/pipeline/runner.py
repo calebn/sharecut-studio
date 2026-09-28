@@ -6,6 +6,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from filelock import Timeout
+
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.edits.transcript_refine_status import (
@@ -358,11 +360,20 @@ class PipelineRunner:
                 defaults=step_defaults,
             )
         ):
-            refresh_unattended_waiver(
-                project,
-                gate_status=gate_status,
-                gate_text_fingerprint=gate_text_fingerprint,
-            )
+            # Best effort: every step already finished, so a busy refine status lock must
+            # not fail the run. The waiver then stays stale, as when a later step changes it.
+            try:
+                refresh_unattended_waiver(
+                    project,
+                    gate_status=gate_status,
+                    gate_text_fingerprint=gate_text_fingerprint,
+                )
+            except Timeout:
+                logger.warning(
+                    "pipeline run %s finished, but the refine status lock stayed busy; "
+                    "its unattended refine waiver was not refreshed",
+                    run.id,
+                )
         return _current_run(project, run)
 
     def _select_steps(
