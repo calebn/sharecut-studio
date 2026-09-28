@@ -487,6 +487,38 @@ describe("TimelineView lane fit", () => {
     expect(watching).toHaveLength(1);
   });
 
+  it("stops observing without a project, then one observer watches the new scroller and header", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TimelineView headerSlot={<div className="track-headers" />} />
+      </DawProvider>,
+    );
+    const watchers = (el: Element | null) =>
+      el
+        ? RecordingResizeObserver.all.filter((ro) => ro.targets.includes(el))
+        : [];
+    const firstScroller = container.querySelector(".timeline-scroll");
+    expect(watchers(firstScroller)).toHaveLength(1);
+
+    act(() => useDawStore.setState({ project: null }));
+    expect(
+      screen.getByRole("group", { name: "Loading timeline" }),
+    ).toBeInTheDocument();
+    expect(watchers(firstScroller)).toHaveLength(0);
+    expect(watchers(container.querySelector(".timeline-scroll"))).toHaveLength(
+      0,
+    );
+    expect(watchers(container.querySelector(".track-headers"))).toHaveLength(0);
+
+    act(() => useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject()));
+    const scroller = container.querySelector(".timeline-scroll") as Element;
+    const header = container.querySelector(".track-headers") as Element;
+    const watching2 = watchers(scroller);
+    expect(watching2).toHaveLength(1);
+    expect(watching2[0].targets).toEqual([scroller, header]);
+    expect(watchers(header)).toEqual(watching2);
+  });
+
   it("publishes the drawn lane height and clears it on unmount", () => {
     const { unmount } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
