@@ -16,7 +16,13 @@ from typing import Any
 
 import yaml
 
-from podcast_mcp.util.model_manifest import PinnedSnapshot, manifest_mismatch, missing_files
+from podcast_mcp.util.model_manifest import (
+    PinnedSnapshot,
+    PinnedSnapshotMissingError,
+    download_pinned_snapshot,
+    manifest_mismatch,
+    resolve_pinned_snapshot,
+)
 
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
 
@@ -337,26 +343,12 @@ def _unpinned_weights_on_disk(model: str) -> bool:
 
 def _pinned_snapshot_dir(model: str, pin: PinnedSnapshot) -> Path:
     """The complete local pinned snapshot for ``model``; never downloads."""
-    from huggingface_hub import snapshot_download
-    from huggingface_hub.errors import LocalEntryNotFoundError
-
     from podcast_mcp.config import whisper_cache_dir
 
     try:
-        path = Path(
-            snapshot_download(
-                pin.hf_repo,
-                revision=pin.revision,
-                allow_patterns=pin.allow_patterns,
-                cache_dir=str(whisper_cache_dir()),
-                local_files_only=True,
-            )
-        )
-    except LocalEntryNotFoundError as exc:
+        return resolve_pinned_snapshot(pin, whisper_cache_dir())
+    except PinnedSnapshotMissingError as exc:
         raise WhisperWeightsMissingError(model) from exc
-    if missing_files(path, pin.file_sha256):
-        raise WhisperWeightsMissingError(model)
-    return path
 
 
 def verify_whisper_snapshot(
@@ -436,18 +428,10 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
             download_root=str(whisper_cache_dir()),
         )
     else:
-        from huggingface_hub import snapshot_download
-
-        # Intentional download path: the only Whisper snapshot_download without
-        # local_files_only=True.
-        path = snapshot_download(
-            pin.hf_repo,
-            revision=pin.revision,
-            allow_patterns=pin.allow_patterns,
-            cache_dir=str(whisper_cache_dir()),
-            force_download=force,
-        )
-        verify_whisper_snapshot(Path(path), canonical, pin)
+        # Intentional download path: the only pinned Whisper download (never local_files_only).
+        _, mismatch = download_pinned_snapshot(pin, whisper_cache_dir(), force=force)
+        if mismatch is not None:
+            raise WhisperPinMismatchError(canonical, mismatch)
     persist_error: str | None = None
     try:
         persist_whisper_model(canonical)

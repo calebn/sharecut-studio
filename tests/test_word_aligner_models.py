@@ -316,3 +316,13 @@ def test_tampered_vocab_json_fails_status_bootstrap_and_load(tmp_path, monkeypat
 
     with pytest.raises(WordAlignerPinMismatchError, match=r"vocab\.json"):
         bootstrap_word_aligner()
+
+
+def test_unreadable_hub_cache_reads_as_not_downloaded(monkeypatch) -> None:
+    def raise_oserror(*a, **k):
+        raise OSError("broken snapshot symlink")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", raise_oserror, raising=False)
+    with pytest.raises(WordAlignerMissingError, match="local cache unreadable"):
+        resolve_word_aligner_dir()
+    assert word_aligner_is_cached() is False

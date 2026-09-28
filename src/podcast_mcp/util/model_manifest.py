@@ -65,6 +65,67 @@ def manifest_mismatch(root: Path, manifest: FileManifest, *, memoize: bool = Fal
     return None
 
 
+class PinnedSnapshotMissingError(FileNotFoundError):
+    """No complete local copy of a pinned snapshot: never downloaded, partial, or unreadable."""
+
+    def __init__(self, detail: str = "") -> None:
+        self.detail = detail
+        super().__init__(detail or "not downloaded")
+
+
+def resolve_pinned_snapshot(pin: PinnedSnapshot, cache_dir: Path) -> Path:
+    """The complete local snapshot for ``pin`` under ``cache_dir``; never downloads.
+
+    Raises ``PinnedSnapshotMissingError`` when it is not downloaded, lacks a pinned file
+    (``detail="partial download"``), or huggingface_hub cannot read the local cache. Every
+    hub error here is an ``OSError`` (``LocalEntryNotFoundError``, ``HfHubHTTPError``, a
+    broken snapshot symlink), so none escapes as a raw hub error.
+    """
+    from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    try:
+        path = Path(
+            snapshot_download(
+                pin.hf_repo,
+                revision=pin.revision,
+                allow_patterns=pin.allow_patterns,
+                cache_dir=str(cache_dir),
+                local_files_only=True,
+            )
+        )
+    except LocalEntryNotFoundError as exc:
+        raise PinnedSnapshotMissingError() from exc
+    except OSError as exc:
+        raise PinnedSnapshotMissingError(f"local cache unreadable: {exc}") from exc
+    if missing_files(path, pin.file_sha256):
+        raise PinnedSnapshotMissingError("partial download")
+    return path
+
+
+def download_pinned_snapshot(
+    pin: PinnedSnapshot, cache_dir: Path, *, force: bool = False
+) -> tuple[Path, str | None]:
+    """Download ``pin`` into ``cache_dir`` and verify every file uncached.
+
+    The only pinned-snapshot network path. Returns the snapshot dir and its
+    ``manifest_mismatch`` (None when every file matches); the caller raises its own
+    pin-mismatch error.
+    """
+    from huggingface_hub import snapshot_download
+
+    path = Path(
+        snapshot_download(
+            pin.hf_repo,
+            revision=pin.revision,
+            allow_patterns=pin.allow_patterns,
+            cache_dir=str(cache_dir),
+            force_download=force,
+        )
+    )
+    return path, manifest_mismatch(path, pin.file_sha256)
+
+
 # Serialises memoised hashing so overlapping status polls hash a file once, not once each.
 _MEMO_LOCK = threading.Lock()
 

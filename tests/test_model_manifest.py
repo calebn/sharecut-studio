@@ -5,14 +5,18 @@ import time
 from pathlib import Path
 
 import pytest
+from huggingface_hub.errors import LocalEntryNotFoundError
 
 from podcast_mcp.util import model_manifest
 from podcast_mcp.util.model_manifest import (
     PinnedSnapshot,
+    PinnedSnapshotMissingError,
     clear_manifest_memo,
+    download_pinned_snapshot,
     manifest_files,
     manifest_mismatch,
     missing_files,
+    resolve_pinned_snapshot,
 )
 
 
@@ -199,3 +203,65 @@ def test_oserror_during_memoized_hash_propagates_and_is_not_cached(
     # Recovers on the next call instead of the OSError being remembered.
     assert manifest_mismatch(tmp_path, manifest, memoize=True) is None
     assert calls["n"] == 2
+
+
+def _pin(tmp_path: Path) -> tuple[PinnedSnapshot, Path]:
+    snap = tmp_path / "snap"
+    _write(snap, "a.txt", b"a")
+    return PinnedSnapshot("org/repo", "deadbeef", (("a.txt", _sha256(b"a")),)), snap
+
+
+def test_resolve_pinned_snapshot_reads_the_local_cache_only(tmp_path: Path, monkeypatch) -> None:
+    pin, snap = _pin(tmp_path)
+    seen: dict[str, object] = {}
+
+    def fake(repo, **kwargs):
+        seen.update(kwargs)
+        return str(snap)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake, raising=False)
+    assert resolve_pinned_snapshot(pin, tmp_path / "cache") == snap
+    assert seen["local_files_only"] is True
+    assert seen["revision"] == "deadbeef"
+    assert seen["allow_patterns"] == ["a.txt"]
+
+
+def test_resolve_pinned_snapshot_reports_a_partial_download(tmp_path: Path, monkeypatch) -> None:
+    pin, snap = _pin(tmp_path)
+    (snap / "a.txt").unlink()
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    with pytest.raises(PinnedSnapshotMissingError) as excinfo:
+        resolve_pinned_snapshot(pin, tmp_path / "cache")
+    assert excinfo.value.detail == "partial download"
+
+
+@pytest.mark.parametrize(
+    "error", [LocalEntryNotFoundError("absent"), OSError("broken snapshot symlink")]
+)
+def test_resolve_pinned_snapshot_maps_hub_errors_to_missing(
+    tmp_path: Path, monkeypatch, error: OSError
+) -> None:
+    pin, _ = _pin(tmp_path)
+
+    def raise_error(*a, **k):
+        raise error
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", raise_error, raising=False)
+    with pytest.raises(PinnedSnapshotMissingError):
+        resolve_pinned_snapshot(pin, tmp_path / "cache")
+
+
+def test_download_pinned_snapshot_verifies_the_download(tmp_path: Path, monkeypatch) -> None:
+    pin, snap = _pin(tmp_path)
+    seen: dict[str, object] = {}
+
+    def fake(repo, **kwargs):
+        seen.update(kwargs)
+        return str(snap)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake, raising=False)
+    assert download_pinned_snapshot(pin, tmp_path / "cache") == (snap, None)
+    assert seen["force_download"] is False
+    assert "local_files_only" not in seen

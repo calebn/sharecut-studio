@@ -24,9 +24,11 @@ from typing import Any
 
 from podcast_mcp.util.model_manifest import (
     FileManifest,
-    manifest_files,
+    PinnedSnapshot,
+    PinnedSnapshotMissingError,
+    download_pinned_snapshot,
     manifest_mismatch,
-    missing_files,
+    resolve_pinned_snapshot,
 )
 
 DEFAULT_WORD_ALIGNER = "onnx-base"
@@ -49,8 +51,13 @@ class WordAlignerModel:
     languages: tuple[str, ...]
 
     @property
+    def pin(self) -> PinnedSnapshot:
+        """This model's snapshot pin, for the shared resolve/download helpers."""
+        return PinnedSnapshot(self.hf_repo, self.revision, self.file_sha256)
+
+    @property
     def allow_patterns(self) -> list[str]:
-        return manifest_files(self.file_sha256)
+        return self.pin.allow_patterns
 
     def supports_language(self, language: str | None) -> bool:
         """True when this aligner can re-time a transcript in ``language`` (None means English)."""
@@ -149,26 +156,12 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
             model.id, f"{WORD_ALIGNER_ENV}={override} has no vocab.json or {model.onnx_file}"
         )
 
-    from huggingface_hub import snapshot_download
-    from huggingface_hub.errors import LocalEntryNotFoundError
-
     from podcast_mcp.config import word_aligner_cache_dir
 
     try:
-        path = Path(
-            snapshot_download(
-                model.hf_repo,
-                revision=model.revision,
-                allow_patterns=model.allow_patterns,
-                cache_dir=str(word_aligner_cache_dir()),
-                local_files_only=True,
-            )
-        )
-    except LocalEntryNotFoundError as exc:
-        raise WordAlignerMissingError(model.id) from exc
-    if missing_files(path, model.file_sha256):
-        raise WordAlignerMissingError(model.id, "partial download")
-    return path
+        return resolve_pinned_snapshot(model.pin, word_aligner_cache_dir())
+    except PinnedSnapshotMissingError as exc:
+        raise WordAlignerMissingError(model.id, exc.detail) from exc
 
 
 def word_aligner_problem(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerMissingError | None:
@@ -198,18 +191,11 @@ def bootstrap_word_aligner(
     model_id: str = DEFAULT_WORD_ALIGNER, *, force: bool = False
 ) -> dict[str, Any]:
     """Download the pinned snapshot into the word-aligner cache. The only network path."""
-    from huggingface_hub import snapshot_download
-
     from podcast_mcp.config import word_aligner_cache_dir
 
     model = word_aligner_model(model_id)
-    # Intentional download path — the only snapshot_download without local_files_only=True.
-    path = snapshot_download(
-        model.hf_repo,
-        revision=model.revision,
-        allow_patterns=model.allow_patterns,
-        cache_dir=str(word_aligner_cache_dir()),
-        force_download=force,
-    )
-    verify_word_aligner_snapshot(Path(path), model)
+    # Intentional download path: the only word-aligner download (never local_files_only).
+    path, mismatch = download_pinned_snapshot(model.pin, word_aligner_cache_dir(), force=force)
+    if mismatch is not None:
+        raise WordAlignerPinMismatchError(model.id, mismatch)
     return {"ok": True, "model": model.id, "path": str(path)}
