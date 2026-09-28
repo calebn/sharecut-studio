@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from podcast_mcp.models import TranscriptsSection
+from podcast_mcp.util.text import normalize_text
 from podcast_mcp.util.wer import normalize_token
 
 log = logging.getLogger(__name__)
@@ -84,7 +84,7 @@ def _first_phrase_before(
 ) -> tuple[float, float] | None:
     if before_sec is None:
         return find_phrase_interval(words, phrase)
-    needle = re.sub(r"\s+", " ", phrase.lower().strip())
+    needle = normalize_text(phrase)
     for w in words:
         if w.confidence < 0.5 or w.start > before_sec:
             continue
@@ -103,7 +103,7 @@ def find_phrase_interval(
     min_confidence: float = 0.5,
 ) -> tuple[float, float] | None:
     """Return (start, end) of first match for phrase across consecutive words."""
-    needle = re.sub(r"\s+", " ", phrase.lower().strip())
+    needle = normalize_text(phrase)
     if not needle:
         return None
     parts = [normalize_token(w.text) for w in words if w.confidence >= min_confidence]
