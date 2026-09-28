@@ -1389,6 +1389,20 @@ def test_notify_swallows_a_busy_journal_and_a_lock_timeout(minimal_project, capl
         notify_comments_changed(minimal_project)
 
 
+@pytest.mark.parametrize("exc", [ValueError("bad project"), RuntimeError("journal invariant")])
+def test_notify_swallows_any_journal_failure(minimal_project, caplog, exc):
+    from podcast_mcp.services.document_sync.service import (
+        notify_comments_changed,
+        notify_document_changed,
+    )
+
+    with patch.object(DocumentSyncService, "publish_document_changed", side_effect=exc):
+        with caplog.at_level(logging.WARNING):
+            notify_document_changed(minimal_project)
+            notify_comments_changed(minimal_project, role="guest")
+    assert caplog.text.count("Could not journal ExternalMutate") == 2
+
+
 def test_document_add_track_and_set_media(minimal_project, sample_wav):
     from pathlib import Path
     from shutil import copyfile

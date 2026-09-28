@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import json
 import logging
-import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -567,14 +566,23 @@ class DocumentSyncService:
 
 
 def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRole) -> None:
-    """Best effort: the mutation is already saved, so a lock timeout
-    (``filelock.Timeout`` is an ``OSError``) or a busy/corrupt ``document.db`` only logs
-    a warning instead of failing the caller."""
+    """Best effort: the mutation is already saved, so any failure to journal it (a lock
+    timeout — ``filelock.Timeout`` is an ``OSError`` — a busy/corrupt ``document.db``, a
+    project that fails to reload, a journal invariant) only logs a warning instead of
+    failing the caller.
+
+    Blocking: after the caller's own commit this waits again on the project lock (up to
+    ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``) and a ``document.db`` write. Every caller today
+    is a sync FastAPI handler (threadpool) or an MCP tool thread; an ``async def``
+    caller must offload it (``run_in_threadpool``).
+
+    The warning logs only ``project_path``: never add payloads, share tokens or guest
+    data to it."""
     try:
         DocumentSyncService.open(project_path).publish_document_changed(
             projection=projection, role=role
         )
-    except (OSError, sqlite3.Error):
+    except Exception:
         log.warning("Could not journal ExternalMutate for %s", project_path, exc_info=True)
 
 
