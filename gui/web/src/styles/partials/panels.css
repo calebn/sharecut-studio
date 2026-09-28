@@ -473,9 +473,12 @@
 
 /* Current low-confidence walkthrough stop (#634). After .selected on purpose:
    Correct mode selects the stop too, and the dashed marker must win the
-   outline (same specificity) while .selected keeps its background. */
+   outline (same specificity) while .selected keeps its background.
+   Solid --color-warning, not the 80-85% underline mix: the outline sits on
+   the active segment's accent-muted fill and needs 3:1 (WCAG 1.4.11);
+   light 3.2:1, dark 5.2:1 there. */
 .utterance-word.review-current {
-  outline: var(--focus-ring-width) dashed var(--color-warning-underline);
+  outline: var(--focus-ring-width) dashed var(--color-warning);
   outline-offset: 1px;
 }
 
