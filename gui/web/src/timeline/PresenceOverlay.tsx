@@ -1,6 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { rosterDisplayName } from "../presence/colors";
-import { useLivePresenceClients } from "../presence/useLivePresenceClients";
+import {
+  presenceIdsKey,
+  useLivePresenceClients,
+} from "../presence/useLivePresenceClients";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, TrackView } from "../types/project";
 import type { SessionClient } from "../types/session";
@@ -15,9 +18,15 @@ type Props = {
   hidePlayheadForClientId?: string | null;
 };
 
+/**
+ * Announces remote joins and departures. The effect keys on the live ids by
+ * value, so a render that only replaces client objects (a cursor or playhead
+ * move) or changes an unrelated prop does not re-run it.
+ */
 function usePresenceAnnouncer(others: SessionClient[]): void {
   const prevRef = useRef<Set<string> | null>(null);
-  useEffect(() => {
+  const idsKey = presenceIdsKey(others);
+  const announceChanges = useEffectEvent(() => {
     const ids = new Set(others.map((c) => c.client_id));
     const prev = prevRef.current;
     prevRef.current = ids;
@@ -34,7 +43,10 @@ function usePresenceAnnouncer(others: SessionClient[]): void {
         useDawStore.getState().announceStatus("Someone left");
       }
     }
-  }, [others]);
+  });
+  useEffect(() => {
+    announceChanges();
+  }, [idsKey]);
 }
 
 /** Remote presence over the lanes, reading the session roster itself. */

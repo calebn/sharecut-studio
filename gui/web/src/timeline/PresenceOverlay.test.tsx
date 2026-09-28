@@ -121,6 +121,37 @@ describe("PresenceOverlay", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
   });
 
+  it("announces nothing when a present client only moves", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    const bea = {
+      client_id: "bea",
+      role: "viewer",
+      playhead_sec: 1,
+      last_seen_ns: Date.now() * 1e6,
+      meta: { display_name: "Bea" },
+    };
+    useDawStore.setState({ localClientId: "me", sessionClients: [bea] });
+    render(
+      <PresenceOverlay
+        zoomPxPerSec={10}
+        height={72}
+        tracks={hostTracks}
+        clipsByTrack={{}}
+      />,
+    );
+    const announce = vi.spyOn(useDawStore.getState(), "announceStatus");
+    try {
+      act(() => {
+        useDawStore.setState({
+          sessionClients: [{ ...bea, playhead_sec: 4 }],
+        });
+      });
+      expect(announce).not.toHaveBeenCalled();
+    } finally {
+      announce.mockRestore();
+    }
+  });
+
   it("places a lane_pos: 1 cursor at top 100px with a TimelineMetricsProvider laneHeight of 100", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({

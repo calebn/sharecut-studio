@@ -59,6 +59,27 @@ describe("useLivePresenceClients", () => {
     expect(result.current.others).toEqual([]);
   });
 
+  it("keeps the same others array until the roster or its live ids change", () => {
+    vi.useFakeTimers({ now: T0 });
+    const peer = client("peer", T0);
+    const roster = [client("me", T0), peer];
+    const { result, rerender } = renderHook(
+      ({ clients, localId }) => useLivePresenceClients(clients, localId),
+      { initialProps: { clients: roster, localId: "me" } },
+    );
+    const first = result.current.others;
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(result.current.others).toBe(first);
+    rerender({ clients: roster, localId: "me" });
+    expect(result.current.others).toBe(first);
+    const moved = { ...peer, playhead_sec: 3 };
+    rerender({ clients: [client("me", T0), moved], localId: "me" });
+    expect(result.current.others).not.toBe(first);
+    expect(result.current.others).toEqual([moved]);
+  });
+
   it("reads now from the server clock offset", () => {
     vi.useFakeTimers({ now: T0 });
     setServerClockOffsetForTests(1_000);
