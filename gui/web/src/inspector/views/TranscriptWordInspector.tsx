@@ -157,7 +157,13 @@ export function TranscriptWordInspector({
 
   const toggleSuppress = async () => {
     await runForWord("suppressed", () =>
-      setTranscriptWordSuppressed(projectPath, trackId, wordIndex, !suppressed),
+      setTranscriptWordSuppressed(
+        projectPath,
+        trackId,
+        wordIndex,
+        !suppressed,
+        wordSpanText,
+      ),
     );
   };
 
@@ -169,6 +175,7 @@ export function TranscriptWordInspector({
         wordIndex,
         wordIndex,
         !ignored,
+        wordSpanText,
       ),
     );
   };

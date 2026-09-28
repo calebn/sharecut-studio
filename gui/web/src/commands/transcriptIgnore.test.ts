@@ -64,7 +64,7 @@ describe("transcript.ignoreWords", () => {
     });
   });
 
-  it("ignores the selected range and announces status", async () => {
+  it("ignores the selected range, sends the captured span text, and announces status", async () => {
     const result = await execute("transcript.ignoreWords", {});
     expect(result).toEqual({ status: "ok" });
     expect(api.setTranscriptWordsIgnored).toHaveBeenCalledWith(
@@ -73,8 +73,43 @@ describe("transcript.ignoreWords", () => {
       0,
       1,
       true,
+      "w0 w1",
     );
     expect(useDawStore.getState().statusAnnouncement).toBe("Ignored selection");
+  });
+
+  it("sends null expected text when a word in the range is not loaded", async () => {
+    useDawStore.setState({
+      project: minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+        transcript: {
+          utterances: [
+            {
+              track_id: "host",
+              speaker: "Host",
+              start: 0,
+              end: 2,
+              text: "so um",
+              words: [{ text: "w0", start: 0, end: 0.4, word_index: 0 }],
+            },
+          ],
+        },
+      }),
+    });
+    const result = await execute("transcript.ignoreWords", {});
+    expect(result).toEqual({ status: "ok" });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      0,
+      1,
+      true,
+      null,
+    );
   });
 
   it("drops a second ignore while the first is in flight", async () => {
@@ -108,6 +143,7 @@ describe("transcript.ignoreWords", () => {
       0,
       1,
       false,
+      "w0 w1",
     );
     expect(useDawStore.getState().statusAnnouncement).toBe(
       "Restored selection",
@@ -127,6 +163,7 @@ describe("transcript.ignoreWords", () => {
       0,
       0,
       true,
+      "w0",
     );
   });
 

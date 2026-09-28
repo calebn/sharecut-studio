@@ -3,6 +3,7 @@ import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { ignoreTarget } from "../transcript/ignoredWords";
 import { errorMessage } from "../utils/apiError";
+import { transcriptSpanText } from "../utils/transcript";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -49,6 +50,15 @@ export function registerTranscriptIgnoreCommands(): void {
       if (ignoreInFlight) {
         return { status: "disabled", reason: "Ignore already in progress" };
       }
+      // Captured from the same snapshot that resolved `target`, before any
+      // await, so a peer edit mid-flight is refused rather than silently
+      // guarding against text the user never saw (#744).
+      const expectedText = transcriptSpanText(
+        s.project,
+        target.trackId,
+        target.startWordIndex,
+        target.endWordIndex,
+      );
       ignoreInFlight = true;
       try {
         await setTranscriptWordsIgnored(
@@ -57,6 +67,7 @@ export function registerTranscriptIgnoreCommands(): void {
           target.startWordIndex,
           target.endWordIndex,
           target.ignored,
+          expectedText,
         );
         useDawStore
           .getState()

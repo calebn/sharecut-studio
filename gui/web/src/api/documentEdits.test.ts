@@ -11,6 +11,8 @@ import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import {
   correctTranscriptPhrase,
   correctTranscriptWord,
+  setTranscriptWordSuppressed,
+  setTranscriptWordsIgnored,
 } from "./documentEdits";
 
 beforeEach(() => {
@@ -96,6 +98,94 @@ describe("correctTranscriptPhrase", () => {
         start_word_index: 3,
         end_word_index: 5,
         text: "Hello there",
+      },
+      undefined,
+    );
+  });
+});
+
+describe("setTranscriptWordSuppressed", () => {
+  it("sends expected_text when provided", async () => {
+    await setTranscriptWordSuppressed("/tmp/ep", "host", 3, true, "hello");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordSuppressed",
+      {
+        track_id: "host",
+        word_index: 3,
+        suppressed: true,
+        expected_text: "hello",
+      },
+      undefined,
+    );
+  });
+
+  it("omits expected_text when the argument is omitted or null", async () => {
+    await setTranscriptWordSuppressed("/tmp/ep", "host", 3, true);
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordSuppressed",
+      { track_id: "host", word_index: 3, suppressed: true },
+      undefined,
+    );
+
+    await setTranscriptWordSuppressed("/tmp/ep", "host", 3, true, null);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordSuppressed",
+      { track_id: "host", word_index: 3, suppressed: true },
+      undefined,
+    );
+  });
+});
+
+describe("setTranscriptWordsIgnored", () => {
+  it("sends expected_text when provided", async () => {
+    await setTranscriptWordsIgnored(
+      "/tmp/ep",
+      "host",
+      3,
+      5,
+      true,
+      "hello there",
+    );
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordsIgnored",
+      {
+        track_id: "host",
+        start_word_index: 3,
+        end_word_index: 5,
+        ignored: true,
+        expected_text: "hello there",
+      },
+      undefined,
+    );
+  });
+
+  it("omits expected_text when the argument is omitted or null", async () => {
+    await setTranscriptWordsIgnored("/tmp/ep", "host", 3, 5, true);
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordsIgnored",
+      {
+        track_id: "host",
+        start_word_index: 3,
+        end_word_index: 5,
+        ignored: true,
+      },
+      undefined,
+    );
+
+    await setTranscriptWordsIgnored("/tmp/ep", "host", 3, 5, true, null);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordsIgnored",
+      {
+        track_id: "host",
+        start_word_index: 3,
+        end_word_index: 5,
+        ignored: true,
       },
       undefined,
     );
