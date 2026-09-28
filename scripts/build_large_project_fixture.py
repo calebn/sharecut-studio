@@ -39,7 +39,7 @@ from podcast_mcp.models.episode import (
     TranscriptWord,
 )
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
-from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.project_store import HISTORY_ENTRY_LIMIT, ProjectStore
 from podcast_mcp.util.wav import (
     MAX_PCM_WAV_DATA_BYTES,
     PCM_SAMPLE_WIDTH_BYTES,
@@ -65,7 +65,10 @@ UTTERANCE_FILL = 0.55
 # Timestamps are stored at millisecond precision; spans must survive rounding.
 MIN_SPAN_SEC = 0.002
 # Each step is a before/after pair (two entries) toggling the first clip's fade-in.
-DEFAULT_HISTORY_STEPS = 500
+# ProjectStore.commit() prunes history past HISTORY_ENTRY_LIMIT entries, so a fixture
+# with more steps than this would never survive a real commit; cap the default there.
+MAX_HISTORY_STEPS = HISTORY_ENTRY_LIMIT // 2
+DEFAULT_HISTORY_STEPS = MAX_HISTORY_STEPS
 HISTORY_LABEL = "benchmark fade toggle"
 HISTORY_OPERATION = "benchmark_fade_toggle"
 HISTORY_FADE_MS = 10
@@ -101,8 +104,11 @@ def _validate(
         raise ValueError(f"track count must be at least {len(TRACKS)}")
     if waveform not in WAVEFORM_MODES:
         raise ValueError(f"waveform must be one of {', '.join(WAVEFORM_MODES)}")
-    if history_steps < 0:
-        raise ValueError("history steps must be zero or more")
+    if not 0 <= history_steps <= MAX_HISTORY_STEPS:
+        raise ValueError(
+            f"history steps must be between 0 and {MAX_HISTORY_STEPS} "
+            f"(project history keeps at most {HISTORY_ENTRY_LIMIT} entries)"
+        )
     if clip_count % track_count:
         raise ValueError("clip count must be divisible by the track count")
     frames = round(duration * SAMPLE_RATE)
@@ -254,7 +260,10 @@ def _seed_history(project: EpisodeProject, steps: int) -> None:
         for phase, state in (("before", states[step]), ("after", states[step + 1])):
             entries.append(
                 HistoryEntry(
-                    id=f"benchmark-{len(entries):06d}",
+                    # 12 lowercase hex chars, matching ProjectStore._GENERATED_SNAPSHOT_ID
+                    # (and HistoryManager's uuid4().hex[:12] ids), so a real commit's
+                    # pruning can remove these entries' snapshot files.
+                    id=f"{len(entries):012x}",
                     label=f"{phase} {HISTORY_LABEL}",
                     created_at=(started + timedelta(seconds=len(entries))).isoformat(),
                     snapshot_file=files[state],
@@ -354,7 +363,11 @@ def main() -> None:
         "--history",
         type=int,
         default=DEFAULT_HISTORY_STEPS,
-        help="history steps (two entries each); 0 leaves the history empty",
+        help=(
+            "history steps (two entries each); 0 leaves the history empty, "
+            f"max {MAX_HISTORY_STEPS} (project history keeps at most "
+            f"{HISTORY_ENTRY_LIMIT} entries)"
+        ),
     )
     args = parser.parse_args()
     print(
