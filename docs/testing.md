@@ -555,6 +555,13 @@ file ACKs on the same `/rec/` token, the clips land. Auto-land does not return
 its drift report to the browser, so the drift report after a host-reconnect
 pause is asserted in `tests/test_record_host_reconnect.py`
 (`test_land_after_host_reconnect_pause_reports_drift`).
+Because a drop closes both proxy sides at once, the server always sees a clean
+close with a fresh heartbeat. The stale-heartbeat branch of
+`RecordSessionService.disconnect` (a socket that closes long after the network
+died, `HOST_HEARTBEAT_STALE_MS`) and a sidecar restart without Leave are
+covered only in `tests/test_record_host_reconnect.py`
+(`test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold`,
+`test_restart_without_leave_still_pauses_on_host_join`).
 
 ### Browser acceptance matrix
 
