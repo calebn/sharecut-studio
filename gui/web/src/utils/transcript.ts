@@ -26,7 +26,7 @@ export function findTranscriptWordIn(
   return null;
 }
 
-/** First indexed word on a track, in transcript order. */
+/** First indexed word on a track, in transcript order. For display; the #650 guard text goes through `transcriptSpanText`, which rejects disagreeing duplicates. */
 export function findTranscriptWord(
   project: ProjectView | null,
   trackId: string,

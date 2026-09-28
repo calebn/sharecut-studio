@@ -63,6 +63,33 @@ function project() {
   });
 }
 
+/** `project()` plus a second listing of word 1 that disagrees ("where"). */
+function projectWithDisagreeingDuplicate() {
+  const dup = project();
+  dup.transcript!.utterances.push({
+    track_id: "host",
+    speaker: "Host",
+    start: 2,
+    end: 3,
+    text: "where",
+    mappable: true,
+    timeline_start: 2,
+    timeline_end: 3,
+    words: [
+      {
+        text: "where",
+        start: 2,
+        end: 3,
+        timeline_start: 2,
+        timeline_end: 3,
+        word_index: 1,
+        confidence: 0.9,
+      },
+    ],
+  });
+  return dup;
+}
+
 describe("TranscriptWordInspector", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
@@ -93,6 +120,9 @@ describe("TranscriptWordInspector", () => {
 
   it("Apply with end index = start calls correctTranscriptWord", async () => {
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    expect(
+      screen.queryByText(/can't check whether someone else changed/),
+    ).toBeNull();
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello" },
     });
@@ -184,30 +214,8 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
-  it("Apply with a duplicated index that disagrees sends null expected text", async () => {
-    const dup = project();
-    dup.transcript!.utterances.push({
-      track_id: "host",
-      speaker: "Host",
-      start: 2,
-      end: 3,
-      text: "where",
-      mappable: true,
-      timeline_start: 2,
-      timeline_end: 3,
-      words: [
-        {
-          text: "where",
-          start: 2,
-          end: 3,
-          timeline_start: 2,
-          timeline_end: 3,
-          word_index: 1,
-          confidence: 0.9,
-        },
-      ],
-    });
-    useDawStore.setState({ project: dup });
+  it("phrase Apply with a duplicated index that disagrees sends null expected text", async () => {
+    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     fireEvent.change(screen.getByLabelText("Corrected text"), {
       target: { value: "Hello there" },
@@ -229,6 +237,28 @@ describe("TranscriptWordInspector", () => {
         null,
       );
     });
+  });
+
+  it("single-word Apply on a duplicated index that disagrees sends null expected text", async () => {
+    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(
+      screen.getByText(/can't check whether someone else changed/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "There" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        "There",
+        null,
+      );
+    });
+    expect(correctTranscriptPhrase).not.toHaveBeenCalled();
   });
 
   it("Ignore calls setTranscriptWordsIgnored(i, i, true)", async () => {

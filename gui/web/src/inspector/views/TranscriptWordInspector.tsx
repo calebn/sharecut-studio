@@ -59,6 +59,16 @@ export function TranscriptWordInspector({
         : null,
     [project, trackId, wordIndex, wordsHydrated],
   );
+  // This word's text under the shared duplicate-index rule (#650): null when
+  // two loaded listings of the index disagree, so Apply sends no guard and
+  // says so. `findTranscriptWord` stays first-listing for display only.
+  const wordSpanText = useMemo(
+    () =>
+      project && wordsHydrated
+        ? transcriptSpanText(project, trackId, wordIndex, wordIndex)
+        : null,
+    [project, trackId, wordIndex, wordsHydrated],
+  );
   const { busy, error, setError, run } = useProjectMutation();
   const mountedRef = useMountedRef();
   const [text, setText] = useState(word?.text ?? "");
@@ -66,16 +76,14 @@ export function TranscriptWordInspector({
   // Span text the user saw when the draft was seeded or End index last
   // changed (#650). Apply sends this snapshot, never a fresh read, so a peer
   // edit inside the range since then is refused with a 409.
-  const [expectedText, setExpectedText] = useState<string | null>(
-    word?.text ?? null,
-  );
+  const [expectedText, setExpectedText] = useState<string | null>(wordSpanText);
 
   useEffect(() => {
     setText(word?.text ?? "");
     setEndIndexStr(String(wordIndex));
-    setExpectedText(word?.text ?? null);
+    setExpectedText(wordSpanText);
     setError(null);
-  }, [word?.text, wordIndex, trackId, setError]);
+  }, [word?.text, wordSpanText, wordIndex, trackId, setError]);
 
   const changeEndIndex = (value: string) => {
     setEndIndexStr(value);
@@ -191,7 +199,7 @@ export function TranscriptWordInspector({
   const endIndexNum = Number.parseInt(endIndexStr, 10);
   const spanUnverified =
     Number.isInteger(endIndexNum) &&
-    endIndexNum > wordIndex &&
+    endIndexNum >= wordIndex &&
     expectedText == null;
 
   return (
