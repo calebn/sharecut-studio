@@ -24,7 +24,7 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 
 **CLI:** `podcast transcript correct`, `podcast transcript review`
 
-**Host Sharecut Studio:** Transcript tab → double-click a word, type, Enter (inline; Esc cancels), or **Correct** → click a word → inspector Apply / Suppress / Ignore (document commands; text only for Suppress, audio+text for Ignore, timing unchanged either way). Select mode has an Ignore/Restore toolbar button for a transcript range, and each ignored run gets a hover Restore control. Agent listen-first audition stays MCP-only (`podcast-transcript-audition`).
+**Host Sharecut Studio:** Transcript tab → double-click a word, type, Enter (inline; Esc cancels), or **Correct** → click a word → inspector Apply / Suppress / Ignore (document commands; text only for Suppress, audio+text for Ignore, timing unchanged either way). Select mode has an Ignore/Restore toolbar button for a transcript range, and each ignored run gets a hover Restore control. Annotate → **Previous / Next** walks the low-confidence words (with Correct on, each step opens the word in the inspector). Agent listen-first audition stays MCP-only (`podcast-transcript-audition`).
 
 ## NL workflow
 

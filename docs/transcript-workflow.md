@@ -187,6 +187,11 @@ automatically. No `EditDecision`, cut, or `edit_log` record is created either
 way, but ignore additionally creates none of the mute-region bookkeeping that a
 `tighten.edit_mode: mute` cut would.
 
+**Low-confidence walkthrough (#634):** it uses the same 0.7 threshold as
+`low_confidence_words_tool`; Sharecut Studio walks those words Next/Previous
+under Annotate; a corrected word (confidence set to 1.0) leaves the list and
+the walk continues from its slot.
+
 CLI `podcast transcribe` and MCP `transcribe_track` are the explicit re-transcribe
 path: they run ASR even when a transcript exists (the ASR disk cache still counts),
 replace only the transcripts they produce, keeping other tracks and extra-source
