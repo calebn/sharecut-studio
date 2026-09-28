@@ -196,6 +196,8 @@ def plan_windows(
     ``spans`` must be sorted by start time (ties allowed): grouping is a single
     left-to-right pass. Windows split on gaps over ``max_gap_sec`` or spans over
     ``max_window_sec`` and never pad across the midpoint to the next window.
+    A single span longer than ``max_window_sec`` is not split: it gets its own
+    window, as long as the span plus padding.
     ``audio_sec`` defaults to unbounded: only the padded right edge is clamped
     to it, so a caller that streams the decode (``retime_spans_stream``) can
     plan windows before it knows the media's length and let the reader clamp
@@ -296,7 +298,9 @@ def retime_spans_stream(
 
     Windows are planned without an ``audio_sec`` bound; the reader clamps
     each window's samples at EOF, so the result is identical to a whole-file
-    decode (#730).
+    decode (#730). Resident audio is one planned window plus one reader
+    chunk; windows are at most ``max_window_sec`` plus padding except around
+    a single overlong word span (see :func:`plan_windows`).
     """
     sample_rate = reader.sample_rate
     order = sorted(range(len(words)), key=lambda i: words[i][1])
