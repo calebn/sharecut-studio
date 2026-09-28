@@ -5,6 +5,7 @@ Usage:
   python3 scripts/docs_sync.py check --range origin/main...HEAD   # the gate: exit 1 on a violation
   python3 scripts/docs_sync.py check --staged                     # pre-commit: warn, always exit 0
   python3 scripts/docs_sync.py table [--check]                    # AGENTS.md § Docs in sync
+  python3 scripts/docs_sync.py replay --units units.jsonl         # triage merged PRs (make docs-sync-replay)
 
 Stdlib only, so CI runs it before installing anything. Never reads ``__file__``:
 review_packet.py pipes this file into ``python3 -`` from a git object (see
@@ -480,6 +481,62 @@ def change_for_index(base_ref: str = DEFAULT_BASE) -> Change:
     return Change(label="index", files=files, waivers=waivers)
 
 
+def units_from_jsonl(text: str) -> list[tuple[str, str]]:
+    """Replay input: one ``{"label": "#744", "range": "<sha>~3..<sha>"}`` per line."""
+    units: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        record = json.loads(line)
+        units.append((record["label"], record["range"]))
+    return units
+
+
+_GH_RANGE_RE = re.compile(r"^(?P<sha>[0-9a-f]{4,40})~(?P<n>\d+)\.\.(?P=sha)$")
+
+
+def _guarded_range(label: str, spec: str) -> tuple[str, str | None]:
+    """A ``make docs-sync-replay`` range is ``mergeCommit~commit_count..mergeCommit``
+    (rebase-merge keeps every PR commit as a first-parent ancestor of the merge commit).
+    A squash-merged older PR, or a shallow clone that doesn't reach that far back, makes
+    ``sha~N`` resolve to the wrong commit or fail outright; verify the range actually holds
+    N commits and fall back to just the merge commit itself when it doesn't, with a note.
+    Any other range (a hand-built ``A..B`` for a single commit or local testing) passes
+    through unguarded."""
+    match = _GH_RANGE_RE.match(spec)
+    if not match:
+        return spec, None
+    sha, n = match.group("sha"), int(match.group("n"))
+    try:
+        count = int(git("rev-list", "--count", spec).strip())
+    except subprocess.CalledProcessError:
+        count = -1
+    if count == n:
+        return spec, None
+    fallback = f"{sha}^..{sha}"
+    note = f"{label}: range {spec!r} has {count} commit(s), not {n}; using {fallback}"
+    return fallback, note
+
+
+def replay_units(contract: Contract, units: Iterable[tuple[str, str]]) -> list[tuple[str, Report]]:
+    """``evaluate(contract, change_for_range(...))`` per unit, against the given contract
+    (the working tree's by default: tune, then replay, without committing first)."""
+    results: list[tuple[str, Report]] = []
+    for label, spec in units:
+        guarded, note = _guarded_range(label, spec)
+        if note:
+            print(f"note: {note}", file=sys.stderr)
+        change, _head = change_for_range(guarded)
+        results.append(
+            (
+                label,
+                evaluate(contract, Change(label=label, files=change.files, waivers=change.waivers)),
+            )
+        )
+    return results
+
+
 # ---------------------------------------------------------------- output
 
 
@@ -525,6 +582,33 @@ def format_report(report: Report) -> str:
     for problem in report.problems:
         lines.append(f"  PROBLEM   {problem}")
     return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class RuleStats:
+    fired: int
+    satisfied: int
+    waived: int
+    violated: int
+    advisory: int
+
+
+def summarize(reports: Iterable[Report]) -> dict[str, RuleStats]:
+    """Per-rule counts across replay units: the tuning signal for broad triggers (a rule
+    with many ``violated`` and few ``satisfied`` needs a narrower trigger, an ``exclude``,
+    or to move to ``advisory`` until it is precise)."""
+    counts: dict[str, dict[Outcome, int]] = {}
+    for report in reports:
+        for finding in report.findings:
+            bucket = counts.setdefault(
+                finding.rule.id,
+                {"satisfied": 0, "waived": 0, "violated": 0, "advisory": 0},
+            )
+            bucket[finding.outcome] += 1
+    return {
+        rule_id: RuleStats(fired=sum(bucket.values()), **bucket)
+        for rule_id, bucket in counts.items()
+    }
 
 
 def render_table(contract: Contract) -> str:
@@ -594,6 +678,35 @@ def _cmd_table(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_replay(args: argparse.Namespace) -> int:
+    text = sys.stdin.read() if args.units == "-" else Path(args.units).read_text(encoding="utf-8")
+    units = units_from_jsonl(text)
+    contract = load_contract(None)
+    results = replay_units(contract, units)
+
+    print("label\trule\toutcome\ttriggered_by\tsatisfied_by")
+    for label, report in results:
+        for finding in report.findings:
+            print(
+                "\t".join(
+                    (
+                        label,
+                        finding.rule.id,
+                        finding.outcome,
+                        ";".join(finding.triggered_by),
+                        ";".join(finding.satisfied_by),
+                    )
+                )
+            )
+
+    stats = summarize(report for _label, report in results)
+    print()
+    print("rule\tfired\tsatisfied\twaived\tviolated\tadvisory")
+    for rule_id, s in sorted(stats.items(), key=lambda kv: kv[1].violated, reverse=True):
+        print(f"{rule_id}\t{s.fired}\t{s.satisfied}\t{s.waived}\t{s.violated}\t{s.advisory}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -610,12 +723,21 @@ def main(argv: list[str] | None = None) -> int:
     table_parser = sub.add_parser("table", help="regenerate (or --check) the AGENTS.md table")
     table_parser.add_argument("--check", action="store_true")
 
+    replay_parser = sub.add_parser(
+        "replay", help="evaluate the working-tree contract over historical units (triage)"
+    )
+    replay_parser.add_argument(
+        "--units", required=True, help="JSON-lines file of {label, range}, or - for stdin"
+    )
+
     args = parser.parse_args(argv)
     try:
         if args.cmd == "check":
             return _cmd_check(args)
         if args.cmd == "table":
             return _cmd_table(args)
+        if args.cmd == "replay":
+            return _cmd_replay(args)
         raise ContractError(
             f"unknown command {args.cmd!r}"
         )  # pragma: no cover - argparse guards this
