@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { rosterDisplayName } from "../presence/colors";
 import { remotePresenceClients, serverNowMs } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
@@ -18,13 +18,12 @@ type Props = {
 function usePresenceAnnouncer(
   clients: SessionClient[],
   localId: string | null,
-  offsetMs: number,
+  nowMs: number,
 ): void {
   const prevRef = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const now = serverNowMs(offsetMs);
     const ids = new Set(
-      remotePresenceClients(clients, localId, now).map((c) => c.client_id),
+      remotePresenceClients(clients, localId, nowMs).map((c) => c.client_id),
     );
     const prev = prevRef.current;
     prevRef.current = ids;
@@ -44,7 +43,31 @@ function usePresenceAnnouncer(
         useDawStore.getState().announceStatus("Someone left");
       }
     }
-  }, [clients, localId, offsetMs]);
+  }, [clients, localId, nowMs]);
+}
+
+/** How often presence re-checks staleness while remote clients are listed. */
+const PRESENCE_STALENESS_TICK_MS = 5_000;
+
+/**
+ * Server-clock now, read once per render and re-rendered at least every
+ * PRESENCE_STALENESS_TICK_MS while `active`, so a client that stops
+ * heartbeating drops out (and is announced as gone) without waiting for an
+ * unrelated store update.
+ */
+function useServerNowMs(offsetMs: number, active: boolean): number {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const id = window.setInterval(
+      () => setTick((n) => n + 1),
+      PRESENCE_STALENESS_TICK_MS,
+    );
+    return () => window.clearInterval(id);
+  }, [active]);
+  return serverNowMs(offsetMs);
 }
 
 /** Remote presence over the lanes, reading the session roster itself. */
@@ -54,14 +77,18 @@ export function PresenceOverlay(props: Props) {
   const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const project = useDawStore((s) => s.project);
   const { laneHeight } = useTimelineMetrics();
-  usePresenceAnnouncer(clients, localClientId, offsetMs);
+  const nowMs = useServerNowMs(
+    offsetMs,
+    clients.some((c) => c.client_id !== localClientId),
+  );
+  usePresenceAnnouncer(clients, localClientId, nowMs);
 
   return (
     <PresenceOverlayView
       {...props}
       clients={clients}
       localClientId={localClientId}
-      nowMs={serverNowMs(offsetMs)}
+      nowMs={nowMs}
       project={project}
       laneHeight={laneHeight}
     />

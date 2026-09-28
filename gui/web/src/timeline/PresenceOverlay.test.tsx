@@ -1,5 +1,5 @@
 import { act, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { PresenceOverlay } from "./PresenceOverlay";
@@ -171,5 +171,41 @@ describe("PresenceOverlay", () => {
       />,
     );
     expect(container.querySelector(".presence-overlay")).toBeNull();
+  });
+
+  it("drops and announces a client that stops heartbeating with no other store change", () => {
+    vi.useFakeTimers({ now: 1_800_000_000_000 });
+    try {
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      useDawStore.setState({
+        localClientId: "me",
+        sessionClients: [
+          { client_id: "me", role: "viewer" },
+          {
+            client_id: "them",
+            role: "viewer",
+            playhead_sec: 2,
+            last_seen_ns: Date.now() * 1e6,
+            meta: { display_name: "Ada" },
+          },
+        ],
+      });
+      const { container } = render(
+        <PresenceOverlay
+          zoomPxPerSec={10}
+          height={72}
+          tracks={hostTracks}
+          clipsByTrack={{}}
+        />,
+      );
+      expect(container.querySelector(".presence-overlay")).not.toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(35_000);
+      });
+      expect(container.querySelector(".presence-overlay")).toBeNull();
+      expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
