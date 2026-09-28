@@ -3,6 +3,7 @@ import { expectPageAxeClean } from "../e2e/axe";
 import { e2eProjectPath } from "../e2e/env";
 import { hostOfflineQueueCount } from "../e2e/offlineQueue";
 import { openHostProject } from "../e2e/overlayReachability";
+import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   interceptCommentCommands,
   postHostComment,
@@ -17,7 +18,6 @@ import {
   stubSyntheticMicrophone,
   syntheticMicrophoneRequested,
 } from "../e2e/syntheticMicrophone";
-import { parseTimecodeSec } from "../e2e/timecode";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
 import {
   expectPaintedWaveformTile,
@@ -34,24 +34,12 @@ const SUBPIXEL_TOLERANCE = 1;
 test.describe("browser compatibility matrix", () => {
   test("advances playback across browser engines", async ({ page }) => {
     await openHostProject(page);
-    const play = page.getByRole("button", { name: "Play", exact: true });
-    await expect(play).toBeEnabled();
+    await expect(playButton(page)).toBeEnabled();
     await page
       .getByRole("group", { name: "Audition mode" })
       .getByRole("button", { name: "Original" })
       .click();
-    const clock = page.locator("header.transport .timecode-current");
-    const initial = parseTimecodeSec(await clock.innerText());
-    await play.click();
-    await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
-    await expect
-      .poll(async () => parseTimecodeSec(await clock.innerText()))
-      .toBeGreaterThan(initial + 0.25);
-    await page.getByRole("button", { name: "Pause" }).click();
-    await expect(play).toBeVisible();
-    const paused = parseTimecodeSec(await clock.innerText());
-    await page.waitForTimeout(600);
-    expect(parseTimecodeSec(await clock.innerText())).toBe(paused);
+    await expectPlaybackAdvancesThenHolds(page);
     await expectPageAxeClean(page);
   });
 

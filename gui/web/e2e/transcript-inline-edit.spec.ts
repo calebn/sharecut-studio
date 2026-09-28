@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import {
+  openTranscriptPanel,
+  recordDocumentCommandTypes,
+} from "./transcriptEdit";
 
 test.describe("Transcript inline word edit", () => {
   test("double-click, type, Enter commits one undoable step; Mod+Z restores", async ({
@@ -10,26 +14,11 @@ test.describe("Transcript inline word edit", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
       /aligned dialogue/i,
     );
-    await page
-      .getByLabel("Editor panels")
-      .getByRole("button", { name: "Transcript", exact: true })
-      .click();
-    // Words hydrated ⇔ the Correct toggle carries its capability tooltip, not the loading label.
-    await expect(page.getByRole("button", { name: /^Correct:/ })).toBeEnabled();
-    const list = page.locator(".transcript-list");
+    const list = await openTranscriptPanel(page);
     const original = list
       .getByRole("button", { name: "welcome", exact: true })
       .first();
-    const commands: string[] = [];
-    page.on("request", (req) => {
-      if (
-        req.url().includes("/api/document/command") &&
-        req.method() === "POST"
-      ) {
-        const type = (req.postDataJSON() as { type?: string } | null)?.type;
-        if (type) commands.push(type);
-      }
-    });
+    const { types: commands, stop } = recordDocumentCommandTypes(page);
     let committed = false;
     try {
       await original.dblclick();
@@ -59,6 +48,7 @@ test.describe("Transcript inline word edit", () => {
       ).toHaveCount(0);
       committed = false;
     } finally {
+      stop();
       if (committed) {
         // Leave the shared live E2E project as later specs expect it.
         await page.request.post(

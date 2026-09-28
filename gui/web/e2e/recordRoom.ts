@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import {
   expect,
   type Locator,
   type Page,
   type Request,
 } from "@playwright/test";
+import { wavPeak } from "./wavPeak";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
 export type RecordRoom = {
@@ -199,6 +201,45 @@ export async function readSavedProject(
   projectPath: string,
 ): Promise<SavedRecordProject> {
   return JSON.parse(await readFile(projectPath, "utf8")) as SavedRecordProject;
+}
+
+/**
+ * Peak (0..1, `wavPeak`) across every landed source WAV on the track labelled
+ * `label`. Throws when the track, its clips, a clip's `raw/` source or a file
+ * is missing, so a silent or absent landing cannot pass.
+ */
+export async function landedTrackPeak(
+  projectPath: string,
+  label: string,
+): Promise<number> {
+  const saved = await readSavedProject(projectPath);
+  const track = saved.timeline.tracks.find((t) => t.label === label);
+  if (!track) {
+    throw new Error(`no landed track labelled ${label}`);
+  }
+  const clips = saved.timeline.clips.filter((c) => c.track_id === track.id);
+  if (clips.length === 0) {
+    throw new Error(`no landed clips on track labelled ${label}`);
+  }
+  const sourceIds = [...new Set(clips.map((c) => c.source_id))];
+  const projectDir = path.dirname(projectPath);
+  let peak = 0;
+  for (const sourceId of sourceIds) {
+    const source = saved.sources.find((s) => s.id === sourceId);
+    if (!source) {
+      throw new Error(
+        `clip on track ${label} references missing source ${sourceId}`,
+      );
+    }
+    if (!/^raw\//.test(source.path)) {
+      throw new Error(
+        `source ${source.id} for track ${label} is not under raw/: ${source.path}`,
+      );
+    }
+    const buf = await readFile(path.join(projectDir, source.path));
+    peak = Math.max(peak, wavPeak(new Uint8Array(buf)));
+  }
+  return peak;
 }
 
 /**
