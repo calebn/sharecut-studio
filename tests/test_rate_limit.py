@@ -11,6 +11,7 @@ from podcast_mcp.services.remote_mcp.limits import (
     classify_mcp_rpc,
     classify_review_request,
     reset_host_limiters_for_tests,
+    ws_roster_request_allowed,
 )
 from podcast_mcp.util.rate_limit import (
     ConcurrencyGate,
@@ -411,4 +412,20 @@ def test_host_review_and_mcp_info_read_429(minimal_project, sample_wav, tmp_work
     assert info1.status_code == 200
     info2 = client.get(f"/mcp/{token}")
     assert info2.status_code == 429
+    reset_host_limiters_for_tests()
+
+
+def test_ws_roster_request_allowed_throttles_per_connection_and_honours_the_flag(
+    monkeypatch,
+) -> None:
+    reset_host_limiters_for_tests(clock=lambda: 0.0)
+    assert ws_roster_request_allowed("conn-a") is True
+    assert ws_roster_request_allowed("conn-a") is False
+    assert ws_roster_request_allowed("conn-b") is True
+
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "0")
+    assert ws_roster_request_allowed("conn-a") is True
+    assert ws_roster_request_allowed("conn-a") is True
+    monkeypatch.delenv("PODCAST_RATE_LIMIT", raising=False)
+
     reset_host_limiters_for_tests()

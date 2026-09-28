@@ -111,7 +111,8 @@ def is_presence_ws_text(text: str) -> bool:
 
     ``RosterRequest`` (a guest's out-of-band resync request on a roster-version gap)
     shares the presence bucket: like ``Presence``, it is frequent, small and per-connection
-    throttled server-side (``review_share.py``'s ``_RosterThrottle``), not a durable command.
+    throttled server-side (the host ``ws_roster_request`` limiter, ``remote_mcp/limits.py``),
+    not a durable command.
     """
     stripped = text.lstrip()
     return len(text) <= 2048 and (

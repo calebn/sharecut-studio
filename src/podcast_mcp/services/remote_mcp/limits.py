@@ -47,6 +47,8 @@ _DEFAULT_GUEST_WS_RECORD_SIGNAL_RPM = 1800.0
 _DEFAULT_GUEST_WS_RECORD_SIGNAL_BURST = 80.0
 _DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM = 6000.0
 _DEFAULT_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST = 200.0
+_DEFAULT_WS_ROSTER_REQUEST_RPM = 60.0
+_DEFAULT_WS_ROSTER_REQUEST_BURST = 1.0
 
 
 def host_rate_limit_enabled() -> bool:
@@ -91,6 +93,12 @@ class HostLimiters:
                 _DEFAULT_GUEST_WS_PRESENCE_TOKEN_BURST,
             ),
             bucket_name="host_guest_ws_presence_token",
+        )
+        self.ws_roster_request = KeyedLimiter(
+            rate_per_min=env_float("PODCAST_WS_ROSTER_REQUEST_RPM", _DEFAULT_WS_ROSTER_REQUEST_RPM),
+            burst=env_float("PODCAST_WS_ROSTER_REQUEST_BURST", _DEFAULT_WS_ROSTER_REQUEST_BURST),
+            bucket_name="host_ws_roster_request",
+            clock=limiter_clock,
         )
         self.guest_ws_record = KeyedLimiter(
             rate_per_min=env_float("PODCAST_GUEST_WS_RECORD_RPM", _DEFAULT_GUEST_WS_RECORD_RPM),
@@ -138,6 +146,7 @@ class HostLimiters:
         self.guest_ws_concurrent.reset()
         self.guest_ws_presence.reset()
         self.guest_ws_presence_token.reset()
+        self.ws_roster_request.reset()
         self.guest_ws_record.reset()
         self.guest_ws_record_token.reset()
         self.guest_ws_record_signal.reset()
@@ -152,6 +161,15 @@ def get_host_limiters() -> HostLimiters:
     if _LIMITERS is None:
         _LIMITERS = HostLimiters()
     return _LIMITERS
+
+
+def ws_roster_request_allowed(conn_key: str) -> bool:
+    """Throttle ``RosterRequest`` replies per connection (host ``/api/session/ws`` and guest
+    ``/daw/ws``): one per second by default. A full roster is the one amplifying reply a
+    client can ask for. Off with ``PODCAST_RATE_LIMIT=0``, like every host limiter."""
+    if not host_rate_limit_enabled():
+        return True
+    return get_host_limiters().ws_roster_request.allow(conn_key).allowed
 
 
 def reset_host_limiters_for_tests(*, clock: Callable[[], float] | None = None) -> None:
