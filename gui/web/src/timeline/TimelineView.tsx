@@ -83,6 +83,7 @@ import {
 import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
+import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import {
   BladeGuide,
   FixedPlayheadRecenter,
@@ -207,6 +208,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const prosody = useProsodyOverlay(layers.showProsody, {
     alignedToLayout: true,
   });
+  // Unaligned payload for the status summary: does not blank and re-announce after every clip edit.
+  const prosodyLatest = useProsodyOverlay(layers.showProsody);
   const prosodyByTrack = useMemo(
     () =>
       new Map<string, ProsodyOverlayTrack>(
@@ -851,6 +854,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         >
           {scrollLeaves}
           <WaveformStatusSync />
+          {layers.showProsody ? (
+            <ProsodyStatusAnnouncer overlay={prosodyLatest} />
+          ) : null}
           {fixedPlayhead ? (
             <div className="playhead playhead--fixed" aria-hidden>
               <FollowPlayheadChip />

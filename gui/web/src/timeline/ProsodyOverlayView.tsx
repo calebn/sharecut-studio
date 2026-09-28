@@ -18,11 +18,7 @@ export function ProsodyOverlayView({
 }: ProsodyOverlayViewProps) {
   const label = prosodyStatusLabel(track.status);
   if (track.status === "missing" || track.status === "unavailable") {
-    return (
-      <div className="lane-prosody-status" role="status">
-        {label}
-      </div>
-    );
+    return <div className="lane-prosody-status">{label}</div>;
   }
   return (
     <>
@@ -85,11 +81,7 @@ export function ProsodyOverlayView({
           ) : null,
         )}
       </div>
-      {label ? (
-        <div className="lane-prosody-status" role="status">
-          {label}
-        </div>
-      ) : null}
+      {label ? <div className="lane-prosody-status">{label}</div> : null}
     </>
   );
 }

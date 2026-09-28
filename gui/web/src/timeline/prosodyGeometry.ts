@@ -1,4 +1,4 @@
-import type { ProsodyStatus } from "../types/prosody";
+import type { ProsodyOverlayTrack, ProsodyStatus } from "../types/prosody";
 
 /** Energy contour band inside the lane, % from the top. */
 export const PROSODY_ENERGY_TOP_PCT = 15;
@@ -40,4 +40,23 @@ export function prosodyStatusLabel(status: ProsodyStatus): string | null {
     default:
       return null;
   }
+}
+
+const SUMMARY_PARTS: ReadonlyArray<
+  readonly [Exclude<ProsodyStatus, "fresh">, string]
+> = [
+  ["missing", "no profile"],
+  ["stale", "out of date"],
+  ["unavailable", "unavailable"],
+];
+
+/** One timeline-wide screen-reader summary of lanes whose overlay is not fresh; null when all are fresh (#719). */
+export function prosodyStatusSummary(
+  tracks: readonly ProsodyOverlayTrack[],
+): string | null {
+  const parts = SUMMARY_PARTS.flatMap(([status, text]) => {
+    const n = tracks.filter((t) => t.status === status).length;
+    return n ? [`${text} on ${n} ${n === 1 ? "track" : "tracks"}`] : [];
+  });
+  return parts.length ? `Prosody: ${parts.join(", ")}` : null;
 }
