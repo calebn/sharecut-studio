@@ -85,9 +85,16 @@ test.describe("Transcript edit-boundary touch drag", () => {
         touchPoints: [firstMoved, second],
       });
       // Lifting the second finger must not end the first finger's drag.
+      //
+      // Empirically, Chromium's CDP touchEnd pairs the *released* contact
+      // with the `touchPoints` entry given, the opposite of touchStart and
+      // touchMove (whose arrays list every still-active contact): passing
+      // `second` here ends the second finger's pointer and leaves the
+      // first finger's drag running; passing the still-down contact
+      // (`firstMoved`) ended the drag's own pointer instead.
       await cdp.send("Input.dispatchTouchEvent", {
         type: "touchEnd",
-        touchPoints: [firstMoved],
+        touchPoints: [second],
       });
       await expect(mark).toHaveAttribute("aria-grabbed", "true");
       await expect(page.locator("body")).toHaveClass(/is-boundary-dragging/);
