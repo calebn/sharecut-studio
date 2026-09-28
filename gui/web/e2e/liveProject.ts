@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   deferE2eWorkspaceCleanup,
+  managedTmpWorkspace,
   registerE2eCleanupWorkspace,
 } from "./cleanupManifest";
 import { committedE2eProjectPath, repoRoot } from "./env";
@@ -100,15 +101,10 @@ export function removeRelocatedE2eProject(workspaceDir: string): void {
   if (deferE2eWorkspaceCleanup(workspaceDir)) {
     return;
   }
-  const resolved = path.resolve(workspaceDir);
-  const tmp = `${path.resolve(os.tmpdir())}${path.sep}`;
-  if (
-    !resolved.startsWith(tmp) ||
-    !path.basename(resolved).startsWith("sharecut-e2e-")
-  ) {
-    return;
+  const workspace = managedTmpWorkspace(workspaceDir);
+  if (workspace) {
+    fs.rmSync(workspace, { recursive: true, force: true });
   }
-  fs.rmSync(resolved, { recursive: true, force: true });
 }
 
 export function prepareLiveE2eProject(): string {

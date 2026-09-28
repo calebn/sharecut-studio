@@ -19,7 +19,12 @@ type ManifestRead =
   | { kind: "valid"; value: CleanupManifest }
   | { kind: "missing" | "invalid" };
 
-function managedTmpWorkspace(workspaceDir: string): string | undefined {
+/**
+ * The resolved path of `workspaceDir` when it is a managed E2E workspace
+ * (strictly inside `os.tmpdir()` and named `sharecut-e2e-*`); otherwise
+ * `undefined`. The single guard for every E2E workspace removal.
+ */
+export function managedTmpWorkspace(workspaceDir: string): string | undefined {
   const resolved = path.resolve(workspaceDir);
   if (
     !isPathInside(os.tmpdir(), resolved) ||

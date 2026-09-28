@@ -125,6 +125,18 @@ describe("prepareLiveE2eProject", () => {
     E2E_FIXTURE_COPY_TEST_TIMEOUT_MS,
   );
 
+  it("removes a managed tmp workspace directly when no manifest is set", () => {
+    const workspaceDir = tempWorkspace("sharecut-e2e-direct-");
+    removeRelocatedE2eProject(workspaceDir);
+    expect(fs.existsSync(workspaceDir)).toBe(false);
+  });
+
+  it("leaves a tmp dir without the sharecut-e2e- prefix in place", () => {
+    const workspaceDir = tempWorkspace("not-managed-");
+    removeRelocatedE2eProject(workspaceDir);
+    expect(fs.existsSync(workspaceDir)).toBe(true);
+  });
+
   it(
     "copies into tmp and does not write the committed tree",
     () => {
