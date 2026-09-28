@@ -113,6 +113,8 @@ describe("timeline styles", () => {
     const css = partial("timeline.css");
     const badge = rule(css, ".join-badge");
     expect(badge).toMatch(/top:\s*0/);
+    // Centred on the lane's top edge: clear of the fade corners (clip top inset) and the join diamond.
+    expect(badge).toMatch(/translate:\s*-50%\s+-50%/);
     expect(badge).toMatch(/width:\s*1rem/);
     expect(badge).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(badge).toMatch(/pointer-events:\s*none/);
