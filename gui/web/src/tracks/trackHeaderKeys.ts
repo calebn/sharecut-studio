@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from "react";
+import { hasCommandModifier } from "../keymap/typing";
 
 /**
  * onKeyDown for track-header buttons (open, reorder handle, M, S).
@@ -9,7 +10,7 @@ import type { KeyboardEvent } from "react";
  * Shift+Space and Shift+Enter still activate the button, as browsers do.
  */
 export function keepActivationKeys(e: KeyboardEvent<HTMLElement>): void {
-  if (e.metaKey || e.ctrlKey || e.altKey) {
+  if (hasCommandModifier(e)) {
     return;
   }
   if (e.key === " " || e.key === "Enter") {
