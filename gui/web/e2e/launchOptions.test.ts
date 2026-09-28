@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { withLaunchArgs } from "./launchOptions";
+import { CHROMIUM_FAKE_MEDIA_ARGS, withLaunchArgs } from "./launchOptions";
+
+describe("CHROMIUM_FAKE_MEDIA_ARGS", () => {
+  it("lists both Chromium fake-media flags", () => {
+    expect(CHROMIUM_FAKE_MEDIA_ARGS).toEqual([
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+    ]);
+  });
+});
 
 describe("withLaunchArgs", () => {
   it("builds launchOptions from undefined base", () => {

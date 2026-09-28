@@ -17,6 +17,7 @@ import {
   ONE_SECOND_KEEPER_WAV_BYTES,
   recordingWavs,
 } from "./keeperOpfs";
+import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   clickHostTransport,
   createRecordRoom,
@@ -136,12 +137,7 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
 }
 
 test.use({
-  launchOptions: {
-    args: [
-      "--use-fake-device-for-media-stream",
-      "--use-fake-ui-for-media-stream",
-    ],
-  },
+  launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
 test.describe("record lobby", () => {
