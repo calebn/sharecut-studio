@@ -111,13 +111,15 @@ type UiSlice = Pick<
   | "ingestBusy"
   | "ingestDropTrackId"
   | "statusAnnouncement"
-  | "jobResultAnnouncement"
+  | "pendingJobResults"
   | "setHighlightStaleRender"
   | "setRenderPreviewBusy"
   | "setIngestBusy"
   | "setIngestDropTrackId"
   | "announceStatus"
+  | "expectJobResult"
   | "announceJobResult"
+  | "settleJobResult"
   | "zoomPxPerSec"
   | "waveformAmpZoom"
   | "waveformScale"
@@ -233,15 +235,33 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     ingestBusy: false,
     ingestDropTrackId: null as string | null,
     statusAnnouncement: "",
-    jobResultAnnouncement: null,
+    pendingJobResults: {},
     setHighlightStaleRender: (highlightStaleRender) =>
       set({ highlightStaleRender }),
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
     setIngestBusy: (ingestBusy) => set({ ingestBusy }),
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
     announceStatus: (statusAnnouncement) => set({ statusAnnouncement }),
+    expectJobResult: (jobId) =>
+      set((s) => ({
+        pendingJobResults: { ...s.pendingJobResults, [jobId]: null },
+      })),
     announceJobResult: (jobId, message) =>
-      set({ jobResultAnnouncement: { jobId, message } }),
+      set((s) => ({
+        pendingJobResults: { ...s.pendingJobResults, [jobId]: message },
+      })),
+    settleJobResult: (jobId) =>
+      set((s) =>
+        jobId in s.pendingJobResults
+          ? {
+              pendingJobResults: Object.fromEntries(
+                Object.entries(s.pendingJobResults).filter(
+                  ([id]) => id !== jobId,
+                ),
+              ),
+            }
+          : {},
+      ),
 
     zoomPxPerSec: 40,
     waveformAmpZoom: 1,

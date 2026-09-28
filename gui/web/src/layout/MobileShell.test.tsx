@@ -47,6 +47,7 @@ describe("MobileShell", () => {
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setCaptureHealth(null);
     useRecordHostStore.getState().setConnected(true);
+    useDawStore.setState({ pendingJobResults: {} });
   });
 
   afterEach(() => {
@@ -539,7 +540,10 @@ describe("MobileShell", () => {
     expect(
       screen.queryByRole("button", { name: /Activity: running/ }),
     ).toBeNull();
-    expect(screen.getByText(/Activity: running/)).toBeTruthy();
+    const chips = screen.getAllByText(/Activity: running/);
+    expect(chips.some((el) => el.closest(".status-pipeline") != null)).toBe(
+      true,
+    );
   });
 
   it("phone pipeline chip ellipsizes stale companion copy", () => {
@@ -813,6 +817,37 @@ describe("MobileShell", () => {
     const live = document.querySelector(".daw-shell--phone .sr-only");
     expect(live?.getAttribute("aria-live")).toBe("polite");
     expect(live?.textContent).toBe("Following Ada");
+  });
+
+  it("announces a Bounce result on the phone shell (#704)", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().expectJobResult("b1");
+      useDawStore
+        .getState()
+        .announceJobResult("b1", "Bounced 1 file(s) to export/bounces/");
+      useDawStore.getState().setActivityJob({
+        id: "b1",
+        project_path: "/tmp/p.json",
+        from_step: null,
+        only_step: null,
+        kind: "bounce",
+        label: "Bounce",
+        status: "ok",
+        message: "Bounce complete",
+        current: null,
+        total: null,
+        error: null,
+        elapsed_sec: 0,
+        steps: [],
+      });
+    });
+    const live = document.querySelector(".daw-shell--phone .sr-only");
+    expect(live?.textContent).toBe("Bounced 1 file(s) to export/bounces/");
   });
 
   it("unfollows when Listen scrub moves the playhead", async () => {

@@ -1,8 +1,5 @@
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
-import type {
-  JobResultAnnouncement,
-  PipelineJobSnapshot,
-} from "../types/pipeline";
+import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
   ProjectView,
   Selection,
@@ -214,11 +211,11 @@ export interface DawState {
   /** Polite live-region status (refresh mix, etc.). */
   statusAnnouncement: string;
   /**
-   * A job's own terminal-result copy, held until `StatusBar` sees that job's
-   * chip reach a terminal status (#704: it then wins over the generic
-   * Activity/Pipeline headline instead of racing it).
+   * Result copy owed by jobs whose callers announce their own outcome (#704):
+   * `useJobStatusAnnouncement` holds back the generic "ok" headline for these
+   * jobs and speaks the copy once it arrives.
    */
-  jobResultAnnouncement: JobResultAnnouncement | null;
+  pendingJobResults: PendingJobResults;
   /** Presence roster from session Snapshot / Presence events, keyed by `client_id`
    * (#598: a `PresenceDelta` replaces only its own entry). */
   sessionClients: SessionRoster;
@@ -356,8 +353,12 @@ export interface DawState {
   setIngestBusy: (on: boolean) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
   announceStatus: (message: string) => void;
-  /** Record a job's own result copy for `StatusBar` to announce once that job goes terminal. */
+  /** Mark a job whose caller will post its own result copy (holds back its generic "ok" headline). */
+  expectJobResult: (jobId: string) => void;
+  /** Hand over a job's own result copy for `useJobStatusAnnouncement` to speak. */
   announceJobResult: (jobId: string, message: string) => void;
+  /** Drop a job's pending result (spoken, failed or aborted). */
+  settleJobResult: (jobId: string) => void;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */

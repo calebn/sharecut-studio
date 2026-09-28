@@ -35,14 +35,12 @@ export interface PipelineJobSnapshot {
 }
 
 /**
- * A job's own terminal-result copy (e.g. "Bounced 1 file(s) to export/bounces/"),
- * held until that job's chip status goes terminal so `StatusBar` announces it
- * instead of the generic Activity/Pipeline status headline racing it (#704).
+ * Result copy owed by jobs whose callers announce their own outcome (Bounce,
+ * Export deliverables), keyed by job id: `null` while the job still runs, then
+ * its copy (e.g. "Bounced 1 file(s) to export/bounces/") until
+ * `useJobStatusAnnouncement` speaks it and drops the entry (#704).
  */
-export interface JobResultAnnouncement {
-  jobId: string;
-  message: string;
-}
+export type PendingJobResults = Readonly<Record<string, string | null>>;
 
 export interface PipelineStatusResponse {
   running: boolean;
