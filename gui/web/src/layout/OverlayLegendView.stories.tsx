@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { layerVisibility } from "../test/fixtures";
 import { OverlayLegendView } from "./OverlayLegendView";
 
@@ -51,9 +51,6 @@ const meta: Meta<typeof LegendHarness> = {
       return <Story />;
     },
   ],
-  args: {
-    onAddChapter: fn(),
-  },
 };
 export default meta;
 
@@ -65,44 +62,8 @@ export const Desktop: Story = {
     await expect(
       canvas.getByRole("group", { name: "Timeline layers" }),
     ).toBeInTheDocument();
-    await expect(
-      canvas.getByRole("button", { name: "+ Chapter" }),
-    ).toBeInTheDocument();
-  },
-};
-
-export const MarkersHidden: Story = {
-  args: {
-    initialLayers: layerVisibility({ showMarkers: false }),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByRole("button", { name: "+ Chapter" }),
-    ).not.toBeInTheDocument();
-  },
-};
-
-export const ReadOnlyShare: Story = {
-  args: {
-    onAddChapter: undefined,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByRole("button", { name: "+ Chapter" }),
-    ).not.toBeInTheDocument();
-  },
-};
-
-export const ChapterAdding: Story = {
-  args: { addChapterBusy: true },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const button = canvas.getByRole("button", { name: "+ Chapter" });
-    await expect(button).toHaveAttribute("aria-disabled", "true");
-    await expect(button).not.toBeDisabled();
-    await expect(button).not.toHaveAttribute("aria-busy");
+    await expect(canvas.getByLabelText("Pending edits")).toBeInTheDocument();
+    await expect(canvas.getByLabelText("Volume envelope")).toBeInTheDocument();
   },
 };
 
@@ -112,9 +73,6 @@ export const ViewMenu: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByRole("menuitemcheckbox")).toHaveLength(6);
-    await expect(
-      canvas.getByRole("menuitem", { name: "+ Chapter" }),
-    ).toBeInTheDocument();
   },
 };
 

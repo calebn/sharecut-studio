@@ -62,12 +62,12 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
-| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Levels overlay, selected-point inspector |
+| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, selected-point inspector |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header's **Out** readout shows the sum |
 | **Mute / solo** | M removes a track from the saved mix (host and editors); S, and a guest's M, change only what you hear | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, inspector, sheet (solid = saved, dashed = only you) |
 | **Comment** | Time-anchored review note (+ replies, action items) | `review.comments[]` | Listen, Comments, ReviewApp |
 | **Review version** | Frozen mix for guests | `review.versions[]` | Share / ReviewApp |
-| **Chapter / social clip** | Markers / short-form candidates | chapters / `social` | Markers layer, Mix/marker CRUD |
+| **Chapter / social clip** | Markers / short-form candidates | chapters / `social` | Markers layer, Mix/marker CRUD; **Menu › Markers → Add chapter at playhead** (`edit.addChapter`, host only) adds one at the playhead |
 | **History snapshot** | Undoable full editable state | `history/` + project cursor | History panel (host) |
 | **Artifact / premix** | Rendered audio for listen | `artifacts/`, `render` | Transport audition, Listen |
 | **Export** | Deliverables + bounce | `export/`, `export/bounces/` | Ship: Pipeline / `Mod+Shift+E`. Lightweight stems/range: Bounce… / `Mod+Shift+B` |

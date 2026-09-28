@@ -44,8 +44,8 @@ test.describe("compact transport menu accessibility", () => {
 
     const layers = menu.getByRole("menuitemcheckbox");
     const checkboxNames = [
-      "Edits",
-      "Levels",
+      "Pending edits",
+      "Volume envelope",
       "Markers",
       "Comments",
       "Silence shading",
@@ -59,6 +59,10 @@ test.describe("compact transport menu accessibility", () => {
       ).toBeVisible();
     }
     await expect(layers).toHaveCount(checkboxNames.length);
+    await expect(menu.getByRole("group", { name: "Markers" })).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "Add chapter at playhead" }),
+    ).toBeVisible();
     const scales = menu
       .getByRole("group", { name: "Waveform scale" })
       .getByRole("menuitemradio");

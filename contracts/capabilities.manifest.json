@@ -2387,6 +2387,31 @@
       }
     },
     {
+      "id": "daw.edit.addChapter",
+      "label": "Add chapter at playhead",
+      "tooltip": "Add a chapter marker at the playhead · turns Markers on",
+      "service": "Sharecut Studio → AddChapter document command",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "edit.addChapter",
+        "gui": [
+          "transport.menu",
+          "mobileShell.more"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "no default shortcut; Menu › Markers or the phone More action",
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.edit.rollClipJoin",
       "label": "Roll clip join",
       "tooltip": "Drag join to roll both clip edges \u00b7 clips stay flush",

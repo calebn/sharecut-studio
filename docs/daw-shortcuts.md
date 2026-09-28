@@ -153,6 +153,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Set clip fade | `edit.setClipFade` | Host or shared edit mode | Pointer fade handles on clip blocks |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join badge popover on the timeline; Join mode select and Apply length in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
+| Add chapter at playhead | `edit.addChapter` | Loaded host project | Chapter titled from the playhead time (AddChapter); turns the Markers layer on. Host only. |
 | Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |
 | Switch phone mode | `view.setMobileMode` | Project loaded | Args: { mode: MobileMode, destination?: MoreDestination } |
 | Go to tighten hit | `tighten.goToHit` | tightenPanelOpen | Args: { id?: string }: seek + select pending |

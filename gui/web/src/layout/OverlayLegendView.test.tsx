@@ -14,7 +14,17 @@ describe("OverlayLegendView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("calls onLayerChange when Levels is toggled", async () => {
+  it("labels rows Pending edits and Volume envelope", () => {
+    render(
+      <OverlayLegendView layers={layerVisibility()} onLayerChange={vi.fn()} />,
+    );
+    expect(screen.getByLabelText("Pending edits")).toBeTruthy();
+    expect(screen.getByLabelText("Volume envelope")).toBeTruthy();
+    expect(screen.queryByLabelText("Edits")).toBeNull();
+    expect(screen.queryByLabelText("Levels")).toBeNull();
+  });
+
+  it("calls onLayerChange when Volume envelope is toggled", async () => {
     const onLayerChange = vi.fn();
     render(
       <OverlayLegendView
@@ -22,78 +32,44 @@ describe("OverlayLegendView", () => {
         onLayerChange={onLayerChange}
       />,
     );
-    await userEvent.click(screen.getByLabelText("Levels"));
+    await userEvent.click(screen.getByLabelText("Volume envelope"));
     expect(onLayerChange).toHaveBeenCalledWith("showLevels", false);
   });
 
-  it("shows + Chapter only when markers are visible and a handler is passed", () => {
-    const { rerender } = render(
+  it("gives every row a swatch", () => {
+    const { container } = render(
       <OverlayLegendView layers={layerVisibility()} onLayerChange={vi.fn()} />,
     );
-    expect(screen.queryByRole("button", { name: "+ Chapter" })).toBeNull();
-
-    rerender(
-      <OverlayLegendView
-        layers={layerVisibility()}
-        onLayerChange={vi.fn()}
-        onAddChapter={vi.fn()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "+ Chapter" })).toBeTruthy();
-
-    rerender(
-      <OverlayLegendView
-        layers={layerVisibility({ showMarkers: false })}
-        onLayerChange={vi.fn()}
-        onAddChapter={vi.fn()}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "+ Chapter" })).toBeNull();
+    const rows = container.querySelectorAll(".overlay-legend-item");
+    expect(rows).toHaveLength(6);
+    for (const row of rows) {
+      expect(row.querySelector(".overlay-legend-swatch")).toBeTruthy();
+    }
+    expect(
+      container.querySelector(".overlay-legend-swatch--pending"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector(".overlay-legend-swatch--envelope"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector(".overlay-legend-swatch--markers"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector(".overlay-legend-swatch--comments"),
+    ).toBeTruthy();
   });
 
-  it("marks + Chapter aria-disabled but focusable and ignores clicks while addChapterBusy", async () => {
-    const onAddChapter = vi.fn();
-    const { container, rerender } = render(
-      <OverlayLegendView
-        layers={layerVisibility()}
-        onLayerChange={vi.fn()}
-        onAddChapter={onAddChapter}
-        addChapterBusy
-      />,
-    );
-    const button = screen.getByRole("button", { name: "+ Chapter" });
-    expect((button as HTMLButtonElement).disabled).toBe(false);
-    expect(button.getAttribute("aria-disabled")).toBe("true");
-    expect(button.hasAttribute("aria-busy")).toBe(false);
-    await userEvent.click(button);
-    expect(onAddChapter).not.toHaveBeenCalled();
-    await expectNoA11yViolations(container);
-
-    rerender(
-      <OverlayLegendView
-        layers={layerVisibility()}
-        onLayerChange={vi.fn()}
-        onAddChapter={onAddChapter}
-      />,
-    );
-    expect(button.hasAttribute("aria-disabled")).toBe(false);
-    await userEvent.click(button);
-    expect(onAddChapter).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders menuitemcheckbox / menuitem rows inside a menu host", async () => {
+  it("renders menuitemcheckbox rows inside a menu host", async () => {
     const { container } = render(
       <div role="menu" aria-label="View menu">
         <OverlayLegendView
           menu
           layers={layerVisibility()}
           onLayerChange={vi.fn()}
-          onAddChapter={vi.fn()}
         />
       </div>,
     );
     expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(6);
-    expect(screen.getByRole("menuitem", { name: "+ Chapter" })).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 });

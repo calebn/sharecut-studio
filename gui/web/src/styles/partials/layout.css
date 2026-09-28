@@ -729,6 +729,26 @@
   background: var(--color-waveform-snap);
 }
 
+.overlay-legend-swatch--pending {
+  border: 0;
+  background: var(--color-pending-edit);
+}
+
+.overlay-legend-swatch--envelope {
+  border: 0;
+  background: var(--color-envelope-line);
+}
+
+.overlay-legend-swatch--markers {
+  border: 0;
+  background: var(--color-marker);
+}
+
+.overlay-legend-swatch--comments {
+  border: 0;
+  background: var(--comment-marker);
+}
+
 .track-header-row {
   position: relative;
   height: var(--lane-height);

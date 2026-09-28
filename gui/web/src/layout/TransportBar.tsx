@@ -245,7 +245,7 @@ export function TransportBar({
         <OverlayLegend menu />
       </MenuSection>
       <WaveformViewSections />
-      <MenuSection label="View">
+      <MenuSection label="Zoom">
         <div className="transport-controls" role="none">
           <CommandMenuItem commandId="view.zoomOut" showShortcut={false}>
             Zoom −
@@ -571,6 +571,17 @@ export function TransportBar({
                   onSelect={closeMenu}
                 >
                   Move track down
+                </CommandMenuItem>
+              </MenuSection>
+            ) : null}
+            {mayManage ? (
+              <MenuSection label="Markers">
+                <CommandMenuItem
+                  commandId="edit.addChapter"
+                  respectWhen
+                  onSelect={closeMenu}
+                >
+                  Add chapter at playhead
                 </CommandMenuItem>
               </MenuSection>
             ) : null}

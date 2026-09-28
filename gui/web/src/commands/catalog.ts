@@ -557,6 +557,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment)",
   },
+  "edit.addChapter": {
+    id: "edit.addChapter",
+    category: "edit",
+    label: "Add chapter at playhead",
+    when: "hostProjectLoaded",
+    notes:
+      "Chapter titled from the playhead time (AddChapter); turns the Markers layer on. Host only.",
+  },
   "view.setTab": {
     id: "view.setTab",
     category: "view",

@@ -21,6 +21,7 @@ import { RecordTransportChip } from "../record/RecordTransportChip";
 import {
   canApplyPass12,
   canIngestMedia,
+  canManageProjects,
   guestShareBannerLabel,
 } from "../shareMode";
 import type { MobileMode } from "../state/types";
@@ -82,6 +83,7 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
   const running =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
+  const mayManage = canManageProjects(projectPath);
   const emptySession = project != null && (project.tracks.length ?? 0) === 0;
   const items: Exclude<PresenceTab, "transcript">[] = [
     "comments",
@@ -135,6 +137,13 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
       <div className="mobile-more-settings">
         <OverlayLegend />
       </div>
+      {mayManage ? (
+        <div className="mobile-more-settings">
+          <CommandButton commandId="edit.addChapter" respectWhen>
+            Add chapter at playhead
+          </CommandButton>
+        </div>
+      ) : null}
       <div className="mobile-more-settings">
         <button
           type="button"

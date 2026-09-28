@@ -1,4 +1,5 @@
 /** Stable entry point for the DAW command registry. Keep registration order here. */
+import { registerChapterCommands } from "./chapters";
 import {
   registerClipboardCommands,
   registerClipMoveCommands,
@@ -38,4 +39,5 @@ export function registerDawCommands(): void {
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();
   registerTranscriptReviewCommands();
+  registerChapterCommands();
 }

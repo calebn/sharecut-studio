@@ -71,9 +71,9 @@ flowchart TB
 | **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit session width, Fit tracks to window height (wide only), Layout (maximize/restore), View, Menu |
 | **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit session width, Menu icon. Listen uses its own body transport and no header transport. |
 | **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables… |
-| **Menu → Media / Help** | Import audio, track add / remove / move; Export diagnostics… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
-| **View menu (wide)** | Layer toggles (incl. **Silence shading** and **Snap points** with swatches), **Waveform scale** Auto/Linear/Log radios, **Waveform amplitude −/+** with a ×N readout, **Show waveforms post-fader**, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, Fit session width if omitted, Layout and Theme radio groups. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
-| **Menu (collapsed)** | One combined menu: Project, Media, audition Full mix/Edited stems/Original, session, **Refresh mix** when render is stale, layers, view (incl. track height), Help |
+| **Menu → Media / Markers (host) / Help** | Import audio, track add / remove / move; **Markers → Add chapter at playhead** (`edit.addChapter`, host only, titles the chapter from the playhead time and turns the Markers layer on); Export diagnostics… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
+| **View menu (wide)** | Trigger is a text button labeled **View** (Menu stays an icon). Layer toggles — **Pending edits**, **Volume envelope**, Markers, Comments, **Silence shading** and **Snap points** — each with a swatch, **Waveform scale** Auto/Linear/Log radios, **Waveform amplitude −/+** with a ×N readout, **Show waveforms post-fader**, a **Zoom** section (zoom −/+, **Track height −/+** and **Fit tracks to window height** checkbox, Fit session width if omitted), Layout and Theme radio groups. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
+| **Menu (collapsed)** | One combined menu: Project, Media, host-only **Markers** (Add chapter at playhead), audition Full mix/Edited stems/Original, session, **Refresh mix** when render is stale, layers, Zoom (incl. track height), Help |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure. The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage; Play stays disabled until the project has media. |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
@@ -185,7 +185,7 @@ Audition Full mix / Edited stems / Original remains available in the compact tra
 
 ```
 ┌─ Play  12:34  [Cmt] [Fit] [⋯] ──────┐
-│ Edits  Levels  Markers  Comments    │
+│ Pending edits  Volume envelope  Markers  Comments │
 │ ref │░░░░│░░░░░│░░░░░░░░░░░░░░░░   │
 │ gue │░░░░│░░░░░░░░│░░░░░▼░░░░░░░   │  ← Ferrite gutter + CapCut ▼
 │ [Select] [Blade] [Cut at playhead]  │  ← editing rail (Comment is on transport)
@@ -197,7 +197,7 @@ Audition Full mix / Edited stems / Original remains available in the compact tra
 
 Elapsed timers and clipping-report ranges switch to h:mm:ss from one hour. Recorded takes show mic clipping (sample peak) as red flags in a `clipping` marker row (one per span per track, labelled with the track; tap to select the track and seek) and a red tint on the clipped span of the clip. When the encoder hit its region cap, the clip's last flag says later clipping was not recorded. Up to 100 flags are kept per recording; a dense burst after that lengthens the last flag instead of adding one.
 
-Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap the gutter row (› disclosure) → track sheet with **M**/**S** and the **Volume** fader (saved; host and editors; envelopes on Levels). Solid M = muted in the mix; dashed = only you hear it that way (a guest's listen-only mute, or a track your solo silences). Pane density uses `@container timeline` (gutter vs mid/full rail) — not viewport width alone.
+Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap the gutter row (› disclosure) → track sheet with **M**/**S** and the **Volume** fader (saved; host and editors; envelopes on Volume envelope). Solid M = muted in the mix; dashed = only you hear it that way (a guest's listen-only mute, or a track your solo silences). Pane density uses `@container timeline` (gutter vs mid/full rail) — not viewport width alone.
 
 ---
 
@@ -234,7 +234,7 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 | Tighten | Searchable filler/pause/repetition/restart list · preview/skip/apply · apply-all avoiding harsh cuts · Intensity (Light/Medium/Aggressive; locked while saving or a job runs, load Retry) + Find hits (confirms before replacing listed hits, shows job errors; starting it clears an earlier intensity save error) | pending tighten decisions |
 | Pipeline | Step checklist · params · Analyze · Batch/gates · run · progress (headline + bar/elapsed) | working-set config + live job |
 
-Destinations render as one settings-style list (hairline rows, 44pt targets), not stacked slabs. Plus **Overlay legend** on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination. The bottom mode nav shows icon + label tabs; the active tab is tinted with an accent top indicator.
+Destinations render as one settings-style list (hairline rows, 44pt targets), not stacked slabs. Plus **Overlay legend** and, host only, **Add chapter at playhead** (`edit.addChapter`) on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination. The bottom mode nav shows icon + label tabs; the active tab is tinted with an accent top indicator.
 
 **Guest** More hub: Comments + Overlay legend only (History / Impact / Tighten / Pipeline stay host-only).
 

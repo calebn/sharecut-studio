@@ -62,7 +62,7 @@ Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/
 | Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu |
 | Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
 | Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
-| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag Levels for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
+| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
 | Transcript tab | Text mode |
@@ -113,7 +113,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 
 ```
 ┌─ Play  12:34 / 58:39  [Fit] [⋯] ──┐
-│ Edits Levels Markers Comments     │  ← chips
+│ Pending edits Volume envelope Markers Comments │  ← chips
 │ ┌─ref│░░░░░░░░░░░░░░░░░░░░░░░░░░ │ │
 │ │gue│░░░░░░░░░░░░░░░░░░░▼░░░░░░ │ │  ← slim sticky gutter + CapCut ▼
 │ └────┴───────────────────────────┘ │
@@ -132,7 +132,7 @@ The playhead is a fixed center line and the timeline scrolls under it. The time 
 - **Only a person's scroll seeks.** Fit, recentering and follow writes are programmatic; a late scroll event that lands on the last written position is their echo; and a move of one pixel or less (`PLAYHEAD_MOVE_MIN_PX`) never changes the time.
 - **Zoom.** Fit and command zoom (menu, keys) center on the playhead's time, so they keep it. Pinch and Ctrl+wheel, claimed anywhere on the timeline except the track headers, keep the time under the fingers still within the session, and the playhead takes the new center time.
 
-Lane identity is a sticky gutter beside the waveforms (same scroller; `headerSlot` into `TimelineView`), identity first, following praised mobile editors (BandLab, GarageBand, Ferrite): in the narrow rail each lane shows a **44pt initials chip** tinted with the lane color (full-strength ink, dashed and dimmed when muted), the lane color on the rail edge, and the **full track name on the lane's clip labels** ("reference · dialogue · 1:00"). The whole rail opens the track sheet; a trailing **›** disclosure marks that only in the wider phone rail. **Mute/Solo** and the saved **Volume** fader live in that sheet (same commands as the desktop header and inspector); envelopes stay on **Levels** (drag a point, then edit time/value in the inspector). Do not put a mixer strip in the 4rem gutter.
+Lane identity is a sticky gutter beside the waveforms (same scroller; `headerSlot` into `TimelineView`), identity first, following praised mobile editors (BandLab, GarageBand, Ferrite): in the narrow rail each lane shows a **44pt initials chip** tinted with the lane color (full-strength ink, dashed and dimmed when muted), the lane color on the rail edge, and the **full track name on the lane's clip labels** ("reference · dialogue · 1:00"). The whole rail opens the track sheet; a trailing **›** disclosure marks that only in the wider phone rail. **Mute/Solo** and the saved **Volume** fader live in that sheet (same commands as the desktop header and inspector); envelopes stay on **Volume envelope** (drag a point, then edit time/value in the inspector). Do not put a mixer strip in the 4rem gutter.
 
 **Arrange density** follows the timeline pane via `@container timeline` on `.timeline-area` (Every Layout Container escape hatch), not `window.innerWidth`:
 
@@ -229,7 +229,7 @@ offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
 
-- Transport overflow (theme, layers, zoom, + Chapter secondary)
+- Transport overflow (theme, layers, zoom; host-only More → Add chapter at playhead, `edit.addChapter`)
 - Layouts (above)
 - Wider invisible hit targets for fades/envelopes
 - Actionable status chips → Impact / Pipeline / Comments

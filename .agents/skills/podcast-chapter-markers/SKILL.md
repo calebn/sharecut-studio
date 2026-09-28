@@ -14,6 +14,7 @@ description: >-
 - `list_chapters_tool`
 - Sharecut Studio / guest document command `DeleteChapter` matches `(time, title)` when two chapters share a title
 - `pipeline_run` / export — chapters written to `export/<name>.chapters.json`; MP3 gets title metadata
+- Sharecut Studio GUI: `edit.addChapter` (host only) — desktop transport **Menu › Markers → Add chapter at playhead**, or the phone **More → Add chapter at playhead** action; titles the chapter from the playhead time and turns the Markers layer on
 
 ## NL workflow
 
