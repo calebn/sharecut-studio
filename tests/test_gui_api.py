@@ -859,6 +859,50 @@ def test_map_transcript_suppressed_only_rows_sorted_across_tracks() -> None:
         assert all(r["suppressed_only"] is True for r in rows)
 
 
+def test_map_transcript_input_row_wins_start_tie_with_suppressed_only_row() -> None:
+    """At an equal source start, an input row sorts ahead of a suppressed_only row (#758)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="hi", start=2.0, end=2.2, confidence=0.9)],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="um", start=2.0, end=2.2, suppressed=True, confidence=0.4),
+                TranscriptWord(text="uh", start=5.0, end=5.2, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert [u["track_id"] for u in combined["utterances"]] == ["host"]
+
+    for include_words in (True, False):
+        mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
+        assert mapped is not None
+        rows = mapped["utterances"]
+        assert [(r["track_id"], r["start"]) for r in rows] == [
+            ("host", 2.0),
+            ("guest", 2.0),
+            ("guest", 5.0),
+        ]
+        assert "suppressed_only" not in rows[0]
+        assert rows[1]["suppressed_only"] is True
+        assert rows[2]["suppressed_only"] is True
+
+
 def test_map_transcript_suppressed_only_row_lists_ignored_indices() -> None:
     """A suppressed_only row lists its ignored words, with and without word views (#758)."""
     p = _minimal()
