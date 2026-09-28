@@ -1,5 +1,5 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { execute } from "../commands/execute";
+import { useCommitRange } from "../hooks/useCommitRange";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TrackView } from "../types/project";
@@ -28,50 +28,17 @@ export function TrackFader({ track }: { track: TrackView }) {
   }));
   const editable = canEditMix(projectPath, guestMode, shareCapabilities);
   const saved = trackFaderDb(track);
-  const [value, setValue] = useState(saved);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const draggingRef = useRef(false);
-
-  // Follow the saved value (undo, a collaborator) unless mid-drag.
-  useEffect(() => {
-    if (!draggingRef.current) {
-      setValue(saved);
-    }
-  }, [saved]);
-
-  const commit = (db: number) => {
-    draggingRef.current = false;
-    if (db !== saved) {
+  const range = useCommitRange({
+    saved,
+    onCommit: (db) =>
       void execute(
         "track.setVolume",
         { trackId: track.id, db },
         { skipWhen: true },
-      );
-    }
-  };
-  const reset = () => {
-    setValue(0);
-    commit(0);
-  };
-  const onNativeChange = useEffectEvent((db: number) => commit(db));
-
-  // React's onChange fires on every input; the native change event is the
-  // commit (pointer release or a key step).
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) {
-      return;
-    }
-    const onChange = () => onNativeChange(Number(el.value));
-    el.addEventListener("change", onChange);
-    return () => el.removeEventListener("change", onChange);
-  }, []);
-
-  // A drag released where it started fires no change event; stop ignoring
-  // the saved value anyway.
-  const endDrag = () => {
-    draggingRef.current = false;
-  };
+      ),
+  });
+  const { value } = range;
+  const reset = () => range.commitValue(0);
 
   const id = `track-fader-${track.id}`;
   const noteId = `${id}-note`;
@@ -81,32 +48,24 @@ export function TrackFader({ track }: { track: TrackView }) {
         Volume
       </label>
       <input
-        ref={inputRef}
         id={id}
         className="track-fader-input"
         type="range"
         min={FADER_MIN_DB}
         max={FADER_MAX_DB}
         step={FADER_STEP_DB}
-        value={value}
         disabled={!editable}
         title={
           editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
         }
         aria-describedby={noteId}
         aria-valuetext={formatGainDb(value)}
-        onChange={(e) => {
-          draggingRef.current = true;
-          setValue(Number(e.currentTarget.value));
-        }}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onBlur={endDrag}
         onDoubleClick={() => {
           if (editable) {
             reset();
           }
         }}
+        {...range.inputProps}
       />
       <span className="track-fader-end">
         <output htmlFor={id} className="track-fader-value">
@@ -119,7 +78,7 @@ export function TrackFader({ track }: { track: TrackView }) {
             onClick={() => {
               reset();
               // Reset disables itself at 0 dB; keep keyboard focus nearby.
-              inputRef.current?.focus();
+              range.input?.focus();
             }}
           >
             Reset
