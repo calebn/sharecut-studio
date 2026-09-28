@@ -453,15 +453,25 @@ def test_wav_info_rejects_unsupported_widths(tmp_path):
     assert wp._wav_info(junk) is None
 
 
-def test_pcm_needs_decode_only_off_the_wav_fast_path(tmp_path):
+def test_probe_pcm_source_picks_the_read_path_once(tmp_path, monkeypatch):
     wav = tmp_path / "ok.wav"
     _write_int_wav(wav, np.ones((32, 1), dtype=np.int64), width=2)
-    assert wp.pcm_needs_decode(wav) is False
+    source = wp.probe_pcm_source(wav)
+    assert source.needs_decode is False
     other = tmp_path / "x.mp3"
     other.write_bytes(b"ID3 not a riff file")
-    assert wp.pcm_needs_decode(other) is True
+    assert wp.probe_pcm_source(other).needs_decode is True
     with pytest.raises(OSError):
-        wp.pcm_needs_decode(tmp_path / "missing.m4a")
+        wp.probe_pcm_source(tmp_path / "missing.m4a")
+    expected = read_pcm_minmax(wav, 0, 32)
+
+    def no_reprobe(_path):
+        raise AssertionError("WAV header parsed twice")
+
+    monkeypatch.setattr(wp, "_wav_info", no_reprobe)
+    np.testing.assert_array_equal(read_pcm_minmax(wav, 0, 32, source=source), expected)
+    with pytest.raises(ValueError):
+        read_pcm_minmax(other, 0, 32, source=source)
 
 
 @pytest.mark.parametrize("declared", [0, 0xFFFFFFFF, 4 * 200 + 8])

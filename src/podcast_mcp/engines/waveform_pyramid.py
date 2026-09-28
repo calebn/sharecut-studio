@@ -564,6 +564,28 @@ def _minmax_int16(data: np.ndarray) -> np.ndarray:
     return out
 
 
+@dataclass(frozen=True)
+class PcmSource:
+    """Which path ``read_pcm_minmax`` takes for *path*: the WAV fast path or ffmpeg.
+
+    Built by ``probe_pcm_source``; pass it back as ``read_pcm_minmax(..., source=)``
+    so the header is parsed once per request.
+    """
+
+    path: Path
+    wav: _WavInfo | None
+
+    @property
+    def needs_decode(self) -> bool:
+        """True when ``read_pcm_minmax`` decodes *path* through ffmpeg."""
+        return self.wav is None
+
+
+def probe_pcm_source(path: Path) -> PcmSource:
+    """Probe *path* once for ``read_pcm_minmax``. ``OSError`` when it cannot be opened."""
+    return PcmSource(path, _wav_info(path))
+
+
 def read_pcm_minmax(
     path: Path,
     start_frame: int,
@@ -572,6 +594,7 @@ def read_pcm_minmax(
     sample_rate: int | None = None,
     channels: int | None = None,
     engine: FFmpegEngine | None = None,
+    source: PcmSource | None = None,
 ) -> np.ndarray:
     """int16 ``(n, 2)`` per-frame min/max across channels for ``[start, start+frames)``.
 
@@ -579,14 +602,19 @@ def read_pcm_minmax(
     window; other media decode through ``FFmpegEngine.decode_window_f32``
     (``sample_rate``/``channels`` default to a probe).
     *frames* is capped at ``PCM_WINDOW_MAX_BLOCKS * pcm_block_frames()``; larger
-    windows raise ``ValueError``.
+    windows raise ``ValueError``. *source* (from ``probe_pcm_source(path)``) skips
+    parsing the WAV header again; it must be for *path* (``ValueError`` otherwise).
     """
     if start_frame < 0 or frames < 0:
         raise ValueError("start_frame and frames must be >= 0")
     max_frames = PCM_WINDOW_MAX_BLOCKS * pcm_block_frames()
     if frames > max_frames:
         raise ValueError(f"PCM window of {frames} frames exceeds {max_frames}")
-    info = _wav_info(path)
+    if source is None:
+        source = probe_pcm_source(path)
+    elif source.path != path:
+        raise ValueError("source was probed for a different path")
+    info = source.wav
     if info is not None:
         start = min(start_frame, info.frames)
         count = min(frames, info.frames - start)
@@ -599,14 +627,6 @@ def read_pcm_minmax(
         probe = eng.probe(path, untrusted=True)
         sample_rate, channels = probe.sample_rate, max(1, probe.channels)
     return _minmax_int16(eng.decode_window_f32(path, start_frame, frames, sample_rate, channels))
-
-
-def pcm_needs_decode(path: Path) -> bool:
-    """True when ``read_pcm_minmax`` decodes *path* through ffmpeg, not the WAV fast path.
-
-    ``OSError`` when *path* cannot be opened.
-    """
-    return _wav_info(path) is None
 
 
 # --- Keys and files -------------------------------------------------------------

@@ -47,8 +47,9 @@ from podcast_mcp.engines.waveform_media import (
 )
 from podcast_mcp.engines.waveform_pyramid import (
     BIN_BYTES,
+    PcmSource,
     PyramidMeta,
-    pcm_needs_decode,
+    probe_pcm_source,
     pyramid_build_failed,
     pyramid_build_pending,
     pyramid_path,
@@ -360,7 +361,7 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
 
 
 def _read_pcm_bytes(
-    entry: MediaEntry, key: str, meta: PyramidMeta, start: int, frames: int
+    entry: MediaEntry, key: str, meta: PyramidMeta, start: int, frames: int, source: PcmSource
 ) -> bytes:
     try:
         pairs = read_pcm_minmax(
@@ -369,6 +370,7 @@ def _read_pcm_bytes(
             frames,
             sample_rate=meta.sample_rate,
             channels=meta.channels,
+            source=source,
         )
     except (OSError, EOFError, RuntimeError, wave.Error) as exc:
         raise WaveformDecodeError("waveform media could not be decoded") from exc
@@ -381,7 +383,8 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     """int16 ``(min, max)`` pairs for frames ``[block*B, min((block+1)*B, total))``.
 
     ``StaleWaveformKeyError`` when *key* is not the ref's current key, checked before
-    and after the read. Media that needs ffmpeg (not the WAV fast path) takes one of
+    and after the read. ``probe_pcm_source`` says which path the media takes; media
+    that needs ffmpeg (not the WAV fast path) takes one of
     ``PCM_DECODE_MAX_CONCURRENT`` slots without waiting (``WaveformBusyError`` when
     none is free). Compressed blocks are kept in an LRU of ``_PCM_MAX`` (32) keyed by
     media path, key and block, so a repeat cold request never spawns ffmpeg again;
@@ -400,11 +403,11 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         raise ValueError("block out of range")
     frames = min(frames_per_block, meta.total_frames - start)
     try:
-        compressed = pcm_needs_decode(entry.abs_path)
+        source = probe_pcm_source(entry.abs_path)
     except OSError as exc:
         raise WaveformDecodeError("waveform media could not be decoded") from exc
-    if not compressed:
-        return _read_pcm_bytes(entry, key, meta, start, frames)
+    if not source.needs_decode:
+        return _read_pcm_bytes(entry, key, meta, start, frames, source)
     cache_key: _PcmKey = (str(entry.abs_path), key, block)
     with _PCM_LOCK:
         hit = _lru_get(_PCM, cache_key)
@@ -414,7 +417,7 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     if not decision.allowed:
         raise WaveformBusyError(decision)
     try:
-        body = _read_pcm_bytes(entry, key, meta, start, frames)
+        body = _read_pcm_bytes(entry, key, meta, start, frames, source)
     finally:
         _PCM_DECODES.exit(_PCM_GATE_KEY)
     with _PCM_LOCK:
