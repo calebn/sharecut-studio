@@ -87,6 +87,16 @@ describe("useResizeObserver", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the observer when the same targets only change order", () => {
+    const a = document.createElement("div");
+    const b = document.createElement("div");
+    const onResize = vi.fn();
+    const { rerender } = render(<Harness onResize={onResize} extra={[a, b]} />);
+    rerender(<Harness onResize={onResize} extra={[b, a]} />);
+    expect(RecordingResizeObserver.all).toHaveLength(1);
+    expect(RecordingResizeObserver.all[0].disconnected).toBe(false);
+  });
+
   it("observes several targets (ref, element, getter) with one observer, skipping nulls and duplicates", () => {
     const otherEl = document.createElement("div");
     document.body.appendChild(otherEl);
