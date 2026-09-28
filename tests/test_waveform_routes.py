@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 
 import numpy as np
 import pytest
@@ -134,6 +135,44 @@ def test_pcm_route_decode_failure_is_404_no_store(tmp_path, monkeypatch):
     )
     assert res.status_code == 404
     assert res.headers["cache-control"] == "no-store"
+
+
+def test_pcm_route_busy_decoder_is_503_retry_after_no_store(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 512)
+    monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
+    sem = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
+    project_path = waveform_project(tmp_path)
+    client = TestClient(create_app())
+    key = _ready_key(client, project_path)
+    params = {"path": str(project_path), "ref": "track:host", "block": 0}
+    sem.acquire()
+    res = client.get(f"/api/waveform/pcm/{key}", params=params)
+    assert res.status_code == 503
+    assert res.headers["retry-after"] == "1"
+    assert res.headers["cache-control"] == "no-store"
+    sem.release()
+    ok = client.get(f"/api/waveform/pcm/{key}", params=params)
+    assert ok.status_code == 200
+    assert ok.headers["cache-control"] == IMMUTABLE
+
+
+def test_waveform_call_maps_busy_to_503_without_logging(caplog):
+    from fastapi import HTTPException
+
+    from podcast_mcp.gui.routes.waveform import waveform_call
+
+    def busy():
+        raise svc.WaveformBusyError("busy")
+
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
+        pytest.raises(HTTPException) as info,
+    ):
+        waveform_call(busy)
+    assert info.value.status_code == 503
+    assert info.value.headers == {"Cache-Control": "no-store", "Retry-After": "1"}
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 def test_waveform_call_maps_unknown_errors_to_500_no_store(caplog):

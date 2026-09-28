@@ -601,6 +601,14 @@ def read_pcm_minmax(
     return _minmax_int16(eng.decode_window_f32(path, start_frame, frames, sample_rate, channels))
 
 
+def pcm_needs_decode(path: Path) -> bool:
+    """True when ``read_pcm_minmax`` decodes *path* through ffmpeg, not the WAV fast path.
+
+    ``OSError`` when *path* cannot be opened.
+    """
+    return _wav_info(path) is None
+
+
 # --- Keys and files -------------------------------------------------------------
 
 

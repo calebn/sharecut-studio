@@ -11,6 +11,8 @@ never imports services) and are re-exported here. This module adds:
   scheduling missing pyramids;
 - ``tile_bytes`` — raw data-tile bins, with no project parse;
 - ``pcm_block`` — host-only int16 min/max PCM windows for deep zoom;
+  compressed media take one of ``PCM_DECODE_MAX_CONCURRENT`` decode slots
+  (``WaveformBusyError`` when none is free);
 - ``gc_pyramids`` — once per process per project, drop orphaned pyramids.
 
 See ``docs/waveform.md``.
@@ -26,7 +28,7 @@ import wave
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
+from threading import BoundedSemaphore, Lock
 from typing import Any, Literal, TypeVar, cast
 
 from podcast_mcp.engines.waveform_media import (
@@ -46,6 +48,7 @@ from podcast_mcp.engines.waveform_media import (
 from podcast_mcp.engines.waveform_pyramid import (
     BIN_BYTES,
     PyramidMeta,
+    pcm_needs_decode,
     pyramid_build_failed,
     pyramid_build_pending,
     pyramid_path,
@@ -65,9 +68,12 @@ from podcast_mcp.util.timeline_zoom import (
 )
 
 __all__ = [
+    "PCM_BUSY_RETRY_AFTER_SEC",
+    "PCM_DECODE_MAX_CONCURRENT",
     "MediaEntry",
     "MediaIndex",
     "StaleWaveformKeyError",
+    "WaveformBusyError",
     "WaveformDecodeError",
     "current_key",
     "ensure_project_waveforms",
@@ -91,6 +97,8 @@ _PYRAMID_NAME_RE = re.compile(r"^([A-Za-z0-9_-]+)\.[0-9a-f]{20}\.wfpk$")
 
 _INDEX_MAX = 16
 _META_MAX = 256
+PCM_DECODE_MAX_CONCURRENT = 4  # the host viewer's fetchLimit, so one tab never trips it
+PCM_BUSY_RETRY_AFTER_SEC = 1
 GC_MIN_AGE_SEC = 7 * 86_400.0
 
 log = logging.getLogger(__name__)
@@ -102,6 +110,10 @@ class StaleWaveformKeyError(ValueError):
 
 class WaveformDecodeError(LookupError):
     """The media could not be read or decoded (HTTP 404, like a missing ref)."""
+
+
+class WaveformBusyError(RuntimeError):
+    """Every compressed-media PCM decode slot is taken (HTTP 503 with ``Retry-After``)."""
 
 
 _WatchSig = tuple[tuple[int, int] | None, ...]
@@ -123,6 +135,7 @@ _META: OrderedDict[tuple[str, str], PyramidMeta] = OrderedDict()
 _META_LOCK = Lock()
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
+_PCM_DECODES = BoundedSemaphore(PCM_DECODE_MAX_CONCURRENT)
 
 _K = TypeVar("_K")
 _V = TypeVar("_V")
@@ -338,11 +351,31 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
     return data
 
 
+def _read_pcm_bytes(
+    entry: MediaEntry, key: str, meta: PyramidMeta, start: int, frames: int
+) -> bytes:
+    try:
+        pairs = read_pcm_minmax(
+            entry.abs_path,
+            start,
+            frames,
+            sample_rate=meta.sample_rate,
+            channels=meta.channels,
+        )
+    except (OSError, EOFError, RuntimeError, wave.Error) as exc:
+        raise WaveformDecodeError("waveform media could not be decoded") from exc
+    if live_key(entry) != key:  # media replaced mid-read: never cache the wrong samples
+        raise StaleWaveformKeyError("waveform key is stale")
+    return pairs.astype("<i2").tobytes()
+
+
 def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     """int16 ``(min, max)`` pairs for frames ``[block*B, min((block+1)*B, total))``.
 
     ``StaleWaveformKeyError`` when *key* is not the ref's current key, checked before
-    and after the read.
+    and after the read. Media that needs ffmpeg (not the WAV fast path) takes one of
+    ``PCM_DECODE_MAX_CONCURRENT`` slots without waiting (``WaveformBusyError`` when
+    none is free).
     """
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
@@ -357,18 +390,17 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         raise ValueError("block out of range")
     frames = min(frames_per_block, meta.total_frames - start)
     try:
-        pairs = read_pcm_minmax(
-            entry.abs_path,
-            start,
-            frames,
-            sample_rate=meta.sample_rate,
-            channels=meta.channels,
-        )
-    except (OSError, EOFError, RuntimeError, wave.Error) as exc:
+        compressed = pcm_needs_decode(entry.abs_path)
+    except OSError as exc:
         raise WaveformDecodeError("waveform media could not be decoded") from exc
-    if live_key(entry) != key:  # media replaced mid-read: never cache the wrong samples
-        raise StaleWaveformKeyError("waveform key is stale")
-    return pairs.astype("<i2").tobytes()
+    if not compressed:
+        return _read_pcm_bytes(entry, key, meta, start, frames)
+    if not _PCM_DECODES.acquire(blocking=False):
+        raise WaveformBusyError("waveform decoder busy")
+    try:
+        return _read_pcm_bytes(entry, key, meta, start, frames)
+    finally:
+        _PCM_DECODES.release()
 
 
 def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:

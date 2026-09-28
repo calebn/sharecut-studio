@@ -453,6 +453,17 @@ def test_wav_info_rejects_unsupported_widths(tmp_path):
     assert wp._wav_info(junk) is None
 
 
+def test_pcm_needs_decode_only_off_the_wav_fast_path(tmp_path):
+    wav = tmp_path / "ok.wav"
+    _write_int_wav(wav, np.ones((32, 1), dtype=np.int64), width=2)
+    assert wp.pcm_needs_decode(wav) is False
+    other = tmp_path / "x.mp3"
+    other.write_bytes(b"ID3 not a riff file")
+    assert wp.pcm_needs_decode(other) is True
+    with pytest.raises(OSError):
+        wp.pcm_needs_decode(tmp_path / "missing.m4a")
+
+
 @pytest.mark.parametrize("declared", [0, 0xFFFFFFFF, 4 * 200 + 8])
 def test_wav_info_rejects_a_data_size_the_file_does_not_hold(tmp_path, declared):
     path = tmp_path / "bad.wav"

@@ -164,7 +164,8 @@ channel never hides another channel's peak. `frames` is capped at 4 × `pcm_bloc
 window raises `ValueError`. WAVs use a bounded `setpos`/`readframes`. Other media use
 `FFmpegEngine.decode_window_f32`, which puts `-ss` before `-i`, stops reading
 at exactly `frames` frames, and has a 30 s watchdog. `-frames:a` is not used,
-because ffmpeg counts it in decoder packets, not samples.
+because ffmpeg counts it in decoder packets, not samples. `pcm_needs_decode(path)`
+says which path a file takes (the service bounds only the ffmpeg path).
 
 ### Keys, files and jobs
 
@@ -267,6 +268,11 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   live pyramid, otherwise once they are 7 days old (an older app build may
   still write them, and a guest status poll can trigger the pass). A failed
   pass is retried on a later status call and never fails the status request.
+- **`pcm_block(project_path, ref, key, block)`:** one host deep-zoom block.
+  Media off the WAV fast path (`pcm_needs_decode`) takes one of
+  `PCM_DECODE_MAX_CONCURRENT` (4, the host viewer's fetch limit) decode slots
+  without waiting; when all are taken it raises `WaveformBusyError` instead of
+  starting another ffmpeg. WAVs take no slot.
 - **Social clip energy:** `ClipService.propose` first builds any missing
   `track:<id>` pyramids inline with
   `ensure_project_waveforms(project, sources=False)` (clip-source refs are not
@@ -286,10 +292,11 @@ need the host role (`require_host`) and a project path (`resolve_project`);
 | --- | --- | --- |
 | `GET /api/waveform/status?path=&kind=raw\|stem` | JSON | `Cache-Control: no-store` |
 | `GET /api/waveform/tiles/{key}?path=&ref=&level=&start=&count=` | octet-stream: the concatenated bins of data tiles `[start, start+count)`, clipped at the end of the level | Validates the ref grammar, `key` (`^[0-9a-f]{20}$`), that the file exists, the level, `start`, and `1 ≤ count ≤ max_tiles_per_request`. No index and no project parse. `Cache-Control: private, max-age=31536000, immutable` (no ETag: the URL carries the key) |
-| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream: int16 `(min, max)` pairs for frames `[block·B, min((block+1)·B, total))`, `B = pcm_block_frames` | **409** when `key` is not the ref's current key, checked before and after the read. Immutable |
+| `GET /api/waveform/pcm/{key}?path=&ref=&block=` | octet-stream: int16 `(min, max)` pairs for frames `[block·B, min((block+1)·B, total))`, `B = pcm_block_frames` | **409** when `key` is not the ref's current key, checked before and after the read. **503** with `Retry-After: 1` when every compressed-media decode slot is busy. Immutable |
 
 Errors map bad input to 400, missing refs or pyramids, and media that cannot be
-read or decoded, to 404, stale keys to 409 and anything else to 500, and always send `Cache-Control: no-store`. Tile bytes are
+read or decoded, to 404, stale keys to 409, a busy PCM decoder to 503 (with
+`Retry-After`) and anything else to 500, and always send `Cache-Control: no-store`. Tile bytes are
 `i16 min, i16 max, i16 rms` per bin, as in the file.
 
 Guest routes (`gui/routes/review_share.py`, services
