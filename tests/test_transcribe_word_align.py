@@ -168,7 +168,9 @@ def test_stretched_word_is_undeferred_only_when_aligned(minimal_project, tmp_pat
     assert tr.words[1].end == pytest.approx(9.0)
 
 
-def test_missing_model_keeps_whisper_times_and_reports(minimal_project, tmp_path, caplog):
+def test_missing_model_keeps_whisper_times_and_loads_once_per_engine(
+    minimal_project, tmp_path, caplog
+):
     proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
 
     with (
@@ -188,6 +190,18 @@ def test_missing_model_keeps_whisper_times_and_reports(minimal_project, tmp_path
         assert any("keeping Whisper timestamps" in r.message for r in caplog.records)
 
         engine.transcribe_job(proj, job, language="en")
+        assert load.call_count == 1
+        assert engine.forced_alignment_jobs[1]["status"] == "failed"
+
+        fresh = TranscriptionEngine(options=AsrOptions(forced_alignment_enabled=True))
+        with patch.object(
+            fresh,
+            "transcribe_file",
+            return_value=Transcript(
+                track_id="", words=[TranscriptWord(text="hi", start=0.0, end=0.5)]
+            ),
+        ):
+            fresh.transcribe_job(proj, job, language="en")
         assert load.call_count == 2
 
 

@@ -282,6 +282,7 @@ class TranscriptionEngine:
         # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
         self.forced_alignment_jobs: list[dict[str, Any]] = []
         self._word_aligner: WordAligner | None = None
+        self._word_aligner_error: Exception | None = None
 
     def _get_model(self):
         if self._model is None:
@@ -322,14 +323,21 @@ class TranscriptionEngine:
         return _cache_file(project, track_id, name)
 
     def _load_word_aligner(self) -> WordAligner:
-        # Only a loaded aligner is kept: a missing model is re-checked on the next job,
-        # so a bootstrap in a long-lived process (Studio) takes effect without restart.
-        # Not locked: an engine runs its jobs one at a time (TranscriptService builds one
-        # engine per request). Add a lock if jobs ever run in parallel over one engine.
+        # The load, or its failure, is kept for this engine's lifetime (one pipeline run or
+        # one TranscriptService request): a corrupt snapshot is hashed once per run, not
+        # once per track, and a bootstrap in a long-lived process (Studio) still takes
+        # effect on the next run. Not locked: an engine runs its jobs one at a time. Add a
+        # lock if jobs ever run in parallel over one engine.
+        if self._word_aligner_error is not None:
+            raise self._word_aligner_error
         if self._word_aligner is None:
             from podcast_mcp.engines.word_align import WordAligner
 
-            self._word_aligner = WordAligner.load()
+            try:
+                self._word_aligner = WordAligner.load()
+            except Exception as exc:
+                self._word_aligner_error = exc
+                raise
         return self._word_aligner
 
     def word_align_cache_path(

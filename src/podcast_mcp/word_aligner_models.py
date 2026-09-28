@@ -138,8 +138,11 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
 
 
 def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
+    """A complete local snapshot; the pinned one (not an override) must also match its sha256."""
     try:
-        resolve_word_aligner_dir(model_id)
+        path = resolve_word_aligner_dir(model_id)
+        if word_aligner_override_dir() is None:
+            verify_word_aligner_onnx(path, word_aligner_model(model_id))
     except WordAlignerMissingError:
         return False
     return True
