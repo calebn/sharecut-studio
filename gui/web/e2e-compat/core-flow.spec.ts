@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
+import { expectPageAxeClean } from "../e2e/axe";
 import { bouncedWavs } from "../e2e/exportFiles";
 import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
 import { openDialogFromMenu } from "../e2e/overlayReachability";
@@ -211,6 +212,7 @@ test.describe("core flow", () => {
           await openDialogFromMenu(host, "Bounce…");
           const dlg = host.getByRole("dialog", { name: "Bounce…" });
           await expect(dlg).toBeVisible();
+          await expectPageAxeClean(host);
           await dlg
             .getByRole("button", { name: "Bounce", exact: true })
             .click();

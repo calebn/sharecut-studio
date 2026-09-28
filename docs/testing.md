@@ -552,7 +552,8 @@ with a non-silent peak (`landedTrackPeak`). The episode transcript hydrates;
 (`make e2e-slow`). The Tighten panel opens on its empty state. A transcript
 word is corrected and undone with Mod+Z. A viewer review share plays the
 per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on Play). A
-host Bounce writes one non-silent WAV under `export/bounces/`. The stages run
+host Bounce dialog passes full-page axe (`expectPageAxeClean`) and writes one
+non-silent WAV under `export/bounces/`. The stages run
 serially in one test because export bounces the landed track, so with
 `retries: 0` a failing stage skips the later ones until it is fixed; the
 report names the failing `test.step`.
