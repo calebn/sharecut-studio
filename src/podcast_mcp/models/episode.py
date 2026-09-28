@@ -199,7 +199,8 @@ class TranscriptWords(list[TranscriptWord]):
         holding ``util.project_state.project_state_lock(project)`` when another thread
         may edit these words in place. Without that, ``compute()`` may see a torn list,
         but the revision is stamped before computing and the writer bumps after its
-        change, so the next call recomputes: a wrong value lasts at most one call.
+        change to a never-seen revision, so a wrong value is served only until that
+        bump lands and is never revalidated after it.
         """
         revision = words_revision()  # stamp before computing: a concurrent edit then misses
         hit = self._memo.get(key)
