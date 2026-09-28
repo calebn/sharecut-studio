@@ -197,8 +197,9 @@ def refresh_silence_flags(
 
     Every flag is cleared first; the silence filter (when on) sets its flags, then aligned
     words without acoustic evidence are OR-ed in. Returns the flagged count, or ``None`` when
-    ``path`` cannot be decoded (silence flags stay cleared, the evidence flags still apply,
-    a warning is logged).
+    ``path`` cannot be decoded (silence flags stay cleared, the evidence flags still apply and
+    are the only flags, a warning is logged). Callers store no fingerprint on ``None``, so the
+    next run retries the decode.
     """
     for w in words:
         w.suspect_hallucination = False
