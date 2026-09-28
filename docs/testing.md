@@ -532,7 +532,8 @@ verify native permission prompts, hardware capture, keeper audio, or upload.
 Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
 `landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection, and
-`gui/web/e2e/wavPeak.ts` for WAV peak assertions on landed audio; guest review
+`gui/web/e2e/wavPeak.ts`, a WAV peak helper for the landed-audio assertions
+planned in #703 / #704 (no spec calls it yet); guest review
 shares come from `createReviewShare` in `gui/web/e2e/shareNavigation.ts`. This
 keeps coverage focused on high-risk entry points without multiplying the
 full suite across engines.
