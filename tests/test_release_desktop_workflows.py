@@ -137,7 +137,7 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     )
     assert setup["with"]["python-version"] == "3.12"
     ffmpeg = next(step for step in job["steps"] if step.get("name") == "Install FFmpeg")
-    assert "ffmpeg" in ffmpeg["run"]
+    assert "choco install ffmpeg --version 9.0.2" in ffmpeg["run"]
     check = next(step for step in job["steps"] if step.get("name") == "Check FFmpeg on PATH")
     assert check["run"] == "ffmpeg -version"
 
