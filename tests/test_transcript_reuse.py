@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from podcast_mcp.edits.transcript_correct import correct_word
 from podcast_mcp.edits.transcript_reuse import (
     TranscribePlan,
     TranscriptOverwriteRefused,
@@ -16,6 +18,7 @@ from podcast_mcp.edits.transcript_reuse import (
     stamp_audio_identity,
 )
 from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_silence import silence_filter_fingerprint
 from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.transcribe import TranscribeJob
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
@@ -255,6 +258,35 @@ def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch):
     assert skipped == []
     assert transcript.words[0].suspect_hallucination is True
     assert transcript.silence_filter_fingerprint is not None
+
+
+def test_corrected_silence_flag_is_rechecked_via_fingerprint(job, monkeypatch):
+    from podcast_mcp.engines import asr_silence
+
+    options = AsrOptions()
+    transcript = _tr()  # one word 'hi' at 0-0.5 s, no alignment_score
+    transcript.words[0].suspect_hallucination = True  # set by the silence filter alone
+    p, plan = _reused_plan(job, transcript)
+    transcript.silence_filter_fingerprint = silence_filter_fingerprint(
+        transcript.words, plan.audio_hashes[job.key], options
+    )
+
+    correct_word(p, "host", 0, "hello")
+    word = p.transcripts[0].words[0]
+    assert word.suspect_hallucination is False and word.alignment_score is None
+    assert transcript.silence_filter_fingerprint != silence_filter_fingerprint(
+        transcript.words, plan.audio_hashes[job.key], options
+    )
+
+    # Digital silence under the word: the refresh re-flags it.
+    monkeypatch.setattr(
+        asr_silence, "peak_envelope", lambda path: (np.zeros(8000, dtype=np.float32), 8000.0)
+    )
+    assert refresh_reused_silence_flags(p, plan, options) == []
+    assert word.suspect_hallucination is True
+    assert transcript.silence_filter_fingerprint == silence_filter_fingerprint(
+        transcript.words, plan.audio_hashes[job.key], options
+    )
 
 
 class _FakeEngine:
