@@ -24,7 +24,7 @@ export const TRANSCRIPT_CORRECT_TIMING_NOTE =
 
 /** Under Apply when the phrase range is not fully loaded, so Apply cannot use the #650 stale-text guard. */
 export const TRANSCRIPT_SPAN_UNVERIFIED_NOTE =
-  "Not every word in this range is loaded, so Apply can't check whether someone else changed these words first.";
+  "Not every word in this range could be read, so Apply can't check whether someone else changed these words first.";
 
 /** Title/tooltip suffix on an ignored word chip (#633). */
 export const TRANSCRIPT_IGNORED_WORD_TIP =

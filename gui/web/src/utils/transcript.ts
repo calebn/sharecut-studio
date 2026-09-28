@@ -103,9 +103,10 @@ export function transcriptWordRange(
  * Space-joined text of an inclusive word-index range on a track, or null unless
  * every index in the range is in this snapshot (#650 stale-correction guard).
  * A word listed under two utterances (one straddling an utterance boundary)
- * counts once, and the first listing wins: the mapper emits both listings
- * from the same per-track word view, so their text is identical. Do not
- * change this to last-wins.
+ * normally counts once, since the mapper emits both listings from the same
+ * per-track word view, so their text is identical. If two loaded listings for
+ * the same index disagree on text, the span is unverifiable and this returns
+ * null rather than guessing which listing is current.
  */
 export function transcriptSpanText(
   project: ProjectView | null,
@@ -127,8 +128,11 @@ export function transcriptSpanText(
     startWordIndex,
     endWordIndex,
   )) {
-    if (!byIndex.has(index)) {
+    const seen = byIndex.get(index);
+    if (seen === undefined) {
       byIndex.set(index, word.text);
+    } else if (seen !== word.text) {
+      return null;
     }
   }
   if (byIndex.size !== endWordIndex - startWordIndex + 1) {
