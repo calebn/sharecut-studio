@@ -1185,6 +1185,52 @@ describe("PipelinePanel", () => {
     expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
   });
 
+  it("leaves earlier Analyze results alone when a remote Analyze is cancelled before a result", async () => {
+    const user = userEvent.setup();
+    const patched = withMasterLufsParam();
+    patched.config.master.integrated_lufs = -14;
+    loadPipelineConfig.mockResolvedValue(withMasterLufsParam());
+    analyzePipeline.mockResolvedValue({
+      proposed_config: patched.config,
+      patches: { master: { integrated_lufs: -14 } },
+      reasons: [{ code: "hum", message: "host: mains hum", evidence: {} }],
+      report_summary: { track_count: 1, reason_count: 1, tracks: [] },
+      applied: true,
+      config: patched,
+    });
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    expect(screen.getByLabelText(/Master LUFS/i).closest("label")).toHaveClass(
+      "pipeline-param-highlight",
+    );
+    const cancelled = analyzeJobSnap({
+      id: "an-remote",
+      status: "cancelled",
+      message: "Analyze cancelled",
+      result: null,
+    });
+    waitForPipelineJob.mockResolvedValueOnce(cancelled);
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    rerender(<PipelinePanel />);
+    await waitFor(() => {
+      expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    });
+    dawState.activityJob = cancelled;
+    rerender(<PipelinePanel />);
+    await act(async () => {});
+    expect(screen.getByText("host: mains hum")).toBeInTheDocument();
+    expect(screen.getByText("Analyze suggestions applied")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Master LUFS/i).closest("label")).toHaveClass(
+      "pipeline-param-highlight",
+    );
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
