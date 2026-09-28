@@ -529,8 +529,12 @@ meter until it reads a non-zero value. Chromium keeps its native Permissions
 API; WebKit hides `navigator.permissions` so the matrix exercises Safari's
 missing-`permissions.query` branch (`src/record/micPermission.ts`). It does not
 verify native permission prompts, hardware capture, keeper audio, or upload.
-Record rooms and E2E flags come from the shared `gui/web/e2e/recordRoom.ts`
-helpers. This keeps coverage focused on high-risk entry points without multiplying the
+Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
+(`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
+`landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection, and
+`gui/web/e2e/wavPeak.ts` for WAV peak assertions on landed audio; guest review
+shares come from `createReviewShare` in `gui/web/e2e/shareNavigation.ts`. This
+keeps coverage focused on high-risk entry points without multiplying the
 full suite across engines.
 
 The compat config pins `workers: 1` / `fullyParallel: false` and `retries: 0`
