@@ -8,11 +8,12 @@ reader (:func:`prosody_overlay`, #719).
 
 The reader (:func:`load_track_profile`) never hashes audio: it lists this track's
 cache files (one after the writer prunes), picks the newest, and compares its stored
-``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint, and,
-when the caller passes its staged ``prosody.*`` params, compares the stored ``params``
-with them (``params=None``, i.e. nothing staged, trusts the stored params). The
-writer (:func:`run_prosody_analysis`) is the only thing that hashes audio or reruns
-Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content
+``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint (memoized
+in memory on the transcript's words revision by :func:`track_words_fingerprint`, #729),
+and, when the caller passes its staged ``prosody.*`` params, compares the stored
+``params`` with them (``params=None``, i.e. nothing staged, trusts the stored params).
+The writer (:func:`run_prosody_analysis`) is the only thing that hashes audio or
+reruns Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content
 change).
 """
 
@@ -40,7 +41,7 @@ from podcast_mcp.engines.prosody import (
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.transcribe import TranscribeJob, cache_id_part, track_transcribe_job
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EpisodeProject, Transcript
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
@@ -63,15 +64,15 @@ _ENERGY_THIRD_KEYS = ("start_third_db", "mid_third_db", "end_third_db")
 _WORD_MATCH_TOLERANCE_SEC = 0.25
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
 _PROFILE_SUFFIX_RE = re.compile(r"_[0-9a-f]{16}_[0-9a-f]{16}\.json")
+_WORDS_FP_MEMO_KEY = "prosody.words_fingerprint"
 
 
 def prosody_dir(project: EpisodeProject) -> Path:
     return project.transcripts_dir() / "prosody"
 
 
-def profile_words(project: EpisodeProject, track_id: str) -> list[WordSpan]:
-    """Word timings for ``track_id``: not suppressed, not a suspected hallucination."""
-    tr = project.transcript_for_source(track_id, None)
+def _transcript_spans(tr: Transcript | None) -> list[WordSpan]:
+    """Word timings for a transcript: not suppressed, not a suspected hallucination."""
     if tr is None:
         return []
     return [
@@ -81,11 +82,29 @@ def profile_words(project: EpisodeProject, track_id: str) -> list[WordSpan]:
     ]
 
 
+def profile_words(project: EpisodeProject, track_id: str) -> list[WordSpan]:
+    """Word timings for ``track_id``: not suppressed, not a suspected hallucination."""
+    return _transcript_spans(project.transcript_for_source(track_id, None))
+
+
 def words_fingerprint(words: list[WordSpan]) -> str:
     """A short hash of word text+timing, stable regardless of list order."""
     rows = sorted((round(w.start, 3), round(w.end, 3), w.text) for w in words)
     payload = json.dumps(rows, separators=(",", ":"))
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
+    """``words_fingerprint(profile_words(project, track_id))``, memoized on the transcript (#729).
+
+    Recomputed (~27 ms per track at 18k words) only after a transcript words change in
+    this process (``Transcript.memoize_words``), so an in-place edit such as
+    ``refresh_silence_flags`` is never missed.
+    """
+    tr = project.transcript_for_source(track_id, None)
+    if tr is None:
+        return words_fingerprint([])
+    return tr.memoize_words(_WORDS_FP_MEMO_KEY, lambda: words_fingerprint(_transcript_spans(tr)))
 
 
 def inputs_key(params: ProsodyParams, words_fp: str) -> str:
@@ -343,7 +362,9 @@ def load_track_profile(
 
     Per call: a listing of this track's cache files (normally one, since
     :func:`run_prosody_analysis` prunes superseded profiles), one JSON read, one
-    ``stat`` of the media, and an O(words) fingerprint of the track's transcript,
+    ``stat`` of the media, and a words fingerprint of the track's transcript
+    (:func:`track_words_fingerprint`, memoized on the transcript's in-process words
+    revision (#729): O(words) only the first time after a words change, O(1) after),
     checked cheapest first. No Praat run and no audio decode. When ``params`` is given
     (the staged pipeline working set's ``prosody.*`` settings), it also compares the
     stored ``params`` with it. ``None`` (nothing staged) trusts the stored params,
@@ -388,8 +409,7 @@ def load_track_profile(
             "stale",
             "Track audio changed since the profile was computed; re-run analyze_prosody.",
         )
-    current_words_fp = words_fingerprint(profile_words(project, track_id))
-    if profile.words_fingerprint != current_words_fp:
+    if profile.words_fingerprint != track_words_fingerprint(project, track_id):
         return ProfileLookup(
             profile,
             "stale",
