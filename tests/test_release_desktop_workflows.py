@@ -146,10 +146,10 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     assert "tests/test_history.py" in lock_step["run"]
 
     publish_step = next(
-        step for step in job["steps"] if step.get("name") == "Portable review publication tests"
+        step for step in job["steps"] if step.get("name") == "Review publication tests"
     )
     assert "tests/test_review_versions.py" in publish_step["run"]
-    assert '-k "publish or publication"' in publish_step["run"]
+    assert " -k " not in publish_step["run"]
 
 
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:

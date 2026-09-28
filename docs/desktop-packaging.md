@@ -139,7 +139,7 @@ The public check workflow is deliberately limited:
 
 | Workflow | When it runs | What it does |
 |----------|----------------|--------------|
-| [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) | PR/main path filter | Portable scaffold (`make test-desktop` / clippy `--lib`) plus a Windows `cargo check` for the WebView2 desktop binary, `tests/test_pinned_media.py` on Windows at the Python floor and sidecar version, and `tests/test_project_commit_lock.py` / `tests/test_history.py` / the portable parts of `tests/test_review_versions.py` on Windows (`project-commit-lock-windows`). It does not build installers. |
+| [`.github/workflows/desktop.yml`](../.github/workflows/desktop.yml) | PR/main path filter | Portable scaffold (`make test-desktop` / clippy `--lib`) plus a Windows `cargo check` for the WebView2 desktop binary, `tests/test_pinned_media.py` on Windows at the Python floor and sidecar version, and `tests/test_project_commit_lock.py` / `tests/test_history.py` / `tests/test_review_versions.py` on Windows (staging tests skip via `tests/review_platform.py`) (`project-commit-lock-windows`). It does not build installers. |
 | [`.github/workflows/release-desktop-build.yml`](../.github/workflows/release-desktop-build.yml) | Reusable `workflow_call` | Builds installer artifacts for a caller. A private operations repository owns dispatch, signing, publishing, and manifests. |
 
 Do not put certs, `.p8` files, or `APPLE_*` / Authenticode **values** in this FOSS tree. Apple Silicon notarized DMGs can still be built locally (see [§ Local codesign and notarization](#local-codesign-and-notarization)). Intel GHA artifacts stay unsigned unless the funnel secrets are present.
