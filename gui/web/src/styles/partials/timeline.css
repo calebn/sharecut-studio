@@ -906,14 +906,19 @@ button.join-diamond {
   color: var(--color-bg-canvas);
 }
 
-.lane-waveform-status {
+/* Lane-corner status caption: waveform (bottom) and the Prosody layer (top). */
+.lane-waveform-status,
+.lane-prosody-status {
   position: absolute;
   z-index: 5;
   left: var(--space-3);
-  bottom: var(--space-1);
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
   pointer-events: none;
+}
+
+.lane-waveform-status {
+  bottom: var(--space-1);
 }
 
 /* Prosody layer (#719): read-only paint over the clips; never takes pointer input. */
@@ -971,11 +976,5 @@ button.join-diamond {
 }
 
 .lane-prosody-status {
-  position: absolute;
-  z-index: 5;
-  left: var(--space-3);
   top: var(--space-1);
-  font-size: var(--font-size-caption);
-  color: var(--color-text-secondary);
-  pointer-events: none;
 }
