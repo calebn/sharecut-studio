@@ -413,12 +413,14 @@ and `benchmark-faded.json`), so undo, redo, and diff use real snapshots without
 commit, so the default and the max both track that cap — `--history` values
 above `HISTORY_ENTRY_LIMIT // 2` (200) are refused rather than silently
 trimmed, since a fixture built past the cap could never survive a real
-commit. Seeded entry ids are 12-character lowercase hex (`f"{n:012x}"`),
-matching the generated-id shape `ProjectStore` requires before it will prune
-an entry's snapshot file (`HistoryManager` mints the same shape via
-`uuid4().hex[:12]`). The default 200 steps also meet the History list's
-`VIRTUALIZE_ON_ROWS` (200), so a default-shape run profiles the virtualized
-list; `tests/test_large_project_fixture.py` pins that.
+commit. Seeded entry ids are 12-character lowercase hex (`f"{n:012x}"`, the
+shape `HistoryManager` mints via `uuid4().hex[:12]`), so a real commit prunes
+the oldest entries without a `Skipping unsafe pruned history snapshot id`
+warning. Pruning deletes `history/snapshots/<entry id>.json`, which the seeded
+entries never have, so the two shared snapshot files stay on disk. The default
+200 steps also meet the History list's `VIRTUALIZE_ON_ROWS` (200), so a
+default-shape run profiles the virtualized list; `tests/test_large_project_fixture.py`
+pins that.
 
 Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
 whole Playwright run, so every other spec would otherwise run against the
