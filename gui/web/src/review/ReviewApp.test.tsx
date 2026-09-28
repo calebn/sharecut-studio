@@ -42,6 +42,7 @@ describe("ReviewApp", () => {
   beforeEach(() => {
     FakeWebSocket.reset({ autoOpen: false });
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -296,6 +297,7 @@ describe("ReviewApp", () => {
       },
     );
     vi.stubGlobal("fetch", fetchMock);
+    localStorage.setItem("podcast-mcp-comment-author", "Host");
 
     render(<ReviewApp token="tok" />);
     await waitFor(() => {
@@ -314,7 +316,7 @@ describe("ReviewApp", () => {
       );
       expect(jsonRequestBody(replyCall?.[1])).toEqual({
         body: "Sounds good",
-        author: "viewer",
+        author: "Guest",
       });
     });
 
@@ -329,7 +331,7 @@ describe("ReviewApp", () => {
       );
       expect(jsonRequestBody(actionCall?.[1])).toEqual({
         done: true,
-        by: "viewer",
+        by: "Guest",
       });
     });
     expect(
