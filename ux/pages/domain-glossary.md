@@ -202,8 +202,8 @@ point at the same timeline position.
 If the words a transcript correction targets change (another tab, a guest, or an
 agent) before it lands, a correction that carries the text it expected is refused
 as a conflict instead of changing a different word. Sharecut Studio's inline word
-editor always sends that text, and the Correct inspector sends it whenever it can read
-every word in the range (otherwise it says so under Apply). A refusal shows under the editor
+editor always sends that text, and the Correct inspector sends it whenever it can confirm the
+current text of every word in the range (otherwise it says so under Apply). A refusal shows under the editor
 and in **Needs attention**; reopen the word and try again.
 
 ```mermaid
