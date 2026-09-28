@@ -214,6 +214,8 @@ type UiSlice = Pick<
   | "setHelpDialogOpen"
   | "openJoinId"
   | "setOpenJoinId"
+  | "joinMutationInFlight"
+  | "setJoinMutationInFlight"
   | "fitToWindow"
   | "measureTimelineViewport"
 >;
@@ -646,6 +648,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setHelpDialogOpen: (helpDialogOpen) => set({ helpDialogOpen }),
     openJoinId: null,
     setOpenJoinId: (openJoinId) => set({ openJoinId }),
+    joinMutationInFlight: false,
+    setJoinMutationInFlight: (joinMutationInFlight) =>
+      set({ joinMutationInFlight }),
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());
       if (duration > 0 && viewportWidth > 0) {

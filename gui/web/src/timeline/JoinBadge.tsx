@@ -80,7 +80,6 @@ function JoinBadgeLive({
   trackFadeMaxMs,
 }: JoinBadgeProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const inFlightRef = useRef(false);
   const popoverId = useId();
   const joinId = right.id;
   const { open, setOpenJoinId } = useDaw((s) => ({
@@ -106,10 +105,15 @@ function JoinBadgeLive({
         expanded={open}
         popoverId={popoverId}
         onClick={() => {
-          if (!open) {
-            setOpenJoinId(joinId);
-          } else if (!inFlightRef.current) {
+          // A SetClipJoin in flight (from this popover or another badge's) holds
+          // the open popover, so its failure still shows (JoinPopover.tsx).
+          if (useDawStore.getState().joinMutationInFlight) {
+            return;
+          }
+          if (open) {
             close();
+          } else {
+            setOpenJoinId(joinId);
           }
         }}
       />
@@ -122,7 +126,6 @@ function JoinBadgeLive({
           trackFadeMaxMs={trackFadeMaxMs}
           anchorRef={buttonRef}
           onClose={close}
-          inFlightRef={inFlightRef}
         />
       ) : null}
     </>
