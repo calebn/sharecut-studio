@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { unmappedPendingLabel } from "../utils/edits";
+import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import type { StatusBarSummary } from "./statusBarSummary";
@@ -102,7 +103,7 @@ export function StatusBarView({
         title={renderSummary}
         onClick={() => onOpenTab("pipeline")}
       >
-        {renderStale ? "Mix out of date" : "Mix up to date"}
+        {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
       </button>
       {transcriptNeedsSync ? (
         <span className={reconcileHighlight ? "stale-highlight" : undefined}>

@@ -2,6 +2,10 @@ import type { ProjectView } from "../types/project";
 import { plural } from "./format";
 import { projectHasSourceAudio } from "./projectMedia";
 
+/** Mix-freshness copy shared by the transport pill, status bar and phone chip. */
+export const MIX_STALE_LABEL = "Mix out of date";
+export const MIX_FRESH_LABEL = "Mix up to date";
+
 export type RenderInvalidationReason =
   | "cut"
   | "clip"
@@ -96,7 +100,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     wholeTrackIds: [],
     regionalOnlyTrackIds: [],
     allStaleAreWholeTrack: false,
-    summary: "Mix up to date",
+    summary: MIX_FRESH_LABEL,
   };
 }
 
@@ -222,8 +226,8 @@ export function staleRenderBreakdown(
     summary: stale
       ? parts.length
         ? parts.join(" · ")
-        : "Mix out of date"
-      : "Mix up to date",
+        : MIX_STALE_LABEL
+      : MIX_FRESH_LABEL,
   };
 }
 

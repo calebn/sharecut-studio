@@ -39,6 +39,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
+import { MIX_STALE_LABEL } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
@@ -266,7 +267,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
           </button>
         ) : null}
         {stale ? (
-          <span className="status-chip warning">Mix out of date</span>
+          <span className="status-chip warning">{MIX_STALE_LABEL}</span>
         ) : null}
         {chipJob ? (
           <PipelineStatusChip
