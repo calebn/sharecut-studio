@@ -785,7 +785,7 @@ source below. On the **lab** tape (3 × 60 s, real 3-speaker Zoom speech):
 | Candidate        | MAE vs native (ms) | over 150 ms   | start bias (ms) | end bias (ms) | RTF   | `onnx-base~X` pairwise MAE (ms) |
 | ---------------- | ------------------- | -------------- | ---------------- | -------------- | ----- | -------------------------------- |
 | `onnx-base`       | 115.56               | 53/162 (32.7%) | +162.59           | +18.40          | 0.018 | —                                 |
-| `onnx-base-int8`  | 120.00               | 51/162 (31.5%) | +159.75           | +17.53          | 0.031 | (`onnx-base~onnx-base-int8`, small; not the decision path) |
+| `onnx-base-int8`  | 120.00               | 51/162 (31.5%) | +159.75           | +17.53          | 0.031 | 28.22 (163 matched)               |
 | `torch-large`     | 127.65               | 58/162 (35.8%) | +185.06           | +42.35          | 0.035 | 33.37 (163 matched)               |
 
 Agreement is not accuracy: it says how much the candidates disagree with
