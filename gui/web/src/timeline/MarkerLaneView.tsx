@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useRef } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
@@ -8,6 +9,7 @@ import type {
 } from "../types/project";
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { formatTimeShort } from "../utils/time";
+import { chapterLabelRoomPx } from "./chapterLabels";
 import type { ClippingFlag } from "./clippingFlags";
 import { type SocialDragMode, socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
@@ -88,20 +90,27 @@ export function MarkerLaneView({
     );
   }
 
+  const labelRoom = chapterLabelRoomPx(chapters, zoomPxPerSec, width);
+
   return (
     <div className="marker-lane" style={{ width }}>
       {rows.chapters && (
         <>
           <div className="marker-row chapters" {...rowAnchor("chapters")}>
-            {chapters.map((ch) => (
+            {chapters.map((ch, i) => (
               <button
                 key={`${ch.time}-${ch.title}`}
                 type="button"
                 className="chapter-marker"
-                style={{
-                  left: ch.time * zoomPxPerSec - MARKER_HALF,
-                  cursor: editable ? "ew-resize" : "pointer",
-                }}
+                style={
+                  {
+                    left: ch.time * zoomPxPerSec - MARKER_HALF,
+                    cursor: editable ? "ew-resize" : "pointer",
+                    ...(labelRoom[i] != null
+                      ? { "--chapter-label-room": `${labelRoom[i]}px` }
+                      : {}),
+                  } as CSSProperties
+                }
                 aria-label={`Chapter ${ch.title}`}
                 title={ch.title}
                 onClick={() => onSelectChapter(ch)}
@@ -110,7 +119,7 @@ export function MarkerLaneView({
                     return;
                   }
                   e.stopPropagation();
-                  (e.target as Element).setPointerCapture?.(e.pointerId);
+                  e.currentTarget.setPointerCapture?.(e.pointerId);
                   chapterDrag.current = {
                     time: ch.time,
                     title: ch.title,
@@ -143,7 +152,13 @@ export function MarkerLaneView({
                   const nextTime = Math.max(0, originTime + dx / zoomPxPerSec);
                   onMoveChapter?.({ time, title }, nextTime);
                 }}
-              />
+              >
+                {labelRoom[i] != null ? (
+                  <span className="chapter-marker-label" aria-hidden="true">
+                    {ch.title}
+                  </span>
+                ) : null}
+              </button>
             ))}
           </div>
         </>
@@ -178,7 +193,7 @@ export function MarkerLaneView({
                       return;
                     }
                     e.stopPropagation();
-                    (e.target as Element).setPointerCapture?.(e.pointerId);
+                    e.currentTarget.setPointerCapture?.(e.pointerId);
                     const el = e.currentTarget as HTMLElement;
                     const rect = el.getBoundingClientRect();
                     const localX = e.clientX - rect.left;

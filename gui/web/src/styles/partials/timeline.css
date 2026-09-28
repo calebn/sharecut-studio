@@ -787,6 +787,22 @@ button.join-diamond {
   pointer-events: none;
 }
 
+/* Title beside the diamond; MarkerLaneView sets --chapter-label-room (px) to the
+   space before the next chapter, and the label is omitted when that is too small. */
+.chapter-marker-label {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 100%;
+  max-inline-size: min(var(--chapter-label-room), 12rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-micro);
+  line-height: var(--marker-row-height);
+  color: var(--color-timeline-text);
+  text-align: start;
+}
+
 .social-marker {
   position: absolute;
   top: 0;

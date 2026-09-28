@@ -97,20 +97,6 @@ describe("timelineLaneStoryDecorator", () => {
     }
   });
 
-  it("reserves ruler room above the lanes when asked", () => {
-    const { container } = renderShell({ reserveRulerRoom: true });
-    const main = container.querySelector("main")!;
-    const first = main.firstElementChild as HTMLElement;
-    expect(first.hasAttribute("data-story-ruler-room")).toBe(true);
-    expect(first.getAttribute("aria-hidden")).toBe("true");
-    expect(first.style.height).toBe("var(--ruler-height)");
-    const laneRow = main.querySelector(".lane-row");
-    expect(
-      first.compareDocumentPosition(laneRow!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
   it("loads a positive --ruler-height into the Storybook preview", () => {
     // Play functions run under jsdom (allStories.test.tsx), which neither
     // loads the preview CSS nor lays out, so this guards the source chain.

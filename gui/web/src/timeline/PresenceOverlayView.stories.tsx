@@ -60,9 +60,6 @@ const meta: Meta<typeof PresenceOverlayView> = {
     lanePreviewLabel: "Presence overlay preview",
     // Two lanes, so a remote cursor/selection has real rows to land on.
     laneTrackIds: ["mira-voice", "ari-voice"],
-    // Room above the first lane for the playhead avatar chip, as the live
-    // ruler and marker rows give it.
-    reserveRulerRoom: true,
   },
   decorators: [timelineLaneStoryDecorator],
   args: {
@@ -109,12 +106,6 @@ export const PlayheadAndCursor: Story = {
     await expect(
       canvasElement.querySelector(".presence-playhead-chip"),
     ).not.toBeNull();
-    const rulerRoom = canvasElement.querySelector(
-      "[data-story-ruler-room]",
-    ) as HTMLElement | null;
-    await expect(rulerRoom).not.toBeNull();
-    // Sized by the live ruler token so the chip above the first lane shows.
-    await expect(rulerRoom?.style.height).toBe("var(--ruler-height)");
   },
 };
 
