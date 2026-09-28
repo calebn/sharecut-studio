@@ -600,7 +600,37 @@ def test_tracker_roster_before_any_fanout_reads_live_rows() -> None:
     row = {"client_id": "c1", "last_seen_ns": 1}
     rows, version = tracker.roster("k", lambda: [row])
     assert rows == [row]
-    assert version == 0
+    assert version == 1
+    assert tracker.version("k") == 1
+
+    events = tracker.events("k", [row])
+    assert len(events) == 1
+    assert events[0]["type"] == "Presence"
+    assert events[0]["roster_version"] == 2
+
+
+def test_tracker_roster_after_clear_key_bumps_the_version() -> None:
+    tracker = PresenceRosterTracker()
+    tracker.events("k", [{"client_id": "a", "last_seen_ns": 1}])
+    tracker.clear_key("k")
+    rows, version = tracker.roster("k", lambda: [{"client_id": "a", "last_seen_ns": 5}])
+    assert rows == [{"client_id": "a", "last_seen_ns": 5}]
+    assert version == 2
+
+
+def test_tracker_roster_prefers_a_base_set_while_reading_rows() -> None:
+    tracker = PresenceRosterTracker()
+    row_a = {"client_id": "a", "last_seen_ns": 1}
+    row_b = {"client_id": "b", "last_seen_ns": 1}
+
+    def _read():
+        tracker.events("k", [row_b])
+        return [row_a]
+
+    rows, version = tracker.roster("k", _read)
+    assert rows == [row_b]
+    assert version == 1
+    assert tracker.version("k") == 1
 
 
 def test_tracker_roster_returns_base_rows_and_version_together() -> None:

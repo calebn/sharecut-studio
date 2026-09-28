@@ -565,8 +565,10 @@ class SessionSyncService:
     def roster_event(self) -> dict[str, Any]:
         """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: the tracker's
         last fanned-out rows at their version, read atomically
-        (``PresenceRosterTracker.roster``). No version bump: nothing changed, a client just
-        missed a delta (a stale/unknown version) and needs to resync."""
+        (``PresenceRosterTracker.roster``). No version bump while the tracker has a base:
+        nothing changed, a client just missed a delta (a stale/unknown version) and needs
+        to resync. Without a base the tracker reads the live rows at a bumped version
+        (``PresenceRosterTracker.roster``)."""
         store = self._store_optional()
 
         def _live_rows() -> list[dict[str, Any]]:
