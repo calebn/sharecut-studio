@@ -296,7 +296,10 @@ same-track utterance's `[start, end)` window — its utterance's first or last w
 or a run between two utterances — Sharecut Studio's view mapper still lists it as
 a chip, attached to the nearest same-track utterance (`_edge_suppressed_word_indices`,
 #752); `combined.json` itself is unaffected, so Correct still opens the word and
-Unsuppress brings it back into the combined text. Reconcile and speaker attribution
+Unsuppress brings it back into the combined text. A track whose words are all
+suppressed has no combined utterance to attach to. The mapper instead lists its
+words on dimmed, view-only `suppressed_only` rows (one per gap-run), so
+Correct → Unsuppress still reaches them (#758). Reconcile and speaker attribution
 never flip `ignored` automatically. No `EditDecision`, cut, or `edit_log` record is
 created either way, but ignore additionally creates none of the mute-region
 bookkeeping that a `tighten.edit_mode: mute` cut would.

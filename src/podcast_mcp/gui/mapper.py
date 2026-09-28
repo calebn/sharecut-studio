@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,7 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
+from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
 from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 
@@ -231,8 +233,9 @@ def _edge_suppressed_word_indices(
     window, per ``_covered_word_ordinals`` (the same predicate the row's word
     listing uses, with a zero-length window padded like a zero-length word),
     are left alone, because attaching them again would duplicate the chip. A
-    track whose words are all suppressed has no utterance to attach to, so it
-    is skipped — out of scope (see docs/gui-integration.md).
+    track whose words are all suppressed has no utterance to attach to,
+    so it is skipped here; `_suppressed_only_rows` lists those words instead
+    (#758).
 
     Neighbours come from a ``HalfOpenIntervalIndex`` over each track's
     utterance windows; a zero-length window is padded like a zero-length word
@@ -287,6 +290,66 @@ def _edge_suppressed_word_indices(
     return result
 
 
+def _suppressed_only_rows(
+    project: EpisodeProject,
+    timeline: SessionTimeline,
+    tracks_with_rows: set[str],
+    word_indexes: dict[str, _MappedWordIndex],
+    *,
+    include_words: bool,
+) -> list[dict[str, Any]]:
+    """View-only rows for a track whose words are all suppressed (#758).
+
+    A track whose combined transcript produced no utterance — every word is
+    suppressed — still has words a user may want to Correct → Unsuppress.
+    This lists them on synthetic rows instead of leaving them unreachable.
+    There is one row per gap-run (the same 0.8 s split ``merge_transcripts``
+    uses, ``engines/utterance_runs.py``), so each word appears on exactly one
+    row and a bleed track's words spread across the episode rather than
+    landing in one giant turn. ``text`` is the run's joined word text (the
+    same format a real combined utterance would carry), which keeps the
+    SHELL overlay's text guard meaningful for these rows too. A track with
+    any unsuppressed word, or one that already has a row in the input
+    combined transcript, gets no synthetic rows — that combined transcript
+    is either accurate or (if a word is unsuppressed with no row) stale, and
+    this function does not try to repair it. ``combined.json`` /
+    ``merge_transcripts`` output is unchanged; these rows exist only in the
+    GUI view.
+    """
+    rows: list[dict[str, Any]] = []
+    for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
+        if track_id in tracks_with_rows:
+            continue
+        transcript = project.transcript_for_track(track_id)
+        words = transcript.words if transcript is not None else []
+        if not words or not all(bool(w.suppressed) for w in words):
+            continue
+        speaker = utterance_speaker(project, track_id)
+        for run in utterance_runs(words):
+            run_words = words[run.start : run.stop]
+            row = _mapped_row(
+                timeline,
+                {
+                    "track_id": track_id,
+                    "speaker": speaker,
+                    "start": float(run_words[0].start),
+                    "end": float(run_words[-1].end),
+                    "text": utterance_text(run_words),
+                },
+            )
+            row["suppressed_only"] = True
+            if include_words:
+                if track_id not in word_indexes:
+                    word_indexes[track_id] = _mapped_word_index(project, timeline, track_id)
+                views = word_indexes[track_id].views
+                row["words"] = [views[i] for i in run]
+            ignored = [i for i in run if bool(getattr(words[i], "ignored", False))]
+            if ignored:
+                row["ignored_word_indices"] = ignored
+            rows.append(row)
+    return rows
+
+
 def _word_view(
     timeline: SessionTimeline,
     track_id: str,
@@ -319,7 +382,10 @@ def _word_view(
 
 
 def omit_transcript_words(transcript: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Drop per-word timings from a combined-transcript dict (shell / guest size)."""
+    """Drop per-word timings, and view-only ``suppressed_only`` rows (#758), from a
+    combined-transcript dict for guests. A suppressed-only row's text is suppressed
+    words, which guests never see.
+    """
     if transcript is None:
         return None
     utterances = transcript.get("utterances")
@@ -329,10 +395,34 @@ def omit_transcript_words(transcript: dict[str, Any] | None) -> dict[str, Any] |
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
+        if utterance.get("suppressed_only"):
+            continue
         row = dict(utterance)
         row.pop("words", None)
         slim.append(row)
     return {**transcript, "utterances": slim}
+
+
+def _mapped_row(timeline: SessionTimeline, utterance: Mapping[str, Any]) -> dict[str, Any]:
+    """Utterance row with timeline clocks, ``words`` dropped (padded like a zero-length word, #752)."""
+    track_id = str(utterance.get("track_id", ""))
+    source_start = float(utterance.get("start", 0.0))
+    source_end = float(utterance.get("end", 0.0))
+    mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
+        timeline, track_id, *word_source_span(source_start, source_end)
+    )
+    row: dict[str, Any] = {
+        **utterance,
+        "track_id": track_id,
+        "start": source_start,
+        "end": source_end,
+        "timeline_start": timeline_start,
+        "timeline_end": timeline_end,
+        "timeline_spans": timeline_spans,
+        "mappable": mappable,
+    }
+    row.pop("words", None)
+    return row
 
 
 def map_transcript_utterances_to_timeline(
@@ -354,25 +444,8 @@ def map_transcript_utterances_to_timeline(
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
-        track_id = str(utterance.get("track_id", ""))
-        source_start = float(utterance.get("start", 0.0))
-        source_end = float(utterance.get("end", 0.0))
-        # Pad a zero-length window (a lone zero-duration word) like a zero-length
-        # word, so a zero-length row on kept audio is mappable (#752).
-        mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
-            timeline, track_id, *word_source_span(source_start, source_end)
-        )
-        row: dict[str, Any] = {
-            **utterance,
-            "track_id": track_id,
-            "start": source_start,
-            "end": source_end,
-            "timeline_start": timeline_start,
-            "timeline_end": timeline_end,
-            "timeline_spans": timeline_spans,
-            "mappable": mappable,
-        }
-        row.pop("words", None)
+        row = _mapped_row(timeline, utterance)
+        track_id = row["track_id"]
         if track_id not in raw_words_by_track:
             tr = project.transcript_for_track(track_id)
             raw_words_by_track[track_id] = list(tr.words) if tr is not None else []
@@ -414,6 +487,17 @@ def map_transcript_utterances_to_timeline(
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
         mapped.append(row)
+
+    synthetic = _suppressed_only_rows(
+        project,
+        timeline,
+        {row["track_id"] for row in rows},
+        word_indexes,
+        include_words=include_words,
+    )
+    if synthetic:
+        # Stable merge by source start: input rows keep their order and win ties.
+        mapped = list(heapq.merge(mapped, synthetic, key=lambda row: row["start"]))
     return {**transcript, "utterances": mapped}
 
 
