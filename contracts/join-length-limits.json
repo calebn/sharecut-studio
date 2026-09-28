@@ -1,0 +1,12 @@
+{
+  "$comment": "Longest join length SetClipJoin keeps on both edges. gui/web/src/edit/fadeLimits.ts joinLengthMaxMs mirrors edits/join_modes.set_clip_join; gui/web/src/edit/fadeLimits.test.ts and tests/test_join_length_limits_contract.py both read these cases. track_fade_max_ms null = uncapped (non-dialogue track).",
+  "cases": [
+    { "name": "uncapped, the left fade-in leaves room", "left_duration_sec": 2.0, "left_fade_in_ms": 500, "right_duration_sec": 3.0, "track_fade_max_ms": null, "max_ms": 1500 },
+    { "name": "the track cap wins", "left_duration_sec": 2.0, "left_fade_in_ms": 0, "right_duration_sec": 2.0, "track_fade_max_ms": 40, "max_ms": 40 },
+    { "name": "the left fade-in eats the fade-out room", "left_duration_sec": 0.0625, "left_fade_in_ms": 40, "right_duration_sec": 2.0, "track_fade_max_ms": null, "max_ms": 22 },
+    { "name": "the right clip is shorter than the cap", "left_duration_sec": 2.0, "left_fade_in_ms": 0, "right_duration_sec": 0.025, "track_fade_max_ms": 40, "max_ms": 25 },
+    { "name": "a crossfade one step under the cap", "left_duration_sec": 0.078125, "left_fade_in_ms": 40, "right_duration_sec": 2.0, "track_fade_max_ms": 40, "max_ms": 38 },
+    { "name": "a stored fade-in above the cap is capped first", "left_duration_sec": 0.125, "left_fade_in_ms": 90, "right_duration_sec": 2.0, "track_fade_max_ms": 40, "max_ms": 40 },
+    { "name": "no room left", "left_duration_sec": 0.01, "left_fade_in_ms": 50, "right_duration_sec": 2.0, "track_fade_max_ms": null, "max_ms": 0 }
+  ]
+}
