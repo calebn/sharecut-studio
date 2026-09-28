@@ -139,18 +139,6 @@ export function clipRow(overrides: Partial<ClipRow> = {}): ClipRow {
   };
 }
 
-/** A remote viewer client for presence overlay tests and stories. */
-export function sessionClient(
-  overrides: Partial<SessionClient> = {},
-): SessionClient {
-  return {
-    client_id: "remote-ada",
-    role: "viewer",
-    meta: { display_name: "Ada", color_index: 2 },
-    ...overrides,
-  };
-}
-
 /** Fictional stale region for timeline previews and component tests. */
 export function renderInvalidation(
   overrides: Partial<RenderInvalidationView> = {},
