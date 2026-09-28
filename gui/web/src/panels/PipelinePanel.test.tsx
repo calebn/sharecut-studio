@@ -1122,6 +1122,40 @@ describe("PipelinePanel", () => {
     );
   });
 
+  it("does not highlight a remote Analyze patch the re-read config no longer holds", async () => {
+    const user = userEvent.setup();
+    const replaced = withMasterLufsParam();
+    replaced.config.master.integrated_lufs = -12;
+    loadPipelineConfig
+      .mockResolvedValueOnce(withMasterLufsParam())
+      .mockResolvedValueOnce(structuredClone(replaced));
+    waitForPipelineJob.mockResolvedValueOnce(
+      analyzeJobSnap({
+        id: "an-remote",
+        status: "ok",
+        message: "Analyze complete",
+        result: remoteAnalyzeResult({
+          patches: { master: { integrated_lufs: -14 } },
+        }),
+      }),
+    );
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    dawState.activityJob = null;
+    rerender(<PipelinePanel />);
+    await user.click(screen.getByRole("button", { name: "Balance tracks" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-12);
+    });
+    expect(
+      screen.getByLabelText(/Master LUFS/i).closest("label"),
+    ).not.toHaveClass("pipeline-param-highlight");
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
