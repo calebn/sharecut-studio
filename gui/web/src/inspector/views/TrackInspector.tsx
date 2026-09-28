@@ -262,7 +262,8 @@ export function TrackInspector({
                   <div className="fx-chain-main">
                     <span className="fx-chain-name">{e.effect}</span>
                     <span className="fx-chain-params">
-                      {formatEffectParams(e.params) || "Default settings"}
+                      {formatEffectParams(e.params, e.effect) ||
+                        "Default settings"}
                     </span>
                   </div>
                   {editable ? (

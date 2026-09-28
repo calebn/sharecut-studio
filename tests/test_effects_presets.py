@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -208,3 +209,9 @@ def test_get_preset_returns_independent_copy() -> None:
 def test_resolve_presets_ignores_malformed_overlay() -> None:
     assert resolve_presets({"effects": ["x"]}) == _BUILTIN_PRESETS
     assert resolve_presets({}) == _BUILTIN_PRESETS
+
+
+def test_gui_effect_params_fixture_matches_builtin_presets() -> None:
+    """gui/web effectParams.test.ts formats every builtin preset from this fixture."""
+    fixture = repo_root() / "gui/web/src/utils/builtinEffectPresets.fixture.json"
+    assert json.loads(fixture.read_text(encoding="utf-8")) == _BUILTIN_PRESETS
