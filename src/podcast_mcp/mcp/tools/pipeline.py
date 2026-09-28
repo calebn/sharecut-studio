@@ -37,8 +37,8 @@ def pipeline_run(
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
     only (not persisted). ``retime_words=true`` re-times stored transcripts with the forced
     aligner from their ASR cache for this run only (no Whisper; hand-edited transcripts are
-    skipped). Replacing edited transcripts is refused when ``unattended``;
-    run attended, or the user confirms with Studio Re-transcribe.
+    skipped); not with ``force_transcribe``. Replacing edited transcripts is refused when
+    ``unattended``; run attended, or the user confirms with Studio Re-transcribe.
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
     """
@@ -71,10 +71,10 @@ def pipeline_run(
     elif working is not None and working.enabled_steps is not None:
         skip_steps = skip_steps_from_enabled(working.enabled_steps)
 
+    run_config = transcribe_run_config(config, force=force_transcribe, retime_words=retime_words)
+
     if use_working_set:
         store.put(ws.path, config=config, unattended=unattended)
-
-    run_config = transcribe_run_config(config, force=force_transcribe, retime_words=retime_words)
     run_unattended = (
         bool(unattended)
         if unattended is not None

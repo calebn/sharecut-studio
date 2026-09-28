@@ -73,7 +73,10 @@ def pipeline_run(
     overrides = _overrides(assignments)
     if realign:
         set_by_path(overrides, "align.realign", True)
-    config = transcribe_run_config(overrides or None, force=force, retime_words=retime_words)
+    try:
+        config = transcribe_run_config(overrides or None, force=force, retime_words=retime_words)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--retime-words") from exc
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
     result = PipelineService(ws).run(

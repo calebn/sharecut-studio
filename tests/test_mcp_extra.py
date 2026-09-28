@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import history as mcp_history
 from podcast_mcp.mcp.tools import pipeline as mcp_pipeline
@@ -331,3 +333,19 @@ def test_mcp_pipeline_run_retime_words_is_run_only(tmp_path, sample_wav):
     assert defaults["transcribe"]["overwrite_edited"] is False
     working = store.get(Path(path))
     assert not ((working.config or {}).get("transcribe") or {}).get("retime_words")
+
+
+def test_mcp_pipeline_run_rejects_force_with_retime_words(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
+    from podcast_mcp.services.pipeline_config import config_store
+
+    store = config_store()
+    store.put(Path(path), reset=True)
+    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+        mock_runner.return_value.run.return_value = MagicMock()
+        with pytest.raises(ValueError):
+            mcp_pipeline.pipeline_run(
+                path, only_step="ingest_tracks", retime_words=True, force_transcribe=True
+            )
+        mock_runner.assert_not_called()
