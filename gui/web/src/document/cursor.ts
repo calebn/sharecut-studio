@@ -135,7 +135,10 @@ export function notePolledDocumentFile(meta: {
 }
 
 /** True when the document socket already delivered exactly this meta file at
-this seq or later, so `useProjectPoll` can skip its GET (#657). */
+this seq or later, so `useProjectPoll` can skip its GET (#657).
+Document twin of `sessionPollAlreadyApplied` in `session/dedupe.ts`; keep the
+two in step. A missing `server_seq` counts as 0 here because the file-identity
+check still guards the skip. */
 export function pollSnapshotAlreadyApplied(meta: {
   mtime_ns: number;
   size?: number;

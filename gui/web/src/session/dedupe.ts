@@ -48,6 +48,9 @@ export function advanceCursorIfNewer(
 /**
  * True when a meta poll's server_seq is no newer than the applied cursor, so the
  * caller can skip the GET /api/session/state round trip (#662).
+ * Session twin of `pollSnapshotAlreadyApplied` in `document/cursor.ts`; keep the
+ * two in step. Unlike it, a missing or 0 `server_seq` never skips here (the
+ * session plane has no file-identity check to fall back on).
  */
 export function sessionPollAlreadyApplied(
   metaSeq: number | undefined,
