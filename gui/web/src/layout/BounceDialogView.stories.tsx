@@ -2,57 +2,51 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
-import { Button } from "../ui/Button";
+import { DialogLauncher } from "../test/DialogLauncher";
+import { openDialogByLauncher } from "../test/storyDialog";
 import { BounceDialogView } from "./BounceDialogView";
 
-async function openDialog(canvasElement: HTMLElement) {
-  if (!within(document.body).queryByRole("dialog")) {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", {
-        name: "Open bounce dialog",
-      }),
-    );
-  }
-  return within(document.body).getByRole("dialog", { name: "Bounce…" });
-}
+const openDialog = (canvasElement: HTMLElement) =>
+  openDialogByLauncher(canvasElement, {
+    launcherName: "Open bounce dialog",
+    dialogName: "Bounce…",
+  });
 
 function BounceDialogPreview({
   initiallyOpen,
   ...args
 }: ComponentProps<typeof BounceDialogView> & { initiallyOpen: boolean }) {
-  const [open, setOpen] = useState(initiallyOpen);
   const [source, setSource] = useState(args.source);
   const [useRegion, setUseRegion] = useState(args.useRegion);
   const [includeMp3, setIncludeMp3] = useState(args.includeMp3);
   return (
-    <>
-      <Button type="button" onClick={() => setOpen(true)}>
-        Open bounce dialog
-      </Button>
-      <BounceDialogView
-        {...args}
-        open={open}
-        source={source}
-        useRegion={useRegion}
-        includeMp3={includeMp3}
-        onClose={() => {
-          setOpen(false);
-          args.onClose();
-        }}
-        onSourceChange={(next) => {
-          setSource(next);
-          args.onSourceChange(next);
-        }}
-        onUseRegionChange={(next) => {
-          setUseRegion(next);
-          args.onUseRegionChange(next);
-        }}
-        onIncludeMp3Change={(next) => {
-          setIncludeMp3(next);
-          args.onIncludeMp3Change(next);
-        }}
-      />
-    </>
+    <DialogLauncher label="Open bounce dialog" initiallyOpen={initiallyOpen}>
+      {(open, close) => (
+        <BounceDialogView
+          {...args}
+          open={open}
+          source={source}
+          useRegion={useRegion}
+          includeMp3={includeMp3}
+          onClose={() => {
+            close();
+            args.onClose();
+          }}
+          onSourceChange={(next) => {
+            setSource(next);
+            args.onSourceChange(next);
+          }}
+          onUseRegionChange={(next) => {
+            setUseRegion(next);
+            args.onUseRegionChange(next);
+          }}
+          onIncludeMp3Change={(next) => {
+            setIncludeMp3(next);
+            args.onIncludeMp3Change(next);
+          }}
+        />
+      )}
+    </DialogLauncher>
   );
 }
 

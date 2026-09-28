@@ -2,8 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { DialogLauncher } from "../test/DialogLauncher";
 import { hostShareRow } from "../test/fixtures";
-import { Button } from "../ui/Button";
+import { openDialogByLauncher } from "../test/storyDialog";
 import { ShareDialogView } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
@@ -32,22 +33,16 @@ const producerRow = hostShareRow({
   session_id: "sample-room",
 });
 
-async function openDialog(canvasElement: HTMLElement) {
-  if (!within(document.body).queryByRole("dialog")) {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", {
-        name: "Open share dialog",
-      }),
-    );
-  }
-  return within(document.body).getByRole("dialog", { name: "Share" });
-}
+const openDialog = (canvasElement: HTMLElement) =>
+  openDialogByLauncher(canvasElement, {
+    launcherName: "Open share dialog",
+    dialogName: "Share",
+  });
 
 function ShareDialogPreview({
   initiallyOpen,
   ...args
 }: ComponentProps<typeof ShareDialogView> & { initiallyOpen: boolean }) {
-  const [open, setOpen] = useState(initiallyOpen);
   const [role, setRole] = useState(args.role);
   const [withMcp, setWithMcp] = useState(args.withMcp);
   const [rows, setRows] = useState(args.rows);
@@ -55,43 +50,42 @@ function ShareDialogPreview({
     args.copiedKey,
   );
   return (
-    <>
-      <Button type="button" onClick={() => setOpen(true)}>
-        Open share dialog
-      </Button>
-      <ShareDialogView
-        {...args}
-        open={open}
-        role={role}
-        withMcp={withMcp}
-        rows={rows}
-        copiedKey={copiedKey}
-        onClose={() => {
-          setOpen(false);
-          args.onClose();
-        }}
-        onRoleChange={(next) => {
-          setRole(next);
-          args.onRoleChange(next);
-        }}
-        onWithMcpChange={(next) => {
-          setWithMcp(next);
-          args.onWithMcpChange(next);
-        }}
-        onCopy={(kind, token, label, text) => {
-          setCopiedKey(shareCopyKey(kind, token));
-          args.onCopy(kind, token, label, text);
-        }}
-        onRevoke={(token) => {
-          setRows((prev) => prev.filter((r) => r.token !== token));
-          args.onRevoke(token);
-        }}
-        onEndRoom={(sessionId) => {
-          setRows((prev) => prev.filter((r) => r.session_id !== sessionId));
-          args.onEndRoom(sessionId);
-        }}
-      />
-    </>
+    <DialogLauncher label="Open share dialog" initiallyOpen={initiallyOpen}>
+      {(open, close) => (
+        <ShareDialogView
+          {...args}
+          open={open}
+          role={role}
+          withMcp={withMcp}
+          rows={rows}
+          copiedKey={copiedKey}
+          onClose={() => {
+            close();
+            args.onClose();
+          }}
+          onRoleChange={(next) => {
+            setRole(next);
+            args.onRoleChange(next);
+          }}
+          onWithMcpChange={(next) => {
+            setWithMcp(next);
+            args.onWithMcpChange(next);
+          }}
+          onCopy={(kind, token, label, text) => {
+            setCopiedKey(shareCopyKey(kind, token));
+            args.onCopy(kind, token, label, text);
+          }}
+          onRevoke={(token) => {
+            setRows((prev) => prev.filter((r) => r.token !== token));
+            args.onRevoke(token);
+          }}
+          onEndRoom={(sessionId) => {
+            setRows((prev) => prev.filter((r) => r.session_id !== sessionId));
+            args.onEndRoom(sessionId);
+          }}
+        />
+      )}
+    </DialogLauncher>
   );
 }
 

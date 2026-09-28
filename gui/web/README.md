@@ -84,7 +84,9 @@ agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
 dialog derives its local URL as before.
 Standalone Canvas stories open their dialogs; autodocs examples start closed
-with launchers so each can be inspected independently. The gesture callback closes its sheet and
+with launchers so each can be inspected independently. The launcher and
+play-helper live in `src/test/DialogLauncher.tsx` and `src/test/storyDialog.ts`.
+The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
 
 `Templates/ShareDialog` renders the production `ShareDialogView`, the same
