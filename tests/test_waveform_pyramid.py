@@ -541,6 +541,30 @@ def test_decode_media_float_wav_and_stream_chunks(tmp_path):
 
 
 @needs_ffmpeg
+def test_stream_mono_f32_matches_load_mono_full(tmp_path):
+    from podcast_mcp.engines.audio_audit import load_mono_full
+
+    _float_wav(tmp_path)
+    path = tmp_path / "float.wav"
+
+    parts = list(FFmpegEngine().stream_mono_f32(path, sample_rate=16000, chunk_frames=1000))
+
+    for part in parts[:-1]:
+        assert part.ndim == 1
+        assert len(part) == 1000
+    assert parts[-1].ndim == 1
+    np.testing.assert_array_equal(np.concatenate(parts), load_mono_full(path, sample_rate=16000))
+
+
+def test_stream_mono_f32_validates_eagerly(tmp_path):
+    eng = FFmpegEngine()
+    with pytest.raises(ValueError):
+        eng.stream_mono_f32(tmp_path / "missing.wav", sample_rate=16000, chunk_frames=0)
+    with pytest.raises(ValueError):
+        eng.stream_mono_f32(tmp_path / "missing.wav", sample_rate=0, chunk_frames=1000)
+
+
+@needs_ffmpeg
 def test_decode_and_build_mp3(tmp_path):
     eng = FFmpegEngine()
     mp3 = tmp_path / "tone.mp3"

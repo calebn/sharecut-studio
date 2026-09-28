@@ -283,6 +283,15 @@ def _read_exact(stream: IO[bytes], size: int) -> bytearray:
     return buf
 
 
+def _mono_chunks(chunks: Generator[np.ndarray, None, None]) -> Generator[np.ndarray, None, None]:
+    """``(frames, 1)`` chunks as 1-D arrays; closing this closes (and kills) the decode."""
+    try:
+        for chunk in chunks:
+            yield chunk.reshape(-1)
+    finally:
+        chunks.close()
+
+
 def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[bytes]) -> str:
     """``RuntimeError`` text for a failed PCM decode: exit code, watchdog, stderr tail."""
     msg = f"ffmpeg PCM decode failed (exit {code})"
@@ -367,6 +376,26 @@ class FFmpegEngine:
             argv, channels, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
         )
         return sample_rate, channels, chunks
+
+    def stream_mono_f32(
+        self, path: Path, *, sample_rate: int, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
+    ) -> Generator[np.ndarray, None, None]:
+        """Decode *path* downmixed to mono at ``sample_rate`` as 1-D float32 chunks.
+
+        The streaming counterpart of ``engines.audio_audit.load_mono_full`` (the same
+        ffmpeg ``-ac 1 -ar`` conversion, so the concatenated chunks equal its array) for
+        callers that must not hold a whole multi-hour track. Chunks are ``chunk_frames``
+        long (the last may be shorter). Same process lifetime, watchdog and error
+        reporting as :meth:`stream_pcm_f32`; arguments are validated eagerly.
+        """
+        if chunk_frames < 1 or sample_rate < 1:
+            raise ValueError("chunk_frames and sample_rate must be >= 1")
+        argv = self._pcm_f32_argv(path, sample_rate, 1)
+        return _mono_chunks(
+            self._read_pcm_f32(
+                argv, 1, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
+            )
+        )
 
     def decode_window_f32(
         self, path: Path, start_frame: int, frames: int, sample_rate: int, channels: int

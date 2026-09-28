@@ -11,6 +11,7 @@ from podcast_mcp.util.dsp import (
     bridge_short_dips,
     db_to_amplitude,
     frame_rms_db,
+    frame_rms_db_stream,
     rms_db,
 )
 
@@ -30,6 +31,20 @@ def test_frame_rms_db_matches_scalar_rms_and_caps_frames() -> None:
     assert frame_rms_db(x, 400, 100, max_frames=2).size == 2
     assert frame_rms_db(x[:10], 400, 100).size == 0
     assert frame_rms_db(x, 0, 100).size == 0
+
+
+@pytest.mark.parametrize("chunk_size", [1, 7, 399, 400, 401, 1000, 5000])
+def test_frame_rms_db_stream_matches_whole_array(chunk_size):
+    rng = np.random.default_rng(11)
+    x = rng.uniform(-1, 1, 4321).astype(np.float32)
+    chunks = [x[i : i + chunk_size] for i in range(0, x.size, chunk_size)]
+
+    np.testing.assert_array_equal(frame_rms_db_stream(chunks, 400, 160), frame_rms_db(x, 400, 160))
+
+
+def test_frame_rms_db_stream_empty_and_zero_frame():
+    assert frame_rms_db_stream([], 400, 160).size == 0
+    assert frame_rms_db_stream([np.zeros(1000, dtype=np.float32)], 0, 160).size == 0
 
 
 def test_autocorr_peak_finds_pitch_and_rejects_degenerate_frames() -> None:
