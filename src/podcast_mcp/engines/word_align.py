@@ -33,6 +33,7 @@ from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerModel,
     resolve_word_aligner_dir,
+    verify_word_aligner_onnx,
     word_aligner_model,
     word_aligner_override_dir,
 )
@@ -102,6 +103,10 @@ class WordAligner:
                 "onnx_size": stat.st_size,
                 "onnx_mtime_ns": stat.st_mtime_ns,
             }
+        else:
+            # User-supplied override dirs are not the pinned bytes; only the pinned snapshot
+            # is verified.
+            verify_word_aligner_onnx(model_dir, model)
         backend = OnnxCtcBackend(
             onnx_path,
             threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),

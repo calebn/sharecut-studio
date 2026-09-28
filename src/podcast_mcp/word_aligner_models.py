@@ -6,6 +6,12 @@ snapshots for the CTC forced-alignment pass (``engines/word_align.py``,
 reads a local snapshot (``local_files_only=True``); ``bootstrap_word_aligner``
 is the only network path, driven by ``podcast bootstrap --component
 word-aligner``.
+
+No lock of our own guards the shared snapshot cache: concurrent
+``bootstrap`` runs and a pipeline resolving mid-download rely on
+``snapshot_download``'s own file locking, and ``_has_required_files`` turns a
+half-written snapshot into ``WordAlignerMissingError`` (Whisper's times kept),
+as ``whisper_models.py`` does.
 """
 
 from __future__ import annotations
@@ -14,6 +20,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from podcast_mcp.util.hashing import sha256_file
 
 DEFAULT_WORD_ALIGNER = "onnx-base"
 WORD_ALIGNER_ENV = "PODCAST_MCP_WORD_ALIGNER_MODEL"
@@ -28,6 +36,7 @@ class WordAlignerModel:
     hf_repo: str
     revision: str
     onnx_file: str
+    onnx_sha256: str
     license: str
     languages: tuple[str, ...]
 
@@ -45,6 +54,7 @@ WORD_ALIGNER_CATALOG: tuple[WordAlignerModel, ...] = (
         hf_repo="onnx-community/wav2vec2-base-960h-ONNX",
         revision="729c1a6730fb549c20a1c73a3d3f96f11020225e",
         onnx_file="onnx/model.onnx",
+        onnx_sha256="00b7cc69516c1ab63c429e63a2b543e4d42bb77441ec5b98ee935de175b00de1",
         license="apache-2.0",
         languages=("en",),
     ),
@@ -71,6 +81,17 @@ def word_aligner_model(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerModel
 
 def _has_required_files(root: Path, model: WordAlignerModel) -> bool:
     return (root / "vocab.json").is_file() and (root / model.onnx_file).is_file()
+
+
+def verify_word_aligner_onnx(model_dir: Path, model: WordAlignerModel) -> None:
+    """Fail closed when the snapshot's ONNX file is not the pinned bytes (corrupt or swapped)."""
+    digest = sha256_file(model_dir / model.onnx_file)
+    if digest != model.onnx_sha256:
+        raise WordAlignerMissingError(
+            model.id,
+            f"{model.onnx_file} sha256 {digest[:12]} does not match the pin; "
+            "re-download with --upgrade",
+        )
 
 
 def word_aligner_override_dir() -> Path | None:
@@ -141,4 +162,5 @@ def bootstrap_word_aligner(
         cache_dir=str(word_aligner_cache_dir()),
         force_download=force,
     )
+    verify_word_aligner_onnx(Path(path), model)
     return {"ok": True, "model": model.id, "path": str(path)}
