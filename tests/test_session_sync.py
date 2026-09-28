@@ -706,6 +706,17 @@ def test_session_hub_checks_only_the_remembered_window(monkeypatch) -> None:
     assert hub.unpublished_seqs(key, 0, 12) == [11, 12]
 
 
+def test_session_hub_mark_published_is_idempotent() -> None:
+    from podcast_mcp.services.session_sync.hub import SessionHub
+
+    hub = SessionHub()
+    key = "k-dedupe"
+    hub.mark_published(key, [3, 4, 5, 5])
+    hub.publish(key, {"type": "Applied", "server_seq": 5})
+    hub.mark_published(key, [4])
+    assert list(hub._applied_seqs[key]) == [3, 4, 5]
+
+
 def test_sync_store_command_at(minimal_project) -> None:
     proj = load_project(minimal_project)
     store = SyncStore(sync_db_path(proj), enforce_command_ids=True)
@@ -851,6 +862,9 @@ def test_session_publish_cross_process_head_reports_the_newest_foreign_agent_row
 
         # mark_published covered these rows, so the same call reports nothing new.
         assert svc.publish_cross_process_head(after=agent["server_seq"] - 1) is None
+
+        remembered = list(hub._applied_seqs[key])
+        assert len(remembered) == len(set(remembered))
 
         hub.unsubscribe(key, queue)
     finally:

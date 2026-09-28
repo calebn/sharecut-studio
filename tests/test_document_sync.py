@@ -1334,6 +1334,8 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
 
 
 def test_document_publish_cross_process_head_sends_a_shell_head(minimal_project):
+    from podcast_mcp.services.document_sync.service import document_hub_key
+
     proj = load_project(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
 
@@ -1347,6 +1349,9 @@ def test_document_publish_cross_process_head_sends_a_shell_head(minimal_project)
     assert event["snapshot"]["server_seq"] == row["server_seq"]
 
     assert svc.publish_cross_process_head() is None
+
+    remembered = list(get_hub()._applied_seqs[document_hub_key(proj)])
+    assert len(remembered) == len(set(remembered))
 
     svc.submit(
         DocumentCommand(

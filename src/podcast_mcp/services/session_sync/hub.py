@@ -48,13 +48,20 @@ class SessionHub(FanoutHub):
     def mark_published(self, key: str, seqs: Iterable[int]) -> None:
         """Record journal ``seqs`` as fanned out for ``key``: ``publish`` does this for an
         ``Applied``, and a collapsed cross-process ``Applied`` for every row it covers (#695).
+
+        Idempotent: a seq already remembered is not recorded again, so a collapsed publish
+        (which marks its rows, then publishes at the head) spends one slot per distinct seq.
         """
         with self._seq_lock:
             remembered = self._applied_seqs.get(key)
             if remembered is None:
                 remembered = deque(maxlen=_APPLIED_SEQ_MEMORY)
                 self._applied_seqs[key] = remembered
-            remembered.extend(seqs)
+            known = set(remembered)
+            for seq in seqs:
+                if seq not in known:
+                    known.add(seq)
+                    remembered.append(seq)
 
     def unpublished_seqs(self, key: str, after: int | None, head: int) -> list[int]:
         """Journal seqs in ``(after, head]`` this process has not published for ``key`` (#695).
