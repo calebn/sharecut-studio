@@ -53,6 +53,12 @@ def pipeline_run(
         "--force",
         help="Re-run ASR even when transcripts exist (edited ones need an attended run)",
     ),
+    retime_words: bool = typer.Option(
+        False,
+        "--retime-words",
+        help="Re-time stored transcripts with the forced aligner from their ASR cache "
+        "(no Whisper; hand-edited ones are skipped)",
+    ),
     strict: bool = typer.Option(
         True,
         "--strict/--no-strict",
@@ -67,7 +73,7 @@ def pipeline_run(
     overrides = _overrides(assignments)
     if realign:
         set_by_path(overrides, "align.realign", True)
-    config = transcribe_run_config(overrides or None, force=force)
+    config = transcribe_run_config(overrides or None, force=force, retime_words=retime_words)
     ws = ProjectWorkspace.open(project)
     skip_steps = [s.strip() for s in skip.split(",") if s.strip()] if skip else None
     result = PipelineService(ws).run(

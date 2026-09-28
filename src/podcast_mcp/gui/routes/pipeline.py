@@ -145,7 +145,10 @@ def pipeline_run(
         )
 
     run_config = transcribe_run_config(
-        config, force=req.force_transcribe, overwrite_edited=req.overwrite_edited
+        config,
+        force=req.force_transcribe,
+        overwrite_edited=req.overwrite_edited,
+        retime_words=req.retime_words,
     )
     try:
         ensure_whisper_cached_for_run(

@@ -350,6 +350,51 @@ def test_new_alignment_prunes_stale_sidecars_of_the_same_asr_cache(minimal_proje
     assert len(list(asr_cache.parent.glob(f"{asr_cache.stem}.word_align_*.json"))) == 1
 
 
+def test_read_asr_cache_hits_new_then_legacy_and_misses(minimal_project, tmp_path):
+    from podcast_mcp.engines.transcribe import legacy_cache_path
+    from podcast_mcp.util.hashing import sha256_file
+
+    proj = load_project(minimal_project)
+    wav = tmp_path / "clip.wav"
+    _write_wav(wav)
+    job = TranscribeJob(track_id="host", source_id=None, audio=wav)
+    engine = TranscriptionEngine(options=AsrOptions.faster_whisper_defaults())
+
+    def _fresh_asr(*args, **kwargs):
+        return Transcript(
+            track_id="",
+            language="en",
+            words=[TranscriptWord(text=w[0], start=w[1], end=w[2]) for w in HI_BYE_WORDS],
+        )
+
+    sha = sha256_file(wav)
+    with patch.object(engine, "transcribe_file", side_effect=_fresh_asr):
+        engine.transcribe_job(proj, job, language="en", audio_sha256=sha)
+
+    cache, hit = engine.read_asr_cache(
+        proj, job, language="en", initial_prompt=None, audio_sha256=sha
+    )
+    assert hit is not None
+    assert [(w.start, w.end) for w in hit.words] == [(0.0, 0.5), (0.5, 1.0)]
+
+    # A different prompt selects a different cache key: a miss.
+    _, miss = engine.read_asr_cache(
+        proj, job, language="en", initial_prompt="vocabulary hint", audio_sha256=sha
+    )
+    assert miss is None
+
+    # The legacy name (no prompt, faster-whisper-default decode) is tried on a new-name miss.
+    cache.unlink()
+    legacy = legacy_cache_path(proj, job.cache_id, sha)
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_text(hit.model_dump_json(), encoding="utf-8")
+    _, legacy_hit = engine.read_asr_cache(
+        proj, job, language="en", initial_prompt=None, audio_sha256=sha
+    )
+    assert legacy_hit is not None
+    assert [(w.start, w.end) for w in legacy_hit.words] == [(0.0, 0.5), (0.5, 1.0)]
+
+
 def test_cancel_before_alignment_raises_without_aligning(minimal_project, tmp_path):
     from podcast_mcp.util.progress import CancelledProgress
     from podcast_mcp.util.project_state import render_cancel_scope

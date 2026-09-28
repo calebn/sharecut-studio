@@ -313,3 +313,21 @@ def test_mcp_pipeline_run_force_transcribe_is_run_only(tmp_path, sample_wav):
     assert defaults["transcribe"]["overwrite_edited"] is False
     working = store.get(Path(path))
     assert not ((working.config or {}).get("transcribe") or {}).get("overwrite")
+
+
+def test_mcp_pipeline_run_retime_words_is_run_only(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
+    from podcast_mcp.services.pipeline_config import config_store
+
+    store = config_store()
+    store.put(Path(path), reset=True)
+    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+        mock_runner.return_value.run.return_value = MagicMock()
+        mcp_pipeline.pipeline_run(path, only_step="ingest_tracks", retime_words=True)
+        defaults = mock_runner.call_args.kwargs.get("defaults")
+    assert defaults["transcribe"]["retime_words"] is True
+    assert defaults["transcribe"]["forced_alignment"]["enabled"] is True
+    assert defaults["transcribe"]["overwrite_edited"] is False
+    working = store.get(Path(path))
+    assert not ((working.config or {}).get("transcribe") or {}).get("retime_words")

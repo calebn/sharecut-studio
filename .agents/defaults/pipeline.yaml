@@ -244,6 +244,9 @@ transcribe:
   # word-aligner`). Off = Whisper's own word timestamps and nothing downloaded.
   # Words it cannot place, and every word when the model is missing, keep
   # Whisper's times (reported in artifacts/transcript_timing.json).
+  # Stored transcripts: run-only retime_words (Studio Re-time words, CLI
+  # --retime-words, MCP retime_words) re-times them from the ASR cache without
+  # Whisper. Not a yaml key: run-only, like overwrite_edited.
   forced_alignment:
     enabled: false
 

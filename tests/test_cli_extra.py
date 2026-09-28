@@ -408,3 +408,19 @@ def test_pipeline_run_force_sets_run_only_overwrite(tmp_path, sample_wav):
         result = runner.invoke(app, ["pipeline", "run", "--project", str(project), "--force"])
     assert result.exit_code == 0
     assert run.call_args.kwargs["config"]["transcribe"]["overwrite"] is True
+
+
+def test_pipeline_run_retime_words_sets_run_only_flag(tmp_path, sample_wav):
+    project = _init_project(tmp_path)
+    from podcast_mcp.services import PipelineRunResult
+
+    with patch(
+        "podcast_mcp.cli.pipeline.PipelineService.run",
+        return_value=PipelineRunResult(last_step="done", steps=[]),
+    ) as run:
+        result = runner.invoke(
+            app, ["pipeline", "run", "--project", str(project), "--retime-words"]
+        )
+    assert result.exit_code == 0
+    assert run.call_args.kwargs["config"]["transcribe"]["retime_words"] is True
+    assert run.call_args.kwargs["config"]["transcribe"]["forced_alignment"]["enabled"] is True

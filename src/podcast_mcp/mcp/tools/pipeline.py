@@ -27,6 +27,7 @@ def pipeline_run(
     config_json: str | None = None,
     use_working_set: bool = True,
     force_transcribe: bool = False,
+    retime_words: bool = False,
 ) -> str:
     """Run the production pipeline. Optional skip_steps_json / config_json override yaml.
 
@@ -34,7 +35,9 @@ def pipeline_run(
     working set so agents and Sharecut Studio share the same visible config.
     Omit ``unattended`` to leave the working-set Batch mode unchanged.
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
-    only (not persisted). Replacing edited transcripts is refused when ``unattended``;
+    only (not persisted). ``retime_words=true`` re-times stored transcripts with the forced
+    aligner from their ASR cache for this run only (no Whisper; hand-edited transcripts are
+    skipped). Replacing edited transcripts is refused when ``unattended``;
     run attended, or the user confirms with Studio Re-transcribe.
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
@@ -71,7 +74,7 @@ def pipeline_run(
     if use_working_set:
         store.put(ws.path, config=config, unattended=unattended)
 
-    run_config = transcribe_run_config(config, force=force_transcribe)
+    run_config = transcribe_run_config(config, force=force_transcribe, retime_words=retime_words)
     run_unattended = (
         bool(unattended)
         if unattended is not None

@@ -25,8 +25,12 @@ class PipelineRunRequest(BaseModel):
     use_working_set: bool = True
     # Run-only: re-run ASR over existing transcripts (never persisted).
     force_transcribe: bool = False
-    # Run-only: the user confirmed replacing hand-edited transcripts (Studio Re-transcribe);
-    # honoured only with force_transcribe, even in Batch mode. Never persisted.
+    # Run-only: re-time stored transcripts with the forced aligner from their ASR cache
+    # (Studio Re-time words); never persisted.
+    retime_words: bool = False
+    # Run-only: the user confirmed replacing hand-edited transcripts (Studio Re-transcribe /
+    # Re-time words); honoured only with force_transcribe or retime_words, even in Batch mode.
+    # Never persisted.
     overwrite_edited: bool = False
 
 

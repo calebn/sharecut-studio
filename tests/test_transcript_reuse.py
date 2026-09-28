@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits.transcript_reuse import (
+    TranscribePlan,
     TranscriptOverwriteRefused,
     merge_transcripts_by_key,
+    needs_retime,
+    plan_retime,
     plan_transcription,
     run_transcribe_plan,
     stamp_audio_identity,
@@ -14,6 +17,7 @@ from podcast_mcp.edits.transcript_reuse import (
 from podcast_mcp.engines.transcribe import TranscribeJob
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.word_aligner_models import word_aligner_model
 
 
 @pytest.fixture
@@ -215,3 +219,87 @@ def test_run_transcribe_plan_forwards_stamps_and_merges(job, tmp_path, caplog):
     assert keys[("host", None)].words[0].text == "asr"
     assert keys[("guest", None)] is other
     assert "overwrites edited transcript for track host" in caplog.text
+
+
+def test_needs_retime_truth_table(job):
+    model = word_aligner_model()
+    assert needs_retime(_tr(), model)
+    assert not needs_retime(Transcript(track_id="host", words=[]), model)
+    assert not needs_retime(_tr(language="de"), model)
+    assert not needs_retime(_tr(word_aligner=model.id), model)
+
+
+class _FakeEngine:
+    """A stand-in for ``TranscriptionEngine.read_asr_cache`` in ``plan_retime`` tests."""
+
+    def __init__(self, cached: Transcript | None) -> None:
+        self.cached = cached
+        self.calls = 0
+
+    def read_asr_cache(self, project, job, *, language, initial_prompt, audio_sha256):
+        self.calls += 1
+        return (job.audio, self.cached)
+
+
+def _reused_plan(job, *transcripts: Transcript) -> tuple[EpisodeProject, TranscribePlan]:
+    p = _project(*transcripts)
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: "sha"})
+    return p, plan
+
+
+def test_plan_retime_moves_a_cached_unedited_job_to_run(job):
+    cached = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0, end=0.5)])
+    p, plan = _reused_plan(job, _tr())
+    engine = _FakeEngine(cached)
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert plan.run == [job]
+    assert plan.retime == [job]
+    assert plan.reused == []
+    assert plan.overwrite_edited == []
+
+
+def test_plan_retime_skips_edited_without_confirmation(job):
+    p, plan = _reused_plan(job, _tr(user_edited=True))
+    engine = _FakeEngine(Transcript(track_id="host", words=[]))
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert plan.reused == [job]
+    assert plan.run == []
+    assert plan.retime_skipped_edited == [job.label]
+    assert engine.calls == 0
+
+
+def test_plan_retime_moves_edited_job_with_allow_edited(job):
+    cached = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0, end=0.5)])
+    p, plan = _reused_plan(job, _tr(user_edited=True))
+    engine = _FakeEngine(cached)
+    plan_retime(p, plan, engine, language="en", allow_edited=True)
+    assert plan.run == [job]
+    assert plan.retime == [job]
+    assert plan.overwrite_edited == [job.track_id]
+
+
+def test_plan_retime_reports_missing_asr_cache(job):
+    p, plan = _reused_plan(job, _tr())
+    engine = _FakeEngine(None)
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert plan.reused == [job]
+    assert plan.run == []
+    assert plan.retime_skipped_no_cache == [job.label]
+
+
+def test_plan_retime_never_probes_jobs_that_do_not_need_it(job):
+    model = word_aligner_model()
+
+    class _RaisingEngine(_FakeEngine):
+        def read_asr_cache(self, *a, **k):
+            raise AssertionError("read_asr_cache must not run when re-timing is not needed")
+
+    for transcript in (
+        Transcript(track_id="host", words=[]),
+        _tr(language="de"),
+        _tr(word_aligner=model.id),
+    ):
+        p, plan = _reused_plan(job, transcript)
+        plan_retime(p, plan, _RaisingEngine(None), language="en", allow_edited=False)
+        assert plan.reused == [job]
+        assert plan.run == []
