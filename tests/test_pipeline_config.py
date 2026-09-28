@@ -986,12 +986,11 @@ def test_asr_options_for_reads_staged_config(tmp_path):
         config_store()._by_path.pop(config_store()._key(proj), None)
 
 
-def test_prosody_params_for_unstaged_project_uses_defaults_without_staging(tmp_path):
+def test_prosody_params_for_unstaged_project_is_none_without_staging(tmp_path):
     proj = tmp_path / "ep3.project.json"
     proj.write_text("{}", encoding="utf-8")
     assert config_store().peek(proj) is None
-    params = prosody_params_for(proj)
-    assert params.pitch_floor_hz == 75.0
+    assert prosody_params_for(proj) is None
     assert config_store().peek(proj) is None
 
 

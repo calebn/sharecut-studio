@@ -333,6 +333,17 @@ def test_load_track_profile_stale_after_params_change(tmp_workspace: Path) -> No
     )
 
 
+def test_load_track_profile_without_params_trusts_stored_params(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    pp.run_prosody_analysis(load_project(path), {"prosody": {"pitch_floor_hz": 90.0}})
+    proj2 = load_project(path)
+    assert pp.load_track_profile(proj2, "host").status == "fresh"
+    assert (
+        pp.load_track_profile(proj2, "host", params=ProsodyParams.from_defaults({})).status
+        == "stale"
+    )
+
+
 def test_load_track_profile_fresh_without_parselmouth(tmp_workspace: Path, monkeypatch) -> None:
     """The reader does not need parselmouth once a profile is cached."""
     path = _project_with_host(tmp_workspace)
