@@ -343,10 +343,11 @@ both themes, in story mode and on its docs page, before merging.
 
 `Templates/TrackHeader` renders the production `TrackHeaderView` and
 `TrackMuteSoloButtonsView` from fixed, fictional props. It covers selected,
-saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop, and
-360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons` adapters
-continue to read DAW state and dispatch commands; catalog stories do not mount
-that store or simulate command execution.
+saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop,
+a speaker that matches the track name (subtitle collapses to just the role),
+and 360px phone states. The live `TrackHeader` and `TrackMuteSoloButtons`
+adapters continue to read DAW state and dispatch commands; catalog stories do
+not mount that store or simulate command execution.
 
 `Templates/ToolModeToggle`, `Templates/EditingToolRail` and
 `Templates/CommandPalette` follow the same split. `ToolModeToggleView` and
