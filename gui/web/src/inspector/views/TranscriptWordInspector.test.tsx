@@ -678,6 +678,125 @@ describe("TranscriptWordInspector", () => {
     );
   });
 
+  it("an Undo of this inspector's own Apply moves the baseline back, so the next Apply does not conflict (#746)", async () => {
+    vi.mocked(correctTranscriptWord)
+      .mockImplementationOnce(applyingWords(["Hello", "there"]))
+      .mockImplementationOnce(applyingWords(["World", "there"]));
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    const input = screen.getByLabelText("Corrected text");
+    const apply = () =>
+      act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+      });
+    fireEvent.change(input, { target: { value: "Hello" } });
+    await apply();
+    fireEvent.change(input, { target: { value: "World" } });
+    await apply();
+    act(() => {
+      useDawStore.setState({ project: projectWithWords(["Hello", "there"]) });
+    }); // Undo
+    fireEvent.change(input, { target: { value: "Again" } });
+    await apply();
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      3,
+      "/tmp/ep",
+      "host",
+      0,
+      "Again",
+      "Hello",
+    );
+  });
+
+  it("a Redo of this inspector's own Apply moves the baseline forward again (#746)", async () => {
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      applyingWords(["Hello", "there"]),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    const input = screen.getByLabelText("Corrected text");
+    fireEvent.change(input, { target: { value: "Hello" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    act(() => {
+      useDawStore.setState({ project: project() });
+    }); // Undo
+    act(() => {
+      useDawStore.setState({ project: projectWithWords(["Hello", "there"]) });
+    }); // Redo
+    fireEvent.change(input, { target: { value: "World" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      0,
+      "World",
+      "Hello",
+    );
+  });
+
+  it("an Undo of a phrase Apply that added a word moves End index back (#746)", async () => {
+    vi.mocked(correctTranscriptPhrase).mockImplementationOnce(
+      applyingWords(["Hello", "there", "new"]),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there new" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(screen.getByLabelText("End word index")).toHaveValue(2);
+    act(() => {
+      useDawStore.setState({ project: project() });
+    }); // Undo
+    expect(screen.getByLabelText("End word index")).toHaveValue(1);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptPhrase).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      0,
+      1,
+      "Hello there new",
+      "hello there",
+    );
+  });
+
+  it("a peer edit to text this inspector never applied still sends the old baseline (#746)", async () => {
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      applyingWords(["Hello", "there"]),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    const input = screen.getByLabelText("Corrected text");
+    fireEvent.change(input, { target: { value: "Hello" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    act(() => {
+      useDawStore.setState({ project: projectWithWords(["Howdy", "there"]) });
+    });
+    fireEvent.change(input, { target: { value: "World" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      0,
+      "World",
+      "Hello",
+    );
+  });
+
   it('after a 409, the second Apply sends the store\'s new span text ("hello where") (#746)', async () => {
     let reject!: (e: Error) => void;
     vi.mocked(correctTranscriptPhrase).mockImplementationOnce(

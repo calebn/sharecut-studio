@@ -1,4 +1,5 @@
 import { correctTranscriptPhrase, correctTranscriptWord } from "../api";
+import { spanTextFromIndex, type TrackWordTexts } from "../utils/transcript";
 
 /** Why a correction cannot be sent, or null when it can. */
 export function wordCorrectionError(
@@ -51,6 +52,18 @@ export async function submitWordCorrection(
   );
 }
 
+/** A word-index span on one track, from a fixed start: its end and the text it held (#746). */
+export interface CorrectionSpan {
+  endWordIndex: number;
+  text: string;
+}
+
+/** One successful Apply: the guarded span it replaced and the span it wrote. */
+export interface AppliedCorrection {
+  before: CorrectionSpan;
+  after: CorrectionSpan;
+}
+
 /**
  * The draft the inspector should show right after a successful Apply
  * (#746): the word-index range the server actually wrote, and its trimmed
@@ -66,7 +79,7 @@ export function appliedCorrectionSpan(
   startWordIndex: number,
   endWordIndex: number,
   text: string,
-): { endWordIndex: number; text: string } {
+): CorrectionSpan {
   const trimmed = text.trim();
   if (endWordIndex === startWordIndex) {
     return { endWordIndex: startWordIndex, text: trimmed };
@@ -76,4 +89,37 @@ export function appliedCorrectionSpan(
     endWordIndex: startWordIndex + Math.max(1, tokens.length) - 1,
     text: tokens.join(" "),
   };
+}
+
+/**
+ * The baseline to move to when the current one no longer matches the words
+ * because they went back to a span this inspector itself applied or replaced:
+ * an Undo or Redo of one of its own Applies (#746). Walks `applied` newest
+ * first. When `current` is an Apply's `after` and the words now read its
+ * `before`, it returns `before` (Undo); the reverse returns `after` (Redo).
+ * Returns null when `current` still matches the words, or when they changed
+ * to anything else, so a peer's edit still fails the stale-text guard.
+ */
+export function reconciledCorrectionBaseline(
+  texts: TrackWordTexts,
+  startWordIndex: number,
+  current: CorrectionSpan,
+  applied: readonly AppliedCorrection[],
+): CorrectionSpan | null {
+  const reads = (span: CorrectionSpan) =>
+    spanTextFromIndex(texts, startWordIndex, span.endWordIndex) === span.text;
+  const same = (a: CorrectionSpan, b: CorrectionSpan) =>
+    a.endWordIndex === b.endWordIndex && a.text === b.text;
+  if (reads(current)) {
+    return null;
+  }
+  for (const { before, after } of [...applied].reverse()) {
+    if (same(current, after) && reads(before)) {
+      return before;
+    }
+    if (same(current, before) && reads(after)) {
+      return after;
+    }
+  }
+  return null;
 }

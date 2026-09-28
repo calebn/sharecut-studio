@@ -8,6 +8,7 @@ vi.mock("../api", () => ({
 import { correctTranscriptPhrase, correctTranscriptWord } from "../api";
 import {
   appliedCorrectionSpan,
+  reconciledCorrectionBaseline,
   submitWordCorrection,
   wordCorrectionError,
 } from "./wordCorrection";
@@ -118,5 +119,55 @@ describe("appliedCorrectionSpan", () => {
       endWordIndex: 0,
       text: "hi",
     });
+  });
+});
+
+describe("reconciledCorrectionBaseline", () => {
+  const texts = (words: string[]) =>
+    new Map(words.map((w, i) => [i, w] as const));
+  const a = { endWordIndex: 0, text: "hello" };
+  const b = { endWordIndex: 0, text: "Hello" };
+  const c = { endWordIndex: 0, text: "World" };
+  const ab = { before: a, after: b };
+  const bc = { before: b, after: c };
+
+  it("returns null when the current baseline still matches", () => {
+    expect(
+      reconciledCorrectionBaseline(texts(["Hello"]), 0, b, [ab]),
+    ).toBeNull();
+  });
+
+  it("Undo returns before", () => {
+    expect(reconciledCorrectionBaseline(texts(["hello"]), 0, b, [ab])).toEqual(
+      a,
+    );
+  });
+
+  it("Redo returns after", () => {
+    expect(reconciledCorrectionBaseline(texts(["Hello"]), 0, a, [ab])).toEqual(
+      b,
+    );
+  });
+
+  it("returns null for a change to text never applied", () => {
+    expect(
+      reconciledCorrectionBaseline(texts(["Howdy"]), 0, b, [ab]),
+    ).toBeNull();
+  });
+
+  it("walks newest first across a chain", () => {
+    expect(
+      reconciledCorrectionBaseline(texts(["Hello"]), 0, c, [ab, bc]),
+    ).toEqual(b);
+  });
+
+  it("follows a phrase Apply that changed the word count", () => {
+    const before = { endWordIndex: 1, text: "hello there" };
+    const after = { endWordIndex: 2, text: "Hello there new" };
+    expect(
+      reconciledCorrectionBaseline(texts(["hello", "there"]), 0, after, [
+        { before, after },
+      ]),
+    ).toEqual(before);
   });
 });

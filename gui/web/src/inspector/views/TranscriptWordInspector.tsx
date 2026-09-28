@@ -21,7 +21,9 @@ import {
   TRANSCRIPT_UNSUPPRESS_TIP,
 } from "../../transcript/transcriptModeCopy";
 import {
+  type AppliedCorrection,
   appliedCorrectionSpan,
+  reconciledCorrectionBaseline,
   submitWordCorrection,
   wordCorrectionError,
 } from "../../transcript/wordCorrection";
@@ -45,6 +47,9 @@ import { ModifierInspector } from "../ModifierInspector";
 
 /** Empty `TrackWordTexts` while transcript words are not hydrated yet. */
 const NO_WORD_TEXTS: TrackWordTexts = new Map();
+
+/** Successful Applies the inspector remembers for following its own Undo/Redo (#746). */
+const APPLIED_CORRECTIONS_KEPT = 20;
 
 export function TranscriptWordInspector({
   trackId,
@@ -108,6 +113,26 @@ export function TranscriptWordInspector({
     setSeeded(true);
     setText(word.text);
     setExpectedText(wordSpanText);
+  }
+
+  // Each successful Apply as (span it replaced, span it wrote), so an Undo
+  // or Redo of our own correction moves the baseline with the words instead
+  // of failing the next Apply with a 409 that blames someone else (#746).
+  const [appliedCorrections, setAppliedCorrections] = useState<
+    readonly AppliedCorrection[]
+  >([]);
+  const endIndexNum = Number.parseInt(endIndexStr, 10);
+  if (!busy && expectedText != null) {
+    const restored = reconciledCorrectionBaseline(
+      wordTexts,
+      wordIndex,
+      { endWordIndex: endIndexNum, text: expectedText },
+      appliedCorrections,
+    );
+    if (restored) {
+      setEndIndexStr(String(restored.endWordIndex));
+      setExpectedText(restored.text);
+    }
   }
 
   const changeEndIndex = (value: string) => {
@@ -194,6 +219,13 @@ export function TranscriptWordInspector({
       const baseline = stored === applied.text ? stored : null;
       setEndIndexStr(String(applied.endWordIndex));
       setExpectedText(baseline);
+      if (expectedText != null && baseline != null) {
+        const before = { endWordIndex: endIndex, text: expectedText };
+        const after = { endWordIndex: applied.endWordIndex, text: baseline };
+        setAppliedCorrections((prev) =>
+          [...prev, { before, after }].slice(-APPLIED_CORRECTIONS_KEPT),
+        );
+      }
       return;
     }
     if (failure instanceof ApiError && failure.status === 409) {
@@ -261,7 +293,6 @@ export function TranscriptWordInspector({
   const seekSec = wordSeekSec(word) ?? word.timeline_start ?? word.start;
   const playStart = word.timeline_start ?? word.start;
   const playEnd = word.timeline_end ?? word.end;
-  const endIndexNum = Number.parseInt(endIndexStr, 10);
   const spanUnverified =
     Number.isInteger(endIndexNum) &&
     endIndexNum >= wordIndex &&
