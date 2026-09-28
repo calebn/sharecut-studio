@@ -5,9 +5,10 @@ import json
 import logging
 import math
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
@@ -47,6 +48,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 TRANSCRIBE_CANCELLED = "Transcription cancelled"
+
+_T = TypeVar("_T")
 
 
 def _cache_id_part(raw: str) -> str:
@@ -135,26 +138,30 @@ def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str)
     return _cache_file(project, cache_id, f"{_cache_id_part(cache_id)}_{audio_sha256[:16]}.json")
 
 
-def _read_cache(path: Path) -> Transcript | None:
+def _read_json_cache(path: Path, what: str, parse: Callable[[Any], _T]) -> _T | None:
+    """``parse`` of a JSON cache file, or None (miss) when absent or unreadable."""
     if not path.is_file():
         return None
     try:
-        return Transcript.model_validate(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, ValueError) as exc:
+        return parse(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
         # json.JSONDecodeError and pydantic.ValidationError are ValueErrors.
-        log.warning("ignoring unreadable transcript cache %s: %s", path.name, exc)
+        log.warning("ignoring unreadable %s %s: %s", what, path.name, exc)
         return None
+
+
+def _read_cache(path: Path) -> Transcript | None:
+    return _read_json_cache(path, "transcript cache", Transcript.model_validate)
+
+
+def _parse_align_spans(data: Any) -> list[tuple[float, float] | None]:
+    return [None if s is None else (float(s[0]), float(s[1])) for s in data["spans"]]
 
 
 def _read_align_cache(path: Path, count: int) -> list[tuple[float, float] | None] | None:
     """Cached aligned spans, or None (miss) when absent, unreadable or not matching ``count``."""
-    if not path.is_file():
-        return None
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))["spans"]
-        spans = [None if s is None else (float(s[0]), float(s[1])) for s in raw]
-    except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
-        log.warning("ignoring unreadable word-alignment cache %s: %s", path.name, exc)
+    spans = _read_json_cache(path, "word-alignment cache", _parse_align_spans)
+    if spans is None:
         return None
     if len(spans) != count or any(s is not None and not 0 <= s[0] < s[1] for s in spans):
         log.warning("ignoring mismatched word-alignment cache %s", path.name)
