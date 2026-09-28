@@ -137,6 +137,13 @@ once with no per-word window decodes. Machine load and filesystem state make
 sub-millisecond timing thresholds flaky even when cache behavior is correct;
 call accounting verifies its reuse contract directly.
 
+Play-cache eviction tests in `tests/test_play.py` pin each WAV's last-use age
+through the `services/play.py` `_cache_last_used` seam (`_pin_cache_last_used`)
+instead of back-dating files with `os.utime`. On relatime-style filesystems any
+external reader (Spotlight, backup or sync agents) can reset a freshly written
+file's atime between the test's `utime` and the eviction scan, which made the
+LRU assertions flaky (#735).
+
 During development, skip coverage and the e2e/slow tiers for the quickest feedback:
 
 ```bash
