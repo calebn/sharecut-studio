@@ -349,6 +349,13 @@ def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
     return stem_duration_matches_timeline(project, track_id)
 
 
+def stem_hash_matches(project: EpisodeProject, track_id: str, render_hash: str) -> bool:
+    """The stem WAV exists and its hash sidecar names ``render_hash``."""
+    return (
+        stem_path(project, track_id).is_file() and read_stem_hash(project, track_id) == render_hash
+    )
+
+
 @dataclass(frozen=True)
 class StemFingerprint:
     """What a track's stem must match to be fresh, read without copying the project (#358)."""
@@ -375,9 +382,7 @@ def stem_matches(project: EpisodeProject, track_id: str, fingerprint: StemFinger
 
     Reads only files: the stem, its hash sidecar, and its (cached) probed duration.
     """
-    if not stem_path(project, track_id).is_file():
-        return False
-    if read_stem_hash(project, track_id) != fingerprint.render_hash:
+    if not stem_hash_matches(project, track_id, fingerprint.render_hash):
         return False
     return _stem_duration_ok(project, track_id, fingerprint.expected_duration_sec)
 
