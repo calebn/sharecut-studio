@@ -143,8 +143,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # Pinned so a new Chocolatey FFmpeg release cannot change this job without a code change.
       - name: Install FFmpeg
-        run: choco install ffmpeg -y --no-progress
+        run: choco install ffmpeg --version 9.0.2 -y --no-progress
       - name: Check FFmpeg on PATH
         run: ffmpeg -version
       - name: Install Python deps
