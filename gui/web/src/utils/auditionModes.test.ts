@@ -17,7 +17,7 @@ describe("AUDITION_MODES", () => {
   it("titles say whether edits and effects are included", () => {
     expect(AUDITION_MODES.map((m) => m.title)).toEqual([
       "All tracks mixed, with edits and effects",
-      "Each track with edits and effects",
+      "Each track on its own (not mixed), with edits and effects",
       "Source audio, without edits or effects",
     ]);
   });
