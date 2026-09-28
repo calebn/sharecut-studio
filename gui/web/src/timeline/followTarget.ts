@@ -1,9 +1,10 @@
+import { rosterEntry } from "../presence/roster";
 import type { DawState } from "../state/types";
 
 /** The session client this viewer follows, if any. */
 export function followTarget(s: DawState) {
   return s.followingClientId
-    ? s.sessionClients[s.followingClientId]
+    ? rosterEntry(s.sessionClients, s.followingClientId)
     : undefined;
 }
 

@@ -1,5 +1,6 @@
 import { execute } from "../commands/execute";
 import { rosterDisplayName } from "../presence/colors";
+import { rosterEntry } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
 import { FollowBannerView } from "./FollowBannerView";
 
@@ -11,7 +12,7 @@ export function FollowBanner() {
   if (!followingClientId) {
     return null;
   }
-  const target = sessionClients[followingClientId];
+  const target = rosterEntry(sessionClients, followingClientId);
   return (
     <FollowBannerView
       name={target ? rosterDisplayName(target) : followingClientId}
