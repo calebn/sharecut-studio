@@ -20,7 +20,12 @@ from podcast_mcp.services.cross_process_sync import (
     _Plane,
     cross_process_bridge,
 )
-from podcast_mcp.services.document_sync.service import DocumentSyncService
+from podcast_mcp.services.document_sync.commands import DocumentCommand
+from podcast_mcp.services.document_sync.service import (
+    EXTERNAL_MUTATE_CLIENT_ID,
+    DocumentSyncService,
+)
+from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -36,15 +41,27 @@ def _stop_bridge_after():
     cross_process_bridge().stop_all()
 
 
+def _drain(q: asyncio.Queue) -> list[dict]:
+    """Pop everything currently queued and return only the ``Applied`` events."""
+    out: list[dict] = []
+    while True:
+        try:
+            event = q.get_nowait()
+        except asyncio.QueueEmpty:
+            return out
+        if event.get("type") == "Applied":
+            out.append(event)
+
+
 def test_plane_baselines_then_publishes_only_foreign_advances():
     values: list[int | None] = [3]
-    published: list[int] = []
+    calls: list[int | None] = []
 
     def read_seq() -> int | None:
         return values[-1]
 
-    def publish_head() -> dict | None:
-        published.append(values[-1])
+    def publish_head(after: int | None) -> dict | None:
+        calls.append(after)
         return {"published": values[-1]}
 
     hub_key = "plane-test-key"
@@ -52,19 +69,19 @@ def test_plane_baselines_then_publishes_only_foreign_advances():
 
     plane.baseline()
     assert plane.poll() is None  # same as baseline
-    assert published == []
+    assert calls == []
 
     values.append(4)
     assert plane.poll() == {"published": 4}
-    assert published == [4]
+    assert calls == [3]
 
     assert plane.poll() is None  # no new advance
-    assert published == [4]
+    assert calls == [3]
 
     get_hub().publish(hub_key, {"type": "Applied", "server_seq": 5})
     values.append(5)
-    assert plane.poll() is None  # last_applied_seq matches: this process wrote it
-    assert published == [4]
+    assert plane.poll() is None  # every row in (4, 5] was published in this process
+    assert calls == [3]
 
     values.append(None)
     prev_seen = plane.seen
@@ -75,9 +92,7 @@ def test_plane_baselines_then_publishes_only_foreign_advances():
     assert plane.poll() is None
     assert plane.seen == 0
 
-    fresh = _Plane("test2", "plane-test-key-2", lambda: 7, lambda: None)
-    assert fresh.poll() is None  # first read (not baselined) is the baseline
-    assert fresh.seen == 7
+    assert calls == [3]
 
 
 def test_watcher_tick_skips_idle_projects(minimal_project, monkeypatch):
@@ -90,7 +105,7 @@ def test_watcher_tick_skips_idle_projects(minimal_project, monkeypatch):
     monkeypatch.setattr(
         SessionSyncService,
         "publish_cross_process_head",
-        lambda self: calls.append("session") or None,
+        lambda self, after=None: calls.append("session") or None,
     )
 
     proj = load_project(minimal_project)
@@ -202,7 +217,7 @@ def test_watcher_tick_logs_and_continues_when_a_plane_fails(minimal_project, mon
         for p in watcher.planes:
             p.baseline()
 
-        def _boom():
+        def _boom(after):
             raise RuntimeError("session publish failed")
 
         monkeypatch.setattr(watcher.planes[0], "publish_head", _boom)
@@ -470,3 +485,191 @@ def test_watcher_bridges_an_mcp_notify_from_another_process(minimal_project):
     finally:
         hub.unsubscribe(document_key, q)
         loop.close()
+
+
+def test_watcher_publishes_a_foreign_agent_row_an_in_process_write_landed_on(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    watcher = CrossProcessWatcher(ws, interval=10.0)
+    session_key = watcher.planes[0].hub_key
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    try:
+        q = hub.subscribe(session_key, loop)
+        for p in watcher.planes:
+            p.baseline()
+
+        proj = load_project(minimal_project)
+        agent = _foreign_session_write(
+            proj, 0.0, command_type="SetPlaying", payload={"is_playing": True}
+        )
+        own = SessionSyncService(proj).submit(
+            SyncCommand(
+                type="SetRegion",
+                payload={"start_sec": 1.0, "end_sec": 2.0},
+                client_id="viewer-tab",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+        watcher.tick()
+        loop.run_until_complete(asyncio.sleep(0))
+        events = _drain(q)
+
+        assert [e["command"]["command_id"] for e in events] == [
+            own["command"]["command_id"],
+            agent["command_id"],
+        ]
+        bridged = events[-1]
+        assert bridged["server_seq"] == own["server_seq"]
+        assert bridged["command"]["role"] == "agent"
+        assert bridged["snapshot"]["last_command_id"] == agent["command_id"]
+        assert bridged["snapshot"]["last_role"] == "agent"
+        assert bridged["snapshot"]["is_playing"] is True
+
+        watcher.tick()
+        loop.run_until_complete(asyncio.sleep(0))
+        assert _drain(q) == []
+    finally:
+        hub.unsubscribe(session_key, q)
+        loop.close()
+
+
+def test_watcher_reports_the_agent_row_when_two_foreign_writers_collapse(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    watcher = CrossProcessWatcher(ws, interval=10.0)
+    session_key = watcher.planes[0].hub_key
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    try:
+        q = hub.subscribe(session_key, loop)
+        for p in watcher.planes:
+            p.baseline()
+
+        proj = load_project(minimal_project)
+        agent = _foreign_session_write(
+            proj, 0.0, command_type="SetPlaying", payload={"is_playing": True}
+        )
+        viewer = _foreign_session_write(
+            proj,
+            0.0,
+            command_type="SetRegion",
+            payload={"start_sec": 1.0, "end_sec": 2.0},
+            role="viewer",
+            client_id="other-gui",
+        )
+
+        watcher.tick()
+        loop.run_until_complete(asyncio.sleep(0))
+        events = _drain(q)
+
+        assert len(events) == 1
+        event = events[0]
+        assert event["server_seq"] == viewer["server_seq"]
+        assert event["command"]["command_id"] == agent["command_id"]
+        assert event["snapshot"]["last_role"] == "agent"
+    finally:
+        hub.unsubscribe(session_key, q)
+        loop.close()
+
+
+def test_watcher_publishes_a_foreign_document_row_an_in_process_write_landed_on(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    watcher = CrossProcessWatcher(ws, interval=10.0)
+    document_key = watcher.planes[1].hub_key
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    try:
+        q = hub.subscribe(document_key, loop)
+        for p in watcher.planes:
+            p.baseline()
+
+        proj = load_project(minimal_project)
+        foreign = _foreign_document_write(proj)
+        own = DocumentSyncService.open(minimal_project).submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": "note", "author": "viewer", "timeline_start": 0.5},
+                client_id="c1",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+        watcher.tick()
+        loop.run_until_complete(asyncio.sleep(0))
+        events = _drain(q)
+
+        assert len(events) == 2
+        bridged = events[-1]
+        assert bridged["server_seq"] == own["server_seq"]
+        assert bridged["snapshot"]["server_seq"] == own["server_seq"]
+        assert bridged["command"]["command_id"] == foreign["command_id"]
+        assert bridged["command"]["client_id"] == EXTERNAL_MUTATE_CLIENT_ID
+        assert "project" in bridged["snapshot"]
+    finally:
+        hub.unsubscribe(document_key, q)
+        loop.close()
+
+
+def test_plane_retries_a_failing_publish_then_gives_up():
+    values: list[int | None] = [1]
+    attempts: list[int | None] = []
+    fail = [True]
+
+    def read_seq() -> int | None:
+        return values[-1]
+
+    def publish_head(after: int | None) -> dict | None:
+        attempts.append(after)
+        if fail[0]:
+            raise RuntimeError("publish failed")
+        return {"after": after}
+
+    plane = _Plane("test", "plane-retry-key", read_seq, publish_head)
+    plane.baseline()
+    values.append(2)
+
+    with pytest.raises(RuntimeError):
+        plane.poll()
+    assert plane.seen == 1
+
+    fail[0] = False
+    assert plane.poll() == {"after": 1}
+    assert plane.seen == 2
+
+    fail[0] = True
+    values.append(3)
+    for _ in range(cross_process_sync._PUBLISH_ATTEMPTS):
+        with pytest.raises(RuntimeError):
+            plane.poll()
+
+    assert plane.seen == 3
+    assert plane.poll() is None
+    assert attempts == [1, 1] + [2] * cross_process_sync._PUBLISH_ATTEMPTS
+
+
+def test_plane_publishes_the_head_when_the_baseline_read_failed():
+    values: list[int | None] = [None]
+    calls: list[int | None] = []
+
+    plane = _Plane(
+        "test",
+        "plane-baseline-key",
+        lambda: values[-1],
+        lambda after: calls.append(after) or {"head": values[-1]},
+    )
+    plane.baseline()
+    assert plane.seen is None
+
+    values.append(7)
+    assert plane.poll() == {"head": 7}
+    assert calls == [None]
+    assert plane.seen == 7
+
+    published = _Plane(
+        "test", "plane-baseline-key-2", lambda: 9, lambda after: calls.append(after) or {}
+    )
+    get_hub().publish("plane-baseline-key-2", {"type": "Applied", "server_seq": 9})
+    assert published.poll() is None
+    assert calls == [None]

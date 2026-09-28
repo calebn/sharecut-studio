@@ -658,7 +658,7 @@ def test_hub_unsubscribe_and_full_queue(minimal_project) -> None:
     hub.unsubscribe(key, q3)
 
 
-def test_session_hub_remembers_the_last_applied_seq_per_key() -> None:
+def test_session_hub_tracks_unpublished_seqs_per_key() -> None:
     import asyncio
 
     from podcast_mcp.services.session_sync.hub import SessionHub
@@ -666,15 +666,22 @@ def test_session_hub_remembers_the_last_applied_seq_per_key() -> None:
     hub = SessionHub()
     key = "k-seq"
     hub.publish(key, {"type": "Applied", "server_seq": 3})
-    assert hub.last_applied_seq(key) == 3
+    hub.publish(key, {"type": "Applied", "server_seq": 5})
 
-    hub.publish(key, {"type": "Presence", "server_seq": 9})
-    assert hub.last_applied_seq(key) == 3
+    assert hub.unpublished_seqs(key, 2, 5) == [4]
+    assert hub.unpublished_seqs(key, None, 5) == []
+    assert hub.unpublished_seqs(key, None, 4) == [4]
+    assert hub.unpublished_seqs(key, 5, 5) == []
+    assert hub.unpublished_seqs(key, None, 0) == []
 
+    hub.publish(key, {"type": "Presence", "server_seq": 4})
     hub.publish(key, {"type": "Applied", "server_seq": True})
-    assert hub.last_applied_seq(key) == 3
+    assert hub.unpublished_seqs(key, 2, 5) == [4]
 
-    assert hub.last_applied_seq("other-key") is None
+    assert hub.unpublished_seqs("other-key", 0, 2) == [1, 2]
+
+    hub.mark_published(key, [4])
+    assert hub.unpublished_seqs(key, 2, 5) == []
 
     loop = asyncio.new_event_loop()
     try:
@@ -682,7 +689,20 @@ def test_session_hub_remembers_the_last_applied_seq_per_key() -> None:
         hub.unsubscribe(key, q)
     finally:
         loop.close()
-    assert hub.last_applied_seq(key) is None
+    assert hub.unpublished_seqs(key, 2, 5) == [3, 4, 5]
+
+
+def test_session_hub_checks_only_the_remembered_window(monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import hub as hub_module
+    from podcast_mcp.services.session_sync.hub import SessionHub
+
+    monkeypatch.setattr(hub_module, "_APPLIED_SEQ_MEMORY", 4)
+    hub = SessionHub()
+    key = "k-window"
+    for seq in range(1, 11):
+        hub.publish(key, {"type": "Applied", "server_seq": seq})
+
+    assert hub.unpublished_seqs(key, 0, 12) == [11, 12]
 
 
 def test_sync_store_command_at(minimal_project) -> None:
@@ -781,6 +801,56 @@ def test_session_publish_cross_process_head(minimal_project) -> None:
             )
         )
         assert svc.publish_cross_process_head() is None
+        hub.unsubscribe(key, queue)
+    finally:
+        loop.close()
+
+
+def test_session_publish_cross_process_head_reports_the_newest_foreign_agent_row(
+    minimal_project,
+) -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    key = str(proj.workspace_path())
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    try:
+        queue = hub.subscribe(key, loop)
+
+        agent = _foreign_session_write(
+            proj, 0.0, command_type="SetPlaying", payload={"is_playing": True}
+        )
+        own = svc.submit(
+            SyncCommand(
+                type="SetRegion",
+                payload={"start_sec": 1.0, "end_sec": 2.0},
+                client_id="viewer-tab",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+        # The head alone was published here (by submit), so with no `after` there is
+        # nothing foreign to report.
+        assert svc.publish_cross_process_head() is None
+
+        event = svc.publish_cross_process_head(after=agent["server_seq"] - 1)
+        assert event is not None
+        assert event["server_seq"] == own["server_seq"]
+        assert event["command"]["command_id"] == agent["command_id"]
+        assert event["snapshot"]["last_command_id"] == agent["command_id"]
+        assert event["snapshot"]["last_role"] == "agent"
+        assert event["snapshot"]["last_client_id"] == agent["client_id"]
+        assert event["snapshot"]["origin"] == "agent"
+        assert event["snapshot"]["is_playing"] is True
+
+        # mark_published covered these rows, so the same call reports nothing new.
+        assert svc.publish_cross_process_head(after=agent["server_seq"] - 1) is None
+
         hub.unsubscribe(key, queue)
     finally:
         loop.close()

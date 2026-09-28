@@ -22,17 +22,26 @@ from podcast_mcp.services.session_sync.service import sync_db_path
 from podcast_mcp.services.session_sync.snapshot import apply_command, empty_snapshot
 
 
-def _foreign_session_write(project: EpisodeProject, sec: float) -> dict:
-    """Append a ``SetPlayhead`` row on a fresh sync.db connection, as another process would."""
+def _foreign_session_write(
+    project: EpisodeProject,
+    sec: float,
+    *,
+    command_type: str = "SetPlayhead",
+    payload: dict | None = None,
+    role: str = "agent",
+    client_id: str = "agent-control",
+) -> dict:
+    """Append one row on a fresh sync.db connection, as another process would. By default this
+    is an agent ``SetPlayhead`` to ``sec``."""
     store = SyncStore(sync_db_path(project), enforce_command_ids=True)
     try:
         row, _snap, _idempotent = store.append_and_apply(
             command_id=uuid4().hex,
-            client_id="agent-control",
+            client_id=client_id,
             client_seq=None,
-            role="agent",
-            type="SetPlayhead",
-            payload={"playhead_sec": sec},
+            role=role,
+            type=command_type,
+            payload=payload if payload is not None else {"playhead_sec": sec},
             causation_id=None,
             apply_fn=apply_command,
             empty_snap_fn=empty_snapshot,

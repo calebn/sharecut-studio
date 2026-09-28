@@ -31,6 +31,7 @@ from podcast_mcp.services.session_sync.log import (
     SyncStore,
     cached_sync_store,
     cached_sync_store_if_exists,
+    cross_process_command,
 )
 from podcast_mcp.services.session_sync.presence_fanout import schedule as schedule_presence
 from podcast_mcp.services.session_sync.snapshot import (
@@ -303,6 +304,18 @@ def _applied_event(row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, A
     }
 
 
+def _attributed_to(api_snap: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
+    """``api_snap`` with its last-writer fields naming journal ``row``, as ``apply_command`` sets them."""
+    role = row["role"]
+    return {
+        **api_snap,
+        "last_command_id": row["command_id"],
+        "last_client_id": row["client_id"],
+        "last_role": role,
+        "origin": role if role in ("agent", "viewer") else "agent",
+    }
+
+
 class SessionSyncService:
     def __init__(self, project: EpisodeProject) -> None:
         self.project = project
@@ -352,14 +365,18 @@ class SessionSyncService:
     def meta(self) -> dict[str, Any]:
         return session_meta_at(sync_db_path(self.project))
 
-    def publish_cross_process_head(self) -> dict[str, Any] | None:
-        """Fan out the sync.db head when another process committed it (#695).
+    def publish_cross_process_head(self, after: int | None = None) -> dict[str, Any] | None:
+        """Fan out rows another process committed to sync.db (#695).
 
-        Called by the cross-process watcher. Under ``_publish_lock`` a row this process
-        appended is already published (``SessionHub.last_applied_seq``), so it is never
-        re-sent. Several foreign commands within one watcher tick collapse into one
-        ``Applied`` for the head row with the full snapshot. Returns the event, or
-        ``None`` when the head is empty, already published, or its row is gone.
+        The cross-process watcher calls this with ``after``, the head seq it saw on its last
+        tick (``None`` checks the head alone). Under ``_publish_lock``, every row this
+        process appended is already published (``SessionHub.unpublished_seqs``), so only
+        foreign rows in ``(after, head]`` count. They collapse into one ``Applied`` at the
+        head ``server_seq`` with the full snapshot. Its ``command`` is the newest foreign
+        agent row, else the newest foreign row (``cross_process_command``), and the
+        snapshot's ``last_*`` / ``origin`` fields name that row. The client's authority
+        check then applies an agent's command even when a viewer row is the head. Returns
+        the event, or ``None`` when there is no foreign row to report.
         """
         store = self._store_optional()
         if store is None:
@@ -370,13 +387,14 @@ class SessionSyncService:
             if _is_empty_authority(snap):
                 return None
             assert snap is not None
-            seq = int(snap.get("server_seq") or 0)
-            if hub.last_applied_seq(self._project_key) == seq:
-                return None
-            row = store.command_at(seq)
+            head = int(snap.get("server_seq") or 0)
+            seqs = hub.unpublished_seqs(self._project_key, after, head)
+            row = cross_process_command(store, seqs)
             if row is None:
                 return None
-            event = _applied_event(row, flatten_for_api(snap, store.list_clients()))
+            api_snap = _attributed_to(flatten_for_api(snap, store.list_clients()), row)
+            event = {**_applied_event(row, api_snap), "server_seq": head}
+            hub.mark_published(self._project_key, seqs)
             hub.publish(self._project_key, event)
             return event
 

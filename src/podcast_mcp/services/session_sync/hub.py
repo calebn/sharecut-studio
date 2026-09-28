@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import threading
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from podcast_mcp.services.fanout_hub import FanoutHub
@@ -15,6 +16,10 @@ def _clear_presence_key(project_key: str) -> None:
     from podcast_mcp.services.session_sync.presence_fanout import clear_key
 
     clear_key(project_key)
+
+
+_APPLIED_SEQ_MEMORY = 1024
+"""``Applied`` seqs ``SessionHub`` remembers per key for the cross-process watcher (#695)."""
 
 
 class SessionHub(FanoutHub):
@@ -27,7 +32,7 @@ class SessionHub(FanoutHub):
             on_unsubscribed=self._key_idle,
         )
         self._seq_lock = threading.Lock()
-        self._applied_seq: dict[str, int] = {}
+        self._applied_seqs: dict[str, deque[int]] = {}
 
     def publish(self, key: str, event: dict[str, Any]) -> None:
         """Remember ``event``'s seq when it is an ``Applied``, then fan it out (#695).
@@ -37,22 +42,37 @@ class SessionHub(FanoutHub):
         """
         seq = _applied_server_seq(event)
         if seq is not None:
-            with self._seq_lock:
-                self._applied_seq[key] = seq
+            self.mark_published(key, (seq,))
         super().publish(key, event)
 
-    def last_applied_seq(self, key: str) -> int | None:
-        """``server_seq`` of the last ``Applied`` this process published for ``key`` (#695).
-
-        The cross-process watcher (``services/cross_process_sync.py``) skips a journal
-        head equal to it: that row was written, and already fanned out, in this process.
+    def mark_published(self, key: str, seqs: Iterable[int]) -> None:
+        """Record journal ``seqs`` as fanned out for ``key``: ``publish`` does this for an
+        ``Applied``, and a collapsed cross-process ``Applied`` for every row it covers (#695).
         """
         with self._seq_lock:
-            return self._applied_seq.get(key)
+            remembered = self._applied_seqs.get(key)
+            if remembered is None:
+                remembered = deque(maxlen=_APPLIED_SEQ_MEMORY)
+                self._applied_seqs[key] = remembered
+            remembered.extend(seqs)
+
+    def unpublished_seqs(self, key: str, after: int | None, head: int) -> list[int]:
+        """Journal seqs in ``(after, head]`` this process has not published for ``key`` (#695).
+
+        ``after=None`` checks ``head`` alone. Only the newest ``_APPLIED_SEQ_MEMORY`` seqs up
+        to ``head`` are checked. The cross-process watcher publishes when this is non-empty,
+        which means another process wrote a row since its last tick.
+        """
+        if head <= 0:
+            return []
+        start = head if after is None else max(after + 1, head - _APPLIED_SEQ_MEMORY + 1)
+        with self._seq_lock:
+            published = set(self._applied_seqs.get(key, ()))
+        return [seq for seq in range(start, head + 1) if seq not in published]
 
     def _key_idle(self, key: str) -> None:
         with self._seq_lock:
-            self._applied_seq.pop(key, None)
+            self._applied_seqs.pop(key, None)
         _clear_presence_key(key)
 
 

@@ -275,3 +275,44 @@ describe("shouldHandleWsMessage", () => {
     ).toBe(false);
   });
 });
+
+describe("cross-process collapsed Applied (#695)", () => {
+  it("applies an agent command even when a viewer row landed on top of it", () => {
+    const state = snap({
+      server_seq: 3,
+      origin: "agent",
+      last_role: "agent",
+      last_client_id: "agent-control",
+      last_command_id: "cmd-agent-2",
+      is_playing: true,
+    });
+    const cursor = { serverSeq: 3, commandId: "cmd-viewer-3" };
+
+    expect(
+      shouldHandleWsMessage(
+        {
+          type: "Applied",
+          command: {
+            role: "agent",
+            type: "SetPlaying",
+            client_id: "agent-control",
+          },
+          snapshot: state,
+        },
+        cursor,
+        { localClientId: "viewer-me" },
+      ),
+    ).toBe(true);
+
+    expect(
+      shouldApplyRemote(state, cursor, {
+        commandType: "SetPlaying",
+        localClientId: "viewer-me",
+        commandClientId: "agent-control",
+      }),
+    ).toEqual({
+      apply: true,
+      next: { serverSeq: 3, commandId: "cmd-agent-2" },
+    });
+  });
+});

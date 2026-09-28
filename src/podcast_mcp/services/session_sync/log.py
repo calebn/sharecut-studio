@@ -7,7 +7,7 @@ import re
 import sqlite3
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -656,3 +656,17 @@ class SyncStore:
             "causation_id": row["causation_id"],
             "ts_ns": int(row["ts_ns"]),
         }
+
+
+def cross_process_command(store: SyncStore, seqs: Iterable[int]) -> dict[str, Any] | None:
+    """The journal row a collapsed cross-process ``Applied`` reports for ``seqs`` (#695).
+
+    Returns the newest agent-authored row, else the newest row (``seqs`` ascending), or
+    ``None`` when no row exists. An agent row wins so the client's authority check
+    (``session/dedupe.ts``) does not skip it as viewer transport.
+    """
+    rows = [row for seq in seqs if (row := store.command_at(seq)) is not None]
+    if not rows:
+        return None
+    agent_rows = [row for row in rows if row.get("role") == "agent"]
+    return (agent_rows or rows)[-1]
