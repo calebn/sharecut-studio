@@ -46,7 +46,7 @@ import contextlib
 import math
 import re
 from bisect import bisect_left
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -232,11 +232,23 @@ def _segments_from_energy(
     )
 
 
+def _cancellable(
+    chunks: Iterable[np.ndarray], cancel_check: Callable[[], bool] | None
+) -> Iterator[np.ndarray]:
+    """Yield ``chunks``, polling ``cancel_check`` before each one."""
+    for chunk in chunks:
+        raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
+        yield chunk
+
+
 def _energy_bounds_stream(
-    chunks: Iterable[np.ndarray], sr: int, params: ProsodyParams
+    chunks: Iterable[np.ndarray],
+    sr: int,
+    params: ProsodyParams,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> list[tuple[float, float]]:
     frame, hop = _energy_frame(sr)
-    db = frame_rms_db_stream(chunks, frame, hop)
+    db = frame_rms_db_stream(_cancellable(chunks, cancel_check), frame, hop)
     return _segments_from_levels(
         db, hop / float(sr), gap_sec=params.segment_gap_sec, max_sec=params.max_segment_sec
     )
@@ -713,8 +725,9 @@ def analyze_prosody_file(
     on each side, served by ``util.pcm_stream.SequentialWindowReader``. Resident
     audio is about one window plus one decode chunk, whatever the track length.
     With no words, a first streamed pass finds segments from a frame-RMS energy
-    envelope, so the file decodes twice. Raises :class:`ProsodyUnavailable` when
-    ``praat-parselmouth`` is not installed.
+    envelope, so the file decodes twice. ``cancel_check`` is polled before each
+    decode chunk of that pass and before each segment. Raises
+    :class:`ProsodyUnavailable` when ``praat-parselmouth`` is not installed.
     """
     _require_parselmouth()
     eng = engine or FFmpegEngine()
@@ -726,7 +739,7 @@ def analyze_prosody_file(
         bounds = segment_bounds(words, total_dur=0.0, params=params)
     else:
         with contextlib.closing(open_stream()) as chunks:
-            bounds = _energy_bounds_stream(chunks, SAMPLE_RATE, params)
+            bounds = _energy_bounds_stream(chunks, SAMPLE_RATE, params, cancel_check)
         raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
     if not bounds:
         return _empty_result()

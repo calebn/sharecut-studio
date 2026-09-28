@@ -316,6 +316,7 @@ class _FakeStreamEngine:
         self.chunk_frames = chunk_frames
         self.calls = 0
         self.closed = False
+        self.yielded = 0
 
     def stream_mono_f32(
         self, path: Path, *, sample_rate: int, chunk_frames: int | None = None
@@ -328,6 +329,7 @@ class _FakeStreamEngine:
         def gen() -> Any:
             try:
                 for i in range(0, track.size, size):
+                    self.yielded += 1
                     yield track[i : i + size]
             finally:
                 self.closed = True
@@ -426,6 +428,32 @@ def test_analyze_prosody_file_closes_stream_on_cancel() -> None:
         )
 
     assert fake.closed is True
+
+
+def test_analyze_prosody_file_cancels_during_energy_pass() -> None:
+    pytest.importorskip("parselmouth")
+    from podcast_mcp.engines.prosody import analyze_prosody_file
+    from podcast_mcp.util.progress import CancelledProgress
+
+    track, _w0, _w1, sr = _two_copy_track()
+    fake = _FakeStreamEngine(track, sr)
+    polls = {"n": 0}
+
+    def cancel_check() -> bool:
+        polls["n"] += 1
+        return polls["n"] >= 2  # cancel on the energy pass's second chunk
+
+    with pytest.raises(CancelledProgress):
+        analyze_prosody_file(
+            Path("x.wav"),
+            [],
+            ProsodyParams.from_defaults({}),
+            cancel_check=cancel_check,
+            engine=fake,  # type: ignore[arg-type]
+        )
+    assert fake.calls == 1  # the second (segment) decode never opened
+    assert fake.closed is True
+    assert fake.yielded < -(-track.size // fake.chunk_frames)
 
 
 def test_analyze_prosody_file_clamps_segments_past_end_of_audio() -> None:
