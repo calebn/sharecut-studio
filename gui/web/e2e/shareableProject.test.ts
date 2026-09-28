@@ -11,6 +11,7 @@ import {
 } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
 import { switchE2eProject, withShareableProject } from "./shareableProject";
+import { tempWorkspace } from "./testWorkspace";
 
 const suiteProjectPath = path.join(
   os.tmpdir(),
@@ -75,51 +76,35 @@ describe("assertDisposableE2eProject", () => {
   });
 
   it("rejects a symlinked alias of the committed fixture", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-alias-"));
-    try {
-      const alias = path.join(dir, "episode.project.json");
-      fs.symlinkSync(committedE2eProjectPath, alias);
-      expect(() => assertDisposableE2eProject(alias)).toThrow(
-        /committed fixture/,
-      );
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempWorkspace("sharecut-e2e-alias-");
+    const alias = path.join(dir, "episode.project.json");
+    fs.symlinkSync(committedE2eProjectPath, alias);
+    expect(() => assertDisposableE2eProject(alias)).toThrow(
+      /committed fixture/,
+    );
   });
 
   it("accepts a path that does not exist yet (ENOENT fallback)", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-missing-"));
-    try {
-      const missing = path.join(dir, "not-yet", "episode.project.json");
-      expect(() => assertDisposableE2eProject(missing)).not.toThrow();
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempWorkspace("sharecut-e2e-missing-");
+    const missing = path.join(dir, "not-yet", "episode.project.json");
+    expect(() => assertDisposableE2eProject(missing)).not.toThrow();
   });
 
   it("accepts a path under a regular file (ENOTDIR fallback)", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-notdir-"));
-    try {
-      const file = path.join(dir, "plain-file");
-      fs.writeFileSync(file, "");
-      const underFile = path.join(file, "episode.project.json");
-      expect(() => assertDisposableE2eProject(underFile)).not.toThrow();
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempWorkspace("sharecut-e2e-notdir-");
+    const file = path.join(dir, "plain-file");
+    fs.writeFileSync(file, "");
+    const underFile = path.join(file, "episode.project.json");
+    expect(() => assertDisposableE2eProject(underFile)).not.toThrow();
   });
 
   it("rethrows an unexpected realpath error instead of treating the path as disposable", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-loop-"));
-    try {
-      const a = path.join(dir, "a");
-      const b = path.join(dir, "b");
-      fs.symlinkSync(b, a);
-      fs.symlinkSync(a, b);
-      expect(() => assertDisposableE2eProject(a)).toThrow(/ELOOP/);
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
+    const dir = tempWorkspace("sharecut-e2e-loop-");
+    const a = path.join(dir, "a");
+    const b = path.join(dir, "b");
+    fs.symlinkSync(b, a);
+    fs.symlinkSync(a, b);
+    expect(() => assertDisposableE2eProject(a)).toThrow(/ELOOP/);
   });
 
   const caseVariant = path.join(

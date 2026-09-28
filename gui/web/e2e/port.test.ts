@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -9,9 +8,10 @@ import {
   observePortLease,
   reclaimObservedPortLease,
 } from "./port";
+import { tempWorkspace } from "./testWorkspace";
 
 function temporaryLockDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-e2e-port-test-"));
+  return tempWorkspace("sharecut-e2e-port-test-");
 }
 
 function lockPath(directory: string, port: number): string {
@@ -40,7 +40,6 @@ describe("atomic E2E port leases", () => {
     expect(first).toBeUndefined();
     expect(second?.port).toBe(8777);
     second?.release();
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 
   it("leases explicit ports and rejects a live owner", async () => {
@@ -54,7 +53,6 @@ describe("atomic E2E port leases", () => {
       acquireE2ePortLease({ DAW_E2E_PORT: "8778" }, undefined, directory),
     ).rejects.toThrow("already leased");
     first.release();
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 
   it("reclaims dead and invalid owners as distinct generations", async () => {
@@ -75,7 +73,6 @@ describe("atomic E2E port leases", () => {
       );
       lease.release();
     }
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 
   it("fences delayed stale observers without displacing a replacement", () => {
@@ -98,7 +95,6 @@ describe("atomic E2E port leases", () => {
       JSON.parse(fs.readFileSync(path.join(current, "owner.json"), "utf8")),
     ).toEqual({ pid: process.pid, token: "replacement" });
     replacement?.release();
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 
   it("discards a torn invalid-to-valid observation", () => {
@@ -117,7 +113,6 @@ describe("atomic E2E port leases", () => {
     expect(reclaimObservedPortLease(port, directory, torn)).toBe(false);
     expect(createPortLease(port, directory, "third")).toBeUndefined();
     replacement?.release();
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 
   it("owner-checked release cannot remove another token", () => {
@@ -129,6 +124,5 @@ describe("atomic E2E port leases", () => {
     first?.release();
     expect(fs.existsSync(lockPath(directory, port))).toBe(true);
     replacement?.release();
-    fs.rmSync(directory, { recursive: true, force: true });
   });
 });
