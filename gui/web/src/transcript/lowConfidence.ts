@@ -1,6 +1,10 @@
 import type { TranscriptReviewCursor } from "../state/types";
 import type { CombinedUtterance, TranscriptWordView } from "../types/project";
-import { wordSeekSec, wordsForUtterance } from "../utils/transcript";
+import {
+  isTranscriptUtteranceVisible,
+  wordSeekSec,
+  wordsForUtterance,
+} from "../utils/transcript";
 
 /** ASR confidence below which a word is flagged for review (Annotate underline, WORD inspector note, walkthrough stops); same default as MCP `low_confidence_words_tool`. */
 export const LOW_CONFIDENCE = 0.7;
@@ -18,21 +22,35 @@ export interface LowConfidenceStop {
   text: string;
   /** Timeline seek; null for a cut-away word (scroll only). */
   seekSec: number | null;
+  /** Transcript-order ordinal among every indexed word of the full utterance list (listed or not), so it survives corrections and a Show cut away toggle. */
+  order: number;
 }
 
-/** Indexed low-confidence words among `utterances`, in transcript order. */
+/**
+ * Indexed low-confidence words among the utterances the transcript panel lists
+ * (`isTranscriptUtteranceVisible`), in transcript order. Pass the full
+ * `project.transcript.utterances`: `order` counts every indexed word, hidden
+ * cut-away ones included.
+ */
 export function lowConfidenceStops(
   utterances: readonly CombinedUtterance[],
+  annotate: boolean,
+  showCutAway: boolean,
 ): LowConfidenceStop[] {
   const stops: LowConfidenceStop[] = [];
+  let order = 0;
   for (const u of utterances) {
+    const listed = isTranscriptUtteranceVisible(u, annotate, showCutAway);
     for (const w of wordsForUtterance(u)) {
-      if (w.word_index == null || !isLowConfidenceWord(w)) continue;
+      if (w.word_index == null) continue;
+      const wordOrder = order++;
+      if (!listed || !isLowConfidenceWord(w)) continue;
       stops.push({
         trackId: u.track_id,
         wordIndex: w.word_index,
         text: w.text,
         seekSec: wordSeekSec(w),
+        order: wordOrder,
       });
     }
   }
@@ -54,8 +72,9 @@ export function reviewCursorIndex(
 
 /**
  * Index of the stop one step from `cursor`, wrapping at both ends; -1 when there are no stops.
- * No cursor: first (next) / last (prev). A cursor whose word left the list (corrected) steps
- * from its stored position: next = the stop now in that slot, prev = the one before it.
+ * No cursor: first (next) / last (prev). A cursor whose word left the list (corrected) resumes
+ * by transcript order: next = the first stop at or after its `order`, prev = the last stop
+ * before it, wrapping.
  */
 export function stepLowConfidence(
   stops: readonly LowConfidenceStop[],
@@ -67,6 +86,14 @@ export function stepLowConfidence(
   if (!cursor) return direction === "next" ? 0 : n - 1;
   const at = reviewCursorIndex(stops, cursor);
   if (at >= 0) return (at + (direction === "next" ? 1 : n - 1)) % n;
-  const slot = Math.min(Math.max(cursor.position, 0), n);
-  return direction === "next" ? slot % n : (slot - 1 + n) % n;
+  // The cursor's word left the list (corrected, possibly with others in one
+  // batch): resume at the nearest stop after / before it in transcript order.
+  if (direction === "next") {
+    const after = stops.findIndex((s) => s.order >= cursor.order);
+    return after >= 0 ? after : 0;
+  }
+  for (let i = n - 1; i >= 0; i--) {
+    if (stops[i].order < cursor.order) return i;
+  }
+  return n - 1;
 }

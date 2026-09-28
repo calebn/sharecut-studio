@@ -1323,7 +1323,7 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({
         project: lowConfidenceProject(),
         transcriptAnnotate: true,
-        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, order: 1 },
       });
       const { container } = render(<TranscriptPanel />);
       const chip = within(container).getByRole("button", { name: "there" });
@@ -1354,7 +1354,7 @@ describe("TranscriptPanel", () => {
           transcriptReviewCursor: {
             trackId: "host",
             wordIndex: 1,
-            position: 0,
+            order: 1,
           },
         });
       });
@@ -1376,7 +1376,7 @@ describe("TranscriptPanel", () => {
           transcriptReviewCursor: {
             trackId: "host",
             wordIndex: 1,
-            position: 0,
+            order: 1,
           },
         });
       });
@@ -1387,7 +1387,7 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({
         project: lowConfidenceProject(),
         transcriptAnnotate: true,
-        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, order: 1 },
       });
       const { container } = render(<TranscriptPanel />);
       fireEvent.click(
@@ -1400,7 +1400,7 @@ describe("TranscriptPanel", () => {
       useDawStore.setState({
         project: lowConfidenceProject(),
         transcriptAnnotate: true,
-        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, order: 1 },
       });
       const { container } = render(<TranscriptPanel />);
       await expectNoA11yViolations(container);
