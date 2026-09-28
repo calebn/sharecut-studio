@@ -32,7 +32,7 @@ function lower(body: Record<string, unknown>): void {
 }
 
 test.describe("Transcript low-confidence walkthrough (#634)", () => {
-  test("Next/Previous visit every low-confidence word in order and wrap", async ({
+  test("Next/Previous visit every low-confidence word in order, wrap, and keep the stop marker in Correct mode", async ({
     page,
   }) => {
     await page.route(
@@ -91,6 +91,18 @@ test.describe("Transcript low-confidence walkthrough (#634)", () => {
     await expect(current).toHaveText("learning");
     await expect(current).toHaveAttribute("data-track-id", "guest");
     await expect(review).toContainText("3/3");
+
+    // Correct mode also selects the stop; the dashed stop marker must still
+    // win over .selected's solid accent outline.
+    await page.getByRole("button", { name: /^Correct:/i }).click();
+    await page
+      .getByRole("button", { name: /^Next low-confidence word/ })
+      .click();
+    await expect(current).toHaveText("matters");
+    await expect(current).toHaveAttribute("data-track-id", "reference");
+    await expect(current).toHaveClass(/\bselected\b/);
+    await expect(current).toHaveCSS("outline-style", "dashed");
+    await expect(review).toContainText("1/3");
 
     await expectPageAxeClean(page);
   });
