@@ -677,9 +677,9 @@ def stage_version(
     text = (label or "").strip()
     if not text:
         raise ValueError("label is required")
+    src, source = resolve_source_mix(project, prefer=prefer)
     if not _SAFE_FAILED_CLEANUP_SUPPORTED:
         raise OSError(errno.ENOTSUP, "safe review publication requires directory descriptors")
-    src, source = resolve_source_mix(project, prefer=prefer)
     vid = _new_id()
     rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/mix.wav"
     review_root = review_artifacts_dir(project)
