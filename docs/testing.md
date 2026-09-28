@@ -450,6 +450,11 @@ row it just created must wait for its own mutation's response and select the row
 (`e2e/pendingEdit.ts` `openSuggestedPendingEdit`, Impact rows carry `data-pending-id`)
 rather than trusting `.last()`.
 
+Specs that set up state through the API post it with `e2e/documentCommand.ts`
+(`postDocumentCommand`, `waiveRefineGate`) and undo each command they applied
+in `finally`, so later specs see the fixture unchanged
+(`e2e/applied-edit-seams.spec.ts`, `e2e/edit-boundary-touch.spec.ts`).
+
 ### Record-room Playwright scenarios
 
 The room-tone Accept browser scenario opts into a deterministic PCM harness in
