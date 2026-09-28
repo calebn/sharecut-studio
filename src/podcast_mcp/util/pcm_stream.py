@@ -1,7 +1,8 @@
 """Forward-only window reads over a streamed decode.
 
 Serves start-ordered windows (prosody segments, CTC forced-alignment windows)
-so analysis never holds a whole track's samples in memory.
+so analysis never holds a whole track's samples in memory. Also home to the
+shared empty-decode error (:class:`NoAudioDecodedError`).
 """
 
 from __future__ import annotations
@@ -10,6 +11,18 @@ import math
 from collections.abc import Iterable, Iterator
 
 import numpy as np
+
+
+def no_audio_decoded_message(path: object) -> str:
+    """Text for an ffmpeg decode of ``path`` that exited cleanly but yielded no samples."""
+    return f"no audio decoded from {path}"
+
+
+class NoAudioDecodedError(ValueError):
+    """An ffmpeg decode of ``path`` exited cleanly but yielded no samples."""
+
+    def __init__(self, path: object) -> None:
+        super().__init__(no_audio_decoded_message(path))
 
 
 class SequentialWindowReader:

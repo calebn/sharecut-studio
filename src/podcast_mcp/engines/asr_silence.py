@@ -27,6 +27,7 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import sha256_head_tail
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
 log = logging.getLogger(__name__)
@@ -100,7 +101,7 @@ def peak_envelope(path: Path, *, block_sec: float = PEAK_BLOCK_SEC) -> tuple[np.
     if carry.size:
         parts.append(np.array([carry.max()], dtype=np.float32))
     if not parts:
-        raise ValueError(f"no audio decoded from {path}")
+        raise NoAudioDecodedError(path)
     return np.concatenate(parts), sample_rate / block
 
 

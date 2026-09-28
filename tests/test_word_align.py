@@ -18,6 +18,7 @@ from podcast_mcp.engines.word_align import (
     apply_word_spans,
 )
 from podcast_mcp.models.episode import TranscriptWord
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligner_model
 
 
@@ -180,7 +181,7 @@ def test_word_aligner_align_raises_on_empty_decode(tmp_path) -> None:
     fake = FakeStreamEngine(np.zeros(0, dtype=np.float32), SAMPLE_RATE_WAV2VEC2)
 
     words = [TranscriptWord(text="hi", start=0.0, end=0.5)]
-    with pytest.raises(ValueError, match="no audio decoded from"):
+    with pytest.raises(NoAudioDecodedError, match="no audio decoded from"):
         aligner.align(tmp_path / "clip.wav", words, engine=fake)
 
     # No words: an empty decode is not an error, and the result is empty.

@@ -21,6 +21,7 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.dsp import rms_db
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
     ProgressReporter,
@@ -106,7 +107,7 @@ def load_mono_full(
     r = run(cmd, capture_output=True, check=True)
     samples = np.frombuffer(r.stdout, dtype=np.float32)
     if samples.size == 0:
-        raise ValueError(f"no audio decoded from {path}")
+        raise NoAudioDecodedError(path)
     return samples
 
 
