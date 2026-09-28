@@ -51,14 +51,21 @@ function usePresenceAnnouncer(
 const PRESENCE_STALENESS_TICK_MS = 5_000;
 
 /**
- * Server-clock now, read once per render and re-rendered at least every
- * PRESENCE_STALENESS_TICK_MS while `active`, so a client that stops
- * heartbeating drops out (and is announced as gone) without waiting for an
- * unrelated store update.
+ * Server-clock now, read once per render. Re-renders every
+ * PRESENCE_STALENESS_TICK_MS only while some remote client is still live, so
+ * a client that stops heartbeating drops out (and is announced as gone)
+ * without an unrelated store update; once none is live the tick stops, and a
+ * fresh heartbeat (a store update) re-renders and restarts it.
  */
-function useServerNowMs(offsetMs: number, active: boolean): number {
+function useServerNowMs(
+  offsetMs: number,
+  clients: SessionClient[],
+  localId: string | null,
+): number {
+  const nowMs = serverNowMs(offsetMs);
+  const active = remotePresenceClients(clients, localId, nowMs).length > 0;
   useIntervalTick(PRESENCE_STALENESS_TICK_MS, active);
-  return serverNowMs(offsetMs);
+  return nowMs;
 }
 
 /** Remote presence over the lanes, reading the session roster itself. */
@@ -68,10 +75,7 @@ export function PresenceOverlay(props: Props) {
   const offsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const project = useDawStore((s) => s.project);
   const { laneHeight } = useTimelineMetrics();
-  const nowMs = useServerNowMs(
-    offsetMs,
-    clients.some((c) => c.client_id !== localClientId),
-  );
+  const nowMs = useServerNowMs(offsetMs, clients, localClientId);
   usePresenceAnnouncer(clients, localClientId, nowMs);
 
   return (

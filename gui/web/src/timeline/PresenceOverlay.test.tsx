@@ -175,6 +175,8 @@ describe("PresenceOverlay", () => {
 
   it("drops and announces a client that stops heartbeating with no other store change", () => {
     vi.useFakeTimers({ now: 1_800_000_000_000 });
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval");
     try {
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
       useDawStore.setState({
@@ -204,7 +206,49 @@ describe("PresenceOverlay", () => {
       });
       expect(container.querySelector(".presence-overlay")).toBeNull();
       expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
+      const tickIds = setIntervalSpy.mock.calls.flatMap((call, i) =>
+        call[1] === 5_000 ? [setIntervalSpy.mock.results[i]!.value] : [],
+      );
+      expect(tickIds.length).toBeGreaterThan(0);
+      for (const id of tickIds) {
+        expect(clearIntervalSpy).toHaveBeenCalledWith(id);
+      }
     } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  });
+
+  it("runs no staleness tick while there is no local client id", () => {
+    vi.useFakeTimers({ now: 1_800_000_000_000 });
+    const setIntervalSpy = vi.spyOn(window, "setInterval");
+    try {
+      useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+      useDawStore.setState({
+        localClientId: null,
+        sessionClients: [
+          {
+            client_id: "them",
+            role: "viewer",
+            playhead_sec: 2,
+            last_seen_ns: Date.now() * 1e6,
+            meta: { display_name: "Ada" },
+          },
+        ],
+      });
+      render(
+        <PresenceOverlay
+          zoomPxPerSec={10}
+          height={72}
+          tracks={hostTracks}
+          clipsByTrack={{}}
+        />,
+      );
+      expect(setIntervalSpy.mock.calls.some((call) => call[1] === 5_000)).toBe(
+        false,
+      );
+    } finally {
+      vi.restoreAllMocks();
       vi.useRealTimers();
     }
   });
