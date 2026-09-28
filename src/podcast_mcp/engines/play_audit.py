@@ -276,7 +276,13 @@ def expected_stem_duration_sec(project: EpisodeProject, track_id: str) -> float 
     return float(extent[0])
 
 
-@lru_cache(maxsize=256)
+# One entry per probed file revision (a path, a 4-tuple and a float: well under 1 KB).
+# 1024 holds the stems, premix and master of dozens of projects, so a busy project in a
+# multi-project MCP or GUI process does not evict another's stem probes (#427).
+WAV_DURATION_CACHE_SIZE = 1024
+
+
+@lru_cache(maxsize=WAV_DURATION_CACHE_SIZE)
 def _cached_wav_duration_sec(path: str, revision: FileRevision) -> float:
     """ffprobe ``path`` once per ``file_revision``; ``revision`` is only a cache key."""
     del revision  # cache key only
