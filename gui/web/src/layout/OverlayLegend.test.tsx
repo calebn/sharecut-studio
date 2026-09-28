@@ -51,7 +51,7 @@ describe("OverlayLegend", () => {
     });
   });
 
-  it("disables + Chapter and ignores repeat clicks while an add is in flight", async () => {
+  it("marks + Chapter aria-disabled and ignores repeat clicks while an add is in flight", async () => {
     let resolveAdd: () => void = () => {};
     addChapterMock.mockImplementationOnce(
       () =>
@@ -65,16 +65,21 @@ describe("OverlayLegend", () => {
       </DawProvider>,
     );
     const button = screen.getByRole("button", { name: "+ Chapter" });
+    act(() => {
+      useDawStore.setState({ playheadSec: 0 });
+    });
     await userEvent.click(button);
-    expect(button).toBeDisabled();
-    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Adding chapter at 0.0s…",
+    );
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toHaveAttribute("aria-busy");
     await userEvent.click(button);
     expect(addChapterMock).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolveAdd();
     });
-    expect(button).not.toBeDisabled();
-    expect(button.hasAttribute("aria-busy")).toBe(false);
+    expect(button).not.toHaveAttribute("aria-disabled");
     await userEvent.click(button);
     expect(addChapterMock).toHaveBeenCalledTimes(2);
   });
@@ -99,7 +104,7 @@ describe("OverlayLegend", () => {
     first.unmount();
     render(legend());
     const reopened = screen.getByRole("menuitem", { name: "+ Chapter" });
-    expect(reopened).toBeDisabled();
+    expect(reopened).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(reopened);
     expect(addChapterMock).toHaveBeenCalledTimes(1);
     expect(useDawStore.getState().chapterAddPending).toBe(true);
@@ -107,7 +112,35 @@ describe("OverlayLegend", () => {
       resolveAdd();
     });
     expect(useDawStore.getState().chapterAddPending).toBe(false);
-    expect(reopened).not.toBeDisabled();
+    expect(reopened).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("keeps keyboard focus on + Chapter while the add is in flight", async () => {
+    let resolveAdd: () => void = () => {};
+    addChapterMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        }),
+    );
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <OverlayLegend />
+      </DawProvider>,
+    );
+    const button = screen.getByRole("button", { name: "+ Chapter" });
+    button.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(addChapterMock).toHaveBeenCalledTimes(1);
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(document.activeElement).toBe(button);
+    await userEvent.keyboard("{Enter}");
+    expect(addChapterMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveAdd();
+    });
+    expect(document.activeElement).toBe(button);
+    expect(button).not.toHaveAttribute("aria-disabled");
   });
 
   it("drops a settled add after a project switch and leaves the new project's flag alone", async () => {
