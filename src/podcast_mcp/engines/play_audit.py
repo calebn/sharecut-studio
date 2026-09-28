@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
-from podcast_mcp.util.project_state import FileRevision, file_revision
+from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
 
@@ -298,6 +299,18 @@ def probe_stem_duration_sec(project: EpisodeProject, track_id: str) -> float | N
     return probe_wav_duration_sec(stem_path(project, track_id))
 
 
+def _stem_duration_ok(
+    project: EpisodeProject,
+    track_id: str,
+    expected: float | None,
+    tolerance_sec: float = STEM_DURATION_TOLERANCE_SEC,
+) -> bool:
+    if expected is None:
+        return True
+    actual = probe_stem_duration_sec(project, track_id)
+    return actual is not None and actual <= expected + tolerance_sec
+
+
 def stem_duration_matches_timeline(
     project: EpisodeProject,
     track_id: str,
@@ -310,13 +323,9 @@ def stem_duration_matches_timeline(
     shorter stem is allowed. A stem *longer* than ``timeline_extent`` is the
     classic source-length / wrong-clock failure mode.
     """
-    expected = expected_stem_duration_sec(project, track_id)
-    if expected is None:
-        return True
-    actual = probe_stem_duration_sec(project, track_id)
-    if actual is None:
-        return False
-    return actual <= expected + tolerance_sec
+    return _stem_duration_ok(
+        project, track_id, expected_stem_duration_sec(project, track_id), tolerance_sec
+    )
 
 
 def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
@@ -328,6 +337,39 @@ def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
     if stored != track_render_hash(project, track_id):
         return False
     return stem_duration_matches_timeline(project, track_id)
+
+
+@dataclass(frozen=True)
+class StemFingerprint:
+    """What a track's stem must match to be fresh, read without copying the project (#358)."""
+
+    render_hash: str
+    expected_duration_sec: float | None
+
+
+def stem_fingerprint(project: EpisodeProject, track_id: str) -> StemFingerprint:
+    """``track_render_hash`` and the expected stem length, read together under the state lock.
+
+    Costs what this track's clips, edits, FX and transcript words cost, not a deep copy
+    of the project (transcripts of other tracks, history). A mutation cannot tear it.
+    """
+    with project_state_lock(project):
+        return StemFingerprint(
+            track_render_hash(project, track_id),
+            expected_stem_duration_sec(project, track_id),
+        )
+
+
+def stem_matches(project: EpisodeProject, track_id: str, fingerprint: StemFingerprint) -> bool:
+    """``stem_is_fresh`` against ``fingerprint`` instead of the live project.
+
+    Reads only files: the stem, its hash sidecar, and its (cached) probed duration.
+    """
+    if not stem_path(project, track_id).is_file():
+        return False
+    if read_stem_hash(project, track_id) != fingerprint.render_hash:
+        return False
+    return _stem_duration_ok(project, track_id, fingerprint.expected_duration_sec)
 
 
 def mix_gains(project: EpisodeProject) -> dict[str, float]:

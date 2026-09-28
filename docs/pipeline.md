@@ -270,12 +270,19 @@ path and `file_revision` the same way. Every document snapshot that carries
 and stats but spawns no ffprobe for an unchanged stem. A publish swaps the file
 (`render_atomic`), so it always re-probes. Failures are not cached.
 
-Stem workers read one deep project snapshot captured before dispatch. Each
-worker renders and writes its cache hash from that snapshot. If an edit changes
-the live render hash, renderable track set, or committed project-file
-revision while FFmpeg runs, the step retains new invalidations and fails before
-publishing `track_outputs.json`; retry the render for the new state. On-demand processed playback uses the same snapshot rule for
-full stems and segment cache keys.
+The stem step first reads each renderable track's fingerprint (`stem_fingerprint`:
+`track_render_hash` plus the expected stem length) under `project_state_lock`, with no
+project copy, and keeps every stem that matches it (`stem_matches`). Only when a stem is
+stale does it take one deep snapshot; workers render that snapshot and write each hash
+from it. After the render, the live project and (if the project file moved) the saved one
+are compared against the hash each stem was rendered or found fresh at — a changed hash,
+or a changed renderable track set, keeps the new invalidations and fails before
+publishing `track_outputs.json`; retry the render for the new state. On-demand processed
+playback (`play processed:<id>`, `/api/audio`) decides the stem and segment-cache tiers
+from the same fingerprint; it deep-copies only for a segment render, and keys that cache
+by the snapshot's own hash (#358). On a 36,000-word project with 100 history entries, a
+warm decision costs ~3 ms (`stem_fingerprint`) instead of ~318 ms (a deep `snapshot_project`
+copy).
 
 Tighten proposal snapshots speaker profiles and speaker-ID settings once before
 parallel candidate analysis. The read-only snapshot gives every candidate the

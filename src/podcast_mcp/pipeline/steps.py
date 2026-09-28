@@ -4,7 +4,7 @@ import functools
 import json
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -568,28 +568,26 @@ def compress_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
 
 def _stem_inputs_changed(
     project: EpisodeProject,
-    render_project: EpisodeProject,
-    rendered: dict[str, Path],
+    expected: Mapping[str, str],
     render_roles: set[TrackRole],
 ) -> bool:
-    """Whether ``project`` would render other stems than the ``render_project`` snapshot did.
+    """Whether ``project`` would render other stems than ``expected`` describes.
 
-    ``track_render_hash`` leaves out the mix-only volume and mute, so saving
-    those mid-render doesn't void the stems.
+    ``expected`` maps each published stem's track id to the ``track_render_hash`` it was
+    rendered at (or found fresh at). ``track_render_hash`` leaves out the mix-only
+    volume and mute, so saving those mid-render doesn't void the stems.
     """
     from podcast_mcp.engines.play_audit import track_render_hash
 
     live = {t.id for t in project.tracks if t.role in render_roles and t.media}
-    return live != rendered.keys() or any(
-        track_render_hash(project, tid) != track_render_hash(render_project, tid)
-        for tid in rendered
+    return live != expected.keys() or any(
+        track_render_hash(project, tid) != h for tid, h in expected.items()
     )
 
 
 def _saved_stem_inputs_changed(
     project: EpisodeProject,
-    render_project: EpisodeProject,
-    rendered: dict[str, Path],
+    expected: Mapping[str, str],
     render_roles: set[TrackRole],
 ) -> bool:
     """``_stem_inputs_changed`` against the project another writer saved meanwhile."""
@@ -601,7 +599,7 @@ def _saved_stem_inputs_changed(
         # Gone, unreadable or half-written (pydantic and JSON errors are ValueErrors).
         log.warning("saved project unreadable after stem render; treating stems as stale: %s", exc)
         return True
-    return _stem_inputs_changed(saved, render_project, rendered, render_roles)
+    return _stem_inputs_changed(saved, expected, render_roles)
 
 
 @with_render_lock
@@ -619,16 +617,17 @@ def _render_track_stems(
     from podcast_mcp.engines.play_audit import (
         clear_invalidations_if_current,
         publish_stem,
-        stem_is_fresh,
+        stem_fingerprint,
+        stem_matches,
+        track_render_hash,
     )
     from podcast_mcp.util.project_state import (
         live_project,
         project_file_revision,
         project_state_lock,
-        snapshot_project_with_revision,
+        snapshot_project,
     )
 
-    render_project, initial_revision = snapshot_project_with_revision(project)
     # A pipeline step renders its private copy; concurrent edits land on the live project (#357).
     live = live_project(project)
     render_roles = {
@@ -639,20 +638,32 @@ def _render_track_stems(
         TrackRole.SFX,
     }
     eng = ffmpeg()
-    out_dir = render_project.artifacts_dir() / "tracks"
+    out_dir = project.artifacts_dir() / "tracks"
     out_dir.mkdir(parents=True, exist_ok=True)
+    # Freshness comes from per-track fingerprints read under the state lock with no copy;
+    # the project is deep-copied only when a stem must render (#358).
+    with project_state_lock(project):
+        initial_revision = project_file_revision(project)
+        fingerprints = {
+            t.id: stem_fingerprint(project, t.id)
+            for t in project.tracks
+            if t.role in render_roles and t.media
+        }
     rendered: dict[str, Path] = {}
-    to_render: list[Track] = []
-    for track in render_project.tracks:
-        if track.role not in render_roles:
-            continue
-        if not track.media:
-            continue
-        out = out_dir / f"{track.id}.wav"
-        if stem_is_fresh(render_project, track.id):
-            rendered[track.id] = out
-            continue
-        to_render.append(track)
+    expected: dict[str, str] = {}  # track id -> render hash its published stem matches
+    stale: set[str] = set()
+    for track_id, fingerprint in fingerprints.items():
+        if stem_matches(project, track_id, fingerprint):
+            rendered[track_id] = out_dir / f"{track_id}.wav"
+            expected[track_id] = fingerprint.render_hash
+        else:
+            stale.add(track_id)
+    render_project = snapshot_project(project) if stale else project
+    to_render = [
+        t for t in render_project.tracks if t.id in stale and t.role in render_roles and t.media
+    ]
+    for track in to_render:
+        expected[track.id] = track_render_hash(render_project, track.id)
 
     def render_one(track: Track) -> tuple[str, Path]:
         # Runs on a run_parallel worker: never call anything that takes render_lock here (the
@@ -690,9 +701,9 @@ def _render_track_stems(
                 prog.advance(1, message=f"Stem {track_id} ({done}/{len(to_render)})")
 
     with project_state_lock(project):
-        if _stem_inputs_changed(live, render_project, rendered, render_roles) or (
+        if _stem_inputs_changed(live, expected, render_roles) or (
             project_file_revision(project) != initial_revision
-            and _saved_stem_inputs_changed(project, render_project, rendered, render_roles)
+            and _saved_stem_inputs_changed(project, expected, render_roles)
         ):
             raise RuntimeError("project changed during stem rendering; retry the render")
         meta = artifact(project, "track_outputs.json")
