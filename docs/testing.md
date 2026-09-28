@@ -208,7 +208,7 @@ before that platform check, so a missing or stale mix reports its own portable e
 `tests/review_platform.py` holds the shared `requires_safe_cleanup` / `requires_safe_failed_cleanup`
 skip markers so `test_review_versions.py` and `test_project_commit_lock.py` skip the same
 staging/quarantine/publication tests together on a platform without safe, descriptor-relative
-directory operations (Windows); an autouse fixture in both modules (`run_unmarked_test_as_unsupported_platform`)
+directory operations (Windows); an autouse fixture defined once there (`unmarked_tests_run_as_unsupported_platform`, imported by name into both modules)
 forces both flags off for any test without one of those markers, so a test that stages media without
 `requires_safe_failed_cleanup` fails on POSIX too, not only on the Windows job;
 `test_review_publication_support_matches_the_ci_platform` guards
