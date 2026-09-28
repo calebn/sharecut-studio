@@ -262,7 +262,8 @@ def _seed_history(project: EpisodeProject, steps: int) -> None:
                 HistoryEntry(
                     # 12 lowercase hex chars, matching ProjectStore._GENERATED_SNAPSHOT_ID
                     # (and HistoryManager's uuid4().hex[:12] ids), so a real commit's
-                    # pruning can remove these entries' snapshot files.
+                    # pruning accepts these ids. Pruning removes snapshots/<id>.json
+                    # files, so the two shared benchmark-*.json snapshots stay on disk.
                     id=f"{len(entries):012x}",
                     label=f"{phase} {HISTORY_LABEL}",
                     created_at=(started + timedelta(seconds=len(entries))).isoformat(),
