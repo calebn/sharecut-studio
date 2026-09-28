@@ -15,7 +15,10 @@ def utterance_runs(
 ) -> list[range]:
     """Split ``words`` (list order) into consecutive position ranges at every gap above ``gap_threshold``.
 
-    The ranges partition ``range(len(words))``: every position is in exactly one run.
+    Precondition: ``words`` is in ascending ``start`` order (``Transcript.words`` is
+    chronological). Gaps are measured between list neighbours, and unsorted input is
+    not detected. The ranges partition ``range(len(words))``: every position is in
+    exactly one run.
     """
     runs: list[range] = []
     start = 0
