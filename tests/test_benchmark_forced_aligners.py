@@ -814,3 +814,120 @@ def test_prepare_items_reuses_cached_native_words(tmp_path) -> None:
     native_path.write_text(json.dumps({**stale, "audio_sha256": "0" * 64}), encoding="utf-8")
     bfa.prepare_items([item], runs_dir=runs_dir, native_model="small", native=fake_native)
     assert calls == ["base", "small", "small"]
+
+
+def _tones_native(calls: list[str] | None = None):
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+
+    def fake_native(audio_path, model):
+        if calls is not None:
+            calls.append(model)
+        return {
+            "words": prediction["words"],
+            "provenance": {**prediction["provenance"], "model": model, "runtime_sec": 1.5},
+        }
+
+    return fake_native
+
+
+# tones.prediction.json has 5 words (one, two, um, three, four); these spans put
+# one/two/three/four exactly on tones.gold.json, so the scored MAE is 0.
+_TONES_SPANS = [(0.2, 0.5), (0.6, 0.9), (0.92, 0.98), (1.0, 1.4), (1.5, 1.8)]
+
+
+def test_run_pipeline_pass_end_to_end_with_fakes(tmp_path) -> None:
+    """#715: run_pipeline_pass writes preds/reports/summary and aggregates scored + agreement."""
+    gold = bfa.BenchItem(
+        item_id="tones",
+        audio=SYNTH / "tones.wav",
+        gold=SYNTH / "tones.gold.json",
+        words=None,
+        clip=None,
+    )
+    agree_only = bfa.BenchItem(
+        item_id="tones-agree", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    aligner = _FakeAligner(
+        spans=_TONES_SPANS, stats=_retime_stats(aligned_words=5), runtime_sec=0.02
+    )
+    runs_dir = tmp_path / "runs"
+
+    summary = bfa.run_pipeline_pass(
+        [gold, agree_only],
+        runs_dir=runs_dir,
+        target="synthetic",
+        aligner=aligner,
+        native=_tones_native(),
+    )
+
+    label = bfa.PIPELINE_LABEL
+    assert (runs_dir / f"tones.{label}.pred.json").exists()
+    assert (runs_dir / f"tones.{label}.report.json").exists()
+    assert (runs_dir / f"tones-agree.{label}.pred.json").exists()
+    assert not (runs_dir / f"tones-agree.{label}.report.json").exists()
+    assert (runs_dir / "tones.native.json").exists()
+    assert not (runs_dir / "summary.json").exists()
+    written = json.loads((runs_dir / bfa.PIPELINE_SUMMARY).read_text(encoding="utf-8"))
+    assert written == json.loads(json.dumps(summary))
+
+    pred = json.loads((runs_dir / f"tones.{label}.pred.json").read_text(encoding="utf-8"))
+    assert pred["provenance"]["settings"]["pass"] == bfa.PIPELINE_PASS
+
+    assert aligner.calls == 2
+    assert summary["label"] == label
+    assert summary["items"] == ["tones", "tones-agree"]
+    assert summary["scored"]["items"] == 1
+    assert summary["scored"]["matched_words"] == 4
+    assert summary["scored"]["reference_words"] == 5
+    assert summary["scored"]["boundary_mae_ms"] == pytest.approx(0.0, abs=1e-6)
+    assert summary["agreement"]["items"] == 2
+    assert summary["asr_runtime_sec"] == pytest.approx(3.0)
+    assert summary["align_runtime_sec"] == pytest.approx(0.04)
+    assert set(summary["duration_profile"]) == {"tones", "tones-agree"}
+    profile = summary["duration_profile"]["tones"]
+    assert profile["words"] == 5
+    assert profile["max_sec"] == pytest.approx(0.4)
+    assert profile["over_sec"]["1.00"] == 0
+
+
+def test_run_pipeline_pass_after_run_suite_shares_native_words_and_keeps_summary(tmp_path) -> None:
+    """#715: run then pipeline into one runs dir run Whisper once and keep both summaries."""
+    item = bfa.BenchItem(
+        item_id="tones",
+        audio=SYNTH / "tones.wav",
+        gold=SYNTH / "tones.gold.json",
+        words=None,
+        clip=None,
+    )
+    calls: list[str] = []
+    fake_native = _tones_native(calls)
+    model_dir = tmp_path / "model"
+    model_dir.mkdir()
+    _vocab_json(model_dir / "vocab.json", {"<pad>": 0, "|": 1, "A": 2})
+    vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "A": 2})
+    runs_dir = tmp_path / "runs"
+
+    def backend_factory(candidate, resolved_dir, threads):
+        return FakeBackend(vocab, {}, frames=1, vocab_size=3)
+
+    bfa.run_suite(
+        [item],
+        bfa.load_candidates(labels=["onnx-base"]),
+        runs_dir=runs_dir,
+        target="synthetic",
+        model_dirs={"onnx-base": model_dir},
+        backend_factory=backend_factory,
+        native=fake_native,
+    )
+    bfa.run_pipeline_pass(
+        [item],
+        runs_dir=runs_dir,
+        target="synthetic",
+        aligner=_FakeAligner(spans=_TONES_SPANS, stats=_retime_stats(aligned_words=5)),
+        native=fake_native,
+    )
+
+    assert calls == ["base"]
+    run_summary = json.loads((runs_dir / "summary.json").read_text(encoding="utf-8"))
+    assert set(run_summary["scored"]) == {"onnx-base"}
+    assert (runs_dir / bfa.PIPELINE_SUMMARY).exists()

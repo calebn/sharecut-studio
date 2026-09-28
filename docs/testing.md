@@ -719,8 +719,10 @@ max/p95/p99 and counts over each of `DURATION_THRESHOLDS_SEC` — 1.00, 1.25,
 1.50, 1.75, 2.00, 2.25, 2.50 s). `aligned_dialogue` is not a pipeline target:
 it has zero native words (above), so there is nothing to re-time. The label
 is `onnx-base-pipeline`, not `pipeline-onnx-base`, so it never matches the
-`run` harness's own `*.onnx-base.json` glob. See "Shipped pass results
-(#715)" below for the checked-in, measured numbers.
+`run` harness's own `*.onnx-base.json` glob. A fast test
+(`test_run_pipeline_pass_end_to_end_with_fakes`) covers the pass with a fake
+aligner; `tests/test_word_align_real.py` (`e2e_real`) runs it for real. See
+"Shipped pass results (#715)" below for the checked-in, measured numbers.
 
 ```bash
 uv run python scripts/benchmark_forced_aligners.py pipeline --target librispeech --runs-dir .lab-runs/align/librispeech-pipeline
