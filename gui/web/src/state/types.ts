@@ -39,8 +39,8 @@ export interface TranscriptInlineEditFailure {
 export interface TranscriptReviewCursor {
   trackId: string;
   wordIndex: number;
-  /** Stop index when visited; locates the next stop once this word leaves the list (corrected). */
-  position: number;
+  /** `LowConfidenceStop.order` when visited: once this word leaves the list (corrected, maybe in a batch), the walk resumes at the nearest stop after / before it in transcript order. */
+  order: number;
 }
 
 export type DawTab = PresenceTab;

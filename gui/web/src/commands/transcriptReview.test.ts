@@ -109,21 +109,21 @@ describe("transcript.next/prevLowConfidence", () => {
   });
 
   it("visits host:1, host:2, guest:0 then wraps", async () => {
-    const expected: [string, number, string][] = [
-      ["host", 1, "are"],
-      ["host", 2, "learning"],
-      ["guest", 0, "yes"],
-      ["host", 1, "are"],
+    const expected: [string, number, string, number][] = [
+      ["host", 1, "are", 1],
+      ["host", 2, "learning", 2],
+      ["guest", 0, "yes", 3],
+      ["host", 1, "are", 1],
     ];
     for (let i = 0; i < expected.length; i++) {
-      const [trackId, wordIndex, text] = expected[i];
+      const [trackId, wordIndex, text, order] = expected[i];
       const result = await execute("transcript.nextLowConfidence", {});
       expect(result).toEqual({ status: "ok" });
       const s = useDawStore.getState();
       expect(s.transcriptReviewCursor).toEqual({
         trackId,
         wordIndex,
-        position: i % 3,
+        order,
       });
       const word = project()
         .transcript!.utterances.flatMap((u) => u.words ?? [])
@@ -144,18 +144,18 @@ describe("transcript.next/prevLowConfidence", () => {
     expect(useDawStore.getState().transcriptReviewCursor).toEqual({
       trackId: "guest",
       wordIndex: 0,
-      position: 2,
+      order: 3,
     });
 
     useDawStore.setState({
-      transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+      transcriptReviewCursor: { trackId: "host", wordIndex: 1, order: 1 },
     });
     result = await execute("transcript.prevLowConfidence", {});
     expect(result).toEqual({ status: "ok" });
     expect(useDawStore.getState().transcriptReviewCursor).toEqual({
       trackId: "guest",
       wordIndex: 0,
-      position: 2,
+      order: 3,
     });
   });
 
@@ -171,11 +171,7 @@ describe("transcript.next/prevLowConfidence", () => {
       await execute("transcript.nextLowConfidence", {});
       const cursor = useDawStore.getState().transcriptReviewCursor;
       // The cut-away "cut" word (guest:1) is never a stop without Show cut away.
-      expect(cursor).not.toEqual({
-        trackId: "guest",
-        wordIndex: 1,
-        position: i,
-      });
+      expect(cursor).not.toMatchObject({ trackId: "guest", wordIndex: 1 });
     }
 
     useDawStore.setState({
@@ -190,7 +186,7 @@ describe("transcript.next/prevLowConfidence", () => {
     expect(s.transcriptReviewCursor).toEqual({
       trackId: "guest",
       wordIndex: 1,
-      position: 3,
+      order: 4,
     });
     // The cut-away step does not seek: playhead stays at the previous stop's time.
     expect(s.playheadSec).toBe(3);
@@ -199,13 +195,13 @@ describe("transcript.next/prevLowConfidence", () => {
     );
   });
 
-  it("continues from the corrected word's slot", async () => {
+  it("continues after the corrected word in transcript order", async () => {
     await execute("transcript.nextLowConfidence", {});
     await execute("transcript.nextLowConfidence", {});
     expect(useDawStore.getState().transcriptReviewCursor).toEqual({
       trackId: "host",
       wordIndex: 2,
-      position: 1,
+      order: 2,
     });
 
     const p = project();
@@ -217,8 +213,35 @@ describe("transcript.next/prevLowConfidence", () => {
     expect(useDawStore.getState().transcriptReviewCursor).toEqual({
       trackId: "guest",
       wordIndex: 0,
-      position: 1,
+      order: 3,
     });
+  });
+
+  it("skips nothing when a batch fixes the cursor's word and an earlier one", async () => {
+    await execute("transcript.nextLowConfidence", {});
+    await execute("transcript.nextLowConfidence", {});
+    await execute("transcript.nextLowConfidence", {});
+    expect(useDawStore.getState().transcriptReviewCursor).toEqual({
+      trackId: "guest",
+      wordIndex: 0,
+      order: 3,
+    });
+
+    const p = project();
+    p.transcript!.utterances[0].words![2].confidence = 1.0;
+    p.transcript!.utterances[1].words![0].confidence = 1.0;
+    useDawStore.setState({ project: p });
+
+    const result = await execute("transcript.nextLowConfidence", {});
+    expect(result).toEqual({ status: "ok" });
+    expect(useDawStore.getState().transcriptReviewCursor).toEqual({
+      trackId: "host",
+      wordIndex: 1,
+      order: 1,
+    });
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Low-confidence word 1 of 1: are",
+    );
   });
 
   it("is disabled with no project", async () => {

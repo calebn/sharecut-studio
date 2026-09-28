@@ -161,6 +161,15 @@ export function selectUnmappedUtterances(
   return utterances.filter((u) => u.mappable === false);
 }
 
+/** Whether the transcript panel lists `u`: cut-away ones only under Annotate + Show cut away. */
+export function isTranscriptUtteranceVisible(
+  u: CombinedUtterance,
+  annotate: boolean,
+  showCutAway: boolean,
+): boolean {
+  return (annotate && showCutAway) || u.mappable !== false;
+}
+
 /** Utterances the transcript panel lists: cut-away ones only under Annotate + Show cut away. */
 export function visibleTranscriptUtterances(
   utterances: CombinedUtterance[],
@@ -169,7 +178,9 @@ export function visibleTranscriptUtterances(
 ): CombinedUtterance[] {
   return annotate && showCutAway
     ? utterances
-    : utterances.filter((u) => u.mappable !== false);
+    : utterances.filter((u) =>
+        isTranscriptUtteranceVisible(u, annotate, showCutAway),
+      );
 }
 
 /** Display turn: consecutive same-speaker (same track) utterances. */

@@ -437,8 +437,13 @@ export function TranscriptPanel() {
   );
   // Walkthrough stops (#634): the words that get the low-confidence underline.
   const reviewStops = useMemo(
-    () => lowConfidenceStops(utterances),
-    [utterances],
+    () =>
+      lowConfidenceStops(
+        allUtterances,
+        transcriptAnnotate,
+        showCutAwayUtterances,
+      ),
+    [allUtterances, transcriptAnnotate, showCutAwayUtterances],
   );
   const reviewPosition = reviewCursorIndex(reviewStops, transcriptReviewCursor);
   // The highlight, selected as one string key rather than the playhead: a

@@ -5,7 +5,6 @@ import {
   type ReviewDirection,
   stepLowConfidence,
 } from "../transcript/lowConfidence";
-import { visibleTranscriptUtterances } from "../utils/transcript";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -13,11 +12,9 @@ function stepReview(direction: ReviewDirection): ExecuteResult {
   const s = useDawStore.getState();
   if (!s.project) return { status: "disabled", reason: "No project loaded" };
   const stops = lowConfidenceStops(
-    visibleTranscriptUtterances(
-      s.project.transcript?.utterances ?? [],
-      s.transcriptAnnotate,
-      s.showCutAwayUtterances,
-    ),
+    s.project.transcript?.utterances ?? [],
+    s.transcriptAnnotate,
+    s.showCutAwayUtterances,
   );
   const index = stepLowConfidence(stops, s.transcriptReviewCursor, direction);
   const stop = stops[index];
@@ -28,7 +25,7 @@ function stepReview(direction: ReviewDirection): ExecuteResult {
   s.setTranscriptReviewCursor({
     trackId: stop.trackId,
     wordIndex: stop.wordIndex,
-    position: index,
+    order: stop.order,
   });
   if (stop.seekSec != null) s.setPlayheadSec(stop.seekSec);
   s.setTranscriptScrollRequest(
