@@ -155,7 +155,7 @@ Meta keys merge (null clears a key). Server assigns `color_index` (0–7) and st
 
 **Server → client: `Presence` / `PresenceDelta` / `RosterRequest` (#598).** Per-tick full-roster fan-out scales as `clients²` (every client's row to every subscriber, on every tick); `PresenceRosterTracker` (`presence_delta.py`) instead keeps, per project key, the client rows it last fanned out and diffs the live roster against that base on every coalesced run (still ≤10 Hz):
 
-- A **changed live client-id set** (join, `remove_client`, 30 s age-out) sends one full `Presence` (`{"type":"Presence","clients":[...],"roster_version","server_time_ns"}`) and bumps `roster_version`, a single process-wide monotonic counter (not per project key).
+- A **changed live client-id set** (join, `remove_client`, 30 s age-out) sends one full `Presence` (`{"type":"Presence","clients":[...],"roster_version","server_time_ns"}`) and bumps `roster_version`, a per-project-key monotonic counter that is never reset while the process runs (so versions do not repeat and do not reveal other projects' activity).
 - Otherwise it sends one **`PresenceDelta`** per client whose row changed since the last run:
   ```json
   {
