@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import {
   applyPresenceDelta as applyPresenceDeltaToRoster,
   EMPTY_ROSTER,
+  rosterEntry,
   rosterFromList,
 } from "../presence/roster";
 import { selectionFromWire, selectionToWire } from "../session/wire";
@@ -82,7 +83,7 @@ export const createPresenceSlice: StateCreator<
   setPlaybackRate: (playbackRate) => set({ playbackRate }),
   startFollow: (clientId) => {
     const s = get();
-    const target = s.sessionClients[clientId];
+    const target = rosterEntry(s.sessionClients, clientId);
     const name = target?.meta?.display_name || target?.label || clientId;
     set({ followingClientId: clientId });
     get().announceStatus(`Following ${name}`);

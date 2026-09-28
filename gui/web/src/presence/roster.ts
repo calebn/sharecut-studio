@@ -9,7 +9,22 @@ import { jsonEqual } from "../utils/jsonEqual";
  */
 export type SessionRoster = Record<string, SessionClient>;
 
-export const EMPTY_ROSTER: SessionRoster = {};
+/** A fresh roster with no prototype: peer-controlled `client_id`s such as `__proto__` or
+ * `constructor` become ordinary own keys instead of hitting `Object.prototype`. */
+function emptyRoster(): SessionRoster {
+  return Object.create(null) as SessionRoster;
+}
+
+export const EMPTY_ROSTER: SessionRoster = emptyRoster();
+
+/** `roster[clientId]`, own entries only: never an inherited `Object.prototype` member,
+ * even for a plain-object roster a test built. */
+export function rosterEntry(
+  roster: SessionRoster,
+  clientId: string,
+): SessionClient | undefined {
+  return Object.hasOwn(roster, clientId) ? roster[clientId] : undefined;
+}
 
 /**
  * Build a roster keyed by `client_id` from a full client list (a `Presence` / hello
@@ -21,9 +36,9 @@ export function rosterFromList(
   list: SessionClient[],
   prev: SessionRoster = EMPTY_ROSTER,
 ): SessionRoster {
-  const next: SessionRoster = {};
+  const next = emptyRoster();
   for (const client of list) {
-    const existing = prev[client.client_id];
+    const existing = rosterEntry(prev, client.client_id);
     next[client.client_id] =
       existing && jsonEqual(existing, client) ? existing : client;
   }
@@ -123,17 +138,15 @@ export function applyPresenceDelta(
   if (rosterVersion < localVersion) {
     return { roster, version: localVersion, outcome: "stale" };
   }
-  if (rosterVersion > localVersion || !(authorClientId in roster)) {
+  if (rosterVersion > localVersion || !Object.hasOwn(roster, authorClientId)) {
     return { roster, version: localVersion, outcome: "resync" };
   }
   const nextEntry = mergeRosterClient(
     authorClientId,
-    roster[authorClientId],
+    rosterEntry(roster, authorClientId),
     changes,
   );
-  return {
-    roster: { ...roster, [authorClientId]: nextEntry },
-    version: rosterVersion,
-    outcome: "applied",
-  };
+  const nextRoster = Object.assign(emptyRoster(), roster);
+  nextRoster[authorClientId] = nextEntry;
+  return { roster: nextRoster, version: rosterVersion, outcome: "applied" };
 }
