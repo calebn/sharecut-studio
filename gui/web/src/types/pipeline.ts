@@ -97,6 +97,7 @@ export interface PipelineParamField {
   affects: string[];
 }
 
+/** One component's readiness; shared by GET /api/pipeline/config and /api/bootstrap/status (BootstrapComponentStatus extends it). */
 export interface PipelineComponentStatus {
   ok: boolean;
   path?: string;

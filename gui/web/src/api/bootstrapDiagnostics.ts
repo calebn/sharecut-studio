@@ -1,21 +1,15 @@
 import { hostFetch } from "../api/documentTransport";
+import type { PipelineComponentStatus } from "../types/pipeline";
 import { readApiError } from "../utils/apiError";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import { startJobStatusRecheck } from "./pipeline";
 
-export type BootstrapComponentStatus = {
-  ok: boolean;
+/** Bootstrap status adds first-run / source detail on top of the shared component status. */
+export type BootstrapComponentStatus = PipelineComponentStatus & {
   required_for_first_run?: boolean;
   source?: string;
-  model?: string;
   cache?: string;
-  path?: string;
   note?: string;
-  opt_in?: boolean;
-  label?: string;
-  size?: string;
-  hint?: string;
-  bootstrap?: string;
 };
 
 export type WhisperModelChoice = {
