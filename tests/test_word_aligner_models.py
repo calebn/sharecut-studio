@@ -127,3 +127,35 @@ def test_verify_word_aligner_onnx_hashes_the_onnx_file(tmp_path, monkeypatch) ->
     )
     verify_word_aligner_onnx(tmp_path, model)
     assert seen == [tmp_path / model.onnx_file]
+
+
+def _complete_snapshot(root: Path) -> Path:
+    (root / "onnx").mkdir(parents=True)
+    (root / "vocab.json").write_text("{}")
+    (root / "onnx" / "model.onnx").write_bytes(b"x")
+    return root
+
+
+def test_is_cached_rejects_a_pinned_snapshot_with_a_bad_hash(tmp_path, monkeypatch) -> None:
+    snap = _complete_snapshot(tmp_path / "snap")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", lambda p: "0" * 64)
+    assert word_aligner_is_cached() is False
+    monkeypatch.setattr(
+        "podcast_mcp.word_aligner_models.sha256_file",
+        lambda p: word_aligner_model().onnx_sha256,
+    )
+    assert word_aligner_is_cached() is True
+
+
+def test_is_cached_does_not_hash_an_override_dir(tmp_path, monkeypatch) -> None:
+    snap = _complete_snapshot(tmp_path / "override")
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(snap))
+
+    def no_hash(p):
+        raise AssertionError("override dirs are not verified")
+
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", no_hash)
+    assert word_aligner_is_cached() is True
