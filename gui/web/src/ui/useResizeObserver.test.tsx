@@ -175,4 +175,23 @@ describe("useResizeObserver", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("only test/resizeObserver.ts and test/setup.ts declare a ResizeObserver double", () => {
+    const allowed = new Set(["test/resizeObserver.ts", "test/setup.ts"]);
+    const localDouble = [
+      /\bclass\s+\w*ResizeObserver\w*/,
+      /\bResizeObserver\s*=\s*class\b/,
+      /["']ResizeObserver["']\s*,\s*class\b/,
+    ];
+    const offenders: string[] = [];
+    for (const { rel, text } of sourceFiles()) {
+      if (allowed.has(rel)) {
+        continue;
+      }
+      if (localDouble.some((re) => re.test(text))) {
+        offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });
