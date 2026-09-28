@@ -332,7 +332,6 @@ def _pause_runs(
 
 
 def _voice_quality(
-    intensity_db_at: float,
     *,
     jitter: float | None,
     shimmer: float | None,
@@ -593,7 +592,7 @@ def analyze_prosody(
                 "pauses": {"count": pause_count, "total_sec": round(pause_total, 3)},
                 "energy": _energy_stats(intensity_xs, intensity_db, start, end),
                 "voice_quality": _voice_quality(
-                    0.0, jitter=jitter, shimmer=shimmer, hnr=hnr if hnr else None
+                    jitter=jitter, shimmer=shimmer, hnr=hnr if hnr else None
                 ),
                 "prominent_words": _prominent_words(
                     seg_words, pitch, intensity, top_n=params.top_prominent_words
