@@ -217,6 +217,20 @@ cross-track), reconciliation, speaker attribution, audio-quality and bleed
 suppression, and transcript sync. Editing `episode.project.json` by hand is not
 detected; set `"user_edited": true` on that transcript to protect it.
 
+**Stale-index guard (#650):** the `CorrectTranscriptWord` / `CorrectTranscriptPhrase`
+document commands and the `correct_transcript_tool` / `correct_transcript_phrase_tool`
+MCP tools take an optional `expected_text` — the word (or space-joined phrase) text the
+caller read at those indices. `EditService.correct_word` / `correct_phrase` check it
+inside the same transaction as the mutation (`edits/transcript_correct.require_word_text`),
+comparing whitespace-collapsed, case-sensitive text; a mismatch means another edit (a
+remote host, a guest, or an agent) shifted or changed those words since the caller last
+read them. A document command mismatch is a 409 conflict, same shape as other stale-state
+conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. Studio
+always sends it from both correction paths (the inline editor and the Correct inspector);
+the CLI (`podcast transcript correct`) and the batch cleanup / `verify_transcript` paths do
+not, and omitting it keeps the correction unguarded. The fix for a rejected correction is to
+re-read the transcript and redo the correction against its current text.
+
 **Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
 Ignore/Restore button, and the Correct word inspector's Ignore action all call
 `set_words_ignored` — a text-and-audio hide for review passes. The word (or word

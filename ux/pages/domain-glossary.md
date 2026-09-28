@@ -199,6 +199,10 @@ If a selected envelope point changes in another tab before Apply or Delete,
 the inspector asks the user to select it again instead of editing a different
 point at the same timeline position.
 
+If the words a transcript correction targets change (another tab, a guest, or an
+agent) before it lands, a correction that carries the text it expected is refused
+as a conflict instead of changing a different word.
+
 ```mermaid
 sequenceDiagram
   participant U as User / Guest

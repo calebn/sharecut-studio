@@ -3,9 +3,11 @@ from __future__ import annotations
 import pytest
 
 from podcast_mcp.edits.transcript_correct import (
+    TranscriptTextChangedError,
     apply_transcript_corrections,
     correct_word,
     list_low_confidence,
+    require_word_text,
     run_user_transcript_edit,
     set_word_suppressed,
     set_words_ignored,
@@ -280,3 +282,69 @@ def test_transcript_word_record_includes_source_id() -> None:
         "start": 1.0,
         "end": 1.2,
     }
+
+
+def _stale_guard_project() -> EpisodeProject:
+    p = EpisodeProject.create("tc-stale", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="teh", start=0.0, end=0.5),
+                TranscriptWord(text=" quick", start=0.5, end=1.0),
+                TranscriptWord(text="fox", start=1.0, end=1.5),
+            ],
+        )
+    ]
+    return p
+
+
+def test_require_word_text_none_skips_check() -> None:
+    p = _stale_guard_project()
+    require_word_text(p, "host", 0, 0, None)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected_text"),
+    [
+        (0, 0, "teh"),
+        (1, 2, "quick   fox"),
+        (0, 2, " teh quick fox "),
+    ],
+)
+def test_require_word_text_matches(start: int, end: int, expected_text: str) -> None:
+    p = _stale_guard_project()
+    require_word_text(p, "host", start, end, expected_text)
+
+
+def test_require_word_text_mismatch_single_word_raises() -> None:
+    p = _stale_guard_project()
+    with pytest.raises(TranscriptTextChangedError, match="word 0"):
+        require_word_text(p, "host", 0, 0, "the")
+
+
+def test_require_word_text_mismatch_phrase_raises() -> None:
+    p = _stale_guard_project()
+    with pytest.raises(TranscriptTextChangedError, match="words 1-2"):
+        require_word_text(p, "host", 1, 2, "quick dog")
+
+
+def test_require_word_text_case_sensitive() -> None:
+    p = _stale_guard_project()
+    with pytest.raises(TranscriptTextChangedError):
+        require_word_text(p, "host", 0, 0, "Teh")
+
+
+def test_transcript_text_changed_error_is_value_error() -> None:
+    assert issubclass(TranscriptTextChangedError, ValueError)
+
+
+@pytest.mark.parametrize(("start", "end"), [(5, 5), (2, 1)])
+def test_require_word_text_bad_range_does_not_raise(start: int, end: int) -> None:
+    p = _stale_guard_project()
+    require_word_text(p, "host", start, end, "anything")
+
+
+def test_require_word_text_unknown_track_does_not_raise() -> None:
+    p = _stale_guard_project()
+    require_word_text(p, "missing-track", 0, 0, "anything")

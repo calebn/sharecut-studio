@@ -33,8 +33,8 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
 | `ApproveEdits` | `ids` (array[string]) | — |
-| `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | — |
-| `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | — |
+| `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null) |
+| `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
 | `DeleteClip` | — | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
 | `DeleteComment` | `comment_id` (string) | — |

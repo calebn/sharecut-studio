@@ -40,7 +40,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `add_comment_tool` / `list_comments_tool` / `get_comment_tool` / `update_comment_tool` | Timeline review comments (timeline clock) |
 | `add_comment_action_tool` / `set_comment_action_done_tool` / `resolve_comment_tool` / `delete_comment_tool` | Comment action items + resolve |
 | `add_effect_tool` / `list_effects_tool` | Per-track FFmpeg presets |
-| `correct_transcript_tool` / `correct_transcript_phrase_tool` / `apply_transcript_cleanup_tool` / `low_confidence_words_tool` | Transcript fixes (history-safe; prefer batch cleanup for undo) |
+| `correct_transcript_tool` / `correct_transcript_phrase_tool` / `apply_transcript_cleanup_tool` / `low_confidence_words_tool` | Transcript fixes (history-safe; prefer batch cleanup for undo); pass `expected_text` to refuse a fix whose word indices changed meanwhile (#650) |
 | `check_loudness_tool` | LUFS check on export |
 | `analyze_cleanup_tool` | Gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness |
 | `audibility_map_tool` / `flagged_words_tool` | Cross-track word audibility map and suppression candidates |

@@ -29,6 +29,46 @@ def run_user_transcript_edit(
     return result
 
 
+class TranscriptTextChangedError(ValueError):
+    """A correction's word indices no longer hold the text the client saw (#650)."""
+
+
+def _collapse_ws(text: str) -> str:
+    return " ".join(text.split())
+
+
+def require_word_text(
+    project: EpisodeProject,
+    track_id: str,
+    start_word_index: int,
+    end_word_index: int,
+    expected_text: str | None,
+) -> None:
+    """Raise ``TranscriptTextChangedError`` unless words ``start..end`` still read ``expected_text``.
+
+    ``None`` skips the check. Whitespace is collapsed on both sides; case and punctuation
+    must match. A missing transcript or out-of-range indices are left to the correction
+    itself, which raises its usual ``ValueError``.
+    """
+    if expected_text is None:
+        return
+    tr = project.transcript_for_track(track_id)
+    if tr is None or not 0 <= start_word_index <= end_word_index < len(tr.words):
+        return
+    current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
+    if _collapse_ws(current) == _collapse_ws(expected_text):
+        return
+    span = (
+        f"word {start_word_index}"
+        if start_word_index == end_word_index
+        else f"words {start_word_index}-{end_word_index}"
+    )
+    raise TranscriptTextChangedError(
+        f"Transcript {span} on track {track_id!r} changed since this correction started, "
+        "so it was not applied. Re-read the transcript and redo the correction."
+    )
+
+
 def correct_word(
     project: EpisodeProject,
     track_id: str,
