@@ -65,6 +65,23 @@ _PENDING_PREVIEW_IMAGE_KINDS = frozenset({"wave", "spec"})
 _AUDITION_IMAGE_KINDS = frozenset({"wave", "spec"})
 _GUEST_VISUAL_ERROR = "diagnostics failed"
 _GUEST_PROSODY_ERROR = "prosody unavailable"
+_GUEST_PROSODY_KEYS = frozenset({"status", "segments", "truncated"})
+_GUEST_PROSODY_SEGMENT_KEYS = frozenset(
+    {
+        "source_start",
+        "source_end",
+        "timeline_start",
+        "timeline_end",
+        "f0",
+        "rate",
+        "pauses",
+        "energy",
+        "voice_quality",
+        "prominent_words",
+        "boundaries",
+        "line",
+    }
+)
 _DEFAULT_SHARE_ORIGIN = "http://127.0.0.1:8765"
 _create_for_host_lock = threading.Lock()
 
@@ -1086,8 +1103,15 @@ def share_audition_context_image_cached(
 
 
 def _guest_prosody(prosody: dict[str, Any]) -> dict[str, Any]:
-    """Guest-safe prosody window: no host-only rerun hint, no exception text."""
-    out = {k: v for k, v in prosody.items() if k not in ("hint", "error")}
+    """Guest-safe prosody window: allowlisted fields only (no host rerun hint, no exception text)."""
+    out = {k: v for k, v in prosody.items() if k in _GUEST_PROSODY_KEYS}
+    segments = out.get("segments")
+    if isinstance(segments, list):
+        out["segments"] = [
+            {k: v for k, v in seg.items() if k in _GUEST_PROSODY_SEGMENT_KEYS}
+            for seg in segments
+            if isinstance(seg, dict)
+        ]
     if prosody.get("status") == "unavailable":
         out["error"] = _GUEST_PROSODY_ERROR
     return out
