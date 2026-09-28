@@ -132,6 +132,9 @@ async def record_ws(
     try:
         guard = await conn.start(_connection_valid, send_gate=_participant_runtime_valid)
         loop = asyncio.get_running_loop()
+        # No cross-process lease (#695): only this GUI process writes record state (WebRTC
+        # signaling); `podcast record land` writes the session journal, which the session
+        # and daw sockets' watcher already follows.
         q = hub.subscribe(hub_key, loop)
 
         async def _pump() -> None:

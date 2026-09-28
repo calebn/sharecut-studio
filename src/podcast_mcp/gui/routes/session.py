@@ -362,6 +362,7 @@ async def session_ws(
         if now < fail_until:
             return
         rec_svc = RecordSessionService(ws_proj.project, session_id=session_id)
+        # The record plane has no cross-process writer, so it is not bridged (#695).
         rec_queue = hub.subscribe(record_hub_key(ws_proj.project), loop)
         rec_tasks.spawn(_pump_record())
         try:
