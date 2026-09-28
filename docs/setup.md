@@ -146,6 +146,10 @@ which a test asserts equals the production catalog. Keep a sha256 off any
 line that also names a token (for example `tokenizer.json`): gitleaks-history
 reads such a line as a generic API key, so tokenizer pins live in
 parenthesised `_…_TOKENIZER_SHA256` constants marked `# gitleaks:allow`.
+`GET /api/bootstrap/status` and the Pipeline tab's component badges report a
+pin mismatch (Whisper or word aligner) as `ok: false` with
+`pin_mismatch: true`, the mismatch as `hint`, and an `--upgrade` `bootstrap`
+command naming the model.
 
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 

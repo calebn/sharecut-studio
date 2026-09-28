@@ -255,11 +255,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     ``word-aligner`` is opt-in (``opt_in: true``): readiness for
     ``transcribe.forced_alignment.enabled``.
     """
-    from podcast_mcp.whisper_models import (
-        WhisperPinMismatchError,
-        resolve_whisper_model,
-        whisper_model_problem,
-    )
+    from podcast_mcp.services.bootstrap import whisper_component, word_aligner_component
+    from podcast_mcp.whisper_models import resolve_whisper_model
 
     out: dict[str, Any] = {}
     try:
@@ -284,28 +281,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     try:
         import faster_whisper  # noqa: F401
 
-        model = resolve_whisper_model(requested=whisper_model)
-        problem = whisper_model_problem(model, memoize=True)
-        if problem is None:
-            out["whisper"] = {"ok": True, "model": model}
-        elif isinstance(problem, WhisperPinMismatchError):
-            out["whisper"] = {
-                "ok": False,
-                "model": model,
-                "hint": str(problem),
-                "bootstrap": "podcast bootstrap --component whisper --upgrade",
-            }
-        else:
-            out["whisper"] = {
-                "ok": False,
-                "model": model,
-                "hint": (
-                    f"Whisper model {model!r} is not downloaded — "
-                    "pick Download in the Pipeline tab or run "
-                    f"podcast bootstrap --component whisper --whisper-model {model}"
-                ),
-                "bootstrap": "podcast bootstrap --component whisper",
-            }
+        out["whisper"] = whisper_component(resolve_whisper_model(requested=whisper_model))
     except Exception as exc:
         out["whisper"] = {
             "ok": False,
@@ -323,8 +299,6 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "hint": str(exc),
             "bootstrap": "podcast bootstrap --component rnnoise",
         }
-
-    from podcast_mcp.services.bootstrap import word_aligner_component
 
     # Opt-in: the Pipeline tab lists it as missing only while forced alignment is on.
     out["word-aligner"] = word_aligner_component()

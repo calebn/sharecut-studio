@@ -17,6 +17,7 @@ from podcast_mcp.whisper_models import (
     WhisperPinMismatchError,
     resolve_whisper_model,
     validate_whisper_model,
+    whisper_bootstrap_command,
     whisper_model_problem,
 )
 from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError, word_aligner_problem
@@ -123,8 +124,8 @@ def run_doctor_checks(
             DoctorCheck(
                 "warn",
                 f"whisper model {preferred} not cached "
-                f"(run `podcast bootstrap --component whisper --whisper-model {preferred}` "
-                "or it downloads on first transcribe)",
+                f"(run `{whisper_bootstrap_command(preferred)}`; "
+                "pipeline and transcribe runs never download it)",
                 err=True,
             )
         )

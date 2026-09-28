@@ -22,7 +22,9 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
     monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: False)
-    monkeypatch.setattr(boot, "_whisper_ready", lambda _m=None: False)
+    from podcast_mcp.whisper_models import WhisperWeightsMissingError
+
+    monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: False)
@@ -38,6 +40,8 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     assert status["components"]["ffmpeg"]["required_for_first_run"] is True
     assert status["components"]["whisper"]["required_for_first_run"] is True
     assert status["components"]["rnnoise"]["required_for_first_run"] is False
+    assert status["components"]["whisper"]["ok"] is False
+    assert status["components"]["whisper"]["bootstrap"] == "podcast bootstrap --component whisper"
     assert "ffmpeg" in status["default_components"]
     assert status["whisper_model"] == "large-v3-turbo"
     assert any(item["id"] == "large-v3-turbo" for item in status["whisper_models"])
@@ -185,7 +189,7 @@ def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch) -> None:
     assert out["results"]["ffmpeg"]["skipped"] is True
 
 
-def test_whisper_ready_requires_matching_model(tmp_path: Path, monkeypatch) -> None:
+def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
 
     cache = tmp_path / "whisper"
@@ -194,15 +198,15 @@ def test_whisper_ready_requires_matching_model(tmp_path: Path, monkeypatch) -> N
     blobs.mkdir(parents=True)
     (blobs / "x").write_text("x")
     monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
-    assert boot._whisper_ready("small") is False
+    assert boot.whisper_component("small")["ok"] is False
 
     (blobs / "model.bin").write_bytes(b"x")
-    assert boot._whisper_ready("small") is True
-    assert boot._whisper_ready("base") is False
-    assert boot._whisper_ready("medium") is False
+    assert boot.whisper_component("small")["ok"] is True
+    assert boot.whisper_component("base")["ok"] is False
+    assert boot.whisper_component("medium")["ok"] is False
 
 
-def test_whisper_ready_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
+def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
     from model_pin_helpers import plant_pinned_whisper
     from podcast_mcp.services import bootstrap as boot
 
@@ -210,8 +214,8 @@ def test_whisper_ready_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
 
-    assert boot._whisper_ready("large-v3-turbo") is True
-    assert boot._whisper_ready("large-v3") is False
+    assert boot.whisper_component("large-v3-turbo")["ok"] is True
+    assert boot.whisper_component("large-v3")["ok"] is False
 
 
 def test_gui_bootstrap_status_reports_cdn_base(
@@ -475,7 +479,7 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
     monkeypatch.setattr(boot, "bootstrap_whisper_model", fake_bootstrap)
     monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: True)
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: True)
-    monkeypatch.setattr(boot, "_whisper_ready", lambda _m=None: True)
+    monkeypatch.setattr(boot, "whisper_model_problem", lambda *a, **k: None)
     out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
     assert out["ok"] is True
     assert seen["model"] == "small.en"
@@ -594,3 +598,57 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
     out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
     assert out["results"]["whisper"]["ok"] is True
     assert downloads == [False, True]
+
+
+def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.whisper_models import WhisperPinMismatchError
+
+    monkeypatch.setattr(
+        boot,
+        "whisper_model_problem",
+        lambda m, **k: WhisperPinMismatchError(m, "model.bin sha256 abc does not match the pin"),
+    )
+    status = boot.component_status(whisper_model="small.en")
+    whisper = status["components"]["whisper"]
+    assert status["ready"] is False
+    assert whisper["ok"] is False
+    assert whisper["pin_mismatch"] is True
+    assert "does not match its pinned download" in whisper["hint"]
+    assert whisper["bootstrap"] == (
+        "podcast bootstrap --component whisper --whisper-model small.en --upgrade"
+    )
+    assert whisper["required_for_first_run"] is True
+
+
+def test_status_components_poll_memoised(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    seen: list[bool] = []
+
+    def fake_problem(*a, memoize: bool = False):
+        seen.append(memoize)
+
+    monkeypatch.setattr(boot, "whisper_model_problem", fake_problem)
+    monkeypatch.setattr(boot, "word_aligner_problem", fake_problem)
+    assert boot.whisper_component("small.en") == {"ok": True, "model": "small.en"}
+    assert boot.word_aligner_component()["ok"] is True
+    assert seen == [True, True]
+
+
+def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
+
+    monkeypatch.setattr(
+        boot,
+        "word_aligner_problem",
+        lambda *a, **k: WordAlignerPinMismatchError(
+            "onnx-base", "vocab.json sha256 abc does not match the pin"
+        ),
+    )
+    component = boot.word_aligner_component()
+    assert component["ok"] is False
+    assert component["pin_mismatch"] is True
+    assert component["bootstrap"] == "podcast bootstrap --component word-aligner --upgrade"
+    assert "vocab.json" in component["hint"]

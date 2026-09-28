@@ -22,11 +22,13 @@ from podcast_mcp.util.binaries import (
 from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.whisper_models import (
-    DEFAULT_WHISPER_MODEL,
+    WHISPER_BOOTSTRAP,
+    WhisperPinMismatchError,
     bootstrap_whisper_model,
     catalog_payload,
     resolve_whisper_model,
-    whisper_model_is_cached,
+    whisper_bootstrap_command,
+    whisper_model_problem,
 )
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
@@ -57,12 +59,39 @@ def _ffmpeg_ready() -> bool:
     return Path(resolved).is_file() and Path(resolve_ffprobe()).is_file()
 
 
-def _whisper_ready(model_size: str = DEFAULT_WHISPER_MODEL) -> bool:
-    return whisper_model_is_cached(model_size)
-
-
 def _rnnoise_ready() -> bool:
     return rnnoise_model_path().is_file()
+
+
+def whisper_component(model: str) -> dict[str, Any]:
+    """Whisper readiness for ``model`` (no download) for bootstrap status and Pipeline badges.
+
+    A pin mismatch carries ``pin_mismatch: true``, its own hint and an ``--upgrade``
+    bootstrap command, like ``word_aligner_component``.
+    """
+    try:
+        problem = whisper_model_problem(model, memoize=True)
+    except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
+        return {"ok": False, "model": model, "hint": str(exc), "bootstrap": WHISPER_BOOTSTRAP}
+    if problem is None:
+        return {"ok": True, "model": model}
+    if isinstance(problem, WhisperPinMismatchError):
+        return {
+            "ok": False,
+            "model": model,
+            "pin_mismatch": True,
+            "hint": str(problem),
+            "bootstrap": whisper_bootstrap_command(model, upgrade=True),
+        }
+    return {
+        "ok": False,
+        "model": model,
+        "hint": (
+            f"Whisper model {model!r} is not downloaded — pick Download in the Pipeline tab "
+            f"or run {whisper_bootstrap_command(model)}"
+        ),
+        "bootstrap": WHISPER_BOOTSTRAP,
+    }
 
 
 def word_aligner_component() -> dict[str, Any]:
@@ -85,6 +114,7 @@ def word_aligner_component() -> dict[str, Any]:
         return {
             **base,
             "ok": False,
+            "pin_mismatch": True,
             "hint": str(problem),
             "bootstrap": f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
         }
@@ -105,7 +135,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     model = resolve_whisper_model(requested=whisper_model)
     ffmpeg_ok = _ffmpeg_ready()
-    whisper_ok = _whisper_ready(model)
+    whisper = whisper_component(model)
     rnnoise_ok = _rnnoise_ready()
     components = {
         "ffmpeg": {
@@ -113,12 +143,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "source": ffmpeg_source(resolve_ffmpeg()) if ffmpeg_ok else "not found",
             "required_for_first_run": True,
         },
-        "whisper": {
-            "ok": whisper_ok,
-            "model": model,
-            "cache": str(whisper_cache_dir()),
-            "required_for_first_run": True,
-        },
+        "whisper": {**whisper, "cache": str(whisper_cache_dir()), "required_for_first_run": True},
         "rnnoise": {
             "ok": rnnoise_ok,
             "path": str(rnnoise_model_path()),
