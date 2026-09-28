@@ -1,22 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { bounceDir, bouncedWavs } from "./exportFiles";
-
-const workspaces: string[] = [];
-
-afterEach(() => {
-  for (const workspace of workspaces.splice(0)) {
-    fs.rmSync(workspace, { recursive: true, force: true });
-  }
-});
-
-function workspace(): string {
-  const value = fs.mkdtempSync(path.join(os.tmpdir(), "bounce-files-"));
-  workspaces.push(value);
-  return value;
-}
+import { tempWorkspace } from "./testWorkspace";
 
 describe("bounceDir", () => {
   it("is <project dir>/export/bounces", () => {
@@ -28,14 +14,14 @@ describe("bounceDir", () => {
 
 describe("bouncedWavs", () => {
   it("resolves to [] when the directory does not exist", async () => {
-    const dir = workspace();
+    const dir = tempWorkspace("bounce-files-");
     await expect(
       bouncedWavs(path.join(dir, "episode.project.json")),
     ).resolves.toEqual([]);
   });
 
   it("keeps only finished, non-hidden .wav files, sorted", async () => {
-    const dir = workspace();
+    const dir = tempWorkspace("bounce-files-");
     const bounces = bounceDir(path.join(dir, "episode.project.json"));
     fs.mkdirSync(bounces, { recursive: true });
     fs.writeFileSync(path.join(bounces, "b.wav"), "b");
@@ -52,7 +38,7 @@ describe("bouncedWavs", () => {
   });
 
   it("rejects when export/bounces is a file, not a directory", async () => {
-    const dir = workspace();
+    const dir = tempWorkspace("bounce-files-");
     fs.mkdirSync(path.join(dir, "export"), { recursive: true });
     fs.writeFileSync(path.join(dir, "export", "bounces"), "not a directory");
     await expect(
