@@ -258,7 +258,39 @@ def test_pinned_snapshot_cache_identity_has_no_local_source(tmp_path, monkeypatc
         "podcast_mcp.engines.word_align.resolve_word_aligner_dir",
         lambda _id: _snapshot(tmp_path / "pinned"),
     )
+    monkeypatch.setattr(
+        "podcast_mcp.engines.word_align.verify_word_aligner_onnx", lambda d, m: None
+    )
     fake, _sessions = _fake_onnxruntime()
     monkeypatch.setitem(sys.modules, "onnxruntime", fake)
 
     assert "local_source" not in WordAligner.load().cache_identity()
+
+
+def test_pinned_snapshot_load_rejects_sha256_mismatch(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.word_align.resolve_word_aligner_dir",
+        lambda _id: _snapshot(tmp_path / "pinned"),
+    )
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", lambda p: "0" * 64)
+    fake, _sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+
+    with pytest.raises(WordAlignerMissingError, match="sha256"):
+        WordAligner.load()
+
+
+def test_override_load_does_not_hash_the_onnx_file(tmp_path, monkeypatch) -> None:
+    model_dir = _snapshot(tmp_path / "snapshot")
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(model_dir))
+
+    def _boom(p):
+        raise AssertionError("override dirs are not hashed")
+
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", _boom)
+    fake, _sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+
+    aligner = WordAligner.load()
+    assert aligner.cache_identity()["local_source"]["dir"] == str(model_dir.resolve())

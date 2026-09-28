@@ -91,6 +91,10 @@ def test_bootstrap_downloads_pinned_snapshot_into_cache(tmp_path, monkeypatch) -
         return str(tmp_path / "downloaded")
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download, raising=False)
+    monkeypatch.setattr(
+        "podcast_mcp.word_aligner_models.sha256_file",
+        lambda p: word_aligner_model().onnx_sha256,
+    )
 
     result = bootstrap_word_aligner()
 
@@ -101,3 +105,25 @@ def test_bootstrap_downloads_pinned_snapshot_into_cache(tmp_path, monkeypatch) -
     assert "local_files_only" not in calls
     assert calls["force_download"] is False
     assert result == {"ok": True, "model": model.id, "path": str(tmp_path / "downloaded")}
+
+
+def test_bootstrap_rejects_a_snapshot_that_does_not_match_the_pin(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda repo, **kw: str(tmp_path), raising=False
+    )
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", lambda p: "0" * 64)
+    with pytest.raises(WordAlignerMissingError, match="sha256"):
+        bootstrap_word_aligner()
+
+
+def test_verify_word_aligner_onnx_hashes_the_onnx_file(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.word_aligner_models import verify_word_aligner_onnx
+
+    model = word_aligner_model()
+    seen = []
+    monkeypatch.setattr(
+        "podcast_mcp.word_aligner_models.sha256_file",
+        lambda p: seen.append(p) or model.onnx_sha256,
+    )
+    verify_word_aligner_onnx(tmp_path, model)
+    assert seen == [tmp_path / model.onnx_file]
