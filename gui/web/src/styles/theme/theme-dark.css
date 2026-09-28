@@ -269,6 +269,27 @@
     var(--primitive-amber-300) 70%,
     transparent
   );
+  --color-prosody-band: color-mix(
+    in srgb,
+    var(--primitive-teal-300) 8%,
+    transparent
+  );
+  --color-prosody-drop: color-mix(
+    in srgb,
+    var(--color-warning) 18%,
+    transparent
+  );
+  --color-prosody-contour: color-mix(
+    in srgb,
+    var(--primitive-teal-300) 85%,
+    transparent
+  );
+  --color-prosody-boundary: color-mix(
+    in srgb,
+    var(--primitive-white) 60%,
+    transparent
+  );
+  --color-prosody-prominent: var(--primitive-teal-300);
   --color-overlay-white-08: color-mix(
     in srgb,
     var(--primitive-white) 8%,

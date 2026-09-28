@@ -729,6 +729,11 @@
   background: var(--color-waveform-snap);
 }
 
+.overlay-legend-swatch--prosody {
+  background: var(--color-prosody-drop);
+  border-color: var(--color-prosody-contour);
+}
+
 .overlay-legend-swatch--pending {
   border: 0;
   background: var(--color-pending-edit);

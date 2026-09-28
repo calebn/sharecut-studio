@@ -4,7 +4,15 @@ import type { LayerVisibility } from "../state/types";
 const TOGGLES: {
   key: keyof LayerVisibility;
   label: string;
-  swatch: "pending" | "envelope" | "markers" | "comments" | "silence" | "snap";
+  swatch:
+    | "pending"
+    | "envelope"
+    | "markers"
+    | "comments"
+    | "silence"
+    | "snap"
+    | "prosody";
+  hostOnly?: boolean;
 }[] = [
   { key: "showEdits", label: "Pending edits", swatch: "pending" },
   { key: "showLevels", label: "Volume envelope", swatch: "envelope" },
@@ -12,6 +20,7 @@ const TOGGLES: {
   { key: "showComments", label: "Comments", swatch: "comments" },
   { key: "showSilence", label: "Silence shading", swatch: "silence" },
   { key: "showSnapPoints", label: "Snap points", swatch: "snap" },
+  { key: "showProsody", label: "Prosody", swatch: "prosody", hostOnly: true },
 ];
 
 /** A layer/legend checkbox row, shared by the overlay legend and menu-hosted toggles like Fit tracks to window height. */
@@ -45,10 +54,13 @@ export function OverlayLegendView({
   menu = false,
   layers,
   onLayerChange,
+  hostLayers = true,
 }: {
   menu?: boolean;
   layers: LayerVisibility;
   onLayerChange: (key: keyof LayerVisibility, visible: boolean) => void;
+  /** false for share viewers: hides host-only layers such as Prosody. */
+  hostLayers?: boolean;
 }) {
   return (
     <div
@@ -56,20 +68,22 @@ export function OverlayLegendView({
       role={menu ? "none" : "group"}
       aria-label={menu ? undefined : "Timeline layers"}
     >
-      {TOGGLES.map(({ key, label, swatch }) => (
-        <LegendCheckbox
-          key={key}
-          menu={menu}
-          checked={layers[key]}
-          onChange={(checked) => onLayerChange(key, checked)}
-        >
-          <span
-            className={`overlay-legend-swatch overlay-legend-swatch--${swatch}`}
-            aria-hidden="true"
-          />
-          {label}
-        </LegendCheckbox>
-      ))}
+      {TOGGLES.filter((t) => hostLayers || !t.hostOnly).map(
+        ({ key, label, swatch }) => (
+          <LegendCheckbox
+            key={key}
+            menu={menu}
+            checked={layers[key]}
+            onChange={(checked) => onLayerChange(key, checked)}
+          >
+            <span
+              className={`overlay-legend-swatch overlay-legend-swatch--${swatch}`}
+              aria-hidden="true"
+            />
+            {label}
+          </LegendCheckbox>
+        ),
+      )}
     </div>
   );
 }

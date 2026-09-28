@@ -32,10 +32,12 @@ import {
   isProgrammaticScroll,
   withProgrammaticScroll,
 } from "../presence/followSync";
+import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import type { ClipRow } from "../types/project";
+import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
@@ -201,6 +203,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         render_status: p.render_status,
       };
     }),
+  );
+  const prosody = useProsodyOverlay(layers.showProsody);
+  const prosodyByTrack = useMemo(
+    () =>
+      new Map<string, ProsodyOverlayTrack>(
+        (prosody?.tracks ?? []).map((t) => [t.track_id, t]),
+      ),
+    [prosody],
   );
   const staleBreakdown = useStaleRenderBreakdown(
     project as import("../types/project").ProjectView | null,
@@ -1030,6 +1040,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           showStaleInvalidations={showStaleInv}
                           staleInvalidations={staleInvalidations}
                           onSelectPending={onSelectPending}
+                          prosody={prosodyByTrack.get(track.id) ?? null}
                         />
                       );
                     })}
