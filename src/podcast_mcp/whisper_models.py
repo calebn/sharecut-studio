@@ -91,11 +91,21 @@ WHISPER_MODEL_CATALOG: tuple[dict[str, str], ...] = (
 WHISPER_MODEL_IDS: tuple[str, ...] = tuple(item["id"] for item in WHISPER_MODEL_CATALOG)
 WHISPER_SIZE_ENUM: tuple[str, ...] = tuple(sorted(FASTER_WHISPER_SIZES))
 
-# Files shared across repos (identical bytes at each pinned revision).
-_EN_TOKENIZER_SHA256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+# Files shared across repos (identical bytes at each pinned revision). A sha256 on a line
+# that also names a token (``tokenizer.json``) trips gitleaks' generic-api-key rule, so
+# tokenizer pins live in parenthesised constants marked ``gitleaks:allow`` (#728).
+_EN_TOKENIZER_SHA256 = (
+    "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"  # gitleaks:allow
+)
 _EN_VOCABULARY_SHA256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
 _V3_PREPROCESSOR_SHA256 = "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
 _V3_VOCABULARY_SHA256 = "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+_V3_TURBO_TOKENIZER_SHA256 = (
+    "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"  # gitleaks:allow
+)
+_V3_TOKENIZER_SHA256 = (
+    "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"  # gitleaks:allow
+)
 
 # Pinned Hugging Face snapshots for the catalog sizes (#728): the repo faster-whisper
 # resolves the size to, the commit that was ``main`` on 2026-09-28, and the sha256 of
@@ -149,7 +159,7 @@ WHISPER_PINS: dict[str, PinnedSnapshot] = {
             ("config.json", "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"),
             ("preprocessor_config.json", _V3_PREPROCESSOR_SHA256),
             ("model.bin", "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"),
-            ("tokenizer.json", "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"),
+            ("tokenizer.json", _V3_TURBO_TOKENIZER_SHA256),
             ("vocabulary.json", _V3_VOCABULARY_SHA256),
         ),
     ),
@@ -160,7 +170,7 @@ WHISPER_PINS: dict[str, PinnedSnapshot] = {
             ("config.json", "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9"),
             ("preprocessor_config.json", _V3_PREPROCESSOR_SHA256),
             ("model.bin", "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"),
-            ("tokenizer.json", "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"),
+            ("tokenizer.json", _V3_TOKENIZER_SHA256),
             ("vocabulary.json", _V3_VOCABULARY_SHA256),
         ),
     ),
