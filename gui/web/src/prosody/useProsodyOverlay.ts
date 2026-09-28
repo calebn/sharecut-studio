@@ -67,7 +67,13 @@ function request(
         changes.emit();
       })
       .catch(() => {
-        // Aborted or offline: keep the last payload.
+        if (ctrl.signal.aborted) return; // superseded by a newer request
+        if (inflight === ctrl) inflight = null;
+        if (entry.project !== project || entry.jobKey !== jobKey) return;
+        // Network or parse failure (a non-OK status already resolves null): stop drawing
+        // the last payload as if it were current. no-console rules out a log.
+        entry = { ...entry, payload: null, payloadClips: null };
+        changes.emit();
       });
   }, DEBOUNCE_MS);
 }
