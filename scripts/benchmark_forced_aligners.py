@@ -748,15 +748,21 @@ def pipeline_prediction(
     """Score the shipped production pass, not the harness's own align_prediction().
 
     Drives the exact call chain ``transcribe.py``'s ``_align_words`` uses:
-    ``TranscriptWord`` -> ``WordAligner.align`` -> ``apply_word_spans``. ``aligner``
-    is a real ``WordAligner`` (or, in tests, a stand-in with the same ``.align``
-    signature).
+    ``TranscriptWord`` -> ``WordAligner.align`` -> ``apply_word_spans`` (which also
+    receives the per-word scores too). ``aligner`` is a real ``WordAligner`` (or, in
+    tests, a stand-in with the same ``.align`` signature).
     """
     words = [TranscriptWord(text=w["text"], start=w["start"], end=w["end"]) for w in native_words]
     result = aligner.align(audio_path, words)
-    apply_word_spans(words, result.spans)
+    apply_word_spans(words, result.spans, result.scores)
     output = [
-        {"text": w.text, "start": w.start, "end": w.end, "aligned": span is not None}
+        {
+            "text": w.text,
+            "start": w.start,
+            "end": w.end,
+            "aligned": span is not None,
+            "alignment_score": w.alignment_score,
+        }
         for w, span in zip(words, result.spans, strict=True)
     ]
     output, dropped = _drop_zero_duration(output)
