@@ -296,7 +296,12 @@ def probe_wav_duration_sec(path: Path) -> float | None:
     Cached in-process per resolved path and ``file_revision`` (device, inode, size,
     mtime), so render status and freshness checks on an unchanged stem spawn no ffprobe
     (#427). Stems, premix and master are swapped in whole (``render_atomic``), so a
-    publish always re-probes. Failures are not cached.
+    publish always re-probes. Failures are not cached. Every caller (stems, premix,
+    master, the ingest WAVs in ``conversation_align``, the gate temp in
+    ``transcript_bleed_mute``) must write a new file or change its size or mtime: an
+    in-place rewrite that keeps both (possible with coarse filesystem timestamps) is
+    unsupported and keeps the old duration. ``_cached_wav_duration_sec.cache_clear()``
+    drops every entry.
     """
     if not path.is_file():
         return None
