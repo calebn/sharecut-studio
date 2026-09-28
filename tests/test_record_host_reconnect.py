@@ -15,6 +15,7 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.services.record.landing_math import ALIGN_DRIFT_MS
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
     _CONN_LOCK,
@@ -34,7 +35,11 @@ from podcast_mcp.services.record.state import (
     TAKE_OPEN_REMINT_MSG,
     empty_record_snapshot,
 )
-from podcast_mcp.services.record.upload import RecordUploadService, sha256_hex
+from podcast_mcp.services.record.upload import (
+    KEEPER_SAMPLE_RATE,
+    RecordUploadService,
+    sha256_hex,
+)
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.wav import pcm_wav_header
 
@@ -251,6 +256,58 @@ def test_land_after_host_reconnect_pause_clips_abut(
     # Host keeper re-arm after a WS blip is covered by
     # gui/web/src/record/useHostKeeperCapture.test.ts (resetKey stays put
     # under 10s; host-reconnect pause seq remounts).
+
+
+@pytest.mark.parametrize(
+    ("guest_extra_ms", "fallback"),
+    [(0, False), (ALIGN_DRIFT_MS + 10, True)],
+)
+def test_land_after_host_reconnect_pause_reports_drift(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, guest_extra_ms, fallback
+):
+    """US-2 step 5: sample-count vs recording-clock drift across a host-reconnect pause."""
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Leave"), now_wall_ms=1_000)
+    svc.submit(_cmd("Join", payload={"display_name": "Host"}), now_wall_ms=12_000)
+    snap = svc.snapshot()
+    assert snap["state"] == "paused"
+    assert snap["pause_reason"] == "host_reconnect"
+    svc.submit(_cmd("Resume"), now_wall_ms=13_000)
+    svc.submit(_cmd("Stop"), now_wall_ms=14_000)
+    # Recording clock: 12 s before the forced pause, 1 s after Resume.
+    per_second = KEEPER_SAMPLE_RATE * 2  # mono s16
+    extra = guest_extra_ms * per_second // 1000
+    uploader = RecordUploadService(ws.project)
+    for pid, tail in ((HOST_PARTICIPANT_ID, per_second), (guest, per_second + extra)):
+        _ack(
+            uploader,
+            session_id=room["session_id"],
+            take=0,
+            pid=pid,
+            segment=0,
+            join_offset_ms=0,
+            nbytes=12 * per_second,
+        )
+        _ack(
+            uploader,
+            session_id=room["session_id"],
+            take=0,
+            pid=pid,
+            segment=1,
+            join_offset_ms=12_000,
+            nbytes=tail,
+        )
+    result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["align_fallback"] is fallback
+    assert result["drift_ms"] == pytest.approx(float(guest_extra_ms), abs=1.0)
+    rows = {row["participant_id"]: row for row in result["drift"]}
+    assert rows[HOST_PARTICIPANT_ID].get("reference") is True
+    assert rows[HOST_PARTICIPANT_ID]["drift_ms"] == pytest.approx(0.0, abs=1.0)
+    assert rows[guest]["drift_ms"] == pytest.approx(float(guest_extra_ms), abs=1.0)
 
 
 def test_restart_without_leave_still_pauses_on_host_join(
