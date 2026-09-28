@@ -14,11 +14,13 @@ from __future__ import annotations
 import os
 import secrets
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
 
+# The one client-role set. document_sync.commands re-exports it; session_sync.commands
+# TransportRole is this set minus "guest".
 ClientRole = Literal["agent", "viewer", "cli", "guest"]
 
-_KNOWN_ROLES = frozenset({"agent", "viewer", "cli", "guest"})
+_KNOWN_ROLES = frozenset(get_args(ClientRole))
 
 HOST_ROLE_RELAYED_REASON = "host role required: relayed share traffic cannot reach owner routes"
 

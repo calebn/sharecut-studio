@@ -18,8 +18,8 @@ from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.services.session_sync.commands import (
     GUEST_CLIENT_ID_PREFIX,
-    ClientRole,
     SyncCommand,
+    TransportRole,
     audition_mode_from_source,
     normalize_presence_meta,
     normalize_presence_playhead,
@@ -455,7 +455,7 @@ class SessionSyncService:
         tier: str,
         dry_run: bool,
         client_id: str = "agent-play",
-        role: ClientRole = "agent",
+        role: TransportRole = "agent",
         query: str | None = None,
         match_index: int | None = None,
         wav: str | Path | None = None,
@@ -493,7 +493,7 @@ class SessionSyncService:
         payload: dict[str, Any],
         *,
         client_id: str = "agent-control",
-        role: ClientRole = "agent",
+        role: TransportRole = "agent",
     ) -> dict[str, Any]:
         return self.submit(
             SyncCommand(

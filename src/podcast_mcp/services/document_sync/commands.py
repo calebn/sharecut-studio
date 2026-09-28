@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
 
-ClientRole = Literal["agent", "viewer", "cli", "guest"]
+from podcast_mcp.services.session_sync.authz import ClientRole
 
 DocumentCommandType = Literal[
     "AddComment",

@@ -2540,3 +2540,15 @@ def test_viewer_snapshot_field_commands(minimal_project) -> None:
     assert out["is_playing"] is False
     assert out["region"] is None
     assert out["server_time_ns"] > 0
+
+
+def test_client_role_literal_sets_are_shared() -> None:
+    from typing import get_args
+
+    from podcast_mcp.services.document_sync.commands import ClientRole as DocumentRole
+    from podcast_mcp.services.session_sync.authz import _KNOWN_ROLES, ClientRole
+    from podcast_mcp.services.session_sync.commands import TransportRole
+
+    assert DocumentRole is ClientRole
+    assert frozenset(get_args(ClientRole)) == _KNOWN_ROLES
+    assert set(get_args(TransportRole)) == set(get_args(ClientRole)) - {"guest"}
