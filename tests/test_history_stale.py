@@ -80,3 +80,19 @@ def test_a_track_the_move_removed_loses_its_cause_journal_rows(tmp_path) -> None
     mark_history_move_stale(project, before)
 
     assert [inv.track_ids for inv in project.render.invalidations] == [["host"]]
+
+
+def test_a_track_the_move_took_out_of_the_dialogue_role_loses_its_cause_journal_rows(
+    tmp_path,
+) -> None:
+    project = _project(tmp_path, ("host", "guest"))
+    record_invalidation(project, track_ids=["guest"], reason="cut")
+    record_invalidation(project, track_ids=["host", "guest"], reason="cut")
+    before = AudioStateBefore.capture(project)
+    guest = next(t for t in project.timeline.tracks if t.id == "guest")
+    guest.role = TrackRole.MUSIC  # an undone music -> dialogue role change
+
+    mark_history_move_stale(project, before)
+
+    assert project.track_by_id("guest") is not None
+    assert [inv.track_ids for inv in project.render.invalidations] == [["host"]]
