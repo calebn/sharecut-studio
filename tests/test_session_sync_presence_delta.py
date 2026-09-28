@@ -548,14 +548,51 @@ def test_fanout_presence_after_commit_logs_and_swallows_a_store_error(
 ) -> None:
     proj = load_project(minimal_project)
     svc = SessionSyncService(proj)
+    key = svc._project_key
+    rows = [{"client_id": "c1", "last_seen_ns": 1}]
 
     def _boom(self, live_rows=None):
         raise RuntimeError("store unavailable")
 
-    monkeypatch.setattr(SessionSyncService, "_presence_events", _boom)
-    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
-        svc._fanout_presence_after_commit()
-    assert any("presence fan-out failed" in r.message for r in caplog.records)
+    presence_fanout.reset()
+    get_roster_tracker().events(key, rows)
+    try:
+        monkeypatch.setattr(SessionSyncService, "_presence_events", _boom)
+        with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
+            svc._fanout_presence_after_commit()
+        assert any("presence fan-out failed" in r.message for r in caplog.records)
+        monkeypatch.undo()
+        # The tracked base was dropped: the next successful run resends a full roster.
+        assert get_roster_tracker().events(key, rows)[0]["type"] == "Presence"
+    finally:
+        get_roster_tracker().clear_key(key)
+        presence_fanout.reset()
+
+
+def test_trailing_presence_fanout_failure_is_logged_not_raised(
+    minimal_project, monkeypatch, caplog
+) -> None:
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+
+    _FakeTimer.instances = []
+    presence_fanout.set_timer_factory(_FakeTimer)
+    try:
+        presence_fanout.reset()
+        _presence(svc, "c1", seq=1)  # Leading edge: OK.
+
+        def _boom(self, live_rows=None):
+            raise RuntimeError("store unavailable")
+
+        monkeypatch.setattr(SessionSyncService, "_presence_events", _boom)
+        _presence(svc, "c1", seq=2)  # Queued for the trailing edge (in cooldown).
+        assert _FakeTimer.instances
+        with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
+            _FakeTimer.instances[-1].fn()  # Must not raise.
+        assert any("presence fan-out failed" in r.message for r in caplog.records)
+    finally:
+        presence_fanout.reset()
+        presence_fanout.set_timer_factory(threading.Timer)
 
 
 def test_tracker_roster_before_any_fanout_reads_live_rows() -> None:
