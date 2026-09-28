@@ -198,6 +198,28 @@ export async function setEffectBypass(
   });
 }
 
+/**
+ * Send a transcript correction. On a 409 (the words changed since the caller
+ * captured `expected_text`), load the host's current transcript words (the
+ * `detail` phase) into the store before rethrowing, as `setEnvelope` does for
+ * envelopes. The Correct inspector then re-captures its baseline from them,
+ * so Apply again retries against the current text (#746).
+ */
+async function submitTranscriptCorrection(
+  projectPath: string,
+  type: "CorrectTranscriptWord" | "CorrectTranscriptPhrase",
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await submitDocumentCommand(projectPath, type, payload);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      await refreshProjectPhase(projectPath, "detail").catch(() => undefined);
+    }
+    throw error;
+  }
+}
+
 export async function correctTranscriptWord(
   projectPath: string,
   trackId: string,
@@ -205,7 +227,7 @@ export async function correctTranscriptWord(
   text: string,
   expectedText?: string | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "CorrectTranscriptWord", {
+  await submitTranscriptCorrection(projectPath, "CorrectTranscriptWord", {
     track_id: trackId,
     word_index: wordIndex,
     text,
@@ -221,7 +243,7 @@ export async function correctTranscriptPhrase(
   text: string,
   expectedText?: string | null,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "CorrectTranscriptPhrase", {
+  await submitTranscriptCorrection(projectPath, "CorrectTranscriptPhrase", {
     track_id: trackId,
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
@@ -279,7 +301,9 @@ export async function setEnvelope(
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       // Load the host's current points so redoing the edit uses a fresh baseline.
-      await refreshEnvelopes(projectPath).catch(() => undefined);
+      await refreshProjectPhase(projectPath, "envelopes").catch(
+        () => undefined,
+      );
     }
     throw error;
   }
@@ -290,8 +314,12 @@ export async function setEnvelope(
   }
 }
 
-async function refreshEnvelopes(projectPath: string): Promise<void> {
-  const patch = await loadProjectPhase(projectPath, "envelopes");
+/** Load one projection phase from the host and force it into the store, so the next edit's baseline is the host's current state (used after a 409). */
+async function refreshProjectPhase(
+  projectPath: string,
+  phase: "envelopes" | "detail",
+): Promise<void> {
+  const patch = await loadProjectPhase(projectPath, phase);
   if (useDawStore.getState().projectPath === projectPath) {
     applyDocumentSnapshot({ patch }, { force: true });
   }
