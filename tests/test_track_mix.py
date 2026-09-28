@@ -487,6 +487,31 @@ def test_the_mix_hash_covers_only_what_the_mix_plays(minimal_project: Path) -> N
     assert premix_stale_vs_mix(ws.project) is True
 
 
+def test_undoing_a_volume_change_keeps_every_stem_fresh(minimal_project: Path) -> None:
+    """Undoing a mix-only (fader_db) change stales only the premix, not the stems (#424)."""
+    from podcast_mcp.engines.play_audit import stem_hash_path
+
+    ws = _two_tracks(minimal_project)
+    EpisodeService(ws).set_track_volume("host", -6.0)
+
+    _fresh_stems(ws.project)
+    _fake_premix(ws)
+    write_premix_hash(ws.project, mix_gains(ws.project))
+    assert render_status_report(ws.project)["needs_rerender"] is False
+
+    HistoryService(ws).undo()
+
+    report = render_status_report(ws.project)
+    assert all(t["stem_is_fresh"] for t in report["tracks"].values())
+    assert report["premix"]["stale_vs_mix"] is True
+    assert report["needs_rerender"] is True
+
+    assert ws.project.reconciliation_stale is False
+    assert ws.project.render.invalidations == []
+    assert stem_hash_path(ws.project, "host").is_file()
+    assert stem_hash_path(ws.project, "guest").is_file()
+
+
 @pytest.mark.parametrize(
     ("change", "stale"),
     [({}, False), ({"fader_db": 1.5}, True), ({"muted": True}, True)],

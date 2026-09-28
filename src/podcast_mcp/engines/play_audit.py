@@ -18,7 +18,7 @@ from podcast_mcp.models import AutomationEnvelope, EpisodeProject
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
-from podcast_mcp.util.tracks import mixed_dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, mixed_dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
 
 log = logging.getLogger(__name__)
@@ -89,6 +89,16 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def dialogue_render_hashes(project: EpisodeProject) -> dict[str, str]:
+    """``track_render_hash`` of every dialogue track (muted too), by id."""
+    return {tid: track_render_hash(project, tid) for tid in dialogue_track_ids(project)}
+
+
+def changed_render_hashes(before: Mapping[str, str], after: Mapping[str, str]) -> list[str]:
+    """Track ids in ``after`` whose render hash differs from (or is missing in) ``before``."""
+    return [tid for tid, h in after.items() if before.get(tid) != h]
 
 
 def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
@@ -578,22 +588,3 @@ def mastered_is_fresh(project: EpisodeProject) -> bool:
         return False
     stored = read_mastered_hash(project)
     return stored is not None and stored == master_source_hash(project)
-
-
-def invalidate_stem_hashes(project: EpisodeProject) -> list[str]:
-    """Delete stem hash sidecars so play falls back to segment render after history nav.
-
-    Leaves stem WAVs in place (cheap to ignore when stale). Returns track ids cleared.
-    Runs inside the undo/redo transaction without render_lock (taking it there would invert
-    the lock order); deleting a hash only makes a stem stale, and a publish racing it writes
-    a hash naming its own snapshot, which freshness rejects if it differs.
-    """
-    from podcast_mcp.util.tracks import dialogue_track_ids
-
-    cleared: list[str] = []
-    for tid in dialogue_track_ids(project):
-        path = stem_hash_path(project, tid)
-        if path.is_file():
-            clear_stem_hash(project, tid)
-            cleared.append(tid)
-    return cleared

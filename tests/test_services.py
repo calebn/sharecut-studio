@@ -123,19 +123,16 @@ def test_history_service_status_goto_diff_undo(minimal_project):
     undo = svc.undo()
     assert "can_redo" in undo
     reloaded = ProjectWorkspace.open(minimal_project)
-    assert reloaded.project.reconciliation_stale is True
+    # the snapshots hold the same audio, so the move marks nothing stale (#424)
+    assert reloaded.project.reconciliation_stale is False
     diff = svc.diff(from_index=0, to_index=1)
     assert "diff" in diff
     assert "summary" in diff
     assert isinstance(diff["summary"], list)
 
 
-def test_history_goto_invalidates_stem_hashes(minimal_project, sample_wav) -> None:
-    from podcast_mcp.engines.play_audit import (
-        invalidate_stem_hashes,
-        stem_hash_path,
-        write_stem_hash,
-    )
+def test_history_moves_keep_content_addressed_stem_hashes(minimal_project, sample_wav) -> None:
+    from podcast_mcp.engines.play_audit import stem_hash_path, stem_is_fresh, write_stem_hash
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, save_project
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -164,12 +161,25 @@ def test_history_goto_invalidates_stem_hashes(minimal_project, sample_wav) -> No
     (stem_dir / "host.wav").write_bytes(sample_wav.read_bytes())
     write_stem_hash(ws.project, "host")
     assert stem_hash_path(ws.project, "host").is_file()
-    ws.record_snapshot("a", force=True)
-    ws.record_snapshot("b", force=True)
-    HistoryService(ws).goto(0)
-    assert not stem_hash_path(ws.project, "host").is_file()
-    # helper still works on empty
-    assert invalidate_stem_hashes(ws.project) == []
+
+    ws.mutate("before trim", "after trim", lambda p: setattr(p.clips[0], "source_end", 1.0))
+    assert stem_is_fresh(ws.project, "host") is False
+    assert stem_hash_path(ws.project, "host").is_file()
+
+    HistoryService(ws).undo()
+    assert stem_hash_path(ws.project, "host").is_file()
+    assert stem_is_fresh(ws.project, "host") is True
+    assert ws.project.render.invalidations == []
+    assert ws.project.reconciliation_stale is True
+
+    HistoryService(ws).redo()
+    assert stem_hash_path(ws.project, "host").is_file()
+    assert stem_is_fresh(ws.project, "host") is False
+    assert len(ws.project.render.invalidations) == 1
+    inv = ws.project.render.invalidations[0]
+    assert inv.track_ids == ["host"]
+    assert inv.reason == "other"
+    assert inv.timeline_start is None
 
 
 def test_history_service_mutation_groups_and_rerender(minimal_project):

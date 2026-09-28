@@ -24,7 +24,7 @@ podcast redo --project episode.project.json
 podcast history record --project episode.project.json --label "before risky change"
 ```
 
-`goto` / undo / redo clear stem hash sidecars so `play processed:*` segment-renders the restored timeline (fast A/B). Pass `rerender=true` / `--rerender` only when you need full stems or premix.
+`goto` / undo / redo stale only the stems the move changed (content-addressed hashes, #424); `play processed:*` segment-renders a stale track (fast A/B), and unchanged tracks keep playing their stem. Pass `rerender=true` / `--rerender` only when you need full stems or premix.
 
 ## After undo
 
@@ -36,6 +36,6 @@ podcast pipeline run --project episode.project.json --from assemble_timeline
 
 ## MCP
 
-- `history_list`, `history_record`, `history_goto_tool`, `history_undo`, `history_redo` (`rerender=true` optional; stem hashes always invalidated on navigate)
+- `history_list`, `history_record`, `history_goto_tool`, `history_undo`, `history_redo` (`rerender=true` optional; stales only the stems the move changed)
 
 See [docs/history.md](../../docs/history.md).

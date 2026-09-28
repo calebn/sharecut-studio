@@ -178,10 +178,7 @@ def render_lock(
     ``premix.hash`` and ``mastered.wav`` + ``mastered.hash`` (stem render, mix, master,
     export, bleed-mute rewrite, on-demand ``ensure_stem``). Re-entrant per thread. Stem
     worker threads of the holder never take it: the file lock is thread-local, so a worker
-    would wait on its own parent. Readers never take it. Hash deletions that only make a
-    stem stale (``invalidate_stem_hashes`` inside an undo/redo transaction) run without it:
-    a publish racing one writes a hash naming its own snapshot, which freshness rejects
-    if the project moved.
+    would wait on its own parent. Readers never take it.
 
     Lock order: take it before ``project_state_lock`` / ``project_commit_lock``, never while
     holding them (unless this thread already holds it). A first acquire while this thread

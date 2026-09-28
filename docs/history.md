@@ -79,7 +79,7 @@ podcast redo --project episode.project.json
 podcast history-status --project episode.project.json   # JSON: cursor, can_undo, can_redo
 ```
 
-`goto` / `undo` / `redo` **invalidate stem hash sidecars** so `play processed:*` does not trust WAVs built for another history cursor. Without `--rerender`, play falls back to **segment render** (fast A/B). Pass `--rerender` / `rerender=true` when you need full stems or premix.
+`goto` / `undo` / `redo` mark stale only what the move changed (#424). Stem hash sidecars are content-addressed (`track_render_hash`), so a stem stays fresh when the move left its track unchanged (an undone volume or mute stales only the premix). It goes stale when the restored state differs, and fresh again when a redo returns to the state it was rendered at. Without `--rerender`, `play processed:*` segment-renders a stale track (fast A/B); an unchanged track keeps playing its stem. Pass `--rerender` / `rerender=true` when you need full stems or premix. Reconciliation ("Transcript out of date") is marked only when `audio_state_fingerprint` changed. The render cause journal changes only for dialogue tracks whose render hash changed.
 
 With `rerender=true` the move and its stale marks are committed first, in one step under `project_commit_lock`, so no other writer's commit lands between them. The render then runs between `checkpoint()` and `save_merged()`, so an edit another request saved meanwhile is merged in as an `after merging concurrent edits` entry, and the returned cursor points at that entry (not at the move's target). The move stays saved whatever happens next: a same-value clash raises `ProjectMergeConflict` and a failed render raises `HistoryRerenderError`, and both messages say to re-render the preview, not to repeat the move. The document plane (`UndoHistory` / `RedoHistory`) returns both as a 409 conflict with that message. A failed render also drops its partial in-memory state from the workspace (`ProjectWorkspace.discard_changes()`), so a caller that keeps the workspace sees the saved move, not a half-rendered project. If another undo or redo moved the cursor during the render (`history.lineage` / `history.cursor`), the message says to check `history_status` before re-rendering instead, since the saved cursor is no longer this move's.
 
@@ -108,10 +108,10 @@ Each `HistoryEntry` may include:
 
 - `history_list` — entries, cursor, and grouped mutations
 - `history_status_tool` — cursor and undo/redo flags (JSON)
-- `history_goto_tool` — jump to snapshot index (`rerender=true` optional; always invalidates stem hashes)
+- `history_goto_tool` — jump to snapshot index (`rerender=true` optional; stales only the stems the move changed)
 - `history_diff_tool` — structured delta between indices
 - `history_record` — manual snapshot
-- `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stem hashes cleared either way)
+- `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stales only the stems the move changed)
 
 ### GUI (Sharecut Studio)
 
