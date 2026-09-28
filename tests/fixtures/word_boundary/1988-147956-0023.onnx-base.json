@@ -1,0 +1,120 @@
+{
+  "fixture_id": "1988-147956-0023",
+  "audio_sha256": "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 2",
+  "prediction_source": ".lab-runs/align/librispeech/1988-147956-0023.onnx-base.pred.json",
+  "provenance": {
+    "model": "onnx-community/wav2vec2-base-960h-ONNX",
+    "version": "729c1a6730fb549c20a1c73a3d3f96f11020225e",
+    "license": "apache-2.0",
+    "settings": {
+      "backend": "onnx",
+      "onnx_file": "onnx/model.onnx",
+      "threads": 4,
+      "sample_rate": 16000,
+      "max_gap_sec": 1.0,
+      "max_window_sec": 20.0,
+      "pad_sec": 0.5
+    },
+    "runtime_sec": 0.20097316708415747,
+    "load_sec": 0.6069783330895007,
+    "audio_sec": 4.14,
+    "realtime_factor": 0.04854424325704287,
+    "peak_rss_mb": 747.1875,
+    "peak_rss_scope": "process",
+    "alignment_stats": {
+      "windows": 1,
+      "failed_windows": 0,
+      "aligned_words": 12,
+      "unaligned_words": 0,
+      "dropped_zero_duration": 0
+    }
+  },
+  "runtime_sec": 0.20097316708415747,
+  "metrics": {
+    "reference_words": 12,
+    "predicted_words": 12,
+    "matched_words": 11,
+    "missed_reference_words": 1,
+    "extra_predicted_words": 1,
+    "boundary_mae_ms": 45.9090909090909,
+    "mean_start_error_ms": 38.18181818181824,
+    "mean_end_error_ms": -48.1818181818181,
+    "words_over_150ms": 1,
+    "words_over_150ms_fraction": 0.09090909090909091
+  },
+  "words": [
+    {
+      "text": "Antonya",
+      "start": 0.58,
+      "end": 1.0,
+      "aligned": true
+    },
+    {
+      "text": "pointed",
+      "start": 1.1,
+      "end": 1.38,
+      "aligned": true
+    },
+    {
+      "text": "up",
+      "start": 1.46,
+      "end": 1.52,
+      "aligned": true
+    },
+    {
+      "text": "to",
+      "start": 1.6,
+      "end": 1.68,
+      "aligned": true
+    },
+    {
+      "text": "the",
+      "start": 1.74,
+      "end": 1.82,
+      "aligned": true
+    },
+    {
+      "text": "sky",
+      "start": 1.86,
+      "end": 2.12,
+      "aligned": true
+    },
+    {
+      "text": "and",
+      "start": 2.42,
+      "end": 2.5,
+      "aligned": true
+    },
+    {
+      "text": "questioned",
+      "start": 2.56,
+      "end": 2.96,
+      "aligned": true
+    },
+    {
+      "text": "me",
+      "start": 3.04,
+      "end": 3.1,
+      "aligned": true
+    },
+    {
+      "text": "with",
+      "start": 3.14,
+      "end": 3.24,
+      "aligned": true
+    },
+    {
+      "text": "her",
+      "start": 3.28,
+      "end": 3.38,
+      "aligned": true
+    },
+    {
+      "text": "glance.",
+      "start": 3.4,
+      "end": 3.72,
+      "aligned": true
+    }
+  ]
+}

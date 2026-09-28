@@ -1,0 +1,126 @@
+{
+  "fixture_id": "5338-24640-0003",
+  "audio_sha256": "d2b567b7853955bea08f40f19fcf258eeaed9b4c95a3848065356dcf3ef53f87",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 7",
+  "prediction_source": ".lab-runs/align/librispeech/5338-24640-0003.onnx-base.pred.json",
+  "provenance": {
+    "model": "onnx-community/wav2vec2-base-960h-ONNX",
+    "version": "729c1a6730fb549c20a1c73a3d3f96f11020225e",
+    "license": "apache-2.0",
+    "settings": {
+      "backend": "onnx",
+      "onnx_file": "onnx/model.onnx",
+      "threads": 4,
+      "sample_rate": 16000,
+      "max_gap_sec": 1.0,
+      "max_window_sec": 20.0,
+      "pad_sec": 0.5
+    },
+    "runtime_sec": 0.24863662500865757,
+    "load_sec": 0.6069783330895007,
+    "audio_sec": 6.42,
+    "realtime_factor": 0.03872844626303078,
+    "peak_rss_mb": 818.921875,
+    "peak_rss_scope": "process",
+    "alignment_stats": {
+      "windows": 1,
+      "failed_windows": 0,
+      "aligned_words": 13,
+      "unaligned_words": 0,
+      "dropped_zero_duration": 0
+    }
+  },
+  "runtime_sec": 0.24863662500865757,
+  "metrics": {
+    "reference_words": 15,
+    "predicted_words": 13,
+    "matched_words": 11,
+    "missed_reference_words": 4,
+    "extra_predicted_words": 2,
+    "boundary_mae_ms": 34.54545454545454,
+    "mean_start_error_ms": 37.272727272727316,
+    "mean_end_error_ms": -31.818181818181767,
+    "words_over_150ms": 0,
+    "words_over_150ms_fraction": 0.0
+  },
+  "words": [
+    {
+      "text": "Mr.",
+      "start": 0.58,
+      "end": 0.8,
+      "aligned": true
+    },
+    {
+      "text": "Morton",
+      "start": 0.84,
+      "end": 1.12,
+      "aligned": true
+    },
+    {
+      "text": "seemed",
+      "start": 1.2,
+      "end": 1.44,
+      "aligned": true
+    },
+    {
+      "text": "particularly",
+      "start": 1.58,
+      "end": 2.34,
+      "aligned": true
+    },
+    {
+      "text": "struck",
+      "start": 2.42,
+      "end": 2.64,
+      "aligned": true
+    },
+    {
+      "text": "with",
+      "start": 2.7,
+      "end": 2.82,
+      "aligned": true
+    },
+    {
+      "text": "the",
+      "start": 2.86,
+      "end": 2.94,
+      "aligned": true
+    },
+    {
+      "text": "account",
+      "start": 3.0,
+      "end": 3.28,
+      "aligned": true
+    },
+    {
+      "text": "of",
+      "start": 3.38,
+      "end": 3.42,
+      "aligned": true
+    },
+    {
+      "text": "Waverly's",
+      "start": 3.48,
+      "end": 4.0,
+      "aligned": true
+    },
+    {
+      "text": "visit",
+      "start": 4.06,
+      "end": 4.34,
+      "aligned": true
+    },
+    {
+      "text": "to",
+      "start": 4.42,
+      "end": 4.5,
+      "aligned": true
+    },
+    {
+      "text": "Donald",
+      "start": 4.58,
+      "end": 4.96,
+      "aligned": true
+    }
+  ]
+}
