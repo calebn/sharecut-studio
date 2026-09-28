@@ -314,3 +314,40 @@ def test_download_pinned_snapshot_with_force_fetches_once(tmp_path: Path, monkey
     _, mismatch = download_pinned_snapshot(pin, tmp_path / "cache", force=True)
     assert mismatch is not None
     assert calls == [True]
+
+
+def test_memoized_hashes_of_different_files_run_in_parallel(tmp_path: Path, monkeypatch) -> None:
+    _write(tmp_path, "big.bin", b"big")
+    _write(tmp_path, "small.txt", b"small")
+    big_started = threading.Event()
+    release_big = threading.Event()
+
+    def fake_sha256(p: Path) -> str:
+        if p.name == "big.bin":
+            big_started.set()
+            release_big.wait(5)
+            return _sha256(b"big")
+        return _sha256(b"small")
+
+    monkeypatch.setattr(model_manifest, "sha256_file", fake_sha256)
+    big = threading.Thread(
+        target=manifest_mismatch,
+        args=(tmp_path, (("big.bin", _sha256(b"big")),)),
+        kwargs={"memoize": True},
+    )
+    big.start()
+    assert big_started.wait(5)
+    small_result: list[str | None] = []
+    small = threading.Thread(
+        target=lambda: small_result.append(
+            manifest_mismatch(tmp_path, (("small.txt", _sha256(b"small")),), memoize=True)
+        )
+    )
+    small.start()
+    small.join(5)
+    finished_while_big_hashed = not small.is_alive()
+    release_big.set()
+    big.join(5)
+    small.join(5)
+    assert finished_while_big_hashed
+    assert small_result == [None]
