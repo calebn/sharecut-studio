@@ -531,6 +531,34 @@ def prepare_items(
     return audio_paths, native_payloads
 
 
+def _record_item(
+    item: BenchItem,
+    prediction: dict[str, Any],
+    *,
+    runs_dir: Path,
+    label: str,
+    native_payload: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Write one item's prediction, score it against gold, and measure agreement vs native.
+
+    Shared by :func:`run_suite` and :func:`run_pipeline_pass`; only the prediction
+    source differs. Writes ``<id>.<label>.pred.json`` and, for gold items,
+    ``<id>.<label>.report.json``. Returns ``(report or None, agreement entry)``.
+    """
+    pred_path = runs_dir / f"{item.item_id}.{label}.pred.json"
+    write_json_atomic(pred_path, prediction)
+    report = None
+    if item.gold is not None:
+        report = benchmark(item.gold, prediction_path=pred_path, native_model=None)
+        write_json_atomic(runs_dir / f"{item.item_id}.{label}.report.json", report)
+    native_words, _ = _drop_zero_duration(native_payload["words"])
+    entry = {
+        "metrics": measure_word_boundaries(native_words, prediction["words"]).as_dict(),
+        "provenance": prediction["provenance"],
+    }
+    return report, entry
+
+
 def run_suite(
     items: Sequence[BenchItem],
     candidates: Sequence[Candidate],
@@ -577,21 +605,12 @@ def run_suite(
                 threads=threads,
                 model_dir=model_dir,
             )
-            pred_path = runs_dir / f"{item.item_id}.{c.label}.pred.json"
-            write_json_atomic(pred_path, prediction)
-
-            if item.gold is not None:
-                report = benchmark(item.gold, prediction_path=pred_path, native_model=None)
-                write_json_atomic(runs_dir / f"{item.item_id}.{c.label}.report.json", report)
-                scored[c.label].append(report)
-
-            native_words, _ = _drop_zero_duration(native_payload["words"])
-            agreements[c.label].append(
-                {
-                    "metrics": measure_word_boundaries(native_words, prediction["words"]).as_dict(),
-                    "provenance": prediction["provenance"],
-                }
+            report, entry = _record_item(
+                item, prediction, runs_dir=runs_dir, label=c.label, native_payload=native_payload
             )
+            if report is not None:
+                scored[c.label].append(report)
+            agreements[c.label].append(entry)
 
         # Free the ONNX session / torch model before the next candidate loads.
         del backend
@@ -741,21 +760,12 @@ def run_pipeline_pass(
             model_dir=Path("."),
         )
         prediction["provenance"]["settings"]["pass"] = PIPELINE_PASS
-        pred_path = runs_dir / f"{item.item_id}.{PIPELINE_LABEL}.pred.json"
-        write_json_atomic(pred_path, prediction)
-
-        if item.gold is not None:
-            report = benchmark(item.gold, prediction_path=pred_path, native_model=None)
-            write_json_atomic(runs_dir / f"{item.item_id}.{PIPELINE_LABEL}.report.json", report)
-            scored.append(report)
-
-        native_words, _ = _drop_zero_duration(native_payload["words"])
-        agreements.append(
-            {
-                "metrics": measure_word_boundaries(native_words, prediction["words"]).as_dict(),
-                "provenance": prediction["provenance"],
-            }
+        report, entry = _record_item(
+            item, prediction, runs_dir=runs_dir, label=PIPELINE_LABEL, native_payload=native_payload
         )
+        if report is not None:
+            scored.append(report)
+        agreements.append(entry)
         duration_profiles[item.item_id] = word_duration_profile(prediction["words"]).as_dict()
 
     summary = {
