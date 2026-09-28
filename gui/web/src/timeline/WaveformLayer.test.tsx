@@ -131,6 +131,31 @@ function mount(props: Partial<typeof baseProps> = {}) {
   return { ...view, tiles, onRender, update };
 }
 
+/** Reports on observe (a first layout) and again on `fire()` (a resize). */
+class ManualResizeObserver {
+  static all: ManualResizeObserver[] = [];
+  targets: Element[] = [];
+  private readonly cb: ResizeObserverCallback;
+  constructor(cb: ResizeObserverCallback) {
+    this.cb = cb;
+    ManualResizeObserver.all.push(this);
+  }
+  observe(el: Element): void {
+    this.targets.push(el);
+    this.fire();
+  }
+  unobserve(): void {}
+  disconnect(): void {
+    this.targets = [];
+  }
+  fire(): void {
+    this.cb(
+      this.targets.map((target) => ({ target }) as ResizeObserverEntry),
+      this as unknown as ResizeObserver,
+    );
+  }
+}
+
 const rasters = () => state.rasters as RasterRequest[];
 
 describe("WaveformLayer", () => {
@@ -191,6 +216,28 @@ describe("WaveformLayer", () => {
       [2, 1],
     ]);
     expect(state.tileRequests[0]).toMatchObject({ level: 1, tiles: [0] });
+  });
+
+  it("follows the layer height when its observer reports a resize (a lane-height step)", () => {
+    let heightPx = 50;
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => heightPx,
+    });
+    ManualResizeObserver.all = [];
+    vi.stubGlobal("ResizeObserver", ManualResizeObserver);
+    const { container, tiles } = mount();
+    expect(tiles()[0]!.height).toBe(50);
+    const layer = container.querySelector(".clip-waveform") as Element;
+    const watching = () =>
+      ManualResizeObserver.all.filter((o) => o.targets.includes(layer));
+    expect(watching()).toHaveLength(1);
+
+    heightPx = 90;
+    act(() => watching()[0]!.fire());
+    // devicePixelRatio is stubbed to 1, so the backing store is round(90 * 1).
+    expect(tiles()[0]!.height).toBe(90);
+    expect(watching()).toHaveLength(1);
   });
 
   it("draws a cached bitmap instead of rasterizing again", () => {
