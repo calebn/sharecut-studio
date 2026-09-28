@@ -703,13 +703,17 @@ production code. A separate `pipeline` subcommand
 (`--target librispeech|lab`) instead scores the exact shipped call chain
 `transcribe.py`'s `_align_words` uses: `WordAligner.load` (pinned,
 sha256-verified) → `WordAligner.align` → `apply_word_spans`. It shares
-`prepare_items()` (decode audio, resolve or run native words) with `run`, so
-both passes score the same native words and audio, and writes
-`<id>.onnx-base-pipeline.json` predictions/reports plus a
+`prepare_items()` with `run`: decode audio, then take native words from the
+checked-in fixtures, else from a `<id>.native.json` already in the runs dir
+with the same `audio_sha256` and `--native-model`, else from a fresh Whisper
+pass. Point `pipeline` at the same runs dir as `run` (both default to
+`$LAB_RUNS_DIR/align/<target>`) and both passes score the exact same native
+words and audio; delete `<id>.native.json` to force a fresh Whisper pass. It
+writes `<id>.onnx-base-pipeline.json` predictions/reports plus a
 `summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
 share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`
-(fresh-ASR items only — `None` for `librispeech`, which reuses checked-in
-native words) and a
+(recorded Whisper time for non-checked-in native words, cached ones included —
+`None` for `librispeech`, which reuses checked-in native words) and a
 per-item `duration_profile` (`word_boundary_metrics.word_duration_profile()`:
 max/p95/p99 and counts over each of `DURATION_THRESHOLDS_SEC` — 1.00, 1.25,
 1.50, 1.75, 2.00, 2.25, 2.50 s). `aligned_dialogue` is not a pipeline target:
@@ -720,7 +724,7 @@ is `onnx-base-pipeline`, not `pipeline-onnx-base`, so it never matches the
 
 ```bash
 uv run python scripts/benchmark_forced_aligners.py pipeline --target librispeech --runs-dir .lab-runs/align/librispeech-pipeline
-$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB" --runs-dir .lab-runs/align/lab-pipeline
+$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB"
 ```
 
 Candidates are declared in `tests/fixtures/word_boundary/candidates.json`
@@ -917,7 +921,7 @@ Reproduce with:
 ```bash
 podcast bootstrap --component word-aligner
 uv run python scripts/benchmark_forced_aligners.py pipeline --target librispeech --runs-dir .lab-runs/align/librispeech-pipeline
-$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB" --runs-dir .lab-runs/align/lab-pipeline
+$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py pipeline --target lab --lab "$LAB"
 ```
 
 **Table 3 — scored, LibriSpeech, shipped pass (`onnx-base-pipeline`), 3 clips (42

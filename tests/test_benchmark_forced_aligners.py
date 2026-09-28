@@ -781,3 +781,36 @@ def test_main_pipeline_dispatches_to_run_pipeline_pass(monkeypatch, tmp_path) ->
     assert calls[0]["runs_dir"] == runs_dir
     assert calls[0]["threads"] == 2
     assert len(calls[0]["items"]) == 3
+
+
+def test_prepare_items_reuses_cached_native_words(tmp_path) -> None:
+    """#715: a second pass into the same runs dir reuses <id>.native.json instead of re-running Whisper."""
+    prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    calls: list[str] = []
+
+    def fake_native(audio_path, model):
+        calls.append(model)
+        return {
+            "words": prediction["words"],
+            "provenance": {**prediction["provenance"], "model": model, "runtime_sec": 1.5},
+        }
+
+    runs_dir = tmp_path / "runs"
+    _, first = bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
+    _, second = bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
+    assert calls == ["base"]
+    assert second["tones"] == first["tones"]
+
+    # A different Whisper model is not a cache hit.
+    bfa.prepare_items([item], runs_dir=runs_dir, native_model="small", native=fake_native)
+    assert calls == ["base", "small"]
+
+    # Nor is a cached file for different audio.
+    native_path = runs_dir / "tones.native.json"
+    stale = json.loads(native_path.read_text(encoding="utf-8"))
+    native_path.write_text(json.dumps({**stale, "audio_sha256": "0" * 64}), encoding="utf-8")
+    bfa.prepare_items([item], runs_dir=runs_dir, native_model="small", native=fake_native)
+    assert calls == ["base", "small", "small"]

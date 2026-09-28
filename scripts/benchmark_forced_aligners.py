@@ -493,6 +493,17 @@ def aggregate(reports: Sequence[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str, Any] | None:
+    """An earlier pass's ``<id>.native.json`` when it is for the same audio and Whisper model."""
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    provenance = payload.get("provenance") or {}
+    if payload.get("audio_sha256") != audio_sha256 or provenance.get("model") != native_model:
+        return None
+    return payload
+
+
 def prepare_items(
     items: Sequence[BenchItem],
     *,
@@ -505,9 +516,13 @@ def prepare_items(
     A clipped item (``item.clip`` set) decodes its window and writes it as
     ``<id>.wav`` under ``runs_dir``; a full item uses its audio path as-is. Native
     words come from ``item.words`` when set (checked-in fixtures, e.g.
-    LibriSpeech's ``*.native-base.json``) or from a fresh ``native(...)`` (Whisper)
-    run otherwise. Both are written once, as ``<id>.native.json``, so ``run_suite``
-    and ``run_pipeline_pass`` score the exact same native words and audio.
+    LibriSpeech's ``*.native-base.json``); otherwise from ``<id>.native.json``
+    already in ``runs_dir`` when its ``audio_sha256`` and provenance ``model``
+    match (an earlier ``run`` or ``pipeline`` into the same dir); otherwise from a
+    fresh ``native(...)`` (Whisper) run. The result is written as
+    ``<id>.native.json``, so a ``run_suite`` and a ``run_pipeline_pass`` pointed at
+    the same ``runs_dir`` score the exact same native words and audio. Delete
+    ``<id>.native.json`` to force a fresh Whisper pass.
     """
     runs_dir.mkdir(parents=True, exist_ok=True)
     audio_paths: dict[str, Path] = {}
@@ -528,7 +543,13 @@ def prepare_items(
                 raise ValueError(f"{item.item_id}: native words audio_sha256 mismatch")
             native_payload = payload
         else:
-            native_payload = {"audio_sha256": sha, **native(audio_path, native_model)}
+            native_path = runs_dir / f"{item.item_id}.native.json"
+            cached = _cached_native(native_path, sha, native_model)
+            native_payload = (
+                cached
+                if cached is not None
+                else {"audio_sha256": sha, **native(audio_path, native_model)}
+            )
         native_payloads[item.item_id] = native_payload
         write_json_atomic(runs_dir / f"{item.item_id}.native.json", native_payload)
     return audio_paths, native_payloads
@@ -685,10 +706,11 @@ def pipeline_prediction(
 def _asr_runtime_total(
     items: Sequence[BenchItem], native_payloads: Mapping[str, dict[str, Any]]
 ) -> float | None:
-    """Sum of fresh-ASR ``runtime_sec`` for items with no checked-in native words.
+    """Recorded Whisper ``runtime_sec`` summed over items with no checked-in native words.
 
-    ``None`` when every item reused checked-in native words (e.g. ``librispeech``),
-    since no ASR ran in this pass.
+    Includes words reused from a cached ``<id>.native.json`` (the time recorded by
+    the pass that produced them). ``None`` when every item reused checked-in
+    native words (e.g. ``librispeech``), since no ASR ran for them.
     """
     fresh = [native_payloads[item.item_id] for item in items if item.words is None]
     if not fresh:
