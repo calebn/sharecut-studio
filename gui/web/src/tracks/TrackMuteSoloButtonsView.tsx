@@ -1,10 +1,16 @@
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { ToggleButton } from "../ui";
 import type { MuteState } from "../utils/audio";
-import { SAVED_MUTE_READ_ONLY } from "./trackMuteCopy";
+import {
+  muteButtonLabel,
+  muteButtonTitle,
+  soloButtonLabel,
+  soloButtonTitle,
+} from "./trackMuteCopy";
 
 export interface TrackMuteSoloButtonsViewProps {
   trackId: string;
+  trackLabel: string;
   muteState: MuteState;
   solo: boolean;
   editsMix: boolean;
@@ -15,20 +21,13 @@ export interface TrackMuteSoloButtonsViewProps {
 /** Store-free mixer controls shared by the DAW and static previews. */
 export function TrackMuteSoloButtonsView({
   trackId,
+  trackLabel,
   muteState,
   solo,
   editsMix,
   onMute,
   onSolo,
 }: TrackMuteSoloButtonsViewProps) {
-  const muteTitle: Record<MuteState, string> = {
-    saved: editsMix
-      ? "Muted in the mix, for everyone and every export"
-      : SAVED_MUTE_READ_ONLY,
-    listen: "Muted for you only",
-    implied: "Silenced by your solo",
-    off: editsMix ? "Mute in the mix" : "Mute for you only",
-  };
   const muteClass = {
     saved: " mute",
     listen: " mute mute-listen",
@@ -41,8 +40,9 @@ export function TrackMuteSoloButtonsView({
       <ToggleButton
         pressed={muteState === "saved" || muteState === "listen"}
         aria-disabled={muteState === "saved" && !editsMix ? true : undefined}
+        aria-label={muteButtonLabel(trackLabel)}
         className={`trk-btn ui-control--compact${muteClass}`}
-        title={muteTitle[muteState]}
+        title={muteButtonTitle(muteState, editsMix)}
         data-mute-state={muteState}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "mute"))}
         onClick={onMute}
@@ -51,8 +51,9 @@ export function TrackMuteSoloButtonsView({
       </ToggleButton>
       <ToggleButton
         pressed={solo}
+        aria-label={soloButtonLabel(trackLabel)}
         className={`trk-btn ui-control--compact${solo ? " solo" : ""}`}
-        title={solo ? "Soloed for you only" : "Solo for you only"}
+        title={soloButtonTitle(solo)}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "solo"))}
         onClick={onSolo}
       >

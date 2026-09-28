@@ -10,6 +10,7 @@ const track = sampleTrack({ id: "mira", label: "Mira", fx_count: 2 });
 const mixer = (
   <TrackMuteSoloButtonsView
     trackId="mira"
+    trackLabel="Mira"
     muteState="off"
     solo={false}
     editsMix

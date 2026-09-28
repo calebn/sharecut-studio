@@ -158,8 +158,12 @@ describe("TrackHeader", () => {
       </DawProvider>,
     );
     // The host's M is the saved mix mute.
-    const mute = screen.getByTitle("Mute in the mix");
+    const mute = screen.getByRole("button", { name: "Mute Guest" });
     expect(mute).toHaveAttribute("data-mute-state", "off");
+    expect(mute).toHaveAttribute(
+      "title",
+      "Mute (M). Mutes the track in the mix, for everyone",
+    );
     await user.click(mute);
     expect(onSelect).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledWith(
