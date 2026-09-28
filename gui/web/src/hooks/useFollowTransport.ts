@@ -11,7 +11,6 @@ import { useDawStore } from "../state/dawStore";
 export function useFollowTransport(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
   const sessionClients = useDawStore((s) => s.sessionClients);
-  const serverClockOffsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const playheadSec = useDawStore((s) => s.playheadSec);
   const isPlaying = useDawStore((s) => s.isPlaying);
   const prevPlaying = useRef<boolean | null>(null);
@@ -23,7 +22,7 @@ export function useFollowTransport(): void {
       nudgeClock.current.startedAt = null;
       return;
     }
-    const now = serverNowMs(serverClockOffsetMs);
+    const now = serverNowMs();
     const target = resolveFollowTarget(sessionClients, followingClientId, now);
     if (!target) {
       useDawStore.getState().stopFollow("left");
@@ -64,11 +63,5 @@ export function useFollowTransport(): void {
       }
       prevPlaying.current = t.playing;
     }
-  }, [
-    followingClientId,
-    sessionClients,
-    serverClockOffsetMs,
-    playheadSec,
-    isPlaying,
-  ]);
+  }, [followingClientId, sessionClients, playheadSec, isPlaying]);
 }

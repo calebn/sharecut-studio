@@ -13,8 +13,6 @@ type PresenceSlice = Pick<
   DawStore,
   | "sessionClients"
   | "setSessionClients"
-  | "serverClockOffsetMs"
-  | "setServerClockOffsetMs"
   | "localClientId"
   | "setLocalClientId"
   | "followingClientId"
@@ -44,8 +42,6 @@ export const createPresenceSlice: StateCreator<
 > = (set, get) => ({
   sessionClients: [] as SessionClient[],
   setSessionClients: (sessionClients) => set({ sessionClients }),
-  serverClockOffsetMs: 0,
-  setServerClockOffsetMs: (serverClockOffsetMs) => set({ serverClockOffsetMs }),
   localClientId: null as string | null,
   setLocalClientId: (localClientId) => set({ localClientId }),
   followingClientId: null as string | null,

@@ -12,7 +12,6 @@ import { useDawStore } from "../state/dawStore";
 export function useFollowUi(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
   const sessionClients = useDawStore((s) => s.sessionClients);
-  const serverClockOffsetMs = useDawStore((s) => s.serverClockOffsetMs);
   const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
   const guestMode = useDawStore((s) => s.guestMode);
   const lastFollowId = useRef<string | null>(null);
@@ -45,7 +44,7 @@ export function useFollowUi(): void {
     const target = resolveFollowTarget(
       sessionClients,
       followingClientId,
-      serverNowMs(serverClockOffsetMs),
+      serverNowMs(),
     );
     if (!target) {
       useDawStore.getState().stopFollow("left");
@@ -153,11 +152,5 @@ export function useFollowUi(): void {
     if (uiChanged && plan) {
       s.setFollowDegraded(plan.degraded);
     }
-  }, [
-    followingClientId,
-    sessionClients,
-    serverClockOffsetMs,
-    shellBreakpoint,
-    guestMode,
-  ]);
+  }, [followingClientId, sessionClients, shellBreakpoint, guestMode]);
 }

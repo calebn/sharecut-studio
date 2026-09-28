@@ -1,5 +1,9 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  resetServerClock,
+  setServerClockOffsetForTests,
+} from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { PresenceOverlay } from "./PresenceOverlay";
@@ -35,9 +39,9 @@ describe("PresenceOverlay", () => {
     useDawStore.setState({
       localClientId: null,
       sessionClients: [],
-      serverClockOffsetMs: 0,
       statusAnnouncement: "",
     });
+    resetServerClock();
   });
 
   it("reads the session roster and local id from the store", () => {
@@ -149,9 +153,9 @@ describe("PresenceOverlay", () => {
 
   it("treats a just-seen client as stale when the server clock offset makes it look old", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    setServerClockOffsetForTests(60_000);
     useDawStore.setState({
       localClientId: "me",
-      serverClockOffsetMs: 60_000,
       sessionClients: [
         { client_id: "me", role: "viewer" },
         {

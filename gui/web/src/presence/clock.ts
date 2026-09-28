@@ -1,4 +1,10 @@
-import { useDawStore } from "../state/dawStore";
+/**
+ * Server clock offset as module state, outside the DAW store. The offset is
+ * read far more often (every presence render) than it changes, and it never
+ * needs to trigger a store notify or a component re-render on its own — see
+ * `serverNowMs`.
+ */
+let offsetMs = 0;
 
 export function updateClockOffset(
   prev: number,
@@ -15,16 +21,33 @@ export function updateClockOffset(
   return prev * 0.8 + sample * 0.2;
 }
 
-export function serverNowMs(offsetMs: number, nowMs = Date.now()): number {
+/** Server-clock now, from the module-level offset. */
+export function serverNowMs(nowMs = Date.now()): number {
   return nowMs + offsetMs;
 }
 
-export function applyServerClock(serverTimeNs?: number): void {
+/** The current offset, for callers that still need the raw number. */
+export function currentServerClockOffsetMs(): number {
+  return offsetMs;
+}
+
+/**
+ * Folds one server timestamp sample into the module offset. Module state
+ * only — no store, no listeners, no re-render.
+ */
+export function applyServerClock(serverTimeNs?: number, nowMs?: number): void {
   if (serverTimeNs == null || serverTimeNs <= 0) {
     return;
   }
-  const prev = useDawStore.getState().serverClockOffsetMs;
-  useDawStore
-    .getState()
-    .setServerClockOffsetMs(updateClockOffset(prev, serverTimeNs));
+  offsetMs = updateClockOffset(offsetMs, serverTimeNs, nowMs);
+}
+
+/** Resets the offset, e.g. on a project switch that starts a new session. */
+export function resetServerClock(): void {
+  offsetMs = 0;
+}
+
+/** Test-only: set the offset directly instead of feeding it samples. */
+export function setServerClockOffsetForTests(ms: number): void {
+  offsetMs = ms;
 }

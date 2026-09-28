@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { applyServerClock, resetServerClock } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { useFollowTransport } from "./useFollowTransport";
@@ -7,6 +8,31 @@ import { useFollowTransport } from "./useFollowTransport";
 describe("useFollowTransport", () => {
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+  });
+
+  afterEach(() => {
+    resetServerClock();
+  });
+
+  it("a clock sample alone does not re-render or notify the store", () => {
+    let renders = 0;
+    renderHook(() => {
+      renders += 1;
+      useDawStore((s) => s.followingClientId);
+      useFollowTransport();
+    });
+    const rendersBefore = renders;
+    let notified = false;
+    const unsub = useDawStore.subscribe(() => {
+      notified = true;
+    });
+    try {
+      applyServerClock(Date.now() * 1e6);
+    } finally {
+      unsub();
+    }
+    expect(notified).toBe(false);
+    expect(renders).toBe(rendersBefore);
   });
 
   it("unfollows when the target leaves", () => {

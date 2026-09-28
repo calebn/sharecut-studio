@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { resetServerClock } from "../presence/clock";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
@@ -55,6 +56,9 @@ export const createProjectSlice: StateCreator<
     shareCapabilities = null,
   ) => {
     const samePath = get().projectPath === projectPath;
+    if (!samePath) {
+      resetServerClock();
+    }
     set({
       projectPath,
       projectEpoch: samePath ? get().projectEpoch : get().projectEpoch + 1,
@@ -64,7 +68,6 @@ export const createProjectSlice: StateCreator<
       sessionClients: samePath ? get().sessionClients : [],
       followingClientId: samePath ? get().followingClientId : null,
       localClientId: samePath ? get().localClientId : null,
-      serverClockOffsetMs: samePath ? get().serverClockOffsetMs : 0,
       followDegraded: samePath ? get().followDegraded : {},
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
