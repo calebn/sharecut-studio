@@ -742,6 +742,24 @@ def test_http_stale_word_correction_returns_409(minimal_project):
     assert response.json()["detail"]["conflict"] is True
 
 
+def test_http_correction_past_shrunk_transcript_returns_409(minimal_project):
+    _seed_host_words(minimal_project, ["teh", "quick"])
+    client = TestClient(create_app())
+    response = client.post(
+        "/api/document/command",
+        params={"path": str(minimal_project)},
+        json={
+            "type": "CorrectTranscriptWord",
+            "payload": {"track_id": "host", "word_index": 2, "text": "fox", "expected_text": "fox"},
+            "client_id": "v1",
+            "role": "viewer",
+            "client_seq": 1,
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["conflict"] is True
+
+
 def test_document_correct_and_suppress_transcript(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
 

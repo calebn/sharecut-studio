@@ -1108,7 +1108,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional stale-index guard (#650): the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive), the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
+            "description": "Optional stale-index guard (#650): the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
           },
           "start_word_index": {
@@ -1234,7 +1234,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional stale-index guard (#650): the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive), the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
+            "description": "Optional stale-index guard (#650): the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
             "title": "Expected Text"
           },
           "text": {

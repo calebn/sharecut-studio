@@ -43,17 +43,19 @@ def require_word_text(
     """Raise ``TranscriptTextChangedError`` unless words ``start..end`` still read ``expected_text``.
 
     ``None`` skips the check. Whitespace is collapsed on both sides; case and punctuation
-    must match. A missing transcript or out-of-range indices are left to the correction
-    itself, which raises its usual ``ValueError``.
+    must match. A transcript or index range that no longer exists also raises (the caller's
+    view is stale); a malformed range (negative start, end before start) is left to the
+    correction, which raises its usual ``ValueError``.
     """
     if expected_text is None:
         return
+    if start_word_index < 0 or end_word_index < start_word_index:
+        return  # malformed request, not staleness: the correction raises its usual ValueError
     tr = project.transcript_for_track(track_id)
-    if tr is None or not 0 <= start_word_index <= end_word_index < len(tr.words):
-        return
-    current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
-    if collapse_whitespace(current) == collapse_whitespace(expected_text):
-        return
+    if tr is not None and end_word_index < len(tr.words):
+        current = " ".join(w.text for w in tr.words[start_word_index : end_word_index + 1])
+        if collapse_whitespace(current) == collapse_whitespace(expected_text):
+            return
     span = (
         f"word {start_word_index}"
         if start_word_index == end_word_index

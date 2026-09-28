@@ -163,6 +163,14 @@ class SetEffectBypassPayload(BaseModel):
     bypass: bool
 
 
+_EXPECTED_TEXT_DESCRIPTION = (
+    "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
+    "client saw at these indices. When it no longer matches (whitespace-collapsed, "
+    "case-sensitive) or those indices no longer exist, the command is rejected with a 409 "
+    "conflict and nothing changes. Omit to skip the check."
+)
+
+
 class CorrectTranscriptWordPayload(BaseModel):
     track_id: str
     word_index: int
@@ -172,12 +180,7 @@ class CorrectTranscriptWordPayload(BaseModel):
     )
     expected_text: str | None = Field(
         default=None,
-        description=(
-            "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
-            "client saw at these indices. When it no longer matches (whitespace-collapsed, "
-            "case-sensitive), the command is rejected with a 409 conflict and nothing changes. "
-            "Omit to skip the check."
-        ),
+        description=_EXPECTED_TEXT_DESCRIPTION,
     )
 
     @field_validator("text")
@@ -195,12 +198,7 @@ class CorrectTranscriptPhrasePayload(BaseModel):
     text: str
     expected_text: str | None = Field(
         default=None,
-        description=(
-            "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
-            "client saw at these indices. When it no longer matches (whitespace-collapsed, "
-            "case-sensitive), the command is rejected with a 409 conflict and nothing changes. "
-            "Omit to skip the check."
-        ),
+        description=_EXPECTED_TEXT_DESCRIPTION,
     )
 
 
