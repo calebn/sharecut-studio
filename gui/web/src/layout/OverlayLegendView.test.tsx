@@ -51,7 +51,7 @@ describe("OverlayLegendView", () => {
     expect(screen.queryByRole("button", { name: "+ Chapter" })).toBeNull();
   });
 
-  it("disables + Chapter and sets aria-busy while addChapterBusy", async () => {
+  it("marks + Chapter aria-disabled but focusable and ignores clicks while addChapterBusy", async () => {
     const onAddChapter = vi.fn();
     const { container, rerender } = render(
       <OverlayLegendView
@@ -62,8 +62,9 @@ describe("OverlayLegendView", () => {
       />,
     );
     const button = screen.getByRole("button", { name: "+ Chapter" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.hasAttribute("aria-busy")).toBe(false);
     await userEvent.click(button);
     expect(onAddChapter).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
@@ -75,8 +76,9 @@ describe("OverlayLegendView", () => {
         onAddChapter={onAddChapter}
       />,
     );
-    expect((button as HTMLButtonElement).disabled).toBe(false);
-    expect(button.hasAttribute("aria-busy")).toBe(false);
+    expect(button.hasAttribute("aria-disabled")).toBe(false);
+    await userEvent.click(button);
+    expect(onAddChapter).toHaveBeenCalledTimes(1);
   });
 
   it("renders menuitemcheckbox / menuitem rows inside a menu host", async () => {

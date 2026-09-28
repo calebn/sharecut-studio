@@ -100,8 +100,9 @@ export const ChapterAdding: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", { name: "+ Chapter" });
-    await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("aria-busy", "true");
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).not.toBeDisabled();
+    await expect(button).not.toHaveAttribute("aria-busy");
   },
 };
 

@@ -53,7 +53,7 @@ export function OverlayLegendView({
   layers: LayerVisibility;
   onLayerChange: (key: keyof LayerVisibility, visible: boolean) => void;
   onAddChapter?: () => void;
-  /** An add is in flight: + Chapter is disabled and marked aria-busy until it settles. */
+  /** An add is in flight: + Chapter is aria-disabled (still focusable, so keyboard focus stays put) and ignores clicks until it settles. */
   addChapterBusy?: boolean;
 }) {
   return (
@@ -83,9 +83,14 @@ export function OverlayLegendView({
           role={menu ? "menuitem" : undefined}
           className="transcript-follow-btn"
           title="Add chapter marker at playhead"
-          onClick={onAddChapter}
-          disabled={addChapterBusy}
-          aria-busy={addChapterBusy || undefined}
+          // aria-disabled, not disabled: the button keeps keyboard focus (and
+          // its place in a menu's arrow-key order) while the add is in flight.
+          aria-disabled={addChapterBusy || undefined}
+          onClick={() => {
+            if (!addChapterBusy) {
+              onAddChapter?.();
+            }
+          }}
         >
           + Chapter
         </Button>
