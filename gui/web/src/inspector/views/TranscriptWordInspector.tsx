@@ -186,9 +186,10 @@ export function TranscriptWordInspector({
     }
     if (failure instanceof ApiError && failure.status === 409) {
       // The server refused because the span changed since we last snapshot
-      // it. Re-snapshot from the store's current project — not `wordTexts`,
-      // which reflects this render, not necessarily the update that caused
-      // the 409 — and keep the error so Apply retries against it (#746).
+      // it. `correctTranscriptWord` / `correctTranscriptPhrase` already loaded
+      // the host's current words into the store before rethrowing, so
+      // re-snapshot from the store — not `wordTexts`, which reflects this
+      // render — and Apply again retries against it (#746).
       setExpectedText(
         transcriptSpanText(
           useDawStore.getState().project,
