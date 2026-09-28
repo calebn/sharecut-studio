@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from markdown_table import code_spans, section_table
+
 REPO_ROOT = Path(__file__).parents[1]
 DOCS_DIR = REPO_ROOT / "docs"
 
@@ -25,41 +27,22 @@ STATUSES = {"Automated", "Partial"}
 # list only these under "Still manual"; a "Partial" row must list another step.
 HARDWARE_OR_BY_EAR_STEPS = {"tauri recording", "listening by ear"}
 
-_CODE_SPAN_RE = re.compile(r"`([^`]+)`")
 _PATH_RE = re.compile(r"(?:gui|tests|src|scripts)/[^`\s]+\.(?:py|ts|tsx|js|mjs)")
 _ISSUE_REF_RE = re.compile(r"\s*\(#\d+\)")
 
 
 def _matrix_rows() -> list[list[str]]:
-    document = (DOCS_DIR / "testing.md").read_text(encoding="utf-8")
-    lines = document.splitlines()
-
-    start = None
-    for i, line in enumerate(lines):
-        if line.startswith("### Beta user stories"):
-            start = i
-            break
-    assert start is not None, "docs/testing.md is missing the Beta user stories section"
-
-    end = len(lines)
-    for i in range(start + 1, len(lines)):
-        if lines[i].startswith("#"):
-            end = i
-            break
-
-    section = lines[start:end]
-    rows = []
-    for line in section:
-        if not line.startswith("| US-"):
-            continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        rows.append(cells)
-    return rows
+    return section_table(DOCS_DIR / "testing.md", "### Beta user stories").rows
 
 
 def _manual_steps(cell: str) -> list[str]:
     """Normalize a Still manual cell: split on commas, drop `(#N)` refs, lowercase."""
     return [_ISSUE_REF_RE.sub("", step).strip().lower() for step in cell.split(",") if step.strip()]
+
+
+def test_matrix_header() -> None:
+    table = section_table(DOCS_DIR / "testing.md", "### Beta user stories")
+    assert table.header == ["Story", "Issue", "Status", "Automated coverage", "Still manual"]
 
 
 def test_every_story_is_listed_exactly_once() -> None:
@@ -103,7 +86,7 @@ def test_status_matches_still_manual_steps() -> None:
 
 def test_coverage_cells_cite_only_existing_repo_paths() -> None:
     for story, _issue, _status, coverage, _manual in _matrix_rows():
-        citations = _CODE_SPAN_RE.findall(coverage)
+        citations = code_spans(coverage)
         assert citations, f"{story}: coverage cell cites no backticked paths: {coverage!r}"
         for citation in citations:
             assert _PATH_RE.fullmatch(citation), (
@@ -134,7 +117,7 @@ def test_path_regex_accepts_only_full_repo_relative_paths() -> None:
         "tests/has space.py",
     ):
         assert _PATH_RE.fullmatch(path) is None, path
-    assert _CODE_SPAN_RE.findall("plain text with no backticks tests/test_history.py") == []
+    assert code_spans("plain text with no backticks tests/test_history.py") == []
 
 
 def test_manual_steps_normalizes_issue_refs_and_case() -> None:
