@@ -17,6 +17,8 @@ from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import render_lock
 from podcast_mcp.util.text import count_noun
 
+EXPORT_CANCELLED = "Export cancelled"
+
 
 def format_export_qc_lines(
     export_qc: Mapping[str, Any] | None, qc_path: Path | str | None
@@ -214,11 +216,7 @@ class PipelineService:
         if formats is not None:
             export_cfg["formats"] = formats
         from podcast_mcp.export.audio import export_episode_audio
-        from podcast_mcp.util.progress import CancelledProgress, resolve_progress_task
-
-        def raise_if_cancelled() -> None:
-            if cancel_check is not None and cancel_check():
-                raise CancelledProgress("Export cancelled")
+        from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 
         with resolve_progress_task(
             "export",
@@ -230,11 +228,11 @@ class PipelineService:
                 # Checkpoint after the wait: a render that held the lock may have committed
                 # edits and published hashes for them meanwhile (#482).
                 self.ws.checkpoint()
-                raise_if_cancelled()
+                raise_if_cancel_requested(cancel_check, EXPORT_CANCELLED)
                 prog.set_phase("master", "Preparing mastered WAV…")
                 mastered = pipeline_steps.ensure_current_master(self.ws.project, defaults)
                 prog.advance(1, message="Mastered WAV ready")
-                raise_if_cancelled()
+                raise_if_cancel_requested(cancel_check, EXPORT_CANCELLED)
                 prog.set_phase("encode", "Writing deliverables…")
                 paths = export_episode_audio(
                     self.ws.project,

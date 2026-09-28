@@ -26,6 +26,7 @@ from podcast_mcp.util.progress import (
     install_mcp_progress,
     mark_wrapped,
     progress_task,
+    raise_if_cancel_requested,
     resolve_progress,
     wrapped_ids,
 )
@@ -797,3 +798,10 @@ def test_registered_progress_sink_composes():
     multi = compose_progress(*adapter_progress_sinks())
     multi.start("t", "T", total=1)
     assert any(e.kind == "start" for e in rec.events)
+
+
+def test_raise_if_cancel_requested():
+    raise_if_cancel_requested(None, "x")
+    raise_if_cancel_requested(lambda: False, "x")
+    with pytest.raises(CancelledProgress, match="Bounce cancelled"):
+        raise_if_cancel_requested(lambda: True, "Bounce cancelled")

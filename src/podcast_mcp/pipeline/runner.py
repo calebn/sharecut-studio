@@ -30,10 +30,10 @@ from podcast_mcp.project_merge import (
 )
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.util.progress import (
-    CancelledProgress,
     ProgressReporter,
     bind_progress,
     progress_task,
+    raise_if_cancel_requested,
     resolve_progress,
 )
 from podcast_mcp.util.project_state import (
@@ -282,9 +282,8 @@ class PipelineRunner:
         ):
             for step_idx, (name, fn) in enumerate(selected, start=1):
                 run = _current_run(project, run)
-                if cancel_check is not None and cancel_check():
-                    pipe.cancel("Pipeline cancelled")
-                    raise CancelledProgress("Pipeline cancelled")
+                # progress_task's __exit__ emits the pipe's cancel event for CancelledProgress.
+                raise_if_cancel_requested(cancel_check, "Pipeline cancelled")
                 log = PipelineStepLog(
                     step=name,
                     started_at=datetime.now(UTC).isoformat(),
