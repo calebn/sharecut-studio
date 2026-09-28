@@ -409,6 +409,33 @@ def test_checked_in_shipped_pass_report_matches_pipeline_fixture() -> None:
         assert provenance["settings"]["pass"] == "pipeline"
 
 
+def test_threshold_rule_keeps_default_cap_at_two_seconds() -> None:
+    """#715 T6b: L = longest aligned LibriSpeech word + worst |duration error| vs gold.
+
+    L + 0.5 <= DEFAULT_MAX_WORD_DURATION_SEC keeps the cap at 2.0 s rather than raising
+    it (the fixed-before-measuring rule; see docs/transcript-workflow.md § ASR timing
+    flags, "Threshold (#715)", and the comment above the constant in asr_timing.py).
+    """
+    from podcast_mcp.engines.asr_timing import DEFAULT_MAX_WORD_DURATION_SEC
+
+    fixture = Path(__file__).parent / "fixtures" / "word_boundary"
+    longest_aligned_word = 0.0
+    worst_duration_error = 0.0
+    for gold_path in sorted(fixture.glob("*.gold.json")):
+        gold = json.loads(gold_path.read_text(encoding="utf-8"))
+        pred_path = fixture / gold_path.name.replace(".gold.json", ".onnx-base-pipeline.json")
+        pred = json.loads(pred_path.read_text(encoding="utf-8"))
+        words = pred["words"]
+        longest_aligned_word = max(longest_aligned_word, *(w["end"] - w["start"] for w in words))
+        errors = duration_errors_sec(matched_word_pairs(gold["words"], words))
+        if errors:
+            worst_duration_error = max(worst_duration_error, *errors)
+
+    threshold = longest_aligned_word + worst_duration_error + 0.5
+    assert threshold == pytest.approx(1.48, abs=0.01)
+    assert threshold <= DEFAULT_MAX_WORD_DURATION_SEC
+
+
 def test_matched_word_pairs_validates_and_returns_monotone_pairs() -> None:
     reference = [word("one", 0, 0.2), word("two", 0.2, 0.4), word("three", 0.4, 0.6)]
     prediction = [word("one", 0, 0.2), word("three", 0.4, 0.6)]
