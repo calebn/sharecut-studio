@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import { resetServerClock } from "../presence/clock";
+import { EMPTY_ROSTER } from "../presence/roster";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
@@ -65,7 +66,8 @@ export const createProjectSlice: StateCreator<
       project: initialProject,
       guestMode,
       shareCapabilities,
-      sessionClients: samePath ? get().sessionClients : [],
+      sessionClients: samePath ? get().sessionClients : EMPTY_ROSTER,
+      sessionRosterVersion: samePath ? get().sessionRosterVersion : 0,
       followingClientId: samePath ? get().followingClientId : null,
       localClientId: samePath ? get().localClientId : null,
       followDegraded: samePath ? get().followDegraded : {},

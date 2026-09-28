@@ -5,7 +5,7 @@ import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { FollowBanner } from "./FollowBanner";
 
 vi.mock("../commands/execute", () => ({
@@ -27,13 +27,13 @@ describe("FollowBanner", () => {
     act(() => {
       useDawStore.setState({
         followingClientId: "a",
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "a",
             role: "viewer",
             meta: { display_name: "Ada", color_index: 2 },
           },
-        ],
+        ]),
       });
     });
     expect(screen.getByRole("status").textContent).toContain("Following Ada");
@@ -54,7 +54,7 @@ describe("FollowBanner", () => {
       useDawStore.setState({
         followingClientId: "a",
         guestMode: "view",
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "a",
             role: "viewer",
@@ -63,7 +63,7 @@ describe("FollowBanner", () => {
               color_index: 2,
             },
           },
-        ],
+        ]),
       });
     });
     const banner = screen.getByRole("status");
@@ -85,13 +85,13 @@ describe("FollowBanner", () => {
         followingClientId: "a",
         guestMode: "view",
         followDegraded: { tab: "pipeline", audition: "fx" },
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "a",
             role: "viewer",
             meta: { display_name: "Ada", color_index: 2 },
           },
-        ],
+        ]),
       });
     });
     const text = screen.getByRole("status").textContent ?? "";

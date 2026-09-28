@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { sessionClientList } from "../presence/roster";
 import { useDaw } from "../state/useDaw";
 import { PresenceStatusView } from "./PresenceStatusView";
 
@@ -12,7 +13,7 @@ export const PresenceStatus = memo(function PresenceStatus({
   narrow: boolean;
 }) {
   const { sessionClients, localClientId } = useDaw((s) => ({
-    sessionClients: s.sessionClients,
+    sessionClients: sessionClientList(s.sessionClients),
     localClientId: s.localClientId,
   }));
   return (

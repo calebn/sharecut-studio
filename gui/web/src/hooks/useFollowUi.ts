@@ -5,13 +5,16 @@ import {
   serverNowMs,
   withProgrammaticUi,
 } from "../presence/followSync";
+import { sessionClientList } from "../presence/roster";
 import { selectionFromWire } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 
 export function useFollowUi(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
-  const sessionClients = useDawStore((s) => s.sessionClients);
+  const sessionClients = useDawStore((s) =>
+    sessionClientList(s.sessionClients),
+  );
   const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
   const guestMode = useDawStore((s) => s.guestMode);
   const lastFollowId = useRef<string | null>(null);

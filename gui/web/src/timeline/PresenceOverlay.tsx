@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { rosterDisplayName } from "../presence/colors";
+import { sessionClientList } from "../presence/roster";
 import {
   presenceIdsKey,
   useLivePresenceClients,
@@ -51,7 +52,7 @@ function usePresenceAnnouncer(others: SessionClient[]): void {
 
 /** Remote presence over the lanes, reading the session roster itself. */
 export function PresenceOverlay(props: Props) {
-  const clients = useDawStore((s) => s.sessionClients);
+  const clients = useDawStore((s) => sessionClientList(s.sessionClients));
   const localClientId = useDawStore((s) => s.localClientId);
   const project = useDawStore((s) => s.project);
   const { laneHeight } = useTimelineMetrics();

@@ -3,13 +3,15 @@ import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { sessionRoster } from "../test/fixtures";
+import * as colors from "./colors";
 import { PresenceGhostLayer } from "./PresenceGhostLayer";
 
 describe("PresenceGhostLayer", () => {
   it("renders nothing when there are no remote anchor cursors", () => {
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [{ client_id: "me", role: "viewer" }],
+      sessionClients: sessionRoster([{ client_id: "me", role: "viewer" }]),
     });
     const rootRef = createRef<HTMLDivElement>();
     const { container } = render(<PresenceGhostLayer rootRef={rootRef} />);
@@ -19,7 +21,7 @@ describe("PresenceGhostLayer", () => {
   it("hides an unresolved anchor", () => {
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         { client_id: "me", role: "viewer" },
         {
           client_id: "them",
@@ -30,7 +32,7 @@ describe("PresenceGhostLayer", () => {
             cursor: { anchor: "audition:fx", x: 0.5, y: 0.5 },
           },
         },
-      ],
+      ]),
     });
     const rootRef = createRef<HTMLDivElement>();
     const { container } = render(
@@ -47,7 +49,7 @@ describe("PresenceGhostLayer", () => {
   it("renders a ghost selection for a remote transcript word", () => {
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         { client_id: "me", role: "viewer" },
         {
           client_id: "them",
@@ -62,7 +64,7 @@ describe("PresenceGhostLayer", () => {
             },
           },
         },
-      ],
+      ]),
     });
     const rootRef = createRef<HTMLDivElement>();
     const { container } = render(
@@ -77,14 +79,14 @@ describe("PresenceGhostLayer", () => {
   it("does not render the local client's ghost", async () => {
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "me",
           role: "viewer",
           last_seen_ns: Date.now() * 1e6,
           meta: { cursor: { anchor: "audition:fx", x: 0.5, y: 0.5 } },
         },
-      ],
+      ]),
     });
     const rootRef = createRef<HTMLDivElement>();
     const { container } = render(<PresenceGhostLayer rootRef={rootRef} />);
@@ -97,7 +99,7 @@ describe("PresenceGhostLayer", () => {
     try {
       useDawStore.setState({
         localClientId: "me",
-        sessionClients: [
+        sessionClients: sessionRoster([
           { client_id: "me", role: "viewer" },
           {
             client_id: "them",
@@ -108,7 +110,7 @@ describe("PresenceGhostLayer", () => {
               cursor: { anchor: "audition:fx", x: 0.5, y: 0.5 },
             },
           },
-        ],
+        ]),
       });
       const rootRef = createRef<HTMLDivElement>();
       const { container } = render(
@@ -124,5 +126,48 @@ describe("PresenceGhostLayer", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("a PresenceDelta for one client re-renders only that client's ghost row", () => {
+    const clients = ["a", "b", "c", "d", "e"].map((id) => ({
+      client_id: id,
+      role: "viewer",
+      last_seen_ns: Date.now() * 1e6,
+      meta: {
+        display_name: id.toUpperCase(),
+        cursor: { anchor: `audition:${id}`, x: 0.5, y: 0.5 },
+      },
+    }));
+    useDawStore.setState({
+      localClientId: "me",
+      sessionRosterVersion: 5,
+      sessionClients: sessionRoster([
+        { client_id: "me", role: "viewer" },
+        ...clients,
+      ]),
+    });
+    const rootRef = createRef<HTMLDivElement>();
+    const spy = vi.spyOn(colors, "rosterDisplayName");
+    render(
+      <div ref={rootRef}>
+        <PresenceGhostLayer rootRef={rootRef} />
+      </div>,
+    );
+    expect(spy.mock.calls.map(([c]) => c.client_id).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ]);
+    spy.mockClear();
+
+    act(() => {
+      useDawStore
+        .getState()
+        .applyPresenceDelta("a", { meta: { display_name: "A2" } }, 5);
+    });
+
+    expect(spy.mock.calls.map(([c]) => c.client_id)).toEqual(["a"]);
   });
 });

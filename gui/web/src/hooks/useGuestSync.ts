@@ -15,8 +15,15 @@ import {
 } from "../document/cursor";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { applyServerClock } from "../presence/clock";
+import {
+  applyPresenceFrame,
+  carriesFullRoster,
+  isPresenceOnlyFrame,
+  type PresenceCarryingFrame,
+} from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
 import { newClientId } from "../session/clientId";
+import { createRosterRequester } from "../session/rosterRequest";
 import { bindWsSender, type WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -39,12 +46,11 @@ function guestWsUrl(token: string, clientId: string, name: string): string {
   return `${proto}://${window.location.host}/api/review/${encodeURIComponent(token)}/daw/ws?${q.toString()}`;
 }
 
-type GuestMsg = {
+type GuestMsg = PresenceCarryingFrame & {
   type?: string;
   plane?: string;
   server_seq?: number;
   client_id?: string;
-  clients?: SessionState["clients"];
   snapshot?: SessionState & {
     server_seq?: number;
     comments?: TimelineComment[];
@@ -72,13 +78,10 @@ export function useGuestSync(
   projectPath: string,
   applyAgentSession: (state: SessionState) => void,
   _setProject: (project: ProjectView) => void,
-  setSessionClients: (clients: NonNullable<SessionState["clients"]>) => void,
   enabled = true,
 ): boolean {
   const applyRef = useRef(applyAgentSession);
   applyRef.current = applyAgentSession;
-  const setClientsRef = useRef(setSessionClients);
-  setClientsRef.current = setSessionClients;
   const sessionSeqRef = useRef(0);
   const wsOpenRef = useRef(false);
   const connectIdRef = useRef(newClientId());
@@ -95,6 +98,9 @@ export function useGuestSync(
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    const rosterRequester = createRosterRequester((frame) =>
+      sendRef.current?.(frame),
+    );
     resetDocumentSeq();
     sessionSeqRef.current = 0;
     wsOpenRef.current = false;
@@ -163,8 +169,13 @@ export function useGuestSync(
         if (closed) {
           return;
         }
-        if (msg.type === "Presence" && Array.isArray(msg.clients)) {
-          setClientsRef.current(msg.clients);
+        if (carriesFullRoster(msg)) {
+          rosterRequester.onRosterReceived();
+        }
+        if (applyPresenceFrame(msg)) {
+          rosterRequester.request();
+        }
+        if (isPresenceOnlyFrame(msg)) {
           return;
         }
         if (msg.plane === "progress" || msg.type === "progress") {
@@ -189,9 +200,6 @@ export function useGuestSync(
           }
           if (seq > 0) {
             sessionSeqRef.current = seq;
-          }
-          if (Array.isArray(snap.clients)) {
-            setClientsRef.current(snap.clients);
           }
           applyRef.current(snap as SessionState);
           return;
@@ -305,6 +313,7 @@ export function useGuestSync(
       }
       wsOpenRef.current = false;
       sendRef.current = null;
+      rosterRequester.dispose();
       setWsReady(false);
     };
   }, [projectPath, enabled]);

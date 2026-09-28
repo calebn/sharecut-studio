@@ -6,11 +6,14 @@ import {
   resolveFollowTarget,
   serverNowMs,
 } from "../presence/followSync";
+import { sessionClientList } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
 
 export function useFollowTransport(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
-  const sessionClients = useDawStore((s) => s.sessionClients);
+  const sessionClients = useDawStore((s) =>
+    sessionClientList(s.sessionClients),
+  );
   const playheadSec = useDawStore((s) => s.playheadSec);
   const isPlaying = useDawStore((s) => s.isPlaying);
   const prevPlaying = useRef<boolean | null>(null);

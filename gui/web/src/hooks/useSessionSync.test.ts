@@ -115,7 +115,7 @@ describe("useSessionSync presence", () => {
         clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
       } satisfies Partial<SessionState> & { type: string; clients: unknown });
     });
-    expect(useDawStore.getState().sessionClients[0]?.client_id).toBe("x");
+    expect(useDawStore.getState().sessionClients.x?.client_id).toBe("x");
     expect(currentServerClockOffsetMs()).not.toBe(0);
   });
 
@@ -1268,9 +1268,11 @@ describe("useSessionSync presence", () => {
       flushInbound();
     });
     unsub();
-    expect(
-      useDawStore.getState().sessionClients.map((c) => c.client_id),
-    ).toEqual(["a", "b", "c"]);
+    expect(Object.keys(useDawStore.getState().sessionClients)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
     expect(useDawStore.getState().playheadSec).toBe(9);
     expect(listener).toHaveBeenCalledTimes(1);
   });
@@ -1341,5 +1343,84 @@ describe("useSessionSync presence", () => {
       });
     });
     expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
+  });
+
+  it("applies a PresenceDelta for a known client at the current roster version", async () => {
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        roster_version: 7,
+        clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
+      });
+    });
+    await act(async () => {
+      sock.emit({
+        type: "PresenceDelta",
+        author_client_id: "x",
+        roster_version: 7,
+        changes: { label: "Ada2" },
+      });
+    });
+    expect(useDawStore.getState().sessionClients.x?.label).toBe("Ada2");
+    expect(useDawStore.getState().sessionRosterVersion).toBe(7);
+  });
+
+  it("sends exactly one RosterRequest on a version gap", async () => {
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        roster_version: 7,
+        clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
+      });
+    });
+    sock.sent = [];
+    await act(async () => {
+      sock.emit({
+        type: "PresenceDelta",
+        author_client_id: "x",
+        roster_version: 9,
+        changes: { label: "Ada2" },
+      });
+    });
+    const rosterRequests = sock.sent
+      .map((s) => JSON.parse(s) as { type: string })
+      .filter((f) => f.type === "RosterRequest");
+    expect(rosterRequests).toHaveLength(1);
+    // The stale delta was dropped, not applied.
+    expect(useDawStore.getState().sessionClients.x?.label).toBe("Ada");
   });
 });

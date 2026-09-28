@@ -4,8 +4,9 @@ import {
   resetServerClock,
   setServerClockOffsetForTests,
 } from "../presence/clock";
+import * as colors from "../presence/colors";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { TimelineMetricsProvider } from "./timelineMetrics";
 
@@ -38,7 +39,7 @@ describe("PresenceOverlay", () => {
   afterEach(() => {
     useDawStore.setState({
       localClientId: null,
-      sessionClients: [],
+      sessionClients: sessionRoster([]),
       statusAnnouncement: "",
     });
     resetServerClock();
@@ -48,7 +49,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         { client_id: "me", role: "viewer", playhead_sec: 1 },
         {
           client_id: "them",
@@ -57,7 +58,7 @@ describe("PresenceOverlay", () => {
           last_seen_ns: Date.now() * 1e6,
           meta: { display_name: "Ada" },
         },
-      ],
+      ]),
     });
     const { container } = render(
       <PresenceOverlay
@@ -70,13 +71,16 @@ describe("PresenceOverlay", () => {
     const playheads = container.querySelectorAll(".presence-playhead");
     expect(playheads).toHaveLength(1);
     expect((playheads[0] as HTMLElement).style.left).toBe("20px");
-    act(() => useDawStore.setState({ sessionClients: [] }));
+    act(() => useDawStore.setState({ sessionClients: sessionRoster([]) }));
     expect(container.querySelector(".presence-overlay")).toBeNull();
   });
 
   it("announces a joined and a departed client by display name", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ localClientId: "me", sessionClients: [] });
+    useDawStore.setState({
+      localClientId: "me",
+      sessionClients: sessionRoster([]),
+    });
     const { rerender } = render(
       <PresenceOverlay
         zoomPxPerSec={10}
@@ -87,14 +91,14 @@ describe("PresenceOverlay", () => {
     );
     act(() => {
       useDawStore.setState({
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "bea",
             role: "viewer",
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Bea" },
           },
-        ],
+        ]),
       });
     });
     rerender(
@@ -108,7 +112,7 @@ describe("PresenceOverlay", () => {
     expect(useDawStore.getState().statusAnnouncement).toBe("Bea joined");
 
     act(() => {
-      useDawStore.setState({ sessionClients: [] });
+      useDawStore.setState({ sessionClients: sessionRoster([]) });
     });
     rerender(
       <PresenceOverlay
@@ -130,7 +134,10 @@ describe("PresenceOverlay", () => {
       last_seen_ns: Date.now() * 1e6,
       meta: { display_name: "Bea" },
     };
-    useDawStore.setState({ localClientId: "me", sessionClients: [bea] });
+    useDawStore.setState({
+      localClientId: "me",
+      sessionClients: sessionRoster([bea]),
+    });
     render(
       <PresenceOverlay
         zoomPxPerSec={10}
@@ -143,7 +150,7 @@ describe("PresenceOverlay", () => {
     try {
       act(() => {
         useDawStore.setState({
-          sessionClients: [{ ...bea, playhead_sec: 4 }],
+          sessionClients: sessionRoster([{ ...bea, playhead_sec: 4 }]),
         });
       });
       expect(announce).not.toHaveBeenCalled();
@@ -156,7 +163,7 @@ describe("PresenceOverlay", () => {
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         { client_id: "me", role: "viewer" },
         {
           client_id: "them",
@@ -164,7 +171,7 @@ describe("PresenceOverlay", () => {
           last_seen_ns: Date.now() * 1e6,
           meta: { display_name: "Ada", cursor: { t_sec: 1, lane_pos: 1 } },
         },
-      ],
+      ]),
     });
     const { container } = render(
       <TimelineMetricsProvider
@@ -187,7 +194,7 @@ describe("PresenceOverlay", () => {
     setServerClockOffsetForTests(60_000);
     useDawStore.setState({
       localClientId: "me",
-      sessionClients: [
+      sessionClients: sessionRoster([
         { client_id: "me", role: "viewer" },
         {
           client_id: "them",
@@ -195,7 +202,7 @@ describe("PresenceOverlay", () => {
           last_seen_ns: Date.now() * 1e6,
           meta: { display_name: "Ada" },
         },
-      ],
+      ]),
     });
     const { container } = render(
       <PresenceOverlay
@@ -216,7 +223,7 @@ describe("PresenceOverlay", () => {
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
       useDawStore.setState({
         localClientId: "me",
-        sessionClients: [
+        sessionClients: sessionRoster([
           { client_id: "me", role: "viewer" },
           {
             client_id: "them",
@@ -225,7 +232,7 @@ describe("PresenceOverlay", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Ada" },
           },
-        ],
+        ]),
       });
       const { container } = render(
         <PresenceOverlay
@@ -261,7 +268,7 @@ describe("PresenceOverlay", () => {
       useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
       useDawStore.setState({
         localClientId: null,
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "them",
             role: "viewer",
@@ -269,7 +276,7 @@ describe("PresenceOverlay", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Ada" },
           },
-        ],
+        ]),
       });
       render(
         <PresenceOverlay
@@ -286,5 +293,47 @@ describe("PresenceOverlay", () => {
       vi.restoreAllMocks();
       vi.useRealTimers();
     }
+  });
+
+  it("a PresenceDelta for one client re-renders only that client's overlay row", () => {
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    const clients = ["a", "b", "c", "d", "e"].map((id) => ({
+      client_id: id,
+      role: "viewer",
+      playhead_sec: 2,
+      last_seen_ns: Date.now() * 1e6,
+      meta: { display_name: id.toUpperCase() },
+    }));
+    useDawStore.setState({
+      localClientId: "me",
+      sessionRosterVersion: 5,
+      sessionClients: sessionRoster(clients),
+    });
+    const spy = vi.spyOn(colors, "rosterDisplayName");
+    render(
+      <PresenceOverlay
+        zoomPxPerSec={10}
+        height={72}
+        tracks={hostTracks}
+        clipsByTrack={{}}
+      />,
+    );
+    expect(spy.mock.calls.map(([c]) => c.client_id).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+      "e",
+    ]);
+    spy.mockClear();
+
+    act(() => {
+      useDawStore
+        .getState()
+        .applyPresenceDelta("a", { meta: { display_name: "A2" } }, 5);
+    });
+
+    expect(spy.mock.calls.map(([c]) => c.client_id)).toEqual(["a"]);
+    vi.restoreAllMocks();
   });
 });

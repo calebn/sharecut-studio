@@ -5,12 +5,15 @@ import {
   viewportToZoomScroll,
   withProgrammaticScroll,
 } from "../presence/followSync";
+import { sessionClientList } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
 import { sessionSecOf } from "../utils/zoom";
 
 export function useFollowViewport(): void {
   const followingClientId = useDawStore((s) => s.followingClientId);
-  const sessionClients = useDawStore((s) => s.sessionClients);
+  const sessionClients = useDawStore((s) =>
+    sessionClientList(s.sessionClients),
+  );
   const shellBreakpoint = useDawStore((s) => s.shellBreakpoint);
   const lastVp = useRef<string>("");
 

@@ -6,7 +6,7 @@ import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, sampleComment } from "../test/fixtures";
+import { minimalProject, sampleComment, sessionRoster } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { readyEntry } from "../test/waveform";
@@ -805,7 +805,10 @@ describe("TimelineView render isolation", () => {
 
   afterEach(() => {
     waveStatus.entry = null;
-    useDawStore.setState({ isPlaying: false, sessionClients: [] });
+    useDawStore.setState({
+      isPlaying: false,
+      sessionClients: sessionRoster([]),
+    });
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");

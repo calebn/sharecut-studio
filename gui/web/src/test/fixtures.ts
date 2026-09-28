@@ -1,3 +1,4 @@
+import type { SessionRoster } from "../presence/roster";
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import type { LayerVisibility } from "../state/types";
@@ -235,6 +236,16 @@ export function sessionClient(
     meta: { display_name: "Sample viewer", color_index: 0 },
     ...overrides,
   };
+}
+
+/** `store.sessionClients` (`SessionRoster`, keyed by `client_id`) from a plain client
+ * list: the shape most tests build fixtures in. */
+export function sessionRoster(clients: SessionClient[]): SessionRoster {
+  const roster: SessionRoster = {};
+  for (const client of clients) {
+    roster[client.client_id] = client;
+  }
+  return roster;
 }
 
 /** Fictional activity for tests and published, prop-only chrome stories. */

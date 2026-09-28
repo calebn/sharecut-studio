@@ -1,18 +1,21 @@
 import type { StateCreator } from "zustand";
+import {
+  applyPresenceDelta as applyPresenceDeltaToRoster,
+  EMPTY_ROSTER,
+  rosterFromList,
+} from "../presence/roster";
 import { selectionFromWire, selectionToWire } from "../session/wire";
 import { guestHearsMixOnly } from "../shareMode";
-import type {
-  SessionClient,
-  SessionState,
-  ViewerSessionSnapshot,
-} from "../types/session";
+import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { playStartPatch } from "./transportSlice";
 import type { DawState, DawStore } from "./types";
 
 type PresenceSlice = Pick<
   DawStore,
   | "sessionClients"
+  | "sessionRosterVersion"
   | "setSessionClients"
+  | "applyPresenceDelta"
   | "localClientId"
   | "setLocalClientId"
   | "followingClientId"
@@ -40,8 +43,30 @@ export const createPresenceSlice: StateCreator<
   [],
   PresenceSlice
 > = (set, get) => ({
-  sessionClients: [] as SessionClient[],
-  setSessionClients: (sessionClients) => set({ sessionClients }),
+  sessionClients: EMPTY_ROSTER,
+  sessionRosterVersion: 0,
+  setSessionClients: (clients, rosterVersion) =>
+    set((s) => ({
+      sessionClients: rosterFromList(clients, s.sessionClients),
+      sessionRosterVersion: rosterVersion ?? s.sessionRosterVersion,
+    })),
+  applyPresenceDelta: (authorClientId, changes, rosterVersion) => {
+    const s = get();
+    const result = applyPresenceDeltaToRoster(
+      s.sessionClients,
+      s.sessionRosterVersion,
+      authorClientId,
+      changes,
+      rosterVersion,
+    );
+    if (result.outcome === "applied") {
+      set({
+        sessionClients: result.roster,
+        sessionRosterVersion: result.version,
+      });
+    }
+    return result.outcome === "resync";
+  },
   localClientId: null as string | null,
   setLocalClientId: (localClientId) => set({ localClientId }),
   followingClientId: null as string | null,
@@ -57,7 +82,7 @@ export const createPresenceSlice: StateCreator<
   setPlaybackRate: (playbackRate) => set({ playbackRate }),
   startFollow: (clientId) => {
     const s = get();
-    const target = s.sessionClients.find((c) => c.client_id === clientId);
+    const target = s.sessionClients[clientId];
     const name = target?.meta?.display_name || target?.label || clientId;
     set({ followingClientId: clientId });
     get().announceStatus(`Following ${name}`);
@@ -121,7 +146,16 @@ export const createPresenceSlice: StateCreator<
         ...playStartPatch(get(), Boolean(state.is_playing), state.playhead_sec),
         ...hear,
         ...(state.selection !== undefined ? { selection: nextSel } : {}),
-        ...(state.clients ? { sessionClients: state.clients } : {}),
+        ...(state.clients
+          ? {
+              sessionClients: rosterFromList(
+                state.clients,
+                get().sessionClients,
+              ),
+              sessionRosterVersion:
+                state.roster_version ?? get().sessionRosterVersion,
+            }
+          : {}),
       });
       return;
     }
@@ -138,7 +172,13 @@ export const createPresenceSlice: StateCreator<
       ...(nextSel !== undefined && state.selection !== undefined
         ? { selection: nextSel }
         : {}),
-      ...(state.clients ? { sessionClients: state.clients } : {}),
+      ...(state.clients
+        ? {
+            sessionClients: rosterFromList(state.clients, get().sessionClients),
+            sessionRosterVersion:
+              state.roster_version ?? get().sessionRosterVersion,
+          }
+        : {}),
     });
   },
   buildViewerSnapshot: (): ViewerSessionSnapshot => {

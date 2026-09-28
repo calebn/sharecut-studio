@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { useDawStore } from "./dawStore";
 import { resetPublishKeyForTests, selectPublishKey } from "./publishKey";
 
@@ -41,7 +41,7 @@ describe("selectPublishKey", () => {
     const first = selectPublishKey(useDawStore.getState());
     useDawStore.setState({
       playheadSec: 12,
-      sessionClients: [{ client_id: "a", role: "viewer" }],
+      sessionClients: sessionRoster([{ client_id: "a", role: "viewer" }]),
     });
     useDawStore.getState().setProject(minimalProject({ tracks: [] }));
     const second = selectPublishKey(useDawStore.getState());

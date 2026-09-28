@@ -50,7 +50,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     setActivityJob,
     setActivityRunningCount,
-    setSessionClients,
     hostMcpDialogOpen,
     setHostMcpDialogOpen,
     helpDialogOpen,
@@ -71,7 +70,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     activityJob: s.activityJob,
     setActivityJob: s.setActivityJob,
     setActivityRunningCount: s.setActivityRunningCount,
-    setSessionClients: s.setSessionClients,
     hostMcpDialogOpen: s.hostMcpDialogOpen,
     setHostMcpDialogOpen: s.setHostMcpDialogOpen,
     helpDialogOpen: s.helpDialogOpen,
@@ -105,13 +103,10 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     publishKey,
     syncEnabled,
   );
-  useGuestSyncAndProjectPoll(
-    projectPath,
-    applyAgentSession,
-    setProject,
-    setSessionClients,
-    { hostSyncEnabled: syncEnabled, guestSyncEnabled },
-  );
+  useGuestSyncAndProjectPoll(projectPath, applyAgentSession, setProject, {
+    hostSyncEnabled: syncEnabled,
+    guestSyncEnabled,
+  });
   usePointerType();
 
   useEffect(() => {

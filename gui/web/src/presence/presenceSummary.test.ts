@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sessionRoster } from "../test/fixtures";
 import type { SessionClient } from "../types/session";
 import {
   isGuestPresenceClient,
@@ -68,13 +69,17 @@ describe("presenceSummary", () => {
   });
 
   it("selectAgentPresent is true only while an agent is in the roster", () => {
-    expect(selectAgentPresent({ sessionClients: [] })).toBe(false);
-    expect(selectAgentPresent({ sessionClients: [c("h1", "viewer")] })).toBe(
+    expect(selectAgentPresent({ sessionClients: sessionRoster([]) })).toBe(
       false,
     );
     expect(
       selectAgentPresent({
-        sessionClients: [c("h1", "viewer"), c("a1", "agent")],
+        sessionClients: sessionRoster([c("h1", "viewer")]),
+      }),
+    ).toBe(false);
+    expect(
+      selectAgentPresent({
+        sessionClients: sessionRoster([c("h1", "viewer"), c("a1", "agent")]),
       }),
     ).toBe(true);
   });

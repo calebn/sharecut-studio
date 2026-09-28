@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { useFollowUi } from "./useFollowUi";
 
 function leader(
@@ -29,7 +29,7 @@ describe("useFollowUi", () => {
       viewerMute: {},
       soloTracks: {},
       followDegraded: {},
-      sessionClients: [leader({ tab: "comments" })],
+      sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
   });
 
@@ -42,7 +42,7 @@ describe("useFollowUi", () => {
   it("degrades a host-only tab for guests", () => {
     useDawStore.setState({
       guestMode: "view",
-      sessionClients: [leader({ tab: "pipeline" })],
+      sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().activeTab).toBe("transcript");
@@ -54,7 +54,9 @@ describe("useFollowUi", () => {
     useDawStore.setState({
       guestMode: "view",
       auditionMode: "fx",
-      sessionClients: [leader({ tab: "transcript", audition: "fx" })],
+      sessionClients: sessionRoster([
+        leader({ tab: "transcript", audition: "fx" }),
+      ]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().auditionMode).toBe("mix");
@@ -66,7 +68,7 @@ describe("useFollowUi", () => {
     useDawStore.setState({
       guestMode: "view",
       auditionMode: "fx",
-      sessionClients: [leader({ tab: "transcript" })],
+      sessionClients: sessionRoster([leader({ tab: "transcript" })]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().auditionMode).toBe("mix");
@@ -77,7 +79,7 @@ describe("useFollowUi", () => {
     useDawStore.setState({
       activeTab: "comments",
       layoutMode: "timeline",
-      sessionClients: [leader({ tab: "comments" })],
+      sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().activeTab).toBe("comments");
@@ -90,18 +92,22 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().activeTab).toBe("comments");
     useDawStore.setState({ layoutMode: "timeline" });
     useDawStore.setState({
-      sessionClients: [leader({ tab: "comments", audition: "fx" })],
+      sessionClients: sessionRoster([
+        leader({ tab: "comments", audition: "fx" }),
+      ]),
     });
     rerender();
     expect(useDawStore.getState().layoutMode).toBe("timeline");
     useDawStore.setState({
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
-      ],
+      ]),
     });
     rerender();
     expect(useDawStore.getState().layoutMode).toBe("timeline");
-    useDawStore.setState({ sessionClients: [leader({ tab: "transcript" })] });
+    useDawStore.setState({
+      sessionClients: sessionRoster([leader({ tab: "transcript" })]),
+    });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("transcript");
     expect(useDawStore.getState().layoutMode).toBe("default");
@@ -111,7 +117,9 @@ describe("useFollowUi", () => {
     const { rerender } = renderHook(() => useFollowUi());
     expect(useDawStore.getState().activeTab).toBe("comments");
     useDawStore.setState({ activeTab: "transcript", layoutMode: "timeline" });
-    useDawStore.setState({ sessionClients: [leader({ tab: "transcript" })] });
+    useDawStore.setState({
+      sessionClients: sessionRoster([leader({ tab: "transcript" })]),
+    });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("transcript");
     expect(useDawStore.getState().layoutMode).toBe("default");
@@ -122,12 +130,16 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().activeTab).toBe("comments");
     useDawStore.setState({ activeTab: "transcript" });
     useDawStore.setState({
-      sessionClients: [leader({ tab: "comments", audition: "fx" })],
+      sessionClients: sessionRoster([
+        leader({ tab: "comments", audition: "fx" }),
+      ]),
     });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("transcript");
     expect(useDawStore.getState().followingClientId).toBe("a");
-    useDawStore.setState({ sessionClients: [leader({ tab: "pipeline" })] });
+    useDawStore.setState({
+      sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
+    });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("pipeline");
   });
@@ -138,17 +150,21 @@ describe("useFollowUi", () => {
     useDawStore.setState({ activeTab: "transcript" });
     // Leader went comments -> pipeline -> comments between two renders.
     useDawStore.setState({
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader({ tab: "comments", transcript_anchor: "transcript:turn:0" }),
-      ],
+      ]),
     });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("transcript");
     // A flip the hook does see is mirrored at each step.
-    useDawStore.setState({ sessionClients: [leader({ tab: "pipeline" })] });
+    useDawStore.setState({
+      sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
+    });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("pipeline");
-    useDawStore.setState({ sessionClients: [leader({ tab: "comments" })] });
+    useDawStore.setState({
+      sessionClients: sessionRoster([leader({ tab: "comments" })]),
+    });
     rerender();
     expect(useDawStore.getState().activeTab).toBe("comments");
   });
@@ -165,7 +181,7 @@ describe("useFollowUi", () => {
     const { rerender } = renderHook(() => useFollowUi());
     expect(tabSets).toBe(1);
     useDawStore.setState({
-      sessionClients: [leader({ tab: "comments" })],
+      sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     rerender();
     expect(tabSets).toBe(1);
@@ -174,12 +190,12 @@ describe("useFollowUi", () => {
   it("scrolls after a combined tab and transcript_anchor tick", () => {
     useDawStore.setState({
       activeTab: "comments",
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader({
           tab: "transcript",
           transcript_anchor: "transcript:turn:0",
         }),
-      ],
+      ]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().activeTab).toBe("transcript");
@@ -191,19 +207,21 @@ describe("useFollowUi", () => {
   it("does not reapply mute when only transcript_anchor changes", () => {
     useDawStore.setState({
       viewerMute: {},
-      sessionClients: [leader({ tab: "transcript", viewer_mute: [] })],
+      sessionClients: sessionRoster([
+        leader({ tab: "transcript", viewer_mute: [] }),
+      ]),
     });
     const { rerender } = renderHook(() => useFollowUi());
     expect(useDawStore.getState().viewerMute).toEqual({});
     useDawStore.setState({ viewerMute: { guest: true } });
     useDawStore.setState({
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader({
           tab: "transcript",
           viewer_mute: [],
           transcript_anchor: "transcript:turn:1",
         }),
-      ],
+      ]),
     });
     rerender();
     expect(useDawStore.getState().viewerMute).toEqual({ guest: true });
@@ -211,7 +229,7 @@ describe("useFollowUi", () => {
 
   it("replans when guestMode changes for the same ui payload", () => {
     useDawStore.setState({
-      sessionClients: [leader({ tab: "pipeline" })],
+      sessionClients: sessionRoster([leader({ tab: "pipeline" })]),
     });
     const { rerender } = renderHook(() => useFollowUi());
     expect(useDawStore.getState().activeTab).toBe("pipeline");
@@ -226,13 +244,13 @@ describe("useFollowUi", () => {
     useDawStore.setState({
       followDegraded: { tab: "pipeline" },
       followingClientId: "b",
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "b",
           role: "viewer" as const,
           last_seen_ns: Date.now() * 1e6,
         },
-      ],
+      ]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().followDegraded).toEqual({});
@@ -258,7 +276,7 @@ describe("useFollowUi", () => {
     useDawStore.setState({
       selection: null,
       followingClientId: "a",
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader(
           { tab: "comments" },
           {
@@ -269,7 +287,7 @@ describe("useFollowUi", () => {
             },
           },
         ),
-      ],
+      ]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().selection).toEqual({
@@ -284,12 +302,12 @@ describe("useFollowUi", () => {
   it("clears inspector selection when the leader drops the key", () => {
     useDawStore.setState({
       selection: { kind: "track", trackId: "host" },
-      sessionClients: [
+      sessionClients: sessionRoster([
         leader(
           { tab: "comments" },
           { selection: { kind: "track", track_id: "host" } },
         ),
-      ],
+      ]),
     });
     const { rerender } = renderHook(() => useFollowUi());
     expect(useDawStore.getState().selection).toEqual({
@@ -297,7 +315,7 @@ describe("useFollowUi", () => {
       trackId: "host",
     });
     useDawStore.setState({
-      sessionClients: [leader({ tab: "comments" })],
+      sessionClients: sessionRoster([leader({ tab: "comments" })]),
     });
     rerender();
     expect(useDawStore.getState().selection).toBeNull();

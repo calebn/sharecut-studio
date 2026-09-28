@@ -13,14 +13,12 @@ export function useGuestSyncAndProjectPoll(
   projectPath: string,
   applyAgentSession: GuestSyncArgs[1],
   setProject: (project: ProjectView) => void,
-  setSessionClients: GuestSyncArgs[3],
   opts: { hostSyncEnabled: boolean; guestSyncEnabled: boolean },
 ): void {
   const guestWsReady = useGuestSync(
     projectPath,
     applyAgentSession,
     setProject,
-    setSessionClients,
     opts.guestSyncEnabled,
   );
   useProjectPoll(projectPath, setProject, opts.hostSyncEnabled || guestWsReady);

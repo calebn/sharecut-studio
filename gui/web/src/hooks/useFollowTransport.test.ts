@@ -2,7 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { applyServerClock, resetServerClock } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { useFollowTransport } from "./useFollowTransport";
 
 describe("useFollowTransport", () => {
@@ -38,7 +38,7 @@ describe("useFollowTransport", () => {
   it("unfollows when the target leaves", () => {
     useDawStore.setState({
       followingClientId: "gone",
-      sessionClients: [],
+      sessionClients: sessionRoster([]),
     });
     renderHook(() => useFollowTransport());
     expect(useDawStore.getState().followingClientId).toBeNull();
@@ -50,7 +50,7 @@ describe("useFollowTransport", () => {
       playheadSec: 1,
       isPlaying: false,
       playStartSec: 1,
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "a",
           role: "viewer",
@@ -64,7 +64,7 @@ describe("useFollowTransport", () => {
             },
           },
         },
-      ],
+      ]),
     });
     renderHook(() => useFollowTransport());
     expect(useDawStore.getState().playheadSec).toBe(8);
@@ -79,7 +79,7 @@ describe("useFollowTransport", () => {
       followingClientId: "a",
       playheadSec: 0,
       isPlaying: false,
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "a",
           role: "viewer",
@@ -93,7 +93,7 @@ describe("useFollowTransport", () => {
             },
           },
         },
-      ],
+      ]),
     });
     renderHook(() => useFollowTransport());
     expect(useDawStore.getState().isPlaying).toBe(true);
@@ -106,7 +106,7 @@ describe("useFollowTransport", () => {
       followingClientId: "mid",
       playheadSec: 0,
       isPlaying: false,
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "mid",
           role: "viewer",
@@ -126,7 +126,7 @@ describe("useFollowTransport", () => {
             },
           },
         },
-      ],
+      ]),
     });
     renderHook(() => useFollowTransport());
     expect(useDawStore.getState().isPlaying).toBe(true);

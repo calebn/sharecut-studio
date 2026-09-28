@@ -1,3 +1,4 @@
+import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   ProjectView,
@@ -207,9 +208,19 @@ export interface DawState {
   ingestDropTrackId: string | null;
   /** Polite live-region status (refresh mix, etc.). */
   statusAnnouncement: string;
-  /** Presence roster from session Snapshot / Presence events. */
-  sessionClients: SessionClient[];
-  setSessionClients: (clients: SessionClient[]) => void;
+  /** Presence roster from session Snapshot / Presence events, keyed by `client_id`
+   * (#598: a `PresenceDelta` replaces only its own entry). */
+  sessionClients: SessionRoster;
+  /** One process-wide monotonic roster version (#598's client apply rule). */
+  sessionRosterVersion: number;
+  setSessionClients: (clients: SessionClient[], rosterVersion?: number) => void;
+  /** Apply one `PresenceDelta`. Returns `true` when the caller should send a
+   * `RosterRequest` (a stale/unknown version - `presence/roster.ts`'s `applyPresenceDelta`). */
+  applyPresenceDelta: (
+    authorClientId: string,
+    changes: PresenceDeltaChanges,
+    rosterVersion: number,
+  ) => boolean;
   localClientId: string | null;
   setLocalClientId: (id: string | null) => void;
   followingClientId: string | null;
