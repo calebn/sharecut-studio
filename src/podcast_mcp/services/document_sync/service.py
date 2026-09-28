@@ -573,8 +573,10 @@ def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRo
 
     Blocking: after the caller's own commit this waits again on the project lock (up to
     ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``) and a ``document.db`` write. Every caller today
-    is a sync FastAPI handler (threadpool) or an MCP tool thread; an ``async def``
-    caller must offload it (``run_in_threadpool``).
+    is a sync FastAPI handler (threadpool), a worker thread (MCP tools; the record-upload
+    ACK auto-land via ``asyncio.to_thread`` in ``gui/routes/record_upload_http.py``) or
+    the ``podcast record land`` / ``discard-take`` CLI process; an ``async def`` caller
+    must offload it (``run_in_threadpool`` / ``asyncio.to_thread``).
 
     The warning logs only ``project_path``: never add payloads, share tokens or guest
     data to it."""
