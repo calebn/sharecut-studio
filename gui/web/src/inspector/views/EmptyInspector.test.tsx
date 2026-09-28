@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { suggestPendingEdit } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { DawProvider } from "../../state/store";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
+import type { PendingEditView } from "../../types/project";
 import { EmptyInspector } from "./EmptyInspector";
 
 vi.mock("../../api", () => ({
@@ -62,5 +64,37 @@ describe("EmptyInspector", () => {
     expect(start).toBe(10);
     expect(end).toBeCloseTo(12);
     expect(reason).toBe("guest:suggest");
+  });
+
+  it("names the unmappable heading and dispatches its selection, and passes axe", async () => {
+    const p1: PendingEditView = {
+      id: "p1",
+      track_id: "host",
+      type: "remove",
+      reason: "filler",
+      source_start: 0,
+      source_end: 1,
+      timeline_start: null,
+      timeline_end: null,
+      timeline_spans: [],
+      mappable: false,
+      crossfade_ms: null,
+      boundary_mode: null,
+      cut_confidence: null,
+      review_required: false,
+      applied: false,
+    };
+    const onSelectPending = vi.fn();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
+        <EmptyInspector unmappable={[p1]} onSelectPending={onSelectPending} />
+      </DawProvider>,
+    );
+    expect(screen.getByText("Edits in removed audio (1)")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "remove: filler" }),
+    );
+    expect(onSelectPending).toHaveBeenCalledWith(p1);
+    await expectNoA11yViolations(container);
   });
 });

@@ -5,6 +5,7 @@ import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
 import { Button } from "../../ui";
+import { unmappedPendingLabel } from "../../utils/edits";
 import { clipsForTrack, timelinePointToSource } from "../../utils/timebase";
 
 export function EmptyInspector({
@@ -74,15 +75,15 @@ export function EmptyInspector({
       )}
       {unmappable.length > 0 && (
         <>
-          <h2>Unmapped pending</h2>
+          <h2>{unmappedPendingLabel(unmappable.length)}</h2>
           <p
             style={{
               color: "var(--text-dim)",
               fontSize: "var(--font-size-caption)",
             }}
           >
-            {unmappable.length} edit(s) fall in removed material and cannot be
-            drawn on the timeline.
+            These edits fall in audio that has been removed from the timeline,
+            so they cannot be drawn there.
           </p>
           <ul className="unmapped-list">
             {unmappable.map((e) => (

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { unmappedPendingLabel } from "../utils/edits";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import type { StatusBarSummary } from "./statusBarSummary";
@@ -79,7 +80,7 @@ export function StatusBarView({
           className="ui-control status-chip"
           onClick={() => onOpenTab("impact")}
         >
-          Unmapped: {unmappedCount}
+          {unmappedPendingLabel(unmappedCount)}
         </button>
       )}
       {cut && (
