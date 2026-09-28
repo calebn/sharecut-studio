@@ -169,7 +169,13 @@ class TranscriptWords(list[TranscriptWord]):
     """``Transcript.words``: a list whose every mutation bumps the words revision (#729).
 
     Carries a memo of values derived from these words (:meth:`memoized`); copies start
-    with an empty memo and do not bump the revision.
+    with an empty memo and do not bump the revision. The memo lives on the list rather
+    than in a module-level ``lru_cache`` keyed on ``(workspace path, track_id,
+    words_revision())`` (the ``engines/asr_silence`` idiom): loading or deep-copying a
+    project builds new words without moving the revision, so a path-keyed entry could
+    answer for words it never saw, while a memo on the list dies with its words. Any
+    value derived from one transcript's words can use it via
+    :meth:`Transcript.memoize_words`.
     """
 
     __slots__ = ("_memo",)
@@ -183,7 +189,18 @@ class TranscriptWords(list[TranscriptWord]):
         return (type(self), (list(self),))
 
     def memoized(self, key: str, compute: Callable[[], _T]) -> _T:
-        """``compute()``, reused until any transcript words change in this process."""
+        """``compute()``, reused until any transcript words change in this process.
+
+        The value is stored and returned by reference, so memoize only immutable values
+        (``str``, ``int``, tuples); mutating a returned list or dict would corrupt the
+        entry for every later reader.
+
+        Not a lock: call it the way every project read runs, from one thread or while
+        holding ``util.project_state.project_state_lock(project)`` when another thread
+        may edit these words in place. Without that, ``compute()`` may see a torn list,
+        but the revision is stamped before computing and the writer bumps after its
+        change, so the next call recomputes: a wrong value lasts at most one call.
+        """
         revision = words_revision()  # stamp before computing: a concurrent edit then misses
         hit = self._memo.get(key)
         if hit is not None and hit[0] == revision:
@@ -244,8 +261,9 @@ class Transcript(BaseModel):
     def memoize_words(self, key: str, compute: Callable[[], _T]) -> _T:
         """``compute()`` cached on ``self.words`` until any transcript words change (#729).
 
-        ``key`` names the derived value (e.g. ``"prosody.words_fingerprint"``). Words that
-        skipped validation (``model_copy(update=...)``) are a plain list: computed every call.
+        ``key`` names the derived value (e.g. ``"prosody.words_fingerprint"``); the value is
+        returned by reference, so it must be immutable. Words that skipped validation
+        (``model_copy(update=...)``) are a plain list: computed every call.
         """
         words = self.words
         if isinstance(words, TranscriptWords):
