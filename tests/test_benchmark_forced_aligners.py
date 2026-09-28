@@ -295,12 +295,6 @@ def test_main_verify_candidates_prints_notes_before_problems_and_fails(monkeypat
     ]
 
 
-def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
-    monkeypatch.setitem(sys.modules, "onnxruntime", None)
-    with pytest.raises(RuntimeError, match="onnxruntime"):
-        bfa.OnnxBackend(tmp_path, "onnx/model.onnx", 1)
-
-
 def test_align_prediction_accepts_words_out_of_start_order() -> None:
     vocab = CtcVocab.from_token_map({"<pad>": 0, "|": 1, "H": 2, "I": 3, "B": 4, "Y": 5, "E": 6})
     words = [

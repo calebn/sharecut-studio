@@ -20,10 +20,16 @@ from podcast_mcp.whisper_models import (
     persist_whisper_model,
     validate_whisper_model,
 )
+from podcast_mcp.word_aligner_models import (
+    DEFAULT_WORD_ALIGNER,
+    bootstrap_word_aligner,
+    word_aligner_is_cached,
+)
 
 setup_app = typer.Typer(help="Install and verify Podcast MCP.")
 
-_COMPONENTS = ("ffmpeg", "whisper", "rnnoise", "silero-vad", "nisqa")
+_COMPONENTS = ("ffmpeg", "whisper", "rnnoise", "silero-vad", "nisqa", "word-aligner")
+_OPT_IN_COMPONENTS = ("nisqa", "word-aligner")
 
 
 @setup_app.command("setup")
@@ -137,7 +143,7 @@ def bootstrap(
     ),
     upgrade: bool = typer.Option(False, "--upgrade", help="Re-download even if already cached."),
 ) -> None:
-    """Download optional heavyweight assets on demand (FFmpeg, Whisper, RNNoise).
+    """Download optional heavyweight assets on demand (FFmpeg, Whisper, RNNoise; opt-in NISQA / word aligner).
 
     Nothing here is required to install the package -- everything is fetched
     lazily into the cache dir (`podcast doctor` shows the path) the first time
@@ -153,9 +159,9 @@ def bootstrap(
         raise typer.Exit(2)
 
     wanted: tuple[str, ...] = _COMPONENTS if component == "all" else (component,)
-    # NISQA is opt-in only (joinqc extra); never pull on `bootstrap --component all`.
+    # Opt-in components (NISQA, the forced word aligner) never pull on `--component all`.
     if component == "all":
-        wanted = tuple(c for c in wanted if c != "nisqa")
+        wanted = tuple(c for c in wanted if c not in _OPT_IN_COMPONENTS)
     ok = True
     if "ffmpeg" in wanted:
         ok = _bootstrap_ffmpeg_component(force=upgrade) and ok
@@ -172,6 +178,8 @@ def bootstrap(
         ok = _report_silero_component() and ok
     if "nisqa" in wanted:
         ok = _bootstrap_nisqa_component(force=upgrade) and ok
+    if "word-aligner" in wanted:
+        ok = _bootstrap_word_aligner_component(force=upgrade) and ok
 
     if not ok:
         raise typer.Exit(1)
@@ -230,6 +238,19 @@ def _bootstrap_nisqa_component(*, force: bool) -> bool:
         typer.echo(f"[fail] nisqa: {exc}", err=True)
         return False
     typer.echo(f"[ok] nisqa model: {path}")
+    return True
+
+
+def _bootstrap_word_aligner_component(*, force: bool) -> bool:
+    if not force and word_aligner_is_cached():
+        typer.echo(f"[skip] word-aligner: {DEFAULT_WORD_ALIGNER} already cached")
+        return True
+    try:
+        result = bootstrap_word_aligner(force=force)
+    except Exception as exc:  # network / hub failures
+        typer.echo(f"[fail] word-aligner: {exc}", err=True)
+        return False
+    typer.echo(f"[ok] word-aligner {result['model']!r}: {result['path']}")
     return True
 
 

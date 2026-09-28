@@ -1,0 +1,138 @@
+"""Opt-in CTC forced-alignment pass over Whisper's words (#714).
+
+Re-times Whisper's word boundaries with a local wav2vec2 CTC aligner
+(``word_aligner_models.WORD_ALIGNER_CATALOG``). Words the aligner cannot
+place keep Whisper's times — this module never invents a boundary.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from podcast_mcp.engines.ctc_forced_align import (
+    DEFAULT_MAX_GAP_SEC,
+    DEFAULT_MAX_WINDOW_SEC,
+    DEFAULT_PAD_SEC,
+    CtcVocab,
+    LogProbBackend,
+    RetimeStats,
+    log_softmax,
+    normalize_waveform,
+    retime_spans,
+)
+from podcast_mcp.models.episode import TranscriptWord
+from podcast_mcp.word_aligner_models import (
+    DEFAULT_WORD_ALIGNER,
+    WordAlignerModel,
+    resolve_word_aligner_dir,
+    word_aligner_model,
+)
+
+# The #641 measurement setting.
+DEFAULT_ALIGNER_THREADS = 4
+
+
+class OnnxCtcBackend:
+    def __init__(self, model_path: Path, *, threads: int = DEFAULT_ALIGNER_THREADS) -> None:
+        try:
+            import onnxruntime as ort
+        except ImportError as exc:
+            raise RuntimeError(
+                "word alignment needs onnxruntime (a core dependency): run uv sync"
+            ) from exc
+
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = threads
+        self._session = ort.InferenceSession(
+            str(model_path), opts, providers=["CPUExecutionProvider"]
+        )
+        self._input_name = self._session.get_inputs()[0].name
+
+    def log_probs(self, samples: np.ndarray) -> np.ndarray:
+        feed = {self._input_name: normalize_waveform(samples)[None, :].astype(np.float32)}
+        return log_softmax(self._session.run(None, feed)[0][0])
+
+
+@dataclass(frozen=True)
+class WordAlignResult:
+    spans: list[tuple[float, float] | None]
+    stats: RetimeStats
+    runtime_sec: float
+
+
+class WordAligner:
+    def __init__(self, model: WordAlignerModel, backend: LogProbBackend, vocab: CtcVocab) -> None:
+        self.model = model
+        self._backend = backend
+        self._vocab = vocab
+
+    @classmethod
+    def load(
+        cls, model_id: str = DEFAULT_WORD_ALIGNER, *, threads: int | None = None
+    ) -> WordAligner:
+        model = word_aligner_model(model_id)
+        model_dir = resolve_word_aligner_dir(model.id)
+        vocab = CtcVocab.from_token_map(
+            json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
+        )
+        backend = OnnxCtcBackend(
+            model_dir / model.onnx_file,
+            threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),
+        )
+        return cls(model, backend, vocab)
+
+    def supports_language(self, language: str | None) -> bool:
+        return (language or "en") in self.model.languages
+
+    def cache_identity(self) -> dict[str, Any]:
+        return {
+            "model": self.model.id,
+            "repo": self.model.hf_repo,
+            "revision": self.model.revision,
+            "onnx_file": self.model.onnx_file,
+            "max_gap_sec": DEFAULT_MAX_GAP_SEC,
+            "max_window_sec": DEFAULT_MAX_WINDOW_SEC,
+            "pad_sec": DEFAULT_PAD_SEC,
+        }
+
+    def align(self, audio_path: Path, words: Sequence[TranscriptWord]) -> WordAlignResult:
+        start = time.perf_counter()
+        from podcast_mcp.engines.audio_audit import load_mono_full
+        from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2
+
+        samples = load_mono_full(audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2)
+        spans, stats = retime_spans(
+            samples, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
+        )
+        return WordAlignResult(spans, stats, time.perf_counter() - start)
+
+
+def apply_word_spans(
+    words: list[TranscriptWord], spans: Sequence[tuple[float, float] | None]
+) -> int:
+    """Re-time non-None spans onto ``words`` in place; return the count re-timed.
+
+    A retimed word loses the ``deferred`` status that Whisper's stretched span
+    gave it, since an ASR result only carries the status that
+    ``flag_anomalous_asr_durations`` set on Whisper's span, and the backstop
+    re-judges the aligned span afterwards.
+    """
+    if len(words) != len(spans):
+        raise ValueError(f"words/spans length mismatch: {len(words)} != {len(spans)}")
+    retimed = 0
+    for word, span in zip(words, spans, strict=True):
+        if span is None:
+            continue
+        word.start, word.end = span
+        if word.audibility_status == "deferred":
+            word.audibility_status = None
+        retimed += 1
+    return retimed
