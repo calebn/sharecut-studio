@@ -52,9 +52,12 @@ describe("EditingToolRailView", () => {
     const { rerender } = render(
       <EditingToolRailView {...baseProps()} toolMode="blade" />,
     );
-    expect(
-      screen.getByRole("button", { name: "Cut at playhead" }),
-    ).not.toBeDisabled();
+    const cutButton = screen.getByRole("button", { name: "Cut at playhead" });
+    expect(cutButton).not.toBeDisabled();
+    expect(cutButton).toHaveAttribute(
+      "title",
+      "Cut selected tracks at playhead",
+    );
 
     rerender(<EditingToolRailView {...baseProps()} toolMode="blade" busy />);
     expect(

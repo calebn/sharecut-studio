@@ -59,6 +59,7 @@ function RailPreview({
             commentMode={commentMode}
             selectTitle="Select tool (V)"
             bladeTitle="Blade tool (C)"
+            commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
             onSelect={() => {
               setToolMode("select");
               setCommentMode(false);

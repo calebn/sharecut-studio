@@ -7,7 +7,11 @@ export interface ToolModeToggleViewProps {
   toolMode: ToolMode;
   commentMode: boolean;
   selectTitle: string;
+  selectAriaKeyShortcuts?: string;
   bladeTitle: string;
+  bladeAriaKeyShortcuts?: string;
+  commentTitle: string;
+  commentAriaKeyShortcuts?: string;
   onSelect: () => void;
   onBlade: () => void;
   onToggleComment: () => void;
@@ -20,7 +24,11 @@ export function ToolModeToggleView({
   toolMode,
   commentMode,
   selectTitle,
+  selectAriaKeyShortcuts,
   bladeTitle,
+  bladeAriaKeyShortcuts,
+  commentTitle,
+  commentAriaKeyShortcuts,
   onSelect,
   onBlade,
   onToggleComment,
@@ -40,6 +48,7 @@ export function ToolModeToggleView({
             pressed={selectActive}
             title={selectTitle}
             aria-label="Select"
+            aria-keyshortcuts={selectAriaKeyShortcuts}
             onClick={onSelect}
           >
             <Icon name="select" />
@@ -49,6 +58,7 @@ export function ToolModeToggleView({
             pressed={bladeActive}
             title={`${bladeTitle}: split at click or playhead`}
             aria-label="Blade"
+            aria-keyshortcuts={bladeAriaKeyShortcuts}
             onClick={onBlade}
           >
             <Icon name="blade" />
@@ -60,8 +70,9 @@ export function ToolModeToggleView({
           quiet
           pressed={commentMode}
           className="comment-mode-btn"
-          title="Comment mode: click/drag ruler to anchor feedback"
+          title={commentTitle}
           aria-label="Comment"
+          aria-keyshortcuts={commentAriaKeyShortcuts}
           onClick={onToggleComment}
         >
           <Icon name="comment" />

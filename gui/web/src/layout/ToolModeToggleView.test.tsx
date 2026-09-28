@@ -21,6 +21,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -47,6 +48,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -68,6 +70,7 @@ describe("ToolModeToggleView", () => {
         commentMode
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -81,25 +84,36 @@ describe("ToolModeToggleView", () => {
     );
   });
 
-  it("titles Select and Blade with their shortcuts", () => {
+  it("titles Select, Blade and Comment with their shortcuts", () => {
     render(
       <ToolModeToggleView
         structuralToolsAllowed
         toolMode="select"
         commentMode={false}
         selectTitle="Select tool (V)"
+        selectAriaKeyShortcuts="V"
         bladeTitle="Blade tool (C)"
+        bladeAriaKeyShortcuts="C"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
+        commentAriaKeyShortcuts="Meta+Shift+C"
         {...actions()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute(
-      "title",
-      "Select tool (V)",
-    );
-    expect(screen.getByRole("button", { name: "Blade" })).toHaveAttribute(
+    const select = screen.getByRole("button", { name: "Select" });
+    expect(select).toHaveAttribute("title", "Select tool (V)");
+    expect(select).toHaveAttribute("aria-keyshortcuts", "V");
+    const blade = screen.getByRole("button", { name: "Blade" });
+    expect(blade).toHaveAttribute(
       "title",
       "Blade tool (C): split at click or playhead",
     );
+    expect(blade).toHaveAttribute("aria-keyshortcuts", "C");
+    const comment = screen.getByRole("button", { name: "Comment" });
+    expect(comment).toHaveAttribute(
+      "title",
+      "Comment mode: click/drag ruler to anchor feedback (⌘⇧C)",
+    );
+    expect(comment).toHaveAttribute("aria-keyshortcuts", "Meta+Shift+C");
   });
 
   it("renders inside a group with the shared segmented classes", () => {
@@ -110,6 +124,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -127,6 +142,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -143,6 +159,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...actions()}
       />,
     );
@@ -161,6 +178,7 @@ describe("ToolModeToggleView", () => {
         commentMode={false}
         selectTitle="Select tool (V)"
         bladeTitle="Blade tool (C)"
+        commentTitle="Comment mode: click/drag ruler to anchor feedback (⌘⇧C)"
         {...cbs}
       />,
     );

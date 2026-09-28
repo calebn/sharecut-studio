@@ -16,6 +16,7 @@ function ToolModePreview({
   structuralToolsAllowed,
   selectTitle,
   bladeTitle,
+  commentTitle,
   onSelect,
   onBlade,
   onToggleComment,
@@ -24,6 +25,7 @@ function ToolModePreview({
   structuralToolsAllowed: boolean;
   selectTitle: string;
   bladeTitle: string;
+  commentTitle: string;
   onSelect: () => void;
   onBlade: () => void;
   onToggleComment: () => void;
@@ -37,7 +39,11 @@ function ToolModePreview({
       toolMode={toolMode}
       commentMode={commentMode}
       selectTitle={selectTitle}
+      selectAriaKeyShortcuts="V"
       bladeTitle={bladeTitle}
+      bladeAriaKeyShortcuts="C"
+      commentTitle={commentTitle}
+      commentAriaKeyShortcuts="Meta+Shift+C"
       onSelect={() => {
         setToolMode("select");
         setCommentMode(false);
@@ -65,6 +71,7 @@ const meta: Meta<typeof ToolModePreview> = {
     structuralToolsAllowed: true,
     selectTitle: "Select tool (V)",
     bladeTitle: "Blade tool (C)",
+    commentTitle: "Comment mode: click/drag ruler to anchor feedback (⌘⇧C)",
     onSelect: fn(),
     onBlade: fn(),
     onToggleComment: fn(),

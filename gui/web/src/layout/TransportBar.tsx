@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
 import { execute } from "../commands/execute";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
@@ -23,7 +29,6 @@ import {
   CommandButton,
   CommandMenuItem,
   Icon,
-  type IconName,
   Menu,
   MenuSection,
   type MenuTriggerProps,
@@ -35,6 +40,7 @@ import {
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { AvatarStack } from "./AvatarStack";
+import { commentModeTitle } from "./commentModeTitle";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
 import { LAYOUT_MODES } from "./layoutModes";
 import { OverlayLegend } from "./OverlayLegend";
@@ -220,7 +226,8 @@ export function TransportBar({
   const viewOpen = viewOpenState && !collapsed;
 
   const menuTrigger =
-    (label: string, title: string, icon: IconName) => (t: MenuTriggerProps) => (
+    (label: string, title: string, content: ReactNode) =>
+    (t: MenuTriggerProps) => (
       <button
         type="button"
         className="ui-control ui-control--compact transport-icon-btn transport-more-btn"
@@ -228,7 +235,7 @@ export function TransportBar({
         aria-label={label}
         title={title}
       >
-        <Icon name={icon} />
+        {content}
       </button>
     );
 
@@ -408,8 +415,9 @@ export function TransportBar({
                   bare
                   commandId="edit.bladeCut"
                   className="ui-control--compact transport-icon-btn"
-                  title="Split selected tracks at playhead"
+                  title={titleWithShortcut("Cut at playhead", "edit.bladeCut")}
                   aria-label="Cut at playhead"
+                  aria-keyshortcuts={ariaKeyShortcutsFor("edit.bladeCut")}
                 >
                   <Icon name="cutAtPlayhead" />
                 </CommandButton>
@@ -420,8 +428,11 @@ export function TransportBar({
               bare
               commandId="review.toggleCommentMode"
               className={`ui-control--compact transport-icon-btn comment-mode-btn${commentMode ? " active" : ""}`}
-              title="Comment mode: click/drag ruler to anchor feedback"
+              title={commentModeTitle}
               aria-label="Comment"
+              aria-keyshortcuts={ariaKeyShortcutsFor(
+                "review.toggleCommentMode",
+              )}
               aria-pressed={commentMode}
             >
               <Icon name="comment" />
@@ -432,8 +443,12 @@ export function TransportBar({
               bare
               commandId="view.fit"
               className="ui-control--compact transport-icon-btn fit-btn"
-              title={capabilityTooltip("daw.view.fit")}
+              title={titleWithShortcut(
+                capabilityTooltip("daw.view.fit"),
+                "view.fit",
+              )}
               aria-label={capabilityLabel("daw.view.fit")}
+              aria-keyshortcuts={ariaKeyShortcutsFor("view.fit")}
             >
               <Icon name="fit" />
             </CommandButton>
@@ -464,7 +479,7 @@ export function TransportBar({
               trigger={menuTrigger(
                 "View",
                 "Layers, zoom, track height, layout, and theme",
-                "layers",
+                "View",
               )}
             >
               {viewSections(closeView)}
@@ -481,7 +496,7 @@ export function TransportBar({
               collapsed
                 ? "Layers, zoom, theme, and more"
                 : "Project, media, and help",
-              "menu",
+              <Icon name="menu" />,
             )}
           >
             {collapsed ? <AvatarStack variant="menu" /> : null}

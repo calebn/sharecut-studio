@@ -92,17 +92,18 @@ export function AvatarStackView({
     <div className="avatar-stack" role="group" aria-label="People in session">
       {shown.map((c) => {
         const name = names.get(c.client_id) ?? rosterDisplayName(c);
+        const followLabel =
+          followingClientId === c.client_id
+            ? `Stop following ${name}`
+            : `Follow ${name}`;
         return (
           <button
             key={c.client_id}
             type="button"
             className="ui-control avatar-stack-btn"
             aria-pressed={followingClientId === c.client_id}
-            aria-label={
-              followingClientId === c.client_id
-                ? `Stop following ${name}`
-                : `Follow ${name}`
-            }
+            aria-label={followLabel}
+            title={followLabel}
             onClick={() => onFollow(c.client_id)}
           >
             <Avatar
