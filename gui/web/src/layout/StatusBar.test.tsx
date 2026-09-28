@@ -144,7 +144,7 @@ describe("StatusBar live region", () => {
     useDawStore.getState().setPipelineJob(null);
     useDawStore.getState().setActivityJob(null);
     useDawStore.getState().setActivityRunningCount(0);
-    useDawStore.setState({ pendingJobResults: {}, spokenJobResultId: null });
+    useDawStore.setState({ pendingJobResults: {}, spokenJobResultIds: [] });
   });
 
   afterEach(() => {
@@ -535,6 +535,59 @@ describe("StatusBar live region", () => {
       useDawStore.getState().setActivityRunningCount(1);
     });
     expect(status.textContent).toBe("RESULT-B1. RESULT-B0");
+  });
+
+  it("keeps every result spoken in one pass marked, not only the chip's own (#704)", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().expectJobResult("a");
+      useDawStore.getState().expectJobResult("b");
+      useDawStore
+        .getState()
+        .setActivityJob(bounceChip("x", "running", "Mixing bounce…"));
+    });
+    act(() => {
+      useDawStore.getState().announceJobResult("a", "RESULT-A");
+      useDawStore.getState().announceJobResult("b", "RESULT-B");
+    });
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("RESULT-A. RESULT-B");
+    act(() => {
+      useDawStore
+        .getState()
+        .setActivityJob(bounceChip("a", "ok", "Bounce complete"));
+    });
+    expect(status.textContent).toBe("RESULT-A. RESULT-B");
+  });
+
+  it("does not let a later result for another job un-mark the chip's spoken job (#704)", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().expectJobResult("j");
+      useDawStore.getState().announceJobResult("j", "RESULT-J");
+      useDawStore
+        .getState()
+        .setActivityJob(bounceChip("j", "ok", "Bounce complete"));
+    });
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("RESULT-J");
+    act(() => {
+      useDawStore.getState().expectJobResult("k");
+      useDawStore.getState().announceJobResult("k", "RESULT-K");
+    });
+    expect(status.textContent).toBe("RESULT-K");
+    act(() => {
+      useDawStore.getState().setActivityRunningCount(1);
+    });
+    expect(status.textContent).toBe("RESULT-K");
   });
 
   it("does not speak the generic headline over a spoken result after a remount (#704)", () => {

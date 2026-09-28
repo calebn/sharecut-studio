@@ -20,10 +20,7 @@ import {
  *   status. A result for any other job (the chip has moved on) is spoken at
  *   once. Results that are ready in the same pass are joined into one
  *   announcement, because the live region holds a single message.
- * - A spoken result is dropped from the store. The spoken job id is kept in
- *   the store (`spokenJobResultId`), not in the hook, so later chip updates for
- *   that terminal job (such as the running count dropping) and a remount
- *   (desktop <-> phone shell) do not announce the generic headline over it.
+ * - A spoken result is dropped from the store, and its job id is remembered in the store's bounded list (`spokenJobResultIds`), not in the hook. So neither a later chip update for any spoken job (such as the running count dropping) nor a remount (desktop <-> phone shell) announces the generic headline over it.
  */
 export function useJobStatusAnnouncement(): void {
   const {
@@ -32,16 +29,14 @@ export function useJobStatusAnnouncement(): void {
     activityRunningCount,
     pendingJobResults,
     announceStatus,
-    settleJobResult,
-    setSpokenJobResultId,
+    markJobResultsSpoken,
   } = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
     pendingJobResults: s.pendingJobResults,
     announceStatus: s.announceStatus,
-    settleJobResult: s.settleJobResult,
-    setSpokenJobResultId: s.setSpokenJobResultId,
+    markJobResultsSpoken: s.markJobResultsSpoken,
   }));
   const chipJob = activityJob ?? pipelineJob;
   const jobId = chipJob?.id;
@@ -57,9 +52,9 @@ export function useJobStatusAnnouncement(): void {
     // Read at effect time on purpose, not as dependencies: settling an entry or
     // recording the spoken id must not re-run this effect and speak the
     // generic headline over the copy.
-    const { pendingJobResults: pending, spokenJobResultId } =
+    const { pendingJobResults: pending, spokenJobResultIds } =
       useDawStore.getState();
-    if (chipTerminal && jobId === spokenJobResultId) {
+    if (chipTerminal && jobId != null && spokenJobResultIds.includes(jobId)) {
       return;
     }
     if (jobStatus === "ok" && jobId != null && jobId in pending) {
@@ -101,20 +96,12 @@ export function useJobStatusAnnouncement(): void {
     // One write: `statusAnnouncement` is a single field, so one write per
     // result would keep only the last.
     announceStatus(messages.join(". "));
-    setSpokenJobResultId(
-      jobId != null && readyIds.includes(jobId)
-        ? jobId
-        : (readyIds.at(-1) ?? null),
-    );
-    for (const id of readyIds) {
-      settleJobResult(id);
-    }
+    markJobResultsSpoken(readyIds);
   }, [
     announceStatus,
     chipTerminal,
     jobId,
+    markJobResultsSpoken,
     pendingJobResults,
-    setSpokenJobResultId,
-    settleJobResult,
   ]);
 }

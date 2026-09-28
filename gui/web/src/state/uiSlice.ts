@@ -49,6 +49,9 @@ import type {
   TranscriptReviewCursor,
 } from "./types";
 
+/** Most job ids `useJobStatusAnnouncement` remembers as spoken (oldest dropped first, #704). */
+export const SPOKEN_JOB_RESULT_LIMIT = 16;
+
 function clipTrackId(
   project: ProjectView | null,
   clipId: string,
@@ -112,7 +115,7 @@ type UiSlice = Pick<
   | "ingestDropTrackId"
   | "statusAnnouncement"
   | "pendingJobResults"
-  | "spokenJobResultId"
+  | "spokenJobResultIds"
   | "setHighlightStaleRender"
   | "setRenderPreviewBusy"
   | "setIngestBusy"
@@ -121,7 +124,7 @@ type UiSlice = Pick<
   | "expectJobResult"
   | "announceJobResult"
   | "settleJobResult"
-  | "setSpokenJobResultId"
+  | "markJobResultsSpoken"
   | "zoomPxPerSec"
   | "waveformAmpZoom"
   | "waveformScale"
@@ -238,7 +241,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     ingestDropTrackId: null as string | null,
     statusAnnouncement: "",
     pendingJobResults: {},
-    spokenJobResultId: null as string | null,
+    spokenJobResultIds: [] as readonly string[],
     setHighlightStaleRender: (highlightStaleRender) =>
       set({ highlightStaleRender }),
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
@@ -265,7 +268,21 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
             }
           : {},
       ),
-    setSpokenJobResultId: (spokenJobResultId) => set({ spokenJobResultId }),
+    markJobResultsSpoken: (jobIds) =>
+      set((s) => {
+        const spoken = new Set(jobIds);
+        return {
+          pendingJobResults: Object.fromEntries(
+            Object.entries(s.pendingJobResults).filter(
+              ([id]) => !spoken.has(id),
+            ),
+          ),
+          spokenJobResultIds: [
+            ...s.spokenJobResultIds.filter((id) => !spoken.has(id)),
+            ...jobIds,
+          ].slice(-SPOKEN_JOB_RESULT_LIMIT),
+        };
+      }),
 
     zoomPxPerSec: 40,
     waveformAmpZoom: 1,

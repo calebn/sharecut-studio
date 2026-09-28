@@ -213,15 +213,19 @@ export interface DawState {
   /**
    * Result copy owed by jobs whose callers announce their own outcome (#704):
    * `useJobStatusAnnouncement` holds back the generic "ok" headline for these
-   * jobs and speaks the copy once it arrives.
+   * jobs and speaks the copy once it arrives. Reset by a project switch (hydrate).
    */
   pendingJobResults: PendingJobResults;
   /**
-   * Job whose own result copy `useJobStatusAnnouncement` spoke most recently.
-   * Kept in the store rather than the hook so a remount (desktop <-> phone
-   * shell) does not speak the generic headline over a result already spoken (#704).
+   * Jobs whose own result copy `useJobStatusAnnouncement` has spoken, oldest
+   * first, capped at `SPOKEN_JOB_RESULT_LIMIT`. This is a list, not one slot,
+   * for two reasons: one pass can speak several results, and a later result
+   * for another job must not un-mark the chip's own job. It is kept in the
+   * store rather than the hook, so a remount (desktop <-> phone shell) does
+   * not speak the generic headline over a result already spoken (#704).
+   * Reset by a project switch (hydrate).
    */
-  spokenJobResultId: string | null;
+  spokenJobResultIds: readonly string[];
   /** Presence roster from session Snapshot / Presence events, keyed by `client_id`
    * (#598: a `PresenceDelta` replaces only its own entry). */
   sessionClients: SessionRoster;
@@ -365,8 +369,8 @@ export interface DawState {
   announceJobResult: (jobId: string, message: string) => void;
   /** Drop a job's pending result (spoken, failed or aborted). */
   settleJobResult: (jobId: string) => void;
-  /** Record the job whose result copy was just spoken (see `spokenJobResultId`). */
-  setSpokenJobResultId: (jobId: string | null) => void;
+  /** In one store write, drop these jobs' pending results and remember them as spoken (see `spokenJobResultIds`). */
+  markJobResultsSpoken: (jobIds: readonly string[]) => void;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */
