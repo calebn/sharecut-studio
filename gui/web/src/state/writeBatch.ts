@@ -69,6 +69,16 @@ export function createWriteBatch<T extends object>(): WriteBatch<T> {
     }
   }
 
+  /**
+   * Swaps `api.setState` / `api.getState` in place rather than composing
+   * through zustand's middleware chain, so it must stay the only middleware
+   * on the store (or wrap the slice creator directly, inside every other
+   * one). An outer middleware that captured the original `api.setState`
+   * would bypass batching, and an inner one would read the batch's pending
+   * state from `getState()`. Adding `persist`, `devtools` or
+   * `subscribeWithSelector` needs a test that batching and read-your-writes
+   * still hold.
+   */
   const middleware =
     (config: StateCreator<T, [], [], T>): StateCreator<T, [], [], T> =>
     (_set, _get, api) => {
