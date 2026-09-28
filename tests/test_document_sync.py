@@ -788,6 +788,58 @@ def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
     assert saved == winner
 
 
+@pytest.mark.parametrize("kind", ["correct_word", "correct_phrase"])
+def test_guarded_correction_check_and_edit_share_one_outer_transaction(
+    minimal_project, monkeypatch, kind
+):
+    """The #650 stale-text check and the mutation run inside one outer transaction (#742)."""
+    import podcast_mcp.services.edit as edit_mod
+    from podcast_mcp.services.edit import EditService
+
+    _seed_host_words(minimal_project, ["teh", "quikc", "fox"])
+    ws = ProjectWorkspace.open(minimal_project)
+    events: list[tuple[str, int]] = []
+
+    orig_adopt = ws._adopt_saved_if_changed_locked
+
+    def spy_adopt() -> None:
+        events.append(("outer", ws._transaction_depth))
+        return orig_adopt()
+
+    monkeypatch.setattr(ws, "_adopt_saved_if_changed_locked", spy_adopt)
+
+    orig_require = edit_mod.require_word_text
+
+    def spy_require(*args, **kwargs):
+        events.append(("check", ws._transaction_depth))
+        return orig_require(*args, **kwargs)
+
+    monkeypatch.setattr(edit_mod, "require_word_text", spy_require)
+
+    orig_correct_word = edit_mod.correct_word
+    orig_correct_phrase = edit_mod.correct_phrase
+
+    def spy_correct_word(*args, **kwargs):
+        events.append(("edit", ws._transaction_depth))
+        return orig_correct_word(*args, **kwargs)
+
+    def spy_correct_phrase(*args, **kwargs):
+        events.append(("edit", ws._transaction_depth))
+        return orig_correct_phrase(*args, **kwargs)
+
+    monkeypatch.setattr(edit_mod, "correct_word", spy_correct_word)
+    monkeypatch.setattr(edit_mod, "correct_phrase", spy_correct_phrase)
+
+    svc = EditService(ws)
+    if kind == "correct_word":
+        svc.correct_word("host", 0, "the", expected_text="teh")
+    else:
+        svc.correct_phrase("host", 0, 1, "the quick", expected_text="teh quikc")
+
+    assert events == [("outer", 0), ("check", 1), ("edit", 2)]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].text == "the"
+
+
 def test_apply_maps_stale_target_errors_to_conflict():
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
     from podcast_mcp.services.document_sync.service import STALE_TARGET_ERRORS
