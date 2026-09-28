@@ -52,6 +52,10 @@ _T = TypeVar("_T")
 _CORRUPT_META_WARNED: set[str] = set()
 _CORRUPT_META_WARNED_LOCK = threading.Lock()
 
+# Never evicted, deliberately: one small Lock per distinct workspace this process has
+# submitted to. ``discard_idle`` is unsafe here: a CLI/MCP ``submit`` may hold a
+# fetched but unacquired instance, and a fresh one would let the watcher read that row
+# before its publish and let two submits publish out of server_seq order (#695).
 _PUBLISH_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 
 
