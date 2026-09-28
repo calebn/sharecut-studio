@@ -102,6 +102,10 @@ export interface PipelineComponentStatus {
   path?: string;
   hint?: string;
   bootstrap?: string;
+  opt_in?: boolean;
+  model?: string;
+  label?: string;
+  size?: string;
 }
 
 export interface WhisperModelCatalogRow {

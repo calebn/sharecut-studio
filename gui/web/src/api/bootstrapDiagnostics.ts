@@ -11,6 +11,11 @@ export type BootstrapComponentStatus = {
   cache?: string;
   path?: string;
   note?: string;
+  opt_in?: boolean;
+  label?: string;
+  size?: string;
+  hint?: string;
+  bootstrap?: string;
 };
 
 export type WhisperModelChoice = {
@@ -31,6 +36,7 @@ export type BootstrapStatus = {
   components: Record<string, BootstrapComponentStatus>;
   default_components: string[];
   optional_components: string[];
+  opt_in_components?: string[];
 };
 
 export type BootstrapJobSnapshot = {

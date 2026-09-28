@@ -1,19 +1,18 @@
-import { useEffect, useId, useRef, useState } from "react";
-import {
-  runBootstrap,
-  type WhisperModelChoice,
-  waitForBootstrapJob,
-} from "../api";
+import { useEffect, useId, useRef } from "react";
+import { type WhisperModelChoice } from "../api";
+import { useBootstrapDownload } from "../hooks/useBootstrapDownload";
 import { Button, Dialog, InlineError } from "../ui";
-import { errorMessage } from "../utils/apiError";
 
-export type WhisperDownloadReason = "select" | "run" | "retranscribe";
+/** A pipeline run mode: an ordinary run, forced re-transcription, or a forced-aligner re-time. */
+export type PipelineRunMode = "run" | "retranscribe" | "retime";
+
+export type WhisperDownloadReason = "select" | PipelineRunMode;
 
 export type WhisperDownloadRequest = {
   modelId: string;
   reason: WhisperDownloadReason;
   previousId?: string;
-  /** Re-transcribe only: the user confirmed replacing hand-edited transcripts. */
+  /** Re-transcribe / Re-time words only: the user confirmed replacing hand-edited transcripts. */
   overwriteEdited?: boolean;
 };
 
@@ -122,10 +121,7 @@ export function WhisperDownloadDialog({
   onDownloaded,
 }: DialogProps) {
   const downloadBtnRef = useRef<HTMLButtonElement>(null);
-  const inFlightRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, progress, error, download, reset } = useBootstrapDownload();
   const dialogOpen = pending != null;
   const pendingModel =
     pending != null
@@ -134,11 +130,9 @@ export function WhisperDownloadDialog({
 
   useEffect(() => {
     if (!dialogOpen) {
-      setBusy(false);
-      setProgress(null);
-      setError(null);
+      reset();
     }
-  }, [dialogOpen]);
+  }, [dialogOpen, reset]);
 
   const closeOrRevert = () => {
     if (busy) {
@@ -148,33 +142,16 @@ export function WhisperDownloadDialog({
   };
 
   const startDownload = async () => {
-    if (!pending || inFlightRef.current) {
+    if (!pending) {
       return;
     }
-    inFlightRef.current = true;
-    setBusy(true);
-    setError(null);
-    setProgress("Starting download…");
-    try {
-      const started = await runBootstrap({
+    if (
+      await download({
         components: ["whisper"],
         whisper_model: pending.modelId,
-      });
-      const job = started.job;
-      setProgress(job.message ?? "Downloading…");
-      await waitForBootstrapJob(job.id, {
-        onUpdate: (next) => {
-          if (next.message) {
-            setProgress(next.message);
-          }
-        },
-      });
+      })
+    ) {
       onDownloaded(pending.modelId);
-    } catch (e: unknown) {
-      setError(errorMessage(e));
-      setBusy(false);
-    } finally {
-      inFlightRef.current = false;
     }
   };
 
