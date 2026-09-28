@@ -5,6 +5,7 @@ import {
   type LowConfidenceStop,
   lowConfidenceStops,
   reviewCursorIndex,
+  selectLowConfidenceStops,
   stepLowConfidence,
 } from "./lowConfidence";
 
@@ -117,6 +118,59 @@ describe("lowConfidenceStops", () => {
       { trackId: "guest", wordIndex: 0, text: "well", seekSec: null, order: 0 },
       { trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 2 },
     ]);
+  });
+});
+
+describe("selectLowConfidenceStops", () => {
+  const utts: CombinedUtterance[] = [
+    u({
+      track_id: "host",
+      text: "so um",
+      words: [
+        { text: "so", start: 0, end: 0.5, word_index: 0, confidence: 0.9 },
+        {
+          text: "um",
+          start: 0.5,
+          end: 1,
+          word_index: 1,
+          confidence: 0.4,
+          timeline_start: 5,
+        },
+      ],
+    }),
+    u({
+      track_id: "guest",
+      text: "well",
+      mappable: false,
+      words: [
+        {
+          text: "well",
+          start: 2,
+          end: 2.5,
+          word_index: 0,
+          confidence: 0.3,
+          mappable: false,
+        },
+      ],
+    }),
+  ];
+
+  it("caches by utterance array identity and effective visibility", () => {
+    const a = selectLowConfidenceStops(utts, true, false);
+    const b = selectLowConfidenceStops(utts, true, false);
+    expect(b).toBe(a);
+    expect(a).toEqual(lowConfidenceStops(utts, true, false));
+
+    // Same effective visibility (annotate && showCutAway is false either way).
+    const c = selectLowConfidenceStops(utts, false, true);
+    expect(c).toBe(a);
+
+    const d = selectLowConfidenceStops(utts, true, true);
+    expect(d).not.toBe(a);
+    expect(d).toHaveLength(2);
+
+    const e = selectLowConfidenceStops([...utts], true, true);
+    expect(e).not.toBe(d);
   });
 });
 

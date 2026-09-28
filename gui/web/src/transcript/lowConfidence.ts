@@ -97,3 +97,32 @@ export function stepLowConfidence(
   }
   return n - 1;
 }
+
+let cachedStops: {
+  utterances: readonly CombinedUtterance[];
+  showAll: boolean;
+  stops: LowConfidenceStop[];
+} | null = null;
+
+/**
+ * `lowConfidenceStops`, memoized on the utterance array's identity and the
+ * visibility it implies, so the transcript toolbar and each Next/Previous
+ * step share one O(words) scan per project change.
+ */
+export function selectLowConfidenceStops(
+  utterances: readonly CombinedUtterance[],
+  annotate: boolean,
+  showCutAway: boolean,
+): LowConfidenceStop[] {
+  const showAll = annotate && showCutAway;
+  if (
+    cachedStops &&
+    cachedStops.utterances === utterances &&
+    cachedStops.showAll === showAll
+  ) {
+    return cachedStops.stops;
+  }
+  const stops = lowConfidenceStops(utterances, annotate, showCutAway);
+  cachedStops = { utterances, showAll, stops };
+  return stops;
+}
