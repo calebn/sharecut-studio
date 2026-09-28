@@ -1,23 +1,16 @@
+/**
+ * Builds CommandPaletteView's rows from the live keymap registry, including
+ * remap overrides. It imports the store-bound registry at runtime, so
+ * CommandPaletteView.tsx and its stories only `import type` from this module.
+ */
 import { COMMANDS, listCatalogIds } from "../commands/catalog";
 import {
   formatShortcutKeys,
+  KEYMAP_CATEGORY_ORDER,
   KEYMAP_COMMANDS,
   type KeymapCategory,
   keymapByCategory,
 } from "../keymap/registry";
-
-export const CATEGORY_ORDER: KeymapCategory[] = [
-  "transport",
-  "tools",
-  "layout",
-  "navigation",
-  "review",
-  "history",
-  "edit",
-  "view",
-  "ui",
-  "presence",
-];
 
 export interface CommandPaletteShortcutRow {
   id: string;
@@ -39,7 +32,7 @@ export interface CommandPaletteAction {
 /** Keymapped commands grouped by category, in cheatsheet display order, empty ones dropped. */
 export function commandPaletteCategories(): CommandPaletteCategory[] {
   const byCat = keymapByCategory();
-  return CATEGORY_ORDER.filter(
+  return KEYMAP_CATEGORY_ORDER.filter(
     (category) => (byCat[category] ?? []).length,
   ).map((category) => ({
     category,

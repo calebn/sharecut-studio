@@ -5,6 +5,7 @@ import {
   displayShortcutKeys,
   formatShortcutKeys,
   ignoresKeyRepeat,
+  KEYMAP_CATEGORY_ORDER,
   KEYMAP_COMMANDS,
   keymapByCategory,
   keymapCommandById,
@@ -41,6 +42,15 @@ describe("keymap registry", () => {
     expect(ids).toContain("transport.togglePlay");
     expect(ids).toContain("layout.timeline");
     expect(ids).toContain("history.undo");
+  });
+
+  it("KEYMAP_CATEGORY_ORDER lists every category exactly once", () => {
+    expect([...KEYMAP_CATEGORY_ORDER].sort()).toEqual(
+      Object.keys(keymapByCategory()).sort(),
+    );
+    expect(new Set(KEYMAP_CATEGORY_ORDER).size).toBe(
+      KEYMAP_CATEGORY_ORDER.length,
+    );
   });
 
   it("formats display keys", () => {

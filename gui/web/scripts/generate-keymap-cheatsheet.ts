@@ -19,26 +19,13 @@ import { fileURLToPath } from "node:url";
 import { COMMANDS, listCatalogIds } from "../src/commands/catalog";
 import {
   formatShortcutKeys,
+  KEYMAP_CATEGORY_ORDER,
   KEYMAP_COMMANDS,
-  type KeymapCategory,
   type KeymapCommand,
 } from "../src/keymap/registry";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "../../..");
-
-const CATEGORY_ORDER: KeymapCategory[] = [
-  "transport",
-  "tools",
-  "layout",
-  "navigation",
-  "review",
-  "history",
-  "edit",
-  "view",
-  "ui",
-  "presence",
-];
 
 const WHEN_HINTS: Record<string, string> = {
   always: "Always (when not typing in an input)",
@@ -83,7 +70,7 @@ function defaultShortcut(cmd: KeymapCommand): string {
 
 function byCategory(cmds: readonly KeymapCommand[]) {
   const out: Record<string, KeymapCommand[]> = {};
-  for (const cat of CATEGORY_ORDER) {
+  for (const cat of KEYMAP_CATEGORY_ORDER) {
     out[cat] = [];
   }
   for (const cmd of cmds) {
@@ -118,7 +105,7 @@ function generatedBody(linkStyle: "docs" | "ux"): string {
   lines.push("");
 
   const grouped = byCategory(KEYMAP_COMMANDS);
-  for (const cat of CATEGORY_ORDER) {
+  for (const cat of KEYMAP_CATEGORY_ORDER) {
     const rows = grouped[cat] ?? [];
     if (!rows.length) {
       continue;
