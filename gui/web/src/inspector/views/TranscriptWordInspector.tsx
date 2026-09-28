@@ -394,9 +394,15 @@ export function TranscriptWordInspector({
       {editable ? (
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
       ) : null}
-      {editable && spanUnverified ? (
-        <p id={hintId} className="ui-field-hint" role="status">
-          {TRANSCRIPT_SPAN_UNVERIFIED_NOTE}
+      {editable ? (
+        // Always mounted so screen readers announce the note when its text
+        // appears; hidden (`sr-only`, out of the flex flow) while empty.
+        <p
+          id={hintId}
+          className={spanUnverified ? "ui-field-hint" : "sr-only"}
+          role="status"
+        >
+          {spanUnverified ? TRANSCRIPT_SPAN_UNVERIFIED_NOTE : null}
         </p>
       ) : null}
     </ModifierInspector>
