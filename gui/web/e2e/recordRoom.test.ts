@@ -6,7 +6,9 @@ import {
   clickHostTransport,
   createRecordRoom,
   ensureHostRecordCommand,
+  LandingPendingError,
   landedTrackPeak,
+  landedTrackPeakOrPending,
   markSharecutE2e,
   openRecordLink,
   recordLinkPath,
@@ -222,63 +224,63 @@ describe("markSharecutE2e", () => {
   });
 });
 
-describe("landedTrackPeak", () => {
-  function writeProject(
-    dir: string,
-    overrides: {
-      tracks?: Array<{ id: string; label?: string }>;
-      clips?: Array<{
-        track_id: string;
-        source_id: string | null;
-        timeline_start: number;
-        source_start: number;
-        source_end: number;
-      }>;
-      sources?: Array<{ id: string; path: string }>;
-    } = {},
-  ): string {
-    const projectPath = path.join(dir, "episode.project.json");
-    const project = {
-      sources: overrides.sources ?? [
-        { id: "s1", path: "raw/a.wav" },
-        { id: "s2", path: "raw/b.wav" },
+function writeProject(
+  dir: string,
+  overrides: {
+    tracks?: Array<{ id: string; label?: string }>;
+    clips?: Array<{
+      track_id: string;
+      source_id: string | null;
+      timeline_start: number;
+      source_start: number;
+      source_end: number;
+    }>;
+    sources?: Array<{ id: string; path: string }>;
+  } = {},
+): string {
+  const projectPath = path.join(dir, "episode.project.json");
+  const project = {
+    sources: overrides.sources ?? [
+      { id: "s1", path: "raw/a.wav" },
+      { id: "s2", path: "raw/b.wav" },
+    ],
+    timeline: {
+      tracks: overrides.tracks ?? [{ id: "t1", label: "Ava" }],
+      clips: overrides.clips ?? [
+        {
+          track_id: "t1",
+          source_id: "s1",
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+        {
+          track_id: "t1",
+          source_id: "s2",
+          timeline_start: 1,
+          source_start: 0,
+          source_end: 1,
+        },
       ],
-      timeline: {
-        tracks: overrides.tracks ?? [{ id: "t1", label: "Ava" }],
-        clips: overrides.clips ?? [
-          {
-            track_id: "t1",
-            source_id: "s1",
-            timeline_start: 0,
-            source_start: 0,
-            source_end: 1,
-          },
-          {
-            track_id: "t1",
-            source_id: "s2",
-            timeline_start: 1,
-            source_start: 0,
-            source_end: 1,
-          },
-        ],
-      },
-    };
-    fs.writeFileSync(projectPath, JSON.stringify(project));
-    return projectPath;
-  }
+    },
+  };
+  fs.writeFileSync(projectPath, JSON.stringify(project));
+  return projectPath;
+}
 
-  function writeRawWavs(dir: string): void {
-    fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
-    fs.writeFileSync(
-      path.join(dir, "raw", "a.wav"),
-      encodePcmWav(Int16Array.of(0, 8192, -16384)),
-    );
-    fs.writeFileSync(
-      path.join(dir, "raw", "b.wav"),
-      encodePcmWav(Int16Array.of(0, 0, 0)),
-    );
-  }
+function writeRawWavs(dir: string): void {
+  fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "raw", "a.wav"),
+    encodePcmWav(Int16Array.of(0, 8192, -16384)),
+  );
+  fs.writeFileSync(
+    path.join(dir, "raw", "b.wav"),
+    encodePcmWav(Int16Array.of(0, 0, 0)),
+  );
+}
 
+describe("landedTrackPeak", () => {
   it("resolves the peak across every landed source on the track", async () => {
     const dir = tempWorkspace("landed-peak-");
     writeRawWavs(dir);
@@ -295,6 +297,9 @@ describe("landedTrackPeak", () => {
     const projectPath = writeProject(dir);
     await expect(landedTrackPeak(projectPath, "Nobody")).rejects.toThrow(
       /no landed track labelled/,
+    );
+    await expect(landedTrackPeak(projectPath, "Nobody")).rejects.toBeInstanceOf(
+      LandingPendingError,
     );
   });
 
@@ -375,6 +380,96 @@ describe("landedTrackPeak", () => {
     const projectPath = writeProject(dir, { clips: [] });
     await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow(
       /no landed clips/,
+    );
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toBeInstanceOf(
+      LandingPendingError,
+    );
+  });
+});
+
+describe("landedTrackPeakOrPending", () => {
+  it("resolves the landed peak", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    writeProject(dir);
+    await expect(
+      landedTrackPeakOrPending(path.join(dir, "episode.project.json"), "Ava"),
+    ).resolves.toBeCloseTo(0.5, 6);
+  });
+
+  it("resolves to 0 when the project file does not exist yet", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    await expect(
+      landedTrackPeakOrPending(path.join(dir, "episode.project.json"), "Ava"),
+    ).resolves.toBe(0);
+  });
+
+  it("resolves to 0 for a half-written project JSON", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    const projectPath = path.join(dir, "episode.project.json");
+    fs.writeFileSync(projectPath, "{");
+    await expect(landedTrackPeakOrPending(projectPath, "Ava")).resolves.toBe(0);
+  });
+
+  it("resolves to 0 before the track lands", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir);
+    await expect(landedTrackPeakOrPending(projectPath, "Nobody")).resolves.toBe(
+      0,
+    );
+  });
+
+  it("resolves to 0 before clips land", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, { clips: [] });
+    await expect(landedTrackPeakOrPending(projectPath, "Ava")).resolves.toBe(0);
+  });
+
+  it("resolves to 0 while a raw/ WAV is missing", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
+    const projectPath = writeProject(dir);
+    await expect(landedTrackPeakOrPending(projectPath, "Ava")).resolves.toBe(0);
+  });
+
+  it("rethrows a null source_id", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, {
+      clips: [
+        {
+          track_id: "t1",
+          source_id: null,
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+      ],
+    });
+    await expect(landedTrackPeakOrPending(projectPath, "Ava")).rejects.toThrow(
+      /has no source_id/,
+    );
+  });
+
+  it("rethrows a source outside raw/", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, {
+      sources: [{ id: "s1", path: "other/a.wav" }],
+      clips: [
+        {
+          track_id: "t1",
+          source_id: "s1",
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+      ],
+    });
+    await expect(landedTrackPeakOrPending(projectPath, "Ava")).rejects.toThrow(
+      /not under raw\//,
     );
   });
 });

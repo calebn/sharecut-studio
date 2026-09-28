@@ -551,7 +551,8 @@ Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
 `landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
 `gui/web/e2e/wavPeak.ts` (landed and bounced WAV peaks, via `landedTrackPeak`
-in `recordRoom.ts` and `bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
+(and `landedTrackPeakOrPending` for polling) in `recordRoom.ts` and
+`bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
 `gui/web/e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`) and
 `gui/web/e2e/transcriptEdit.ts` (`openTranscriptPanel`,
 `withDocumentCommandTypes`) and `gui/web/e2e/launchOptions.ts`
