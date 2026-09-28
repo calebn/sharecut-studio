@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -229,3 +230,26 @@ def test_connect_session_db_without_create_opens_an_existing_file(tmp_path) -> N
         assert str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal"
     finally:
         conn.close()
+
+
+@pytest.mark.parametrize(
+    ("uri", "expected"),
+    [
+        (
+            "file://server/share/ep/artifacts/session/document.db",
+            "file:////server/share/ep/artifacts/session/document.db",
+        ),
+        ("file:///C:/ep/artifacts/session/sync.db", "file:///C:/ep/artifacts/session/sync.db"),
+        ("file:///tmp/a%20b/sync.db", "file:///tmp/a%20b/sync.db"),
+    ],
+)
+def test_with_empty_uri_authority(uri: str, expected: str) -> None:
+    assert session_sqlite._with_empty_uri_authority(uri) == expected
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX path form")
+def test_sqlite_accepts_the_empty_authority_uri_form(tmp_path) -> None:
+    path = tmp_path / "sync.db"
+    sqlite3.connect(path).close()
+    uri = session_sqlite._with_empty_uri_authority("file://" + str(path).lstrip("/"))
+    sqlite3.connect(f"{uri}?mode=rw", uri=True).close()

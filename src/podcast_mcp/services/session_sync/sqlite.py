@@ -31,6 +31,21 @@ def _wal_init_lock(db_path: Path) -> threading.Lock:
     return _WAL_INIT_LOCKS.get(_wal_init_key(db_path))
 
 
+def _with_empty_uri_authority(uri: str) -> str:
+    """Move a UNC server out of a ``file:`` URI's authority and into its path.
+
+    ``Path.as_uri()`` on a Windows UNC path gives ``file://server/share/...``. SQLite
+    rejects any authority other than empty or ``localhost`` ("invalid uri authority")
+    unless built with ``SQLITE_ALLOW_URI_AUTHORITY``, and CPython's bundled SQLite is
+    not. ``file:////server/share/...`` has an empty authority, and SQLite on Windows
+    opens its path as ``\\\\server\\share\\...``. Local paths (``file:///...``) are unchanged.
+    """
+    prefix = "file://"
+    if uri.startswith(prefix) and not uri.startswith("file:///"):
+        return "file:////" + uri[len(prefix) :]
+    return uri
+
+
 def _ensure_wal(connection: sqlite3.Connection) -> None:
     """Switch *connection*'s database to WAL, retrying while another process holds the lock."""
     deadline = time.monotonic() + _WAL_INIT_TIMEOUT_SEC
@@ -65,9 +80,14 @@ def connect_session_db(db_path: Path, *, create: bool = True) -> sqlite3.Connect
     With ``create=False`` the file is opened with sqlite's ``mode=rw`` URI, so a
     missing file raises ``sqlite3.OperationalError`` instead of being created.
     The read-only meta polls rely on this to never recreate a store that
-    another process deleted.
+    another process deleted. The URI always has an empty authority
+    (``_with_empty_uri_authority``), so a workspace on a Windows UNC share opens too.
     """
-    target = str(db_path) if create else f"{db_path.resolve().as_uri()}?mode=rw"
+    target = (
+        str(db_path)
+        if create
+        else f"{_with_empty_uri_authority(db_path.resolve().as_uri())}?mode=rw"
+    )
     connection = sqlite3.connect(
         target,
         check_same_thread=False,
