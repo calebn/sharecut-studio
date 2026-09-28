@@ -93,6 +93,9 @@ export const createProjectSlice: StateCreator<
             highlightStaleRender: false,
             renderPreviewBusy: false,
             chapterAddPending: false,
+            // A SetClipJoin that never settled must not block every join badge on the next project.
+            openJoinId: null,
+            joinMutationInFlight: false,
             ...waveformViewState(projectPath),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),

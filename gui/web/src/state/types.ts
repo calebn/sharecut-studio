@@ -190,7 +190,12 @@ export interface DawState {
   helpDialogOpen: boolean;
   /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/JoinBadge.tsx). */
   openJoinId: string | null;
-  /** A join popover's SetClipJoin is in flight: no join popover dismisses, opens or switches until it settles (timeline/JoinPopover.tsx). */
+  /**
+   * A join popover's SetClipJoin is in flight: no join popover dismisses, opens or switches until it settles
+   * (timeline/JoinPopover.tsx); a project switch clears it. Store state, not a module `let` like
+   * commands/tighten.ts `tightenMutationInFlight`, because sibling JoinBadges render from it. A third such
+   * guard should share a helper with these two.
+   */
   joinMutationInFlight: boolean;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */
   highlightStaleRender: boolean;

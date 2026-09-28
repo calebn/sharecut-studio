@@ -261,6 +261,8 @@ describe("dawStore listen-first transport", () => {
       auditionEpoch: 3,
       highlightStaleRender: true,
       renderPreviewBusy: true,
+      openJoinId: "c1",
+      joinMutationInFlight: true,
     });
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     const s = useDawStore.getState();
@@ -277,6 +279,8 @@ describe("dawStore listen-first transport", () => {
     expect(s.auditionEpoch).toBe(0);
     expect(s.highlightStaleRender).toBe(false);
     expect(s.renderPreviewBusy).toBe(false);
+    expect(s.openJoinId).toBeNull();
+    expect(s.joinMutationInFlight).toBe(false);
   });
 
   it("publishes a project switch as one consistent cross-slice snapshot", () => {
@@ -300,6 +304,7 @@ describe("dawStore listen-first transport", () => {
       viewerMute: { host: true },
       renderPreviewBusy: true,
       chapterAddPending: true,
+      joinMutationInFlight: true,
     });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     const same = useDawStore.getState();
@@ -311,10 +316,12 @@ describe("dawStore listen-first transport", () => {
     expect(same.viewerMute).toEqual({ host: true });
     expect(same.renderPreviewBusy).toBe(true);
     expect(same.chapterAddPending).toBe(true);
+    expect(same.joinMutationInFlight).toBe(true);
 
     same.hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
     expect(useDawStore.getState().chapterAddPending).toBe(false);
+    expect(useDawStore.getState().joinMutationInFlight).toBe(false);
   });
 
   it("beginAudition bumps epoch", () => {
