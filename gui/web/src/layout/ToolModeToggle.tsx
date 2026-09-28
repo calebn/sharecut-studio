@@ -1,4 +1,4 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { formatShortcutKeys, keymapCommandById } from "../keymap/registry";
 import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -10,10 +10,6 @@ function toolTitle(commandId: string, fallback: string): string {
     return fallback;
   }
   return `${cmd.label} (${formatShortcutKeys(cmd)})`;
-}
-
-function runTool(id: string): void {
-  void execute(id, {}, { skipWhen: true });
 }
 
 /** Select / Blade (and Comment when not compact) tool cluster. */
@@ -48,9 +44,9 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
       commentMode={commentMode}
       selectTitle={toolTitle("tool.select", "Select tool")}
       bladeTitle={toolTitle("tool.blade", "Blade tool")}
-      onSelect={() => runTool("tool.select")}
-      onBlade={() => runTool("tool.blade")}
-      onToggleComment={() => runTool("review.toggleCommentMode")}
+      onSelect={() => runPointerCommand("tool.select")}
+      onBlade={() => runPointerCommand("tool.blade")}
+      onToggleComment={() => runPointerCommand("review.toggleCommentMode")}
     />
   );
 }
