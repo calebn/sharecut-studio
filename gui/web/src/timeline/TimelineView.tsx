@@ -32,7 +32,7 @@ import {
   isProgrammaticScroll,
   withProgrammaticScroll,
 } from "../presence/followSync";
-import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
+import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -205,11 +205,11 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       };
     }),
   );
-  const prosody = useProsodyOverlay(layers.showProsody, {
-    alignedToLayout: true,
-  });
-  // Unaligned payload for the status summary: does not blank and re-announce after every clip edit.
-  const prosodyLatest = useProsodyOverlay(layers.showProsody);
+  // `aligned` draws lane geometry; `latest` feeds the status summary so it does not blank and
+  // re-announce after every clip edit.
+  const { aligned: prosody, latest: prosodyLatest } = useProsodyOverlayViews(
+    layers.showProsody,
+  );
   const prosodyByTrack = useMemo(
     () =>
       new Map<string, ProsodyOverlayTrack>(

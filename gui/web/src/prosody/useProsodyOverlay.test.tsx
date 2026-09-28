@@ -7,9 +7,8 @@ import { minimalProject } from "../test/fixtures";
 const loadProsodyOverlay = vi.hoisted(() => vi.fn());
 vi.mock("../api/prosody", () => ({ loadProsodyOverlay }));
 
-const { useProsodyOverlay, resetProsodyOverlay } = await import(
-  "./useProsodyOverlay"
-);
+const { useProsodyOverlay, useProsodyOverlayViews, resetProsodyOverlay } =
+  await import("./useProsodyOverlay");
 
 const PAYLOAD = { schema: "prosody_overlay.v1", tracks: [] };
 
@@ -127,36 +126,39 @@ describe("useProsodyOverlay", () => {
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
   });
 
-  it("hides the payload from aligned consumers after a clip edit until the refetch lands", async () => {
-    const aligned = renderHook(() =>
-      useProsodyOverlay(true, { alignedToLayout: true }),
-    );
-    const plain = renderHook(() => useProsodyOverlay(true));
+  it("hides the aligned view after a clip edit until the refetch lands", async () => {
+    const { result } = renderHook(() => useProsodyOverlayViews(true));
     await settle();
-    expect(aligned.result.current).toEqual(PAYLOAD);
-    expect(plain.result.current).toEqual(PAYLOAD);
+    expect(result.current.aligned).toEqual(PAYLOAD);
+    expect(result.current.latest).toEqual(PAYLOAD);
     act(() => {
       useDawStore.setState((s) => ({
         project: { ...s.project!, clips: { ...s.project!.clips } },
       }));
     });
-    expect(aligned.result.current).toBeNull();
-    expect(plain.result.current).toEqual(PAYLOAD);
+    expect(result.current.aligned).toBeNull();
+    expect(result.current.latest).toEqual(PAYLOAD);
     await settle();
-    expect(aligned.result.current).toEqual(PAYLOAD);
+    expect(result.current.aligned).toEqual(PAYLOAD);
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the aligned payload across a non-clip project change", async () => {
-    const { result } = renderHook(() =>
-      useProsodyOverlay(true, { alignedToLayout: true }),
-    );
+    const { result } = renderHook(() => useProsodyOverlayViews(true));
     await settle();
-    expect(result.current).toEqual(PAYLOAD);
+    expect(result.current.aligned).toEqual(PAYLOAD);
     act(() => {
       useDawStore.setState((s) => ({ project: { ...s.project! } }));
     });
-    expect(result.current).toEqual(PAYLOAD);
+    expect(result.current.aligned).toEqual(PAYLOAD);
+  });
+
+  it("returns a stable views object while nothing changes", async () => {
+    const { result, rerender } = renderHook(() => useProsodyOverlayViews(true));
+    await settle();
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
   });
 
   it("drops the payload when a refetch fails", async () => {
