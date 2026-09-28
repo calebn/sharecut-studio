@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from pathlib import Path
 
@@ -575,8 +576,10 @@ def test_mcp_progress_token_streams_sse_notifications(
         capabilities=["play", "comment", "mcp"],
     )
     token = share["token"]
+    impl_threads: list[str] = []
 
     def impl(name, arguments=None):
+        impl_threads.append(threading.current_thread().name)
         current_progress().update(name, 1, total=2, message="Mixing stems")
         current_progress().end(name, message="done")
         return {"ok": True}
@@ -608,6 +611,7 @@ def test_mcp_progress_token_streams_sse_notifications(
     assert notes
     assert all(n["params"]["progressToken"] == "pt-sse" for n in notes)
     assert results
+    assert impl_threads and impl_threads[0].startswith("guest-mcp")
     assert payloads.index(notes[0]) < payloads.index(results[0])
     blob = json.dumps(payloads)
     assert "/Users/" not in blob

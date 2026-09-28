@@ -14,8 +14,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from starlette.concurrency import run_in_threadpool
 
+from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
 from podcast_mcp.services.remote_mcp.limits import (
     check_host_bucket,
     classify_mcp_rpc,
@@ -186,9 +186,9 @@ async def mcp_bridge(token: str, request: Request) -> Any:
             headers={"Cache-Control": "no-cache"},
         )
 
-    # Off the event loop, like the SSE path (iter_mcp_sse): a tool call may wait on
-    # project_commit_lock / render_lock and must not stall other requests.
-    response = await run_in_threadpool(handle_mcp_jsonrpc, token, body)
+    # On the guest MCP pool, like the SSE path (iter_mcp_sse): a tool call may wait on
+    # project_commit_lock / render_lock and must stall neither the event loop nor host routes.
+    response = await run_guest_mcp_call(lambda: handle_mcp_jsonrpc(token, body))
     if response is None:
         return Response(status_code=202)
     return JSONResponse(response, media_type="application/json")
