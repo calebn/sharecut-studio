@@ -102,7 +102,7 @@ def test_gitleaks_pin_allowlist_matches_pin_lines_only() -> None:
 def test_every_model_pin_line_is_allowlisted_or_standalone() -> None:
     config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
     regexes = config["rules"][0]["allowlists"][0]["regexes"]
-    standalone = re.compile(r'^\s*"[0-9a-f]{64}",?\s*(#.*)?$')
+    standalone = re.compile(r'^\s*"[0-9a-f]{64}",?\s*$')
 
     offenders: list[str] = []
     for module in _PIN_MODULES:
@@ -116,6 +116,12 @@ def test_every_model_pin_line_is_allowlisted_or_standalone() -> None:
             offenders.append(f"{module}: {line}")
 
     assert offenders == []
+
+
+def test_model_pin_modules_carry_no_inline_gitleaks_suppressions() -> None:
+    # .gitleaks.toml is the one allowlist; inline `gitleaks:allow` would bypass its scope.
+    for module in _PIN_MODULES:
+        assert "gitleaks:allow" not in (ROOT / module).read_text(encoding="utf-8"), module
 
 
 def _skips_ipv4_scan(relative: Path, content: bytes) -> bool:
