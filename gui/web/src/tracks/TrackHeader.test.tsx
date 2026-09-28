@@ -235,6 +235,98 @@ describe("TrackHeader", () => {
     );
   });
 
+  const activationRows: {
+    name: RegExp | string;
+    expectActivated: (onSelect: ReturnType<typeof vi.fn>) => void;
+  }[] = [
+    {
+      name: /Open track details, Guest/i,
+      expectActivated: (onSelect) =>
+        expect(onSelect).toHaveBeenCalledWith(false),
+    },
+    {
+      name: "Mute Guest",
+      expectActivated: () =>
+        expect(vi.mocked(execute)).toHaveBeenCalledWith(
+          "track.muteToggle",
+          { trackId: "guest" },
+          { skipWhen: true },
+        ),
+    },
+    {
+      name: "Solo Guest",
+      expectActivated: () =>
+        expect(vi.mocked(execute)).toHaveBeenCalledWith(
+          "track.soloToggle",
+          { trackId: "guest" },
+          { skipWhen: true },
+        ),
+    },
+  ];
+
+  it.each(activationRows)(
+    "Space on %s activates it instead of toggling play",
+    async ({ name, expectActivated }) => {
+      const user = userEvent.setup();
+      const onSelect = vi.fn();
+      vi.mocked(execute).mockClear();
+      const project = projectWithTrack();
+      render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <KeymapHost />
+          <TrackHeader
+            track={project.tracks[0]}
+            trackIndex={0}
+            selected={false}
+            onSelect={onSelect}
+          />
+        </DawProvider>,
+      );
+      useDawStore.setState({ timelineFocused: true });
+      const button = screen.getByRole("button", { name });
+      button.focus();
+      await user.keyboard(" ");
+      expectActivated(onSelect);
+      expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
+        "transport.togglePlay",
+        expect.anything(),
+        expect.anything(),
+      );
+    },
+  );
+
+  it("Enter on Mute does not apply a tighten hit", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    vi.mocked(execute).mockClear();
+    const project = projectWithTrack();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <KeymapHost />
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={onSelect}
+        />
+      </DawProvider>,
+    );
+    useDawStore.setState({ timelineFocused: true, activeTab: "tighten" });
+    const button = screen.getByRole("button", { name: "Mute Guest" });
+    button.focus();
+    await user.keyboard("{Enter}");
+    expect(vi.mocked(execute)).toHaveBeenCalledWith(
+      "track.muteToggle",
+      { trackId: "guest" },
+      { skipWhen: true },
+    );
+    expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
+      "tighten.applyHit",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it("shows no stem dot for a new track with no audio, matching the status bar", () => {
     const project = minimalProject({
       tracks: [

@@ -45,6 +45,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/InlineWordEditor.tsx",
   "layout/BottomTabsSplitterView.tsx",
   "tracks/TrackHeaderView.tsx",
+  "tracks/TrackMuteSoloButtonsView.tsx",
   "commands/governance.test.ts",
 ]);
 
