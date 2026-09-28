@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { encodePcmWav } from "../src/audio/wavHeader";
 import {
   clickHostTransport,
   createRecordRoom,
   ensureHostRecordCommand,
+  landedTrackPeak,
   markSharecutE2e,
   openRecordLink,
   recordLinkPath,
@@ -214,5 +219,137 @@ describe("markSharecutE2e", () => {
     await markSharecutE2e({ addInitScript } as never);
     expect(target.__SHARECUT_E2E).toBe(true);
     delete target.__SHARECUT_E2E;
+  });
+});
+
+describe("landedTrackPeak", () => {
+  const workspaces: string[] = [];
+
+  afterEach(() => {
+    for (const workspace of workspaces.splice(0)) {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  function workspace(): string {
+    const value = fs.mkdtempSync(path.join(os.tmpdir(), "landed-peak-"));
+    workspaces.push(value);
+    return value;
+  }
+
+  function writeProject(
+    dir: string,
+    overrides: {
+      tracks?: Array<{ id: string; label?: string }>;
+      clips?: Array<{
+        track_id: string;
+        source_id: string | null;
+        timeline_start: number;
+        source_start: number;
+        source_end: number;
+      }>;
+      sources?: Array<{ id: string; path: string }>;
+    } = {},
+  ): string {
+    const projectPath = path.join(dir, "episode.project.json");
+    const project = {
+      sources: overrides.sources ?? [
+        { id: "s1", path: "raw/a.wav" },
+        { id: "s2", path: "raw/b.wav" },
+      ],
+      timeline: {
+        tracks: overrides.tracks ?? [{ id: "t1", label: "Ava" }],
+        clips: overrides.clips ?? [
+          {
+            track_id: "t1",
+            source_id: "s1",
+            timeline_start: 0,
+            source_start: 0,
+            source_end: 1,
+          },
+          {
+            track_id: "t1",
+            source_id: "s2",
+            timeline_start: 1,
+            source_start: 0,
+            source_end: 1,
+          },
+        ],
+      },
+    };
+    fs.writeFileSync(projectPath, JSON.stringify(project));
+    return projectPath;
+  }
+
+  function writeRawWavs(dir: string): void {
+    fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "raw", "a.wav"),
+      encodePcmWav(Int16Array.of(0, 8192, -16384)),
+    );
+    fs.writeFileSync(
+      path.join(dir, "raw", "b.wav"),
+      encodePcmWav(Int16Array.of(0, 0, 0)),
+    );
+  }
+
+  it("resolves the peak across every landed source on the track", async () => {
+    const dir = workspace();
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir);
+    await expect(landedTrackPeak(projectPath, "Ava")).resolves.toBeCloseTo(
+      0.5,
+      6,
+    );
+  });
+
+  it("rejects for a label with no landed track", async () => {
+    const dir = workspace();
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir);
+    await expect(landedTrackPeak(projectPath, "Nobody")).rejects.toThrow(
+      /no landed track labelled/,
+    );
+  });
+
+  it("rejects when a clip's source is not under raw/", async () => {
+    const dir = workspace();
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, {
+      sources: [{ id: "s1", path: "other/a.wav" }],
+      clips: [
+        {
+          track_id: "t1",
+          source_id: "s1",
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+      ],
+    });
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow(
+      /not under raw\//,
+    );
+  });
+
+  it("rejects when a source file is missing", async () => {
+    const dir = workspace();
+    fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "raw", "a.wav"),
+      encodePcmWav(Int16Array.of(0)),
+    );
+    // raw/b.wav is never written.
+    const projectPath = writeProject(dir);
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow();
+  });
+
+  it("rejects for a track with no clips", async () => {
+    const dir = workspace();
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, { clips: [] });
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow(
+      /no landed clips/,
+    );
   });
 });
