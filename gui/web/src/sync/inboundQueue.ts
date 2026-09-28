@@ -100,10 +100,11 @@ export function pendingInboundCount(): number {
  * never recurses.
  */
 export function flushInbound(): void {
-  cancelScheduled();
   if (flushing) {
+    // Leave any flush a job scheduled mid-drain armed: its jobs run next frame.
     return;
   }
+  cancelScheduled();
   const jobs = queue;
   queue = [];
   if (jobs.length === 0) {

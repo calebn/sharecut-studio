@@ -147,4 +147,21 @@ describe("inboundQueue", () => {
     flushInbound();
     expect(order).toEqual(["first", "second"]);
   });
+
+  it("a re-entrant flushInbound() inside a job keeps the next flush scheduled", () => {
+    const order: string[] = [];
+    enqueueInbound(() => {
+      order.push("first");
+      enqueueInbound(() => order.push("second"));
+      flushInbound();
+    });
+    flushInbound();
+    expect(order).toEqual(["first"]);
+    expect(pendingInboundCount()).toBe(1);
+    // Only the outer flush cancelled the first rAF; the one armed mid-drain survives.
+    expect(cafSpy).toHaveBeenCalledTimes(1);
+    const next = rafSpy.mock.calls.at(-1)?.[0] as FrameRequestCallback;
+    next(0);
+    expect(order).toEqual(["first", "second"]);
+  });
 });
