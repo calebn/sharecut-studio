@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useMountedRef } from "../hooks/useMountedRef";
 import type { AutomationPoint } from "../types/project";
 import {
   clampEnvelopeValue,
@@ -87,14 +88,10 @@ export function EnvelopeOverlayView({
   const commitLock = useRef(false);
 
   const releaseHold = useRef<(() => void) | null>(null);
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      releaseHeld(releaseHold);
-    };
-  }, []);
+  // Post-await callbacks skip a view that unmounted mid-commit.
+  const mounted = useMountedRef();
+  // Unmounting mid-drag must not leave the lane geometry frozen.
+  useEffect(() => () => releaseHeld(releaseHold), []);
 
   if (points.length < 1) {
     return null;

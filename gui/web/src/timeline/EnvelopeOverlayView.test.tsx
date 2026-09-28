@@ -159,6 +159,15 @@ describe("EnvelopeOverlayView", () => {
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
+  it("releases the hold when the view unmounts mid-drag", () => {
+    const { container, release, unmount } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    fireEvent.pointerDown(circle);
+    expect(release).not.toHaveBeenCalled();
+    unmount();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it("restores cy and calls onCommitError when a commit rejects", async () => {
     const onCommitPoints = vi.fn().mockRejectedValue(new Error("nope"));
     const { container, onCommitError } = renderView({ onCommitPoints });
