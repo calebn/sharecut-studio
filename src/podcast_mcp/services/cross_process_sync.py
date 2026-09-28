@@ -13,9 +13,11 @@ No lease, no thread.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -250,3 +252,29 @@ def cross_process_bridge() -> CrossProcessBridge:
 def watch_cross_process_writes(ws: ProjectWorkspace) -> CrossProcessLease:
     """Lease the process-wide bridge for ``ws`` (see ``CrossProcessBridge.acquire``)."""
     return _BRIDGE.acquire(ws)
+
+
+@contextlib.asynccontextmanager
+async def cross_process_lease(ws: ProjectWorkspace) -> AsyncIterator[None]:
+    """Hold a bridge lease on ``ws`` for the ``async with`` body (#695).
+
+    Enter it after ``hub.subscribe(...)`` and before reading the hello snapshot. It
+    acquires off the event loop and releases in its own ``finally``, so a raising
+    cleanup step, or a cancellation mid-acquire, never pins the workspace watcher.
+    """
+    acquiring = asyncio.ensure_future(asyncio.to_thread(watch_cross_process_writes, ws))
+    try:
+        lease = await asyncio.shield(acquiring)
+    except asyncio.CancelledError:
+        acquiring.add_done_callback(_release_late_lease)
+        raise
+    try:
+        yield
+    finally:
+        lease.release()
+
+
+def _release_late_lease(acquiring: asyncio.Future[CrossProcessLease]) -> None:
+    """Release a lease whose acquire finished after the socket task was cancelled."""
+    if not acquiring.cancelled() and acquiring.exception() is None:
+        acquiring.result().release()

@@ -18,7 +18,7 @@ from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
+from podcast_mcp.services.cross_process_sync import cross_process_lease
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
 from podcast_mcp.services.record.service import (
@@ -401,92 +401,89 @@ async def session_ws(
                     }
                 )
 
-    bridge_lease: CrossProcessLease | None = None
     try:
         # After subscribe, before the hello snapshot (#695): a foreign write in between
         # is in the snapshot or published by the watcher.
-        bridge_lease = await asyncio.to_thread(watch_cross_process_writes, ws_proj)
-        svc.submit(
-            SyncCommand(
-                type="PresenceHeartbeat",
-                payload={"label": label, "playhead_sec": None},
-                client_id=client_id,
-                role=role,  # type: ignore[arg-type]
-                client_seq=seq,
-            )
-        )
-        seq += 1
-        await websocket.send_json({"type": "Snapshot", "snapshot": svc.snapshot()})
-        await _attach_record()
-        hub_tasks.spawn(_pump_hub())
-        while True:
-            try:
-                msg = await websocket.receive_json()
-            except WebSocketDisconnect:
-                break
-            await _attach_record()
-            if rec_svc is not None and msg.get("type") == "Record":
-                try:
-                    rec_echo, seq = route_record_ws_message(
-                        rec_svc,
-                        msg,
-                        client_id=client_id,
-                        role="host",
-                        participant_id=HOST_PARTICIPANT_ID,
-                        seq=seq,
-                        connection_id=host_record_conn_id,
-                    )
-                    await _send(rec_echo)
-                except RecordAuthzError as exc:
-                    await _send(
-                        {
-                            "plane": "record",
-                            "type": "Error",
-                            "code": "forbidden",
-                            "detail": str(exc),
-                        }
-                    )
-                except (RecordStateError, RoomFullError, ValueError) as exc:
-                    await _send(
-                        {
-                            "plane": "record",
-                            "type": "Error",
-                            "code": "invalid_state",
-                            "detail": str(exc),
-                        }
-                    )
-                continue
-            if msg.get("type") == "ViewerState":
-                # Several sqlite writes: keep them off the event loop, like the
-                # sync POST /api/session/state route (Starlette worker thread).
-                await _send(
-                    await asyncio.to_thread(
-                        apply_ws_viewer_state,
-                        svc,
-                        msg.get("snapshot"),
-                        client_id=client_id,
-                        role=role,
-                        label=label,
-                    )
+        async with cross_process_lease(ws_proj):
+            svc.submit(
+                SyncCommand(
+                    type="PresenceHeartbeat",
+                    payload={"label": label, "playhead_sec": None},
+                    client_id=client_id,
+                    role=role,  # type: ignore[arg-type]
+                    client_seq=seq,
                 )
-                continue
-            echo, seq = apply_ws_client_message(
-                svc,
-                msg,
-                client_id=client_id,
-                role=role,
-                label=label,
-                seq=seq,
             )
-            if echo is not None:
-                await _send(echo)
+            seq += 1
+            await websocket.send_json({"type": "Snapshot", "snapshot": svc.snapshot()})
+            await _attach_record()
+            hub_tasks.spawn(_pump_hub())
+            while True:
+                try:
+                    msg = await websocket.receive_json()
+                except WebSocketDisconnect:
+                    break
+                await _attach_record()
+                if rec_svc is not None and msg.get("type") == "Record":
+                    try:
+                        rec_echo, seq = route_record_ws_message(
+                            rec_svc,
+                            msg,
+                            client_id=client_id,
+                            role="host",
+                            participant_id=HOST_PARTICIPANT_ID,
+                            seq=seq,
+                            connection_id=host_record_conn_id,
+                        )
+                        await _send(rec_echo)
+                    except RecordAuthzError as exc:
+                        await _send(
+                            {
+                                "plane": "record",
+                                "type": "Error",
+                                "code": "forbidden",
+                                "detail": str(exc),
+                            }
+                        )
+                    except (RecordStateError, RoomFullError, ValueError) as exc:
+                        await _send(
+                            {
+                                "plane": "record",
+                                "type": "Error",
+                                "code": "invalid_state",
+                                "detail": str(exc),
+                            }
+                        )
+                    continue
+                if msg.get("type") == "ViewerState":
+                    # Several sqlite writes: keep them off the event loop, like the
+                    # sync POST /api/session/state route (Starlette worker thread).
+                    await _send(
+                        await asyncio.to_thread(
+                            apply_ws_viewer_state,
+                            svc,
+                            msg.get("snapshot"),
+                            client_id=client_id,
+                            role=role,
+                            label=label,
+                        )
+                    )
+                    continue
+                echo, seq = apply_ws_client_message(
+                    svc,
+                    msg,
+                    client_id=client_id,
+                    role=role,
+                    label=label,
+                    seq=seq,
+                )
+                if echo is not None:
+                    await _send(echo)
     finally:
         # _detach_record() nulls rec_svc; keep it for the participant disconnect.
         record_svc = rec_svc
         try:
             hub.unsubscribe(key, queue)
-            if bridge_lease is not None:
-                bridge_lease.release()
             try:
                 await hub_tasks.stop()
             finally:

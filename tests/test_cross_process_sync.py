@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import multiprocessing as mp
+import threading
 import time
 from urllib.parse import quote
 
@@ -336,8 +337,6 @@ def test_watcher_bridges_a_seek_from_another_process(minimal_project):
 
 
 def test_document_ws_leases_before_hello_and_releases_on_close(minimal_project, monkeypatch):
-    import podcast_mcp.gui.routes.document as document_routes
-
     events: list[str] = []
 
     class _FakeLease:
@@ -354,7 +353,7 @@ def test_document_ws_leases_before_hello_and_releases_on_close(minimal_project, 
         events.append("snapshot")
         return original_snapshot(self, *args, **kwargs)
 
-    monkeypatch.setattr(document_routes, "watch_cross_process_writes", _fake_watch)
+    monkeypatch.setattr(cross_process_sync, "watch_cross_process_writes", _fake_watch)
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", _spy_snapshot)
 
     client = TestClient(create_app())
@@ -367,8 +366,6 @@ def test_document_ws_leases_before_hello_and_releases_on_close(minimal_project, 
 
 
 def test_session_ws_leases_before_hello_and_releases_on_close(minimal_project, monkeypatch):
-    import podcast_mcp.gui.routes.session as session_routes
-
     events: list[str] = []
 
     class _FakeLease:
@@ -385,7 +382,7 @@ def test_session_ws_leases_before_hello_and_releases_on_close(minimal_project, m
         events.append("snapshot")
         return original_snapshot(self, *args, **kwargs)
 
-    monkeypatch.setattr(session_routes, "watch_cross_process_writes", _fake_watch)
+    monkeypatch.setattr(cross_process_sync, "watch_cross_process_writes", _fake_watch)
     monkeypatch.setattr(SessionSyncService, "snapshot", _spy_snapshot)
 
     client = TestClient(create_app())
@@ -610,6 +607,66 @@ def test_watcher_publishes_a_foreign_document_row_an_in_process_write_landed_on(
     finally:
         hub.unsubscribe(document_key, q)
         loop.close()
+
+
+def test_cross_process_lease_releases_when_the_body_raises(minimal_project, monkeypatch):
+    class _FakeLease:
+        def __init__(self) -> None:
+            self.released = 0
+
+        def release(self) -> None:
+            self.released += 1
+
+    fake_lease = _FakeLease()
+    monkeypatch.setattr(cross_process_sync, "watch_cross_process_writes", lambda ws: fake_lease)
+
+    async def _run() -> None:
+        ws = ProjectWorkspace.open(minimal_project)
+        async with cross_process_sync.cross_process_lease(ws):
+            raise RuntimeError("unsubscribe failed")
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(_run())
+
+    assert fake_lease.released == 1
+
+
+def test_cross_process_lease_releases_a_lease_acquired_after_cancellation(
+    minimal_project, monkeypatch
+):
+    started = threading.Event()
+    proceed = threading.Event()
+    released = threading.Event()
+
+    class _FakeLease:
+        def release(self) -> None:
+            released.set()
+
+    def _slow_watch(ws):
+        started.set()
+        proceed.wait(5)
+        return _FakeLease()
+
+    monkeypatch.setattr(cross_process_sync, "watch_cross_process_writes", _slow_watch)
+
+    async def _run() -> None:
+        ws = ProjectWorkspace.open(minimal_project)
+
+        async def _body() -> None:
+            async with cross_process_sync.cross_process_lease(ws):
+                await asyncio.sleep(10)
+
+        task = asyncio.ensure_future(_body())
+        await asyncio.to_thread(started.wait, 5)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        proceed.set()
+        await asyncio.to_thread(released.wait, 5)
+
+    asyncio.run(_run())
+    assert released.is_set()
 
 
 def test_plane_retries_a_failing_publish_then_gives_up():

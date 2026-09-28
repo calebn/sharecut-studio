@@ -41,7 +41,7 @@ from podcast_mcp.gui.routes.waveform import (
     waveform_call,
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
-from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
+from podcast_mcp.services.cross_process_sync import cross_process_lease
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
@@ -848,7 +848,6 @@ async def daw_ws(
     q_session = None
     q_doc = None
     q_progress = None
-    bridge_lease: CrossProcessLease | None = None
     progress_hub = guest_progress_hub()
     session_svc: SessionSyncService | None = None
     guest_client_id: str | None = None
@@ -862,105 +861,106 @@ async def daw_ws(
         q_session = hub.subscribe(session_key, loop)
         q_doc = hub.subscribe(doc_key, loop)
         q_progress = progress_hub.subscribe(token, loop)
-        bridge_lease = await asyncio.to_thread(watch_cross_process_writes, ws_proj)
-
-        session_svc = SessionSyncService(ws_proj.project)
-        doc_svc = DocumentSyncService(ws_proj)
-        guest_client_id = _guest_client_id(token, client_id)
-        conn_gen = session_svc.claim_client(guest_client_id)
-        label = _guest_label(name, token)
-        session_svc.submit(
-            SyncCommand(
-                type="PresenceHeartbeat",
-                payload={
-                    "label": label,
-                    "playhead_sec": None,
-                    "meta": {"display_name": label},
-                },
-                client_id=guest_client_id,
-                role="viewer",
-                client_seq=1,
+        # After subscribe, before the hello snapshots (#695): a foreign write in between
+        # is in the snapshots or published by the watcher.
+        async with cross_process_lease(ws_proj):
+            session_svc = SessionSyncService(ws_proj.project)
+            doc_svc = DocumentSyncService(ws_proj)
+            guest_client_id = _guest_client_id(token, client_id)
+            conn_gen = session_svc.claim_client(guest_client_id)
+            label = _guest_label(name, token)
+            session_svc.submit(
+                SyncCommand(
+                    type="PresenceHeartbeat",
+                    payload={
+                        "label": label,
+                        "playhead_sec": None,
+                        "meta": {"display_name": label},
+                    },
+                    client_id=guest_client_id,
+                    role="viewer",
+                    client_seq=1,
+                )
             )
-        )
-        seq = 2
-        await guard.send_json(
-            {
-                "type": "Snapshot",
-                "plane": "session",
-                "client_id": guest_client_id,
-                "snapshot": sanitize_guest_session_snapshot(session_svc.snapshot()),
-            }
-        )
-        await guard.send_json(
-            sanitize_guest_document_event(
+            seq = 2
+            await guard.send_json(
                 {
                     "type": "Snapshot",
-                    "plane": "document",
-                    "snapshot": doc_svc.document_snapshot(projection="shell"),
+                    "plane": "session",
+                    "client_id": guest_client_id,
+                    "snapshot": sanitize_guest_session_snapshot(session_svc.snapshot()),
                 }
             )
-        )
-
-        async def _pump_session() -> None:
-            assert q_session is not None and guest_client_id is not None
-            try:
-                while True:
-                    event = await q_session.get()
-                    await guard.send_json(
-                        sanitize_guest_session_event(
-                            {**event, "plane": "session", "client_id": guest_client_id}
-                        )
-                    )
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception("guest session pump failed token=%s", token[:8])
-                with contextlib.suppress(Exception):
-                    await guard.close(1011, "presence pump failed")
-                raise
-
-        async def _pump_document() -> None:
-            assert q_doc is not None
-            try:
-                while True:
-                    event = await q_doc.get()
-                    await guard.send_json(sanitize_guest_document_event(event))
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception("guest document pump failed token=%s", token[:8])
-                with contextlib.suppress(Exception):
-                    await guard.close(1011, "document pump failed")
-                raise
-
-        conn.spawn(_pump_session())
-        conn.spawn(_pump_document())
-        conn.spawn(_pump_guest_progress(token, guard, q_progress))
-        while True:
-            try:
-                text = await websocket.receive_text()
-            except WebSocketDisconnect:
-                break
-            if not guard.share_ok_on_frame():
-                await guard.close(4403, "share revoked or expired")
-                break
-            close_reason: str | None
-            seq, guard.malformed, close_reason = _handle_guest_presence_frame(
-                text,
-                session_svc=session_svc,
-                guest_client_id=guest_client_id,
-                label=label,
-                seq=seq,
-                token=token,
-                websocket=websocket,
-                malformed=guard.malformed,
+            await guard.send_json(
+                sanitize_guest_document_event(
+                    {
+                        "type": "Snapshot",
+                        "plane": "document",
+                        "snapshot": doc_svc.document_snapshot(projection="shell"),
+                    }
+                )
             )
-            if guard.malformed > GUEST_MALFORMED_LIMIT:
-                await guard.close(4400, "too many malformed frames")
-                break
-            if close_reason:
-                await guard.close(4400, close_reason)
-                break
+
+            async def _pump_session() -> None:
+                assert q_session is not None and guest_client_id is not None
+                try:
+                    while True:
+                        event = await q_session.get()
+                        await guard.send_json(
+                            sanitize_guest_session_event(
+                                {**event, "plane": "session", "client_id": guest_client_id}
+                            )
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception("guest session pump failed token=%s", token[:8])
+                    with contextlib.suppress(Exception):
+                        await guard.close(1011, "presence pump failed")
+                    raise
+
+            async def _pump_document() -> None:
+                assert q_doc is not None
+                try:
+                    while True:
+                        event = await q_doc.get()
+                        await guard.send_json(sanitize_guest_document_event(event))
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception("guest document pump failed token=%s", token[:8])
+                    with contextlib.suppress(Exception):
+                        await guard.close(1011, "document pump failed")
+                    raise
+
+            conn.spawn(_pump_session())
+            conn.spawn(_pump_document())
+            conn.spawn(_pump_guest_progress(token, guard, q_progress))
+            while True:
+                try:
+                    text = await websocket.receive_text()
+                except WebSocketDisconnect:
+                    break
+                if not guard.share_ok_on_frame():
+                    await guard.close(4403, "share revoked or expired")
+                    break
+                close_reason: str | None
+                seq, guard.malformed, close_reason = _handle_guest_presence_frame(
+                    text,
+                    session_svc=session_svc,
+                    guest_client_id=guest_client_id,
+                    label=label,
+                    seq=seq,
+                    token=token,
+                    websocket=websocket,
+                    malformed=guard.malformed,
+                )
+                if guard.malformed > GUEST_MALFORMED_LIMIT:
+                    await guard.close(4400, "too many malformed frames")
+                    break
+                if close_reason:
+                    await guard.close(4400, close_reason)
+                    break
     finally:
         try:
             if q_session is not None:
@@ -969,8 +969,6 @@ async def daw_ws(
                 hub.unsubscribe(doc_key, q_doc)
             if q_progress is not None:
                 progress_hub.unsubscribe(token, q_progress)
-            if bridge_lease is not None:
-                bridge_lease.release()
             await conn.stop_tasks()
         finally:
             try:
