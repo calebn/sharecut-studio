@@ -151,3 +151,12 @@ jobs:
       - name: Playwright Chromium/WebKit compatibility matrix
         working-directory: gui/web
         run: npm run test:e2e:compat
+
+      - name: Upload Playwright traces from failed specs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: gui/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
