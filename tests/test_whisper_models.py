@@ -432,3 +432,19 @@ def test_tampered_vocabulary_fails_status_load_and_bootstrap(
     with pytest.raises(WhisperPinMismatchError, match=r"vocabulary\.txt"):
         bootstrap_whisper_model("small.en")
     assert read_whisper_model_pref() is None
+
+
+def test_unreadable_hub_cache_reads_as_not_downloaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def raise_oserror(*a, **k):
+        raise OSError("broken snapshot symlink")
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", raise_oserror, raising=False)
+    problem = whisper_model_problem("small.en")
+    assert isinstance(problem, WhisperWeightsMissingError)
+    assert not isinstance(problem, WhisperPinMismatchError)
+    with pytest.raises(WhisperWeightsMissingError):
+        ensure_whisper_model_cached("small.en")
+    with pytest.raises(WhisperWeightsMissingError):
+        resolve_whisper_model_path("small.en")
