@@ -160,9 +160,61 @@ def test_bootstrap_all_runs_every_component(tmp_path: Path) -> None:
                         "podcast_mcp.engines.vad_silero.model_path",
                         return_value=Path("/fake/model.onnx"),
                     ):
-                        result = runner.invoke(app, ["bootstrap"])
+                        with patch("podcast_mcp.cli.setup_cmd.bootstrap_word_aligner") as wa:
+                            result = runner.invoke(app, ["bootstrap"])
     assert result.exit_code == 0
     assert "Bootstrap complete." in result.stdout
+    wa.assert_not_called()
+
+
+def test_bootstrap_word_aligner_success() -> None:
+    with (
+        patch("podcast_mcp.cli.setup_cmd.word_aligner_is_cached", return_value=False),
+        patch(
+            "podcast_mcp.cli.setup_cmd.bootstrap_word_aligner",
+            return_value={"ok": True, "model": "onnx-base", "path": "/x"},
+        ),
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
+    assert result.exit_code == 0
+    assert "[ok] word-aligner" in result.stdout
+
+
+def test_bootstrap_word_aligner_skips_when_cached() -> None:
+    with (
+        patch("podcast_mcp.cli.setup_cmd.word_aligner_is_cached", return_value=True),
+        patch("podcast_mcp.cli.setup_cmd.bootstrap_word_aligner") as bootstrap,
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
+    assert result.exit_code == 0
+    assert "[skip] word-aligner" in result.stdout
+    bootstrap.assert_not_called()
+
+
+def test_bootstrap_word_aligner_upgrade_forces_download() -> None:
+    with (
+        patch("podcast_mcp.cli.setup_cmd.word_aligner_is_cached", return_value=True),
+        patch(
+            "podcast_mcp.cli.setup_cmd.bootstrap_word_aligner",
+            return_value={"ok": True, "model": "onnx-base", "path": "/x"},
+        ) as bootstrap,
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "word-aligner", "--upgrade"])
+    assert result.exit_code == 0
+    bootstrap.assert_called_once_with(force=True)
+
+
+def test_bootstrap_word_aligner_failure_exits_1() -> None:
+    with (
+        patch("podcast_mcp.cli.setup_cmd.word_aligner_is_cached", return_value=False),
+        patch(
+            "podcast_mcp.cli.setup_cmd.bootstrap_word_aligner",
+            side_effect=RuntimeError("hub down"),
+        ),
+    ):
+        result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
+    assert result.exit_code == 1
+    assert "hub down" in result.stderr
 
 
 def test_doctor_reports_rnnoise_and_silero_status() -> None:

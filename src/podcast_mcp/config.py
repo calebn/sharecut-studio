@@ -43,6 +43,13 @@ def models_dir() -> Path:
     return d
 
 
+def word_aligner_cache_dir() -> Path:
+    """Hugging Face cache for the opt-in forced aligner (`podcast bootstrap --component word-aligner`)."""
+    d = cache_dir() / "word-aligner"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 _PARSED_DEFAULTS: dict[str, tuple[bytes, dict[str, Any]]] = {}
 
 

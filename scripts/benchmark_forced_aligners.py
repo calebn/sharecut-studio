@@ -34,6 +34,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     retime_spans,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.word_align import OnnxCtcBackend
 from podcast_mcp.engines.word_boundary_metrics import (
     matched_word_pairs,
     measure_word_boundaries,
@@ -276,30 +277,6 @@ def write_wav16(path: Path, samples: np.ndarray) -> None:
     write_bytes_atomic(path, pcm_wav_header(len(data), sample_rate=SAMPLE_RATE) + data)
 
 
-class OnnxBackend:
-    def __init__(self, model_dir: Path, onnx_file: str, threads: int) -> None:
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:
-            raise RuntimeError(
-                "onnx backend needs onnxruntime, which faster-whisper installs "
-                "transitively (not a direct dependency): run uv sync"
-            ) from exc
-
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = threads
-        self._session = ort.InferenceSession(
-            str(model_dir / onnx_file), opts, providers=["CPUExecutionProvider"]
-        )
-        self._input_name = self._session.get_inputs()[0].name
-
-    def log_probs(self, samples: np.ndarray) -> np.ndarray:
-        outputs = self._session.run(
-            None, {self._input_name: normalize_waveform(samples)[None, :].astype(np.float32)}
-        )
-        return log_softmax(outputs[0][0])
-
-
 class TorchBackend:
     def __init__(self, model_dir: Path, threads: int) -> None:
         try:
@@ -324,7 +301,7 @@ class TorchBackend:
 def make_backend(c: Candidate, model_dir: Path, threads: int) -> LogProbBackend:
     if c.backend == "onnx":
         assert c.onnx_file is not None
-        return OnnxBackend(model_dir, c.onnx_file, threads)
+        return OnnxCtcBackend(model_dir / c.onnx_file, threads=threads)
     return TorchBackend(model_dir, threads)
 
 
