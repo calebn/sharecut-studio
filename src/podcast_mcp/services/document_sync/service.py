@@ -321,9 +321,9 @@ class DocumentSyncService:
                 return {"server_seq": server_seq, "resync": True}
 
     def _publish_applied(self, row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
-        """Fan out ``Applied`` for journal ``row``. Call under the project and journal write
-        locks so in-process subscribers see events in ``server_seq`` order. publish only
-        schedules (test_hub_publish_only_schedules_delivery)."""
+        """Fan out ``Applied`` for journal ``row``. Call under the project lock (and, for a
+        write, the journal write lock) so in-process subscribers see events in
+        ``server_seq`` order. publish only schedules (test_hub_publish_only_schedules_delivery)."""
         event = {
             "type": "Applied",
             "plane": "document",
@@ -447,8 +447,10 @@ class DocumentSyncService:
         event carries the new seq and its next meta poll agrees
         (``pollSnapshotAlreadyApplied``, #657 rule A). A mutation from another process
         reaches this process's hub with nothing to publish to, but the row still commits
-        to the shared ``document.db``: the GUI process then sees ``meta.server_seq`` move
-        past its applied seq on its next ``/api/project/meta`` poll (#662).
+        to the shared ``document.db``: the GUI process's cross-process watcher
+        (``services/cross_process_sync.py``, #695) pushes it to open tabs within about
+        ``CROSS_PROCESS_POLL_S`` while a socket is open, with the 30 s meta poll as the
+        fallback.
 
         Runs in ``_journal_write_lock``, the same critical section as ``submit``: the
         project lock, then a crash-saved command is journaled first
@@ -469,6 +471,32 @@ class DocumentSyncService:
                 empty_snap_fn=_empty_journal_snapshot,
             )
             api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
+            return self._publish_applied(row, api_snap)
+
+    def publish_cross_process_head(self) -> dict[str, Any] | None:
+        """Fan out the document.db head when another process journaled it (#695).
+
+        Called by the cross-process watcher. Holds ``document_submit_lock``, the
+        in-process project lock that every in-process writer holds through
+        ``ws.transaction()`` until its publish. A row this process wrote is therefore
+        already published (``SessionHub.last_applied_seq``) and is not re-sent, and events
+        stay in ``server_seq`` order with in-process ones. Always a SHELL snapshot:
+        several foreign rows within one tick collapse into one ``Applied``, and a narrower
+        projection would drop earlier rows' changes. Returns the event or ``None``.
+        """
+        with document_submit_lock(self.project):
+            store = _existing_store_at(document_db_path(self.project))
+            if store is None:
+                return None
+            hub = get_hub()
+            seq = _journal_server_seq(store)
+            if seq == 0 or hub.last_applied_seq(self._project_key) == seq:
+                return None
+            api_snap = self._snapshot_or_resync("shell", seq)
+            head = int(api_snap.get("server_seq") or seq)
+            row = store.command_at(head)
+            if row is None:
+                return None
             return self._publish_applied(row, api_snap)
 
     def _apply(
@@ -596,7 +624,10 @@ def notify_document_changed(project_path: str | Path, *, role: ClientRole = "age
     _notify_changed(project_path, projection="shell", role=role)
 
 
-def _document_server_seq_at(db_path: Path) -> int | None:
+def document_server_seq_at(db_path: Path) -> int | None:
+    """Journal seq of the document.db at ``db_path``: 0 when missing, ``None`` when
+    unreadable (meta polls + cross-process watcher)."""
+
     def _read() -> int | None:
         store = _existing_store_at(resolve_meta_path(db_path))
         return _journal_server_seq(store) if store is not None else 0
@@ -608,13 +639,13 @@ def document_server_seq(project_path: str | Path) -> int | None:
     """Materialized document log seq: 0 when document.db does not exist, None when unreadable.
 
     Stat + document.db read only: no project parse, never creates document.db.
-    Path resolution and the store read (``_document_server_seq_at``) each go through
+    Path resolution and the store read (``document_server_seq_at``) each go through
     ``best_effort_meta``. ``None`` lets the meta routes omit ``server_seq`` so a
     transient read error does not look like a seq change to the client poll. The
     caller must pass a project path it has already authorized; this helper does no authz.
     """
     return best_effort_meta(
-        lambda: _document_server_seq_at(
+        lambda: document_server_seq_at(
             document_db_path_for_workspace(meta_workspace_dir(project_path))
         ),
         None,
@@ -648,8 +679,10 @@ def after_agent_mutation(project_path: str | Path | ProjectWorkspace) -> None:
 
     Journals a seq-advancing ``ExternalMutate`` row (#661): in the GUI process it reaches
     tabs over the socket at the new seq, and from another process (e.g. stdio MCP or
-    ``podcast record land``) only the row reaches the shared ``document.db``, so the GUI's
-    own tabs see it on their next ``/api/project/meta`` poll instead.
+    ``podcast record land``) only the row reaches the shared ``document.db``, so the GUI
+    process's cross-process watcher (#695) pushes it to its tabs within about
+    ``CROSS_PROCESS_POLL_S`` while a socket is open, with the 30 s meta poll as the
+    fallback.
 
     Always journals ``role="agent"``, record landing included: landing (GUI auto-land,
     host Retry land, CLI/MCP ``record land`` / ``discard-take``) is a server-side action

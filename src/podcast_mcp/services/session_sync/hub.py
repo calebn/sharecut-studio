@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -23,8 +24,43 @@ class SessionHub(FanoutHub):
         super().__init__(
             queue_maxsize=256,
             overflow=_session_overflow,
-            on_unsubscribed=_clear_presence_key,
+            on_unsubscribed=self._key_idle,
         )
+        self._seq_lock = threading.Lock()
+        self._applied_seq: dict[str, int] = {}
+
+    def publish(self, key: str, event: dict[str, Any]) -> None:
+        """Remember ``event``'s seq when it is an ``Applied``, then fan it out (#695).
+
+        Recorded before the base publish returns early for a key with no subscribers,
+        so an in-process write is known even while no socket listens on that plane.
+        """
+        seq = _applied_server_seq(event)
+        if seq is not None:
+            with self._seq_lock:
+                self._applied_seq[key] = seq
+        super().publish(key, event)
+
+    def last_applied_seq(self, key: str) -> int | None:
+        """``server_seq`` of the last ``Applied`` this process published for ``key`` (#695).
+
+        The cross-process watcher (``services/cross_process_sync.py``) skips a journal
+        head equal to it: that row was written, and already fanned out, in this process.
+        """
+        with self._seq_lock:
+            return self._applied_seq.get(key)
+
+    def _key_idle(self, key: str) -> None:
+        with self._seq_lock:
+            self._applied_seq.pop(key, None)
+        _clear_presence_key(key)
+
+
+def _applied_server_seq(event: dict[str, Any] | None) -> int | None:
+    if not isinstance(event, dict) or event.get("type") != "Applied":
+        return None
+    seq = event.get("server_seq")
+    return seq if isinstance(seq, int) and not isinstance(seq, bool) else None
 
 
 def _record_signal(event: dict[str, Any] | None) -> bool:

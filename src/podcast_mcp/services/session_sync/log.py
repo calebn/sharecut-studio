@@ -121,6 +121,10 @@ def _sql_bundle(prefix: str) -> dict[str, str]:
             "type, payload, causation_id, ts_ns FROM __COMMANDS__ "
             "WHERE server_seq > ? ORDER BY server_seq ASC"
         ),
+        "command_at": bind(
+            "SELECT server_seq, command_id, client_id, client_seq, role, "
+            "type, payload, causation_id, ts_ns FROM __COMMANDS__ WHERE server_seq = ?"
+        ),
         "prune_clients": bind("DELETE FROM __CLIENTS__ WHERE last_seen_ns < ?"),
         "select_client": bind("SELECT acked_server_seq, meta FROM __CLIENTS__ WHERE client_id = ?"),
         "upsert_client": bind(
@@ -522,6 +526,12 @@ class SyncStore:
         with self._lock:
             rows = self._conn.execute(self._sql["commands_after"], (server_seq,)).fetchall()
         return [self._row_to_cmd(r) for r in rows]
+
+    def command_at(self, server_seq: int) -> dict[str, Any] | None:
+        """The journal row at ``server_seq`` (the PK), or ``None``."""
+        with self._lock:
+            row = self._conn.execute(self._sql["command_at"], (server_seq,)).fetchone()
+        return self._row_to_cmd(row) if row is not None else None
 
     def touch_client(
         self,
