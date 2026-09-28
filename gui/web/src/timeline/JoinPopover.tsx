@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { setClipJoin } from "../api";
 import { JOIN_AUDITION_PAD_SEC, joinGlyph } from "../edit/joinRender";
@@ -6,7 +6,11 @@ import { useProjectMutation } from "../hooks/useProjectMutation";
 import { canApplyPass12 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
-import { InspectorSeekFooter, useDialogModal } from "../ui";
+import {
+  InspectorSeekFooter,
+  useDialogModal,
+  useOutsidePointerDown,
+} from "../ui";
 import { JoinPopoverView } from "./JoinPopoverView";
 import { placeJoinPopover } from "./joinPopoverPlacement";
 
@@ -70,17 +74,7 @@ export function JoinPopover({
     };
   }, [anchorRef, seamSec]);
 
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (panelRef.current?.contains(t) || anchorRef.current?.contains(t)) {
-        return;
-      }
-      onClose();
-    };
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [anchorRef, onClose]);
+  useOutsidePointerDown([panelRef, anchorRef], onClose);
 
   const mode = joinGlyph(right);
   return createPortal(

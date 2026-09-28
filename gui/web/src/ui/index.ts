@@ -47,3 +47,4 @@ export {
   type UseDialogModalOptions,
   useDialogModal,
 } from "./useDialogModal";
+export { useOutsidePointerDown } from "./useOutsidePointerDown";
