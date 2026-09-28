@@ -1,38 +1,34 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
-import { DialogLauncher } from "../test/DialogLauncher";
-import { openDialogByLauncher } from "../test/storyDialog";
+import { openDialogViaLauncher } from "../storybook/openDialog";
+import { Button } from "./Button";
 import { GesturesSheet } from "./GesturesSheet";
-
-const openDialog = (canvasElement: HTMLElement) =>
-  openDialogByLauncher(canvasElement, {
-    launcherName: "Open gestures",
-    dialogName: "Gestures",
-  });
 
 function GesturesPreview({
   initiallyOpen,
   ...args
 }: ComponentProps<typeof GesturesSheet> & { initiallyOpen: boolean }) {
+  const [open, setOpen] = useState(initiallyOpen);
   return (
-    <DialogLauncher label="Open gestures" initiallyOpen={initiallyOpen}>
-      {(open, close) => (
-        <GesturesSheet
-          {...args}
-          open={open}
-          onClose={() => {
-            close();
-            args.onClose();
-          }}
-          onShowKeyboardShortcuts={() => {
-            close();
-            args.onShowKeyboardShortcuts();
-          }}
-        />
-      )}
-    </DialogLauncher>
+    <>
+      <Button type="button" onClick={() => setOpen(true)}>
+        Open gestures
+      </Button>
+      <GesturesSheet
+        {...args}
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          args.onClose();
+        }}
+        onShowKeyboardShortcuts={() => {
+          setOpen(false);
+          args.onShowKeyboardShortcuts();
+        }}
+      />
+    </>
   );
 }
 
@@ -58,7 +54,11 @@ type Story = StoryObj<typeof GesturesSheet>;
 export const Open: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialog(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open gestures",
+      "Gestures",
+    );
     await waitFor(() =>
       expect(within(dialog).getByText("Two-finger tap")).toBeVisible(),
     );
@@ -68,7 +68,11 @@ export const Open: Story = {
 export const KeyboardShortcutsHandoff: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialog(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open gestures",
+      "Gestures",
+    );
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Keyboard shortcuts" }),
     );
@@ -82,7 +86,11 @@ export const Phone: Story = {
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialog(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open gestures",
+      "Gestures",
+    );
     await waitFor(() =>
       expect(within(dialog).getByText("Two-finger tap")).toBeVisible(),
     );

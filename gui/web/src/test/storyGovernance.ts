@@ -11,6 +11,7 @@ export const STORY_SUPPORT_MODULES = new Set([
   "layout/dawShellStoryDecorator.tsx",
   "storybook/docsTheme.ts",
   "storybook/StudioDocsContainer.tsx",
+  "storybook/openDialog.ts",
 ]);
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated

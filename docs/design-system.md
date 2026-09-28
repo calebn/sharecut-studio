@@ -239,14 +239,11 @@ a fixed loopback URL so its fields and client snippet do not depend on the
 Storybook server port; the live dialog still derives its URL from the host.
 Standalone Canvas stories open their dialogs for visual review. Autodocs
 examples start with launchers so the previews remain independently inspectable
-and closable. They cover an open episode, the no-episode warning, the
-gesture sheet's callback handoff to keyboard shortcuts, and a 360px phone
-viewport without app or network context. Dialog stories share
-`src/test/DialogLauncher.tsx` (launcher button plus open state) and
-`openDialogByLauncher` / `useArgState` from `src/test/storyDialog.ts`, so play
-functions open a dialog the same way and Controls keep driving state the
-preview owns. A Controls edit to an arg replaces any local change the preview
-made to that value.
+and closable. Their `play` functions open the dialog with
+`openDialogViaLauncher` (`src/storybook/openDialog.ts`), which clicks the
+launcher only when no dialog is open. They cover an open episode, the
+no-episode warning, the gesture sheet's callback handoff to keyboard
+shortcuts, and a 360px phone viewport without app or network context.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
@@ -393,7 +390,8 @@ unchanged for callers and continue to read DAW state and dispatch through
 - App code never imports `*.stories.tsx` or globs them (`import.meta.glob`),
   never imports Storybook packages, never imports a story-support module
   (e.g. `record/recordStoryDecorator.tsx`, `storybook/docsTheme.ts`,
-  `storybook/StudioDocsContainer.tsx`), and never imports a test-only
+  `storybook/StudioDocsContainer.tsx`, `storybook/openDialog.ts`), and never
+  imports a test-only
   module (anything under `src/test/` or a `*.test.*` file); stories must stay
   out of the production bundle. `gui/web/src/test/storyGovernance.test.ts`
   enforces all of this for `src/` and for the root build configs
@@ -438,7 +436,8 @@ unchanged for callers and continue to read DAW state and dispatch through
   `ToolModeToggle`, `EditingToolRail` and `CommandPalette` following the
   `TrackHeaderView` pattern, with `Templates/ToolModeToggle`,
   `Templates/EditingToolRail` and `Templates/CommandPalette` stories; removed
-  follow-up D from the Catalog boundary list.
+  follow-up D from the Catalog boundary list; added the shared
+  `openDialogViaLauncher` story play helper.
 - 2026-09-27 — Closed #610: extracted props-only `StatusBarView`,
   `AvatarStackView`, `OverlayLegendView` and `PresenceStatusView` from their
   live adapters and added `Templates/StatusBar`, `Templates/AvatarStack` and

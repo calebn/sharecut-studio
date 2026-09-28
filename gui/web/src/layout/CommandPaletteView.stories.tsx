@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { openDialogViaLauncher } from "../storybook/openDialog";
 import { Button } from "../ui";
 import { CommandPaletteView } from "./CommandPaletteView";
 import type {
@@ -105,23 +106,14 @@ const meta: Meta<typeof CommandPaletteView> = {
 export default meta;
 type Story = StoryObj<typeof CommandPaletteView>;
 
-async function openPalette(canvasElement: HTMLElement) {
-  if (!within(document.body).queryByRole("dialog")) {
-    await userEvent.click(
-      within(canvasElement).getByRole("button", {
-        name: "Open keyboard shortcuts",
-      }),
-    );
-  }
-  return within(document.body).getByRole("dialog", {
-    name: "Keyboard shortcuts",
-  });
-}
-
 export const AllKeys: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await waitFor(() =>
       expect(within(dialog).getByText("Select tool")).toBeVisible(),
     );
@@ -138,7 +130,11 @@ export const AllKeys: Story = {
 export const CategoryTab: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await userEvent.click(within(dialog).getByRole("tab", { name: "tools" }));
     await expect(
       within(dialog).getByRole("tab", { name: "tools" }),
@@ -154,7 +150,11 @@ export const CategoryTab: Story = {
 export const ActionsTab: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await userEvent.click(within(dialog).getByRole("tab", { name: "Actions" }));
     await expect(within(dialog).queryByText("Select tool")).toBeNull();
     await userEvent.click(
@@ -169,7 +169,11 @@ export const ActionsTab: Story = {
 export const ShowRemaps: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await userEvent.click(
       within(dialog).getByRole("checkbox", { name: "Show remaps" }),
     );
@@ -185,7 +189,11 @@ export const ShowRemaps: Story = {
 export const GesturesHandoff: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Gestures" }),
     );
@@ -199,7 +207,11 @@ export const Phone: Story = {
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openPalette(canvasElement);
+    const dialog = await openDialogViaLauncher(
+      canvasElement,
+      "Open keyboard shortcuts",
+      "Keyboard shortcuts",
+    );
     await waitFor(() =>
       expect(within(dialog).getByText("Play / pause")).toBeVisible(),
     );
