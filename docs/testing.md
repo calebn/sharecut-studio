@@ -728,12 +728,12 @@ $LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py
 
 **Table 1 — scored, LibriSpeech, 3 clips (42 matched / 48 reference words).**
 
-| Candidate       | matched/ref | MAE (ms) | over 150 ms  | start bias (ms) | end bias (ms) | unaligned words | alignment runtime (s, summed) | RTF    | load (s) | peak RSS (MiB) | download |
+| Candidate       | matched/ref | MAE (ms) | over 150 ms  | start bias (ms) | end bias (ms) | unaligned words | alignment runtime (s, summed) | RTF    | load (s, per-candidate run) | peak RSS (MiB, per-candidate run) | download |
 | --------------- | ----------- | -------- | ------------ | ---------------- | -------------- | ---------------- | ------------------------------ | ------ | -------- | -------------- | -------- |
 | native `base`   | 42/48       | 82.26    | 15/42 (35.7%) | −62.38            | −85.95          | n/a (ASR)         | n/a (23.96 s incl. 3 process starts) | n/a  | n/a      | n/a            | already cached |
-| `onnx-base`     | 42/48       | 42.98    | 2/42 (4.8%)   | +43.81            | −40.24          | 0                 | 0.81                            | 0.044  | 2.01     | 843.9          | 451 MiB (shared repo) |
-| `onnx-base-int8`| 42/48       | 47.26    | 4/42 (9.5%)   | +43.81            | −48.81          | 0                 | 1.36                            | 0.074  | 1.23     | 599.3          | 451 MiB (shared repo) |
-| `torch-large`   | 42/48       | 48.69    | 1/42 (2.4%)   | +58.57            | −34.05          | 0                 | 3.32                            | 0.181  | 35.10    | 2070.7         | 1.2 GiB |
+| `onnx-base`     | 42/48       | 42.98    | 2/42 (4.8%)   | +43.81            | −40.24          | 0                 | 0.81                            | 0.044  | 0.67     | 843.9          | 451 MiB (shared repo) |
+| `onnx-base-int8`| 42/48       | 47.26    | 4/42 (9.5%)   | +43.81            | −48.81          | 0                 | 1.36                            | 0.074  | 0.41     | 599.3          | 451 MiB (shared repo) |
+| `torch-large`   | 42/48       | 48.69    | 1/42 (2.4%)   | +58.57            | −34.05          | 0                 | 3.32                            | 0.181  | 11.70    | 2070.7         | 1.2 GiB |
 
 `onnx-base` and `onnx-base-int8` share one Hub repo
 (`onnx-community/wav2vec2-base-960h-ONNX`), so 451 MiB (`du -sh` on the cache
@@ -741,6 +741,20 @@ snapshot) covers both `onnx/model.onnx` and `onnx/model_int8.onnx` together;
 `torch-large`'s 1.2 GiB is `facebook/wav2vec2-large-960h-lv60-self`'s
 `pytorch_model.bin` plus config files. Native's row is faster-whisper ASR, not
 a forced aligner, so its runtime/RTF/RSS aren't comparable to the candidates.
+
+The `load` and `peak RSS` columns come from the one-`--candidate`-per-process
+runs (`--runs-dir .lab-runs/align/librispeech-<label>` above). Every other
+candidate column comes from the combined `run --target librispeech` whose
+reports are checked in as `tests/fixtures/word_boundary/<id>.<label>.json`.
+`load_sec` is measured once per candidate per run and copied into each clip's
+provenance, so it is reported once here, not summed across clips. The
+checked-in combined-run reports record `load_sec` 0.61 / 0.12 / 47.70 s and a
+max `peak_rss_mb` of 852.9 / 852.9 / 2243.7 MiB for `onnx-base` /
+`onnx-base-int8` / `torch-large`. RSS there is process-wide, so each candidate
+inherits the earlier candidates' peaks (`onnx-base-int8` inherits fp32's
+852.9 MiB). Load times also vary between runs with library-import and
+disk-cache state (`torch-large` took 47.70 s combined vs 11.70 s alone), so
+treat `load` as order-of-magnitude only.
 
 **Table 2 — agreement against native Whisper `base`.** `aligned_dialogue`
 (2 × 60 s) produced **zero** native words: its canned transcript doesn't match
