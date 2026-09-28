@@ -1,20 +1,12 @@
 import { defineConfig, devices, type Project } from "@playwright/test";
-import { withLaunchArgs } from "./e2e/launchOptions";
+import { CHROMIUM_FAKE_MEDIA_ARGS, withLaunchArgs } from "./e2e/launchOptions";
 import baseConfig from "./playwright.config";
 
 /**
- * Chromium's built-in fake capture device, so recording specs call the real
- * `getUserMedia` (then the keeper AudioWorklet, OPFS writer and upload) with no
- * hardware or permission prompt. Specs that stub `navigator.mediaDevices`
- * are unaffected. The flags apply to every spec in the `chromium` and
+ * `CHROMIUM_FAKE_MEDIA_ARGS` apply to every spec in the `chromium` and
  * `chrome` projects: a compat spec that must see Chromium's real permission
  * prompt or device list needs its own project without them.
  */
-const CHROMIUM_FAKE_MEDIA_ARGS = [
-  "--use-fake-device-for-media-stream",
-  "--use-fake-ui-for-media-stream",
-];
-
 const projects: Project[] = [
   {
     name: "chromium",

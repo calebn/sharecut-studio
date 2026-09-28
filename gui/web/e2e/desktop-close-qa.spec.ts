@@ -1,4 +1,5 @@
 import { type Browser, expect, test } from "@playwright/test";
+import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   createRecordRoom,
   markSharecutE2e,
@@ -8,12 +9,7 @@ import {
 import { withShareableProject } from "./shareableProject";
 
 test.use({
-  launchOptions: {
-    args: [
-      "--use-fake-device-for-media-stream",
-      "--use-fake-ui-for-media-stream",
-    ],
-  },
+  launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
 test("host publishes close risk across recording and pause, then clears after stop", async ({

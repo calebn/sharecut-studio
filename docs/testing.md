@@ -556,7 +556,8 @@ Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 `gui/web/e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`) and
 `gui/web/e2e/transcriptEdit.ts` (`openTranscriptPanel`,
 `withDocumentCommandTypes`) and `gui/web/e2e/launchOptions.ts`
-(`withLaunchArgs`); guest review
+(`withLaunchArgs`, and `CHROMIUM_FAKE_MEDIA_ARGS`, which the main suite's
+record specs share); guest review
 shares come from `createReviewShare` in `gui/web/e2e/shareNavigation.ts`. This
 keeps coverage focused on high-risk entry points without multiplying the
 full suite across engines.
