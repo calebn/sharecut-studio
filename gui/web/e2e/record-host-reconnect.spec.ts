@@ -39,10 +39,10 @@ import { withBrowserPages } from "./twoBrowserPages";
 
 /** services/record/state.py HOST_OFFLINE_PAUSE_MS: a host return after this long forces PAUSED. */
 const HOST_OFFLINE_PAUSE_MS = 10_000;
-/** Well inside the threshold, leaving room for the 1 s client reconnect timers. */
-const HOST_BLIP_MS = 3_000;
-/** Past the threshold with margin for a loaded runner. */
-const HOST_OUTAGE_MS = 12_500;
+/** Well inside the threshold: leaves ~6 s for the 1 s client reconnect timers on a loaded runner. */
+const HOST_BLIP_MS = 2_000;
+/** Past the threshold with 4 s of margin for a loaded runner. */
+const HOST_OUTAGE_MS = 14_000;
 
 type Outages = { host: NetworkOutage; guest: NetworkOutage };
 

@@ -1224,7 +1224,7 @@ asserts inbound `Signal` frames (`window.__recordSignalCount`).
 
 The US-1 scenario (`records a remote interview end to end (US-1)`) drives host, guest and producer through lobby, consent, Start, live comments (guest marker via `M`, guest note, producer note visible to host but not the guest), Stop, keeper upload to file ACK, host landing (ACK auto-land or Land, whichever is ready first), clips in `raw/` and on the timeline, and live comments landing as `review.comments[]`. The producer has no keeper or upload. Desktop (Tauri) recording stays manual (#193).
 
-The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 3 s blip stays REC with no new keeper segment. A 12.5 s outage shows "Host offline: still recording locally." while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`.
+The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 2 s blip stays REC with no new keeper segment. A 14 s outage shows "Host offline: still recording locally." while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`.
 
 ### Hard tab kill (manual, real Chrome)
 
