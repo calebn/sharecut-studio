@@ -140,6 +140,7 @@ def download_pinned_snapshot(
 
 # One lock per resolved file: overlapping status polls hash a file once, not once each,
 # while polls for different files (a multi-GB model.bin, a small config) hash in parallel.
+# A lock is discarded once its hash finishes, so the registry holds only in-flight files.
 _MEMO_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 
 
@@ -151,8 +152,14 @@ def _sha256_for(resolved: str, size: int, mtime_ns: int) -> str:
 def _memoized_sha256(path: Path) -> str:
     resolved = path.resolve()
     st = resolved.stat()
-    with _MEMO_LOCKS.get(str(resolved)):
-        return _sha256_for(str(resolved), st.st_size, st.st_mtime_ns)
+    key = str(resolved)
+    try:
+        with _MEMO_LOCKS.get(key):
+            return _sha256_for(key, st.st_size, st.st_mtime_ns)
+    finally:
+        # The digest is cached now (or the hash failed and is retried next poll), so the
+        # lock has done its job; a waiter still holding it reads the cached digest.
+        _MEMO_LOCKS.discard_idle(key)
 
 
 def clear_manifest_memo() -> None:
