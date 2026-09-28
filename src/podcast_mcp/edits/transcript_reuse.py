@@ -9,6 +9,7 @@ from typing import Any, Protocol
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
+from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
@@ -142,13 +143,16 @@ def plan_transcription(
 
 
 def needs_retime(transcript: Transcript, model: WordAlignerModel) -> bool:
-    """Words ``model`` could re-time that it has not, or re-timed before scores existed (#195)."""
+    """Words ``model`` could re-time that it has not, or scored by another score method (#195).
+
+    Transcripts re-timed before scores existed have no ``alignment_score_method``.
+    """
     return (
         bool(transcript.words)
         and model.supports_language(transcript.language)
         and (
             transcript.word_aligner != model.id
-            or all(w.alignment_score is None for w in transcript.words)
+            or transcript.alignment_score_method != ALIGNMENT_SCORE_METHOD
         )
     )
 

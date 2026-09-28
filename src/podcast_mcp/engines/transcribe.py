@@ -424,6 +424,7 @@ class TranscriptionEngine:
         """Opt-in forced alignment; on any failure Whisper's times stay and the job is reported."""
         if not self.options.forced_alignment_enabled or not transcript.words:
             return
+        from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
         from podcast_mcp.engines.word_align import apply_word_spans
 
         entry: dict[str, Any] = {"label": job.label, "track_id": job.track_id}
@@ -493,6 +494,7 @@ class TranscriptionEngine:
                 1 for w in transcript.words if below_evidence_floor(w.alignment_score, min_score)
             )
         transcript.word_aligner = aligner.model.id
+        transcript.alignment_score_method = ALIGNMENT_SCORE_METHOD
 
     def transcribe_file(
         self,
@@ -588,6 +590,7 @@ class TranscriptionEngine:
         transcript.audio_sha256 = sha
         # Whisper's own times until _align_words re-times them (the ASR cache never holds a marker).
         transcript.word_aligner = None
+        transcript.alignment_score_method = None
         # Cached words carry no silence flags or alignment scores: they are recomputed
         # below from the current transcribe.silence_filter settings (not a cache input)
         # on every read, and _align_words re-derives the scores.

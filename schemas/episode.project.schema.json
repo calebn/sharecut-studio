@@ -233,6 +233,10 @@
           "type": ["string", "null"],
           "description": "Forced aligner (e.g. onnx-base) that re-timed these words when transcribe.forced_alignment.enabled ran; null keeps Whisper's own word times."
         },
+        "alignment_score_method": {
+          "type": ["string", "null"],
+          "description": "Per-word alignment_score definition (ALIGNMENT_SCORE_METHOD) used when word_aligner re-timed these words; a different or missing value makes Re-time words re-score them."
+        },
         "user_edited": {
           "type": "boolean",
           "default": false,
