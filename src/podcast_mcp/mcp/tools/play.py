@@ -185,7 +185,8 @@ def audition_context_tool(
     Each track also carries a ``prosody`` window (pitch, rate, energy, prominent
     words, phrase boundaries) read from the pipeline's cached profile
     (``analyze_prosody`` step); ``status`` is ``missing``/``stale`` with a hint
-    when no fresh profile is cached yet. Top-level ``prosody_notes`` has up to
+    when no fresh profile is cached yet, or ``unavailable`` (redacted ``error``)
+    when the cache cannot be read. Top-level ``prosody_notes`` has up to
     8 one-line summaries. Times are timeline (session) seconds. Does not play audio.
     """
     ws = ProjectWorkspace.open(project_path)
