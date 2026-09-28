@@ -52,19 +52,18 @@ def audio_state_fingerprint(
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def reconciliation_is_stale(project: EpisodeProject) -> bool:
-    if project.reconciliation_stale:
-        return True
-    fp = audio_state_fingerprint(project)
+def reconciliation_is_stale(project: EpisodeProject, fingerprint: str | None = None) -> bool:
+    """``fingerprint`` is this state's ``audio_state_fingerprint`` when the caller has it."""
     stored = project.last_reconciliation_hash
-    if stored is None:
+    if project.reconciliation_stale or stored is None:
         return True
+    fp = audio_state_fingerprint(project) if fingerprint is None else fingerprint
     return fp != stored
 
 
 def reconciliation_status(project: EpisodeProject) -> dict[str, Any]:
     fp = audio_state_fingerprint(project)
-    stale = reconciliation_is_stale(project)
+    stale = reconciliation_is_stale(project, fp)
     return {
         "stale": stale,
         "fingerprint": fp,
