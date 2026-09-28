@@ -115,6 +115,8 @@
   pointer-events: none;
 }
 
+/* useLayerHeight (WaveformLayer.tsx) observes this box: keep it spanning the
+   clip so a lane-height step resizes it. */
 .clip-waveform {
   overflow: hidden;
 }
