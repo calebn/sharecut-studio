@@ -11,7 +11,7 @@ import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
 import { Icon } from "../ui";
 import { formatGainDb, trackFaderDb, trackOutputGainDb } from "../utils/audio";
-import { reasonChipLabel } from "../utils/staleRender";
+import { REGIONAL_CHIP_LABEL, reasonChipLabel } from "../utils/staleRender";
 import {
   outputGainTitle,
   reorderHandleTitle,
@@ -139,7 +139,7 @@ export function TrackHeaderView({
             className="stale-reason-chip"
             title="Parts of this track are out of date"
           >
-            Regions
+            {REGIONAL_CHIP_LABEL}
           </span>
         ) : null}
         <span className="track-header-disclose" aria-hidden="true">

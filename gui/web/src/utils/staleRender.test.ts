@@ -259,6 +259,47 @@ describe("staleRenderBreakdown", () => {
     expect(b.summary).toContain("region");
   });
 
+  it("spells out envelope and other reason chips in full words", () => {
+    expect(reasonChipLabel("envelope")).toBe("Envelope");
+    expect(reasonChipLabel("other")).toBe("Other");
+  });
+
+  it("carries the full envelope word into the summary", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [
+          {
+            id: "host",
+            label: "Host",
+            role: "dialogue",
+            speaker: null,
+            gain_db: 0,
+            muted: false,
+            duration_sec: 60,
+            fx_count: 0,
+            stem_is_fresh: false,
+          },
+        ],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true, stale_vs_stems: false },
+          invalidations: [
+            {
+              id: "inv_env",
+              track_ids: ["host"],
+              timeline_start: null,
+              timeline_end: null,
+              reason: "envelope",
+              at: "2026-01-01T00:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    expect(b.summary).toContain("Envelope");
+  });
+
   it("does not mark stale from invalidations alone when freshness says fresh", () => {
     const b = staleRenderBreakdown(
       minimalProject({
