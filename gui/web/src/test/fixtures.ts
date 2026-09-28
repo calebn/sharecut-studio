@@ -5,6 +5,7 @@ import type { PipelineJobSnapshot } from "../types/pipeline";
 import type {
   AppliedEditRecord,
   ClipRow,
+  PendingEditView,
   ProjectView,
   TimelineComment,
   TrackView,
@@ -119,6 +120,31 @@ export function offlineConflict(
       ...overrides.command,
     },
     reason: overrides.reason ?? "Envelope changed since this edit was queued",
+  };
+}
+
+/** Fictional pending edit for timeline previews and component tests. */
+export function pendingEditView(
+  overrides: Partial<PendingEditView> = {},
+): PendingEditView {
+  return {
+    id: "pending-1",
+    track_id: "mira-voice",
+    track_ids: ["mira-voice"],
+    type: "remove",
+    reason: "guest:suggest",
+    source_start: 2,
+    source_end: 3,
+    timeline_start: 2,
+    timeline_end: 3,
+    timeline_spans: [{ start: 2, end: 3 }],
+    mappable: true,
+    crossfade_ms: 10,
+    boundary_mode: null,
+    cut_confidence: null,
+    review_required: true,
+    applied: false,
+    ...overrides,
   };
 }
 

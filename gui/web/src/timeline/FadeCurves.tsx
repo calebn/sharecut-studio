@@ -1,7 +1,7 @@
 /**
  * A clip's fades over its waveform (#677): straight gain ramps, the shape
  * render plays (ffmpeg afade / acrossfade `tri`), with the attenuated side
- * dimmed. Paint only; the handles live in ClipBlock.
+ * dimmed. Paint only; the handles live in ClipBlockView.
  */
 
 import { fadeCurvePaths, fadeCurveViewBox } from "./fadeCurvePaths";

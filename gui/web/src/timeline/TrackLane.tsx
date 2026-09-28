@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
+import type { RollPreview } from "../edit/clipEdgePreview";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
@@ -33,12 +34,6 @@ import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
-
-type RollPreview = {
-  leftClipId: string;
-  rightClipId: string;
-  deltaSec: number;
-};
 
 const NOOP = () => undefined;
 

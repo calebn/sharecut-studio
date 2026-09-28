@@ -2,8 +2,12 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
 import { useDawStore } from "../state/dawStore";
+import { expectNoA11yViolations } from "../test/a11y";
+import { clipRow } from "../test/fixtures";
 import type { ClipRow } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
+import { ClipBlockView } from "./ClipBlockView";
+import { clipBlockGeometry } from "./clipBlockGeometry";
 
 type LayerProps = {
   mediaRef: string;
@@ -862,5 +866,205 @@ describe("ClipBlock snap points", () => {
     const { loadWaveformSnap } = await import("../api");
     await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
     expect(container.querySelector(".clip-waveform-snap")).toBeNull();
+  });
+
+  it("still magnets a trim to hidden ticks when Snap points is off", async () => {
+    setSnapStore({ showSnapPoints: false });
+    const { container } = render(<ClipBlock {...base} />);
+    const { loadWaveformSnap } = await import("../api");
+    await waitFor(() => expect(loadWaveformSnap).toHaveBeenCalled());
+    expect(container.querySelector(".clip-waveform-snap")).toBeNull();
+  });
+});
+
+describe("ClipBlockView", () => {
+  // A non-literal value keeps Biome's ARIA-role-name check from reading this
+  // domain prop (speaker role, not an ARIA role) as an invalid role="dialogue".
+  const dialogueRole = "dialogue";
+  const prev = clipRow({
+    id: "prev",
+    source_start: 0,
+    source_end: 2,
+    timeline_start: -2,
+    timeline_end: 0,
+  });
+  const restGeometry = clipBlockGeometry({
+    clip,
+    zoomPxPerSec: 50,
+    rollPreview: null,
+    trimPreview: null,
+    fadePreview: null,
+    previewTimelineStart: null,
+  });
+
+  it("renders from props with handles and passes axe", async () => {
+    const { container, getByRole } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={restGeometry}
+        prevClip={prev}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick: vi.fn() }}
+      />,
+    );
+    expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
+    expect(container.querySelector("button.join-diamond")).not.toBeNull();
+    expect(getByRole("button", { name: "Select clip c1" })).not.toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
+  it("read-only clip shows the join as decoration and no handles", () => {
+    const { container } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={restGeometry}
+        prevClip={prev}
+        nextClip={null}
+        showHandles={false}
+        hitHandlers={{ onClick: vi.fn() }}
+      />,
+    );
+    expect(container.querySelector(".trim-handle")).toBeNull();
+    const diamond = container.querySelector("span.join-diamond");
+    expect(diamond?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("routes handle pointerdowns by kind", () => {
+    const onHandlePointerDown = vi.fn();
+    const { container } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={restGeometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick: vi.fn() }}
+        onHandlePointerDown={onHandlePointerDown}
+      />,
+    );
+    const trimOut = container.querySelector(".trim-handle.out") as HTMLElement;
+    fireEvent.pointerDown(trimOut, { pointerId: 1 });
+    expect(onHandlePointerDown).toHaveBeenCalledWith(
+      "trim-out",
+      expect.anything(),
+    );
+    const fadeInZero = container.querySelector(
+      "button.fade-corner.in.zero",
+    ) as HTMLElement;
+    fireEvent.pointerDown(fadeInZero, { pointerId: 1 });
+    expect(onHandlePointerDown).toHaveBeenCalledWith(
+      "fade-in",
+      expect.anything(),
+    );
+  });
+
+  it("spreads hit handlers onto the hit button", () => {
+    const onClick = vi.fn();
+    const { getByRole } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={restGeometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick }}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: "Select clip c1" }));
+    expect(onClick).toHaveBeenCalled();
+  });
+
+  it("renders waveform slots and snap ticks", () => {
+    const ghostGeometry = clipBlockGeometry({
+      clip,
+      zoomPxPerSec: 50,
+      rollPreview: null,
+      trimPreview: { edge: "out", sourceStart: 0, sourceEnd: 2.5 },
+      fadePreview: null,
+      previewTimelineStart: null,
+    });
+    const { container } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={ghostGeometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick: vi.fn() }}
+        snapTicks={[0.5]}
+        waveform={<div data-testid="wave" />}
+        ghostWaveform={<div data-testid="ghost" />}
+      />,
+    );
+    expect(container.querySelector('[data-testid="wave"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="ghost"]')).not.toBeNull();
+    const snap = container.querySelector(".clip-waveform-snap") as HTMLElement;
+    expect(snap.style.left).toBe("25px");
+
+    const { container: noGhost } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={restGeometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick: vi.fn() }}
+        waveform={<div data-testid="wave2" />}
+      />,
+    );
+    expect(noGhost.querySelector(".clip-trim-ghost")).toBeNull();
+  });
+
+  it("shows the fade readout for the dragged edge", () => {
+    const fadeGeometry = clipBlockGeometry({
+      clip,
+      zoomPxPerSec: 50,
+      rollPreview: null,
+      trimPreview: null,
+      fadePreview: { edge: "out", inMs: 0, outMs: 300 },
+      previewTimelineStart: null,
+    });
+    const { container } = render(
+      <ClipBlockView
+        clip={clip}
+        role={dialogueRole}
+        zoomPxPerSec={50}
+        color="var(--lane-1)"
+        selected={false}
+        geometry={fadeGeometry}
+        prevClip={null}
+        nextClip={null}
+        showHandles
+        hitHandlers={{ onClick: vi.fn() }}
+      />,
+    );
+    expect(container.querySelector(".fade-readout.out")?.textContent).toBe(
+      "300 ms",
+    );
   });
 });

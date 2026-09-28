@@ -8,7 +8,7 @@ import {
 import { presenceCursorFromPointer } from "../presence/usePresenceCursorSource";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleComment } from "../test/fixtures";
 import type {
   ChapterMarker,
   SocialClipView,
@@ -16,6 +16,8 @@ import type {
 } from "../types/project";
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { MarkerLane } from "./MarkerLane";
+import { MarkerLaneView } from "./MarkerLaneView";
+import { socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -251,5 +253,107 @@ describe("MarkerLane", () => {
         "Clipping on Ava at 0:05; later clipping not recorded",
       );
     });
+  });
+});
+
+describe("socialSpanAfterDrag", () => {
+  it.each([
+    ["move" as const, 1, 3, -5, { start: 0, end: 2 }],
+    ["start" as const, 1, 3, 5, { start: 2.95, end: 3 }],
+    ["end" as const, 1, 3, -5, { start: 1, end: 1.05 }],
+  ])("%s", (mode, originStart, originEnd, dxSec, expected) => {
+    const result = socialSpanAfterDrag(mode, originStart, originEnd, dxSec);
+    expect(result.start).toBeCloseTo(expected.start);
+    expect(result.end).toBeCloseTo(expected.end);
+  });
+});
+
+describe("MarkerLaneView", () => {
+  const allRows: MarkerRows = {
+    chapters: true,
+    social: true,
+    comments: true,
+    clipping: true,
+  };
+
+  function renderView(
+    overrides: Partial<Parameters<typeof MarkerLaneView>[0]> = {},
+  ) {
+    const onMoveChapter = vi.fn();
+    const onMoveSocial = vi.fn();
+    const onSelectChapter = vi.fn();
+    const view = render(
+      <MarkerLaneView
+        chapters={chapters}
+        socialClips={socialClips}
+        comments={comments}
+        rows={allRows}
+        zoomPxPerSec={10}
+        width={400}
+        editable
+        onSelectChapter={onSelectChapter}
+        onSelectSocial={vi.fn()}
+        onSelectComment={vi.fn()}
+        onMoveChapter={onMoveChapter}
+        onMoveSocial={onMoveSocial}
+        {...overrides}
+      />,
+    );
+    return { ...view, onMoveChapter, onMoveSocial, onSelectChapter };
+  }
+
+  it("read-only markers click-select and never drag", () => {
+    const { container, onMoveChapter, onSelectChapter } = renderView({
+      editable: false,
+    });
+    const chapter = container.querySelector(".chapter-marker") as HTMLElement;
+    fireEvent.pointerDown(chapter, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(chapter, { clientX: 150, pointerId: 1 });
+    fireEvent.pointerUp(chapter, { clientX: 150, pointerId: 1 });
+    expect(onMoveChapter).not.toHaveBeenCalled();
+    fireEvent.click(chapter);
+    expect(onSelectChapter).toHaveBeenCalledWith(chapters[0]);
+  });
+
+  it("commits an editable chapter drag through onMoveChapter", () => {
+    const { container, onMoveChapter } = renderView();
+    const chapter = container.querySelector(".chapter-marker") as HTMLElement;
+    fireEvent.pointerDown(chapter, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(chapter, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerUp(chapter, { clientX: 130, pointerId: 1 });
+    expect(onMoveChapter).toHaveBeenCalledWith({ time: 2, title: "Intro" }, 5);
+  });
+
+  it("commits a social end drag through onMoveSocial", () => {
+    const { container, onMoveSocial } = renderView();
+    const marker = container.querySelector(".social-marker") as HTMLElement;
+    fireEvent.pointerDown(marker, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(marker, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerUp(marker, { clientX: 130, pointerId: 1 });
+    expect(onMoveSocial).toHaveBeenCalledWith("s1", 1, 6);
+  });
+
+  it("renders comments and clipping from props and passes axe", async () => {
+    const { container } = renderView({
+      comments: [
+        sampleComment({ id: "cm-pin", author: "Ari", timeline_start: 4 }),
+        sampleComment({
+          id: "cm-span",
+          author: "Mira",
+          timeline_start: 10,
+          timeline_end: 13,
+        }),
+      ],
+      clippingFlags: [
+        {
+          id: "f1",
+          trackId: "host",
+          label: "Host",
+          start: 5,
+          end: 5.2,
+        },
+      ],
+    });
+    await expectNoA11yViolations(container);
   });
 });

@@ -5,11 +5,10 @@ import {
   useState,
 } from "react";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
-import { capabilityTooltip } from "../capabilities/copy";
 import {
   clampRollDelta,
   clampTrimSourceSec,
-  clipGeometryDuringRoll,
+  type RollPreview,
   sourceSecFromTimelineDelta,
   type TrimEdge,
 } from "../edit/clipEdgePreview";
@@ -24,20 +23,29 @@ import {
   ROLL_COMMIT_MIN_PX,
 } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
-import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
-import { formatDurationCompact } from "../utils/time";
+import { EMPTY_ARR } from "../utils/empty";
 import { clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
-import { FadeCurves } from "./FadeCurves";
+import {
+  ClipBlockView,
+  type ClipHandle,
+  type ClipHitHandlers,
+} from "./ClipBlockView";
+import {
+  type ClipFadePreview,
+  type ClipTrimPreview,
+  clipBlockGeometry,
+  type FadeEdge,
+} from "./clipBlockGeometry";
 import { magnetSec } from "./snapOverlay";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { WaveformLayer } from "./WaveformLayer";
 
-interface ClipBlockProps {
+export interface ClipBlockProps {
   clip: ClipRow;
   trackId: string;
   role: string;
@@ -67,18 +75,8 @@ interface ClipBlockProps {
    * Lane-owned roll preview so both abutting clips stay flush while dragging.
    * Only the two clips of the join get it; the rest get null.
    */
-  rollPreview: {
-    leftClipId: string;
-    rightClipId: string;
-    deltaSec: number;
-  } | null;
-  onRollPreview: (
-    preview: {
-      leftClipId: string;
-      rightClipId: string;
-      deltaSec: number;
-    } | null,
-  ) => void;
+  rollPreview: RollPreview | null;
+  onRollPreview: (preview: RollPreview | null) => void;
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
@@ -101,8 +99,6 @@ interface ClipBlockProps {
   onMoveCommit?: (clipId: string, info: ClipMovePointerInfo) => void;
   onMoveCancel?: () => void;
 }
-
-type FadeEdge = "in" | "out";
 
 type FadeDrag = {
   kind: "fade";
@@ -144,58 +140,7 @@ type BodyDrag = {
   wasSelected: boolean;
 };
 
-/** Clip-local overlay spans for source regions, clamped to the visible window. */
-function RegionSpans({
-  regions,
-  className,
-  keyPrefix,
-  sourceStart,
-  sourceEnd,
-  zoomPxPerSec,
-}: {
-  regions: readonly { start_s: number; end_s: number }[] | undefined;
-  className: string;
-  keyPrefix: string;
-  sourceStart: number;
-  sourceEnd: number;
-  zoomPxPerSec: number;
-}) {
-  return (
-    <>
-      {(regions ?? []).map((region, i) => {
-        const start = Math.max(region.start_s, sourceStart);
-        const end = Math.min(region.end_s, sourceEnd);
-        if (!(end > start + 1e-9)) {
-          return null;
-        }
-        return (
-          <span
-            key={`${keyPrefix}-${region.start_s}-${region.end_s}-${i}`}
-            className={className}
-            style={{
-              left: (start - sourceStart) * zoomPxPerSec,
-              width: Math.max(1, (end - start) * zoomPxPerSec),
-            }}
-            aria-hidden
-          />
-        );
-      })}
-    </>
-  );
-}
-
-function clipLabel(role: string, durationSec: number, width: number): string {
-  if (width < 24) {
-    return "";
-  }
-  const dur = formatDurationCompact(durationSec);
-  if (width < 60) {
-    return dur;
-  }
-  return `${role} · ${dur}`;
-}
-
-export function ClipBlockView({
+export function ClipBlockLive({
   clip,
   trackId,
   role,
@@ -233,68 +178,18 @@ export function ClipBlockView({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
-  const [fadePreview, setFadePreview] = useState<{
-    edge: FadeEdge;
-    inMs: number;
-    outMs: number;
-  } | null>(null);
-  const [trimPreview, setTrimPreview] = useState<{
-    edge: TrimEdge;
-    sourceStart: number;
-    sourceEnd: number;
-  } | null>(null);
+  const [fadePreview, setFadePreview] = useState<ClipFadePreview | null>(null);
+  const [trimPreview, setTrimPreview] = useState<ClipTrimPreview | null>(null);
 
-  const rollGeom = clipGeometryDuringRoll(clip, rollPreview);
-  const rollActive =
-    rollPreview != null &&
-    (rollPreview.leftClipId === clip.id || rollPreview.rightClipId === clip.id);
-
-  const sourceStart = rollActive
-    ? rollGeom.sourceStart
-    : (trimPreview?.sourceStart ?? clip.source_start);
-  const sourceEnd = rollActive
-    ? rollGeom.sourceEnd
-    : (trimPreview?.sourceEnd ?? clip.source_end);
-  const durationSec = sourceEnd - sourceStart;
-  const timelineStart =
-    previewTimelineStart != null && !rollActive
-      ? previewTimelineStart
-      : rollGeom.timelineStart;
-  const left = timelineStart * zoomPxPerSec;
-  const width = Math.max(4, durationSec * zoomPxPerSec);
-  const committedWidth = Math.max(
-    4,
-    (clip.source_end - clip.source_start) * zoomPxPerSec,
-  );
-  const label = clipLabel(role, durationSec, width);
-  const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
-  const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
-  // Fade lengths in timeline px, following a live drag. Each edge has one
-  // corner handle whatever its length (`.zero` marks a committed 0 ms), so
-  // the handle that starts a drag holds pointer capture until it commits.
-  const fadeInPx = (fadeInMs / 1000) * zoomPxPerSec;
-  const fadeOutPx = (fadeOutMs / 1000) * zoomPxPerSec;
-  const growingOut =
-    trimPreview != null && trimPreview.sourceEnd > clip.source_end + 1e-9;
-  const growingIn =
-    trimPreview != null && trimPreview.sourceStart < clip.source_start - 1e-9;
-  // In-edge expand keeps timeline_start fixed — duration grows to the right.
-  const ghostSourceStart =
-    trimPreview == null
-      ? clip.source_start
-      : growingIn
-        ? trimPreview.sourceStart
-        : clip.source_end;
-  const ghostSourceEnd =
-    trimPreview == null
-      ? clip.source_end
-      : growingIn
-        ? clip.source_start
-        : trimPreview.sourceEnd;
-  const ghostExtraPx =
-    trimPreview != null && (growingOut || growingIn)
-      ? Math.abs(ghostSourceEnd - ghostSourceStart) * zoomPxPerSec
-      : 0;
+  const geometry = clipBlockGeometry({
+    clip,
+    zoomPxPerSec,
+    rollPreview,
+    trimPreview,
+    fadePreview,
+    previewTimelineStart,
+  });
+  const { sourceStart, sourceEnd, rollActive } = geometry;
 
   // Keep lanes still under a trim, fade or roll drag.
   useHoldTimelineMetrics(
@@ -369,7 +264,7 @@ export function ClipBlockView({
       }
       const dxSec = (clientX - state.originX) / zoomPxPerSec;
       const proposed = magnetSec(
-        sourceSecFromTimelineDelta(state.edge, state.baseSourceSec, dxSec),
+        sourceSecFromTimelineDelta(state.baseSourceSec, dxSec),
         ticks,
         zoomPxPerSec,
       );
@@ -542,7 +437,7 @@ export function ClipBlockView({
     }
     const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
     const proposed = magnetSec(
-      sourceSecFromTimelineDelta(d.edge, d.baseSourceSec, dxSec),
+      sourceSecFromTimelineDelta(d.baseSourceSec, dxSec),
       ticks,
       zoomPxPerSec,
     );
@@ -670,217 +565,114 @@ export function ClipBlockView({
     });
   };
 
-  const trimTip = capabilityTooltip("daw.edit.trimClipEdge");
-  const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
-  const fadeTip = capabilityTooltip("daw.edit.setClipFade");
-  const moveTip = capabilityTooltip("daw.edit.moveClips");
-  // Render ignores the fades at a cut join: this clip's fade-in when its
-  // incoming join is a cut, its fade-out when the next clip's join is.
-  const cutIn = isCutJoin(clip);
-  const cutOut = nextClip != null && isCutJoin(nextClip);
-  const showHandles = editable && interactive;
+  const onHandlePointerDown = (
+    handle: ClipHandle,
+    e: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    switch (handle) {
+      case "roll":
+        return startRollDrag(e);
+      case "fade-in":
+        return startFadeDrag("in", e);
+      case "fade-out":
+        return startFadeDrag("out", e);
+      case "trim-in":
+        return startTrimDrag("in", e);
+      case "trim-out":
+        return startTrimDrag("out", e);
+    }
+  };
+
+  const hitHandlers: ClipHitHandlers = {
+    onPointerDown: onBodyDown,
+    onPointerMove: onBodyMove,
+    onPointerUp: (e) => endBodyDrag(e, false),
+    onPointerCancel: (e) => endBodyDrag(e, true),
+    onLostPointerCapture: (e) => endBodyDrag(e, true),
+    onClick: (e) => {
+      e.stopPropagation();
+      if (bodyMovedRef.current) {
+        bodyMovedRef.current = false;
+        pointerHandledRef.current = false;
+        return;
+      }
+      if (bladeMode) {
+        onHit(clip.id, e.clientX);
+        pointerHandledRef.current = false;
+        return;
+      }
+      if (!pointerHandledRef.current) {
+        onSelectClip?.(clip.id, {
+          shift: e.shiftKey,
+          mod: e.metaKey || e.ctrlKey,
+        });
+      }
+      pointerHandledRef.current = false;
+    },
+  };
+
   const showSnapPoints = useDawStore((s) => s.layers.showSnapPoints);
   // Ticks still load for the paused playhead (a body move magnets to them),
   // but draw only where they explain an edit: trimming or in blade mode.
-  const drawTicks =
-    showSnapPoints && (trimPreview != null || bladeMode) && ticks.length > 0;
+  const drawTicks = showSnapPoints && (trimPreview != null || bladeMode);
 
   return (
-    <div
-      className={`clip-block${selected ? " selected" : ""}${isCrossfadeJoin(clip) ? " join-crossfade" : ""}${fadePreview ? " fade-dragging" : ""}${trimPreview || rollActive ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
-      style={{ left, width, background: color }}
-      aria-hidden={!interactive}
-      title={
-        canMove && !bladeMode && interactive
-          ? `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s) · ${moveTip}`
-          : `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s)`
+    <ClipBlockView
+      clip={clip}
+      role={role}
+      trackLabel={trackLabel}
+      zoomPxPerSec={zoomPxPerSec}
+      color={color}
+      selected={selected}
+      geometry={geometry}
+      prevClip={prevClip}
+      nextClip={nextClip}
+      showHandles={editable && interactive}
+      canMove={canMove}
+      bladeMode={bladeMode}
+      moving={moving}
+      previewHidden={previewHidden}
+      interactive={interactive}
+      snapTicks={drawTicks ? ticks : EMPTY_ARR}
+      waveform={
+        <WaveformLayer
+          mediaRef={mediaRef}
+          kind={waveKind}
+          mediaStartSec={clipMediaStartSec(clip, sourceStart, mediaRef)}
+          clipLeftCss={geometry.left}
+          clipWidthCss={geometry.width}
+          zoom={zoomPxPerSec}
+          colorVar={color}
+          role={role}
+          gainDb={gainDb}
+        />
       }
-    >
-      {interactive ? (
-        <button
-          type="button"
-          className={`clip-hit${canMove && !bladeMode ? " clip-hit-moveable" : ""}`}
-          aria-label={`Select clip ${clip.id}`}
-          aria-pressed={selected}
-          onPointerDown={onBodyDown}
-          onPointerMove={onBodyMove}
-          onPointerUp={(e) => endBodyDrag(e, false)}
-          onPointerCancel={(e) => endBodyDrag(e, true)}
-          onLostPointerCapture={(e) => endBodyDrag(e, true)}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (bodyMovedRef.current) {
-              bodyMovedRef.current = false;
-              pointerHandledRef.current = false;
-              return;
-            }
-            if (bladeMode) {
-              onHit(clip.id, e.clientX);
-              pointerHandledRef.current = false;
-              return;
-            }
-            if (!pointerHandledRef.current) {
-              onSelectClip?.(clip.id, {
-                shift: e.shiftKey,
-                mod: e.metaKey || e.ctrlKey,
-              });
-            }
-            pointerHandledRef.current = false;
-          }}
-        />
-      ) : null}
-      {showHandles && prevClip ? (
-        <button
-          type="button"
-          className="join-diamond"
-          title={`${rollTip} · join: ${clip.join_in_mode}`}
-          aria-label={rollTip}
-          onPointerDown={startRollDrag}
-          onPointerMove={onDragMove}
-          onPointerUp={onDragUp}
-        />
-      ) : interactive && prevClip ? (
-        <span
-          className="join-diamond"
-          title={`Join: ${clip.join_in_mode}`}
-          aria-hidden="true"
-        />
-      ) : null}
-      {ghostExtraPx > 0 ? (
-        // The clip's padding box starts 1px in (its border): -1 puts the
-        // ghost's border box, and so its layer (1px outside the ghost's
-        // dashed border, like the clip's), at timeline x left + committedWidth.
-        <span
-          className="clip-trim-ghost"
-          style={{ width: ghostExtraPx, left: committedWidth - 1 }}
-          aria-hidden
-        >
+      ghostWaveform={
+        geometry.ghostExtraPx > 0 ? (
           <WaveformLayer
             mediaRef={mediaRef}
             kind={waveKind}
-            mediaStartSec={clipMediaStartSec(clip, ghostSourceStart, mediaRef)}
-            clipLeftCss={left + committedWidth}
-            clipWidthCss={ghostExtraPx}
+            mediaStartSec={clipMediaStartSec(
+              clip,
+              geometry.ghostSourceStart,
+              mediaRef,
+            )}
+            clipLeftCss={geometry.left + geometry.committedWidth}
+            clipWidthCss={geometry.ghostExtraPx}
             zoom={zoomPxPerSec}
             colorVar={color}
             role={role}
             gainDb={gainDb}
           />
-        </span>
-      ) : null}
-      <FadeCurves
-        widthPx={width}
-        inPx={cutIn ? 0 : fadeInPx}
-        outPx={cutOut ? 0 : fadeOutPx}
-      />
-      {showHandles && !cutIn ? (
-        <button
-          type="button"
-          className={`fade-corner in${clip.fade_in_ms === 0 ? " zero" : ""}`}
-          style={{ left: fadeInPx }}
-          title={fadeTip}
-          aria-label={`${fadeTip} · in ${fadeInMs} ms`}
-          onPointerDown={(e) => startFadeDrag("in", e)}
-          onPointerMove={onDragMove}
-          onPointerUp={onDragUp}
-        />
-      ) : null}
-      {showHandles && !cutOut ? (
-        <button
-          type="button"
-          className={`fade-corner out${clip.fade_out_ms === 0 ? " zero" : ""}`}
-          style={{ right: fadeOutPx }}
-          title={fadeTip}
-          aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
-          onPointerDown={(e) => startFadeDrag("out", e)}
-          onPointerMove={onDragMove}
-          onPointerUp={onDragUp}
-        />
-      ) : null}
-      {fadePreview ? (
-        <span
-          className={`fade-readout ${fadePreview.edge}`}
-          style={
-            fadePreview.edge === "in"
-              ? { left: fadeInPx }
-              : { right: fadeOutPx }
-          }
-          aria-hidden="true"
-        >
-          {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
-        </span>
-      ) : null}
-      {showHandles && (
-        <>
-          <button
-            type="button"
-            className="trim-handle in"
-            title={`${trimTip} · start`}
-            aria-label={`${trimTip} · start`}
-            onPointerDown={(e) => startTrimDrag("in", e)}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragUp}
-          />
-          <button
-            type="button"
-            className="trim-handle out"
-            title={`${trimTip} · end`}
-            aria-label={`${trimTip} · end`}
-            onPointerDown={(e) => startTrimDrag("out", e)}
-            onPointerMove={onDragMove}
-            onPointerUp={onDragUp}
-          />
-        </>
-      )}
-      <WaveformLayer
-        mediaRef={mediaRef}
-        kind={waveKind}
-        mediaStartSec={clipMediaStartSec(clip, sourceStart, mediaRef)}
-        clipLeftCss={left}
-        clipWidthCss={width}
-        zoom={zoomPxPerSec}
-        colorVar={color}
-        role={role}
-        gainDb={gainDb}
-      />
-      {drawTicks ? (
-        <span className="clip-waveform-overlays" aria-hidden>
-          {ticks.map((t) => (
-            <span
-              key={`s-${t}`}
-              className="clip-waveform-snap"
-              style={{ left: (t - sourceStart) * zoomPxPerSec }}
-            />
-          ))}
-        </span>
-      ) : null}
-      <RegionSpans
-        regions={clip.mute_regions}
-        className="clip-mute-region"
-        keyPrefix="mute"
-        sourceStart={sourceStart}
-        sourceEnd={sourceEnd}
-        zoomPxPerSec={zoomPxPerSec}
-      />
-      <RegionSpans
-        regions={clip.clipping_regions}
-        className="clip-clipping-region"
-        keyPrefix="clipping"
-        sourceStart={sourceStart}
-        sourceEnd={sourceEnd}
-        zoomPxPerSec={zoomPxPerSec}
-      />
-      {label && (
-        <span className="clip-label">
-          {trackLabel ? (
-            <span className="clip-label-track">{trackLabel}</span>
-          ) : null}
-          {label}
-        </span>
-      )}
-    </div>
+        ) : null
+      }
+      hitHandlers={interactive ? hitHandlers : undefined}
+      onHandlePointerDown={onHandlePointerDown}
+      onHandlePointerMove={onDragMove}
+      onHandlePointerUp={onDragUp}
+    />
   );
 }
 
 /** Re-renders only when its own props change (see `TrackLane`). */
-export const ClipBlock = memo(ClipBlockView);
+export const ClipBlock = memo(ClipBlockLive);

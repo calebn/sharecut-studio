@@ -1,6 +1,11 @@
 /** Shared clip-edge trim / roll preview math (timeline + transcript). */
 
+import type { ClipRow, ProjectView } from "../types/project";
+
 export type TrimEdge = "in" | "out";
+
+/** Shortest span (seconds) an edge drag may leave: clip trims and rolls, pending edits and social clips. */
+export const MIN_EDGE_SPAN_SEC = 0.05;
 
 export type ClipEdgePreview = {
   clipId: string;
@@ -31,7 +36,7 @@ export function clampTrimSourceSec(
   sourceEnd: number,
   neighborLo: number,
   neighborHi: number,
-  minSpan = 0.05,
+  minSpan = MIN_EDGE_SPAN_SEC,
 ): number {
   if (edge === "out") {
     const lo = sourceStart + minSpan;
@@ -43,15 +48,16 @@ export function clampTrimSourceSec(
   return Math.min(Math.max(proposed, lo), hi);
 }
 
+/**
+ * Source second after a timeline drag of `dxTimelineSec`. The same for both
+ * edges: dragging right grows source_end / shrinks from source_start, and a
+ * left drag's negative dx lowers either edge.
+ */
 export function sourceSecFromTimelineDelta(
-  edge: TrimEdge,
   baseSourceSec: number,
   dxTimelineSec: number,
 ): number {
-  // Timeline grow-right increases source_end; grow-left decreases source_start.
-  return edge === "out"
-    ? baseSourceSec + dxTimelineSec
-    : baseSourceSec + dxTimelineSec;
+  return baseSourceSec + dxTimelineSec;
 }
 
 /**
@@ -62,7 +68,7 @@ export function clampRollDelta(
   deltaSec: number,
   bounds: RollClampBounds,
 ): number {
-  const minSpan = bounds.minSpan ?? 0.05;
+  const minSpan = bounds.minSpan ?? MIN_EDGE_SPAN_SEC;
   const mediaEnd = bounds.mediaEnd ?? Number.POSITIVE_INFINITY;
   let maxPos = Math.min(
     mediaEnd - bounds.leftSourceEnd,
@@ -119,5 +125,45 @@ export function clipGeometryDuringRoll(
     sourceStart: clip.source_start,
     sourceEnd: clip.source_end,
     timelineStart: clip.timeline_start,
+  };
+}
+
+export type RollNeighborBounds = {
+  /** source_end of the clip before the left clip, or 0. */
+  prevSourceEnd: number;
+  /** source_start of the clip after the right clip, or media end. */
+  nextSourceStart: number;
+  mediaEnd: number;
+};
+
+/** Roll clamp neighbours for a join, from the left clip's track (sorted by timeline). */
+export function rollNeighborBounds(
+  project: Pick<ProjectView, "clips" | "tracks"> | null,
+  leftClip: ClipRow | null,
+  rightClip: ClipRow | null,
+): RollNeighborBounds {
+  if (!leftClip || !rightClip || !project) {
+    return {
+      prevSourceEnd: 0,
+      nextSourceStart: Number.POSITIVE_INFINITY,
+      mediaEnd: Number.POSITIVE_INFINITY,
+    };
+  }
+  const trackClips = [...(project.clips.tracks[leftClip.track_id] ?? [])].sort(
+    (a, b) => a.timeline_start - b.timeline_start,
+  );
+  const leftIdx = trackClips.findIndex((c) => c.id === leftClip.id);
+  const prev = leftIdx > 0 ? trackClips[leftIdx - 1] : null;
+  const rightIdx = trackClips.findIndex((c) => c.id === rightClip.id);
+  const next =
+    rightIdx >= 0 && rightIdx + 1 < trackClips.length
+      ? trackClips[rightIdx + 1]
+      : null;
+  const track = project.tracks.find((t) => t.id === leftClip.track_id);
+  const mediaEnd = track?.duration_sec ?? Number.POSITIVE_INFINITY;
+  return {
+    prevSourceEnd: prev?.source_end ?? 0,
+    nextSourceStart: next?.source_start ?? mediaEnd,
+    mediaEnd,
   };
 }
