@@ -323,7 +323,8 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.setClipJoin", () => {
     return {
       status: "disabled",
-      reason: "Use the Join control in the clip inspector",
+      reason:
+        "Use the join badge on the timeline or the Join control in the clip inspector",
     };
   });
 

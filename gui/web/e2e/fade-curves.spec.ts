@@ -133,16 +133,21 @@ test.describe("Timeline fade curves", () => {
         if (!outBox) throw new Error("fade-out corner has no box");
         expect(intersects(badgeBox, outBox)).toBe(false);
         // The glyph stays inside the badge (it fills the gutter's content box).
+        // Re-read the badge box here: the two clip selects above can scroll the
+        // lane (the join badge is now a real button, part of the tab/click
+        // order), and the badge's own box would otherwise be stale.
+        const glyphBadgeBox = await badge.boundingBox();
+        if (!glyphBadgeBox) throw new Error("join badge has no box");
         const glyphBox = await badge.locator(".join-badge-glyph").boundingBox();
         if (!glyphBox) throw new Error("join badge glyph has no box");
         const eps = 0.01;
-        expect(glyphBox.x).toBeGreaterThanOrEqual(badgeBox.x - eps);
-        expect(glyphBox.y).toBeGreaterThanOrEqual(badgeBox.y - eps);
+        expect(glyphBox.x).toBeGreaterThanOrEqual(glyphBadgeBox.x - eps);
+        expect(glyphBox.y).toBeGreaterThanOrEqual(glyphBadgeBox.y - eps);
         expect(glyphBox.x + glyphBox.width).toBeLessThanOrEqual(
-          badgeBox.x + badgeBox.width + eps,
+          glyphBadgeBox.x + glyphBadgeBox.width + eps,
         );
         expect(glyphBox.y + glyphBox.height).toBeLessThanOrEqual(
-          badgeBox.y + badgeBox.height + eps,
+          glyphBadgeBox.y + glyphBadgeBox.height + eps,
         );
       };
 

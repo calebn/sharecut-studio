@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 import { JoinBadgeView } from "./JoinBadge";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
@@ -8,7 +9,14 @@ const meta: Meta<typeof JoinBadgeView> = {
   tags: ["autodocs"],
   parameters: { layout: "fullscreen", lanePreviewLabel: "Join badge preview" },
   decorators: [timelineLaneStoryDecorator],
-  args: { glyph: "fade", blocked: false, seamSec: 4, zoomPxPerSec: 40 },
+  args: {
+    glyph: "fade",
+    blocked: false,
+    seamSec: 4,
+    zoomPxPerSec: 40,
+    expanded: false,
+    onClick: fn(),
+  },
 };
 
 export default meta;
@@ -34,20 +42,33 @@ export const AllGlyphs: Story = {
         blocked={false}
         seamSec={2}
         zoomPxPerSec={40}
+        expanded={false}
+        onClick={() => undefined}
       />
       <JoinBadgeView
         glyph="fade"
         blocked={false}
         seamSec={5}
         zoomPxPerSec={40}
+        expanded={false}
+        onClick={() => undefined}
       />
       <JoinBadgeView
         glyph="crossfade"
         blocked={false}
         seamSec={8}
         zoomPxPerSec={40}
+        expanded={false}
+        onClick={() => undefined}
       />
-      <JoinBadgeView glyph="crossfade" blocked seamSec={11} zoomPxPerSec={40} />
+      <JoinBadgeView
+        glyph="crossfade"
+        blocked
+        seamSec={11}
+        zoomPxPerSec={40}
+        expanded={false}
+        onClick={() => undefined}
+      />
     </>
   ),
 };

@@ -545,7 +545,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Set clip join",
     when: "canApplyPass12",
     paletteRunnable: false,
-    notes: "Join mode select and Apply length in the clip inspector",
+    notes:
+      "Join badge popover on the timeline; Join mode select and Apply length in the clip inspector",
   },
   "edit.moveClips": {
     id: "edit.moveClips",

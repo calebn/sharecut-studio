@@ -205,7 +205,7 @@ describe("TrackLane join badges", () => {
     const { container } = lane();
     const badges = container.querySelectorAll(".join-badge");
     expect(badges).toHaveLength(1);
-    const badge = screen.getByRole("img", { name: "Fade join at 0:05.0" });
+    const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
     expect((badge as HTMLElement).style.left).toBe("500px");
   });
 
@@ -335,6 +335,15 @@ describe("TrackLane join badges", () => {
     fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 8 });
     fireEvent.pointerMove(diamond, { clientX: 73, pointerId: 8 });
     expect(container.querySelectorAll(".join-badge")).toHaveLength(0);
+  });
+
+  it("opens the join popover from the badge", () => {
+    lane();
+    const badge = screen.getByRole("button", { name: "Fade join at 0:05.0" });
+    fireEvent.click(badge);
+    expect(
+      screen.getByRole("dialog", { name: "Fade join at 0:05.0" }),
+    ).toBeInTheDocument();
   });
 });
 

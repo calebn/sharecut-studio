@@ -57,19 +57,18 @@ describe("JoinPopoverView", () => {
     expect(
       screen.getByRole("group", { name: "Join mode" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Fade", exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Fade" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("calls onModeChange for a different mode, not the pressed one", () => {
     const onModeChange = vi.fn();
     renderView({ onModeChange });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Crossfade", exact: true }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Crossfade" }));
     expect(onModeChange).toHaveBeenCalledWith("crossfade");
-    fireEvent.click(screen.getByRole("button", { name: "Fade", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Fade" }));
     expect(onModeChange).toHaveBeenCalledTimes(1);
   });
 
@@ -111,9 +110,7 @@ describe("JoinPopoverView", () => {
   it("is read-only when not editable: mode as text, no mode buttons", () => {
     renderView({ editable: false });
     expect(screen.queryByRole("group", { name: "Join mode" })).toBeNull();
-    expect(
-      screen.queryByRole("button", { name: "Crossfade", exact: true }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Crossfade" })).toBeNull();
     expect(screen.getByText("Fade (dip at join)")).toBeInTheDocument();
   });
 
@@ -130,9 +127,7 @@ describe("JoinPopoverView", () => {
 
   it("disables the mode buttons and the slider while busy", () => {
     renderView({ busy: true });
-    expect(
-      screen.getByRole("button", { name: "Crossfade", exact: true }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Crossfade" })).toBeDisabled();
     expect(screen.getByRole("slider", { name: "Length" })).toBeDisabled();
   });
 

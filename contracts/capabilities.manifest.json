@@ -2445,7 +2445,8 @@
       "surfaces": {
         "command": "edit.setClipJoin",
         "gui": [
-          "inspector.clip.joinMode"
+          "inspector.clip.joinMode",
+          "timeline.join.badge"
         ],
         "mcp": [
           "set_clip_join_tool"
@@ -2453,7 +2454,7 @@
         "cli": "podcast edit set-clip-join"
       },
       "omit": {
-        "keyboard_reason": "inspector select; no industry-standard key"
+        "keyboard_reason": "inspector select and join badge popover; no industry-standard key"
       },
       "presence": {
         "cursor": "time",

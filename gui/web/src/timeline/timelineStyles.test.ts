@@ -109,7 +109,7 @@ describe("timeline styles", () => {
     }
   });
 
-  it("draws join badges at the top of the seam, click-through, above the clips", () => {
+  it("draws join badges at the top of the seam, a button above the clips", () => {
     const css = partial("timeline.css");
     const badge = rule(css, ".join-badge");
     expect(badge).toMatch(/top:\s*0/);
@@ -118,7 +118,7 @@ describe("timeline styles", () => {
     expect(badge).toMatch(/height:\s*var\(--clip-inset-top\)/);
     expect(badge).toMatch(/width:\s*1rem/);
     expect(badge).toMatch(/z-index:\s*var\(--z-join\)/);
-    expect(badge).toMatch(/pointer-events:\s*none/);
+    expect(badge).toMatch(/pointer-events:\s*auto/);
     // One px token sizes the clip's top inset, the badge and its glyph, so they line up at any root font size.
     const clip = rule(css, ".clip-block");
     expect(clip).toMatch(/top:\s*var\(--clip-inset-top\)/);
@@ -138,6 +138,13 @@ describe("timeline styles", () => {
     expect(css.indexOf(".join-badge {")).toBeGreaterThan(
       css.indexOf(".lane-inner > * {"),
     );
+  });
+
+  it("fixes the join popover above the shell at the menu layer", () => {
+    const css = partial("timeline.css");
+    const popover = rule(css, ".join-popover");
+    expect(popover).toMatch(/position:\s*fixed/);
+    expect(popover).toMatch(/z-index:\s*var\(--z-menu\)/);
   });
 
   it("matches a grouped selector in any order or spacing", () => {
