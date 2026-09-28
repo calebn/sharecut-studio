@@ -268,7 +268,9 @@ The stem duration check (`probe_wav_duration_sec`, used by `stem_is_fresh`,
 path and `file_revision` the same way. Every document snapshot that carries
 `render_status` (MIX, CLIPS, FX, ENVELOPES, TRANSCRIPT_AUDIO, SHELL) re-reads hashes
 and stats but spawns no ffprobe for an unchanged stem. A publish swaps the file
-(`render_atomic`), so it always re-probes. Failures are not cached.
+(`render_atomic`), so it always re-probes. Failures are not cached. Writers must replace
+a probed file or change its size or mtime; an in-place rewrite that keeps both is
+unsupported and keeps the old duration until the process restarts.
 
 The stem step first reads each renderable track's fingerprint (`stem_fingerprint`:
 `track_render_hash` plus the expected stem length) under `project_state_lock`, with no
