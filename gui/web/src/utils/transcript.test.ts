@@ -468,6 +468,66 @@ describe("indexed transcript word lookup", () => {
       text: "point",
     });
   });
+
+  it("lists a word duplicated across utterances once in the range text", () => {
+    const dup = {
+      transcript: {
+        utterances: [
+          u({
+            text: "the quick",
+            start: 0,
+            end: 2,
+            words: [
+              { text: "the", word_index: 0, start: 0, end: 1 },
+              { text: "quick", word_index: 1, start: 1, end: 2 },
+            ],
+          }),
+          u({
+            text: "quick fox",
+            start: 1,
+            end: 3,
+            words: [
+              { text: "quick", word_index: 1, start: 1, end: 2 },
+              { text: "fox", word_index: 2, start: 2, end: 3 },
+            ],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(transcriptWordRange(dup, "host", 0, 2)?.text).toBe("the quick fox");
+  });
+
+  it("keeps the first listing of a disagreeing duplicate in the range text", () => {
+    const dup = {
+      transcript: {
+        utterances: [
+          u({
+            text: "the quick",
+            start: 0,
+            end: 2,
+            words: [
+              { text: "the", word_index: 0, start: 0, end: 1 },
+              { text: "quick", word_index: 1, start: 1, end: 2 },
+            ],
+          }),
+          u({
+            text: "quack fox",
+            start: 1,
+            end: 3,
+            words: [
+              { text: "quack", word_index: 1, start: 1, end: 2 },
+              { text: "fox", word_index: 2, start: 2, end: 3 },
+            ],
+          }),
+        ],
+      },
+    } as ProjectView;
+    expect(transcriptWordRange(dup, "host", 0, 2)).toEqual({
+      start: 0,
+      end: 3,
+      text: "the quick fox",
+    });
+  });
 });
 
 describe("transcriptSpanText", () => {

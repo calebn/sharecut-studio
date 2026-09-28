@@ -60,7 +60,38 @@ function* trackWordsInRange(
   }
 }
 
-/** Inclusive indexed range on a track; uses mapped times when present. */
+/**
+ * Record `text` for `index` once: the one duplicate-index rule shared by
+ * `transcriptWordRange` and `transcriptSpanText` (#650). Returns false when
+ * a second loaded listing of the index disagrees with the first; the first
+ * listing is kept.
+ */
+function addIndexedText(
+  texts: Map<number, string>,
+  index: number,
+  text: string,
+): boolean {
+  const seen = texts.get(index);
+  if (seen === undefined) {
+    texts.set(index, text);
+    return true;
+  }
+  return seen === text;
+}
+
+/** Texts space-joined in ascending `word_index` order. */
+function joinIndexedTexts(texts: Map<number, string>): string {
+  return [...texts.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, text]) => text)
+    .join(" ");
+}
+
+/**
+ * Inclusive indexed range on a track; uses mapped times when present. `text`
+ * lists each `word_index` once, in index order. It is a clipboard/presence
+ * copy, not a guard, so a duplicate that disagrees keeps its first listing.
+ */
 export function transcriptWordRange(
   project: ProjectView | null,
   trackId: string,
@@ -85,18 +116,20 @@ export function transcriptWordRange(
   const hi = Math.max(startWordIndex, endWordIndex);
   let start = Number.POSITIVE_INFINITY;
   let end = Number.NEGATIVE_INFINITY;
-  const texts: string[] | null = options?.boundsOnly ? null : [];
-  for (const { word } of trackWordsInRange(project, trackId, lo, hi)) {
+  const texts: Map<number, string> | null = options?.boundsOnly
+    ? null
+    : new Map();
+  for (const { index, word } of trackWordsInRange(project, trackId, lo, hi)) {
     start = Math.min(start, word.timeline_start ?? word.start);
     end = Math.max(end, word.timeline_end ?? word.end);
     if (texts) {
-      texts.push(word.text);
+      addIndexedText(texts, index, word.text);
     }
   }
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
     return null;
   }
-  return texts ? { start, end, text: texts.join(" ") } : { start, end };
+  return texts ? { start, end, text: joinIndexedTexts(texts) } : { start, end };
 }
 
 /**
@@ -128,21 +161,14 @@ export function transcriptSpanText(
     startWordIndex,
     endWordIndex,
   )) {
-    const seen = byIndex.get(index);
-    if (seen === undefined) {
-      byIndex.set(index, word.text);
-    } else if (seen !== word.text) {
+    if (!addIndexedText(byIndex, index, word.text)) {
       return null;
     }
   }
   if (byIndex.size !== endWordIndex - startWordIndex + 1) {
     return null;
   }
-  const texts: string[] = [];
-  for (let i = startWordIndex; i <= endWordIndex; i += 1) {
-    texts.push(byIndex.get(i) ?? "");
-  }
-  return texts.join(" ");
+  return joinIndexedTexts(byIndex);
 }
 
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */
