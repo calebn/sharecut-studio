@@ -79,6 +79,37 @@ def test_load_track_profile_memoizes_words_fingerprint(minimal_project: Path, mo
     assert calls["n"] == 1
 
 
+def test_other_track_words_edit_recomputes_once_and_stays_fresh(
+    minimal_project: Path, monkeypatch
+) -> None:
+    """The words revision is process-wide (#729): an edit on another track's words
+    recomputes this track's fingerprint once; the profile stays fresh.
+    """
+    proj = _seeded_project(minimal_project)
+    proj.transcripts.append(
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="hi", start=1.0, end=1.2, confidence=0.9)],
+        )
+    )
+    calls = {"n": 0}
+    real_words_fingerprint = pp.words_fingerprint
+
+    def counting_words_fingerprint(words):
+        calls["n"] += 1
+        return real_words_fingerprint(words)
+
+    monkeypatch.setattr(pp, "words_fingerprint", counting_words_fingerprint)
+
+    assert pp.load_track_profile(proj, "host").status == "fresh"
+    assert calls["n"] == 1
+    proj.transcripts[1].words[0].suppressed = True
+    assert pp.load_track_profile(proj, "host").status == "fresh"
+    assert calls["n"] == 2
+    assert pp.load_track_profile(proj, "host").status == "fresh"
+    assert calls["n"] == 2
+
+
 def test_in_place_flag_change_is_stale_without_a_save(minimal_project: Path) -> None:
     proj = _seeded_project(minimal_project)
     assert pp.load_track_profile(proj, "host").status == "fresh"
