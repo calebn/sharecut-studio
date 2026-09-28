@@ -50,6 +50,7 @@ test.describe("compact transport menu accessibility", () => {
       "Comments",
       "Silence shading",
       "Snap points",
+      "Prosody",
       "Show waveforms post-fader",
       "Fit tracks to window height",
     ];
