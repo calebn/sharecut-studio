@@ -80,6 +80,26 @@ def test_run_prosody_analysis_computes_and_caches(tmp_workspace: Path) -> None:
     assert str(tmp_workspace.parent) not in dumped
 
 
+def test_analyze_track_streams_without_full_decode(
+    tmp_workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import podcast_mcp.engines.audio_audit as audio_audit_mod
+
+    def _raise(*_args, **_kwargs):
+        raise AssertionError("run_prosody_analysis should not call load_mono_full (#727)")
+
+    monkeypatch.setattr(audio_audit_mod, "load_mono_full", _raise)
+
+    path = _project_with_host(tmp_workspace)
+    proj = load_project(path)
+    result = pp.run_prosody_analysis(proj, {})
+    assert result.computed == ["host"]
+
+    cached = next(pp.prosody_dir(proj).glob("host_*.json"))
+    payload = json.loads(cached.read_text(encoding="utf-8"))
+    assert payload["algorithm_version"] == pp.ALGORITHM_VERSION == 4
+
+
 def test_run_prosody_analysis_reuses_when_unchanged(tmp_workspace: Path) -> None:
     path = _project_with_host(tmp_workspace)
     proj = load_project(path)

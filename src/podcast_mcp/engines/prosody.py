@@ -5,9 +5,9 @@ no openSMILE (it would duplicate these features and ship a second native binary)
 See #196 and ``docs/pipeline.md`` § Prosody profile.
 
 Public API: :class:`ProsodyParams`, :class:`WordSpan`, :func:`parselmouth_version`,
-:class:`ProsodyUnavailable`, :func:`analyze_prosody`. Callers that cache the result
-(``edits/prosody_profile.py``) own the audio-identity/cache bookkeeping; this module
-only computes.
+:class:`ProsodyUnavailable`, :func:`analyze_prosody`, :func:`analyze_prosody_file`.
+Callers that cache the result (``edits/prosody_profile.py``) own the audio-identity/
+cache bookkeeping; this module only computes.
 
 Segments come from word gaps (``segment_gap_sec`` merges close words, ``max_segment_sec``
 splits long runs) when word timings are given, else from energy runs (``util.dsp.bool_runs``
@@ -25,22 +25,39 @@ pre-boundary lengthening + pitch reset), always including the segment end.
 
 No NaN is ever returned: every stat falls back to 0.0 (or an empty list) when the
 segment has no voiced frames, no words, or too few samples to measure.
+
+``analyze_prosody_file`` (#727) is the bounded-memory entry point: it streams a
+16 kHz mono decode (``engines.ffmpeg.FFmpegEngine.stream_mono_f32``) forward-only
+through ``util.pcm_stream.SequentialWindowReader`` and analyses each segment in its
+own Praat ``Sound`` built over that segment padded by 0.5 s on each side, so resident
+audio stays about one window plus one decode chunk regardless of track length. With
+no words, a first streamed pass over a frame-RMS energy envelope finds the segments,
+so the file decodes twice. This is a behaviour change from whole-file analysis:
+Praat's pitch and harmonicity silence/voicing thresholds are relative to the peak of
+the analysed ``Sound``, so per-segment windows are gain-invariant across the track
+(a quiet segment is judged on its own peak, not the loudest moment elsewhere).
+``analyze_prosody`` keeps the same per-segment-window behaviour for in-memory
+callers and tests, backed by a single-chunk reader.
 """
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 from bisect import bisect_left
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db, frame_rms_db_stream
 from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.pcm_stream import SequentialWindowReader
 from podcast_mcp.util.progress import raise_if_cancel_requested
 
 try:  # pragma: no cover - exercised via ProsodyUnavailable / importorskip paths
@@ -62,6 +79,11 @@ _HNR_NORMAL_MIN_DB = 7.0
 _JITTER_ARGS = (0.0001, 0.02, 1.3)
 _SHIMMER_ARGS = (0.0001, 0.02, 1.3, 1.6)
 _CANCEL_MSG = "Prosody analysis cancelled"
+
+SAMPLE_RATE = 16_000
+# Context each side of a segment for Praat's analysis windows (pitch AC needs
+# 3 periods of pitch_floor, ~40 ms at 75 Hz); generous so edge frames match whole-file.
+_WINDOW_PAD_SEC = 0.5
 
 
 class ProsodyUnavailable(RuntimeError):
@@ -166,23 +188,23 @@ def _segments_from_words(
     return [(max(0.0, s), min(total_dur, e) if total_dur > 0 else e) for s, e in segments if e > s]
 
 
-def _segments_from_energy(
-    samples: np.ndarray,
-    sr: int,
+def _energy_frame(sr: int) -> tuple[int, int]:
+    return max(1, int(0.025 * sr)), max(1, int(0.010 * sr))
+
+
+def _segments_from_levels(
+    db: np.ndarray,
+    hop_sec: float,
     *,
     gap_sec: float,
     max_sec: float,
     floor_db: float = -40.0,
 ) -> list[tuple[float, float]]:
-    frame = max(1, int(0.025 * sr))
-    hop = max(1, int(0.010 * sr))
-    db = frame_rms_db(samples, frame, hop)
     if db.size == 0:
         return []
     runs = bool_runs(db > floor_db)
     if not runs:
         return []
-    hop_sec = hop / float(sr)
     spans = [(s * hop_sec, e * hop_sec) for s, e in runs]
     merged = merge_intervals(spans, gap=gap_sec)
     out: list[tuple[float, float]] = []
@@ -193,6 +215,31 @@ def _segments_from_energy(
         if e > s:
             out.append((s, e))
     return out
+
+
+def _segments_from_energy(
+    samples: np.ndarray,
+    sr: int,
+    *,
+    gap_sec: float,
+    max_sec: float,
+    floor_db: float = -40.0,
+) -> list[tuple[float, float]]:
+    frame, hop = _energy_frame(sr)
+    db = frame_rms_db(samples, frame, hop)
+    return _segments_from_levels(
+        db, hop / float(sr), gap_sec=gap_sec, max_sec=max_sec, floor_db=floor_db
+    )
+
+
+def _energy_bounds_stream(
+    chunks: Iterable[np.ndarray], sr: int, params: ProsodyParams
+) -> list[tuple[float, float]]:
+    frame, hop = _energy_frame(sr)
+    db = frame_rms_db_stream(chunks, frame, hop)
+    return _segments_from_levels(
+        db, hop / float(sr), gap_sec=params.segment_gap_sec, max_sec=params.max_segment_sec
+    )
 
 
 def segment_bounds(
@@ -518,6 +565,108 @@ def _words_by_span(
     }
 
 
+def _empty_result() -> dict[str, Any]:
+    return {"segments": [], "engine": {"backend": "parselmouth", "version": parselmouth_version()}}
+
+
+def _segment_profile(
+    snd: Any, start: float, end: float, seg_words: Sequence[WordSpan], params: ProsodyParams
+) -> dict[str, Any]:
+    """One segment's contours and stats from its (padded) window ``Sound``."""
+    pitch = snd.to_pitch_ac(
+        pitch_floor=params.pitch_floor_hz,
+        pitch_ceiling=params.pitch_ceiling_hz,
+    )
+    intensity = snd.to_intensity()
+    harmonicity = snd.to_harmonicity_cc()
+    point_process = praat_call(
+        snd, "To PointProcess (periodic, cc)", params.pitch_floor_hz, params.pitch_ceiling_hz
+    )
+
+    pitch_xs = pitch.xs()
+    pitch_hz = pitch.selected_array["frequency"]
+    intensity_xs = intensity.xs()
+    intensity_db = intensity.values[0]
+    voiced_at_intensity = _voiced_at(pitch_xs, pitch_hz, intensity_xs)
+
+    window = _frame_slice(intensity_xs, start, end)
+    seg_db = intensity_db[window]
+    seg_voiced = voiced_at_intensity[window]
+    seg_times = intensity_xs[window]
+    n_syllables = syllable_nuclei(seg_times, seg_db, seg_voiced)
+    duration = max(0.0, end - start)
+    pause_count, pause_total = _pause_runs(
+        seg_times,
+        seg_db,
+        min_sec=params.pause_min_sec,
+        floor_db=max(0.0, float(np.max(seg_db)) - _SILENCE_CEILING_DB) if seg_db.size else 0.0,
+    )
+    phonation_sec = max(0.0, duration - pause_total)
+    try:
+        jitter = praat_call(point_process, "Get jitter (local)", start, end, *_JITTER_ARGS)
+    except Exception:
+        jitter = None
+    try:
+        shimmer = praat_call(
+            [snd, point_process], "Get shimmer (local)", start, end, *_SHIMMER_ARGS
+        )
+    except Exception:
+        shimmer = None
+    try:
+        hnr = praat_call(harmonicity, "Get mean", start, end)
+    except Exception:
+        hnr = None
+    return {
+        "start": round(start, 3),
+        "end": round(end, 3),
+        "f0": _f0_stats(pitch, pitch_xs, pitch_hz, start, end),
+        "rate": {
+            "syllable_count": n_syllables,
+            "speech_rate": _finite(_safe_div(n_syllables, duration)),
+            "articulation_rate": _finite(_safe_div(n_syllables, phonation_sec)),
+        },
+        "pauses": {"count": pause_count, "total_sec": round(pause_total, 3)},
+        "energy": _energy_stats(seg_times, seg_db),
+        "voice_quality": _voice_quality(jitter=jitter, shimmer=shimmer, hnr=hnr),
+        "prominent_words": _prominent_words(
+            seg_words, pitch, intensity, top_n=params.top_prominent_words
+        ),
+        "boundaries": _boundaries(
+            seg_words,
+            pitch,
+            seg_start=start,
+            seg_end=end,
+            min_strength=params.boundary_min_strength,
+        ),
+    }
+
+
+def _analyze_windows(
+    reader: SequentialWindowReader,
+    words: Sequence[WordSpan],
+    bounds: list[tuple[float, float]],
+    params: ProsodyParams,
+    cancel_check: Callable[[], bool] | None,
+) -> dict[str, Any]:
+    words_by_span = _words_by_span(words, bounds) if words else {}
+    segments: list[dict[str, Any]] = []
+    for span in bounds:
+        raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
+        start, end = span
+        samples, t0 = reader.window(max(0.0, start - _WINDOW_PAD_SEC), end + _WINDOW_PAD_SEC)
+        if reader.end_sec is not None:
+            end = min(end, reader.end_sec)  # streamed path: clamp to the media end at EOF
+        if end <= start or samples.size == 0:
+            continue
+        snd = parselmouth.Sound(
+            samples.astype(np.float64), sampling_frequency=float(reader.sample_rate), start_time=t0
+        )
+        segments.append(_segment_profile(snd, start, end, words_by_span.get(span, []), params))
+    result = _empty_result()
+    result["segments"] = segments
+    return result
+
+
 def analyze_prosody(
     samples: np.ndarray,
     sr: int,
@@ -526,106 +675,60 @@ def analyze_prosody(
     *,
     cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Compute the prosody profile for one track's audio.
+    """Compute the prosody profile for one track's in-memory audio.
 
     ``samples`` is mono float audio at ``sr`` Hz (see ``engines.audio_audit.load_mono_full``).
     ``words`` are that same track's word timings in the same source-media clock
     (empty is fine; segments then come from energy runs). Raises
     :class:`ProsodyUnavailable` when ``praat-parselmouth`` is not installed.
-    ``cancel_check``, when given, is polled between Praat's whole-file contour
-    passes and before each segment (:class:`~podcast_mcp.util.progress.CancelledProgress`
-    on a true result); a single Praat pass itself is not interruptible.
+    ``cancel_check``, when given, is polled before each segment
+    (:class:`~podcast_mcp.util.progress.CancelledProgress` on a true result); a
+    segment's own Praat passes are not interruptible. Prefer
+    :func:`analyze_prosody_file`, the bounded-memory entry point that streams the
+    decode instead of holding the whole track.
     """
     _require_parselmouth()
     total_dur = float(samples.size) / float(sr) if sr else 0.0
     bounds = segment_bounds(words, total_dur=total_dur, params=params, samples=samples, sr=sr)
     if not bounds:
-        return {
-            "segments": [],
-            "engine": {"backend": "parselmouth", "version": parselmouth_version()},
-        }
+        return _empty_result()
+    with contextlib.closing(SequentialWindowReader([samples], sr)) as reader:
+        return _analyze_windows(reader, words, bounds, params, cancel_check)
 
-    snd = parselmouth.Sound(samples.astype(np.float64), sampling_frequency=float(sr))
-    pitch = snd.to_pitch_ac(
-        pitch_floor=params.pitch_floor_hz,
-        pitch_ceiling=params.pitch_ceiling_hz,
-    )
-    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
-    intensity = snd.to_intensity()
-    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
-    harmonicity = snd.to_harmonicity_cc()
-    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
-    point_process = praat_call(
-        snd, "To PointProcess (periodic, cc)", params.pitch_floor_hz, params.pitch_ceiling_hz
-    )
-    raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
 
-    pitch_xs = pitch.xs()
-    pitch_hz = pitch.selected_array["frequency"]
-    intensity_xs = intensity.xs()
-    intensity_db = intensity.values[0]
-    voiced_at_intensity = _voiced_at(pitch_xs, pitch_hz, intensity_xs)
+def analyze_prosody_file(
+    path: Path,
+    words: Sequence[WordSpan],
+    params: ProsodyParams,
+    *,
+    cancel_check: Callable[[], bool] | None = None,
+    engine: FFmpegEngine | None = None,
+) -> dict[str, Any]:
+    """Compute the prosody profile for *path* over a streamed decode.
 
-    words_by_span = _words_by_span(words, bounds) if words else {}
+    The bounded-memory entry point: decodes ``path`` once, forward-only, at
+    :data:`SAMPLE_RATE` mono via ``FFmpegEngine.stream_mono_f32`` (identical
+    samples to ``engines.audio_audit.load_mono_full``), and analyses each segment
+    in its own Praat ``Sound`` over the segment padded by :data:`_WINDOW_PAD_SEC`
+    on each side, served by ``util.pcm_stream.SequentialWindowReader``. Resident
+    audio is about one window plus one decode chunk, whatever the track length.
+    With no words, a first streamed pass finds segments from a frame-RMS energy
+    envelope, so the file decodes twice. Raises :class:`ProsodyUnavailable` when
+    ``praat-parselmouth`` is not installed.
+    """
+    _require_parselmouth()
+    eng = engine or FFmpegEngine()
 
-    segments: list[dict[str, Any]] = []
-    for start, end in bounds:
+    def open_stream() -> Any:
+        return eng.stream_mono_f32(path, sample_rate=SAMPLE_RATE)
+
+    if words:
+        bounds = segment_bounds(words, total_dur=0.0, params=params)
+    else:
+        with contextlib.closing(open_stream()) as chunks:
+            bounds = _energy_bounds_stream(chunks, SAMPLE_RATE, params)
         raise_if_cancel_requested(cancel_check, _CANCEL_MSG)
-        seg_words = words_by_span.get((start, end), [])
-        window = _frame_slice(intensity_xs, start, end)
-        seg_db = intensity_db[window]
-        seg_voiced = voiced_at_intensity[window]
-        seg_times = intensity_xs[window]
-        n_syllables = syllable_nuclei(seg_times, seg_db, seg_voiced)
-        duration = max(0.0, end - start)
-        pause_count, pause_total = _pause_runs(
-            seg_times,
-            seg_db,
-            min_sec=params.pause_min_sec,
-            floor_db=max(0.0, float(np.max(seg_db)) - _SILENCE_CEILING_DB) if seg_db.size else 0.0,
-        )
-        phonation_sec = max(0.0, duration - pause_total)
-        try:
-            jitter = praat_call(point_process, "Get jitter (local)", start, end, *_JITTER_ARGS)
-        except Exception:
-            jitter = None
-        try:
-            shimmer = praat_call(
-                [snd, point_process], "Get shimmer (local)", start, end, *_SHIMMER_ARGS
-            )
-        except Exception:
-            shimmer = None
-        try:
-            hnr = praat_call(harmonicity, "Get mean", start, end)
-        except Exception:
-            hnr = None
-        segments.append(
-            {
-                "start": round(start, 3),
-                "end": round(end, 3),
-                "f0": _f0_stats(pitch, pitch_xs, pitch_hz, start, end),
-                "rate": {
-                    "syllable_count": n_syllables,
-                    "speech_rate": _finite(_safe_div(n_syllables, duration)),
-                    "articulation_rate": _finite(_safe_div(n_syllables, phonation_sec)),
-                },
-                "pauses": {"count": pause_count, "total_sec": round(pause_total, 3)},
-                "energy": _energy_stats(seg_times, seg_db),
-                "voice_quality": _voice_quality(jitter=jitter, shimmer=shimmer, hnr=hnr),
-                "prominent_words": _prominent_words(
-                    seg_words, pitch, intensity, top_n=params.top_prominent_words
-                ),
-                "boundaries": _boundaries(
-                    seg_words,
-                    pitch,
-                    seg_start=start,
-                    seg_end=end,
-                    min_strength=params.boundary_min_strength,
-                ),
-            }
-        )
-
-    return {
-        "segments": segments,
-        "engine": {"backend": "parselmouth", "version": parselmouth_version()},
-    }
+    if not bounds:
+        return _empty_result()
+    with contextlib.closing(SequentialWindowReader(open_stream(), SAMPLE_RATE)) as reader:
+        return _analyze_windows(reader, words, bounds, params, cancel_check)
