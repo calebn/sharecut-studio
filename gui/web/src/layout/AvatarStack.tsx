@@ -1,11 +1,8 @@
 import { useMemo } from "react";
 import { execute } from "../commands/execute";
 import { disambiguatedNames } from "../presence/colors";
-import {
-  isLocalPresenceClient,
-  remotePresenceClients,
-} from "../presence/followSync";
-import { useServerNowMs } from "../presence/useServerNowMs";
+import { isLocalPresenceClient } from "../presence/followSync";
+import { useLivePresenceClients } from "../presence/useLivePresenceClients";
 import { useDawStore } from "../state/dawStore";
 import type { SessionClient } from "../types/session";
 import { AvatarStackView } from "./AvatarStackView";
@@ -30,8 +27,7 @@ export function AvatarStack({ variant = "inline" }: Props) {
   const localClientId = useDawStore((s) => s.localClientId);
   const followingClientId = useDawStore((s) => s.followingClientId);
 
-  const nowMs = useServerNowMs(sessionClients, localClientId);
-  const others = remotePresenceClients(sessionClients, localClientId, nowMs);
+  const { others } = useLivePresenceClients(sessionClients, localClientId);
   const self = localClient(sessionClients, localClientId);
   const names = useMemo(
     () => disambiguatedNames(sessionClients),
