@@ -145,8 +145,10 @@ export function transcriptWordRange(
  * snapshots is the SHELL overlay (`overlayTranscriptWords` in
  * `document/projectPatch.ts`), which reuses a row's previous `words[]` only
  * while that row's text is unchanged and otherwise marks the words incomplete
- * (the inspector then shows "Loading"). No live sequence is known to leave two
- * disagreeing listings marked complete; the tests use hand-built fixtures.
+ * (the inspector then shows "Loading"). `document/projectPatch.test.ts` pins
+ * that a SHELL overlay of a word listed under two utterances leaves both
+ * listings agreeing or the words incomplete; the disagreement tests below use
+ * hand-built fixtures.
  */
 export function transcriptSpanText(
   project: ProjectView | null,
