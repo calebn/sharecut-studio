@@ -551,6 +551,45 @@ def test_drift_report_flags_manual_track_moved_after_align(tmp_path: Path) -> No
     assert len(alignment_drift_report(p)["issues"]) == 1
 
 
+def test_drift_report_ignores_reference_track_local_punch_hole(tmp_path: Path) -> None:
+    """A locked, aligned project with a reference-side punch hole passes export QC (#771).
+
+    ``host`` (reference) cut the same content as ``guest`` but left an extra 1s
+    silence hole at the seam (a track-local punch: no ripple). Both tracks land
+    on the same post-cut offset, so a person's original 0-offset lock still
+    holds; QC must not read the reference's own hole as guest drift.
+    """
+    from podcast_mcp.edits.conversation_align import (
+        AlignResult,
+        ClipAlignPlan,
+        write_alignment_artifact,
+    )
+
+    p = _two_track(tmp_path, guest_start=0.0)
+    p.clips = [
+        Clip(id="h1", track_id="host", source_start=0, source_end=50, timeline_start=0),
+        # 1s timeline gap [50, 51): host's own punch hole, no ripple.
+        Clip(id="h2", track_id="host", source_start=91, source_end=150, timeline_start=51),
+        Clip(id="g1", track_id="guest", source_start=0, source_end=50, timeline_start=0),
+        Clip(id="g2", track_id="guest", source_start=90, source_end=150, timeline_start=50),
+    ]
+    write_alignment_artifact(
+        p,
+        AlignResult(
+            plans=[
+                ClipAlignPlan(track_id="host", clip_id="h1", offset_sec=0.0, method="reference"),
+                ClipAlignPlan(track_id="guest", clip_id="g1", offset_sec=0.0, method="hold"),
+                ClipAlignPlan(track_id="guest", clip_id="g2", offset_sec=0.0, method="hold"),
+            ],
+            reference_track_id="host",
+        ),
+    )
+    mark_align_pending(p)
+    report = alignment_drift_report(p)
+    assert report["issues"] == []
+    assert report["tracks"]["guest"] == pytest.approx(0.0)
+
+
 def test_drift_report_says_accept_is_stale(tmp_path: Path) -> None:
     p = _two_track(tmp_path)
     _write_two_track_plans(p)

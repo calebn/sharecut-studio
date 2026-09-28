@@ -566,6 +566,37 @@ def test_clip_relative_drift_ignores_sliver(tmp_path) -> None:
     assert SessionTimeline(p).clip_relative_drift(g, "host") == pytest.approx(0.0)
 
 
+def test_clip_relative_drift_ignores_reference_track_local_hole(tmp_path) -> None:
+    """A punch hole on the *reference* track must not read as guest drift.
+
+    ``host`` cut the same 40s of content as ``guest`` but left an extra 1s
+    silence hole of its own at the seam (a track-local punch: no ripple, so
+    the surrounding clips keep their original offset). Sampling ``guest``'s
+    piece that overlaps host's hole used to fall back to host's pre-cut
+    clip, reading the whole cut (40s) as drift even though both tracks land
+    on the same post-cut offset (#771).
+    """
+    host = [
+        Clip(id="h1", track_id="host", source_start=0, source_end=50, timeline_start=0),
+        # 1s timeline gap [50, 51): host's own punch hole, no ripple.
+        Clip(id="h2", track_id="host", source_start=91, source_end=150, timeline_start=51),
+    ]
+    guest = [Clip(id="g2", track_id="guest", source_start=90, source_end=150, timeline_start=50)]
+    p = _drift_project(tmp_path, "ref-hole", host, guest)
+    assert SessionTimeline(p).clip_relative_drift(guest[0], "host") == pytest.approx(0.0)
+
+
+def test_clip_relative_drift_still_flags_real_drift_past_reference_hole(tmp_path) -> None:
+    """The same reference-hole shape still catches a genuinely offset guest clip."""
+    host = [
+        Clip(id="h1", track_id="host", source_start=0, source_end=50, timeline_start=0),
+        Clip(id="h2", track_id="host", source_start=91, source_end=150, timeline_start=51),
+    ]
+    guest = [Clip(id="g2", track_id="guest", source_start=95, source_end=155, timeline_start=50)]
+    p = _drift_project(tmp_path, "ref-hole-drifted", host, guest)
+    assert SessionTimeline(p).clip_relative_drift(guest[0], "host") == pytest.approx(5.0)
+
+
 def test_clip_relative_drift_visits_only_overlapping_reference_spans(tmp_path, monkeypatch) -> None:
     from podcast_mcp.engines import session_timeline as timeline
 
