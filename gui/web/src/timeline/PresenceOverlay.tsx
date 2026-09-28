@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useIntervalTick } from "../hooks/useIntervalTick";
 import { rosterDisplayName } from "../presence/colors";
 import { remotePresenceClients, serverNowMs } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
@@ -56,17 +57,7 @@ const PRESENCE_STALENESS_TICK_MS = 5_000;
  * unrelated store update.
  */
 function useServerNowMs(offsetMs: number, active: boolean): number {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-    const id = window.setInterval(
-      () => setTick((n) => n + 1),
-      PRESENCE_STALENESS_TICK_MS,
-    );
-    return () => window.clearInterval(id);
-  }, [active]);
+  useIntervalTick(PRESENCE_STALENESS_TICK_MS, active);
   return serverNowMs(offsetMs);
 }
 
