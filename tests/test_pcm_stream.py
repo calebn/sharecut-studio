@@ -29,7 +29,9 @@ def test_overlapping_nondecreasing_windows_ok_and_earlier_start_raises():
     reader.window(1.0, 3.0)
     reader.window(1.0, 4.0)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=r"window start 0\.500s \(sample 5\) precedes the previous start sample 10"
+    ):
         reader.window(0.5, 1.0)
 
 

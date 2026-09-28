@@ -60,7 +60,8 @@ class SequentialWindowReader:
         i1 = max(i0, math.ceil(end_sec * self.sample_rate))
         if i0 < self._last_start:
             raise ValueError(
-                "SequentialWindowReader windows must not start earlier than the last one"
+                f"SequentialWindowReader: window start {start_sec:.3f}s (sample {i0}) "
+                f"precedes the previous start sample {self._last_start}"
             )
         self._last_start = i0
         self._drop_before(i0)
