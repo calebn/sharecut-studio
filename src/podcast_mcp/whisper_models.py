@@ -368,7 +368,10 @@ def resolve_whisper_model_path(model: str) -> str:
     if pin is None:
         return ensure_whisper_model_cached(canonical)
     path = _pinned_snapshot_dir(canonical, pin)
-    verify_whisper_snapshot(path, canonical, pin)
+    try:
+        verify_whisper_snapshot(path, canonical, pin)
+    except OSError as exc:  # a pinned file vanished mid-check (e.g. a concurrent --upgrade)
+        raise WhisperWeightsMissingError(canonical) from exc
     return str(path)
 
 

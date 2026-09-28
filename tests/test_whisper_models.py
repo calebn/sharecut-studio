@@ -448,3 +448,20 @@ def test_unreadable_hub_cache_reads_as_not_downloaded(
         ensure_whisper_model_cached("small.en")
     with pytest.raises(WhisperWeightsMissingError):
         resolve_whisper_model_path("small.en")
+
+
+def test_resolve_whisper_model_path_maps_a_vanishing_file_to_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cache = tmp_path / "whisper"
+    plant_pinned_whisper(cache, "small.en", monkeypatch)
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+
+    def raise_oserror(p: Path) -> str:
+        raise FileNotFoundError(p)
+
+    monkeypatch.setattr("podcast_mcp.util.model_manifest.sha256_file", raise_oserror)
+    with pytest.raises(WhisperWeightsMissingError) as excinfo:
+        resolve_whisper_model_path("small.en")
+    assert not isinstance(excinfo.value, WhisperPinMismatchError)
+    assert "podcast bootstrap --component whisper" in str(excinfo.value)
