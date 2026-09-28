@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { ClipRow } from "../types/project";
 import {
   clipIdsBeforeCut,
+  clipsAbut,
   cutFadeHint,
   isCrossfadeJoin,
   isCutJoin,
+  isDrawnJoin,
+  JOIN_GAP_TOLERANCE_SEC,
   JOIN_MODE_OPTIONS,
+  JOIN_MODE_SHORT,
+  joinGlyph,
   joinModeLabel,
   joinRenderNote,
+  MIN_JOIN_CLIP_PX,
 } from "./joinRender";
 
 const clip: ClipRow = {
@@ -93,5 +99,63 @@ describe("join mode helpers", () => {
     expect(cutFadeHint(true, false)).toMatch(/Fade in ignored/);
     expect(cutFadeHint(false, true)).toMatch(/Fade out ignored/);
     expect(cutFadeHint(true, true)).toMatch(/both joins/);
+  });
+});
+
+describe("drawn joins", () => {
+  const left: ClipRow = {
+    ...clip,
+    id: "c1",
+    timeline_start: 0,
+    timeline_end: 2,
+    join_left_clip_id: null,
+  };
+
+  it("exposes the gap tolerance and minimum on-screen width", () => {
+    expect(JOIN_GAP_TOLERANCE_SEC).toBe(0.05);
+    expect(MIN_JOIN_CLIP_PX).toBe(24);
+  });
+
+  it("treats an abutment within tolerance (or an overlap) as touching", () => {
+    expect(clipsAbut({ timeline_end: 2 }, { timeline_start: 2.05 })).toBe(true);
+    expect(clipsAbut({ timeline_end: 2 }, { timeline_start: 1.9 })).toBe(true);
+    expect(clipsAbut({ timeline_end: 2 }, { timeline_start: 2.051 })).toBe(
+      false,
+    );
+  });
+
+  it("draws a join only for abutting neighbours wide enough on screen", () => {
+    expect(isDrawnJoin(null, clip, 50)).toBe(false);
+    expect(isDrawnJoin(undefined, clip, 50)).toBe(false);
+    expect(isDrawnJoin(left, clip, 50)).toBe(true);
+    expect(isDrawnJoin(left, { ...clip, join_left_clip_id: "cx" }, 50)).toBe(
+      false,
+    );
+    expect(isDrawnJoin(left, { ...clip, join_left_clip_id: null }, 50)).toBe(
+      false,
+    );
+    const { join_left_clip_id: _drop, ...older } = clip;
+    expect(isDrawnJoin(left, older, 50)).toBe(true);
+    expect(
+      isDrawnJoin(left, { ...clip, timeline_start: 3, timeline_end: 5 }, 50),
+    ).toBe(false);
+    const narrowRight = { ...clip, source_end: 0.4 };
+    expect(isDrawnJoin(left, narrowRight, 50)).toBe(false);
+    expect(isDrawnJoin(left, narrowRight, 60)).toBe(true);
+  });
+
+  it("picks the glyph from the join mode, defaulting to fade", () => {
+    expect(joinGlyph({ join_in_mode: "cut" })).toBe("cut");
+    expect(joinGlyph({ join_in_mode: "fade" })).toBe("fade");
+    expect(joinGlyph({ join_in_mode: "crossfade" })).toBe("crossfade");
+    expect(joinGlyph({ join_in_mode: "weird" })).toBe("fade");
+  });
+
+  it("has a short word for each glyph", () => {
+    expect(JOIN_MODE_SHORT).toEqual({
+      cut: "Cut",
+      fade: "Fade",
+      crossfade: "Crossfade",
+    });
   });
 });

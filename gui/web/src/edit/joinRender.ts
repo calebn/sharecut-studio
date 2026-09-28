@@ -28,6 +28,76 @@ export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
   return clip.join_in_mode === "crossfade";
 }
 
+/** Mirrors `edits/clips_ops.JOIN_GAP_TOLERANCE_SEC` (tests/test_clips_ops.py checks they match). */
+export const JOIN_GAP_TOLERANCE_SEC = 0.05;
+
+/** Neighbours narrower than this on screen get no drawn join (badge); the clip inspector's Join control still covers it. */
+export const MIN_JOIN_CLIP_PX = 24;
+
+type JoinClip = Pick<
+  ClipRow,
+  | "id"
+  | "source_start"
+  | "source_end"
+  | "timeline_start"
+  | "timeline_end"
+  | "join_left_clip_id"
+>;
+
+/** `clips_ops.clips_abut`: `right` starts within the join tolerance of `left`'s end (overlaps count). */
+export function clipsAbut(
+  left: Pick<ClipRow, "timeline_end">,
+  right: Pick<ClipRow, "timeline_start">,
+): boolean {
+  return right.timeline_start - left.timeline_end <= JOIN_GAP_TOLERANCE_SEC;
+}
+
+/**
+ * True when the timeline draws the join `left` → `right` (#690): abutting
+ * neighbours whose join names `left` (older servers omit the id), both at
+ * least MIN_JOIN_CLIP_PX wide at `zoomPxPerSec`.
+ */
+export function isDrawnJoin(
+  left: JoinClip | null | undefined,
+  right: JoinClip,
+  zoomPxPerSec: number,
+): boolean {
+  if (left == null) {
+    return false;
+  }
+  if (
+    right.join_left_clip_id !== undefined &&
+    right.join_left_clip_id !== left.id
+  ) {
+    return false;
+  }
+  if (!clipsAbut(left, right)) {
+    return false;
+  }
+  const narrowSec = Math.min(
+    left.source_end - left.source_start,
+    right.source_end - right.source_start,
+  );
+  return narrowSec * zoomPxPerSec >= MIN_JOIN_CLIP_PX;
+}
+
+export type JoinGlyph = "cut" | "fade" | "crossfade";
+
+/** The badge glyph for `right`'s incoming join (an unknown mode reads as fade, as render treats it). */
+export function joinGlyph(right: Pick<ClipRow, "join_in_mode">): JoinGlyph {
+  if (right.join_in_mode === "cut") {
+    return "cut";
+  }
+  return right.join_in_mode === "crossfade" ? "crossfade" : "fade";
+}
+
+/** Short mode words for the join badge (and #691's popover). */
+export const JOIN_MODE_SHORT: Record<JoinGlyph, string> = {
+  cut: "Cut",
+  fade: "Fade",
+  crossfade: "Crossfade",
+};
+
 /** Ids of clips whose outgoing join is a cut (render drops their fade-out). */
 export function clipIdsBeforeCut(
   clips: Pick<ClipRow, "join_in_mode" | "join_left_clip_id">[],
