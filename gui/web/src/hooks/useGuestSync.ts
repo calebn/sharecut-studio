@@ -220,13 +220,15 @@ export function useGuestSync(
               snap as DocumentSnapshot,
               () => loadProject(projectPath),
               { commandClientId: cmdClientId },
-            ).then((next) => {
-              if (next) {
-                void mergeOfflineSnapshot(token, { project: next });
-              } else if (seq > 0) {
-                noteDocumentSeq(seq);
-              }
-            });
+            )
+              .then((next) => {
+                if (next) {
+                  void mergeOfflineSnapshot(token, { project: next });
+                } else if (seq > 0) {
+                  noteDocumentSeq(seq);
+                }
+              })
+              .catch(() => undefined); // transient: the next Applied or reconnect Snapshot resyncs
             return;
           }
           const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
