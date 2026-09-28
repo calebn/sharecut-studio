@@ -196,6 +196,33 @@ describe("JoinPopover", () => {
     );
   });
 
+  it("a project switch clears a hung SetClipJoin; its late settle leaves the new project's flag alone", async () => {
+    let resolve: () => void = () => {};
+    vi.mocked(setClipJoin).mockImplementationOnce(
+      () =>
+        new Promise<void>((r) => {
+          resolve = r;
+        }),
+    );
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Crossfade" }));
+    expect(useDawStore.getState().joinMutationInFlight).toBe(true);
+    act(() => {
+      useDawStore
+        .getState()
+        .hydrate(
+          "/tmp/other.json",
+          minimalProject({ tracks: [sampleTrack()] }),
+        );
+    });
+    expect(useDawStore.getState().joinMutationInFlight).toBe(false);
+    act(() => useDawStore.getState().setJoinMutationInFlight(true));
+    await act(async () => {
+      resolve();
+    });
+    expect(useDawStore.getState().joinMutationInFlight).toBe(true);
+  });
+
   it("re-places the panel when its content resizes (a mode change adds the Length row)", () => {
     const original = globalThis.ResizeObserver;
     let onResize: ResizeObserverCallback | undefined;

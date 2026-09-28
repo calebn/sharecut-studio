@@ -99,14 +99,20 @@ export function JoinPopover({
   useOutsidePointerDown([panelRef, anchorRef], dismiss);
 
   // One SetClipJoin at a time: a second one would clear the first's busy/error early.
+  // A project switch (hydrate) clears the flag, so a request that settles after it
+  // leaves the new project's flag alone.
   const mutate = (fn: () => Promise<unknown>) => {
     const store = useDawStore.getState();
     if (store.joinMutationInFlight) {
       return;
     }
+    const epoch = store.projectEpoch;
     store.setJoinMutationInFlight(true);
     void run(fn).finally(() => {
-      useDawStore.getState().setJoinMutationInFlight(false);
+      const now = useDawStore.getState();
+      if (now.projectEpoch === epoch) {
+        now.setJoinMutationInFlight(false);
+      }
     });
   };
 
