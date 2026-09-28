@@ -295,8 +295,8 @@ def _rescore_checked_in_reports(suffix: str) -> tuple[int, int, int, float]:
         total_reference += metrics.reference_words
         total_over += metrics.words_over_150ms
         weighted_mae += metrics.boundary_mae_ms * metrics.matched_words
-    mae = weighted_mae / total_matches if total_matches else None
-    return total_matches, total_reference, total_over, mae
+    assert total_matches, f"no matched words across the checked-in *.{suffix}.json reports"
+    return total_matches, total_reference, total_over, weighted_mae / total_matches
 
 
 def test_checked_in_native_reports_match_reference_fixture() -> None:
