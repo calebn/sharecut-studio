@@ -76,14 +76,20 @@ def test_augmented_words_assignment_keeps_the_list_and_bumps_once(augment):
     assert words_revision() == before + 1
 
 
-def test_augmented_assignment_syntax_bumps_once():
-    tr = _tr()
+def test_augmented_assignment_syntax_bumps_once_and_marks_words_set():
+    """Real ``+=`` syntax, beside the operator-level expansion above: the compiler re-enters
+    ``Transcript.__setattr__`` with the same list, which must keep it, bump once, and
+    record ``words`` as set like any pydantic assignment.
+    """
+    tr = Transcript(track_id="host")  # default-factory words: not yet in model_fields_set
     words = tr.words
     before = words_revision()
     tr.words += [TranscriptWord(text="c", start=1.0, end=1.1)]
     assert tr.words is words
-    assert len(tr.words) == 3
+    assert len(tr.words) == 1
     assert words_revision() == before + 1
+    assert "words" in tr.model_fields_set
+    assert tr.model_dump(exclude_unset=True)["words"] == [{"text": "c", "start": 1.0, "end": 1.1}]
 
 
 _MUTATORS = [

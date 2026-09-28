@@ -256,7 +256,9 @@ class Transcript(BaseModel):
             super().__setattr__(name, value)
             return
         if isinstance(value, TranscriptWords) and value is self.__dict__.get("words"):
-            # `tr.words += [...]` / `*=`: the list mutator already bumped; keep this list.
+            # `tr.words += [...]` / `*=`: the list mutator already bumped. Keep this list (and
+            # its memo) but still go through pydantic so `words` joins model_fields_set.
+            super().__setattr__(name, value)
             return
         # Always a fresh list: two transcripts never share one list or memo.
         super().__setattr__(name, TranscriptWords(value))
