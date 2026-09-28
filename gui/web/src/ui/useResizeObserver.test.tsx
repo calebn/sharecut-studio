@@ -122,6 +122,34 @@ describe("useResizeObserver", () => {
     expect(RecordingResizeObserver.all[1].targets).toEqual([secondBox]);
   });
 
+  it("re-observes when a getter target's element changes between renders", () => {
+    const a = document.createElement("div");
+    const b = document.createElement("div");
+    let current: Element | null = null;
+    const getter = () => current;
+    const onResize = vi.fn();
+    const { rerender } = render(
+      <Harness onResize={onResize} extra={[getter]} />,
+    );
+    const box = screen.getByTestId("box");
+    expect(RecordingResizeObserver.all).toHaveLength(1);
+    expect(RecordingResizeObserver.all[0].targets).toEqual([box]);
+
+    // null -> element: the getter's target appears after the first commit.
+    current = a;
+    rerender(<Harness onResize={onResize} extra={[getter]} />);
+    expect(RecordingResizeObserver.all[0].disconnected).toBe(true);
+    expect(RecordingResizeObserver.all).toHaveLength(2);
+    expect(RecordingResizeObserver.all[1].targets).toEqual([box, a]);
+
+    // element A -> element B.
+    current = b;
+    rerender(<Harness onResize={onResize} extra={[getter]} />);
+    expect(RecordingResizeObserver.all[1].disconnected).toBe(true);
+    expect(RecordingResizeObserver.all).toHaveLength(3);
+    expect(RecordingResizeObserver.all[2].targets).toEqual([box, b]);
+  });
+
   it("observes nothing while disabled, then observes when enabled", () => {
     const onResize = vi.fn();
     const { rerender } = render(
