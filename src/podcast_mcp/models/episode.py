@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, SupportsIndex, TypeVar, cast
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, require_v2_document
+from podcast_mcp.models.words_revision import (
+    bump_words_revision,
+    bumps_words_revision,
+    words_revision,
+)
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
+_T = TypeVar("_T")
 # Track volume fader range (dB), on top of the pipeline's staging gain_db.
 FADER_MIN_DB = -60.0
 FADER_MAX_DB = 12.0
@@ -145,15 +152,61 @@ class TranscriptWord(BaseModel):
     # (a bleed/wrong-mic word dropped from the combined transcript text).
     ignored: bool = False
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # In-place edits (refresh_silence_flags, word_align) must invalidate words memos (#729).
+        super().__setattr__(name, value)
+        bump_words_revision()
+
 
 # One transcript per (track_id, source_id) within a project.
 TranscriptKey = tuple[str, str | None]
 
 
+class TranscriptWords(list[TranscriptWord]):
+    """``Transcript.words``: a list whose every mutation bumps the words revision (#729).
+
+    Carries a memo of values derived from these words (:meth:`memoized`); copies start
+    with an empty memo and do not bump the revision.
+    """
+
+    __slots__ = ("_memo",)
+
+    def __init__(self, words: Iterable[TranscriptWord] = ()) -> None:
+        super().__init__(words)
+        self._memo: dict[str, tuple[int, object]] = {}
+
+    def __reduce_ex__(self, protocol: SupportsIndex) -> tuple[Any, ...]:
+        # deepcopy/pickle rebuild via __init__: no per-item append, so no revision bump.
+        return (type(self), (list(self),))
+
+    def memoized(self, key: str, compute: Callable[[], _T]) -> _T:
+        """``compute()``, reused until any transcript words change in this process."""
+        revision = words_revision()  # stamp before computing: a concurrent edit then misses
+        hit = self._memo.get(key)
+        if hit is not None and hit[0] == revision:
+            return cast(_T, hit[1])
+        value = compute()
+        self._memo[key] = (revision, value)
+        return value
+
+    __setitem__ = bumps_words_revision(list.__setitem__)
+    __delitem__ = bumps_words_revision(list.__delitem__)
+    __iadd__ = bumps_words_revision(list.__iadd__)
+    __imul__ = bumps_words_revision(list.__imul__)
+    append = bumps_words_revision(list.append)
+    extend = bumps_words_revision(list.extend)
+    insert = bumps_words_revision(list.insert)
+    pop = bumps_words_revision(list.pop)
+    remove = bumps_words_revision(list.remove)
+    clear = bumps_words_revision(list.clear)
+    sort = bumps_words_revision(list.sort)
+    reverse = bumps_words_revision(list.reverse)
+
+
 class Transcript(BaseModel):
     track_id: str
     language: str = "en"
-    words: list[TranscriptWord] = Field(default_factory=list)
+    words: list[TranscriptWord] = Field(default_factory=TranscriptWords)
     # When set, words are source-media seconds for that sources[] row (multi-file
     # speaker track). None = whole-track / primary media transcript.
     source_id: str | None = None
@@ -171,6 +224,29 @@ class Transcript(BaseModel):
     word_aligner: str | None = None
     # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
+
+    @field_validator("words", mode="after")
+    @classmethod
+    def _tracked_words(cls, words: list[TranscriptWord]) -> list[TranscriptWord]:
+        return words if isinstance(words, TranscriptWords) else TranscriptWords(words)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "words" and not isinstance(value, TranscriptWords):
+            value = TranscriptWords(value)
+        super().__setattr__(name, value)
+        if name == "words":
+            bump_words_revision()
+
+    def memoize_words(self, key: str, compute: Callable[[], _T]) -> _T:
+        """``compute()`` cached on ``self.words`` until any transcript words change (#729).
+
+        ``key`` names the derived value (e.g. ``"prosody.words_fingerprint"``). Words that
+        skipped validation (``model_copy(update=...)``) are a plain list: computed every call.
+        """
+        words = self.words
+        if isinstance(words, TranscriptWords):
+            return words.memoized(key, compute)
+        return compute()
 
     @property
     def key(self) -> TranscriptKey:
