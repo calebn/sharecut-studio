@@ -1091,6 +1091,26 @@ class EditService:
             lambda p: fill_with_room_tone(p, tid),
         )
 
+    def _guarded_transcript_edit(
+        self,
+        label: str,
+        track_id: str,
+        start_word_index: int,
+        end_word_index: int,
+        expected_text: str | None,
+        edit: Callable[[EpisodeProject], None],
+    ) -> None:
+        """Check ``expected_text`` (#650) and apply ``edit`` in one transaction.
+
+        ``transaction()`` is reentrant, so ``require_word_text`` and the nested ``mutate``
+        share one critical section; a stale text raises before mutation or history.
+        """
+        with self.ws.transaction() as project:
+            require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
+            self.ws.mutate(
+                f"before {label}", f"after {label}", _user_transcript_edit(track_id, edit)
+            )
+
     def correct_word(
         self,
         track_id: str,
@@ -1100,15 +1120,14 @@ class EditService:
         expected_text: str | None = None,
     ) -> None:
         """Fix one word's text. ``expected_text`` guards against a stale index (#650)."""
-        with self.ws.transaction() as project:
-            require_word_text(project, track_id, word_index, word_index, expected_text)
-            self.ws.mutate(
-                "before correct word",
-                "after correct word",
-                _user_transcript_edit(
-                    track_id, lambda p: correct_word(p, track_id, word_index, new_text)
-                ),
-            )
+        self._guarded_transcript_edit(
+            "correct word",
+            track_id,
+            word_index,
+            word_index,
+            expected_text,
+            lambda p: correct_word(p, track_id, word_index, new_text),
+        )
 
     def correct_phrase(
         self,
@@ -1120,18 +1139,14 @@ class EditService:
         expected_text: str | None = None,
     ) -> None:
         """Replace a word range's text. ``expected_text`` guards against stale indices (#650)."""
-        with self.ws.transaction() as project:
-            require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
-            self.ws.mutate(
-                "before correct phrase",
-                "after correct phrase",
-                _user_transcript_edit(
-                    track_id,
-                    lambda p: correct_phrase(
-                        p, track_id, start_word_index, end_word_index, new_text
-                    ),
-                ),
-            )
+        self._guarded_transcript_edit(
+            "correct phrase",
+            track_id,
+            start_word_index,
+            end_word_index,
+            expected_text,
+            lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
+        )
 
     def set_word_suppressed(self, track_id: str, word_index: int, suppressed: bool) -> dict:
         return self.ws.mutate(
