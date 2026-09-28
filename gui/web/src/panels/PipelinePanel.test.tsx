@@ -198,6 +198,44 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** baseConfig plus the Precise word boundaries field and word-aligner component status. */
+function alignerConfig(
+  enabled: boolean,
+  ok: boolean,
+): import("../types/pipeline").PipelineConfigResponse {
+  const cfg = structuredClone(
+    baseConfig,
+  ) as unknown as import("../types/pipeline").PipelineConfigResponse;
+  cfg.params.push({
+    path: "transcribe.forced_alignment.enabled",
+    label: "Precise word boundaries",
+    description: "Re-time Whisper's words with a local forced aligner.",
+    type: "boolean",
+    default: false,
+    group: "advanced",
+    section: "transcribe",
+    affects: ["transcribe_tracks"],
+  });
+  cfg.config = {
+    ...cfg.config,
+    transcribe: {
+      ...(cfg.config.transcribe as Record<string, unknown>),
+      forced_alignment: { enabled },
+    },
+  };
+  cfg.components = {
+    ...cfg.components,
+    "word-aligner": {
+      ok,
+      opt_in: true,
+      size: "~360 MB",
+      hint: "Word aligner (~360 MB) is not downloaded; Precise word boundaries keeps Whisper's times until it is. Download it next to that field in the Pipeline tab",
+      bootstrap: "podcast bootstrap --component word-aligner",
+    },
+  };
+  return cfg;
+}
+
 /** baseConfig plus a visible Master LUFS field under Balance tracks, so Analyze highlights can be asserted. */
 function withMasterLufsParam() {
   const cfg = structuredClone(baseConfig);
@@ -305,10 +343,137 @@ describe("PipelinePanel", () => {
     });
     expect(startPipelineRun.mock.calls[0][1].unattended).toBe(true);
     expect(startPipelineRun.mock.calls[0][1].forceTranscribe).toBe(false);
+    expect(startPipelineRun.mock.calls[0][1].retimeWords).toBe(false);
     expect(startPipelineRun.mock.calls[0][1].overwriteEdited).toBe(false);
     expect(startPipelineRun.mock.calls[0][1].enabledSteps).toContain(
       "balance_tracks",
     );
+  });
+
+  it("does not list the missing aligner while Precise word boundaries is off", async () => {
+    loadPipelineConfig.mockResolvedValue(alignerConfig(false, false));
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText(/Missing word-aligner/i)).not.toBeInTheDocument();
+  });
+
+  it("lists the missing aligner while Precise word boundaries is on", async () => {
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText(/Missing word-aligner/i)).toBeInTheDocument();
+  });
+
+  it("shows the aligner badge and downloads it next to the field", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig
+      .mockResolvedValueOnce(alignerConfig(true, false))
+      .mockResolvedValue(alignerConfig(true, true));
+    const bootJob = {
+      id: "boot1",
+      kind: "bootstrap",
+      components: ["word-aligner"],
+      whisper_model: "",
+      status: "ok",
+      message: "Ready",
+    };
+    runBootstrap.mockResolvedValue({ job: bootJob });
+    waitForBootstrapJob.mockResolvedValue(bootJob);
+
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    expect(
+      await screen.findByText(/Word aligner needs download/i),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    );
+    await waitFor(() => {
+      expect(runBootstrap).toHaveBeenCalledWith({
+        components: ["word-aligner"],
+      });
+    });
+    await waitFor(() => {
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      await screen.findByRole("button", { name: "Re-time words" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Re-time words asks about edited tracks and starts a run from transcribe", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, true));
+    loadTranscriptVocabulary.mockResolvedValue({
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: false,
+      edited_tracks: ["host"],
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Re-time words" }),
+    );
+    await waitFor(() => {
+      expect(startPipelineRun).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        expect.objectContaining({
+          fromStep: "transcribe_tracks",
+          retimeWords: true,
+          forceTranscribe: false,
+          overwriteEdited: true,
+          enabledSteps: expect.arrayContaining(["transcribe_tracks"]),
+        }),
+      );
+    });
+
+    confirmSpy.mockReturnValue(false);
+    startPipelineRun.mockClear();
+    const callsBefore = loadTranscriptVocabulary.mock.calls.length;
+    await user.click(
+      await screen.findByRole("button", { name: "Re-time words" }),
+    );
+    await waitFor(() => {
+      expect(loadTranscriptVocabulary.mock.calls.length).toBe(callsBefore + 1);
+    });
+    expect(startPipelineRun).not.toHaveBeenCalled();
+  });
+
+  it("has no axe violations with the aligner badge", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    const { container } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    expect(
+      await screen.findByText(/Word aligner needs download/i),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
   });
 
   it("has no axe violations on loaded panel", async () => {

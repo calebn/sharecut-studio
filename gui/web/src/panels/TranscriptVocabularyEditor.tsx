@@ -6,6 +6,7 @@ import {
 } from "../api";
 import { Button, Field, InlineError } from "../ui";
 import { ApiError, errorMessage } from "../utils/apiError";
+import { confirmReplaceEdited } from "./confirmReplaceEdited";
 
 type VocabularyField = "terms" | "guest_names";
 
@@ -182,19 +183,12 @@ export function TranscriptVocabularyEditor({
   };
 
   const retranscribe = () => {
-    const edited = saved?.edited_tracks ?? [];
-    if (edited.length === 0) {
-      onRetranscribe(false);
-      return;
-    }
-    const count =
-      edited.length === 1 ? "1 track has" : `${edited.length} tracks have`;
-    if (
-      window.confirm(
-        `${count} hand-edited transcripts that Re-transcribe will replace: ${edited.join(", ")}. Replace them?`,
-      )
-    ) {
-      onRetranscribe(true);
+    const overwrite = confirmReplaceEdited(
+      saved?.edited_tracks ?? [],
+      "Re-transcribe",
+    );
+    if (overwrite !== null) {
+      onRetranscribe(overwrite);
     }
   };
 

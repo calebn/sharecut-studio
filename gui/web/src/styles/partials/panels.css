@@ -1077,7 +1077,8 @@ button.history-row {
   margin-top: var(--space-4);
 }
 
-.pipeline-whisper-progress {
+.pipeline-whisper-progress,
+.pipeline-aligner-progress {
   font-size: var(--font-size-small);
   color: var(--text-dim);
   margin: var(--space-3) 0 0;
@@ -1085,6 +1086,12 @@ button.history-row {
 
 .pipeline-whisper-dialog {
   max-width: 28rem;
+}
+
+.pipeline-aligner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .pipeline-waiting {

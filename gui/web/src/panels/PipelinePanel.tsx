@@ -1,9 +1,17 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ANALYZE_WAIT_MS,
   analyzePipeline,
   cancelPipelineRun,
   loadPipelineConfig,
+  loadTranscriptVocabulary,
   putPipelineConfig,
   startPipelineRun,
   waitForPipelineJob,
@@ -40,16 +48,20 @@ import {
   showIndeterminatePulse,
 } from "../utils/pipelineProgress";
 import { formatTimeShort } from "../utils/time";
+import { confirmReplaceEdited } from "./confirmReplaceEdited";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
 import { TranscriptVocabularyEditor } from "./TranscriptVocabularyEditor";
 import {
+  type PipelineRunMode,
   WhisperDownloadDialog,
   type WhisperDownloadRequest,
   WhisperModelPicker,
 } from "./WhisperModelPicker";
+import { WORD_ALIGNER_COMPONENT, WordAlignerStatus } from "./WordAlignerStatus";
 
 const TRANSCRIBE_MODEL_PATH = "transcribe.model";
 const TRANSCRIBE_STEP = "transcribe_tracks";
+const FORCED_ALIGNMENT_PATH = "transcribe.forced_alignment.enabled";
 
 const FOCUS_STEPS = new Set(["analyze_focus_cuts", "focus_from_transcript"]);
 const TIGHTEN_STEPS = new Set([
@@ -219,21 +231,33 @@ function transcribeStepEnabled(cfg: PipelineConfigResponse): boolean {
 function pipelineRunOptions(
   cfg: PipelineConfigResponse,
   selection: { fromStep: string; onlyStep: string },
-  retranscribe: boolean,
+  mode: PipelineRunMode,
   overwriteEdited: boolean,
 ): NonNullable<Parameters<typeof startPipelineRun>[1]> {
+  const fromTranscribe = mode !== "run";
   return {
-    fromStep: retranscribe ? TRANSCRIBE_STEP : selection.fromStep || undefined,
-    onlyStep: retranscribe ? undefined : selection.onlyStep || undefined,
-    enabledSteps: retranscribe
+    fromStep: fromTranscribe
+      ? TRANSCRIBE_STEP
+      : selection.fromStep || undefined,
+    onlyStep: fromTranscribe ? undefined : selection.onlyStep || undefined,
+    enabledSteps: fromTranscribe
       ? [...new Set([...cfg.enabled_steps, TRANSCRIBE_STEP])]
       : cfg.enabled_steps,
     unattended: cfg.unattended,
     config: cfg.config,
     useWorkingSet: true,
-    forceTranscribe: retranscribe,
-    overwriteEdited: retranscribe && overwriteEdited,
+    forceTranscribe: mode === "retranscribe",
+    retimeWords: mode === "retime",
+    overwriteEdited: fromTranscribe && overwriteEdited,
   };
+}
+
+/** True while `transcribe.forced_alignment.enabled` is on (config, falling back to defaults). */
+function forcedAlignmentOn(cfg: PipelineConfigResponse): boolean {
+  return Boolean(
+    getByPath(cfg.config, FORCED_ALIGNMENT_PATH) ??
+      getByPath(cfg.defaults, FORCED_ALIGNMENT_PATH),
+  );
 }
 
 export function PipelinePanel() {
@@ -650,16 +674,19 @@ export function PipelinePanel() {
     }
   };
 
-  const onRun = async (retranscribe = false, overwriteEdited = false) => {
+  const onRun = async (
+    mode: PipelineRunMode = "run",
+    overwriteEdited = false,
+  ) => {
     if (!cfg) {
       return;
     }
-    if (transcribeStepEnabled(cfg) || retranscribe) {
+    if (transcribeStepEnabled(cfg) || mode !== "run") {
       const modelId = whisperModelId(cfg);
       if (!whisperModelCached(cfg, modelId)) {
         setWhisperPending({
           modelId,
-          reason: retranscribe ? "retranscribe" : "run",
+          reason: mode,
           overwriteEdited,
         });
         return;
@@ -670,12 +697,7 @@ export function PipelinePanel() {
     try {
       const job = await startPipelineRun(
         projectPath,
-        pipelineRunOptions(
-          cfg,
-          { fromStep, onlyStep },
-          retranscribe,
-          overwriteEdited,
-        ),
+        pipelineRunOptions(cfg, { fromStep, onlyStep }, mode, overwriteEdited),
       );
       setPipelineJob(job);
       setActiveTab("pipeline");
@@ -700,7 +722,8 @@ export function PipelinePanel() {
       await onParamChange(TRANSCRIBE_MODEL_PATH, modelId);
       const next = await refreshConfig();
       if (
-        (reason === "run" || reason === "retranscribe") &&
+        reason !== undefined &&
+        reason !== "select" &&
         whisperModelCached(next, modelId)
       ) {
         setCfg(next);
@@ -712,7 +735,7 @@ export function PipelinePanel() {
             pipelineRunOptions(
               next,
               { fromStep, onlyStep },
-              reason === "retranscribe",
+              reason,
               overwriteEdited,
             ),
           );
@@ -726,6 +749,21 @@ export function PipelinePanel() {
       }
     } catch (e) {
       setError(errorMessage(e));
+    }
+  };
+
+  const onRetime = async () => {
+    let edited: string[];
+    try {
+      edited =
+        (await loadTranscriptVocabulary(projectPath)).edited_tracks ?? [];
+    } catch (e) {
+      setError(errorMessage(e));
+      return;
+    }
+    const overwriteEdited = confirmReplaceEdited(edited, "Re-time words");
+    if (overwriteEdited !== null) {
+      await onRun("retime", overwriteEdited);
     }
   };
 
@@ -757,7 +795,9 @@ export function PipelinePanel() {
   const waitingAlign = failedStep("require_align_accept");
 
   const blockedComponents = cfg
-    ? Object.entries(cfg.components).filter(([, c]) => !c.ok)
+    ? Object.entries(cfg.components).filter(
+        ([, c]) => !c.ok && (!c.opt_in || forcedAlignmentOn(cfg)),
+      )
     : [];
 
   const openStep = (id: string) => {
@@ -831,7 +871,9 @@ export function PipelinePanel() {
         key={projectPath}
         projectPath={projectPath}
         busy={running || starting}
-        onRetranscribe={(overwriteEdited) => void onRun(true, overwriteEdited)}
+        onRetranscribe={(overwriteEdited) =>
+          void onRun("retranscribe", overwriteEdited)
+        }
         refreshKey={
           pipelineJob && !isPipelineRunning(pipelineJob)
             ? `${pipelineJob.id}:${pipelineJob.status}`
@@ -1052,6 +1094,32 @@ export function PipelinePanel() {
                             });
                           }}
                         />
+                      );
+                    }
+                    if (field.path === FORCED_ALIGNMENT_PATH) {
+                      return (
+                        <Fragment key={field.path}>
+                          <ParamControl
+                            field={field}
+                            value={getByPath(cfg.config, field.path)}
+                            defaultValue={getByPath(cfg.defaults, field.path)}
+                            disabled={running || starting}
+                            highlighted={highlightPaths.has(field.path)}
+                            onChange={(v) => void onParamChange(field.path, v)}
+                          />
+                          {forcedAlignmentOn(cfg) ? (
+                            <WordAlignerStatus
+                              status={cfg.components[WORD_ALIGNER_COMPONENT]}
+                              disabled={running || starting}
+                              onDownloaded={() =>
+                                void refreshConfig().catch((e: unknown) =>
+                                  setError(errorMessage(e)),
+                                )
+                              }
+                              onRetime={() => void onRetime()}
+                            />
+                          ) : null}
+                        </Fragment>
                       );
                     }
                     return (

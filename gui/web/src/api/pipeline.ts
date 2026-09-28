@@ -195,6 +195,7 @@ export async function startPipelineRun(
     config?: Record<string, unknown>;
     useWorkingSet?: boolean;
     forceTranscribe?: boolean;
+    retimeWords?: boolean;
     overwriteEdited?: boolean;
   },
 ): Promise<PipelineJobSnapshot> {
@@ -214,6 +215,7 @@ export async function startPipelineRun(
       config: opts?.config ?? null,
       use_working_set: opts?.useWorkingSet ?? true,
       force_transcribe: opts?.forceTranscribe ?? false,
+      retime_words: opts?.retimeWords ?? false,
       overwrite_edited: opts?.overwriteEdited ?? false,
     }),
   });
