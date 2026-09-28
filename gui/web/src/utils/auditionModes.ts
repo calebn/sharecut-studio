@@ -11,13 +11,21 @@ export type AuditionModeDef = {
  * `TransportBar`'s desktop/collapsed groups so the labels never drift apart.
  */
 export const AUDITION_MODES: readonly AuditionModeDef[] = [
-  { id: "mix", label: "Full mix", title: "Full premix (all tracks)" },
+  {
+    id: "mix",
+    label: "Full mix",
+    title: "All tracks mixed, with edits and effects",
+  },
   {
     id: "fx",
     label: "Edited stems",
-    title: "Processed stems (edits + effects)",
+    title: "Each track with edits and effects",
   },
-  { id: "raw", label: "Original", title: "Raw source audio (no FX)" },
+  {
+    id: "raw",
+    label: "Original",
+    title: "Source audio, without edits or effects",
+  },
 ];
 
 /** Shown when a share guest is locked to Full mix (`guestHearsMixOnly`). */
