@@ -5,6 +5,7 @@ import pytest
 from podcast_mcp.edits.transcript_correct import (
     TranscriptTextChangedError,
     apply_transcript_corrections,
+    correct_phrase,
     correct_word,
     list_low_confidence,
     require_word_text,
@@ -14,6 +15,7 @@ from podcast_mcp.edits.transcript_correct import (
     transcript_word_record,
     verify_words,
 )
+from podcast_mcp.engines.asr_silence import flag_words_without_acoustic_evidence
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 
 
@@ -36,6 +38,62 @@ def test_correct_word_and_low_confidence() -> None:
     correct_word(p, "host", 0, "the")
     assert p.transcripts[0].words[0].text == "the"
     assert p.transcripts[0].words[0].confidence == 1.0
+
+
+def test_correct_word_drops_stale_aligner_evidence() -> None:
+    p = EpisodeProject.create("tc-ev", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="their",
+                    start=0.0,
+                    end=0.5,
+                    alignment_score=0.004,
+                    suspect_hallucination=True,
+                ),
+                TranscriptWord(
+                    text="same",
+                    start=1.0,
+                    end=1.5,
+                    alignment_score=0.004,
+                    suspect_hallucination=True,
+                ),
+            ],
+        )
+    ]
+    correct_word(p, "host", 0, "Caleb")
+    fixed = p.transcripts[0].words[0]
+    assert fixed.alignment_score is None and fixed.suspect_hallucination is False
+    # The evidence signal cannot bring the flag back on the corrected word.
+    assert flag_words_without_acoustic_evidence([fixed], min_score=0.01) == 0
+    # Same text: nothing to invalidate.
+    correct_word(p, "host", 1, "same")
+    kept = p.transcripts[0].words[1]
+    assert kept.alignment_score == 0.004 and kept.suspect_hallucination is True
+
+
+def test_correct_phrase_words_have_no_aligner_evidence() -> None:
+    p = EpisodeProject.create("tc-ph", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="their",
+                    start=0.0,
+                    end=0.5,
+                    alignment_score=0.004,
+                    suspect_hallucination=True,
+                )
+            ],
+        )
+    ]
+    correct_phrase(p, "host", 0, 0, "Caleb")
+    words = p.transcripts[0].words
+    assert words[0].alignment_score is None and not words[0].suspect_hallucination
+    assert flag_words_without_acoustic_evidence(words, min_score=0.01) == 0
 
 
 def test_set_word_suppressed_toggles_and_rebuilds() -> None:
