@@ -73,6 +73,33 @@ def _seed_project(path: str, sample_wav) -> None:
     save_project(proj, Path(path))
 
 
+def test_mcp_transcript_correction_expected_text_guard(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_project(path, sample_wav)
+
+    with pytest.raises(ValueError, match="changed since this correction started"):
+        mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi", expected_text="world")
+    proj = load_project(Path(path))
+    assert proj.transcripts[0].words[0].text == "hello"
+
+    corrected = json.loads(
+        mcp_timeline.correct_transcript_tool(path, "host", 0, "Hi", expected_text="hello")
+    )
+    assert corrected["text"] == "Hi"
+
+    with pytest.raises(ValueError, match="changed since this correction started"):
+        mcp_timeline.correct_transcript_phrase_tool(
+            path, "host", 0, 1, "Hi earth", expected_text="nope"
+        )
+
+    phrase = json.loads(
+        mcp_timeline.correct_transcript_phrase_tool(
+            path, "host", 0, 1, "Hi earth", expected_text="Hi world"
+        )
+    )
+    assert phrase["text"] == "Hi earth"
+
+
 def test_mcp_timeline_move_and_duplicate(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)

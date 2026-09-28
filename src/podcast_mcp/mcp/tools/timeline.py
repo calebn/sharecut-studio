@@ -346,10 +346,15 @@ def correct_transcript_tool(
     track_id: str,
     word_index: int,
     new_text: str,
+    expected_text: str | None = None,
 ) -> str:
-    """Fix the text of one transcript word without changing its timing."""
+    """Fix the text of one transcript word without changing its timing.
+
+    Pass ``expected_text`` (the word text you read) to refuse the fix if the word at
+    ``word_index`` changed meanwhile (for example a GUI edit shifted indices); omit to skip.
+    """
     ws = ProjectWorkspace.open(project_path)
-    EditService(ws).correct_word(track_id, word_index, new_text)
+    EditService(ws).correct_word(track_id, word_index, new_text, expected_text=expected_text)
     return to_json({"track_id": track_id, "word_index": word_index, "text": new_text})
 
 
@@ -359,10 +364,17 @@ def correct_transcript_phrase_tool(
     start_word_index: int,
     end_word_index: int,
     new_text: str,
+    expected_text: str | None = None,
 ) -> str:
-    """Replace a word range's text with corrected phrase text."""
+    """Replace a word range's text with corrected phrase text.
+
+    Pass ``expected_text`` (the space-joined words you read for this range) to refuse the fix
+    if those words changed meanwhile; omit to skip.
+    """
     ws = ProjectWorkspace.open(project_path)
-    EditService(ws).correct_phrase(track_id, start_word_index, end_word_index, new_text)
+    EditService(ws).correct_phrase(
+        track_id, start_word_index, end_word_index, new_text, expected_text=expected_text
+    )
     return to_json(
         {
             "track_id": track_id,

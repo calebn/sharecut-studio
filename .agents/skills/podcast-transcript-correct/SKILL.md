@@ -16,7 +16,7 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 ## Tools
 
 - `low_confidence_words_tool(project_path, threshold=0.7)`
-- `correct_transcript_tool` / `correct_transcript_phrase_tool` — single fix (one undo step each)
+- `correct_transcript_tool` / `correct_transcript_phrase_tool` — single fix (one undo step each); pass `expected_text` (the word or phrase text you just read) to refuse the fix if it changed meanwhile (#650)
 - `set_word_suppressed_tool` — toggle suppress on one per-track word (same path as Sharecut Studio Suppress/Unsuppress); text only, drops the word from `combined.json`, audio unchanged
 - `set_words_ignored_tool(project_path, track_id, start_word_index, end_word_index, ignored)` — strike through and mute a word range at render, non-destructively (#633; same path as Sharecut Studio Ignore/Restore). Unlike suppress, ignored words stay in the transcript text; only their audio is muted, computed from the transcript at render and never written to `Clip.mute_regions`. No cut, pending edit, or `EditDecision` is created. Host-only — not available to guests.
 - `apply_transcript_cleanup_tool` — prefer via refine skill for multi-word batches
@@ -29,7 +29,7 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 ## NL workflow
 
 1. “Show uncertain words” → `low_confidence_words_tool`
-2. One word → `search_transcript_tool` → `correct_transcript_tool`
+2. One word → `search_transcript_tool` → `correct_transcript_tool`, passing `expected_text` set to the matched word; on a "changed since this correction started" error, search again and retry with the current text
 3. More than one word → switch to **podcast-transcript-refine**
 
 Corrections update `episode.project.json` only; audio is unchanged.

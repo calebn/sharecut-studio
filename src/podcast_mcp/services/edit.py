@@ -105,6 +105,7 @@ from podcast_mcp.edits.transcript_correct import (
     correct_phrase,
     correct_word,
     list_low_confidence,
+    require_word_text,
     run_user_transcript_edit,
     set_word_suppressed,
     set_words_ignored,
@@ -1090,14 +1091,24 @@ class EditService:
             lambda p: fill_with_room_tone(p, tid),
         )
 
-    def correct_word(self, track_id: str, word_index: int, new_text: str) -> None:
-        self.ws.mutate(
-            "before correct word",
-            "after correct word",
-            _user_transcript_edit(
-                track_id, lambda p: correct_word(p, track_id, word_index, new_text)
-            ),
-        )
+    def correct_word(
+        self,
+        track_id: str,
+        word_index: int,
+        new_text: str,
+        *,
+        expected_text: str | None = None,
+    ) -> None:
+        """Fix one word's text. ``expected_text`` guards against a stale index (#650)."""
+        with self.ws.transaction() as project:
+            require_word_text(project, track_id, word_index, word_index, expected_text)
+            self.ws.mutate(
+                "before correct word",
+                "after correct word",
+                _user_transcript_edit(
+                    track_id, lambda p: correct_word(p, track_id, word_index, new_text)
+                ),
+            )
 
     def correct_phrase(
         self,
@@ -1105,15 +1116,22 @@ class EditService:
         start_word_index: int,
         end_word_index: int,
         new_text: str,
+        *,
+        expected_text: str | None = None,
     ) -> None:
-        self.ws.mutate(
-            "before correct phrase",
-            "after correct phrase",
-            _user_transcript_edit(
-                track_id,
-                lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
-            ),
-        )
+        """Replace a word range's text. ``expected_text`` guards against stale indices (#650)."""
+        with self.ws.transaction() as project:
+            require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
+            self.ws.mutate(
+                "before correct phrase",
+                "after correct phrase",
+                _user_transcript_edit(
+                    track_id,
+                    lambda p: correct_phrase(
+                        p, track_id, start_word_index, end_word_index, new_text
+                    ),
+                ),
+            )
 
     def set_word_suppressed(self, track_id: str, word_index: int, suppressed: bool) -> dict:
         return self.ws.mutate(

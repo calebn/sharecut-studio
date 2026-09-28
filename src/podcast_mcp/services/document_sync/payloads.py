@@ -170,6 +170,15 @@ class CorrectTranscriptWordPayload(BaseModel):
         min_length=1,
         description="Correction text containing at least one visible character.",
     )
+    expected_text: str | None = Field(
+        default=None,
+        description=(
+            "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
+            "client saw at these indices. When it no longer matches (whitespace-collapsed, "
+            "case-sensitive), the command is rejected with a 409 conflict and nothing changes. "
+            "Omit to skip the check."
+        ),
+    )
 
     @field_validator("text")
     @classmethod
@@ -184,6 +193,15 @@ class CorrectTranscriptPhrasePayload(BaseModel):
     start_word_index: int
     end_word_index: int
     text: str
+    expected_text: str | None = Field(
+        default=None,
+        description=(
+            "Optional stale-index guard (#650): the word (or space-joined phrase) text the "
+            "client saw at these indices. When it no longer matches (whitespace-collapsed, "
+            "case-sensitive), the command is rejected with a 409 conflict and nothing changes. "
+            "Omit to skip the check."
+        ),
+    )
 
 
 class SetTranscriptWordSuppressedPayload(BaseModel):

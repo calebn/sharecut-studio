@@ -549,6 +549,199 @@ def test_document_set_effect_bypass(minimal_project):
     assert HistoryService(ws2).status()["can_undo"]
 
 
+def _seed_host_words(project_path, texts):
+    """Seed a ``host`` track with a transcript of ``texts``, words 0.5s apart (#650)."""
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    ws = ProjectWorkspace.open(project_path)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    ]
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=text, start=i * 0.5, end=i * 0.5 + 0.4, confidence=0.9)
+                for i, text in enumerate(texts)
+            ],
+        )
+    ]
+    ws.save()
+    return ws
+
+
+def test_document_correct_transcript_word_rejects_stale_expected_text(minimal_project):
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+    seq_before = svc.store.get_snapshot()
+    history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+
+    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+        svc.submit(
+            DocumentCommand(
+                type="CorrectTranscriptWord",
+                payload={
+                    "track_id": "host",
+                    "word_index": 0,
+                    "text": "the",
+                    "expected_text": "the",
+                },
+                client_id="c1",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+    ws_after = ProjectWorkspace.open(minimal_project)
+    assert ws_after.project.transcripts[0].words[0].text == "teh"
+    assert ws_after.project.transcripts[0].words[0].confidence == 0.9
+    assert svc.store.get_snapshot() == seq_before
+    assert HistoryService(ws_after).list_entries() == history_before
+
+    applied = svc.submit(
+        DocumentCommand(
+            type="CorrectTranscriptWord",
+            payload={
+                "track_id": "host",
+                "word_index": 0,
+                "text": "the",
+                "expected_text": "teh",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert applied["ok"]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].text == "the"
+
+
+def test_document_correct_transcript_phrase_rejects_stale_expected_text(minimal_project):
+    _seed_host_words(minimal_project, ["the", "quick", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+    seq_before = svc.store.get_snapshot()
+    history_before = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+
+    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+        svc.submit(
+            DocumentCommand(
+                type="CorrectTranscriptPhrase",
+                payload={
+                    "track_id": "host",
+                    "start_word_index": 1,
+                    "end_word_index": 2,
+                    "text": "brown dog",
+                    "expected_text": "quick dog",
+                },
+                client_id="c1",
+                role="viewer",
+                client_seq=1,
+            )
+        )
+
+    ws_after = ProjectWorkspace.open(minimal_project)
+    texts_after = [w.text for w in ws_after.project.transcripts[0].words]
+    assert texts_after == ["the", "quick", "fox"]
+    assert svc.store.get_snapshot() == seq_before
+    assert HistoryService(ws_after).list_entries() == history_before
+
+    applied = svc.submit(
+        DocumentCommand(
+            type="CorrectTranscriptPhrase",
+            payload={
+                "track_id": "host",
+                "start_word_index": 1,
+                "end_word_index": 2,
+                "text": "brown dog",
+                "expected_text": "quick  fox",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert applied["ok"]
+    texts_final = [
+        w.text for w in ProjectWorkspace.open(minimal_project).project.transcripts[0].words
+    ]
+    assert "brown" in texts_final
+    assert "dog" in texts_final
+
+
+def test_document_correct_transcript_without_expected_text_keeps_behavior(minimal_project):
+    _seed_host_words(minimal_project, ["the", "quick", "brown", "fox"])
+    svc = DocumentSyncService.open(minimal_project)
+
+    phrase = svc.submit(
+        DocumentCommand(
+            type="CorrectTranscriptPhrase",
+            payload={
+                "track_id": "host",
+                "start_word_index": 1,
+                "end_word_index": 2,
+                "text": "very quick",
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert phrase["ok"]
+
+    unguarded = svc.submit(
+        DocumentCommand(
+            type="CorrectTranscriptWord",
+            payload={"track_id": "host", "word_index": 0, "text": "The"},
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
+    )
+    assert unguarded["ok"]
+    assert ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].text == "The"
+
+    assert (
+        validate_payload(
+            "CorrectTranscriptWord",
+            {"track_id": "host", "word_index": 0, "text": "The"},
+        )["expected_text"]
+        is None
+    )
+
+
+def test_http_stale_word_correction_returns_409(minimal_project):
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    client = TestClient(create_app())
+    path = str(minimal_project)
+
+    def post(expected_text):
+        return client.post(
+            "/api/document/command",
+            params={"path": path},
+            json={
+                "type": "CorrectTranscriptWord",
+                "payload": {
+                    "track_id": "host",
+                    "word_index": 0,
+                    "text": "the",
+                    "expected_text": expected_text,
+                },
+                "client_id": "v1",
+                "role": "viewer",
+                "client_seq": 1,
+            },
+        )
+
+    response = post("the")
+    assert response.status_code == 409
+    assert response.json()["detail"]["conflict"] is True
+
+
 def test_document_correct_and_suppress_transcript(minimal_project):
     from podcast_mcp.models import Transcript, TranscriptWord
 

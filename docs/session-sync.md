@@ -304,8 +304,8 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetEffectBypass` | `EditService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
-| `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text` |
-| `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text` |
+| `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text`, `expected_text?` |
+| `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
 | `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed` |
 | `SetTranscriptWordsIgnored` | `EditService.set_words_ignored` | `track_id`, `start_word_index`, `end_word_index` (`ge=0`), `ignored` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |
 | `SetEnvelope` | `PipelineService.set_envelope` | `track_id`, `points: [{time, value, id?}]`, and required `expected_points: [{time, value, id}]` baseline (unique IDs; each list ≤ 10 000 points); missing IDs on new points are generated before the command is journaled. Only the track's volume envelope (`parameter` `volume`/`gain`/unset, via `EpisodeProject.volume_envelope_for`) is compared and replaced; `pan` and other parameters are untouched. The handler reloads the project under the submit lock and rejects a stale baseline with a 409 before mutation/history/logging. Floats compare exactly, so clients must echo the server's points verbatim (never rounded or clamped). Host MCP `set_envelope` submits this same command (optional `expected_points_json`; default baseline is the envelope read at call time). |
@@ -325,6 +325,8 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `MoveClips` | `EditService.move_clips` | `clips: [{clip_id, timeline_start, track_id}]` — reposition clips (gaps/overlap OK); pins `source_id` on inter-track; not a range shuffle |
 | `PasteSegment` | `EditService.paste_segment` | `insert_at`, `duration`, `extracts[]` — paste clipboard extracts after cut |
 | `RippleDeleteRange` | `EditService.ripple_delete` | `start`, `end` — clipboard cut (host/`edit` apply-only) |
+
+`CorrectTranscriptWord` / `CorrectTranscriptPhrase`'s `expected_text` is optional (#650): the word (or space-joined phrase) text the client saw at these indices, compared whitespace-collapsed and case-sensitive against the current transcript under the submit lock (`edits/transcript_correct.require_word_text`). A mismatch is a 409 conflict before mutation, history, or the command log — the same contract as `SetEnvelope`'s `expected_points`. Omitting it keeps today's unguarded behavior. Host MCP `correct_transcript_tool` / `correct_transcript_phrase_tool` take the same optional `expected_text`.
 
 **Structural apply vs propose:** `services/document_sync/policy.py` (`resolve_structural_mode`). Host (`caps is None`) and `edit` apply immediately (History undo). `suggest` only appends pending decisions; Approve/Reject via existing Pass 1 commands.
 
