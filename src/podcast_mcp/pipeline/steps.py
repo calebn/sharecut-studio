@@ -108,6 +108,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
         dialogue_transcribe_jobs,
+        forced_alignment_succeeded,
     )
     from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER, word_aligner_model
 
@@ -180,11 +181,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
         "jobs": align_jobs,
     }
-    retime_ok = {
-        j["label"]
-        for j in align_jobs
-        if j.get("status") in ("aligned", "cached") and j.get("aligned_words", 0) > 0
-    }
+    retime_ok = {j["label"] for j in align_jobs if forced_alignment_succeeded(j)}
     retimed = [j.label for j in plan.retime if j.label in retime_ok]
     retime_failed = [j.label for j in plan.retime if j.label not in retime_ok]
     if retime:
@@ -254,7 +251,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                 summary += (
                     f", {not_retimed} reused track(s) not re-timed (Re-time words to re-time)"
                 )
-        kept = sum(1 for j in align_jobs if j.get("status") in ("failed", "skipped"))
+        kept = sum(1 for j in align_jobs if not forced_alignment_succeeded(j))
         if kept:
             summary += f", forced alignment kept Whisper timestamps on {kept} track(s)"
     return summary
