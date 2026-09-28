@@ -706,16 +706,17 @@ sha256-verified) → `WordAligner.align` → `apply_word_spans`. It shares
 `prepare_items()` with `run`: decode audio, then take native words from the
 checked-in fixtures, else from a `<id>.native.json` already in the runs dir
 for the same `audio_sha256`, else from a fresh Whisper pass. A cached file for
-the same audio but a different `--native-model` or installed faster-whisper
-version is an error, never overwritten, so an earlier pass's predictions in
-that dir stay paired with the native words they re-timed. Point `pipeline` at
-the same runs dir as `run` (both default to `$LAB_RUNS_DIR/align/<target>`)
-and both passes score the exact same native words and audio; delete
-`<id>.native.json` to force a fresh Whisper pass. Each item's cache check, Whisper run and
-write hold `<id>.native.lock` in the runs dir (`util.file_locks.shared_file_lock`,
-up to an hour), so a second pass started into the same dir waits for the first,
-then reuses its native words (or errors on a mismatch) instead of both running
-Whisper. It
+the same audio with no recorded model, a different `--native-model`, or a
+different installed version of its recorded native library is an error, never
+overwritten, so an earlier pass's predictions in that dir stay paired with the
+native words they re-timed. Point `pipeline` at the same runs dir as `run`
+(both default to `$LAB_RUNS_DIR/align/<target>`) and both passes score the
+exact same native words and audio; delete `<id>.native.json` to force a fresh
+Whisper pass. Each item's cache check, Whisper run and write hold
+`<id>.native.lock` in the runs dir (`util.file_locks.shared_file_lock`, up to
+an hour), so a second pass started into the same dir waits for the first,
+then reuses its native words (or errors on a mismatch) instead of both
+running Whisper. It
 writes `<id>.onnx-base-pipeline.json` predictions/reports plus a
 `summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
 share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`
