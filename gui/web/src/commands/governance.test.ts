@@ -5,6 +5,7 @@ import { KEYMAP_COMMANDS, matchKeymapCommands } from "../keymap/registry";
 import { isProgrammaticUi, withProgrammaticUi } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
+import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { COMMANDS, listCatalogIds } from "./catalog";
 import { buildCommandContext, evaluateWhen } from "./context";
 import {
@@ -184,7 +185,7 @@ describe("command bus", () => {
     useDawStore.setState({ guestMode: "view", auditionMode: "mix" });
     expect(await execute("transport.audition", { mode: "fx" })).toEqual({
       status: "disabled",
-      reason: "guests hear Mix only",
+      reason: GUESTS_HEAR_FULL_MIX,
     });
     expect(useDawStore.getState().auditionMode).toBe("mix");
     expect(await execute("transport.audition", { mode: "mix" })).toEqual({

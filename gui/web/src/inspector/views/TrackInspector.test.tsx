@@ -98,7 +98,7 @@ describe("TrackInspector", () => {
     expect(playFx).toHaveAttribute("title", GUESTS_HEAR_FULL_MIX);
     expect(await execute("transport.audition", { mode: "fx" })).toEqual({
       status: "disabled",
-      reason: "guests hear Mix only",
+      reason: GUESTS_HEAR_FULL_MIX,
     });
     expect(useDawStore.getState().auditionMode).toBe("mix");
   });

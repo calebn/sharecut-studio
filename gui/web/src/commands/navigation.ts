@@ -3,6 +3,7 @@ import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { AuditionMode, LayoutMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
+import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { clampToSession } from "../utils/time";
 import { registerCommand } from "./execute";
 
@@ -43,7 +44,7 @@ export function registerNavigationCommands(): void {
       return { status: "disabled", reason: "mode required" };
     }
     if (guestHearsMixOnly(useDawStore.getState().guestMode) && mode !== "mix") {
-      return { status: "disabled", reason: "guests hear Mix only" };
+      return { status: "disabled", reason: GUESTS_HEAR_FULL_MIX };
     }
     useDawStore.getState().setAuditionMode(mode as AuditionMode);
     return { status: "ok" };
