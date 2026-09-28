@@ -376,4 +376,28 @@ describe("useGuestSync", () => {
       { client_id: "g2", role: "viewer", label: "Guest 2" },
     ]);
   });
+
+  it("swallows a failed document resync load instead of rejecting unhandled", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      loadProject.mockRejectedValueOnce(new Error("offline"));
+      renderHook(() =>
+        useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
+      );
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Applied",
+          plane: "document",
+          server_seq: 2,
+          snapshot: { server_seq: 2, resync: true },
+        });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(loadProject).toHaveBeenCalled();
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
 });
