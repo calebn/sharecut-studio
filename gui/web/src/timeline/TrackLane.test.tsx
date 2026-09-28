@@ -361,3 +361,43 @@ describe("TrackLane media refs", () => {
     expect(laneStatus.refs.at(-1)).toBe("source:s1\ntrack:host");
   });
 });
+
+describe("TrackLane prosody overlay", () => {
+  const prosodyTrack: import("../types/prosody").ProsodyOverlayTrack = {
+    track_id: "host",
+    status: "fresh",
+    segments: [
+      {
+        source_start: 0,
+        source_end: 2,
+        spans: [{ start: 0, end: 2 }],
+        energy_thirds: [],
+        trend: "flat",
+        drop_db: 0,
+        line: "",
+      },
+    ],
+    boundaries: [],
+    prominent_words: [],
+    energy_db: null,
+  };
+
+  it("renders the overlay when a prosody track is given", () => {
+    const { container } = render(
+      <TrackLane
+        {...baseProps}
+        onSeek={vi.fn()}
+        onSelectClip={vi.fn()}
+        prosody={prosodyTrack}
+      />,
+    );
+    expect(container.querySelector(".prosody-overlay")).toBeTruthy();
+  });
+
+  it("renders no overlay without a prosody track", () => {
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    expect(container.querySelector(".prosody-overlay")).toBeNull();
+  });
+});

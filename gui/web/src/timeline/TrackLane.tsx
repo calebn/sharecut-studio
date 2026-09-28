@@ -23,6 +23,7 @@ import type {
   Selection,
   TrackView,
 } from "../types/project";
+import type { ProsodyOverlayTrack } from "../types/prosody";
 import { trackOutputGainDb } from "../utils/audio";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import type { RenderInvalidationView } from "../utils/staleRender";
@@ -35,6 +36,7 @@ import { EnvelopeOverlay } from "./EnvelopeOverlay";
 import { JoinBadge } from "./JoinBadge";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
+import { ProsodyOverlay } from "./ProsodyOverlay";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 
 const NOOP = () => undefined;
@@ -84,6 +86,8 @@ interface TrackLaneProps {
   staleInvalidations?: readonly RenderInvalidationView[];
   /** Show regional invalidation bands. */
   showStaleInvalidations?: boolean;
+  /** Prosody overlay row for this lane when the layer is on (#719). */
+  prosody?: ProsodyOverlayTrack | null;
 }
 
 export function TrackLaneView({
@@ -116,6 +120,7 @@ export function TrackLaneView({
   staleWholeTrack = false,
   staleInvalidations = EMPTY_ARR,
   showStaleInvalidations = false,
+  prosody = null,
 }: TrackLaneProps) {
   const seekRef = useRef<HTMLDivElement>(null);
   const {
@@ -387,6 +392,13 @@ export function TrackLaneView({
           <StaleInvalidationOverlay
             invalidations={staleInvalidations}
             trackId={track.id}
+            zoomPxPerSec={zoomPxPerSec}
+            width={width}
+          />
+        ) : null}
+        {prosody ? (
+          <ProsodyOverlay
+            track={prosody}
             zoomPxPerSec={zoomPxPerSec}
             width={width}
           />

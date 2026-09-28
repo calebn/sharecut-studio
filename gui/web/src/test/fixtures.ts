@@ -211,7 +211,7 @@ export function recordSnapshot(
   };
 }
 
-/** All timeline layers visible, for tests and prop-only chrome stories. */
+/** All timeline layers visible except the opt-in Prosody layer, for tests and prop-only chrome stories. */
 export function layerVisibility(
   overrides: Partial<LayerVisibility> = {},
 ): LayerVisibility {
@@ -222,6 +222,7 @@ export function layerVisibility(
     showComments: true,
     showSilence: true,
     showSnapPoints: true,
+    showProsody: false,
     ...overrides,
   };
 }

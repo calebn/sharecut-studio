@@ -41,7 +41,7 @@ describe("OverlayLegendView", () => {
       <OverlayLegendView layers={layerVisibility()} onLayerChange={vi.fn()} />,
     );
     const rows = container.querySelectorAll(".overlay-legend-item");
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(7);
     for (const row of rows) {
       expect(row.querySelector(".overlay-legend-swatch")).toBeTruthy();
     }
@@ -57,6 +57,9 @@ describe("OverlayLegendView", () => {
     expect(
       container.querySelector(".overlay-legend-swatch--comments"),
     ).toBeTruthy();
+    expect(
+      container.querySelector(".overlay-legend-swatch--prosody"),
+    ).toBeTruthy();
   });
 
   it("renders menuitemcheckbox rows inside a menu host", async () => {
@@ -69,7 +72,30 @@ describe("OverlayLegendView", () => {
         />
       </div>,
     );
-    expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(6);
+    expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(7);
     await expectNoA11yViolations(container);
+  });
+
+  it("renders a Prosody checkbox by default and reports its toggle", async () => {
+    const onLayerChange = vi.fn();
+    render(
+      <OverlayLegendView
+        layers={layerVisibility()}
+        onLayerChange={onLayerChange}
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Prosody"));
+    expect(onLayerChange).toHaveBeenCalledWith("showProsody", true);
+  });
+
+  it("hides Prosody when hostLayers is false", () => {
+    render(
+      <OverlayLegendView
+        layers={layerVisibility()}
+        onLayerChange={vi.fn()}
+        hostLayers={false}
+      />,
+    );
+    expect(screen.queryByLabelText("Prosody")).toBeNull();
   });
 });

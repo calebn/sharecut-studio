@@ -72,7 +72,7 @@ export const ViewMenu: Story = {
   args: { menu: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getAllByRole("menuitemcheckbox")).toHaveLength(6);
+    await expect(canvas.getAllByRole("menuitemcheckbox")).toHaveLength(7);
   },
 };
 

@@ -276,6 +276,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       showComments: true,
       showSilence: true,
       showSnapPoints: true,
+      showProsody: false,
     } satisfies LayerVisibility,
     commentMode: false,
     commentDraft: null as CommentDraft | null,

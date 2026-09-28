@@ -27,6 +27,8 @@ export interface LayerVisibility {
   showComments: boolean;
   showSilence: boolean;
   showSnapPoints: boolean;
+  /** Prosody overlay + transcript emphasis (host only, opt-in, #719). */
+  showProsody: boolean;
 }
 
 /** A failed word action (inline fix, or WORD inspector Apply / Suppress / Ignore) whose editor had already closed. */
