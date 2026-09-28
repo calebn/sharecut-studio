@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
+import { seedStudioJob } from "../state/seedStudioJob";
 import { minimalProject } from "../test/fixtures";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -153,6 +154,30 @@ describe("export.deliverables", () => {
     startMock.mockResolvedValue(jobSnapshot("job-2"));
     followMock.mockResolvedValue(["export/a.wav"]);
     expect((await execute("export.deliverables")).status).toBe("ok");
+  });
+
+  it("does not seed the chip when the project changes while the export starts", async () => {
+    vi.mocked(seedStudioJob).mockClear();
+    let resolveStart!: (job: PipelineJobSnapshot) => void;
+    startMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+    const run = execute("export.deliverables");
+    await vi.waitFor(() => expect(startMock).toHaveBeenCalled());
+    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
+    resolveStart(jobSnapshot("job-1"));
+
+    const result = await run;
+    expect(result.status).toBe("disabled");
+    if (result.status === "disabled") {
+      expect(result.reason).toBe("Project changed");
+    }
+    expect(vi.mocked(seedStudioJob)).not.toHaveBeenCalled();
+    expect(followMock).not.toHaveBeenCalled();
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
   });
 
   it("does not block another project's export", async () => {

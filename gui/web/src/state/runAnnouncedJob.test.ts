@@ -74,4 +74,24 @@ describe("runAnnouncedJob", () => {
     });
     expect(followMock).toHaveBeenCalledWith("j1", "F", { signal: ac.signal });
   });
+
+  it("registers and seeds nothing when the signal aborted while start() ran", async () => {
+    const ac = new AbortController();
+    await expect(
+      runAnnouncedJob(
+        async () => {
+          ac.abort();
+          return snap;
+        },
+        {
+          failLabel: "F",
+          resultCopy: (p) => `${p.length} done`,
+          signal: ac.signal,
+        },
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(seedMock).not.toHaveBeenCalled();
+    expect(followMock).not.toHaveBeenCalled();
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
 });

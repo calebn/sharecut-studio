@@ -9,7 +9,8 @@ import { seedStudioJob } from "./seedStudioJob";
  * copy to `useJobStatusAnnouncement` (#704). The job is registered with
  * `expectJobResult` before the chip sees it, so the generic "ok" headline
  * never races the copy. A failure or abort settles that registration and
- * rethrows for the caller.
+ * rethrows for the caller. An abort that lands while `start()` runs throws
+ * before anything is registered or seeded.
  */
 export async function runAnnouncedJob(
   start: () => Promise<PipelineJobSnapshot>,
@@ -20,6 +21,11 @@ export async function runAnnouncedJob(
   },
 ): Promise<string[]> {
   const job = await start();
+  // A project switch (or dialog close) while the start POST was in flight:
+  // do not put this job on the chip that now belongs to another project.
+  if (opts.signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   const s = useDawStore.getState();
   s.expectJobResult(job.id);
   seedStudioJob(job);
