@@ -10,6 +10,7 @@ import { registerNavigationCommands } from "./navigation";
 import { registerProjectMediaCommands } from "./projectMedia";
 import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
+import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 import {
   registerPaletteCommands,
   registerTranscriptViewCommands,
@@ -36,4 +37,5 @@ export function registerDawCommands(): void {
   registerViewFocusCommands();
   registerTightenCommands();
   registerTrackMixCommands();
+  registerTranscriptIgnoreCommands();
 }

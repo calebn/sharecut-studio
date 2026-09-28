@@ -124,6 +124,13 @@ def _mapped_word_index(
     return _MappedWordIndex(intervals, words, views)
 
 
+def _word_in_utterance(word: Any, source_start: float, source_end: float) -> bool:
+    """Whether ``word`` (source-media seconds) overlaps ``[source_start, source_end)``."""
+    if word.end <= word.start:
+        return source_start <= word.start < source_end
+    return not (word.end <= source_start or word.start >= source_end)
+
+
 def _words_for_utterance(
     project: EpisodeProject,
     timeline: SessionTimeline,
@@ -137,14 +144,29 @@ def _words_for_utterance(
     selected: list[int] = []
     for word_index in index.intervals.overlapping_ordinals(source_start, source_end):
         word = index.words[word_index]
-        if word.end <= word.start:
-            if not (source_start <= word.start < source_end):
-                continue
-        else:
-            if word.end <= source_start or word.start >= source_end:
-                continue
+        if not _word_in_utterance(word, source_start, source_end):
+            continue
         selected.append(word_index)
     return [index.views[i] for i in sorted(selected)]
+
+
+def _ignored_word_indices_for_utterance(
+    words: list[Any],
+    source_start: float,
+    source_end: float,
+) -> list[int]:
+    """Sorted per-track `word_index` values of ignored words overlapping the utterance (#633).
+
+    Takes the track's raw (unmapped) words: never triggers a timeline word
+    mapping (``SessionTimeline.map_word_spans``) on its own — that stays
+    reserved for ``include_words=True``.
+    """
+    return [
+        index
+        for index, word in enumerate(words)
+        if bool(getattr(word, "ignored", False))
+        and _word_in_utterance(word, source_start, source_end)
+    ]
 
 
 def _word_view(
@@ -173,6 +195,7 @@ def _word_view(
         "word_index": word_index,
         "confidence": word.confidence,
         "suppressed": bool(word.suppressed),
+        "ignored": bool(word.ignored),
         "suspect_hallucination": bool(word.suspect_hallucination),
     }
 
@@ -209,6 +232,7 @@ def map_transcript_utterances_to_timeline(
     timeline = SessionTimeline(project)
     mapped: list[dict[str, Any]] = []
     word_indexes: dict[str, _MappedWordIndex] = {}
+    raw_words_by_track: dict[str, list[Any]] = {}
     for utterance in utterances:
         if not isinstance(utterance, dict):
             continue
@@ -234,6 +258,14 @@ def map_transcript_utterances_to_timeline(
             row["words"] = _words_for_utterance(
                 project, timeline, track_id, source_start, source_end, word_indexes[track_id]
             )
+        if track_id not in raw_words_by_track:
+            tr = project.transcript_for_track(track_id)
+            raw_words_by_track[track_id] = list(tr.words) if tr is not None else []
+        ignored_word_indices = _ignored_word_indices_for_utterance(
+            raw_words_by_track[track_id], source_start, source_end
+        )
+        if ignored_word_indices:
+            row["ignored_word_indices"] = ignored_word_indices
         mapped.append(row)
     return {**transcript, "utterances": mapped}
 

@@ -287,7 +287,10 @@ class DocumentSyncService:
             if proj in (ViewProjection.FULL, ViewProjection.SHELL):
                 api_snap["project"] = dumped
                 return api_snap
-            if proj is ViewProjection.DETAIL and isinstance(dumped.get("history"), dict):
+            if proj in (
+                ViewProjection.DETAIL,
+                ViewProjection.TRANSCRIPT_AUDIO,
+            ) and isinstance(dumped.get("history"), dict):
                 dumped = {**dumped, "history": _history_wire(hist)}
             api_snap["patch"] = dumped
             return api_snap

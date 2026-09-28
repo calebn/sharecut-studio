@@ -23,6 +23,8 @@ export type TranscriptTurnWord = {
   boundaryAfter?: ReactNode;
   /** Replaces the word chip while it is edited in place (panel-owned). */
   editor?: ReactNode;
+  /** Hover/focus-visible "Restore" control after the last word of an ignored run (#633). */
+  restoreControl?: ReactNode;
 };
 
 export type TranscriptTurnSegment = {
@@ -98,6 +100,7 @@ export function TranscriptTurnView({
               item.active ? "active" : "",
               item.unmapped ? "unmapped" : "",
               item.word.suppressed ? "suppressed" : "",
+              item.word.ignored ? "ignored" : "",
               item.lowConfidence ? "low-confidence" : "",
               item.suspectHallucination ? "suspect-hallucination" : "",
               item.selected ? "selected" : "",
@@ -107,6 +110,9 @@ export function TranscriptTurnView({
             return (
               <span
                 key={`${item.word.start}-${wordIndex}-${item.word.word_index ?? wordIndex}`}
+                className={
+                  item.restoreControl ? "utterance-restore-anchor" : undefined
+                }
               >
                 {wordIndex > 0 ? " " : ""}
                 {item.editor ??
@@ -144,6 +150,7 @@ export function TranscriptTurnView({
                       )}
                     </span>
                   ))}
+                {item.restoreControl}
                 {item.boundaryAfter}
               </span>
             );

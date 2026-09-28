@@ -17,6 +17,10 @@ TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
 
 TRANSCRIPT_WORD_COMMANDS: frozenset[str] = frozenset(TRANSCRIPT_HANDLERS)
 
+# Ignore/restore (#633) additionally needs tracks/render_status freshness so the
+# GUI stem cache key changes; checked before TRANSCRIPT_WORD_COMMANDS.
+TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset({"SetTranscriptWordsIgnored"})
+
 CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
         "SetClipFade",
@@ -42,6 +46,8 @@ def projection_for_command(command_type: str) -> ViewProjection:
         return ViewProjection.COMMENTS
     if command_type in TRACK_SLICE_COMMANDS:
         return ViewProjection.TRACKS
+    if command_type in TRANSCRIPT_AUDIO_COMMANDS:
+        return ViewProjection.TRANSCRIPT_AUDIO
     if command_type in TRANSCRIPT_WORD_COMMANDS:
         return ViewProjection.DETAIL
     if command_type in CLIP_SLICE_COMMANDS:

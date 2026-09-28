@@ -12,7 +12,7 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 |------|---------------|
 | **Listen** | Review the episode. Play, scrub through, read and leave comments. |
 | **Timeline** | Edit audio. See the waveforms, split clips, adjust fades. |
-| **Text** | Read the transcript. Choose Correct to edit a word or Select to suggest a cut. |
+| **Text** | Read the transcript. Choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range. |
 | **More** | Comments, history, impact, tighten suggestions, pipeline, and Gestures. |
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand.

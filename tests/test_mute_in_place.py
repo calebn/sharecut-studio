@@ -11,6 +11,7 @@ from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, reject_
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.mute_regions import (
     MUTE_FADE_SEC,
+    IgnoredWordRegions,
     add_source_mute,
     intersect_mute_regions,
     merge_mute_regions,
@@ -18,6 +19,7 @@ from podcast_mcp.edits.mute_regions import (
     subtract_source_mute,
 )
 from podcast_mcp.edits.tighten import propose_tighten_edits
+from podcast_mcp.edits.transcript_correct import set_words_ignored
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
@@ -654,6 +656,164 @@ def test_apply_prefix_skips_zero_length_mute(tmp_path, sample_wav):
     assert apply_auto_edits(project) == 0
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions == []
+
+
+def test_rendered_ignored_word_is_silent_and_leaves_mute_regions_empty(tmp_path, sample_wav):
+    project = _project_with_audio(tmp_path, sample_wav)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="skip", start=0.4, end=0.7, confidence=0.9, ignored=True)],
+        )
+    ]
+    host = next(c for c in project.clips if c.track_id == "host")
+    out = Path(project.workspace_dir) / "artifacts" / "host.wav"
+    render_track_from_timeline(project, project.tracks[0], out, {})
+    inside = measure_window_rms_db(out, 0.45, 0.65)
+    before = measure_window_rms_db(out, 0.05, 0.25)
+    after = measure_window_rms_db(out, 1.2, 1.4)
+    assert inside is not None and inside <= -60.0
+    assert before is not None and before > -40.0
+    assert after is not None and after > -40.0
+    assert host.mute_regions == []
+
+
+def test_render_track_segment_honours_ignored_words(tmp_path, sample_wav):
+    from podcast_mcp.engines.timeline_render import render_track_segment
+
+    project = _project_with_audio(tmp_path, sample_wav)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="skip", start=0.4, end=0.7, confidence=0.9, ignored=True)],
+        )
+    ]
+    out = Path(project.workspace_dir) / "artifacts" / "segment.wav"
+    render_track_segment(project, "host", 0.0, 1.0, out, {})
+    inside = measure_window_rms_db(out, 0.45, 0.65)
+    assert inside is not None and inside <= -60.0
+
+
+def test_ignored_word_regions_clamps_to_clip_and_source(tmp_path, sample_wav):
+    project = _project_with_audio(tmp_path, sample_wav)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            source_id=None,
+            words=[
+                TranscriptWord(text="before", start=-1.0, end=-0.5, confidence=0.9, ignored=True),
+                TranscriptWord(text="in", start=0.4, end=0.7, confidence=0.9, ignored=True),
+                TranscriptWord(text="not-ignored", start=0.8, end=1.0, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="hi", start=0.0, end=0.2, confidence=0.9, ignored=True)],
+        ),
+    ]
+    host = next(c for c in project.clips if c.track_id == "host")
+    lookup = IgnoredWordRegions(project)
+    regions = lookup.for_clip(host)
+    assert [(r.start_s, r.end_s) for r in regions] == [(0.4, 0.7)]
+    assert lookup.for_clip(host) == regions  # deterministic, no source bleed
+
+
+def test_ignored_word_regions_scan_the_transcript_once_per_source(
+    tmp_path, sample_wav, monkeypatch
+):
+    project = _project_with_audio(tmp_path, sample_wav)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=0.2, end=0.4, confidence=0.9, ignored=True),
+                TranscriptWord(text="b", start=1.2, end=1.4, confidence=0.9, ignored=True),
+            ],
+        )
+    ]
+    first = Clip(id="h1", track_id="host", source_start=0.0, source_end=1.0, timeline_start=0.0)
+    second = Clip(id="h2", track_id="host", source_start=1.0, source_end=2.0, timeline_start=1.0)
+    calls: list[tuple[str, str | None]] = []
+    real = EpisodeProject.transcript_for_source
+
+    def counting(self, track_id, source_id):
+        calls.append((track_id, source_id))
+        return real(self, track_id, source_id)
+
+    monkeypatch.setattr(EpisodeProject, "transcript_for_source", counting)
+    lookup = IgnoredWordRegions(project)
+    assert [(r.start_s, r.end_s) for r in lookup.for_clip(first)] == [(0.2, 0.4)]
+    assert [(r.start_s, r.end_s) for r in lookup.for_clip(second)] == [(1.2, 1.4)]
+    assert calls == [("host", None)]
+
+
+def test_ignored_words_follow_the_clip_source_on_a_multi_source_track(tmp_path):
+    """Ignore flags the track-level transcript (the one the GUI maps); its spans
+    mute only clips playing that media, never an extra source's clip.
+    """
+    project = EpisodeProject.create("ms", str(tmp_path / "ws"))
+    project.sources.append(
+        SourceRecording(id="s2", path="raw/b.wav", speaker="Host", duration_sec=2.0)
+    )
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/a.wav", duration_sec=2.0),
+        )
+    ]
+    primary = Clip(id="c1", track_id="host", source_start=0.0, source_end=0.8, timeline_start=0.0)
+    extra = Clip(
+        id="c2",
+        track_id="host",
+        source_start=0.0,
+        source_end=0.8,
+        timeline_start=0.9,
+        source_id="s2",
+    )
+    project.clips = [primary, extra]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="a", start=0.1, end=0.4, confidence=0.9)],
+        ),
+        Transcript(
+            track_id="host",
+            source_id="s2",
+            words=[TranscriptWord(text="b", start=0.1, end=0.4, confidence=0.9)],
+        ),
+    ]
+    set_words_ignored(project, "host", 0, 0, True)
+    track_level = project.transcript_for_track("host")
+    assert track_level is not None and track_level.source_id is None
+    assert track_level.words[0].ignored
+    lookup = IgnoredWordRegions(project)
+    assert [(r.start_s, r.end_s) for r in lookup.for_clip(primary)] == [(0.1, 0.4)]
+    assert lookup.for_clip(extra) == []
+
+
+def test_track_render_hash_follows_ignored_words(tmp_path, sample_wav):
+    from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash, write_stem_hash
+
+    project = _project_with_audio(tmp_path, sample_wav)
+    artifacts = Path(project.workspace_dir) / "artifacts" / "tracks"
+    artifacts.mkdir(parents=True)
+    stem = artifacts / "host.wav"
+    stem.write_bytes(sample_wav.read_bytes())
+    h1 = track_render_hash(project, "host")
+    write_stem_hash(project, "host")
+    assert stem_is_fresh(project, "host")
+
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="skip", start=0.4, end=0.7, confidence=0.9, ignored=True)],
+        )
+    ]
+    h2 = track_render_hash(project, "host")
+    assert h2 != h1
+    assert not stem_is_fresh(project, "host")
 
 
 def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, sample_wav):

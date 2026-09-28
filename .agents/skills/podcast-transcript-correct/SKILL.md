@@ -17,13 +17,14 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 
 - `low_confidence_words_tool(project_path, threshold=0.7)`
 - `correct_transcript_tool` / `correct_transcript_phrase_tool` — single fix (one undo step each)
-- `set_word_suppressed_tool` — toggle suppress on one per-track word (same path as Sharecut Studio Suppress/Unsuppress)
+- `set_word_suppressed_tool` — toggle suppress on one per-track word (same path as Sharecut Studio Suppress/Unsuppress); text only, drops the word from `combined.json`, audio unchanged
+- `set_words_ignored_tool(project_path, track_id, start_word_index, end_word_index, ignored)` — strike through and mute a word range at render, non-destructively (#633; same path as Sharecut Studio Ignore/Restore). Unlike suppress, ignored words stay in the transcript text; only their audio is muted, computed from the transcript at render and never written to `Clip.mute_regions`. No cut, pending edit, or `EditDecision` is created. Host-only — not available to guests.
 - `apply_transcript_cleanup_tool` — prefer via refine skill for multi-word batches
 - `history_undo` — revert last correction
 
 **CLI:** `podcast transcript correct`, `podcast transcript review`
 
-**Host Sharecut Studio:** Transcript tab → double-click a word, type, Enter (inline; Esc cancels), or **Correct** → click a word → inspector Apply / Suppress (document commands; text only, audio/timing unchanged). Agent listen-first audition stays MCP-only (`podcast-transcript-audition`).
+**Host Sharecut Studio:** Transcript tab → double-click a word, type, Enter (inline; Esc cancels), or **Correct** → click a word → inspector Apply / Suppress / Ignore (document commands; text only for Suppress, audio+text for Ignore, timing unchanged either way). Select mode has an Ignore/Restore toolbar button for a transcript range, and each ignored run gets a hover Restore control. Agent listen-first audition stays MCP-only (`podcast-transcript-audition`).
 
 ## NL workflow
 

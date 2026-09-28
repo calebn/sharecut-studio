@@ -707,6 +707,22 @@ def test_edit_service_transcript_edits_flag_user_edited(minimal_project):
     ws.project.transcripts[0].user_edited = False
     svc.set_word_suppressed("host", 1, True)
     assert ws.project.transcripts[0].user_edited is True
+    ws.project.transcripts[0].user_edited = False
+    svc.set_words_ignored("host", 1, 1, True)
+    assert ws.project.transcripts[0].user_edited is True
+
+
+def test_edit_service_set_words_ignored_undo_restores_flag(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    out = svc.set_words_ignored("host", 1, 1, True)
+    assert out["changed"] == 1
+    assert ws.project.transcripts[0].words[1].ignored is True
+
+    HistoryService(ws).undo()
+    reloaded = ProjectWorkspace.open(minimal_project)
+    assert reloaded.project.transcripts[0].words[1].ignored is False
 
 
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):

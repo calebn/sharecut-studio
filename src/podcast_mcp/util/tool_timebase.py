@@ -41,6 +41,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "set_clip_join_tool": "na",
     "set_effect_bypass_tool": "na",
     "set_word_suppressed_tool": "source",
+    "set_words_ignored_tool": "source",
     "fill_with_room_tone_tool": "timeline",
     "strip_silence_tool": "source",
     "shorten_gaps_tool": "source",

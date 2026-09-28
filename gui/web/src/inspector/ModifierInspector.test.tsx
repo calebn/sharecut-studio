@@ -59,6 +59,22 @@ describe("ModifierInspector", () => {
     expect(onReject).toHaveBeenCalledOnce();
   });
 
+  it("passes a title through to the action button", () => {
+    render(
+      <ModifierInspector
+        badge="Pending"
+        title="Pending edit"
+        primaryActions={[{ label: "Go", onClick: () => {}, title: "Go tip" }]}
+      >
+        <p>Body content</p>
+      </ModifierInspector>,
+    );
+    expect(screen.getByRole("button", { name: "Go" })).toHaveAttribute(
+      "title",
+      "Go tip",
+    );
+  });
+
   it("is axe-clean with actions and error", async () => {
     const { container } = render(
       <ModifierInspector

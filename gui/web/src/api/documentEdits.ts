@@ -232,6 +232,21 @@ export async function setTranscriptWordSuppressed(
   });
 }
 
+export async function setTranscriptWordsIgnored(
+  projectPath: string,
+  trackId: string,
+  startWordIndex: number,
+  endWordIndex: number,
+  ignored: boolean,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetTranscriptWordsIgnored", {
+    track_id: trackId,
+    start_word_index: startWordIndex,
+    end_word_index: endWordIndex,
+    ignored,
+  });
+}
+
 export async function setEnvelope(
   projectPath: string,
   trackId: string,

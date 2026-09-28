@@ -5,9 +5,9 @@ export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
   navigate:
     "Double-click a word to fix its text: Enter saves, Esc cancels. Text fixes never move or cut audio.",
   correct:
-    "Correct (text only): click a word, then Apply in the word editor. The audio and word timing stay as recorded.",
+    "Correct: click a word, then Apply fixes its text or Suppress drops it from the transcript (text only; audio and timing stay as recorded). Ignore strikes it through and mutes its audio at render, without a cut.",
   select:
-    "Select (edits audio): pick words, then Mod+X cuts their audio from the timeline and Mod+V pastes it.",
+    "Select (edits audio): pick words, then Mod+X cuts their audio from the timeline and Mod+V pastes it. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.",
 };
 
 /** Navigate hint on coarse pointers: double-tap opens the Correct sheet, not the inline editor. */
@@ -21,3 +21,15 @@ export const TRANSCRIPT_INLINE_SAVING_STATUS =
 /** Under Apply in the word editor. */
 export const TRANSCRIPT_CORRECT_TIMING_NOTE =
   "Apply changes the text only; the audio and word timing stay as recorded. With End index above the start, the new words share the original span evenly.";
+
+/** Title/tooltip suffix on an ignored word chip (#633). */
+export const TRANSCRIPT_IGNORED_WORD_TIP =
+  "Ignored: struck through and muted at render. No cut is made; Restore brings it back.";
+
+/** Title on the word inspector's Suppress action (text only). */
+export const TRANSCRIPT_SUPPRESS_TIP =
+  "Suppress: drop the word from the transcript text only; its audio is unchanged";
+
+/** Title on the word inspector's Unsuppress action (text only). */
+export const TRANSCRIPT_UNSUPPRESS_TIP =
+  "Unsuppress: put the word back in the transcript text; its audio is unchanged";

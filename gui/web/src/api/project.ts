@@ -54,7 +54,8 @@ export async function loadProjectPhase(
     | "clips"
     | "fx"
     | "envelopes"
-    | "mix",
+    | "mix"
+    | "transcript_audio",
   signal?: AbortSignal,
 ): Promise<ProjectView | Partial<ProjectView>> {
   if (isShareProjectKey(projectPath)) {

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { correctTranscriptWord } from "../api";
+import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -370,6 +371,9 @@ describe("TranscriptPanel", () => {
       expect(
         container.querySelector(".transcript-mode-hint"),
       ).toHaveTextContent(/text only/);
+      expect(
+        container.querySelector(".transcript-mode-hint"),
+      ).toHaveTextContent(/mutes its audio/);
       fireEvent.click(
         within(container).getByRole("button", { name: /Correct/i }),
       );
@@ -870,6 +874,153 @@ describe("TranscriptPanel", () => {
       expect(sel.startWordIndex).toBe(0);
       expect(sel.endWordIndex).toBe(1);
     }
+  });
+
+  it("Ignore button is disabled until a transcript range is selected", () => {
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(within(container).getByRole("button", { name: /Select/i }));
+    const ignoreBtn = within(container).getByRole("button", {
+      name: /^Ignore:/,
+    });
+    expect(ignoreBtn).toBeDisabled();
+    fireEvent.click(within(container).getByRole("button", { name: "hello" }));
+    expect(
+      within(container).getByRole("button", { name: /^Ignore:/ }),
+    ).not.toBeDisabled();
+  });
+
+  it("Ignore button executes transcript.ignoreWords for the selected range", () => {
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(within(container).getByRole("button", { name: /Select/i }));
+    fireEvent.click(within(container).getByRole("button", { name: "hello" }));
+    fireEvent.click(within(container).getByRole("button", { name: "there" }), {
+      shiftKey: true,
+    });
+    const toolbarIgnore = within(container).getByRole("button", {
+      name: /^Ignore:/,
+    });
+    expect(toolbarIgnore.textContent).toBe("Ignore");
+    fireEvent.click(toolbarIgnore);
+    expect(execute).toHaveBeenCalledWith(
+      "transcript.ignoreWords",
+      {},
+      expect.objectContaining({ skipWhen: true }),
+    );
+  });
+
+  it("labels the toolbar button Restore once the whole range is ignored", () => {
+    useDawStore.setState({
+      project: {
+        ...project(),
+        transcript: {
+          utterances: [
+            {
+              ...project().transcript!.utterances[0],
+              words: project().transcript!.utterances[0].words!.map((w) => ({
+                ...w,
+                ignored: true,
+              })),
+            },
+          ],
+        },
+      },
+    });
+    const { container } = render(<TranscriptPanel />);
+    fireEvent.click(within(container).getByRole("button", { name: /Select/i }));
+    fireEvent.click(within(container).getByRole("button", { name: "hello" }));
+    fireEvent.click(within(container).getByRole("button", { name: "there" }), {
+      shiftKey: true,
+    });
+    const toolbarIgnore = within(container).getByRole("button", {
+      name: /^Restore:/,
+    });
+    expect(toolbarIgnore.textContent).toBe("Restore");
+    expect(toolbarIgnore).toHaveAttribute(
+      "title",
+      expect.stringMatching(/^Restore:/),
+    );
+  });
+
+  it("renders a per-run Restore control with the right args for hosts", () => {
+    useDawStore.setState({
+      project: {
+        ...project(),
+        transcript: {
+          utterances: [
+            {
+              ...project().transcript!.utterances[0],
+              words: project().transcript!.utterances[0].words!.map((w) => ({
+                ...w,
+                ignored: true,
+              })),
+            },
+          ],
+        },
+      },
+    });
+    const { container } = render(<TranscriptPanel />);
+    const restore = within(container).getByRole("button", {
+      name: "Restore ignored: hello there",
+    });
+    fireEvent.click(restore);
+    expect(execute).toHaveBeenCalledWith(
+      "transcript.ignoreWords",
+      {
+        trackId: "host",
+        startWordIndex: 0,
+        endWordIndex: 1,
+        ignored: false,
+      },
+      expect.objectContaining({ skipWhen: true }),
+    );
+  });
+
+  it("renders no ignore/restore controls for guests", () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      project: {
+        ...project(),
+        transcript: {
+          utterances: [
+            {
+              ...project().transcript!.utterances[0],
+              words: project().transcript!.utterances[0].words!.map((w) => ({
+                ...w,
+                ignored: true,
+              })),
+            },
+          ],
+        },
+      },
+    });
+    const { container } = render(<TranscriptPanel />);
+    expect(
+      within(container).queryByRole("button", { name: /^Ignore$/ }),
+    ).toBeNull();
+    expect(
+      within(container).queryByRole("button", { name: /^Restore/ }),
+    ).toBeNull();
+  });
+
+  it("has no axe violations with an ignored run visible", async () => {
+    useDawStore.setState({
+      project: {
+        ...project(),
+        transcript: {
+          utterances: [
+            {
+              ...project().transcript!.utterances[0],
+              words: project().transcript!.utterances[0].words!.map((w) => ({
+                ...w,
+                ignored: true,
+              })),
+            },
+          ],
+        },
+      },
+    });
+    const { container } = render(<TranscriptPanel />);
+    await expectNoA11yViolations(container);
   });
 
   it("Annotate marks words flagged suspect_hallucination", () => {

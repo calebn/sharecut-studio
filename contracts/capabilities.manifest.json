@@ -1853,6 +1853,7 @@
           "correct_transcript_tool",
           "correct_transcript_phrase_tool",
           "set_word_suppressed_tool",
+          "set_words_ignored_tool",
           "apply_transcript_cleanup_tool",
           "low_confidence_words_tool",
           "verify_transcript_tool",
@@ -2182,7 +2183,7 @@
     {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
-      "tooltip": "Correct: click a word to fix ASR text or suppress (text only; audio and timing unchanged)",
+      "tooltip": "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
       "tooltip_pressed": "Exit Correct (restore seek-on-click)",
       "toggle": true,
       "service": "Sharecut Studio UI",
@@ -2226,6 +2227,33 @@
       },
       "omit": {
         "keyboard_reason": "toolbar toggle; no industry-standard key"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
+      "id": "daw.transcript.ignore",
+      "label": "Ignore / restore transcript words",
+      "tooltip": "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
+      "tooltip_pressed": "Restore: un-mute the selection and remove its strikethrough",
+      "service": "Sharecut Studio command bus → services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "transcript.ignoreWords",
+        "gui": [
+          "transcript.ignore",
+          "transcript.restoreIgnored",
+          "inspector.word.ignore"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "no industry-standard key (#649)"
       },
       "presence": {
         "cursor": "anchor",

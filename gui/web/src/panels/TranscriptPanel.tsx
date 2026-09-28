@@ -20,12 +20,14 @@ import {
   placeEditBoundaries,
 } from "../transcript/editBoundaryPlacement";
 import { InlineWordEditor } from "../transcript/InlineWordEditor";
+import { ignoredRuns, selectionAllIgnored } from "../transcript/ignoredWords";
 import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
   TranscriptTurnView,
 } from "../transcript/TranscriptTurnView";
 import {
+  TRANSCRIPT_IGNORED_WORD_TIP,
   TRANSCRIPT_INLINE_SAVING_STATUS,
   TRANSCRIPT_MODE_HINT,
   TRANSCRIPT_NAVIGATE_TOUCH_HINT,
@@ -36,7 +38,7 @@ import type {
   EditBoundaryView,
   Selection,
 } from "../types/project";
-import { Button, InlineError, ToggleButton } from "../ui";
+import { Button, CommandButton, InlineError, ToggleButton } from "../ui";
 import {
   findTranscriptWordIn,
   findTurnIndexForUtterance,
@@ -697,6 +699,15 @@ export function TranscriptPanel() {
         ? " · select mode"
         : "";
 
+  const selectionIgnored =
+    selection?.kind === "transcriptRange" &&
+    selectionAllIgnored(
+      project,
+      selection.trackId,
+      selection.startWordIndex,
+      selection.endWordIndex,
+    );
+
   return (
     <div className="transcript-panel">
       <div className="transcript-toolbar">
@@ -783,6 +794,23 @@ export function TranscriptPanel() {
               >
                 Select
               </ToggleButton>
+              {intent === "select" && (
+                <CommandButton
+                  commandId="transcript.ignoreWords"
+                  className="transcript-follow-btn"
+                  disabled={
+                    !wordsHydrated || selection?.kind !== "transcriptRange"
+                  }
+                  aria-label={capabilityTooltip("daw.transcript.ignore", {
+                    pressed: selectionIgnored,
+                  })}
+                  title={capabilityTooltip("daw.transcript.ignore", {
+                    pressed: selectionIgnored,
+                  })}
+                >
+                  {selectionIgnored ? "Restore" : "Ignore"}
+                </CommandButton>
+              )}
             </div>
           )}
           <ToggleButton
@@ -918,6 +946,14 @@ export function TranscriptPanel() {
               const unmapped = u.mappable === false;
               const uttActive = !unmapped && active.utterances.has(flatIndex);
               const words = wordsForUtterance(u);
+              const runsByLastPos = hostEditable
+                ? new Map(
+                    ignoredRuns(u.track_id, words).map((run) => [
+                      run.endWordIndex,
+                      run,
+                    ]),
+                  )
+                : null;
               const activeWord = words.find(
                 (_w, wi) =>
                   !unmapped && active.words.has(activeWordId(flatIndex, wi)),
@@ -979,6 +1015,24 @@ export function TranscriptPanel() {
                     ? capabilityTooltip("daw.view.cutAwayWord")
                     : undefined;
                   const suspectTip = suspectChip ? SILENCE_WARNING : undefined;
+                  const ignoredTip = w.ignored
+                    ? TRANSCRIPT_IGNORED_WORD_TIP
+                    : undefined;
+                  const restoreRun =
+                    wordIndex != null
+                      ? runsByLastPos?.get(wordIndex)
+                      : undefined;
+                  const restoreText = restoreRun
+                    ? words
+                        .filter(
+                          (rw) =>
+                            rw.word_index != null &&
+                            rw.word_index >= restoreRun.startWordIndex &&
+                            rw.word_index <= restoreRun.endWordIndex,
+                        )
+                        .map((rw) => rw.text)
+                        .join(" ")
+                    : "";
                   const interactionTip = wordInteractive
                     ? intent === "correct"
                       ? wordIndex != null
@@ -1006,7 +1060,7 @@ export function TranscriptPanel() {
                     activeRef: bindActiveRef(wActive),
                     anchorProps: wordAnchor,
                     title:
-                      [cutAwayTip ?? interactionTip, suspectTip]
+                      [cutAwayTip ?? interactionTip, suspectTip, ignoredTip]
                         .filter(Boolean)
                         .join(" · ") || undefined,
                     ariaLabel: cutAwayTip,
@@ -1015,6 +1069,23 @@ export function TranscriptPanel() {
                       afterWordIndex,
                       turn.trackId,
                     ),
+                    restoreControl: restoreRun ? (
+                      <CommandButton
+                        commandId="transcript.ignoreWords"
+                        args={{
+                          trackId: u.track_id,
+                          startWordIndex: restoreRun.startWordIndex,
+                          endWordIndex: restoreRun.endWordIndex,
+                          ignored: false,
+                        }}
+                        bare
+                        className="utterance-restore"
+                        aria-label={`Restore ignored: ${restoreText}`}
+                        title={`Restore ignored: ${restoreText}`}
+                      >
+                        Restore
+                      </CommandButton>
+                    ) : undefined,
                     editor:
                       editingThis && wordIndex != null ? (
                         <InlineWordEditor

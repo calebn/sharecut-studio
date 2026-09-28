@@ -20,6 +20,9 @@ class ViewProjection(StrEnum):
     ENVELOPES = "envelopes"
     # Track mix state (fader, mute): tracks plus render_status freshness.
     MIX = "mix"
+    # DETAIL plus tracks/render_status freshness for a transcript-audio mutation
+    # (ignore/restore, #633): the GUI stem cache key must see it change.
+    TRANSCRIPT_AUDIO = "transcript_audio"
 
 
 VIEW_PROJECTION_QUERY_DESCRIPTION = (

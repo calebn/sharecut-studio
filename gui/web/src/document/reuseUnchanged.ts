@@ -12,6 +12,15 @@ import { jsonEqual } from "../utils/jsonEqual";
 
 type SourceSpans = ClipMuteRegion[] | ClippingRegion[];
 
+/** Same length and pairwise-equal items (`eq`, default `Object.is`). */
+export function sameItems<T>(
+  a: readonly T[],
+  b: readonly T[],
+  eq: (x: T, y: T) => boolean = Object.is,
+): boolean {
+  return a === b || (a.length === b.length && a.every((x, i) => eq(x, b[i]!)));
+}
+
 function sameSourceSpans(
   a: SourceSpans | undefined,
   b: SourceSpans | undefined,
@@ -19,11 +28,13 @@ function sameSourceSpans(
   if (a === b) {
     return true;
   }
-  if (!a || !b || a.length !== b.length) {
+  if (!a || !b) {
     return false;
   }
-  return a.every(
-    (r, i) => r.start_s === b[i]!.start_s && r.end_s === b[i]!.end_s,
+  return sameItems<{ start_s: number; end_s: number }>(
+    a,
+    b,
+    (r, s) => r.start_s === s.start_s && r.end_s === s.end_s,
   );
 }
 
@@ -97,10 +108,7 @@ function samePoints(
   a: readonly AutomationPoint[],
   b: readonly AutomationPoint[],
 ): boolean {
-  return (
-    a === b ||
-    (a.length === b.length && a.every((p, i) => sameShallow(p, b[i]!)))
-  );
+  return sameItems(a, b, sameShallow);
 }
 
 function sameEnvelope(a: AutomationEnvelope, b: AutomationEnvelope): boolean {

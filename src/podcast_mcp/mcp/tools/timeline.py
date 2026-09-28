@@ -384,6 +384,25 @@ def set_word_suppressed_tool(
     return to_json(EditService(ws).set_word_suppressed(track_id, word_index, suppressed))
 
 
+def set_words_ignored_tool(
+    project_path: str,
+    track_id: str,
+    start_word_index: int,
+    end_word_index: int,
+    ignored: bool,
+) -> str:
+    """Strike through and mute (or restore) a word range at render, without a cut.
+
+    Text-and-audio hide (#633): unlike suppress, the words stay in the combined
+    transcript; only their audio is muted, computed at render time and never
+    written to ``Clip.mute_regions``. TOOL_TIMEBASE: source.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        EditService(ws).set_words_ignored(track_id, start_word_index, end_word_index, ignored)
+    )
+
+
 def apply_transcript_cleanup_tool(
     project_path: str,
     track_id: str,
@@ -721,6 +740,7 @@ def register(mcp: MCPServer) -> None:
         correct_transcript_tool,
         correct_transcript_phrase_tool,
         set_word_suppressed_tool,
+        set_words_ignored_tool,
         apply_transcript_cleanup_tool,
         verify_transcript_tool,
         add_effect_tool,
@@ -761,6 +781,7 @@ def register(mcp: MCPServer) -> None:
         correct_transcript_tool,
         correct_transcript_phrase_tool,
         set_word_suppressed_tool,
+        set_words_ignored_tool,
         apply_transcript_cleanup_tool,
         low_confidence_words_tool,
         verify_transcript_tool,

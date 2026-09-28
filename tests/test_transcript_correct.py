@@ -8,6 +8,7 @@ from podcast_mcp.edits.transcript_correct import (
     list_low_confidence,
     run_user_transcript_edit,
     set_word_suppressed,
+    set_words_ignored,
     transcript_word_record,
     verify_words,
 )
@@ -58,6 +59,79 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
     assert p.transcripts[0].words[1].suppressed is False
     combined_text2 = " ".join(u.text for u in p.combined_transcript.utterances)
     assert "world" in combined_text2
+
+
+def _ignore_project() -> EpisodeProject:
+    p = EpisodeProject.create("tc-ignore", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="so", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(text="um", start=0.3, end=0.5, confidence=0.9),
+                TranscriptWord(text="like", start=0.5, end=0.8, confidence=0.9),
+                TranscriptWord(text="hi", start=0.8, end=1.0, confidence=0.9),
+            ],
+        )
+    ]
+    return p
+
+
+def test_set_words_ignored_range() -> None:
+    p = _ignore_project()
+    out = set_words_ignored(p, "host", 1, 2, True)
+    assert out == {
+        "track_id": "host",
+        "start_word_index": 1,
+        "end_word_index": 2,
+        "ignored": True,
+        "changed": 2,
+    }
+    words = p.transcripts[0].words
+    assert [w.ignored for w in words] == [False, True, True, False]
+
+
+def test_set_words_ignored_restore() -> None:
+    p = _ignore_project()
+    set_words_ignored(p, "host", 1, 2, True)
+    out = set_words_ignored(p, "host", 1, 2, False)
+    assert out["changed"] == 2
+    assert all(not w.ignored for w in p.transcripts[0].words)
+
+
+def test_set_words_ignored_noop_reports_zero_changed() -> None:
+    p = _ignore_project()
+    set_words_ignored(p, "host", 1, 2, True)
+    out = set_words_ignored(p, "host", 1, 2, True)
+    assert out["changed"] == 0
+
+
+def test_set_words_ignored_bad_range_raises() -> None:
+    p = _ignore_project()
+    with pytest.raises(ValueError):
+        set_words_ignored(p, "host", -1, 1, True)
+    with pytest.raises(ValueError):
+        set_words_ignored(p, "host", 0, 99, True)
+    with pytest.raises(ValueError):
+        set_words_ignored(p, "host", 2, 1, True)
+    with pytest.raises(ValueError):
+        set_words_ignored(p, "missing-track", 0, 1, True)
+
+
+def test_set_words_ignored_does_not_touch_text_or_combined() -> None:
+    p = _ignore_project()
+    from podcast_mcp.edits.transcript_sync import rebuild_combined
+
+    rebuild_combined(p)
+    before_text = " ".join(
+        u.text for u in (p.combined_transcript.utterances if p.combined_transcript else [])
+    )
+    set_words_ignored(p, "host", 1, 2, True)
+    assert [w.text for w in p.transcripts[0].words] == ["so", "um", "like", "hi"]
+    after_text = " ".join(
+        u.text for u in (p.combined_transcript.utterances if p.combined_transcript else [])
+    )
+    assert after_text == before_text
 
 
 def test_apply_transcript_corrections_word_and_phrase() -> None:

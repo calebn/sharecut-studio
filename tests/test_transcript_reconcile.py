@@ -160,6 +160,30 @@ def test_extracted_reconcile_word_exact_contract() -> None:
     assert transcript.words[0].suppressed is True
 
 
+def test_reconcile_word_never_auto_suppresses_ignored_word() -> None:
+    transcript = Transcript(
+        track_id="host",
+        words=[TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.9, ignored=True)],
+    )
+    result = ReconciliationResult()
+    _reconcile_word(
+        transcript,
+        0,
+        {"audibility_status": "bleed", "dominant_track": "guest", "reason": "dominant"},
+        result,
+        update_status=True,
+        apply_suppression=True,
+        start_sec=0.0,
+        end_sec=2.0,
+    )
+    assert result.to_dict()["status_updates"] == 0
+    assert result.suppress == []
+    assert result.reattribute == []
+    assert transcript.words[0].suppressed is False
+    assert transcript.words[0].audibility_status is None
+    assert transcript.words[0].ignored is True
+
+
 def test_analysis_policy_bleed_defaults():
     pol = AnalysisPolicy.from_defaults()
     assert pol.bleed_dominance_db == 6.0

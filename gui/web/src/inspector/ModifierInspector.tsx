@@ -8,6 +8,7 @@ export type ModifierAction = {
   onClick: () => void;
   disabled?: boolean;
   variant?: "primary" | "danger" | "default";
+  title?: string;
 };
 
 type Props = {
@@ -51,6 +52,7 @@ export function ModifierInspector({
               variant={action.variant ?? "default"}
               disabled={action.disabled}
               onClick={action.onClick}
+              title={action.title}
             >
               {action.label}
             </Button>

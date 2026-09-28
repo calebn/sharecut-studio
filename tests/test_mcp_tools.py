@@ -61,6 +61,37 @@ def test_comment_tools_mcp(tmp_path):
     assert deleted["deleted"] is True
 
 
+def test_set_words_ignored_tool_mcp(tmp_path):
+    path = mcp_server.episode_create(str(tmp_path / "ws"), name="ignore_ep")
+    project = load_project(Path(path))
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="so", start=0.0, end=0.4, confidence=0.9),
+                TranscriptWord(text="um", start=0.5, end=0.9, confidence=0.9),
+            ],
+        )
+    ]
+    save_project(project, Path(path))
+
+    out = json.loads(mcp_server.set_words_ignored_tool(path, "host", 0, 1, True))
+    assert out == {
+        "track_id": "host",
+        "start_word_index": 0,
+        "end_word_index": 1,
+        "ignored": True,
+        "changed": 2,
+    }
+    reloaded = load_project(Path(path))
+    assert all(w.ignored for w in reloaded.transcripts[0].words)
+
+    restored = json.loads(mcp_server.set_words_ignored_tool(path, "host", 0, 1, False))
+    assert restored["changed"] == 2
+    reloaded2 = load_project(Path(path))
+    assert not any(w.ignored for w in reloaded2.transcripts[0].words)
+
+
 def test_episode_create_and_track_add(tmp_path, sample_wav):
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws), name="mcp_ep")

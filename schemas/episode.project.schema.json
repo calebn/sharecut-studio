@@ -247,6 +247,7 @@
         "confidence": { "type": ["number", "null"] },
         "suppressed": { "type": "boolean", "default": false },
         "suspect_hallucination": { "type": "boolean", "default": false },
+        "ignored": { "type": "boolean", "default": false },
         "audibility_status": { "type": ["string", "null"] },
         "dominant_track": { "type": ["string", "null"] }
       }
