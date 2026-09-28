@@ -20,6 +20,17 @@ test.describe("Join badge popover", () => {
     let modeChanged = false;
     try {
       const badge = lane.getByRole("button", { name: /join at/ });
+      // The hit area reaches 24 px wide: points just outside the 16 px badge still hit it.
+      const box = await badge.boundingBox();
+      if (!box) throw new Error("join badge has no box");
+      for (const dx of [-11, 11]) {
+        const hit = await page.evaluate(
+          ([x, y]) =>
+            document.elementFromPoint(x, y)?.closest(".join-badge") != null,
+          [box.x + box.width / 2 + dx, box.y + box.height / 2] as const,
+        );
+        expect(hit).toBe(true);
+      }
       await badge.click();
       const popover = page.getByRole("dialog", { name: /join at/ });
       await expect(popover).toBeVisible();
