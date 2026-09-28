@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
@@ -7,6 +7,7 @@ import { capabilityTooltip } from "../../capabilities/copy";
 import { useMountedRef } from "../../hooks/useMountedRef";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
+import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import {
   type DetachedWordAction,
@@ -20,6 +21,7 @@ import {
   TRANSCRIPT_UNSUPPRESS_TIP,
 } from "../../transcript/transcriptModeCopy";
 import {
+  appliedCorrectionSpan,
   submitWordCorrection,
   wordCorrectionError,
 } from "../../transcript/wordCorrection";
@@ -30,12 +32,19 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { ApiError } from "../../utils/apiError";
 import {
   findTranscriptWord,
+  spanTextFromIndex,
+  type TrackWordTexts,
+  trackWordTexts,
   transcriptSpanText,
   wordSeekSec,
 } from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
+
+/** Empty `TrackWordTexts` while transcript words are not hydrated yet. */
+const NO_WORD_TEXTS: TrackWordTexts = new Map();
 
 export function TranscriptWordInspector({
   trackId,
@@ -59,41 +68,52 @@ export function TranscriptWordInspector({
         : null,
     [project, trackId, wordIndex, wordsHydrated],
   );
-  // This word's text under the shared duplicate-index rule (#650): null when
-  // two loaded listings of the index disagree, so Apply sends no guard and
-  // says so. `findTranscriptWord` stays first-listing for display only.
-  const wordSpanText = useMemo(
+  // Word texts on this track under the shared duplicate-index rule (#650): a
+  // disagreeing duplicate maps to null. `findTranscriptWord` stays
+  // first-listing for display only. Built once per project snapshot so
+  // `changeEndIndex` below is O(span), not a full transcript scan per
+  // keystroke.
+  const wordTexts = useMemo(
     () =>
       project && wordsHydrated
-        ? transcriptSpanText(project, trackId, wordIndex, wordIndex)
-        : null,
-    [project, trackId, wordIndex, wordsHydrated],
+        ? trackWordTexts(project, trackId)
+        : NO_WORD_TEXTS,
+    [project, trackId, wordsHydrated],
   );
+  const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
   const mountedRef = useMountedRef();
-  const [text, setText] = useState(word?.text ?? "");
-  const [endIndexStr, setEndIndexStr] = useState(String(wordIndex));
+
+  // Seed the draft once per word — on hydration (word first loads) or when
+  // the props name another word — guarded by `seededKey`, never on a text
+  // change. That keeps a draft in progress (including one just applied, or
+  // re-snapshotted after a 409 below) from being clobbered by a peer's edit
+  // to the anchor word, or by our own successful Apply changing `word.text`
+  // (#746).
+  const seedKey = `${trackId}:${wordIndex}`;
+  const [text, setText] = useState(() => word?.text ?? "");
+  const [endIndexStr, setEndIndexStr] = useState(() => String(wordIndex));
   // Span text the user saw when the draft was seeded or End index last
   // changed (#650). Apply sends this snapshot, never a fresh read, so a peer
   // edit inside the range since then is refused with a 409.
-  const [expectedText, setExpectedText] = useState<string | null>(wordSpanText);
-
-  useEffect(() => {
-    setText(word?.text ?? "");
+  const [expectedText, setExpectedText] = useState<string | null>(
+    () => wordSpanText,
+  );
+  const [seededKey, setSeededKey] = useState<string | null>(() =>
+    word != null ? seedKey : null,
+  );
+  if (word != null && seededKey !== seedKey) {
+    setSeededKey(seedKey);
+    setText(word.text);
     setEndIndexStr(String(wordIndex));
     setExpectedText(wordSpanText);
     setError(null);
-  }, [word?.text, wordSpanText, wordIndex, trackId, setError]);
+  }
 
   const changeEndIndex = (value: string) => {
     setEndIndexStr(value);
     setExpectedText(
-      transcriptSpanText(
-        project,
-        trackId,
-        wordIndex,
-        Number.parseInt(value, 10),
-      ),
+      spanTextFromIndex(wordTexts, wordIndex, Number.parseInt(value, 10)),
     );
   };
 
@@ -111,7 +131,7 @@ export function TranscriptWordInspector({
   const runForWord = async (
     action: DetachedWordAction,
     fn: () => Promise<unknown>,
-  ) => {
+  ): Promise<{ failed: boolean; failure: unknown }> => {
     const before = { text: word?.text ?? "", suppressed, ignored };
     let failure: unknown;
     let failed = false;
@@ -134,6 +154,7 @@ export function TranscriptWordInspector({
         failure,
       });
     }
+    return { failed, failure };
   };
 
   const applyText = async () => {
@@ -143,7 +164,7 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
-    await runForWord("fix", () =>
+    const { failed, failure } = await runForWord("fix", () =>
       submitWordCorrection(
         projectPath,
         trackId,
@@ -153,6 +174,29 @@ export function TranscriptWordInspector({
         expectedText,
       ),
     );
+    if (!failed) {
+      // Re-seed from what the server actually wrote (#746). The typed draft
+      // (`text`) is kept — this only moves the baseline End index / expected
+      // text forward so the next Apply guards against the text just applied.
+      const applied = appliedCorrectionSpan(wordIndex, endIndex, text);
+      setEndIndexStr(String(applied.endWordIndex));
+      setExpectedText(applied.text);
+      return;
+    }
+    if (failure instanceof ApiError && failure.status === 409) {
+      // The server refused because the span changed since we last snapshot
+      // it. Re-snapshot from the store's current project — not `wordTexts`,
+      // which reflects this render, not necessarily the update that caused
+      // the 409 — and keep the error so Apply retries against it (#746).
+      setExpectedText(
+        transcriptSpanText(
+          useDawStore.getState().project,
+          trackId,
+          wordIndex,
+          endIndex,
+        ),
+      );
+    }
   };
 
   const toggleSuppress = async () => {

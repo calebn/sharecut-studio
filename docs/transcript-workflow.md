@@ -238,10 +238,20 @@ shows a hint under Apply); Suppress and Ignore send the word's currently rendere
 or no guard when that text can't be confirmed (a word in the range isn't loaded, or two
 loaded copies of an index disagree), same as Apply. When Select-mode Ignore/Restore or the
 hover Restore sends no guard, its status message says "text not verified".
+The Correct inspector captures once per word (#746): the draft is seeded when the
+word first loads and when the inspector is pointed at a different word, never on a text
+change, so a peer's edit to the word under correction (including its own successful Apply)
+does not reset what the user is typing. A successful Apply re-captures from the text the
+server actually wrote — the End index moves to match a phrase's applied word count — so the
+next Apply guards against the correction just made. After a 409, the inspector keeps the
+typed draft and re-captures the span text from the project as it now stands; Apply again
+retries against that text, with no re-read required.
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
 `verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
-The fix for a rejected edit is to re-read the transcript and redo it against its current
-text.
+MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
+`podcast transcript correct --expected-text`), the inline chip editor, and Suppress /
+Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript
+and redo it against its current text.
 
 **Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
 Ignore/Restore button, and the Correct word inspector's Ignore action all call

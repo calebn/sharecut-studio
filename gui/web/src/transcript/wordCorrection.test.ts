@@ -6,7 +6,11 @@ vi.mock("../api", () => ({
 }));
 
 import { correctTranscriptPhrase, correctTranscriptWord } from "../api";
-import { submitWordCorrection, wordCorrectionError } from "./wordCorrection";
+import {
+  appliedCorrectionSpan,
+  submitWordCorrection,
+  wordCorrectionError,
+} from "./wordCorrection";
 
 beforeEach(() => {
   vi.mocked(correctTranscriptWord).mockClear();
@@ -77,5 +81,42 @@ describe("submitWordCorrection", () => {
       "Hello",
       undefined,
     );
+  });
+});
+
+describe("appliedCorrectionSpan", () => {
+  it("keeps the single index for a single-word fix", () => {
+    expect(appliedCorrectionSpan(3, 3, "  Hello  ")).toEqual({
+      endWordIndex: 3,
+      text: "Hello",
+    });
+  });
+
+  it("keeps the single index even when the corrected text has extra words", () => {
+    expect(appliedCorrectionSpan(3, 3, "New York")).toEqual({
+      endWordIndex: 3,
+      text: "New York",
+    });
+  });
+
+  it("reindexes a phrase fix by the applied text's token count", () => {
+    expect(appliedCorrectionSpan(0, 1, "  Hello   there  ")).toEqual({
+      endWordIndex: 1,
+      text: "Hello there",
+    });
+  });
+
+  it("moves the end index when a phrase fix adds a word", () => {
+    expect(appliedCorrectionSpan(0, 1, "hello where new")).toEqual({
+      endWordIndex: 2,
+      text: "hello where new",
+    });
+  });
+
+  it("moves the end index back when a phrase fix drops words", () => {
+    expect(appliedCorrectionSpan(0, 2, "hi")).toEqual({
+      endWordIndex: 0,
+      text: "hi",
+    });
   });
 });

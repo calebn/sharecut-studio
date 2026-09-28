@@ -50,3 +50,28 @@ export async function submitWordCorrection(
     expectedText,
   );
 }
+
+/**
+ * The draft the inspector should show right after a successful Apply
+ * (#746): the word-index range the server actually wrote, and its trimmed
+ * text. A single-word fix (`startWordIndex === endWordIndex`) keeps that one
+ * index regardless of how many words the correction text contains. A phrase
+ * fix's new end index comes from the token count of the applied text,
+ * matching the backend's `_correct_phrase`, which re-indexes by
+ * `new_text.split()`.
+ */
+export function appliedCorrectionSpan(
+  startWordIndex: number,
+  endWordIndex: number,
+  text: string,
+): { endWordIndex: number; text: string } {
+  const trimmed = text.trim();
+  if (endWordIndex === startWordIndex) {
+    return { endWordIndex: startWordIndex, text: trimmed };
+  }
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  return {
+    endWordIndex: startWordIndex + Math.max(1, tokens.length) - 1,
+    text: tokens.join(" "),
+  };
+}
