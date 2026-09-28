@@ -39,6 +39,16 @@ describe("OverlayLegend", () => {
       12,
       "Chapter 12.0s",
     );
+    await waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Chapter added at 12.0s",
+      ),
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Chapter 12.0s",
+      time: 12,
+    });
   });
 
   it("disables + Chapter and ignores repeat clicks while an add is in flight", async () => {

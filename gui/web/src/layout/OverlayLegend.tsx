@@ -43,6 +43,7 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
         id: title,
         time: playheadSec,
       });
+      announceStatus(`Chapter added at ${playheadSec.toFixed(1)}s`);
     } catch (err) {
       announceStatus(`Add chapter failed: ${errorMessage(err)}`);
     } finally {
