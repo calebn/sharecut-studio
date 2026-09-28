@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { bouncedWavs } from "../e2e/exportFiles";
 import { keeperWavBytes, ONE_SECOND_KEEPER_WAV_BYTES } from "../e2e/keeperOpfs";
-import { openTransportMenu } from "../e2e/overlayReachability";
+import { openDialogFromMenu } from "../e2e/overlayReachability";
 import { expectPlaybackAdvancesThenHolds, playButton } from "../e2e/playback";
 import {
   clickHostTransport,
@@ -208,8 +208,7 @@ test.describe("core flow", () => {
         });
 
         await test.step("export: bounce the mix to a non-silent WAV", async () => {
-          await openTransportMenu(host);
-          await host.getByRole("menuitem", { name: "Bounce…" }).click();
+          await openDialogFromMenu(host, "Bounce…");
           const dlg = host.getByRole("dialog", { name: "Bounce…" });
           await expect(dlg).toBeVisible();
           await dlg

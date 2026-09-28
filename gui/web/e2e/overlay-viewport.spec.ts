@@ -1,11 +1,11 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import {
   expectDialogLowerTargetReachable,
   expectMenuLastItemReachable,
   expectShareRecordRoomsReachable,
   expectVisibleInOverlay,
+  openDialogFromMenu,
   openHostProject,
-  openTransportMenu,
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 
@@ -73,11 +73,6 @@ const DIALOG_CASES: DialogCase[] = [
     targetName: "Commands without keys",
   },
 ];
-
-async function openDialogFromMenu(page: Page, menuItem: string): Promise<void> {
-  await openTransportMenu(page);
-  await page.getByRole("menuitem", { name: menuItem }).click();
-}
 
 test.describe("dialog consumers reachability", () => {
   for (const viewport of SHORT_VIEWPORTS) {
