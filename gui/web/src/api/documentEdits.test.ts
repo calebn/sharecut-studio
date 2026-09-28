@@ -12,10 +12,19 @@ vi.mock("./project", () => ({
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentSnapshot: vi.fn(),
 }));
+vi.mock("../state/offlineStore", () => ({
+  removeConflictsWhere: vi.fn(async () => {}),
+  removeHostConflictsWhere: vi.fn(async () => {}),
+}));
 
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
+import {
+  type OfflineConflict,
+  removeConflictsWhere,
+  removeHostConflictsWhere,
+} from "../state/offlineStore";
 import { ApiError } from "../utils/apiError";
 import {
   correctTranscriptPhrase,
@@ -27,6 +36,8 @@ import { loadProjectPhase } from "./project";
 
 beforeEach(() => {
   vi.mocked(submitQueuedDocumentCommand).mockClear();
+  vi.mocked(removeConflictsWhere).mockClear();
+  vi.mocked(removeHostConflictsWhere).mockClear();
 });
 
 describe("correctTranscriptWord", () => {
@@ -275,5 +286,118 @@ describe("transcript correction 409 refresh (#746)", () => {
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello"),
     ).rejects.toBeInstanceOf(ApiError);
     expect(applyDocumentSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe("transcript correction clears superseded Needs attention entries (#746)", () => {
+  const conflict = (
+    type: string,
+    payload: Record<string, unknown>,
+  ): OfflineConflict => ({
+    command: { command_id: "c", client_seq: 1, type, payload, created_at: 0 },
+    reason: "stale",
+  });
+
+  beforeEach(() => {
+    vi.mocked(removeConflictsWhere).mockClear();
+    vi.mocked(removeHostConflictsWhere).mockClear();
+    vi.mocked(submitQueuedDocumentCommand).mockClear();
+  });
+
+  it("a landed correction drops refused corrections of the same track and start word", async () => {
+    await correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello");
+    expect(removeHostConflictsWhere).toHaveBeenCalledWith(
+      "/tmp/ep",
+      expect.any(Function),
+    );
+    const superseded = vi.mocked(removeHostConflictsWhere).mock.calls[0]![1];
+    expect(
+      superseded(
+        conflict("CorrectTranscriptWord", { track_id: "host", word_index: 0 }),
+      ),
+    ).toBe(true);
+    expect(
+      superseded(
+        conflict("CorrectTranscriptPhrase", {
+          track_id: "host",
+          start_word_index: 0,
+          end_word_index: 2,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      superseded(
+        conflict("CorrectTranscriptWord", { track_id: "host", word_index: 1 }),
+      ),
+    ).toBe(false);
+    expect(
+      superseded(
+        conflict("CorrectTranscriptWord", { track_id: "guest", word_index: 0 }),
+      ),
+    ).toBe(false);
+    expect(
+      superseded(
+        conflict("SetTranscriptWordSuppressed", {
+          track_id: "host",
+          word_index: 0,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("a phrase correction matches by start_word_index", async () => {
+    await correctTranscriptPhrase(
+      "/tmp/ep",
+      "host",
+      3,
+      4,
+      "Hi there",
+      "hello there",
+    );
+    const superseded = vi.mocked(removeHostConflictsWhere).mock.calls[0]![1];
+    expect(
+      superseded(
+        conflict("CorrectTranscriptWord", { track_id: "host", word_index: 3 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("a guest correction clears the token's conflicts", async () => {
+    await correctTranscriptWord("share:tok", "host", 0, "Hi");
+    expect(removeConflictsWhere).toHaveBeenCalledWith(
+      "tok",
+      expect.any(Function),
+    );
+    expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+  });
+
+  it("a queued correction clears nothing", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      queued: true,
+    });
+    await correctTranscriptWord("/tmp/ep", "host", 0, "Hi");
+    expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    expect(removeConflictsWhere).not.toHaveBeenCalled();
+  });
+
+  it("a refused correction clears nothing", async () => {
+    vi.mocked(useDawStore.getState).mockReturnValue({
+      projectPath: "/tmp/ep",
+    } as unknown as ReturnType<typeof useDawStore.getState>);
+    vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(
+      new ApiError("stale", null, 409),
+    );
+    await expect(
+      correctTranscriptWord("/tmp/ep", "host", 0, "Hi"),
+    ).rejects.toBeInstanceOf(ApiError);
+    expect(removeHostConflictsWhere).not.toHaveBeenCalled();
+    expect(removeConflictsWhere).not.toHaveBeenCalled();
+  });
+
+  it("a failed cleanup does not fail the correction", async () => {
+    vi.mocked(removeHostConflictsWhere).mockRejectedValueOnce(new Error("idb"));
+    await expect(
+      correctTranscriptWord("/tmp/ep", "host", 0, "Hi"),
+    ).resolves.toBeUndefined();
   });
 });
