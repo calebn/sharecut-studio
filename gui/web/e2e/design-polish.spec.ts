@@ -11,6 +11,7 @@ import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { settleAnimations } from "./motion";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { playButton } from "./playback";
 import { setTheme } from "./theme";
 import { waitForWaveformsSettled } from "./waveformHook";
 
@@ -281,7 +282,7 @@ test("light transport keeps legible status and stable control hover paint", asyn
   expect(contrastRatio(colors.ok, colors.top)).toBeGreaterThanOrEqual(4.5);
   expect(contrastRatio(colors.warning, colors.top)).toBeGreaterThanOrEqual(4.5);
 
-  const play = page.getByRole("button", { name: "Play", exact: true });
+  const play = playButton(page);
   const playPaint = (element: typeof play) =>
     element.evaluate((node) => {
       const style = getComputedStyle(node);
