@@ -750,3 +750,15 @@ def test_plane_publishes_the_head_when_the_baseline_read_failed():
     get_hub().publish("plane-baseline-key-2", {"type": "Applied", "server_seq": 9})
     assert published.poll() is None
     assert calls == [None]
+
+
+def test_app_shutdown_stops_the_cross_process_watchers(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    key = str(ws.project.workspace_path())
+
+    with TestClient(create_app()):
+        lease = cross_process_bridge().acquire(ws)
+        assert cross_process_bridge().watching(key)
+
+    assert not cross_process_bridge().watching(key)
+    lease.release()  # no-op
