@@ -67,8 +67,6 @@ export function useDialogModal({
         ? document.activeElement
         : null;
     restoreFocusRef.current = previous;
-    // Read once, not in the cleanup: the ref's value could differ by unmount time.
-    const returnTarget = returnFocusRef?.current ?? null;
 
     const background =
       mode === "modal"
@@ -135,18 +133,11 @@ export function useDialogModal({
       if (background) {
         background.inert = false;
       }
-      const restore = returnTarget ?? restoreFocusRef.current;
+      const restore = returnFocusRef?.current ?? restoreFocusRef.current;
       if (restore?.isConnected) {
         restore.focus();
       }
       restoreFocusRef.current = null;
     };
-  }, [
-    open,
-    panelRef,
-    initialFocusRef,
-    returnFocusRef,
-    backgroundSelector,
-    mode,
-  ]);
+  }, [open, panelRef, initialFocusRef, returnFocusRef, backgroundSelector, mode]);
 }

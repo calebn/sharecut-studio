@@ -69,6 +69,7 @@ describe("JoinPopover", () => {
       playheadSec: 0,
       playUntilSec: null,
       isPlaying: false,
+      openJoinId: null,
     });
   });
 

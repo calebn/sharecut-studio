@@ -1,6 +1,8 @@
-import { memo, type Ref, useCallback, useId, useRef, useState } from "react";
+import { memo, type Ref, useCallback, useEffect, useId, useRef } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { type JoinGlyph, joinGlyph, joinSeamLabel } from "../edit/joinRender";
+import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { JoinPopover } from "./JoinPopover";
 
@@ -77,10 +79,20 @@ function JoinBadgeLive({
   zoomPxPerSec,
   trackFadeMaxMs,
 }: JoinBadgeProps) {
-  const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverId = useId();
-  const close = useCallback(() => setOpen(false), []);
+  const joinId = right.id;
+  const { open, setOpenJoinId } = useDaw((s) => ({
+    open: s.openJoinId === joinId,
+    setOpenJoinId: s.setOpenJoinId,
+  }));
+  const close = useCallback(() => {
+    if (useDawStore.getState().openJoinId === joinId) {
+      setOpenJoinId(null);
+    }
+  }, [joinId, setOpenJoinId]);
+  // A badge that unmounts (its seam stops being a drawn join, a clip starts moving) closes its popover.
+  useEffect(() => close, [close]);
   const glyph = joinGlyph(right);
   return (
     <>
@@ -92,7 +104,7 @@ function JoinBadgeLive({
         zoomPxPerSec={zoomPxPerSec}
         expanded={open}
         popoverId={popoverId}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? close() : setOpenJoinId(joinId))}
       />
       {open ? (
         <JoinPopover

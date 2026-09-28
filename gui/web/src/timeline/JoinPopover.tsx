@@ -42,8 +42,14 @@ export function JoinPopover({
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const { busy, error, run } = useProjectMutation();
   const panelRef = useRef<HTMLDivElement>(null);
-  // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus restores to the badge.
-  useDialogModal({ open: true, onClose, panelRef, mode: "sheet" });
+  // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus returns to this popover's badge.
+  useDialogModal({
+    open: true,
+    onClose,
+    panelRef,
+    mode: "sheet",
+    returnFocusRef: anchorRef,
+  });
 
   useLayoutEffect(() => {
     const place = () => {

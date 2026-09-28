@@ -39,6 +39,34 @@ function Fixture({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
   );
 }
 
+function ReturnFocusHarness() {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const returnRef = useRef<HTMLButtonElement>(null);
+  useDialogModal({
+    open,
+    onClose: () => setOpen(false),
+    panelRef,
+    mode: "sheet",
+    returnFocusRef: returnRef,
+  });
+  return (
+    <>
+      <button ref={returnRef} type="button">
+        Return here
+      </button>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open
+      </button>
+      {open ? (
+        <div ref={panelRef} role="dialog" aria-label="Sheet">
+          <button type="button">Inside</button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 describe("useDialogModal", () => {
   afterEach(() => {
     const chrome = document.querySelector<HTMLElement>("[data-daw-app-chrome]");
@@ -97,6 +125,14 @@ describe("useDialogModal", () => {
     expect(
       document.querySelector<HTMLElement>("[data-daw-app-chrome]")?.inert,
     ).toBe(false);
+  });
+
+  it("returns focus to returnFocusRef instead of the opener", async () => {
+    const user = userEvent.setup();
+    render(<ReturnFocusHarness />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Return here" })).toHaveFocus();
   });
 });
 
