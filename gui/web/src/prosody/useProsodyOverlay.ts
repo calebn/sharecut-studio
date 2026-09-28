@@ -12,6 +12,10 @@ function jobStateKey(job: PipelineJobSnapshot | null): string {
   return job ? `${job.id}:${isPipelineRunning(job) ? "run" : "idle"}` : "";
 }
 
+// Module-singleton, debounced, project-keyed fetch store: the same shape as
+// waveform/statusStore.ts and hooks/useMediaQueryStore.ts (all on listenerSet).
+// A fourth one should extract a shared createProjectFetchStore({ debounceMs, key, load })
+// that owns the abort, stale-guard and failure rules (#732 review).
 const DEBOUNCE_MS = 250;
 type Entry = {
   projectPath: string;
