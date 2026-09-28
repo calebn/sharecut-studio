@@ -199,3 +199,44 @@ def test_doctor_faster_whisper_missing(tmp_path, monkeypatch):
         result = runner.invoke(setup_app, ["doctor"])
     assert result.exit_code == 0
     assert "[warn] faster-whisper" in result.stderr
+
+
+def test_doctor_fails_on_word_aligner_pin_mismatch(tmp_path, monkeypatch):
+    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    with (
+        patch(
+            "podcast_mcp.services.doctor.FFmpegEngine.check_available",
+            return_value=(True, "ffmpeg 7.0"),
+        ),
+        patch(
+            "podcast_mcp.services.doctor.word_aligner_problem",
+            return_value=WordAlignerPinMismatchError(
+                "onnx-base", "vocab.json sha256 abc does not match the pin"
+            ),
+        ),
+    ):
+        result = runner.invoke(setup_app, ["doctor"])
+    assert result.exit_code == 1
+    assert "[fail] word-aligner" in result.stderr
+    assert "--upgrade" in result.stderr
+
+
+def test_doctor_word_aligner_not_downloaded_prints_no_line(tmp_path, monkeypatch):
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    with (
+        patch(
+            "podcast_mcp.services.doctor.FFmpegEngine.check_available",
+            return_value=(True, "ffmpeg 7.0"),
+        ),
+        patch(
+            "podcast_mcp.services.doctor.word_aligner_problem",
+            return_value=WordAlignerMissingError("onnx-base"),
+        ),
+    ):
+        result = runner.invoke(setup_app, ["doctor"])
+    assert "word-aligner" not in result.stderr
+    assert "word-aligner" not in result.stdout

@@ -41,7 +41,7 @@ from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerModel,
     resolve_word_aligner_dir,
-    verify_word_aligner_onnx,
+    verify_word_aligner_snapshot,
     word_aligner_model,
     word_aligner_override_dir,
 )
@@ -101,9 +101,6 @@ class WordAligner:
     ) -> WordAligner:
         model = word_aligner_model(model_id)
         model_dir = resolve_word_aligner_dir(model.id)
-        vocab = CtcVocab.from_token_map(
-            json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
-        )
         onnx_path = model_dir / model.onnx_file
         local_source: dict[str, Any] | None = None
         if word_aligner_override_dir() is not None:
@@ -114,9 +111,12 @@ class WordAligner:
                 "onnx_mtime_ns": stat.st_mtime_ns,
             }
         else:
-            # User-supplied override dirs are not the pinned bytes; only the pinned snapshot
-            # is verified.
-            verify_word_aligner_onnx(model_dir, model)
+            # User-supplied override dirs are not the pinned bytes; only the pinned
+            # snapshot is verified, every file (#728).
+            verify_word_aligner_snapshot(model_dir, model)
+        vocab = CtcVocab.from_token_map(
+            json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
+        )
         backend = OnnxCtcBackend(
             onnx_path,
             threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),

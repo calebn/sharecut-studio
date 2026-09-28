@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
+from model_pin_helpers import pin_word_aligner_to_fake_snapshot
 from pcm_fakes import FakeStreamEngine
 from podcast_mcp.engines.audio_audit import load_mono_full
 from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2, CtcVocab, retime_spans
@@ -23,7 +24,11 @@ from podcast_mcp.engines.word_align import (
 )
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
-from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligner_model
+from podcast_mcp.word_aligner_models import (
+    WordAlignerMissingError,
+    WordAlignerPinMismatchError,
+    word_aligner_model,
+)
 
 
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
@@ -421,7 +426,8 @@ def test_pinned_snapshot_cache_identity_has_no_local_source(tmp_path, monkeypatc
         lambda _id: _snapshot(tmp_path / "pinned"),
     )
     monkeypatch.setattr(
-        "podcast_mcp.engines.word_align.verify_word_aligner_onnx", lambda d, m: None
+        "podcast_mcp.engines.word_align.verify_word_aligner_snapshot",
+        lambda d, m, **k: None,
     )
     fake, _sessions = _fake_onnxruntime()
     monkeypatch.setitem(sys.modules, "onnxruntime", fake)
@@ -435,12 +441,25 @@ def test_pinned_snapshot_load_rejects_sha256_mismatch(tmp_path, monkeypatch) -> 
         "podcast_mcp.engines.word_align.resolve_word_aligner_dir",
         lambda _id: _snapshot(tmp_path / "pinned"),
     )
-    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", lambda p: "0" * 64)
+    monkeypatch.setattr("podcast_mcp.util.model_manifest.sha256_file", lambda p: "0" * 64)
     fake, _sessions = _fake_onnxruntime()
     monkeypatch.setitem(sys.modules, "onnxruntime", fake)
 
     with pytest.raises(WordAlignerMissingError, match="sha256"):
         WordAligner.load()
+
+
+def test_pinned_snapshot_load_rejects_a_tampered_vocab_json(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    snap = pin_word_aligner_to_fake_snapshot(tmp_path / "pinned", monkeypatch)
+    (snap / "vocab.json").write_bytes(b"tampered")
+    monkeypatch.setattr("podcast_mcp.engines.word_align.resolve_word_aligner_dir", lambda _id: snap)
+    fake, sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+
+    with pytest.raises(WordAlignerPinMismatchError, match=r"vocab\.json"):
+        WordAligner.load()
+    assert sessions == []
 
 
 def test_override_load_does_not_hash_the_onnx_file(tmp_path, monkeypatch) -> None:
@@ -450,7 +469,7 @@ def test_override_load_does_not_hash_the_onnx_file(tmp_path, monkeypatch) -> Non
     def _boom(p):
         raise AssertionError("override dirs are not hashed")
 
-    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", _boom)
+    monkeypatch.setattr("podcast_mcp.util.model_manifest.sha256_file", _boom)
     fake, _sessions = _fake_onnxruntime()
     monkeypatch.setitem(sys.modules, "onnxruntime", fake)
 

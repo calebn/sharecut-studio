@@ -30,9 +30,11 @@ from podcast_mcp.whisper_models import (
 )
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
+    WORD_ALIGNER_BOOTSTRAP,
+    WordAlignerPinMismatchError,
     bootstrap_word_aligner,
-    word_aligner_is_cached,
     word_aligner_model,
+    word_aligner_problem,
 )
 
 # Consumer first-run defaults: never pull torch / NISQA.
@@ -44,7 +46,6 @@ OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner",)
 ALL_GUI_COMPONENTS: tuple[str, ...] = (
     DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS + OPT_IN_COMPONENTS
 )
-WORD_ALIGNER_BOOTSTRAP = "podcast bootstrap --component word-aligner"
 
 
 def _ffmpeg_ready() -> bool:
@@ -75,11 +76,18 @@ def word_aligner_component() -> dict[str, Any]:
         "opt_in": True,
     }
     try:
-        ok = word_aligner_is_cached(model.id)
+        problem = word_aligner_problem(model.id)
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
         return {**base, "ok": False, "hint": str(exc), "bootstrap": WORD_ALIGNER_BOOTSTRAP}
-    if ok:
+    if problem is None:
         return {**base, "ok": True}
+    if isinstance(problem, WordAlignerPinMismatchError):
+        return {
+            **base,
+            "ok": False,
+            "hint": str(problem),
+            "bootstrap": f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
+        }
     return {
         **base,
         "ok": False,
@@ -217,7 +225,7 @@ def _run_rnnoise(*, force: bool) -> dict[str, Any]:
 
 
 def _run_word_aligner(*, force: bool) -> dict[str, Any]:
-    if not force and word_aligner_is_cached():
+    if not force and word_aligner_problem() is None:
         return {"ok": True, "skipped": True, "reason": "cached", "model": DEFAULT_WORD_ALIGNER}
     try:
         return bootstrap_word_aligner(force=force)

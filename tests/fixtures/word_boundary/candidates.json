@@ -12,6 +12,12 @@
         "onnx/model.onnx"
       ],
       "onnx_file": "onnx/model.onnx",
+      "file_sha256": {
+        "vocab.json": "4178db26b3c7570f6a47f14ac6a1c7b32950b8c2800fb097287e53776934f1c5",
+        "config.json": "15c7cf6378153bdcb33fce27780ab9aae37fd154fbb674cacc3347992055d323",
+        "preprocessor_config.json": "8cdfd65ff4115423185a1512bdae100e2e0cd744f5b322417429944aaafd0827",
+        "onnx/model.onnx": "00b7cc69516c1ab63c429e63a2b543e4d42bb77441ec5b98ee935de175b00de1"
+      },
       "license": "apache-2.0"
     },
     {
