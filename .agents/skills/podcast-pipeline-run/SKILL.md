@@ -23,18 +23,19 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 7. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
 8. precorrect_transcript — glossary, cross-track sync, report
 9. require_transcript_refine — hard agent gate (`refine-done` / waive; auto-waive if `--unattended`)
-10. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
-11. focus_from_transcript (no-op unless `focus.auto_apply: true`)
-12. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
-13. tighten_from_transcript (no-op unless `tighten.enabled: true`)
-14. clean_audio
-15. compress_tracks
-16. balance_tracks
-17. assemble_timeline — final stems (edits + FX)
-18. reconcile_transcript — **pass 2** (post-FX audibility refresh)
-19. mix_with_music
-20. master_loudness
-21. export_deliverables
+10. analyze_prosody (`prosody.enabled` in pipeline.yaml, **on by default**) — caches a per-track prosody profile (pitch, rate, energy, prominent words, boundaries) for `audition_context` to read; a no-op with a clear summary if `praat-parselmouth` (the `prosody` extra) is not installed. See [docs/pipeline.md § Prosody profile](../../docs/pipeline.md#prosody-profile).
+11. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
+12. focus_from_transcript (no-op unless `focus.auto_apply: true`)
+13. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
+14. tighten_from_transcript (no-op unless `tighten.enabled: true`)
+15. clean_audio
+16. compress_tracks
+17. balance_tracks
+18. assemble_timeline — final stems (edits + FX)
+19. reconcile_transcript — **pass 2** (post-FX audibility refresh)
+20. mix_with_music
+21. master_loudness
+22. export_deliverables
 
 **Alignment:** After ASR, `align_tracks` places whole-file dialogue clips on one session clock (see **podcast-align-audio**). Unattended runs keep the scorer result and waive `require_align_accept` when `align.accept.mode` is `waive_unattended`. Agents clear the gate with listen + `podcast align done`.
 
@@ -63,7 +64,7 @@ The default pipeline cuts no content: focus and tighten are off, so a raw sessio
    ```
    MCP: `transcript_refine_waive_tool` (or `refine-done` / `transcript_refine_done_tool` after a real refine pass).
 3. **Tighten the kept range:** `podcast propose-edits --project episode.project.json` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`).
-4. `analyze_focus_cuts` is an outline, not a cut list (see step 10 above). Use **podcast-focus-episode** for the editorial judgment.
+4. `analyze_focus_cuts` is an outline, not a cut list (see step 11 above). Use **podcast-focus-episode** for the editorial judgment.
 
 Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 

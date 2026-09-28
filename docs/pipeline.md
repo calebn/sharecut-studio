@@ -11,18 +11,19 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 7. `reconcile_transcript` — Pass 1: audibility/bleed suppress
 8. `precorrect_transcript` — Glossary and cross-track sync
 9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)
-10. `analyze_focus_cuts` — writes `artifacts/focus_outline.md`: an **outline for the agent, not a cut list** (its `focus:*` hints are optional). Off unless `focus.enabled`; when off it writes nothing and only reports `skipped (focus.enabled=false)`. On long raw sessions, see [§ Long raw sessions](#long-raw-sessions-content-cut-before-tighten).
-11. `focus_from_transcript` — No-op unless `focus.auto_apply`
-12. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
-13. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
-14. `clean_audio` — HPF per dialogue track
-15. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0; balance measures after it; the step owns each dialogue chain's single acompressor: any existing one, whether from an earlier run, the `podcast_standard` preset or `add_effect`, is overwritten in place with `compression.*` (position and bypass kept), extra acompressors are removed, and both are logged and counted in the step summary; to keep a hand-tuned compressor, skip the step: MCP `pipeline_run(skip_steps_json='["compress_tracks"]')`, CLI `--skip compress_tracks`, or uncheck **Compress tracks** in the Pipeline pane)
-16. `balance_tracks` — gain staging from **post-FX, speech-gated** loudness (the track's chain, own non-suppressed transcript words; ungated without a transcript); the summary reports the achieved level per track
-17. `assemble_timeline` — Final stems after edits + FX
-18. `reconcile_transcript` — Pass 2: post-FX audibility refresh
-19. `mix_with_music` — Intro/outro/bed + ducking envelopes
-20. `master_loudness` — two-pass loudnorm to podcast target (pass 1 is `ebur128`; `master_qc.json` records `normalization_type`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
-21. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping; a clean run is `ok` — `mix_with_music` does not stale reconciliation (#621))
+10. `analyze_prosody` — Cache a per-track prosody profile (pitch, rate, energy, voice quality, prominent words, phrase boundaries) for `audition_context` to read. On by default (`prosody.enabled`); a no-op with a clear summary when the optional `praat-parselmouth` backend is not installed. See [§ Prosody profile](#prosody-profile).
+11. `analyze_focus_cuts` — writes `artifacts/focus_outline.md`: an **outline for the agent, not a cut list** (its `focus:*` hints are optional). Off unless `focus.enabled`; when off it writes nothing and only reports `skipped (focus.enabled=false)`. On long raw sessions, see [§ Long raw sessions](#long-raw-sessions-content-cut-before-tighten).
+12. `focus_from_transcript` — No-op unless `focus.auto_apply`
+13. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
+14. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
+15. `clean_audio` — HPF per dialogue track
+16. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0; balance measures after it; the step owns each dialogue chain's single acompressor: any existing one, whether from an earlier run, the `podcast_standard` preset or `add_effect`, is overwritten in place with `compression.*` (position and bypass kept), extra acompressors are removed, and both are logged and counted in the step summary; to keep a hand-tuned compressor, skip the step: MCP `pipeline_run(skip_steps_json='["compress_tracks"]')`, CLI `--skip compress_tracks`, or uncheck **Compress tracks** in the Pipeline pane)
+17. `balance_tracks` — gain staging from **post-FX, speech-gated** loudness (the track's chain, own non-suppressed transcript words; ungated without a transcript); the summary reports the achieved level per track
+18. `assemble_timeline` — Final stems after edits + FX
+19. `reconcile_transcript` — Pass 2: post-FX audibility refresh
+20. `mix_with_music` — Intro/outro/bed + ducking envelopes
+21. `master_loudness` — two-pass loudnorm to podcast target (pass 1 is `ebur128`; `master_qc.json` records `normalization_type`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
+22. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping; a clean run is `ok` — `mix_with_music` does not stale reconciliation (#621))
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
 
@@ -40,6 +41,34 @@ The default pipeline makes no content cuts: focus and tighten are off, so a raw 
 4. **`analyze_focus_cuts` is an outline, not a cut list.** It writes `artifacts/focus_outline.md` for the agent to read (**podcast-focus-episode**). Its heuristic `focus:*` hints are optional and often empty; it proposed 0 cuts on the lab tape. With the default `focus.enabled: false` it writes nothing and reports only `skipped (focus.enabled=false)`.
 
 Skills: **podcast-pipeline-run**, **podcast-edit-natural-language** (content-cut tools), **podcast-tighten-dialogue**, **podcast-focus-episode**. Tool reference: [nl-editing.md § Long raw sessions](nl-editing.md#long-raw-sessions-content-cut-before-tighten).
+
+## Prosody profile
+
+`analyze_prosody` (step 10, `group=editorial`, `kind=tooling`, `depends_on=(transcribe_tracks,)`, `noop_unless=prosody.enabled`) gives the agent a prosodic description of delivery — pitch, rate, energy, voice quality, prominent words, and phrase boundaries — that the transcript alone cannot: it runs once per dialogue track's primary media, caches the result, and never mutates the timeline. `audition_context` (`play_context` / `audition_context_tool` / `guest_audition_context`) reads the cache; it never recomputes (#196).
+
+**Backend:** `praat-parselmouth` only (`engines/prosody.py`), behind the optional `prosody` extra (`pyproject.toml`) — no torch, no openSMILE (it would duplicate these features and ship a second native binary). Without the extra, the step is a no-op and reports `skipped (praat-parselmouth not installed; install the 'prosody' extra)`; `audition_context`'s `tracks[].prosody` then reports `status: "missing"` with a hint, same as before the step ever ran.
+
+**Segmentation:** word gaps at or under `prosody.segment_gap_sec` (1.0s default) merge into one segment; a run longer than `prosody.max_segment_sec` (30s) is split. With no transcript yet, segments come from energy runs (`util.dsp.bool_runs` over a floor-dB mask) instead, so the step still produces a coarse profile.
+
+**Per segment:**
+
+- **F0** — mean/median Hz and sd/range in semitones (`Sound.to_pitch_ac`, `prosody.pitch_floor_hz`/`pitch_ceiling_hz`, defaults 75/500 Hz), plus voiced fraction.
+- **Rate** — a De Jong & Wempe-style syllable-nucleus count: intensity peaks (`Sound.to_intensity`) at least 2 dB above the preceding trough, within 25 dB of the segment's own intensity ceiling, and coincident with a voiced pitch frame. `speech_rate` divides by segment duration; `articulation_rate` divides by duration minus interior pauses.
+- **Pauses** — interior sub-floor intensity runs of at least `prosody.pause_min_sec` (0.25s); a run touching either edge of the segment is not a pause (a real segment boundary already covers it).
+- **Energy** — mean/sd/slope (dB, linear regression over the segment), plus start/mid/end-third means, `drop_db` (start third − end third), and a `trend` (`falling` when `drop_db > 1.5`, `rising` when `< -1.5`, else `flat`).
+- **Voice quality** — jitter/shimmer/HNR (`Sound.to_harmonicity_cc`, `To PointProcess (periodic, cc)`), flagged against Praat's standard voice-report thresholds (jitter local > 1.04%, shimmer local > 3.81%, HNR < 7 dB) as `jitter_high` / `shimmer_high` / `hnr_low`.
+- **Prominent words** — up to `prosody.top_prominent_words` (5) per segment, ranked by a z-score fusion of F0 peak, energy peak, and duration-per-syllable (a crude vowel-group syllable count; no dependency).
+- **Boundaries** — `strength = 0.5·pause + 0.3·lengthening + 0.2·pitch_reset` per word gap (each term clamped to `[0, 1]`); boundaries at or above `prosody.boundary_min_strength` (0.3) are kept, and the segment end is always included (`kind: "segment_end"`) as a natural chapter/cut-point signal.
+
+No `NaN` is ever returned: every stat falls back to `0.0` (or an empty list) when a segment has no voiced frames, no words, or too few samples to measure.
+
+**Cache:** `transcripts/prosody/{track_id}_{audio16}_{inputs16}.json`, mirroring the ASR transcript cache (`engines/transcribe.py`, `cache_id_part`) — `audio16` is the shared `edits.transcript_reuse.audio_identity` 16-hex prefix, `inputs16` hashes the algorithm version, `prosody.*` params, the installed parselmouth version, and a word-timing fingerprint (`edits/prosody_profile.py`). The reader (`load_track_profile`, used by every `audition_context` call) never hashes audio or reads pipeline config: it globs the cache prefix, picks the newest profile, and compares its stored `audio_size`/`audio_mtime_ns` against `stat()` plus the words fingerprint; a mismatch reports `status: "stale"` with a hint to re-run the step. The writer (the pipeline step) is the only thing that hashes audio or reruns Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content change). See [persistence.md](persistence.md).
+
+**Measured performance:** on a 6.4s real-speech fixture (`tests/fixtures/word_boundary/5338-24640-0003.wav`), `analyze_prosody` computed one track's profile in ~0.04s (~0.36s of compute per audio minute); on a 5-minute synthetic clip, ~0.83s (~0.17s per audio minute). Cost is dominated by Praat's whole-file contour extraction (`to_pitch_ac`/`to_intensity`/`to_harmonicity_cc`), computed once per track regardless of segment count.
+
+**Praat reference spot check** (`tests/test_prosody_engine.py::test_prosody_matches_praat_reference_on_fixture`, run when the `prosody` extra is installed): on the same fixture, the engine's segment F0 mean is within 5% of Praat's own `Get mean … Hertz`, the segment intensity mean is within 1.5 dB of Praat's `Get mean … dB`, and the computed speech rate falls in `[2, 8]` syllables/sec.
+
+Not implemented (see [ROADMAP.md](../ROADMAP.md)): the Wavelet Prosody Toolkit's continuous-wavelet-transform prominence/boundary version (git-only, needs PyQt, cannot be a PyPI dependency), AuToBI ToBI labels, an openSMILE/eGeMAPS cross-check, a desktop sidecar `prosody` extra, a #719 GUI overlay, and `tighten`/`chapters` consuming boundaries directly.
 
 ## Conversation align (`align_tracks` + gate)
 

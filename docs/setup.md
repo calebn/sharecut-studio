@@ -11,7 +11,7 @@
 
 ## Full local install
 
-Recommended contributor path (tests + GUI API + bootstrap FFmpeg helper + relay; **not** the heavy torch extras):
+Recommended contributor path (tests + GUI API + bootstrap FFmpeg helper + relay + prosody; **not** the heavy torch extras):
 
 ```bash
 git clone https://github.com/calebn/sharecut-studio.git && cd sharecut-studio
@@ -24,7 +24,7 @@ source .venv/bin/activate   # or prefix commands with: uv run
 podcast doctor
 ```
 
-`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
+`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody` when `uv` is available (pip fallback installs the same extras). It does **not** put `podcast` on your global `PATH` — use the venv or `uv run`.
 
 For a packaged Sharecut Studio app on macOS, Linux `.deb`, or AppImage, use the native app menu's **Install Command Line Tools…** to install `podcast` and `podcast-mcp` in `~/.local/bin`. The app offers this once after its first successful engine start. Add `~/.local/bin` to your shell PATH if the app reports it missing. The same menu removes only commands owned by this app. AppImage installs wrappers that call the absolute `.AppImage` path, so keep the AppImage at that path; before moving it, remove the wrappers, then install again from the new path. You can also run `SharecutStudio.AppImage --cli <podcast arguments>` or `SharecutStudio.AppImage --mcp <podcast-mcp arguments>` directly.
 
@@ -102,9 +102,10 @@ podcast doctor
 | `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
 | `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings |
 | `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
+| `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
 
-`./install.sh` installs `dev` + `gui` + `bootstrap` + `relay`. It deliberately skips `speaker` / `joinqc` / `all`.
+`./install.sh` installs `dev` + `gui` + `bootstrap` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
 
 ### Bootstrap cache downloads (`podcast bootstrap`)
 
@@ -218,7 +219,7 @@ system/base Python) — every third-party import is declared here.
 
 ```bash
 # Match install.sh (recommended contributor set)
-uv sync --extra dev --extra gui --extra bootstrap --extra relay
+uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody
 
 # Everything including speaker + joinqc (large torch/CUDA wheels on Linux)
 uv sync --all-extras
@@ -245,7 +246,7 @@ uv lock
 ```
 
 Without `uv`, `install.sh` creates a plain `.venv` and runs
-`pip install -e ".[dev,gui,bootstrap,relay]"`. Add speaker/joinqc manually if needed:
+`pip install -e ".[dev,gui,bootstrap,relay,prosody]"`. Add speaker/joinqc manually if needed:
 `pip install -e ".[speaker,joinqc]"`.
 
 ## MCP and agents
