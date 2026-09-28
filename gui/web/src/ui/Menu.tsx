@@ -9,6 +9,7 @@ import {
 } from "react";
 import { noteMenuOpen } from "./menuGate";
 import { listFocusable } from "./useDialogModal";
+import { useOutsidePointerDown } from "./useOutsidePointerDown";
 
 function menuItems(panel: HTMLElement): HTMLElement[] {
   return listFocusable(panel).filter(
@@ -166,20 +167,10 @@ export function Menu({
       }
     };
 
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) {
-        return;
-      }
-      close();
-    };
-
     window.addEventListener("keydown", onKey);
-    window.addEventListener("pointerdown", onPointerDown);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", onPointerDown);
       // Take focus back only when it left with the panel. When another menu's
       // trigger took it (exclusive menus), stealing it back would make that
       // menu record this trigger as the place Escape returns to.
@@ -192,6 +183,8 @@ export function Menu({
       }
     };
   }, [open, close]);
+
+  useOutsidePointerDown([panelRef, triggerRef], close, open);
 
   return (
     <div className={className ?? "ui-menu-root"}>
