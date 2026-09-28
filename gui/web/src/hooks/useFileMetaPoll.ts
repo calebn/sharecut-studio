@@ -14,6 +14,7 @@ export const SANITY_POLL_MS = 30_000;
 /**
  * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.
  * First successful meta read only baselines — does not fire onChange.
+ * A focus / visibility check while the baseline read is in flight is skipped.
  * server_seq counts only between two readings: a response without it (the
  * server could not read document.db) is ignored for the seq comparison.
  * Also checks at once when the window regains focus or the tab becomes visible.
@@ -76,9 +77,12 @@ export function useFileMetaPoll(
       }
     };
 
-    void fetchMetaRef
-      .current()
-      .then((meta) => {
+    // The baseline holds busyRef like tick(), so a focus / visibility check
+    // fired before it lands cannot race it and overwrite the refs out of order.
+    busyRef.current = true;
+    void fetchMetaRef.current().then(
+      (meta) => {
+        busyRef.current = false;
         if (!cancelled && meta.exists !== false) {
           mtimeRef.current = meta.mtime_ns;
           sizeRef.current = meta.size;
@@ -86,8 +90,11 @@ export function useFileMetaPoll(
             seqRef.current = meta.server_seq;
           }
         }
-      })
-      .catch(() => undefined);
+      },
+      () => {
+        busyRef.current = false;
+      },
+    );
 
     const id = window.setInterval(() => {
       void tick();
