@@ -6,11 +6,11 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pytest
 
+from pcm_fakes import FakeStreamEngine
 from podcast_mcp.engines import prosody as prosody_engine
 from podcast_mcp.engines.prosody import (
     ProsodyParams,
@@ -303,40 +303,6 @@ def _two_copy_track() -> tuple[np.ndarray, list[WordSpan], list[WordSpan], int]:
     return track, words0, words1, sr
 
 
-class _FakeStreamEngine:
-    """A ``FFmpegEngine.stream_mono_f32`` stand-in over an in-memory track.
-
-    Tracks how many streams were opened and whether the most recently opened
-    stream's generator was closed (its ``finally`` ran).
-    """
-
-    def __init__(self, track: np.ndarray, sr: int, chunk_frames: int = 4000) -> None:
-        self.track = track
-        self.sr = sr
-        self.chunk_frames = chunk_frames
-        self.calls = 0
-        self.closed = False
-        self.yielded = 0
-
-    def stream_mono_f32(
-        self, path: Path, *, sample_rate: int, chunk_frames: int | None = None
-    ) -> Any:
-        assert sample_rate == self.sr
-        self.calls += 1
-        track = self.track
-        size = self.chunk_frames
-
-        def gen() -> Any:
-            try:
-                for i in range(0, track.size, size):
-                    self.yielded += 1
-                    yield track[i : i + size]
-            finally:
-                self.closed = True
-
-        return gen()
-
-
 def test_analyze_prosody_is_invariant_to_loudness_elsewhere() -> None:
     pytest.importorskip("parselmouth")
     from podcast_mcp.engines.prosody import analyze_prosody
@@ -367,7 +333,7 @@ def test_analyze_prosody_file_matches_array_path_with_bounded_windows(
     track, words0, words1, sr = _two_copy_track()
     words = words0 + words1
     params = ProsodyParams.from_defaults({})
-    fake = _FakeStreamEngine(track, sr)
+    fake = FakeStreamEngine(track, sr)
 
     window_lengths: list[int] = []
     buffered: list[int] = []
@@ -397,7 +363,7 @@ def test_analyze_prosody_file_energy_path_decodes_twice() -> None:
 
     track, _words0, _words1, sr = _two_copy_track()
     params = ProsodyParams.from_defaults({})
-    fake = _FakeStreamEngine(track, sr)
+    fake = FakeStreamEngine(track, sr)
 
     file_result = analyze_prosody_file(Path("x.wav"), [], params, engine=fake)  # type: ignore[arg-type]
     array_result = analyze_prosody(track, sr, [], params)
@@ -414,7 +380,7 @@ def test_analyze_prosody_file_closes_stream_on_cancel() -> None:
     track, words0, words1, sr = _two_copy_track()
     words = words0 + words1
     params = ProsodyParams.from_defaults({})
-    fake = _FakeStreamEngine(track, sr)
+    fake = FakeStreamEngine(track, sr)
     polls = {"n": 0}
 
     def cancel_check() -> bool:
@@ -439,7 +405,7 @@ def test_analyze_prosody_file_cancels_during_energy_pass() -> None:
     from podcast_mcp.util.progress import CancelledProgress
 
     track, _w0, _w1, sr = _two_copy_track()
-    fake = _FakeStreamEngine(track, sr)
+    fake = FakeStreamEngine(track, sr)
     polls = {"n": 0}
 
     def cancel_check() -> bool:
@@ -466,7 +432,7 @@ def test_analyze_prosody_file_clamps_segments_past_end_of_audio() -> None:
     sr = 16000
     t = np.arange(int(sr * 2.0)) / sr
     tone = (0.3 * np.sin(2 * np.pi * 150 * t)).astype(np.float32)
-    fake = _FakeStreamEngine(tone, sr)
+    fake = FakeStreamEngine(tone, sr)
     words = [
         WordSpan("a", 0.2, 1.0),
         WordSpan("b", 1.5, 2.8),

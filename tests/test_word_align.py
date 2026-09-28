@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 
 from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend
-from podcast_mcp.engines.ctc_forced_align import CtcVocab
+from pcm_fakes import FakeStreamEngine
+from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2, CtcVocab, retime_spans
 from podcast_mcp.engines.word_align import (
     OnnxCtcBackend,
     WordAligner,
@@ -123,6 +124,72 @@ def test_word_aligner_align_decodes_audio_and_retimes(tmp_path) -> None:
     assert result.spans[2] == pytest.approx((0.08, 0.14))
     assert result.stats.aligned_words == 2
     assert result.runtime_sec >= 0
+
+
+def test_word_aligner_align_streams_the_decode_once(monkeypatch, tmp_path) -> None:
+    def _boom(*args, **kwargs):
+        raise AssertionError("align() must not decode the whole file up front")
+
+    monkeypatch.setattr("podcast_mcp.engines.audio_audit.load_mono_full", _boom)
+
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    aligner = WordAligner(word_aligner_model(), backend, vocab)
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="42", start=0.5, end=0.7),
+        TranscriptWord(text="bye", start=0.7, end=1.2),
+    ]
+    samples = np.zeros(round(1.2 * SAMPLE_RATE_WAV2VEC2), dtype=np.float32)
+    fake = FakeStreamEngine(samples, SAMPLE_RATE_WAV2VEC2)
+
+    result = aligner.align(tmp_path / "clip.wav", words, engine=fake)
+
+    assert fake.calls == 1
+    assert fake.closed
+
+    expected_spans, expected_stats = retime_spans(
+        samples, [(w.text, w.start, w.end) for w in words], backend, vocab
+    )
+    assert result.spans == expected_spans
+    assert result.stats == expected_stats
+
+
+def test_word_aligner_align_closes_the_stream_when_the_backend_raises(tmp_path) -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+
+    class ExplodingBackend:
+        def log_probs(self, samples: np.ndarray) -> np.ndarray:
+            raise RuntimeError("boom")
+
+    aligner = WordAligner(word_aligner_model(), ExplodingBackend(), vocab)
+    words = [TranscriptWord(text="hi", start=0.0, end=0.5)]
+    samples = np.zeros(round(1.0 * SAMPLE_RATE_WAV2VEC2), dtype=np.float32)
+    fake = FakeStreamEngine(samples, SAMPLE_RATE_WAV2VEC2)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        aligner.align(tmp_path / "clip.wav", words, engine=fake)
+
+    assert fake.closed
+
+
+def test_word_aligner_align_raises_on_empty_decode(tmp_path) -> None:
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    aligner = WordAligner(word_aligner_model(), backend, vocab)
+    fake = FakeStreamEngine(np.zeros(0, dtype=np.float32), SAMPLE_RATE_WAV2VEC2)
+
+    words = [TranscriptWord(text="hi", start=0.0, end=0.5)]
+    with pytest.raises(ValueError, match="no audio decoded from"):
+        aligner.align(tmp_path / "clip.wav", words, engine=fake)
+
+    # No words: an empty decode is not an error, and the result is empty.
+    result = aligner.align(
+        tmp_path / "clip.wav",
+        [],
+        engine=FakeStreamEngine(np.zeros(0, dtype=np.float32), SAMPLE_RATE_WAV2VEC2),
+    )
+    assert result.spans == []
 
 
 def test_apply_word_spans_keeps_unaligned_and_clears_deferred_only_when_retimed() -> None:
