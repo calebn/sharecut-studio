@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import math
 import re
+from bisect import bisect_left
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -508,6 +509,18 @@ def _f0_stats(
     }
 
 
+def _words_by_span(
+    words: Sequence[WordSpan], bounds: list[tuple[float, float]]
+) -> dict[tuple[float, float], list[WordSpan]]:
+    """Each span's words (``span start - 1e-6 <= w.start < span end + 1e-6``), via bisect."""
+    ordered = sorted(words, key=lambda w: w.start)
+    starts = [w.start for w in ordered]
+    return {
+        span: ordered[bisect_left(starts, span[0] - 1e-6) : bisect_left(starts, span[1] + 1e-6)]
+        for span in bounds
+    }
+
+
 def analyze_prosody(
     samples: np.ndarray,
     sr: int,
@@ -547,11 +560,7 @@ def analyze_prosody(
     intensity_db = intensity.values[0]
     voiced_at_intensity = _voiced_at(pitch_xs, pitch_hz, intensity_xs)
 
-    words_by_span: dict[tuple[float, float], list[WordSpan]] = {}
-    if words:
-        ordered = sorted(words, key=lambda w: w.start)
-        for span in bounds:
-            words_by_span[span] = [w for w in ordered if span[0] - 1e-6 <= w.start < span[1] + 1e-6]
+    words_by_span = _words_by_span(words, bounds) if words else {}
 
     segments: list[dict[str, Any]] = []
     for start, end in bounds:
