@@ -30,6 +30,9 @@ export function InlineWordEditor({
 }: Props) {
   const { busy, error, setError, run, projectPath } = useProjectMutation();
   const [text, setText] = useState(initialText);
+  // Text the user saw when the editor opened (#650): a remote edit that
+  // updates `initialText` while the editor is open must not move the guard.
+  const [expectedText] = useState(initialText);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const busyRef = useRef(false);
   const errorId = useId();
@@ -42,7 +45,7 @@ export function InlineWordEditor({
 
   const commit = async () => {
     if (busyRef.current) return;
-    if (text.trim() === initialText.trim()) {
+    if (text.trim() === expectedText.trim()) {
       onClose(true);
       return;
     }
@@ -62,7 +65,7 @@ export function InlineWordEditor({
           wordIndex,
           wordIndex,
           text,
-          initialText,
+          expectedText,
         );
       } catch (e) {
         failure = e;
