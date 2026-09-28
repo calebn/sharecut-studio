@@ -1,6 +1,6 @@
 import { hostFetch } from "../api/documentTransport";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
-import { currentDocumentSeq } from "../document/cursor";
+import { fetchWhileSeqStable } from "../document/fetchWhileSeqStable";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -367,21 +367,21 @@ const PHASE_REFRESH_ATTEMPTS = 3;
  * The GET carries no `server_seq`, so a live update that lands while it is
  * in flight may be newer than the patch: fetch again instead of
  * overwriting it, and apply nothing if updates keep landing (#746).
+ * The retry loop is fetchWhileSeqStable (shared with useProjectBootstrap).
  */
 async function refreshProjectPhase(
   projectPath: string,
   phase: "envelopes" | "detail",
 ): Promise<void> {
-  for (let attempt = 0; attempt < PHASE_REFRESH_ATTEMPTS; attempt++) {
-    const seqAtStart = currentDocumentSeq();
-    const patch = await loadProjectPhase(projectPath, phase);
-    if (useDawStore.getState().projectPath !== projectPath) {
-      return;
-    }
-    if (currentDocumentSeq() === seqAtStart) {
-      applyDocumentSnapshot({ patch }, { force: true });
-      return;
-    }
+  const fresh = await fetchWhileSeqStable(
+    () => loadProjectPhase(projectPath, phase),
+    {
+      attempts: PHASE_REFRESH_ATTEMPTS,
+      isCancelled: () => useDawStore.getState().projectPath !== projectPath,
+    },
+  );
+  if (fresh) {
+    applyDocumentSnapshot({ patch: fresh.value }, { force: true });
   }
 }
 
