@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync-table golden-ear
 
 setup:
 	./install.sh
@@ -91,6 +91,10 @@ capabilities-check:
 # Progress framework compliance (warn by default; PODCAST_PROGRESS_COMPLIANCE=error to hard-fail).
 progress-check:
 	uv run python scripts/check_progress.py
+
+# Regenerate AGENTS.md § Docs in sync from contracts/docs-sync.json.
+docs-sync-table:
+	uv run python scripts/docs_sync.py table
 
 # Document-command JSON Schema + docs-site catalog / guest OpenAPI from code.
 schema-export:
