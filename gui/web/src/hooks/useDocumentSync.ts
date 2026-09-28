@@ -14,10 +14,10 @@ import {
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 import { isTerminalWsClose } from "../utils/wsClose";
-import { SANITY_POLL_MS } from "./useFileMetaPoll";
 
 function documentWsUrl(projectPath: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";

@@ -4,8 +4,8 @@ export { SAVED_MUTE_READ_ONLY } from "../tracks/trackMuteCopy";
 
 import { setTrackFaderCommand, setTrackMuteCommand } from "../api";
 import { patchTrackMix } from "../document/projectPatch";
-import { SANITY_POLL_MS } from "../hooks/useFileMetaPoll";
 import { useDawStore } from "../state/dawStore";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import type { ProjectView, TrackView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { clampFaderDb, trackFaderDb } from "../utils/audio";

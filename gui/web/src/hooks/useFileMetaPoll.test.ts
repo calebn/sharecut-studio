@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SANITY_POLL_MS as SHARED_SANITY_POLL_MS } from "../state/syncCadence";
 import { deferred } from "../test/deferred";
 import type { FileMeta } from "./useFileMetaPoll";
 import { SANITY_POLL_MS, useFileMetaPoll } from "./useFileMetaPoll";
@@ -186,6 +187,7 @@ describe("useFileMetaPoll", () => {
 
   it("SANITY_POLL_MS is 30 s", () => {
     expect(SANITY_POLL_MS).toBe(30_000);
+    expect(SANITY_POLL_MS).toBe(SHARED_SANITY_POLL_MS);
   });
 
   it("uses the default 30 s cadence when no interval is given", async () => {
