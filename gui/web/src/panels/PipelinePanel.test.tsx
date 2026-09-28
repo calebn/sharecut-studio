@@ -1053,6 +1053,15 @@ describe("PipelinePanel", () => {
     await waitFor(() => {
       expect(signal.aborted).toBe(true);
     });
+    // The same job's next frame after the switch is not re-adopted.
+    dawState.activityJob = analyzeJobSnap({
+      id: "an-remote",
+      current: 2,
+      message: "Scanned guest (2/2)",
+    });
+    rerender(<PipelinePanel />);
+    await act(async () => {});
+    expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
   });
 
   it("re-reads a remote Analyze's config only after an in-flight param PUT settles", async () => {
