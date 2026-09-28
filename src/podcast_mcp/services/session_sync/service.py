@@ -6,6 +6,7 @@ import errno
 import itertools
 import json
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -86,12 +87,27 @@ def _is_corrupt_store_error(exc: BaseException) -> bool:
     return isinstance(exc, sqlite3.DatabaseError) and not isinstance(exc, sqlite3.OperationalError)
 
 
-def _first_corrupt_warning(key: str) -> bool:
+def _corrupt_warning_key(what: str, path: str | Path) -> str:
+    # realpath is non-strict: it never raises on a symlink loop, it just stops resolving.
+    return f"{what}|{os.path.realpath(path)}"
+
+
+def _first_corrupt_warning(what: str, path: str | Path) -> bool:
+    key = _corrupt_warning_key(what, path)
     with _CORRUPT_META_WARNED_LOCK:
         if key in _CORRUPT_META_WARNED:
             return False
         _CORRUPT_META_WARNED.add(key)
         return True
+
+
+def _forget_corrupt_warning(what: str, path: str | Path) -> None:
+    """Re-arm the warning after a good read, so a store that goes corrupt again warns again."""
+    if not _CORRUPT_META_WARNED:  # fast path: nothing is currently warned
+        return
+    key = _corrupt_warning_key(what, path)
+    with _CORRUPT_META_WARNED_LOCK:
+        _CORRUPT_META_WARNED.discard(key)
 
 
 def best_effort_meta(read: Callable[[], _T], default: _T, *, what: str, path: str | Path) -> _T:
@@ -100,13 +116,14 @@ def best_effort_meta(read: Callable[[], _T], default: _T, *, what: str, path: st
     The meta polls are best-effort, so a read error never fails the request. A
     transient error (``OSError``, ``sqlite3.OperationalError``: locked, disk I/O)
     logs at debug. A corrupt store (any other ``sqlite3.DatabaseError``, e.g. "file
-    is not a database") logs one warning per ``what`` + path per process, so a
-    broken sync.db / document.db shows up without a log line on every poll.
+    is not a database") logs one warning per ``what`` + resolved path, re-armed once
+    a read of that path succeeds, so a broken sync.db / document.db shows up without
+    a log line on every poll but warns again if it goes bad again after recovering.
     """
     try:
-        return read()
+        result = read()
     except SYNC_META_READ_ERRORS as exc:
-        if _is_corrupt_store_error(exc) and _first_corrupt_warning(f"{what}|{path}"):
+        if _is_corrupt_store_error(exc) and _first_corrupt_warning(what, path):
             log.warning(
                 "%s unreadable for %s (corrupt sqlite store?); reporting it as missing",
                 what,
@@ -116,6 +133,8 @@ def best_effort_meta(read: Callable[[], _T], default: _T, *, what: str, path: st
         else:
             log.debug("%s unavailable for %s", what, path, exc_info=True)
         return default
+    _forget_corrupt_warning(what, path)
+    return result
 
 
 def session_dir_for_workspace(workspace: Path) -> Path:
@@ -232,11 +251,14 @@ def session_meta_at(db_path: Path) -> dict[str, Any]:
 def session_meta(project_path: str | Path) -> dict[str, Any]:
     """Session meta for the project at ``project_path``, without parsing it.
 
+    The outer ``best_effort_meta`` covers project-path resolution; ``session_meta_at``
+    covers the store read.
+
     The caller must pass a project path it has already authorized (the GUI route
     runs ``resolve_project`` + host auth first); this helper does no authz.
     """
     return best_effort_meta(
-        lambda: _read_session_meta(sync_db_path_for_workspace(meta_workspace_dir(project_path))),
+        lambda: session_meta_at(sync_db_path_for_workspace(meta_workspace_dir(project_path))),
         _missing_session_meta(str(project_path)),
         what="session meta",
         path=project_path,
