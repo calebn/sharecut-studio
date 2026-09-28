@@ -1,4 +1,5 @@
 import type { StateCreator, StoreApi } from "zustand";
+import { shallow } from "zustand/shallow";
 
 /**
  * A zustand middleware plus the `batch()` it is driven by. Calls to `set`
@@ -16,23 +17,6 @@ export type WriteBatch<T> = {
   /** Runs `fn`, batching every store write made inside it into one commit. */
   batch: <R>(fn: () => R) => R;
 };
-
-function shallowEqual<T extends object>(a: T, b: T): boolean {
-  if (Object.is(a, b)) {
-    return true;
-  }
-  const keysA = Object.keys(a) as (keyof T)[];
-  const keysB = Object.keys(b) as (keyof T)[];
-  if (keysA.length !== keysB.length) {
-    return false;
-  }
-  for (const key of keysA) {
-    if (!Object.is(a[key], b[key])) {
-      return false;
-    }
-  }
-  return true;
-}
 
 /** Creates one write-batch pair. Each DAW store instance gets its own. */
 export function createWriteBatch<T extends object>(): WriteBatch<T> {
@@ -78,7 +62,7 @@ export function createWriteBatch<T extends object>(): WriteBatch<T> {
         // Mimics zustand's own no-op rule: a batch that changed nothing (no
         // writes at all, or writes that landed back on the pre-batch state)
         // never calls the underlying setState, so listeners are not notified.
-        if (toCommit && base && !shallowEqual(toCommit, base)) {
+        if (toCommit && base && !shallow(toCommit, base)) {
           rawSet(toCommit, true);
         }
       }
