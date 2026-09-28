@@ -716,7 +716,8 @@ Whisper pass. Each item's cache check, Whisper run and write hold
 `<id>.native.lock` in the runs dir (`util.file_locks.shared_file_lock`, up to
 an hour), so a second pass started into the same dir waits for the first,
 then reuses its native words (or errors on a mismatch) instead of both
-running Whisper. It
+running Whisper. A refusal (mismatched cached words, a bad runs dir, a lock
+still held after an hour) prints one `error: …` line to stderr and exits 2. It
 writes `<id>.onnx-base-pipeline.json` predictions/reports plus a
 `summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
 share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`
