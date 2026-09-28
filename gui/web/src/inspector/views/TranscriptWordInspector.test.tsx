@@ -881,21 +881,25 @@ describe("TranscriptWordInspector", () => {
     expect(screen.getByLabelText("Corrected text")).toHaveValue("hello");
   });
 
-  it("gives the unverified-span hint role=status and describes the End index input only while it shows", async () => {
+  it("keeps the unverified-span status region mounted, fills it while the hint shows, and describes the End index input only then", async () => {
     const { container } = render(
       <TranscriptWordInspector trackId="host" wordIndex={0} />,
     );
+    const region = container.querySelector('p[role="status"]');
+    expect(region).not.toBeNull();
+    expect(region).toBeEmptyDOMElement();
     const endInput = screen.getByLabelText("End word index");
     expect(endInput).not.toHaveAttribute("aria-describedby");
     fireEvent.change(endInput, { target: { value: "5" } });
     const hint = screen.getByText(/can't check whether someone else changed/);
-    expect(hint).toHaveAttribute("role", "status");
+    expect(hint).toBe(region);
+    expect(hint).toHaveClass("ui-field-hint");
     expect(endInput).toHaveAttribute("aria-describedby", hint.id);
     fireEvent.change(endInput, { target: { value: "0" } });
     expect(endInput).not.toHaveAttribute("aria-describedby");
-    expect(
-      screen.queryByText(/can't check whether someone else changed/),
-    ).toBeNull();
+    expect(region).toBeInTheDocument();
+    expect(region).toBeEmptyDOMElement();
+    expect(region).toHaveClass("sr-only");
     await expectNoA11yViolations(container);
   });
 });
