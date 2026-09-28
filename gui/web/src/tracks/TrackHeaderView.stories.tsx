@@ -49,6 +49,7 @@ const meta: Meta<typeof TrackHeaderView> = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
+        trackLabel={exampleTrack.label}
         muteState="off"
         solo={false}
         editsMix
@@ -97,6 +98,7 @@ export const SavedMute: Story = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
+        trackLabel={exampleTrack.label}
         muteState="saved"
         solo={false}
         editsMix
@@ -106,7 +108,7 @@ export const SavedMute: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("button", { name: "M" }),
+      within(canvasElement).getByRole("button", { name: "Mute Mira voice" }),
     ).toHaveAttribute("data-mute-state", "saved");
   },
 };
@@ -117,6 +119,7 @@ export const ListenMuteAndSolo: Story = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
+        trackLabel={exampleTrack.label}
         muteState="listen"
         solo
         editsMix={false}
@@ -126,7 +129,7 @@ export const ListenMuteAndSolo: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("button", { name: "S" }),
+      within(canvasElement).getByRole("button", { name: "Solo Mira voice" }),
     ).toHaveAttribute("aria-pressed", "true");
   },
 };
@@ -136,6 +139,7 @@ export const Soloed: Story = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
+        trackLabel={exampleTrack.label}
         muteState="off"
         solo
         editsMix
@@ -145,7 +149,7 @@ export const Soloed: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("button", { name: "S" }),
+      within(canvasElement).getByRole("button", { name: "Solo Mira voice" }),
     ).toHaveAttribute("aria-pressed", "true");
   },
 };
@@ -155,6 +159,7 @@ export const ImpliedMute: Story = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
+        trackLabel={exampleTrack.label}
         muteState="implied"
         solo={false}
         editsMix
@@ -163,9 +168,11 @@ export const ImpliedMute: Story = {
     ),
   },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", { name: "M" }),
-    ).toHaveAttribute("data-mute-state", "implied");
+    const mute = within(canvasElement).getByRole("button", {
+      name: "Mute Mira voice",
+    });
+    await expect(mute).toHaveAttribute("data-mute-state", "implied");
+    await expect(mute.title).toContain("soloed another track");
   },
 };
 
@@ -197,6 +204,7 @@ export const EmptyTrack: Story = {
     mixer: (
       <TrackMuteSoloButtonsView
         trackId="blank-lane"
+        trackLabel="Empty lane"
         muteState="off"
         solo={false}
         editsMix

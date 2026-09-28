@@ -40,6 +40,7 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
   return (
     <TrackMuteSoloButtonsView
       trackId={trackId}
+      trackLabel={track?.label || trackId}
       muteState={state}
       solo={solo}
       editsMix={editsMix}

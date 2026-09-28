@@ -46,7 +46,7 @@ describe("TrackMuteSoloButtons (#386)", () => {
     expect(mute).not.toHaveAttribute("aria-disabled");
     expect(mute).toHaveAttribute(
       "title",
-      "Muted in the mix, for everyone and every export",
+      "Unmute (M). Muted in the mix, for everyone and every export",
     );
     expect(mute.className).not.toContain("mute-listen");
     await expectNoA11yViolations(container);
@@ -72,7 +72,7 @@ describe("TrackMuteSoloButtons (#386)", () => {
     expect(mute).toHaveAttribute("data-mute-state", "listen");
     expect(mute).toHaveAttribute("aria-pressed", "true");
     expect(mute.className).toContain("mute-listen");
-    expect(mute).toHaveAttribute("title", "Muted for you only");
+    expect(mute).toHaveAttribute("title", "Unmute (M). Muted for you only");
     await expectNoA11yViolations(container);
   });
 
@@ -80,8 +80,13 @@ describe("TrackMuteSoloButtons (#386)", () => {
     const { mute, solo } = renderButtons({ soloTracks: { guest: true } });
     expect(mute).toHaveAttribute("data-mute-state", "implied");
     expect(mute).toHaveAttribute("aria-pressed", "false");
-    expect(mute).toHaveAccessibleDescription("Silenced by your solo");
-    expect(solo).toHaveAttribute("title", "Solo for you only");
+    expect(mute).toHaveAccessibleDescription(
+      "Mute (M). Not muted: silent because you soloed another track, and only you hear it that way",
+    );
+    expect(solo).toHaveAttribute(
+      "title",
+      "Solo (S). Solos the track for you only",
+    );
   });
 
   it("keeps a saved mute saved while you solo that track", () => {
@@ -93,8 +98,42 @@ describe("TrackMuteSoloButtons (#386)", () => {
   it("marks solo as listen-only", () => {
     const { mute, solo } = renderButtons({ soloTracks: { host: true } });
     expect(solo).toHaveAttribute("aria-pressed", "true");
-    expect(solo).toHaveAttribute("title", "Soloed for you only");
+    expect(solo).toHaveAttribute("title", "Unsolo (S). Soloed for you only");
     expect(mute).toHaveAttribute("data-mute-state", "off");
-    expect(mute).toHaveAttribute("title", "Mute in the mix");
+    expect(mute).toHaveAttribute(
+      "title",
+      "Mute (M). Mutes the track in the mix, for everyone",
+    );
+  });
+
+  it("names M and S after the track", async () => {
+    const project = minimalProject({
+      tracks: [sampleTrack({ id: "host", label: "Caleb" })],
+    });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackMuteSoloButtons trackId="host" />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.setState({ viewerMute: {}, soloTracks: {} });
+    });
+    const mute = screen.getByRole("button", { name: "Mute Caleb" });
+    const solo = screen.getByRole("button", { name: "Solo Caleb" });
+    expect(mute.title.startsWith("Mute (M)")).toBe(true);
+    expect(solo.title.startsWith("Solo (S)")).toBe(true);
+    await expectNoA11yViolations(container);
+  });
+
+  it("gives a guest a listen-only off tooltip", () => {
+    const { mute } = renderButtons({
+      projectPath: "share:tok",
+      shareCapabilities: ["view"],
+    });
+    expect(mute).toHaveAttribute("data-mute-state", "off");
+    expect(mute).toHaveAttribute(
+      "title",
+      "Mute (M). Mutes the track for you only",
+    );
   });
 });

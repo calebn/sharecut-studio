@@ -11,6 +11,7 @@ describe("TrackMuteSoloButtonsView", () => {
       <div role="group" aria-label="Mira mixer">
         <TrackMuteSoloButtonsView
           trackId="mira"
+          trackLabel="Mira"
           muteState="saved"
           solo
           editsMix={false}
@@ -19,11 +20,11 @@ describe("TrackMuteSoloButtonsView", () => {
         />
       </div>,
     );
-    expect(screen.getByRole("button", { name: "M" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Mute Mira" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
-    expect(screen.getByRole("button", { name: "S" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Solo Mira" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
