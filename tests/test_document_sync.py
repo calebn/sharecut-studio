@@ -760,6 +760,34 @@ def test_http_correction_past_shrunk_transcript_returns_409(minimal_project):
     assert response.json()["detail"]["conflict"] is True
 
 
+def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
+    """Two writers race one guarded correction; check and mutate share one lock (#650)."""
+    import threading
+
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+    from podcast_mcp.services.edit import EditService
+
+    _seed_host_words(minimal_project, ["teh", "quick", "fox"])
+    barrier = threading.Barrier(2)
+
+    def correct(text: str) -> str:
+        ws = ProjectWorkspace.open(minimal_project)
+        barrier.wait(timeout=10)
+        try:
+            EditService(ws).correct_word("host", 0, text, expected_text="teh")
+        except TranscriptTextChangedError:
+            return "conflict"
+        return text
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(correct, ["the", "tea"]))
+
+    assert outcomes.count("conflict") == 1
+    winner = next(o for o in outcomes if o != "conflict")
+    saved = ProjectWorkspace.open(minimal_project).project.transcripts[0].words[0].text
+    assert saved == winner
+
+
 def test_apply_maps_stale_target_errors_to_conflict():
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
     from podcast_mcp.services.document_sync.service import STALE_TARGET_ERRORS
