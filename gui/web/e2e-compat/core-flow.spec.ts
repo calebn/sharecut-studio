@@ -98,9 +98,12 @@ test.describe("core flow", () => {
             ),
           ).toBeVisible({ timeout: 30_000 });
 
-          expect(await landedTrackPeak(projectPath, "Ava")).toBeGreaterThan(
-            AUDIBLE_PEAK,
-          );
+          // Poll: nothing pins landing's project write before the landed UI signal.
+          await expect
+            .poll(() => landedTrackPeak(projectPath, "Ava").catch(() => 0), {
+              timeout: 15_000,
+            })
+            .toBeGreaterThan(AUDIBLE_PEAK);
 
           const closeRoom = roomDlg.getByRole("button", {
             name: "Close",
