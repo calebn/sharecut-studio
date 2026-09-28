@@ -16,6 +16,7 @@ import {
   type AppliedCursor,
   advanceCursorIfNewer,
   baselineFromSnapshot,
+  sessionPollAlreadyApplied,
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "../session/dedupe";
@@ -25,7 +26,6 @@ import { useDawStore } from "../state/dawStore";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
-const FALLBACK_POLL_MS = 1500;
 const PLAYHEAD_HEARTBEAT_MS = 200;
 const DISCRETE_DEBOUNCE_MS = 50;
 
@@ -69,7 +69,8 @@ function wsUrl(projectPath: string, clientId: string): string {
 }
 
 /**
- * Session sync: WebSocket primary (Applied fanout), HTTP publish + mtime fallback.
+ * Session sync: WebSocket primary (Applied fanout), HTTP publish fallback, and
+ * a 30 s meta sanity poll for other processes' writes.
  *
  * Presence and durable deltas (`ViewerState`) publish over WS while it is
  * open. POST /api/session/state is the socket-down / rejected / unechoed
@@ -318,16 +319,20 @@ export function useSessionSync(
   }, []);
   usePresencePublisher(wsReady ? sendPresence : null, "Host");
 
+  // The sanity poll catches session commands written by another process
+  // (stdio MCP, `podcast session` / `podcast play`).
   useFileMetaPoll(
     enabled && Boolean(projectPath),
     () => loadSessionMeta(projectPath),
-    async () => {
+    async (meta) => {
+      if (sessionPollAlreadyApplied(meta.server_seq, cursorRef.current)) {
+        return;
+      }
       const state = await loadSessionState(projectPath);
       if (state) {
         applyRemote(state);
       }
     },
-    FALLBACK_POLL_MS,
   );
 
   /**

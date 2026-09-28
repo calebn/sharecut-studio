@@ -4,6 +4,7 @@ import { resetDocumentSeqForTests } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
+import { SANITY_POLL_MS } from "./useFileMetaPoll";
 import { useGuestSyncAndProjectPoll } from "./useGuestSyncAndProjectPoll";
 
 const loadProject = vi.fn();
@@ -67,7 +68,7 @@ describe("useGuestSyncAndProjectPoll", () => {
       FakeWebSocket.instances[0].open();
     });
     await vi.advanceTimersByTimeAsync(0); // useFileMetaPoll baseline read
-    expect(await metaCallsOver(1500)).toBe(1); // open: useProjectPoll only
+    expect(await metaCallsOver(SANITY_POLL_MS)).toBe(1); // open: useProjectPoll only
 
     await act(async () => {
       FakeWebSocket.instances[0].close();
@@ -85,6 +86,6 @@ describe("useGuestSyncAndProjectPoll", () => {
     );
     await vi.advanceTimersByTimeAsync(0);
     expect(FakeWebSocket.instances).toHaveLength(0);
-    expect(await metaCallsOver(1500)).toBe(1);
+    expect(await metaCallsOver(SANITY_POLL_MS)).toBe(1);
   });
 });

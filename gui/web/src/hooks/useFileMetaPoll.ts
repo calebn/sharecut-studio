@@ -7,19 +7,22 @@ export interface FileMeta {
   server_seq?: number;
 }
 
-const DEFAULT_POLL_MS = 1500;
+// Sockets deliver in-process changes immediately; this sanity poll only
+// catches writes made by other processes (#662).
+export const SANITY_POLL_MS = 30_000;
 
 /**
  * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.
  * First successful meta read only baselines — does not fire onChange.
  * server_seq counts only between two readings: a response without it (the
  * server could not read document.db) is ignored for the seq comparison.
+ * Also checks at once when the window regains focus or the tab becomes visible.
  */
 export function useFileMetaPoll(
   enabled: boolean,
   fetchMeta: () => Promise<FileMeta>,
   onChange: (meta: FileMeta) => void | Promise<void>,
-  intervalMs = DEFAULT_POLL_MS,
+  intervalMs = SANITY_POLL_MS,
 ): void {
   const mtimeRef = useRef<number | null>(null);
   const sizeRef = useRef<number | null | undefined>(null);
@@ -89,9 +92,18 @@ export function useFileMetaPoll(
     const id = window.setInterval(() => {
       void tick();
     }, intervalMs);
+    const onFocus = () => {
+      if (document.visibilityState !== "hidden") {
+        void tick();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
   }, [enabled, intervalMs]);
 }

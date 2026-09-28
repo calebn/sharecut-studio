@@ -3,6 +3,7 @@ import type { SessionState } from "../types/session";
 import {
   advanceCursorIfNewer,
   baselineFromSnapshot,
+  sessionPollAlreadyApplied,
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "./dedupe";
@@ -73,6 +74,38 @@ describe("advanceCursorIfNewer", () => {
         snap({ server_seq: 3, last_command_id: "cmd-3" }),
       ),
     ).toEqual({ serverSeq: 3, commandId: "cmd-3" });
+  });
+});
+
+describe("sessionPollAlreadyApplied", () => {
+  it("is true when meta seq equals the applied cursor", () => {
+    expect(
+      sessionPollAlreadyApplied(5, { serverSeq: 5, commandId: null }),
+    ).toBe(true);
+  });
+
+  it("is true when meta seq is behind the applied cursor", () => {
+    expect(
+      sessionPollAlreadyApplied(4, { serverSeq: 5, commandId: null }),
+    ).toBe(true);
+  });
+
+  it("is false when meta seq is ahead of the applied cursor", () => {
+    expect(
+      sessionPollAlreadyApplied(6, { serverSeq: 5, commandId: null }),
+    ).toBe(false);
+  });
+
+  it("is false when meta seq is undefined", () => {
+    expect(
+      sessionPollAlreadyApplied(undefined, { serverSeq: 5, commandId: null }),
+    ).toBe(false);
+  });
+
+  it("is false when both meta seq and the cursor are zero", () => {
+    expect(
+      sessionPollAlreadyApplied(0, { serverSeq: 0, commandId: null }),
+    ).toBe(false);
   });
 });
 

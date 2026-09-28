@@ -109,6 +109,7 @@ export interface SessionMeta {
   mtime_ns: number;
   size: number;
   exists: boolean;
+  server_seq?: number;
 }
 
 export type ViewerSessionSnapshot = Partial<{

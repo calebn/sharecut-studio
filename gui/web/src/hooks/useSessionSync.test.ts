@@ -4,6 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { SessionState } from "../types/session";
+import { SANITY_POLL_MS } from "./useFileMetaPoll";
 import { useSessionSync } from "./useSessionSync";
 
 vi.mock("../api", () => ({
@@ -1024,6 +1025,131 @@ describe("useSessionSync presence", () => {
       });
       expect(apply).toHaveBeenCalledTimes(1);
       expect(postSessionState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips loadSessionState on the sanity poll when meta seq is not newer than the cursor", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { loadSessionMeta, loadSessionState } = await import("../api");
+      vi.mocked(loadSessionMeta).mockResolvedValueOnce({
+        path: "/tmp/ep.project.json",
+        mtime_ns: 1,
+        size: 1,
+        exists: true,
+        server_seq: 3,
+      });
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Snapshot",
+          snapshot: {
+            server_seq: 3,
+            last_command_id: "cmd-3",
+            origin: "agent",
+            last_role: "agent",
+            playhead_sec: 0,
+          },
+        });
+      });
+
+      vi.mocked(loadSessionMeta).mockResolvedValueOnce({
+        path: "/tmp/ep.project.json",
+        mtime_ns: 2,
+        size: 1,
+        exists: true,
+        server_seq: 3,
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
+      });
+      expect(loadSessionState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies an agent session from the sanity poll when meta seq advances", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { loadSessionMeta, loadSessionState } = await import("../api");
+      vi.mocked(loadSessionMeta).mockResolvedValueOnce({
+        path: "/tmp/ep.project.json",
+        mtime_ns: 1,
+        size: 1,
+        exists: true,
+        server_seq: 3,
+      });
+      const apply = vi.fn();
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          type: "Snapshot",
+          snapshot: {
+            server_seq: 3,
+            last_command_id: "cmd-3",
+            origin: "agent",
+            last_role: "agent",
+            playhead_sec: 0,
+          },
+        });
+      });
+      apply.mockClear();
+
+      vi.mocked(loadSessionMeta).mockResolvedValueOnce({
+        path: "/tmp/ep.project.json",
+        mtime_ns: 2,
+        size: 1,
+        exists: true,
+        server_seq: 4,
+      });
+      vi.mocked(loadSessionState).mockResolvedValueOnce({
+        server_seq: 4,
+        last_command_id: "cli-1",
+        origin: "agent",
+        last_role: "agent",
+        playhead_sec: 9,
+      } as SessionState);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
+      });
+      expect(apply).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
