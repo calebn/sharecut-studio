@@ -4,8 +4,10 @@ import {
   setTranscriptWordsIgnored,
 } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
+import { useMountedRef } from "../../hooks/useMountedRef";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
+import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
@@ -24,6 +26,7 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { errorMessage } from "../../utils/apiError";
 import { findTranscriptWord, wordSeekSec } from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -50,6 +53,7 @@ export function TranscriptWordInspector({
     [project, trackId, wordIndex, wordsHydrated],
   );
   const { busy, error, setError, run } = useProjectMutation();
+  const mountedRef = useMountedRef();
   const [text, setText] = useState(word?.text ?? "");
   const [endIndexStr, setEndIndexStr] = useState(String(wordIndex));
 
@@ -64,6 +68,36 @@ export function TranscriptWordInspector({
   const ignored = Boolean(word?.ignored);
   const lowConf = word != null && isLowConfidenceWord(word);
 
+  /**
+   * Run one action on this word. Parents key this inspector per word, so a
+   * failure that settles after it unmounted (the selection moved, e.g. a
+   * low-confidence walkthrough step) goes to the transcript's late-failure
+   * banner instead of being lost or shown under the next word.
+   */
+  const runForWord = async (fn: () => Promise<unknown>) => {
+    const originalText = word?.text ?? "";
+    let failure: unknown;
+    let failed = false;
+    await run(async () => {
+      try {
+        await fn();
+      } catch (e) {
+        failed = true;
+        failure = e;
+        throw e;
+      }
+    });
+    if (failed && !mountedRef.current) {
+      useDawStore.getState().setTranscriptInlineEditFailure({
+        projectPath,
+        trackId,
+        wordIndex,
+        originalText,
+        message: `Could not update “${originalText}”: ${errorMessage(failure)}`,
+      });
+    }
+  };
+
   const applyText = async () => {
     const endIndex = Number.parseInt(endIndexStr, 10);
     const problem = wordCorrectionError(text, wordIndex, endIndex);
@@ -71,32 +105,27 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
-    await run(() =>
+    await runForWord(() =>
       submitWordCorrection(projectPath, trackId, wordIndex, endIndex, text),
     );
   };
 
   const toggleSuppress = async () => {
-    await run(async () => {
-      await setTranscriptWordSuppressed(
-        projectPath,
-        trackId,
-        wordIndex,
-        !suppressed,
-      );
-    });
+    await runForWord(() =>
+      setTranscriptWordSuppressed(projectPath, trackId, wordIndex, !suppressed),
+    );
   };
 
   const toggleIgnored = async () => {
-    await run(async () => {
-      await setTranscriptWordsIgnored(
+    await runForWord(() =>
+      setTranscriptWordsIgnored(
         projectPath,
         trackId,
         wordIndex,
         wordIndex,
         !ignored,
-      );
-    });
+      ),
+    );
   };
 
   if (!wordsHydrated) {

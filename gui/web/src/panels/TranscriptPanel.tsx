@@ -925,6 +925,7 @@ export function TranscriptPanel() {
       {dockWordEditor && selection?.kind === "transcriptWord" ? (
         <div className="transcript-docked-editor">
           <TranscriptWordInspector
+            key={`${selection.trackId}:${selection.wordIndex}`}
             trackId={selection.trackId}
             wordIndex={selection.wordIndex}
             embedded
