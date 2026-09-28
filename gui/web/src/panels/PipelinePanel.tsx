@@ -684,6 +684,8 @@ export function PipelinePanel() {
     if (!cfg) {
       return;
     }
+    // Re-time words needs Whisper too: its run still transcribes any dialogue track that
+    // has no stored transcript yet (only reused transcripts are re-timed from the ASR cache).
     if (transcribeStepEnabled(cfg) || mode !== "run") {
       const modelId = whisperModelId(cfg);
       if (!whisperModelCached(cfg, modelId)) {
