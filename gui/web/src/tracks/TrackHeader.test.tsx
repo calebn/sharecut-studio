@@ -5,6 +5,7 @@ import { execute } from "../commands/execute";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import type { DawTab } from "../state/types";
 import { minimalProject } from "../test/fixtures";
 import { TrackHeader } from "./TrackHeader";
 
@@ -206,45 +207,27 @@ describe("TrackHeader", () => {
     expect(onSelect).toHaveBeenCalledWith(false);
   });
 
-  it("Space on the reorder grip selects the track instead of toggling play", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    vi.mocked(execute).mockClear();
-    const project = projectWithTrack();
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
-        <KeymapHost />
-        <TrackHeader
-          track={project.tracks[0]}
-          trackIndex={0}
-          selected={false}
-          onSelect={onSelect}
-          reorderEnabled
-        />
-      </DawProvider>,
-    );
-    useDawStore.setState({ timelineFocused: true });
-    const grip = screen.getByRole("button", { name: /Reorder track Guest/i });
-    grip.focus();
-    await user.keyboard(" ");
-    expect(onSelect).toHaveBeenCalledWith(false);
-    expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
-      "transport.togglePlay",
-      expect.anything(),
-      expect.anything(),
-    );
-  });
-
   const activationRows: {
+    label: string;
     name: RegExp | string;
+    reorderEnabled?: boolean;
     expectActivated: (onSelect: ReturnType<typeof vi.fn>) => void;
   }[] = [
     {
+      label: "the open button",
       name: /Open track details, Guest/i,
       expectActivated: (onSelect) =>
         expect(onSelect).toHaveBeenCalledWith(false),
     },
     {
+      label: "the reorder grip",
+      name: /Reorder track Guest/i,
+      reorderEnabled: true,
+      expectActivated: (onSelect) =>
+        expect(onSelect).toHaveBeenCalledWith(false),
+    },
+    {
+      label: "Mute",
       name: "Mute Guest",
       expectActivated: () =>
         expect(vi.mocked(execute)).toHaveBeenCalledWith(
@@ -254,6 +237,7 @@ describe("TrackHeader", () => {
         ),
     },
     {
+      label: "Solo",
       name: "Solo Guest",
       expectActivated: () =>
         expect(vi.mocked(execute)).toHaveBeenCalledWith(
@@ -264,9 +248,42 @@ describe("TrackHeader", () => {
     },
   ];
 
-  it.each(activationRows)(
-    "Space on %s activates it instead of toggling play",
-    async ({ name, expectActivated }) => {
+  // Space would toggle playback and Enter (on the Tighten tab) would apply a
+  // tighten hit if the key reached the window keymap.
+  const activationKeys: {
+    key: string;
+    typed: string;
+    activeTab: DawTab;
+    blocked: string;
+  }[] = [
+    {
+      key: "Space",
+      typed: " ",
+      activeTab: "transcript",
+      blocked: "transport.togglePlay",
+    },
+    {
+      key: "Enter",
+      typed: "{Enter}",
+      activeTab: "tighten",
+      blocked: "tighten.applyHit",
+    },
+  ];
+
+  const activationCases = activationKeys.flatMap((k) =>
+    activationRows.map((row) => ({ ...k, ...row })),
+  );
+
+  it.each(activationCases)(
+    "$key on $label activates it instead of running $blocked",
+    async ({
+      typed,
+      activeTab,
+      blocked,
+      name,
+      reorderEnabled,
+      expectActivated,
+    }) => {
       const user = userEvent.setup();
       const onSelect = vi.fn();
       vi.mocked(execute).mockClear();
@@ -279,53 +296,22 @@ describe("TrackHeader", () => {
             trackIndex={0}
             selected={false}
             onSelect={onSelect}
+            reorderEnabled={reorderEnabled}
           />
         </DawProvider>,
       );
-      useDawStore.setState({ timelineFocused: true });
+      useDawStore.setState({ timelineFocused: true, activeTab });
       const button = screen.getByRole("button", { name });
       button.focus();
-      await user.keyboard(" ");
+      await user.keyboard(typed);
       expectActivated(onSelect);
       expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
-        "transport.togglePlay",
+        blocked,
         expect.anything(),
         expect.anything(),
       );
     },
   );
-
-  it("Enter on Mute does not apply a tighten hit", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    vi.mocked(execute).mockClear();
-    const project = projectWithTrack();
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
-        <KeymapHost />
-        <TrackHeader
-          track={project.tracks[0]}
-          trackIndex={0}
-          selected={false}
-          onSelect={onSelect}
-        />
-      </DawProvider>,
-    );
-    useDawStore.setState({ timelineFocused: true, activeTab: "tighten" });
-    const button = screen.getByRole("button", { name: "Mute Guest" });
-    button.focus();
-    await user.keyboard("{Enter}");
-    expect(vi.mocked(execute)).toHaveBeenCalledWith(
-      "track.muteToggle",
-      { trackId: "guest" },
-      { skipWhen: true },
-    );
-    expect(vi.mocked(execute)).not.toHaveBeenCalledWith(
-      "tighten.applyHit",
-      expect.anything(),
-      expect.anything(),
-    );
-  });
 
   it("shows no stem dot for a new track with no audio, matching the status bar", () => {
     const project = minimalProject({
