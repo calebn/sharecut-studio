@@ -101,7 +101,8 @@ hands off to the live shortcuts owner; the story does not render that owner.
 preview so clicking Select/Blade/Comment, confirming a blade cut, or
 switching shortcut tabs and remap fields behaves like the live surface
 without mounting the DAW store; the palette story uses fixed shortcut rows
-rather than the live keymap registry; the live
+rather than the live keymap registry, and `commandPaletteRows.test.ts` checks
+them against the registry and catalog so the copy cannot drift; the live
 `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters keep reading
 DAW state and dispatching through `execute`.
 
