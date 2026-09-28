@@ -349,12 +349,9 @@ export function PipelinePanel() {
       setReasons(view.reasons);
       setTrackRows(view.trackRows);
       setHighlightPaths(view.highlightPaths);
-      // The other viewer's apply patched the working set; re-read it.
-      const reload = persistRequest.begin();
-      const fresh = await loadPipelineConfig(projectPath);
-      if (!signal.aborted && persistRequest.isCurrent(reload)) {
-        setCfg(fresh);
-      }
+      // The other viewer's apply patched the working set; re-read it once any local
+      // config write settles, so a GET served before that PUT cannot win.
+      await rereadAfterAnalyze(view.patches, () => !signal.aborted);
     },
   );
 
@@ -445,6 +442,40 @@ export function PipelinePanel() {
       setCfg(next);
     }
     return next;
+  };
+
+  /**
+   * Re-read the working set after Analyze patched it, once any in-flight config PUT
+   * settles, then keep highlighting only fields that still hold Analyze's patched
+   * value. Skips the re-read when a newer write began meanwhile: that write's own
+   * response carries the server state. `stillCurrent` drops an abandoned caller.
+   */
+  const rereadAfterAnalyze = async (
+    patches: Record<string, unknown>,
+    stillCurrent: () => boolean,
+  ): Promise<void> => {
+    const latest = persistRequest.peek();
+    await lastPersist.current.catch(() => undefined);
+    // If that write failed, onParamChange's snapshot revert either already ran or is
+    // retired by the reload's begin() below, so the re-read deliberately wins.
+    if (!stillCurrent() || !persistRequest.isCurrent(latest)) {
+      return;
+    }
+    const reload = persistRequest.begin();
+    const fresh = await loadPipelineConfig(projectPath);
+    if (stillCurrent() && persistRequest.isCurrent(reload)) {
+      setCfg(fresh);
+      // A write that landed after apply_patches can replace a patched value; only
+      // highlight fields that still hold Analyze's value.
+      setHighlightPaths(
+        (prev) =>
+          new Set(
+            [...prev].filter((p) =>
+              sameLeafValue(getByPath(fresh.config, p), getByPath(patches, p)),
+            ),
+          ),
+      );
+    }
   };
 
   /** Resolves true only when this toggle's config is the one now shown in `cfg`. */
@@ -574,35 +605,7 @@ export function PipelinePanel() {
       setAnalyzing(false);
       // A full-config PUT sent during the scan may have landed after apply_patches and
       // replaced the patched config, so re-read the server once that write settles.
-      const latest = persistRequest.peek();
-      await lastPersist.current.catch(() => undefined);
-      // If that write failed, onParamChange's snapshot revert either already ran or is
-      // retired by the reload's begin() below, so the re-read deliberately wins.
-      if (
-        !analyzeRequest.isCurrent(token) ||
-        !persistRequest.isCurrent(latest)
-      ) {
-        // A newer write's own response carries the server state.
-        return;
-      }
-      const reload = persistRequest.begin();
-      const fresh = await loadPipelineConfig(projectPath);
-      if (analyzeRequest.isCurrent(token) && persistRequest.isCurrent(reload)) {
-        setCfg(fresh);
-        // A write that landed after apply_patches can replace a patched value; only
-        // highlight fields that still hold Analyze's value.
-        setHighlightPaths(
-          (prev) =>
-            new Set(
-              [...prev].filter((p) =>
-                sameLeafValue(
-                  getByPath(fresh.config, p),
-                  getByPath(patches, p),
-                ),
-              ),
-            ),
-        );
-      }
+      await rereadAfterAnalyze(patches, () => analyzeRequest.isCurrent(token));
     } catch (e) {
       if (analyzeRequest.isCurrent(token)) {
         setError(errorMessage(e));
