@@ -3,9 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 
-from podcast_mcp.engines.play_audit import invalidate_stem_hashes
-from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
-from podcast_mcp.engines.render_invalidations import replace_with_whole_track
+from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.history.summary import format_history_group_title, summarize_diff
@@ -13,7 +11,6 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
-from podcast_mcp.util.tracks import dialogue_track_ids
 
 
 def _group_history_entries(entries: list) -> list[dict]:
@@ -103,20 +100,22 @@ class HistoryService:
         """Commit a history move with its stale marks; optionally re-render the preview.
 
         The move and its stale marks are saved in one step inside ``ProjectWorkspace.transaction()``,
-        so no other writer commits between them and is overwritten. A render takes
-        seconds, so it runs between ``checkpoint()`` and ``save_merged()``: an edit another
-        request commits meanwhile is merged in, not overwritten (#493). If the render or
-        the merge fails, the move stays saved, so the error says to re-render the preview,
-        not to repeat the move. A failed render also discards its unsaved changes from the workspace.
+        so no other writer commits between them and is overwritten. The stale marks cover
+        only what the move changed (#424): reconciliation only when the restored audio
+        state's fingerprint differs, and the render cause journal only for dialogue tracks
+        whose render hash moved. A render takes seconds, so it runs between
+        ``checkpoint()`` and ``save_merged()``: an edit another request commits meanwhile is
+        merged in, not overwritten (#493). If the render or the merge fails, the move stays
+        saved, so the error says to re-render the preview, not to repeat the move. A failed
+        render also discards its unsaved changes from the workspace.
 
         Returns ``status()`` read after the save. When a concurrent edit was merged in,
         its cursor is the ``after merging concurrent edits`` entry, not the move's target.
         """
         with self.ws.transaction() as project:
+            before = AudioStateBefore.capture(project)
             move(project)
-            mark_reconciliation_stale(project)
-            invalidate_stem_hashes(project)
-            replace_with_whole_track(project, dialogue_track_ids(project), reason="other")
+            mark_history_move_stale(project, before)
             self.ws.save()
         if not rerender:
             return self.status()

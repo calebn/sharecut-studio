@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import TypeVar
 
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
-from podcast_mcp.engines.play_audit import stem_is_fresh, track_render_hash
+from podcast_mcp.engines.play_audit import (
+    changed_render_hashes,
+    dialogue_render_hashes,
+    stem_is_fresh,
+)
 from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
     mark_reconciliation_stale,
@@ -30,7 +34,6 @@ from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_state_lock,
 )
-from podcast_mcp.util.tracks import dialogue_track_ids
 
 T = TypeVar("T")
 log = logging.getLogger(__name__)
@@ -93,9 +96,7 @@ def _run_mutation_locked(
     store = ProjectStore(path)
     mgr = HistoryManager(path)
     fingerprint_before = audio_state_fingerprint(project)
-    track_hashes_before = {
-        tid: track_render_hash(project, tid) for tid in dialogue_track_ids(project)
-    }
+    track_hashes_before = dialogue_render_hashes(project)
     log_len_before = len(project.editorial.edit_log)
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
@@ -135,11 +136,7 @@ def _record_audio_changes(
     if audio_state_fingerprint(project) == fingerprint_before:
         return
     mark_reconciliation_stale(project)
-    changed_tracks = [
-        tid
-        for tid in dialogue_track_ids(project)
-        if track_render_hash(project, tid) != track_hashes_before.get(tid)
-    ]
+    changed_tracks = changed_render_hashes(track_hashes_before, dialogue_render_hashes(project))
     record_after_audio_mutation(
         project,
         changed_track_ids=changed_tracks,

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines.play_audit import (
+    changed_render_hashes,
     clear_invalidations_if_current,
     expected_stem_duration_sec,
     mix_render_hash,
@@ -361,3 +362,9 @@ def test_stem_matches_uses_the_fingerprint_not_the_live_project(tmp_path, sample
 
     fp2 = stem_fingerprint(project, "host")
     assert stem_matches(project, "host", fp2) is False
+
+
+def test_changed_render_hashes() -> None:
+    before = {"a": "1", "b": "2"}
+    after = {"a": "1", "b": "3", "c": "4"}
+    assert changed_render_hashes(before, after) == ["b", "c"]

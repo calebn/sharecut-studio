@@ -740,16 +740,16 @@ def test_history_move_rerender_cursor_clash_says_to_check_history_status(
 def test_history_move_saves_its_stale_marks_before_another_commit(minimal_project):
     ws = _with_undoable_gain(minimal_project)
     other = threading.Thread(target=_other_sets_volume, args=(minimal_project,))
-    real_mark = history_service_mod.mark_reconciliation_stale
+    real_mark = history_service_mod.mark_history_move_stale
 
-    def mark_while_another_request_commits(project):
+    def mark_while_another_request_commits(project, before):
         other.start()
         other.join(timeout=0.2)
         assert other.is_alive(), "the other commit must wait until the move is saved"
-        real_mark(project)
+        real_mark(project, before)
 
     with patch.object(
-        history_service_mod, "mark_reconciliation_stale", mark_while_another_request_commits
+        history_service_mod, "mark_history_move_stale", mark_while_another_request_commits
     ):
         HistoryService(ws).undo()
     other.join(timeout=5)

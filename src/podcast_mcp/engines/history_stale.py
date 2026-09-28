@@ -1,0 +1,53 @@
+"""Stale marks for an undo, redo or history jump: only what the move changed (#424)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from podcast_mcp.engines.play_audit import (
+    changed_render_hashes,
+    dialogue_render_hashes,
+    read_stem_hash,
+)
+from podcast_mcp.engines.reconciliation_state import (
+    audio_state_fingerprint,
+    mark_reconciliation_stale,
+)
+from podcast_mcp.engines.render_invalidations import (
+    clear_invalidations_for_tracks,
+    replace_with_whole_track,
+)
+from podcast_mcp.models import EpisodeProject
+
+
+@dataclass(frozen=True)
+class AudioStateBefore:
+    """Dialogue audio identity captured before a history move."""
+
+    fingerprint: str
+    render_hashes: dict[str, str]
+
+    @classmethod
+    def capture(cls, project: EpisodeProject) -> AudioStateBefore:
+        return cls(audio_state_fingerprint(project), dialogue_render_hashes(project))
+
+
+def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -> None:
+    """Mark stale what the move changed, and nothing else.
+
+    Stem hash sidecars stay: ``track_render_hash`` is content-addressed and every reader
+    compares against it, so a stem is stale exactly when its sidecar no longer matches,
+    and fresh again when a redo returns to the state it was rendered at. Reconciliation
+    is marked stale only when ``audio_state_fingerprint`` moved. The render cause journal
+    changes only for tracks whose render hash changed: one whose stem matches the
+    restored state drops its cause journal, else it gets a whole-track marker.
+    """
+    after = dialogue_render_hashes(project)
+    if audio_state_fingerprint(project) != before.fingerprint:
+        mark_reconciliation_stale(project)
+    changed = changed_render_hashes(before.render_hashes, after)
+    rendered = [tid for tid in changed if read_stem_hash(project, tid) == after[tid]]
+    clear_invalidations_for_tracks(project, rendered)
+    replace_with_whole_track(
+        project, [tid for tid in changed if tid not in rendered], reason="other"
+    )
