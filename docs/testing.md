@@ -531,9 +531,11 @@ settles.
 ### Browser acceptance matrix
 
 Per-engine results for every check in the
-[§ Browser compatibility matrix](#browser-compatibility-matrix) run, from #703
-(Chromium, PR #739) and #704 (WebKit, PR #747). Both PRs' `frontend-e2e` runs
-passed every row below. The Chromium column is Playwright's bundled Chromium,
+[§ Browser compatibility matrix](#browser-compatibility-matrix) run. Each Pass
+cell is backed by the required `frontend-e2e` job on `main`, which is what the
+guard below enforces. The matrix was first assembled from #703 (Chromium,
+PR #739) and #704 (WebKit, PR #747); those numbers are provenance only.
+The Chromium column is Playwright's bundled Chromium,
 standing in for Chrome (branded Chrome runs only locally, with
 `E2E_BRANDED_CHROME=1`). The WebKit column is Playwright WebKit, standing in
 for Safari; it is not Apple's Safari. No compat project runs Firefox, so no
@@ -560,8 +562,9 @@ test; other rows are whole tests.
 | takes a recording guest from microphone consent to a live level | `gui/web/e2e-compat/browser-matrix.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
 
-Measured locally on macOS: the core-flow landed track peaked at about 0.9999
-on Chromium (#739) and 0.636 on WebKit (#747), and the bounced WAV at about
+A dated snapshot, not a threshold (measured locally on macOS as of #739 and
+#747; no test re-checks these figures): the core-flow landed track peaked at
+about 0.9999 on Chromium and 0.636 on WebKit, and the bounced WAV at about
 0.892 on both. The walk took about 12.5–13.3 s on Chromium and 15.5–18 s on
 WebKit.
 
