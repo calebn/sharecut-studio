@@ -4,14 +4,7 @@ import { currentDocumentSeq, resetDocumentSeq } from "../document/cursor";
 import { mergeProjectPatch } from "../document/projectPatch";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { errorMessage } from "../utils/apiError";
-
-function isAbortError(e: unknown): boolean {
-  return (
-    (e instanceof DOMException && e.name === "AbortError") ||
-    (e instanceof Error && e.name === "AbortError")
-  );
-}
+import { errorMessage, isAbortError } from "../utils/apiError";
 
 /**
  * Fetch shell ProjectView then detail hydrate. Does not call store.hydrate()

@@ -25,7 +25,7 @@ import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
 import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { seedStudioJob } from "../state/seedStudioJob";
-import { errorMessage } from "../utils/apiError";
+import { errorMessage, isAbortError } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
@@ -267,7 +267,7 @@ export function registerHostCommands(): void {
       });
       return { status: "ok" };
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
+      if (isAbortError(err)) {
         return { status: "disabled", reason: "Project changed" };
       }
       const reason = errorMessage(err);

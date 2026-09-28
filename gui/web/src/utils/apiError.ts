@@ -21,6 +21,14 @@ export function errorMessage(error: unknown, fallback?: string): string {
   return error instanceof Error ? error.message : (fallback ?? String(error));
 }
 
+/** An abort from an AbortSignal: a DOMException or any Error named "AbortError". */
+export function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError")
+  );
+}
+
 /** A rate limit, timeout or server error: the same request may succeed later. */
 export function isRetryLater(error: unknown): boolean {
   if (!(error instanceof ApiError) || error.status === null) {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApiError,
   errorMessage,
+  isAbortError,
   isPermanentRejection,
   readApiFailure,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
@@ -97,5 +98,21 @@ describe("isPermanentRejection", () => {
     }
     expect(isPermanentRejection(new ApiError("x", null, null))).toBe(false);
     expect(isPermanentRejection(new Error("offline"))).toBe(false);
+  });
+});
+
+describe("isAbortError", () => {
+  it("accepts a DOMException or Error named AbortError", () => {
+    expect(isAbortError(new DOMException("Aborted", "AbortError"))).toBe(true);
+    const err = new Error("stop");
+    err.name = "AbortError";
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("rejects other errors and non-errors", () => {
+    expect(isAbortError(new DOMException("x", "NotFoundError"))).toBe(false);
+    expect(isAbortError(new Error("boom"))).toBe(false);
+    expect(isAbortError("AbortError")).toBe(false);
+    expect(isAbortError(null)).toBe(false);
   });
 });

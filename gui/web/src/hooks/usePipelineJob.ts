@@ -5,6 +5,7 @@ import type {
   PipelineJobSnapshot,
   PipelineStatusResponse,
 } from "../types/pipeline";
+import { isAbortError } from "../utils/apiError";
 import { createFallbackPoll, type FallbackPoll } from "../utils/fallbackPoll";
 import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
 
@@ -187,7 +188,7 @@ export function usePipelineJob(
         }
       })
       .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return;
         }
         /* ignore transient poll errors */
@@ -248,7 +249,7 @@ export function usePipelineJob(
           }, 2000);
         })
         .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === "AbortError") {
+          if (isAbortError(err)) {
             return;
           }
         });
@@ -307,7 +308,7 @@ export function usePipelineJob(
               }
             })
             .catch((err: unknown) => {
-              if (err instanceof DOMException && err.name === "AbortError") {
+              if (isAbortError(err)) {
                 return;
               }
             });
@@ -344,7 +345,7 @@ export function usePipelineJob(
         }
       })
       .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (isAbortError(err)) {
           return;
         }
       });
@@ -362,7 +363,7 @@ export function usePipelineJob(
           }
         })
         .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === "AbortError") {
+          if (isAbortError(err)) {
             return;
           }
           /* ignore */
