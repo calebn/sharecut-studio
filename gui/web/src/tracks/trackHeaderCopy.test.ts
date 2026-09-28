@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { displayShortcutFor } from "../keymap/registry";
 import { sampleTrack } from "../test/fixtures";
 import {
   outputGainTitle,
@@ -57,11 +58,21 @@ describe("trackSubtitle", () => {
 });
 
 describe("reorderHandleTitle", () => {
-  it("names both the drag and keyboard paths", () => {
-    const title = reorderHandleTitle();
-    expect(title).toContain("Drag to reorder");
-    expect(title).toContain("↑");
-    expect(title).toContain("↓");
+  it("names the drag path and the registry's move keys", () => {
+    const up = displayShortcutFor("track.moveUp");
+    const down = displayShortcutFor("track.moveDown");
+    expect(up).toBeTruthy();
+    expect(down).toBeTruthy();
+    expect(reorderHandleTitle()).toBe(
+      `Drag to reorder, or select the track and press ${up} / ${down}`,
+    );
+  });
+
+  it("drops the keyboard clause when either move is unbound", () => {
+    expect(reorderHandleTitle(() => undefined)).toBe("Drag to reorder");
+    expect(
+      reorderHandleTitle((id) => (id === "track.moveUp" ? "↑" : undefined)),
+    ).toBe("Drag to reorder");
   });
 });
 

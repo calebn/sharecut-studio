@@ -34,12 +34,19 @@ export function trackSubtitle(track: TrackView): string {
   return parts.join(" · ");
 }
 
-/** Tooltip for the track-reorder handle: names both the drag and key paths. */
-export function reorderHandleTitle(): string {
-  const up = displayShortcutFor("track.moveUp");
-  const down = displayShortcutFor("track.moveDown");
-  const keys = up && down ? `${up} / ${down}` : "↑ / ↓";
-  return `Drag to reorder, or select the track and press ${keys}`;
+/**
+ * Tooltip for the track-reorder handle: the drag path, plus the key path
+ * while both move commands are bound (never advertises unbound keys).
+ */
+export function reorderHandleTitle(
+  shortcutFor: (commandId: string) => string | undefined = displayShortcutFor,
+): string {
+  const up = shortcutFor("track.moveUp");
+  const down = shortcutFor("track.moveDown");
+  if (!up || !down) {
+    return "Drag to reorder";
+  }
+  return `Drag to reorder, or select the track and press ${up} / ${down}`;
 }
 
 /** Tooltip for the "Out" readout: what plays, and where to change it. */
