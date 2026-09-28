@@ -43,13 +43,18 @@ export class FakeResizeObserver {
     }
     return ro;
   }
-  /** Report a resize of `target` (the first target by default); `entry` adds fields such as `contentRect`. */
-  fire(
-    target: Element | undefined = this.targets[0],
-    entry: Partial<ResizeObserverEntry> = {},
-  ): void {
+  /**
+   * Report a resize in one callback, as a real observer batches its entries:
+   * of `target` when given, else of every watched target (nothing when none).
+   * `entry` adds fields such as `contentRect` to each entry.
+   */
+  fire(target?: Element, entry: Partial<ResizeObserverEntry> = {}): void {
+    const reported = target ? [target] : this.targets;
+    if (reported.length === 0) {
+      return;
+    }
     this.cb(
-      [{ target, ...entry } as ResizeObserverEntry],
+      reported.map((t) => ({ target: t, ...entry }) as ResizeObserverEntry),
       this as unknown as ResizeObserver,
     );
   }
