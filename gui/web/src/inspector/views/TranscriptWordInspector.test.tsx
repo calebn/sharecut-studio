@@ -261,7 +261,7 @@ describe("TranscriptWordInspector", () => {
     expect(correctTranscriptPhrase).not.toHaveBeenCalled();
   });
 
-  it("Ignore calls setTranscriptWordsIgnored(i, i, true)", async () => {
+  it("Ignore calls setTranscriptWordsIgnored(i, i, true) with the displayed text", async () => {
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
     await vi.waitFor(() => {
@@ -271,11 +271,12 @@ describe("TranscriptWordInspector", () => {
         0,
         0,
         true,
+        "hello",
       );
     });
   });
 
-  it("Restore calls setTranscriptWordsIgnored(i, i, false) for an ignored word", async () => {
+  it("Restore calls setTranscriptWordsIgnored(i, i, false) with the displayed text for an ignored word", async () => {
     const withIgnored = project();
     withIgnored.transcript!.utterances[0].words![0].ignored = true;
     useDawStore.setState({ project: withIgnored, projectPath: "/tmp/ep" });
@@ -293,6 +294,52 @@ describe("TranscriptWordInspector", () => {
         0,
         0,
         false,
+        "hello",
+      );
+    });
+  });
+
+  it("Suppress calls setTranscriptWordSuppressed with the displayed text", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        true,
+        "there",
+      );
+    });
+  });
+
+  it("Suppress sends null expected text for a duplicated index that disagrees", async () => {
+    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Suppress" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        true,
+        null,
+      );
+    });
+  });
+
+  it("Ignore sends null expected text for a duplicated index that disagrees", async () => {
+    useDawStore.setState({ project: projectWithDisagreeingDuplicate() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordsIgnored).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        1,
+        true,
+        null,
       );
     });
   });

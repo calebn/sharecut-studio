@@ -228,11 +228,13 @@ export async function setTranscriptWordSuppressed(
   trackId: string,
   wordIndex: number,
   suppressed: boolean,
+  expectedText?: string | null,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetTranscriptWordSuppressed", {
     track_id: trackId,
     word_index: wordIndex,
     suppressed,
+    ...(expectedText == null ? {} : { expected_text: expectedText }),
   });
 }
 
@@ -242,12 +244,14 @@ export async function setTranscriptWordsIgnored(
   startWordIndex: number,
   endWordIndex: number,
   ignored: boolean,
+  expectedText?: string | null,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "SetTranscriptWordsIgnored", {
     track_id: trackId,
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     ignored,
+    ...(expectedText == null ? {} : { expected_text: expectedText }),
   });
 }
 
