@@ -154,6 +154,11 @@ class TranscriptWord(BaseModel):
     # without a cut, pending edit, or EditDecision (#633). Distinct from `suppressed`
     # (a bleed/wrong-mic word dropped from the combined transcript text).
     ignored: bool = False
+    # A person or agent set `suppressed` on this word directly (set_word_suppressed,
+    # suppress-bleed), not through an automated pass. Reconcile treats the word like
+    # `ignored`: it leaves audibility_status, dominant_track and suppressed alone so a
+    # later reconcile pass can't undo the decision (#768).
+    audibility_locked: bool = False
 
     def __setattr__(self, name: str, value: Any) -> None:
         # In-place edits (refresh_silence_flags, word_align) must invalidate words memos (#729);

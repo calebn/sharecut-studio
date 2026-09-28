@@ -168,6 +168,26 @@ def test_text_match_overlap_suppresses_loser(tmp_path: Path) -> None:
     assert overlap_duplicate_report(project)["text_match_count"] == 0
 
 
+def test_text_match_skips_locked_loser(tmp_path: Path) -> None:
+    """A word a person/agent already decided to keep audible stays unsuppressed (#768)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words[0] = guest.words[0].model_copy(update={"audibility_locked": True})
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_equal_rms,
+    ):
+        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
+
+    assert suppressed == []
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    assert guest.words[0].suppressed is False
+
+
 def test_text_match_guest_wins_when_louder(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
 

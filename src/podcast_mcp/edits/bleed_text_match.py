@@ -134,7 +134,7 @@ def suppress_overlap_text_matches(
         if not tr or loser_idx >= len(tr.words):
             continue
         w = tr.words[loser_idx]
-        if w.suppressed:
+        if w.suppressed or w.audibility_locked:
             continue
         if start_sec is not None and w.start < start_sec:
             continue

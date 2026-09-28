@@ -263,7 +263,12 @@
         },
         "ignored": { "type": "boolean", "default": false },
         "audibility_status": { "type": ["string", "null"] },
-        "dominant_track": { "type": ["string", "null"] }
+        "dominant_track": { "type": ["string", "null"] },
+        "audibility_locked": {
+          "type": "boolean",
+          "default": false,
+          "description": "A person or agent set `suppressed` on this word directly; reconcile leaves it alone (#768)."
+        }
       }
     },
     "CombinedTranscript": {
