@@ -142,10 +142,13 @@ sha256 of the bytes at that revision, whose git blob id and size were checked
 against the same call. To re-pin (a new upstream revision or a compromised
 pin), bump the revision and every file's hash together in one change — for
 the word aligner, also update `tests/fixtures/word_boundary/candidates.json`,
-which a test asserts equals the production catalog. Keep a sha256 off any
-line that also names a token (for example `tokenizer.json`): gitleaks-history
-reads such a line as a generic API key, so tokenizer pins live in
-parenthesised `_…_TOKENIZER_SHA256` constants marked `# gitleaks:allow`.
+which a test asserts equals the production catalog. gitleaks-history reads a
+sha256 on a line that names a token (for example `tokenizer.json`) as a
+generic API key; `.gitleaks.toml` allowlists the two pin shapes in
+`whisper_models.py` and `word_aligner_models.py` (`_…_SHA256 = "…"` constants
+and `("<file>", "…")` manifest entries), so keep new pins in one of those
+shapes ([docs/testing.md § Credential history
+scanning](testing.md#credential-history-scanning)).
 `GET /api/bootstrap/status` and the Pipeline tab's component badges report a
 pin mismatch (Whisper or word aligner) as `ok: false` with
 `pin_mismatch: true`, the mismatch as `hint`, and an `--upgrade` `bootstrap`

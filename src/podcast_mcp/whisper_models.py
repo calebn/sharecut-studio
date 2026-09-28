@@ -98,9 +98,10 @@ WHISPER_MODEL_CATALOG: tuple[dict[str, str], ...] = (
 WHISPER_MODEL_IDS: tuple[str, ...] = tuple(item["id"] for item in WHISPER_MODEL_CATALOG)
 WHISPER_SIZE_ENUM: tuple[str, ...] = tuple(sorted(FASTER_WHISPER_SIZES))
 
-# Files shared across repos (identical bytes at each pinned revision). A sha256 on a line
-# that also names a token (``tokenizer.json``) trips gitleaks' generic-api-key rule, so
-# tokenizer pins live in parenthesised constants marked ``gitleaks:allow`` (#728).
+# Files shared across repos (identical bytes at each pinned revision). gitleaks' generic-api-key
+# rule reads a sha256 beside a token name (``tokenizer.json``) as a key; ``.gitleaks.toml``
+# allowlists these two pin line shapes, so keep new pins as ``_X_SHA256 = "…"`` constants or
+# ``("<file>", "…")`` entries (#728).
 _EN_TOKENIZER_SHA256 = (
     "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"  # gitleaks:allow
 )
