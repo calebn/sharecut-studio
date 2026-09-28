@@ -575,9 +575,16 @@ def test_pcm_block_stale_when_media_changes_mid_read(tmp_path, monkeypatch):
 
 
 def _compressed(monkeypatch, *, slots: int = 1) -> ConcurrencyGate:
-    """Treat the fixture WAVs as ffmpeg media and give pcm_block *slots* decode slots."""
+    """Treat the fixture WAVs as ffmpeg media (they still read through the fast path) and
+    give pcm_block *slots* decode slots."""
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
-    monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
+    monkeypatch.setattr(svc, "probe_pcm_source", lambda p: wm_pyramid.PcmSource(p, None))
+
+    def fast_path_read(*a, **k):
+        k.pop("source", None)  # the fake source has no WAV info; let the engine re-probe
+        return wm_pyramid.read_pcm_minmax(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", fast_path_read)
     gate = ConcurrencyGate(limit=slots, bucket_name="pcm_decode")
     monkeypatch.setattr(svc, "_PCM_DECODES", gate)
     return gate
@@ -651,8 +658,19 @@ def test_pcm_block_wav_fast_path_takes_no_slot(tmp_path, monkeypatch):
     gate = ConcurrencyGate(limit=1, bucket_name="pcm_decode")
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     monkeypatch.setattr(svc, "_PCM_DECODES", gate)
+    seen: list[object] = []
+    real = svc.read_pcm_minmax
+
+    def spy(*a, **k):
+        seen.append(k.get("source"))
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", spy)
     body = pcm_block(project_path, "track:host", key, 0)
     assert len(body) == 256 * 4
+    assert len(seen) == 1
+    assert isinstance(seen[0], wm_pyramid.PcmSource)
+    assert seen[0].needs_decode is False  # the pcm_block probe is reused, not repeated
 
 
 def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
@@ -663,7 +681,7 @@ def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
     def boom(_path):
         raise OSError("gone")
 
-    monkeypatch.setattr(svc, "pcm_needs_decode", boom)
+    monkeypatch.setattr(svc, "probe_pcm_source", boom)
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 0)
 

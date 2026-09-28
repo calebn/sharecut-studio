@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.engines.waveform_pyramid import (
+    PcmSource,
     pyramid_path,
     read_bins,
     read_meta,
@@ -139,7 +140,13 @@ def test_pcm_route_decode_failure_is_404_no_store(tmp_path, monkeypatch):
 
 def test_pcm_route_busy_decoder_is_503_retry_after_no_store(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 512)
-    monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
+    monkeypatch.setattr(svc, "probe_pcm_source", lambda p: PcmSource(p, None))
+
+    def fast_path_read(*a, **k):
+        k.pop("source", None)
+        return read_pcm_minmax(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", fast_path_read)
     gate = ConcurrencyGate(limit=1, bucket_name="pcm_decode")
     monkeypatch.setattr(svc, "_PCM_DECODES", gate)
     project_path = waveform_project(tmp_path)

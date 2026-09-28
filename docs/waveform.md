@@ -164,8 +164,10 @@ channel never hides another channel's peak. `frames` is capped at 4 × `pcm_bloc
 window raises `ValueError`. WAVs use a bounded `setpos`/`readframes`. Other media use
 `FFmpegEngine.decode_window_f32`, which puts `-ss` before `-i`, stops reading
 at exactly `frames` frames, and has a 30 s watchdog. `-frames:a` is not used,
-because ffmpeg counts it in decoder packets, not samples. `pcm_needs_decode(path)`
-says which path a file takes (the service bounds only the ffmpeg path).
+because ffmpeg counts it in decoder packets, not samples. `probe_pcm_source(path)`
+says which path a file takes (`needs_decode`); passing it back as
+`read_pcm_minmax(..., source=)` parses the WAV header once (the service bounds
+only the ffmpeg path).
 
 ### Keys, files and jobs
 
