@@ -711,10 +711,11 @@ version is an error, never overwritten, so an earlier pass's predictions in
 that dir stay paired with the native words they re-timed. Point `pipeline` at
 the same runs dir as `run` (both default to `$LAB_RUNS_DIR/align/<target>`)
 and both passes score the exact same native words and audio; delete
-`<id>.native.json` to force a fresh Whisper pass. Run passes into one runs dir
-one at a time: the cache check is not locked, so two passes started together
-both run Whisper and the last write wins (`with-asr-lock.sh` serializes only
-the ASR step, not the check before it). It
+`<id>.native.json` to force a fresh Whisper pass. Each item's cache check, Whisper run and
+write hold `<id>.native.lock` in the runs dir (`util.file_locks.shared_file_lock`,
+up to an hour), so a second pass started into the same dir waits for the first,
+then reuses its native words (or errors on a mismatch) instead of both running
+Whisper. It
 writes `<id>.onnx-base-pipeline.json` predictions/reports plus a
 `summary.onnx-base-pipeline.json` (never `run`'s `summary.json`, so both can
 share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`

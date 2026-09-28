@@ -43,6 +43,7 @@ from podcast_mcp.engines.word_boundary_metrics import (
 )
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.atomic_json import write_bytes_atomic, write_json_atomic
+from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
 from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
@@ -55,6 +56,11 @@ DEFAULT_LAB = Path("~/projects/ShareCut_Podcast_Test")
 DEFAULT_LAB_GLOB = "source/zoom_excerpt_pan/audio*.m4a"
 TARGETS = ("librispeech", "aligned_dialogue", "lab")
 PIPELINE_TARGETS = ("librispeech", "lab")  # aligned_dialogue has zero native words (#715)
+
+# #715: how long prepare_items waits for another pass's <id>.native.lock (held
+# across one item's cache check, Whisper run and write): long enough for a slow
+# Whisper pass on one lab clip, bounded so a stuck holder fails instead of hanging.
+NATIVE_CACHE_LOCK_TIMEOUT_SEC = 3600.0
 
 # #715: the shipped production pass (WordAligner.load -> WordAligner.align ->
 # apply_word_spans, i.e. exactly what transcribe.py's _align_words drives), scored
@@ -503,8 +509,10 @@ def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str
     from a different installed faster-whisper version, raises instead: an earlier
     pass's ``<id>.<label>.pred.json`` in the same runs dir was built from those
     words, and overwriting them would silently pair mismatched native words with
-    those predictions. Passes into one runs dir must run one at a time; this
-    check-then-write is not locked.
+    those predictions. The caller (:func:`prepare_items`) holds the item's
+    ``<id>.native.lock`` across this check, the Whisper run and the write, so two
+    passes started together into one runs dir cannot both miss and overwrite
+    each other.
 
     Deliberately not shared with the checked-in fixture check in
     :func:`prepare_items` (which raises on an audio mismatch) or
@@ -555,8 +563,12 @@ def prepare_items(
     or faster-whisper version raises (see :func:`_cached_native`) rather than
     being overwritten. The result is written as ``<id>.native.json``, so a
     ``run_suite`` and a ``run_pipeline_pass`` pointed at the same ``runs_dir``
-    (one at a time) score the exact same native words and audio. Delete
-    ``<id>.native.json`` to force a fresh Whisper pass.
+    score the exact same native words and audio. Each item's check, Whisper run
+    and write hold ``<id>.native.lock`` in ``runs_dir``
+    (``util.file_locks.shared_file_lock``, up to ``NATIVE_CACHE_LOCK_TIMEOUT_SEC``),
+    so a pass started while another is resolving the same item waits for it and
+    then reuses its words. Delete ``<id>.native.json`` to force a fresh Whisper
+    pass.
     """
     runs_dir.mkdir(parents=True, exist_ok=True)
     audio_paths: dict[str, Path] = {}
@@ -570,22 +582,25 @@ def prepare_items(
             audio_path = item.audio
         audio_paths[item.item_id] = audio_path
         sha = sha256_file(audio_path)
-
-        if item.words is not None:
-            payload = json.loads(item.words.read_text(encoding="utf-8"))
-            if payload["audio_sha256"] != sha:
-                raise ValueError(f"{item.item_id}: native words audio_sha256 mismatch")
-            native_payload = payload
-        else:
-            native_path = runs_dir / f"{item.item_id}.native.json"
-            cached = _cached_native(native_path, sha, native_model)
-            native_payload = (
-                cached
-                if cached is not None
-                else {"audio_sha256": sha, **native(audio_path, native_model)}
-            )
+        native_path = runs_dir / f"{item.item_id}.native.json"
+        lock = shared_file_lock(
+            runs_dir / f"{item.item_id}.native.lock", timeout=NATIVE_CACHE_LOCK_TIMEOUT_SEC
+        )
+        with lock:
+            if item.words is not None:
+                payload = json.loads(item.words.read_text(encoding="utf-8"))
+                if payload["audio_sha256"] != sha:
+                    raise ValueError(f"{item.item_id}: native words audio_sha256 mismatch")
+                native_payload = payload
+            else:
+                cached = _cached_native(native_path, sha, native_model)
+                native_payload = (
+                    cached
+                    if cached is not None
+                    else {"audio_sha256": sha, **native(audio_path, native_model)}
+                )
+            write_json_atomic(native_path, native_payload)
         native_payloads[item.item_id] = native_payload
-        write_json_atomic(runs_dir / f"{item.item_id}.native.json", native_payload)
     return audio_paths, native_payloads
 
 
