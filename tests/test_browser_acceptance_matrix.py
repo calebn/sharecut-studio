@@ -53,11 +53,15 @@ _SKIP_RE = re.compile(r"\btest(?:\.describe)?\.(?:skip|fixme|fail|only)\b")
 _RETRIES_RE = re.compile(r"\bretries:\s*([^,\n]+)")
 _UNSUPPORTED_FILTER_RE = re.compile(r"\b(?:testMatch|grep|grepInvert)\s*:")
 _PROJECT_NAME_RE = re.compile(r'\bname:\s*"([\w-]+)"')
-_TEST_IGNORE_RE = re.compile(r"\btestIgnore:\s*\[([^\]]*)\]")
-_STRING_RE = re.compile(r'"([^"]*)"')
+# The body of a double-quoted string literal with no escapes; every regex below
+# that reads a testIgnore list builds on it so they cannot drift apart.
+_STRING_BODY = r'[^"]*'
+_STRING_RE = re.compile(rf'"({_STRING_BODY})"')
+# Quote-aware so a `]` inside a string (e.g. a `[a-c]` glob) does not end the list.
+_TEST_IGNORE_RE = re.compile(rf'\btestIgnore:\s*\[((?:"{_STRING_BODY}"|[^\]"])*)\]')
+_STRING_LIST_RE = re.compile(rf'\s*(?:"{_STRING_BODY}"\s*,?\s*)*')
 # The one testIgnore glob shape the guard reads: a spec file name at any depth.
 _IGNORE_GLOB_RE = re.compile(r"\*\*/[\w.-]+\.spec\.ts")
-_STRING_LIST_RE = re.compile(r'\s*(?:"[^"]*"\s*,?\s*)*')
 _INSTALL_RE = re.compile(r"\bplaywright install\b([^\n]*)")
 
 
@@ -337,8 +341,17 @@ def test_compat_projects_rejects_an_unreadable_test_ignore() -> None:
         "];\n"
         "export default defineConfig({ projects });\n"
     )
-    with pytest.raises(AssertionError, match="testIgnore list"):
+    with pytest.raises(AssertionError, match="testIgnore glob"):
         compat_projects(bracket_glob)
+
+    non_literal_entry = (
+        "const projects = [\n"
+        '  { name: "webkit", testIgnore: ["**/core-flow.spec.ts", ignored], use: {} },\n'
+        "];\n"
+        "export default defineConfig({ projects });\n"
+    )
+    with pytest.raises(AssertionError, match="testIgnore list"):
+        compat_projects(non_literal_entry)
 
 
 def test_installed_engines_reads_the_playwright_install_line() -> None:
