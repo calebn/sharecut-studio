@@ -976,6 +976,9 @@ def test_transcribe_run_config_retime_words() -> None:
 
     assert transcribe_run_config({"a": 1}, force=False) == {"a": 1}
 
+    with pytest.raises(ValueError, match="force"):
+        transcribe_run_config(None, force=True, retime_words=True)
+
 
 def test_balance_depends_on_compress() -> None:
     from podcast_mcp.pipeline.meta import cascade_disable, expand_enable

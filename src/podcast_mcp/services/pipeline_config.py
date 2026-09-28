@@ -69,7 +69,13 @@ def transcribe_run_config(
     transcripts from the ASR cache (forced alignment on for that run; no Whisper).
     ``overwrite_edited`` is the confirmation for either ``force`` or ``retime_words``: only for
     an explicit user confirmation (Studio Re-transcribe / Re-time words).
+    ``force`` and ``retime_words`` together raise ``ValueError``.
     """
+    if force and retime_words:
+        raise ValueError(
+            "retime_words re-times stored transcripts without Whisper; it cannot be combined "
+            "with force (force_transcribe / --force re-runs Whisper on every track)"
+        )
     if not force and not retime_words:
         return config
     transcribe: dict[str, Any] = {"overwrite_edited": overwrite_edited}

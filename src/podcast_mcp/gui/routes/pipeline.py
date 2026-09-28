@@ -135,6 +135,16 @@ def pipeline_run(
     elif skip_steps is None and working is not None and working.enabled_steps is not None:
         skip_steps = skip_steps_from_enabled(working.enabled_steps)
 
+    try:
+        run_config = transcribe_run_config(
+            config,
+            force=req.force_transcribe,
+            overwrite_edited=req.overwrite_edited,
+            retime_words=req.retime_words,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     # Persist run choices into working set for agent/GUI parity
     if req.use_working_set:
         store.put(
@@ -144,12 +154,6 @@ def pipeline_run(
             unattended=unattended,
         )
 
-    run_config = transcribe_run_config(
-        config,
-        force=req.force_transcribe,
-        overwrite_edited=req.overwrite_edited,
-        retime_words=req.retime_words,
-    )
     try:
         ensure_whisper_cached_for_run(
             config=run_config,

@@ -424,3 +424,16 @@ def test_pipeline_run_retime_words_sets_run_only_flag(tmp_path, sample_wav):
     assert result.exit_code == 0
     assert run.call_args.kwargs["config"]["transcribe"]["retime_words"] is True
     assert run.call_args.kwargs["config"]["transcribe"]["forced_alignment"]["enabled"] is True
+
+
+def test_pipeline_run_rejects_force_with_retime_words(tmp_path, sample_wav):
+    project = _init_project(tmp_path)
+
+    with patch("podcast_mcp.cli.pipeline.PipelineService.run") as run:
+        result = runner.invoke(
+            app,
+            ["pipeline", "run", "--project", str(project), "--force", "--retime-words"],
+        )
+    assert result.exit_code == 2
+    run.assert_not_called()
+    assert "force" in result.output

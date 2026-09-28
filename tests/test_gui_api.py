@@ -3319,3 +3319,33 @@ def test_api_pipeline_run_retime_words_is_run_only(minimal_project, monkeypatch)
     persisted = ((working.config or {}).get("transcribe") or {}) if working else {}
     assert not persisted.get("retime_words")
     assert not persisted.get("overwrite_edited")
+
+
+def test_api_pipeline_run_rejects_force_with_retime_words(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    seen: list[dict | None] = []
+
+    def fake_run(self, **kwargs):
+        seen.append(kwargs.get("config"))
+        return PipelineRunResult(last_step="done", steps=[])
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.PipelineService.run", fake_run)
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.pipeline.ensure_whisper_cached_for_run", lambda **_: None
+    )
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/pipeline/run",
+        json={
+            "path": str(minimal_project),
+            "retime_words": True,
+            "force_transcribe": True,
+        },
+    )
+    assert res.status_code == 400
+    assert seen == []
