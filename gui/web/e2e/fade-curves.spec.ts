@@ -15,11 +15,14 @@ test.describe("Timeline fade curves", () => {
     const corner = clip.locator("button.fade-corner.in");
     const lines = clip.locator(".clip-fade-line");
     await expect(lines).toHaveCount(0);
-    // Zero-length fade: no visible handle until the clip is hovered.
-    await expect(corner).toBeHidden();
+    // Zero-length fade: transparent and click-through until the clip is hovered.
+    await page.mouse.move(0, 0);
+    await expect(corner).toHaveCSS("opacity", "0");
+    await expect(corner).toHaveCSS("pointer-events", "none");
     await clip.hover();
-    await expect(corner).toBeVisible();
-    await expect(clip.locator(".trim-handle.in")).toBeVisible();
+    await expect(corner).toHaveCSS("opacity", "1");
+    await expect(corner).toHaveCSS("pointer-events", "auto");
+    await expect(clip.locator(".trim-handle.in")).toHaveCSS("opacity", "1");
     try {
       const box = await corner.boundingBox();
       if (!box) throw new Error("fade corner has no box");
