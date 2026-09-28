@@ -811,6 +811,29 @@ describe("TranscriptPanel", () => {
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     });
 
+    it("clears a late Suppress failure once a retry flips the flag, not before", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          projectPath: "/tmp/ep",
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          flag: { name: "suppressed", was: false },
+          message: "Could not update “hello”: boom",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      act(() => useDawStore.setState({ project: project() }));
+      expect(container.querySelector(".inline-error")).not.toBeNull();
+      const retried = project();
+      const words = retried.transcript?.utterances[0]?.words;
+      if (!words) throw new Error("fixture words missing");
+      words[0] = { ...words[0], suppressed: true };
+      act(() => useDawStore.setState({ project: retried }));
+      expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    });
+
     it("drops a late failure from another project", () => {
       useDawStore.setState({
         transcriptInlineEditFailure: {

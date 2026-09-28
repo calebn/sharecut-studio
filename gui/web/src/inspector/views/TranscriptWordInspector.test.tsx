@@ -215,6 +215,7 @@ describe("TranscriptWordInspector", () => {
       trackId: "host",
       wordIndex: 0,
       originalText: "hello",
+      flag: { name: "suppressed", was: false },
       message: "Could not update “hello”: boom",
     });
   });

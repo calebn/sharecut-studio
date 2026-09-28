@@ -24,7 +24,7 @@ export interface LayerVisibility {
   showSnapPoints: boolean;
 }
 
-/** A failed inline word fix whose editor had already closed. */
+/** A failed word action (inline fix, or WORD inspector Apply / Suppress / Ignore) whose editor had already closed. */
 export interface TranscriptInlineEditFailure {
   /** Project the fix was submitted to; a failure from another project is dropped. */
   projectPath: string;
@@ -32,6 +32,8 @@ export interface TranscriptInlineEditFailure {
   wordIndex: number;
   /** Word text when the fix was submitted; different text means it was fixed since. */
   originalText: string;
+  /** Failed Suppress / Ignore: that flag's value when the action was submitted; a different value means it was retried (or changed) since. Absent for a text fix. */
+  flag?: { name: "suppressed" | "ignored"; was: boolean };
   message: string;
 }
 
