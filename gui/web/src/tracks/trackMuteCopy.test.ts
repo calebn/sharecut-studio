@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MuteState } from "../utils/audio";
 import {
+  MUTE_GLYPH,
   muteButtonLabel,
   muteButtonTitle,
   SAVED_MUTE_READ_ONLY,
+  SOLO_GLYPH,
   soloButtonLabel,
   soloButtonTitle,
 } from "./trackMuteCopy";
@@ -12,6 +14,11 @@ describe("trackMuteCopy", () => {
   it("names the M and S buttons after the track", () => {
     expect(muteButtonLabel("Caleb")).toBe("Mute Caleb");
     expect(soloButtonLabel("Caleb")).toBe("Solo Caleb");
+  });
+
+  it("starts each accessible name with the visible glyph (label in name)", () => {
+    expect(muteButtonLabel("Caleb").startsWith(MUTE_GLYPH)).toBe(true);
+    expect(soloButtonLabel("Caleb").startsWith(SOLO_GLYPH)).toBe(true);
   });
 
   const states: MuteState[] = ["saved", "listen", "implied", "off"];
