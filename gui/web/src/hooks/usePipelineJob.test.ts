@@ -676,6 +676,56 @@ describe("usePipelineJob", () => {
     }
   });
 
+  it("attaches SSE to a running Analyze job and routes its frames to activity only", async () => {
+    vi.useFakeTimers();
+    const an = job({
+      id: "an-1",
+      kind: "analyze",
+      label: "Analyze",
+      message: "Scanned host (1/2)",
+      current: 1,
+      total: 2,
+    });
+    loadPipelineStatus.mockResolvedValue({
+      running: true,
+      job: an,
+      jobs: [an],
+      running_count: 1,
+    } satisfies PipelineStatusResponse);
+    const setPipelineJob = vi.fn();
+    const setActivityJob = vi.fn();
+    const { unmount } = renderHook(() =>
+      usePipelineJob(null, setPipelineJob, {
+        enabled: true,
+        activityJob: an,
+        setActivityJob,
+        setActivityRunningCount: vi.fn(),
+      }),
+    );
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const es = FakeEventSource.instances.at(-1)!;
+      expect(es.url).toBe("/api/pipeline/events?job_id=an-1");
+      setActivityJob.mockClear();
+      setPipelineJob.mockClear();
+      const updated = job({
+        ...an,
+        message: "Scanned guest (2/2)",
+        current: 2,
+      });
+      act(() => {
+        es.emit({ type: "status", job: updated });
+      });
+      expect(setActivityJob).toHaveBeenCalledWith(updated);
+      expect(setPipelineJob).not.toHaveBeenCalledWith(updated);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("re-applies status after a stream done while another job is live", async () => {
     const pipe = job();
     const wrap = agent({ status: "ok" });
