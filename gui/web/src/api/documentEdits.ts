@@ -481,21 +481,6 @@ export async function deleteSocialClip(
   await submitDocumentCommand(projectPath, "DeleteSocialClip", { id });
 }
 
-export async function suggestPendingEdit(
-  projectPath: string,
-  trackId: string,
-  start: number,
-  end: number,
-  reason?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "SuggestPendingEdit", {
-    track_id: trackId,
-    start,
-    end,
-    reason: reason ?? null,
-  });
-}
-
 export async function splitAtTime(
   projectPath: string,
   atTime: number,

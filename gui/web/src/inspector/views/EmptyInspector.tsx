@@ -1,12 +1,7 @@
-import { suggestPendingEdit } from "../../api";
 import { presenceAnchor, presenceAnchorProps } from "../../presence/anchors";
-import { canSuggestOrNudge } from "../../shareMode";
-import { useDawStore } from "../../state/dawStore";
-import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
 import { Button } from "../../ui";
 import { unmappedPendingLabel } from "../../utils/edits";
-import { clipsForTrack, timelinePointToSource } from "../../utils/timebase";
 
 export function EmptyInspector({
   unmappable,
@@ -15,47 +10,6 @@ export function EmptyInspector({
   unmappable: PendingEditView[];
   onSelectPending: (edit: PendingEditView) => void;
 }) {
-  const { project, projectPath, guestMode, shareCapabilities, sessionRegion } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      sessionRegion: s.sessionRegion,
-    }));
-  const canSuggest = canSuggestOrNudge(
-    projectPath,
-    guestMode,
-    shareCapabilities,
-  );
-  const dialogueTrack =
-    project?.tracks.find((t) => t.role === "dialogue")?.id ??
-    project?.tracks[0]?.id;
-
-  const onSuggestCut = async () => {
-    if (!dialogueTrack || !project) {
-      return;
-    }
-    const clips = clipsForTrack(project.clips.tracks, dialogueTrack);
-    const playheadSec = useDawStore.getState().playheadSec;
-    const tlStart = sessionRegion?.start_sec ?? Math.max(0, playheadSec);
-    const tlEnd =
-      sessionRegion?.end_sec ?? Math.max(tlStart + 1, playheadSec + 2);
-    const start = timelinePointToSource(clips, tlStart) ?? tlStart;
-    const end =
-      timelinePointToSource(clips, Math.max(tlEnd - 1e-6, tlStart)) ?? tlEnd;
-    if (!(end > start)) {
-      return;
-    }
-    await suggestPendingEdit(
-      projectPath,
-      dialogueTrack,
-      start,
-      end,
-      "guest:suggest",
-    );
-  };
-
   return (
     <aside
       className="inspector"
@@ -66,13 +20,6 @@ export function EmptyInspector({
         Click a clip, edit, track header, chapter marker, or Levels envelope
         point.
       </p>
-      {canSuggest && dialogueTrack && (
-        <p>
-          <Button variant="primary" onClick={() => void onSuggestCut()}>
-            Suggest cut
-          </Button>
-        </p>
-      )}
       {unmappable.length > 0 && (
         <>
           <h2>{unmappedPendingLabel(unmappable.length)}</h2>
