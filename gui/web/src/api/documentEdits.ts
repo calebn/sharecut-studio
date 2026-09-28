@@ -7,6 +7,13 @@ import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { loadProjectPhase } from "./project";
 
+/** Wire shape for a guarded transcript command's optional stale-text guard. */
+function withExpectedText(expectedText?: string | null): {
+  expected_text?: string;
+} {
+  return expectedText == null ? {} : { expected_text: expectedText };
+}
+
 export async function submitDocumentCommand(
   projectPath: string,
   type: string,
@@ -202,7 +209,7 @@ export async function correctTranscriptWord(
     track_id: trackId,
     word_index: wordIndex,
     text,
-    ...(expectedText == null ? {} : { expected_text: expectedText }),
+    ...withExpectedText(expectedText),
   });
 }
 
@@ -219,7 +226,7 @@ export async function correctTranscriptPhrase(
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     text,
-    ...(expectedText == null ? {} : { expected_text: expectedText }),
+    ...withExpectedText(expectedText),
   });
 }
 
@@ -234,7 +241,7 @@ export async function setTranscriptWordSuppressed(
     track_id: trackId,
     word_index: wordIndex,
     suppressed,
-    ...(expectedText == null ? {} : { expected_text: expectedText }),
+    ...withExpectedText(expectedText),
   });
 }
 
@@ -251,7 +258,7 @@ export async function setTranscriptWordsIgnored(
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     ignored,
-    ...(expectedText == null ? {} : { expected_text: expectedText }),
+    ...withExpectedText(expectedText),
   });
 }
 

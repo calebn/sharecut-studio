@@ -26,6 +26,10 @@ export const TRANSCRIPT_CORRECT_TIMING_NOTE =
 export const TRANSCRIPT_SPAN_UNVERIFIED_NOTE =
   "Apply can't confirm the current text of every word in this range, so it can't check whether someone else changed these words first.";
 
+/** Appended to the Select-mode Ignore/Restore status announcement when the range's text
+ * couldn't be confirmed, so the command was sent without the #744 stale-text guard. */
+export const TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX = " (text not verified)";
+
 /** Title/tooltip suffix on an ignored word chip (#633). */
 export const TRANSCRIPT_IGNORED_WORD_TIP =
   "Ignored: struck through and muted at render. No cut is made; Restore brings it back.";

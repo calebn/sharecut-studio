@@ -110,6 +110,9 @@ describe("transcript.ignoreWords", () => {
       true,
       null,
     );
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Ignored selection (text not verified)",
+    );
   });
 
   it("drops a second ignore while the first is in flight", async () => {

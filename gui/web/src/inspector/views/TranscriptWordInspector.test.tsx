@@ -90,6 +90,14 @@ function projectWithDisagreeingDuplicate() {
   return dup;
 }
 
+/** `project()` with word 1 already suppressed, still listed in its utterance
+ * (as the mapper places a suppressed chip's run inside an utterance window). */
+function projectWithSuppressedWord() {
+  const p = project();
+  p.transcript!.utterances[0].words![1].suppressed = true;
+  return p;
+}
+
 describe("TranscriptWordInspector", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
@@ -324,6 +332,21 @@ describe("TranscriptWordInspector", () => {
         1,
         true,
         null,
+      );
+    });
+  });
+
+  it("Unsuppress calls setTranscriptWordSuppressed with the displayed text", async () => {
+    useDawStore.setState({ project: projectWithSuppressedWord() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Unsuppress" }));
+    await vi.waitFor(() => {
+      expect(setTranscriptWordSuppressed).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        false,
+        "there",
       );
     });
   });

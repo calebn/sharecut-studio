@@ -2,6 +2,7 @@ import { setTranscriptWordsIgnored } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { ignoreTarget } from "../transcript/ignoredWords";
+import { TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX } from "../transcript/transcriptModeCopy";
 import { errorMessage } from "../utils/apiError";
 import { transcriptSpanText } from "../utils/transcript";
 import { registerCommand } from "./execute";
@@ -69,10 +70,13 @@ export function registerTranscriptIgnoreCommands(): void {
           target.ignored,
           expectedText,
         );
+        const suffix =
+          expectedText == null ? TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX : "";
         useDawStore
           .getState()
           .announceStatus(
-            target.ignored ? "Ignored selection" : "Restored selection",
+            (target.ignored ? "Ignored selection" : "Restored selection") +
+              suffix,
           );
         return { status: "ok" };
       } catch (e) {
