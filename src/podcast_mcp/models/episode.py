@@ -251,12 +251,15 @@ class Transcript(BaseModel):
         return words if isinstance(words, TranscriptWords) else TranscriptWords(words)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name == "words":
-            # Always a fresh list: two transcripts never share one list or memo.
-            value = TranscriptWords(value)
-        super().__setattr__(name, value)
-        if name == "words":
-            bump_words_revision()
+        if name != "words":
+            super().__setattr__(name, value)
+            return
+        if isinstance(value, TranscriptWords) and value is self.__dict__.get("words"):
+            # `tr.words += [...]` / `*=`: the list mutator already bumped; keep this list.
+            return
+        # Always a fresh list: two transcripts never share one list or memo.
+        super().__setattr__(name, TranscriptWords(value))
+        bump_words_revision()
 
     def memoize_words(self, key: str, compute: Callable[[], _T]) -> _T:
         """``compute()`` cached on ``self.words`` until any transcript words change (#729).
