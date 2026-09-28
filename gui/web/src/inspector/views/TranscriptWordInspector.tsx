@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
@@ -121,6 +121,7 @@ export function TranscriptWordInspector({
   const suppressed = Boolean(word?.suppressed);
   const ignored = Boolean(word?.ignored);
   const lowConf = word != null && isLowConfidenceWord(word);
+  const hintId = useId();
 
   /**
    * Run one action on this word. Parents key this inspector per word, so a
@@ -330,6 +331,9 @@ export function TranscriptWordInspector({
                   value={endIndexStr}
                   disabled={busy}
                   aria-label="End word index"
+                  aria-describedby={
+                    editable && spanUnverified ? hintId : undefined
+                  }
                   onChange={(e) => changeEndIndex(e.target.value)}
                   title="Same as start for a single-word correct; higher for phrase"
                 />
@@ -345,7 +349,9 @@ export function TranscriptWordInspector({
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
       ) : null}
       {editable && spanUnverified ? (
-        <p className="ui-field-hint">{TRANSCRIPT_SPAN_UNVERIFIED_NOTE}</p>
+        <p id={hintId} className="ui-field-hint" role="status">
+          {TRANSCRIPT_SPAN_UNVERIFIED_NOTE}
+        </p>
       ) : null}
     </ModifierInspector>
   );

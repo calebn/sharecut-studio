@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import { ApiError } from "../../utils/apiError";
 import { TranscriptWordInspector } from "./TranscriptWordInspector";
@@ -696,5 +697,23 @@ describe("TranscriptWordInspector", () => {
       useDawStore.setState({ project: project() });
     });
     expect(screen.getByLabelText("Corrected text")).toHaveValue("hello");
+  });
+
+  it("gives the unverified-span hint role=status and describes the End index input only while it shows", async () => {
+    const { container } = render(
+      <TranscriptWordInspector trackId="host" wordIndex={0} />,
+    );
+    const endInput = screen.getByLabelText("End word index");
+    expect(endInput).not.toHaveAttribute("aria-describedby");
+    fireEvent.change(endInput, { target: { value: "5" } });
+    const hint = screen.getByText(/can't check whether someone else changed/);
+    expect(hint).toHaveAttribute("role", "status");
+    expect(endInput).toHaveAttribute("aria-describedby", hint.id);
+    fireEvent.change(endInput, { target: { value: "0" } });
+    expect(endInput).not.toHaveAttribute("aria-describedby");
+    expect(
+      screen.queryByText(/can't check whether someone else changed/),
+    ).toBeNull();
+    await expectNoA11yViolations(container);
   });
 });
