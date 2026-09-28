@@ -35,8 +35,9 @@ function resolveTargets(
   return out;
 }
 
+/** Same elements in any order (both lists are de-duplicated): a reorder keeps the observer. */
 function sameElements(a: readonly Element[], b: readonly Element[]): boolean {
-  return a.length === b.length && a.every((el, i) => el === b[i]);
+  return a.length === b.length && a.every((el) => b.includes(el));
 }
 
 /**
@@ -46,6 +47,11 @@ function sameElements(a: readonly Element[], b: readonly Element[]): boolean {
  * renders and `onResize` is always the latest callback. A no-op while
  * `enabled` is false or where `ResizeObserver` does not exist. The only place
  * the GUI constructs a `ResizeObserver` (see the governance test).
+ *
+ * Getters run on every commit of the caller: keep them cheap (a ref read or
+ * one `querySelector`) and return the same element while the target is
+ * unchanged. A different element re-creates the observer, and each new
+ * observer reports every target's size once. Order does not matter.
  */
 export function useResizeObserver(
   targets: ResizeObserverTarget | readonly ResizeObserverTarget[],
@@ -67,6 +73,10 @@ export function useResizeObserver(
     if (sameElements(next, observedRef.current)) {
       return;
     }
+    // disconnect() drops any entry the old observer queued but had not
+    // delivered; observe() below queues an initial size for every target, so
+    // onResize still sees current sizes. Keep that if this switches to
+    // unobserve() on a reused observer (re-measure explicitly then).
     observerRef.current?.disconnect();
     observerRef.current = null;
     observedRef.current = next;
