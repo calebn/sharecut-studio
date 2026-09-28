@@ -22,6 +22,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -219,7 +220,11 @@ def _engine_matches(profile: ProsodyProfile) -> bool:
 
 
 def _analyze_track(
-    project: EpisodeProject, track_id: str, job: TranscribeJob, params: ProsodyParams
+    project: EpisodeProject,
+    track_id: str,
+    job: TranscribeJob,
+    params: ProsodyParams,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> Literal["computed", "reused"]:
     """Compute or reuse one track's profile under a per-track lock, then prune."""
     lock_path = _lock_path(project, track_id)
@@ -243,7 +248,7 @@ def _analyze_track(
             outcome = "reused"
         else:
             samples = load_mono_full(job.audio, sample_rate=16000)
-            analysis = analyze_prosody(samples, 16000, words, params)
+            analysis = analyze_prosody(samples, 16000, words, params, cancel_check=cancel_check)
             profile = ProsodyProfile(
                 track_id=track_id,
                 audio_sha256=sha,
@@ -300,7 +305,7 @@ def run_prosody_analysis(
                 task.advance(n, total=len(track_ids), message=f"{track_id}: no media")
                 continue
 
-            outcome = _analyze_track(project, track_id, job, params)
+            outcome = _analyze_track(project, track_id, job, params, cancel_check)
             (result.computed if outcome == "computed" else result.reused).append(track_id)
             message = "analyzed" if outcome == "computed" else "reused"
             task.advance(n, total=len(track_ids), message=f"{track_id}: {message}")
