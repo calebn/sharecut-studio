@@ -23,6 +23,10 @@ class MarkdownTable:
 
     def records(self) -> list[dict[str, str]]:
         """Each body row keyed by header cell; a row must have one cell per column."""
+        for row in self.rows:
+            assert len(row) == len(self.header), (
+                f"row has {len(row)} cells, header has {len(self.header)}: {row}"
+            )
         return [dict(zip(self.header, row, strict=True)) for row in self.rows]
 
 

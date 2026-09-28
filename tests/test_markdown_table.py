@@ -74,7 +74,7 @@ def test_records_key_rows_by_header() -> None:
     assert table.records() == [{"A": "1", "B": "2"}]
 
     short = MarkdownTable(header=["A", "B"], rows=[["1"]])
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError, match="row has 1 cells, header has 2"):
         short.records()
 
 
