@@ -25,6 +25,8 @@ import { useRecordMonitor } from "./record/monitor/useRecordMonitor";
 import { RecordPanel } from "./record/RecordPanel";
 import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
+import { useDawStore } from "./state/dawStore";
+import { selectPublishKey } from "./state/publishKey";
 import { useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
 import { Button, ErrorScreen } from "./ui";
@@ -33,7 +35,8 @@ let commandsRegistered = false;
 
 export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const {
-    project,
+    hasProject,
+    projectName,
     projectPath,
     setProject,
     isPlaying,
@@ -42,11 +45,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     suppressPublish,
     lastAppliedRevision,
     lastAppliedCommandId,
-    auditionMode,
-    selection,
-    sessionRegion,
-    viewerMute,
-    soloTracks,
     pipelineJob,
     setPipelineJob,
     activityJob,
@@ -58,7 +56,8 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     helpDialogOpen,
     setHelpDialogOpen,
   } = useDaw((s) => ({
-    project: s.project,
+    hasProject: Boolean(s.project),
+    projectName: s.project?.meta.name ?? null,
     projectPath: s.projectPath,
     setProject: s.setProject,
     isPlaying: s.isPlaying,
@@ -67,11 +66,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     suppressPublish: s.suppressPublish,
     lastAppliedRevision: s.lastAppliedRevision,
     lastAppliedCommandId: s.lastAppliedCommandId,
-    auditionMode: s.auditionMode,
-    selection: s.selection,
-    sessionRegion: s.sessionRegion,
-    viewerMute: s.viewerMute,
-    soloTracks: s.soloTracks,
     pipelineJob: s.pipelineJob,
     setPipelineJob: s.setPipelineJob,
     activityJob: s.activityJob,
@@ -83,6 +77,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     helpDialogOpen: s.helpDialogOpen,
     setHelpDialogOpen: s.setHelpDialogOpen,
   }));
+  const publishKey = useDawStore(selectPublishKey);
 
   const { error: bootstrapError, retry: retryBootstrap } =
     useProjectBootstrap(projectPath);
@@ -96,15 +91,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     activityJob,
     setActivityJob,
     setActivityRunningCount,
-  });
-
-  const publishKey = JSON.stringify({
-    auditionMode,
-    selection,
-    sessionRegion,
-    viewerMute,
-    soloTracks,
-    isPlaying,
   });
 
   useDocumentSync(projectPath, setProject, syncEnabled);
@@ -172,15 +158,15 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   });
 
   useEffect(() => {
-    if (!project?.meta.name) {
+    if (!projectName) {
       return;
     }
     const previous = document.title;
-    document.title = project.meta.name;
+    document.title = projectName;
     return () => {
       document.title = previous;
     };
-  }, [project?.meta.name]);
+  }, [projectName]);
 
   const engines = (
     <>
@@ -189,7 +175,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     </>
   );
 
-  if (bootstrapError && !project) {
+  if (bootstrapError && !hasProject) {
     return (
       <>
         {engines}
@@ -202,7 +188,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     <>
       {engines}
       <div data-daw-app-chrome>
-        {bootstrapError && project ? (
+        {bootstrapError && hasProject ? (
           <div className="guest-banner" role="alert">
             Could not load transcript and history. {bootstrapError}{" "}
             <Button variant="link" onClick={retryBootstrap}>
@@ -234,7 +220,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       <HostMcpDialog
         open={hostMcpDialogOpen}
         onClose={() => setHostMcpDialogOpen(false)}
-        hasProject={Boolean(project)}
+        hasProject={hasProject}
       />
       <HelpDialog
         open={helpDialogOpen}
