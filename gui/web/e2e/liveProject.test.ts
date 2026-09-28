@@ -16,6 +16,7 @@ import {
   removeRelocatedE2eProject,
   shouldCopyWorkspaceEntry,
 } from "./liveProject";
+import { removeAfterTest, tempWorkspace } from "./testWorkspace";
 
 const SKIPPED_SEED_PATHS = [
   "export/x.wav",
@@ -34,7 +35,7 @@ const KEPT_SEED_PATHS = [
 ];
 
 function seedSourceRoot(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-seed-"));
+  const root = tempWorkspace("sharecut-seed-");
   for (const rel of [...SKIPPED_SEED_PATHS, ...KEPT_SEED_PATHS]) {
     const file = path.join(root, rel);
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -46,24 +47,17 @@ function seedSourceRoot(): string {
 describe("createRelocatedE2eProject copy rule", () => {
   it("skips generated and per-machine state but keeps inputs", () => {
     const sourceRoot = seedSourceRoot();
-    let workspaceDir = "";
-    try {
-      ({ workspaceDir } = createRelocatedE2eProject(
-        "sharecut-e2e-seed-",
-        () => false,
-        sourceRoot,
-      ));
-      for (const rel of SKIPPED_SEED_PATHS) {
-        expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(false);
-      }
-      for (const rel of KEPT_SEED_PATHS) {
-        expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(true);
-      }
-    } finally {
-      fs.rmSync(sourceRoot, { recursive: true, force: true });
-      if (workspaceDir) {
-        fs.rmSync(workspaceDir, { recursive: true, force: true });
-      }
+    const { workspaceDir } = createRelocatedE2eProject(
+      "sharecut-e2e-seed-",
+      () => false,
+      sourceRoot,
+    );
+    removeAfterTest(workspaceDir);
+    for (const rel of SKIPPED_SEED_PATHS) {
+      expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(false);
+    }
+    for (const rel of KEPT_SEED_PATHS) {
+      expect(fs.existsSync(path.join(workspaceDir, rel)), rel).toBe(true);
     }
   });
 
@@ -179,7 +173,7 @@ describe("copyUxDemoProject", () => {
 
   it("copies media behind symlinks and reuses the copy", () => {
     delete process.env.UX_DEMO_PROJECT;
-    const src = fs.mkdtempSync(path.join(os.tmpdir(), "ux-demo-src-"));
+    const src = tempWorkspace("ux-demo-src-");
     const media = path.join(src, "real.wav");
     fs.writeFileSync(media, "RIFF");
     fs.mkdirSync(path.join(src, "demo", "raw"), { recursive: true });
@@ -188,16 +182,12 @@ describe("copyUxDemoProject", () => {
     const projectPath = copyUxDemoProject(
       path.join(src, "demo", "episode.project.json"),
     );
-    try {
-      const copied = path.join(path.dirname(projectPath), "raw", "a.wav");
-      expect(fs.lstatSync(copied).isSymbolicLink()).toBe(false);
-      expect(fs.readFileSync(copied, "utf8")).toBe("RIFF");
-      expect(copyUxDemoProject("/nowhere/episode.project.json")).toBe(
-        projectPath,
-      );
-    } finally {
-      fs.rmSync(path.dirname(projectPath), { recursive: true, force: true });
-      fs.rmSync(src, { recursive: true, force: true });
-    }
+    removeAfterTest(path.dirname(projectPath));
+    const copied = path.join(path.dirname(projectPath), "raw", "a.wav");
+    expect(fs.lstatSync(copied).isSymbolicLink()).toBe(false);
+    expect(fs.readFileSync(copied, "utf8")).toBe("RIFF");
+    expect(copyUxDemoProject("/nowhere/episode.project.json")).toBe(
+      projectPath,
+    );
   });
 });
