@@ -587,7 +587,7 @@ def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRo
 
 
 def notify_document_changed(project_path: str | Path, *, role: ClientRole = "agent") -> None:
-    """Best-effort document fanout after MCP/CLI (or REST) project mutations."""
+    """Best-effort document fanout after MCP tool and record-landing project mutations."""
     _notify_changed(project_path, projection="shell", role=role)
 
 
@@ -638,12 +638,18 @@ def notify_comments_changed(project_path: str | Path, *, role: ClientRole = "vie
 
 
 def after_agent_mutation(project_path: str | Path | ProjectWorkspace) -> None:
-    """Notify open Sharecut Studio tabs after an agent/CLI mutation (not document submit).
+    """Notify open Sharecut Studio tabs after an MCP tool or record-landing mutation
+    (not document submit).
 
     Journals a seq-advancing ``ExternalMutate`` row (#661): in the GUI process it reaches
-    tabs over the socket at the new seq, and from another process (e.g. stdio MCP) only
-    the row reaches the shared ``document.db``, so the GUI's own tabs see it on their next
-    ``/api/project/meta`` poll instead.
+    tabs over the socket at the new seq, and from another process (e.g. stdio MCP or
+    ``podcast record land``) only the row reaches the shared ``document.db``, so the GUI's
+    own tabs see it on their next ``/api/project/meta`` poll instead.
+
+    Always journals ``role="agent"``, record landing included: landing (GUI auto-land,
+    host Retry land, CLI/MCP ``record land`` / ``discard-take``) is a server-side action
+    no viewer submitted. The journal role is audit-only: clients never branch on it, and
+    guests see only ``{type}``.
     """
     path = project_path.path if isinstance(project_path, ProjectWorkspace) else project_path
     notify_document_changed(path)
