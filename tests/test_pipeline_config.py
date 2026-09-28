@@ -1005,6 +1005,15 @@ def test_analyze_prosody_enabled_by_default() -> None:
     assert "analyze_prosody" in enabled
 
 
+def test_analyze_prosody_depends_on_precorrect() -> None:
+    from podcast_mcp.pipeline.meta import dependents_of, transitive_depends_on
+
+    deps = transitive_depends_on("analyze_prosody")
+    assert {"precorrect_transcript", "reconcile_transcript", "transcribe_tracks"} <= deps
+    assert "require_transcript_refine" not in deps
+    assert "analyze_prosody" in dependents_of("precorrect_transcript")
+
+
 def test_prosody_is_an_allowed_config_top_key() -> None:
     assert whitelist_overrides({"prosody": {"enabled": False}, "evil": 1}) == {
         "prosody": {"enabled": False}

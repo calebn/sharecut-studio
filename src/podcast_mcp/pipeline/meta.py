@@ -126,7 +126,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         title="Analyze prosody",
         summary="Cache a per-track prosody profile (pitch, rate, energy, boundaries).",
         kind="tooling",
-        depends_on=("transcribe_tracks",),
+        depends_on=("precorrect_transcript",),
         param_sections=("prosody",),
         noop_unless="prosody.enabled",
     ),

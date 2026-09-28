@@ -23,7 +23,7 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 7. reconcile_transcript — **pass 1** (suppress bleed/inaudible)
 8. precorrect_transcript — glossary, cross-track sync, report
 9. require_transcript_refine — hard agent gate (`refine-done` / waive; auto-waive if `--unattended`)
-10. analyze_prosody (`prosody.enabled` in pipeline.yaml, **on by default**) — caches a per-track prosody profile (pitch, rate, energy, prominent words, boundaries) for `audition_context` to read; a no-op with a clear summary if `praat-parselmouth` (the `prosody` extra) is not installed. See [docs/pipeline.md § Prosody profile](../../docs/pipeline.md#prosody-profile).
+10. analyze_prosody (`prosody.enabled` in pipeline.yaml, **on by default**) — caches a per-track prosody profile (pitch, rate, energy, prominent words, boundaries) for `audition_context` to read; runs after `precorrect_transcript` (a standalone `--only analyze_prosody` needs reconcile/precorrect done first); a no-op with a clear summary if `praat-parselmouth` (the `prosody` extra) is not installed. See [docs/pipeline.md § Prosody profile](../../docs/pipeline.md#prosody-profile).
 11. analyze_focus_cuts (`focus.enabled` in pipeline.yaml) — an outline (`artifacts/focus_outline.md`), **not a cut list**; when off it writes nothing and only reports `skipped (focus.enabled=false)`
 12. focus_from_transcript (no-op unless `focus.auto_apply: true`)
 13. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
