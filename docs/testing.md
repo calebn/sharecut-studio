@@ -512,6 +512,19 @@ covers the phone listening shell under an `iPhone 13` touch profile (coarse
 pointer, viewport-derived x/y bounds), and the recording guest's
 microphone-consent-to-level path.
 
+`e2e-compat/core-flow.spec.ts` walks the core flow in one test on a disposable
+`aligned_dialogue` copy, with one `test.step` per stage, and runs on the
+Chromium projects only until #704 turns it on for WebKit (`testIgnore` on the
+`webkit` project). Chromium's fake capture device
+(`--use-fake-device-for-media-stream`) feeds the real `getUserMedia`, and the
+guest keeper goes through the AudioWorklet and OPFS writer, uploads, and lands
+with a non-silent peak (`landedTrackPeak`). The episode transcript hydrates;
+"transcribe" is the browser rendering only, because live ASR is server-side
+(`make e2e-slow`). The Tighten panel opens on its empty state. A transcript
+word is corrected and undone with Mod+Z. A viewer review share plays the
+per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on Play). A
+host Bounce writes one non-silent WAV under `export/bounces/`.
+
 `e2e-compat/deep-zoom.spec.ts` stretches a disposable `aligned_dialogue` copy
 to a one-hour session (`e2e/deepZoom.ts` `stretchProjectToSession`) and zooms to
 `effectiveMaxZoomPxPerSec(3600)` (about 15 M px of content). At the end it
@@ -528,12 +541,16 @@ The recording check uses `stubSyntheticMicrophone`
 meter until it reads a non-zero value. Chromium keeps its native Permissions
 API; WebKit hides `navigator.permissions` so the matrix exercises Safari's
 missing-`permissions.query` branch (`src/record/micPermission.ts`). It does not
-verify native permission prompts, hardware capture, keeper audio, or upload.
+verify native permission prompts or hardware capture; keeper audio and upload
+are covered on Chromium by the core-flow spec above.
 Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
-`landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection, and
-`gui/web/e2e/wavPeak.ts`, a WAV peak helper for the landed-audio assertions
-planned in #703 / #704 (no spec calls it yet); guest review
+`landParticipant`), `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
+`gui/web/e2e/wavPeak.ts` (landed and bounced WAV peaks, via `landedTrackPeak`
+in `recordRoom.ts` and `bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
+`gui/web/e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`) and
+`gui/web/e2e/transcriptEdit.ts` (`openTranscriptPanel`,
+`recordDocumentCommandTypes`); guest review
 shares come from `createReviewShare` in `gui/web/e2e/shareNavigation.ts`. This
 keeps coverage focused on high-risk entry points without multiplying the
 full suite across engines.
