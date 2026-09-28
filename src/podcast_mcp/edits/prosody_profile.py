@@ -3,7 +3,8 @@
 ``engines/prosody.py`` computes; this module owns the cache file naming (mirrors the
 ASR transcript cache: ``transcripts/prosody/{track_id}_{audio16}_{inputs16}.json``),
 audio-identity reuse (``edits.transcript_reuse.audio_identity``), and the
-timeline-mapped window handed to ``audition_context`` (see #196).
+timeline-mapped window handed to ``audition_context`` (see #196) and the GUI overlay
+reader (:func:`prosody_overlay`, #719).
 
 The reader (:func:`load_track_profile`) never hashes audio: it lists this track's
 cache files (one after the writer prunes), picks the newest, and compares its stored
@@ -28,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.edits.transcript_reuse import audio_identity
 from podcast_mcp.engines.audio_audit import load_mono_full
 from podcast_mcp.engines.prosody import (
@@ -53,6 +55,9 @@ PROFILE_SCHEMA = "prosody_profile.v1"
 ALGORITHM_VERSION = 3
 MAX_WINDOW_SEGMENTS = 6
 PROSODY_LOCK_TIMEOUT_SEC = 600.0
+OVERLAY_SCHEMA = "prosody_overlay.v1"
+_OVERLAY_UNAVAILABLE_HINT = "The cached prosody profile could not be read; re-run analyze_prosody."
+_ENERGY_THIRD_KEYS = ("start_third_db", "mid_third_db", "end_third_db")
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
 _PROFILE_SUFFIX_RE = re.compile(r"_[0-9a-f]{16}_[0-9a-f]{16}\.json")
 
@@ -475,3 +480,120 @@ def prosody_window(
         "segments": out_segments,
         "truncated": truncated,
     }
+
+
+def _timing_key(start: float, end: float) -> tuple[float, float]:
+    return (round(float(start), 6), round(float(end), 6))
+
+
+def _word_index_by_timing(project: EpisodeProject, track_id: str) -> dict[tuple[float, float], int]:
+    """Transcript ``word_index`` (the GUI's, see ``gui/mapper.py``) per source timing; first wins."""
+    tr = project.transcript_for_track(track_id)
+    out: dict[tuple[float, float], int] = {}
+    for i, w in enumerate(tr.words if tr is not None else []):
+        out.setdefault(_timing_key(w.start, w.end), i)
+    return out
+
+
+def _overlay_segment(
+    st: SessionTimeline, track_id: str, seg: dict[str, Any]
+) -> dict[str, Any] | None:
+    """One segment's timeline spans, energy-third steps and trend; None when fully cut."""
+    start, end = float(seg["start"]), float(seg["end"])
+    mappable, spans, _tl0, _tl1 = map_source_span_fields(st, track_id, start, end)
+    if not mappable:
+        return None
+    energy = seg.get("energy") or {}
+    step = (end - start) / 3.0
+    thirds = []
+    for i, key in enumerate(_ENERGY_THIRD_KEYS):
+        _m, third_spans, _a, _b = map_source_span_fields(
+            st, track_id, start + i * step, start + (i + 1) * step
+        )
+        thirds.append({"db": float(energy.get(key, 0.0)), "spans": third_spans})
+    return {
+        "source_start": start,
+        "source_end": end,
+        "spans": spans,
+        "energy_thirds": thirds,
+        "trend": str(energy.get("trend", "flat")),
+        "drop_db": float(energy.get("drop_db", 0.0)),
+        "line": _segment_line(seg),
+    }
+
+
+def _empty_overlay_track(track_id: str, status: str, hint: str | None) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "track_id": track_id,
+        "status": status,
+        "segments": [],
+        "boundaries": [],
+        "prominent_words": [],
+        "energy_db": None,
+    }
+    if hint:
+        out["hint"] = hint
+    return out
+
+
+def _overlay_track(
+    project: EpisodeProject, st: SessionTimeline, track_id: str, params: ProsodyParams | None
+) -> dict[str, Any]:
+    lookup = load_track_profile(project, track_id, params=params)
+    if lookup.profile is None:
+        return _empty_overlay_track(track_id, lookup.status, lookup.hint)
+    word_index = _word_index_by_timing(project, track_id)
+    out = _empty_overlay_track(track_id, lookup.status, lookup.hint)
+    dbs: list[float] = []
+    for seg in lookup.profile.segments:
+        row = _overlay_segment(st, track_id, seg)
+        if row is not None:
+            out["segments"].append(row)
+            # 0.0 is the engine's "unmeasured" fallback, not a level; keep it out of the range.
+            dbs.extend(t["db"] for t in row["energy_thirds"] if t["db"] > 0.0)
+        for b in seg.get("boundaries") or []:
+            tl = st.source_to_timeline(track_id, SourceSec(float(b["time"])))
+            if tl is None:
+                continue
+            out["boundaries"].append(
+                {
+                    "timeline_sec": float(tl),
+                    "strength": float(b.get("strength", 0.0)),
+                    "kind": str(b.get("kind", "word_gap")),
+                    "pause_sec": float(b.get("pause_sec", 0.0)),
+                }
+            )
+        for w in seg.get("prominent_words") or []:
+            tl = st.source_to_timeline(track_id, SourceSec(float(w["start"])))
+            out["prominent_words"].append(
+                {
+                    "text": str(w.get("text", "")),
+                    "score": float(w.get("score", 0.0)),
+                    "word_index": word_index.get(_timing_key(w["start"], w["end"])),
+                    "timeline_sec": float(tl) if tl is not None else None,
+                }
+            )
+    if dbs:
+        out["energy_db"] = {"min": min(dbs), "max": max(dbs)}
+    return out
+
+
+def prosody_overlay(
+    project: EpisodeProject, *, params: ProsodyParams | None = None
+) -> dict[str, Any]:
+    """Every dialogue track's cached prosody profile mapped to the timeline, for the DAW overlay (#719).
+
+    Reads the ``analyze_prosody`` cache only (never Praat). ``fresh`` and ``stale`` tracks carry
+    data (the GUI dims stale ones); ``missing`` / ``unavailable`` carry a ``hint`` and empty lists.
+    A cache file that cannot be read or parsed becomes ``unavailable`` with a fixed hint (no
+    exception text, no paths).
+    """
+    st = SessionTimeline(project)
+    tracks: list[dict[str, Any]] = []
+    for track_id in dialogue_track_ids(project):
+        try:
+            tracks.append(_overlay_track(project, st, track_id, params))
+        except (OSError, ValueError, KeyError, TypeError):
+            # KeyError/TypeError: a hand-edited or truncated-but-valid cache file.
+            tracks.append(_empty_overlay_track(track_id, "unavailable", _OVERLAY_UNAVAILABLE_HINT))
+    return {"schema": OVERLAY_SCHEMA, "tracks": tracks}
