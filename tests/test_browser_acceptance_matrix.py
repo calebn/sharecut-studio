@@ -8,7 +8,6 @@ gui/web/e2e-compat/, playwright.compat.config.ts and the CI workflow.
 
 from __future__ import annotations
 
-import fnmatch
 import re
 from pathlib import Path
 
@@ -56,6 +55,9 @@ _UNSUPPORTED_FILTER_RE = re.compile(r"\b(?:testMatch|grep|grepInvert)\s*:")
 _PROJECT_NAME_RE = re.compile(r'\bname:\s*"([\w-]+)"')
 _TEST_IGNORE_RE = re.compile(r"\btestIgnore:\s*\[([^\]]*)\]")
 _STRING_RE = re.compile(r'"([^"]*)"')
+# The one testIgnore glob shape the guard reads: a spec file name at any depth.
+_IGNORE_GLOB_RE = re.compile(r"\*\*/[\w.-]+\.spec\.ts")
+_STRING_LIST_RE = re.compile(r'\s*(?:"[^"]*"\s*,?\s*)*')
 _INSTALL_RE = re.compile(r"\bplaywright install\b([^\n]*)")
 
 
@@ -102,7 +104,18 @@ def compat_projects(config: str) -> dict[str, list[str]]:
         else:
             end = len(config)
         ignore = _TEST_IGNORE_RE.search(config, match.end(), end)
-        projects[match.group(1)] = _STRING_RE.findall(ignore.group(1)) if ignore else []
+        if ignore:
+            assert _STRING_LIST_RE.fullmatch(ignore.group(1)), (
+                f"testIgnore list {ignore.group(0)!r} is not only double-quoted string "
+                "literals; teach compat_projects to read it"
+            )
+        globs = _STRING_RE.findall(ignore.group(1)) if ignore else []
+        for glob in globs:
+            assert _IGNORE_GLOB_RE.fullmatch(glob), (
+                f"testIgnore glob {glob!r} is not '**/<file>.spec.ts'; Playwright's glob "
+                "rules differ from Python's, so teach compat_projects to read it"
+            )
+        projects[match.group(1)] = globs
         found += ignore is not None
     assert config.count("testIgnore") == found, (
         "a testIgnore sits outside a project block (after its name:) or is not a "
@@ -112,11 +125,14 @@ def compat_projects(config: str) -> dict[str, list[str]]:
 
 
 def runs_on(spec: str, engine: str, projects: dict[str, list[str]]) -> bool:
-    """Whether a project for *engine* exists and does not testIgnore *spec*."""
+    """Whether a project for *engine* exists and does not testIgnore *spec*.
+
+    `compat_projects` only accepts `**/<file>.spec.ts` globs, which match a
+    spec by file name at any depth.
+    """
     if engine not in projects:
         return False
-    absolute = (REPO_ROOT / spec).as_posix()
-    return not any(fnmatch.fnmatch(absolute, glob) for glob in projects[engine])
+    return f"**/{spec.rsplit('/', 1)[-1]}" not in projects[engine]
 
 
 def installed_engines(run: str) -> set[str]:
@@ -305,6 +321,24 @@ def test_compat_projects_rejects_an_unreadable_test_ignore() -> None:
     )
     with pytest.raises(AssertionError, match="testIgnore"):
         compat_projects(regex_literal)
+
+    segment_glob = (
+        "const projects = [\n"
+        '  { name: "webkit", testIgnore: ["*.spec.ts"], use: {} },\n'
+        "];\n"
+        "export default defineConfig({ projects });\n"
+    )
+    with pytest.raises(AssertionError, match="testIgnore glob"):
+        compat_projects(segment_glob)
+
+    bracket_glob = (
+        "const projects = [\n"
+        '  { name: "webkit", testIgnore: ["**/[a-c]*.spec.ts"], use: {} },\n'
+        "];\n"
+        "export default defineConfig({ projects });\n"
+    )
+    with pytest.raises(AssertionError, match="testIgnore list"):
+        compat_projects(bracket_glob)
 
 
 def test_installed_engines_reads_the_playwright_install_line() -> None:
