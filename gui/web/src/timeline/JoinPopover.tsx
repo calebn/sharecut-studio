@@ -91,6 +91,9 @@ export function JoinPopover({
   }, [place, anchorRef, seamSec]);
   // A mode change adds or drops the Length row (an error adds a line), so
   // re-place whenever the panel resizes, not only on window resize/scroll.
+  // The observer's first notification (async, after layout) repeats the
+  // layout effect's mount-time place(); place() only rewrites left/top, so
+  // the repeat is a no-op. If placement ever animates, skip that first call.
   useResizeObserver(panelRef, place);
 
   useOutsidePointerDown([panelRef, anchorRef], dismiss);
