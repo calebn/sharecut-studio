@@ -475,6 +475,17 @@
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
 }
 
+/* Prosody layer (#719): prominent word. An overline (not box-shadow, like
+   .low-confidence's underline) so the two compose on the same word: Stylelint's
+   declaration-strict-value plugin cannot validate a comma-separated multi-shadow
+   value, and box-shadow only holds one value per element anyway. */
+.utterance-word.prominent {
+  font-weight: 600;
+  text-decoration-line: overline;
+  text-decoration-color: var(--color-prosody-prominent);
+  text-decoration-thickness: 0.125rem;
+}
+
 .utterance-word.selected {
   outline: 1px solid var(--accent);
   outline-offset: 1px;

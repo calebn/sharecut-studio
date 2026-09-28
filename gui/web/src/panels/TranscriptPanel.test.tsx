@@ -5,6 +5,7 @@ import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
+import type { ProsodyOverlay } from "../types/prosody";
 import { scrollChildIntoParent } from "../utils/transcript";
 import { TranscriptPanel } from "./TranscriptPanel";
 
@@ -23,6 +24,13 @@ vi.mock("../utils/transcript", async (importOriginal) => {
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
+}));
+
+const useProsodyOverlayMock = vi.hoisted(() =>
+  vi.fn((_enabled: boolean): ProsodyOverlay | null => null),
+);
+vi.mock("../prosody/useProsodyOverlay", () => ({
+  useProsodyOverlay: useProsodyOverlayMock,
 }));
 
 vi.mock("../inspector/views/TranscriptWordInspector", () => ({
@@ -1696,5 +1704,64 @@ describe("TranscriptPanel virtualization", () => {
     await act(async () => {
       resolve();
     });
+  });
+});
+
+describe("TranscriptPanel prosody emphasis (#719)", () => {
+  beforeEach(() => {
+    useProsodyOverlayMock.mockReset();
+    useProsodyOverlayMock.mockReturnValue(null);
+    useDawStore.setState({
+      project: project(),
+      projectPath: "/tmp/ep",
+      playheadSec: 0,
+      selection: null,
+      transcriptFollowPlayhead: false,
+      layoutMode: "default",
+      pointerKind: "fine",
+      transcriptInlineCommitPending: false,
+      transcriptInlineEditFailure: null,
+      transcriptAnnotate: false,
+      transcriptReviewCursor: null,
+      layers: { ...useDawStore.getState().layers, showProsody: true },
+    });
+  });
+
+  function freshOverlay() {
+    return {
+      schema: "prosody_overlay.v1",
+      tracks: [
+        {
+          track_id: "host",
+          status: "fresh" as const,
+          segments: [],
+          boundaries: [],
+          prominent_words: [
+            { text: "hello", score: 1.2, word_index: 0, timeline_sec: 0 },
+          ],
+          energy_db: null,
+        },
+      ],
+    };
+  }
+
+  it("marks a prominent word when the layer is on", () => {
+    useProsodyOverlayMock.mockReturnValue(freshOverlay());
+    const { container } = render(<TranscriptPanel />);
+    const word = container.querySelector(".utterance-word.prominent");
+    expect(word).not.toBeNull();
+    expect(word?.getAttribute("title")).toContain("Emphasized (prosody)");
+    expect(useProsodyOverlayMock).toHaveBeenCalledWith(true);
+  });
+
+  it("marks no word when the layer is off", () => {
+    useDawStore.setState({
+      layers: { ...useDawStore.getState().layers, showProsody: false },
+    });
+    // The real hook returns null while disabled; the mock mirrors that here.
+    useProsodyOverlayMock.mockReturnValue(null);
+    const { container } = render(<TranscriptPanel />);
+    expect(container.querySelector(".utterance-word.prominent")).toBeNull();
+    expect(useProsodyOverlayMock).toHaveBeenCalledWith(false);
   });
 });
