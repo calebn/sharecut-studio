@@ -337,6 +337,26 @@ describe("landedTrackPeak", () => {
     );
   });
 
+  it("rejects a raw/ path that escapes raw/ via ..", async () => {
+    const dir = tempWorkspace("landed-peak-");
+    writeRawWavs(dir);
+    const projectPath = writeProject(dir, {
+      sources: [{ id: "s1", path: "raw/../../a.wav" }],
+      clips: [
+        {
+          track_id: "t1",
+          source_id: "s1",
+          timeline_start: 0,
+          source_start: 0,
+          source_end: 1,
+        },
+      ],
+    });
+    await expect(landedTrackPeak(projectPath, "Ava")).rejects.toThrow(
+      /not under raw\//,
+    );
+  });
+
   it("rejects when a source file is missing", async () => {
     const dir = tempWorkspace("landed-peak-");
     fs.mkdirSync(path.join(dir, "raw"), { recursive: true });
