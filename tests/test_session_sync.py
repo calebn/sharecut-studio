@@ -2218,6 +2218,37 @@ def test_best_effort_meta_warns_once_per_path_on_a_corrupt_store(caplog, tmp_pat
     assert "corrupt" in warnings[0].getMessage()
 
 
+def test_best_effort_meta_warns_again_after_the_store_recovers(caplog, tmp_path) -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _corrupt() -> int:
+        raise sqlite3.DatabaseError("file is not a database")
+
+    path = tmp_path / "sync.db"
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
+        best_effort_meta(_corrupt, 0, what="session meta", path=path)
+        best_effort_meta(_corrupt, 0, what="session meta", path=path)
+        assert best_effort_meta(lambda: 5, 0, what="session meta", path=path) == 5
+        best_effort_meta(_corrupt, 0, what="session meta", path=path)
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 2
+
+
+def test_best_effort_meta_keys_corrupt_warnings_on_the_resolved_path(caplog, tmp_path) -> None:
+    from podcast_mcp.services.session_sync.service import best_effort_meta
+
+    def _corrupt() -> int:
+        raise sqlite3.DatabaseError("file is not a database")
+
+    real = tmp_path / "sync.db"
+    real.write_bytes(b"x")
+    link = tmp_path / "link.db"
+    link.symlink_to(real)
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
+        for spelling in (real, link, str(real)):
+            best_effort_meta(_corrupt, 0, what="session meta", path=spelling)
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+
+
 def test_best_effort_meta_keeps_transient_errors_at_debug(caplog, tmp_path) -> None:
     from podcast_mcp.services.session_sync.service import best_effort_meta
 

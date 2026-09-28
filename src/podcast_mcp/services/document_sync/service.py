@@ -513,22 +513,31 @@ def notify_document_changed(project_path: str | Path) -> None:
         return
 
 
+def _document_server_seq_at(db_path: Path) -> int | None:
+    def _read() -> int | None:
+        store = _existing_store_at(resolve_meta_path(db_path))
+        return _journal_server_seq(store) if store is not None else 0
+
+    return best_effort_meta(_read, None, what="document server_seq", path=db_path)
+
+
 def document_server_seq(project_path: str | Path) -> int | None:
     """Materialized document log seq: 0 when document.db does not exist, None when unreadable.
 
     Stat + document.db read only: no project parse, never creates document.db.
-    Path resolution and store reads share ``best_effort_meta`` (same policy as
-    ``session_meta``). ``None`` lets the meta routes omit ``server_seq`` so a
+    Path resolution and the store read (``_document_server_seq_at``) each go through
+    ``best_effort_meta``. ``None`` lets the meta routes omit ``server_seq`` so a
     transient read error does not look like a seq change to the client poll. The
     caller must pass a project path it has already authorized; this helper does no authz.
     """
-
-    def _read() -> int | None:
-        db_path = document_db_path_for_workspace(meta_workspace_dir(project_path))
-        store = _existing_store_at(resolve_meta_path(db_path))
-        return _journal_server_seq(store) if store is not None else 0
-
-    return best_effort_meta(_read, None, what="document server_seq", path=project_path)
+    return best_effort_meta(
+        lambda: _document_server_seq_at(
+            document_db_path_for_workspace(meta_workspace_dir(project_path))
+        ),
+        None,
+        what="document server_seq",
+        path=project_path,
+    )
 
 
 def document_poll_meta(project_path: Path) -> dict[str, Any]:
