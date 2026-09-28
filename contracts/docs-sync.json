@@ -536,8 +536,9 @@
     {
       "id": "sharecut-studio-css-units-theme-tokens",
       "when": "Sharecut Studio CSS units / theme tokens / Stylelint",
-      "update": "`.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md`",
+      "update": "`docs/design-tokens.md` (naming system), `.agents/rules/gui-styling.md`, `docs/contributing.md` § frontend, `gui/web/README.md`, `ux/pages/brand.md` § Units, `docs/gui-mobile.md`",
       "docs": [
+        "docs/design-tokens.md",
         ".agents/rules/gui-styling.md",
         "docs/contributing.md",
         "gui/web/README.md",
