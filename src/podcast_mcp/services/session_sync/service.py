@@ -519,6 +519,21 @@ class SessionSyncService:
             return []
         return get_roster_tracker().events(self._project_key, store.list_clients())
 
+    def _safe_presence_events(
+        self, live_rows: list[dict[str, Any]] | None = None
+    ) -> list[dict[str, Any]]:
+        """``_presence_events`` for the coalesced fan-out, on both the leading edge and
+        the trailing timer thread. A failed read (a locked or corrupt sync.db) is logged
+        and yields no events, and the key's tracked base is dropped, so the next
+        successful run fans out a full ``Presence`` at a bumped version instead of
+        deltas."""
+        try:
+            return self._presence_events(live_rows)
+        except Exception:
+            log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
+            get_roster_tracker().clear_key(self._project_key)
+            return []
+
     def _fanout_presence_after_commit(self, live_rows: list[dict[str, Any]] | None = None) -> None:
         """Schedule the roster fan-out (coalesced to <=10 Hz per project key) after a
         commit that may have changed a client's roster row: a presence heartbeat/follow,
@@ -528,15 +543,19 @@ class SessionSyncService:
         re-reading the store (the caller's commit already read them); the trailing edge
         always re-reads.
 
-        Best effort: the commit this follows already succeeded, so a fan-out failure (a
-        locked/corrupt sync.db on the presence-only read) is logged and swallowed rather
-        than failing the caller.
+        Best effort: the commit this follows already succeeded, so a fan-out failure on
+        either edge (a locked/corrupt sync.db on the presence-only read) is logged and
+        swallowed rather than failing the caller, and forces a full-roster resend on the
+        next successful run (``_safe_presence_events``).
         """
-        leading = None if live_rows is None else functools.partial(self._presence_events, live_rows)
+        leading = (
+            None if live_rows is None else functools.partial(self._safe_presence_events, live_rows)
+        )
         try:
-            schedule_presence(self._project_key, self._presence_events, leading=leading)
+            schedule_presence(self._project_key, self._safe_presence_events, leading=leading)
         except Exception:
             log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
+            get_roster_tracker().clear_key(self._project_key)
 
     def roster_event(self) -> dict[str, Any]:
         """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: the tracker's
