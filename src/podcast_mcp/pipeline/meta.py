@@ -120,6 +120,10 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("precorrect_transcript",),
         param_sections=("analysis",),
     ),
+    # Depends on precorrect, not the require_transcript_refine gate (unlike its editorial
+    # siblings): it only reads word timings and never mutates the timeline, and any later
+    # refine edit changes the words fingerprint, so the profile reads stale until the next
+    # run. Unchecking the gate therefore leaves this step enabled on purpose.
     "analyze_prosody": StepMeta(
         id="analyze_prosody",
         group="editorial",
