@@ -459,6 +459,48 @@ describe("PipelinePanel", () => {
     expect(startPipelineRun).not.toHaveBeenCalled();
   });
 
+  it("Re-time words ignores a second click while the first is still loading", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, true));
+    let resolveVocab!: (v: unknown) => void;
+    loadTranscriptVocabulary.mockReturnValue(
+      new Promise((r) => {
+        resolveVocab = r;
+      }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+    const btn = await screen.findByRole("button", { name: "Re-time words" });
+    const callsBefore = loadTranscriptVocabulary.mock.calls.length;
+
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+
+    expect(loadTranscriptVocabulary.mock.calls.length).toBe(callsBefore + 1);
+    expect(btn).toBeDisabled();
+
+    await act(async () => {
+      resolveVocab({
+        terms: [],
+        guest_names: [],
+        revision: "r1",
+        needs_retranscription: false,
+        edited_tracks: [],
+      });
+    });
+    await waitFor(() => {
+      expect(startPipelineRun).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("has no axe violations with the aligner badge", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));

@@ -293,6 +293,9 @@ export function PipelinePanel() {
   );
   const [highlightPaths, setHighlightPaths] = useState<Set<string>>(new Set());
   const [starting, setStarting] = useState(false);
+  const [retiming, setRetiming] = useState(false);
+  /** Synchronous guard: a second click before `retiming` re-renders must not start a second re-time. */
+  const retimeInFlight = useRef(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const persistRequest = useLatestRequest();
@@ -753,17 +756,27 @@ export function PipelinePanel() {
   };
 
   const onRetime = async () => {
-    let edited: string[];
-    try {
-      edited =
-        (await loadTranscriptVocabulary(projectPath)).edited_tracks ?? [];
-    } catch (e) {
-      setError(errorMessage(e));
+    if (retimeInFlight.current) {
       return;
     }
-    const overwriteEdited = confirmReplaceEdited(edited, "Re-time words");
-    if (overwriteEdited !== null) {
-      await onRun("retime", overwriteEdited);
+    retimeInFlight.current = true;
+    setRetiming(true);
+    try {
+      let edited: string[];
+      try {
+        edited =
+          (await loadTranscriptVocabulary(projectPath)).edited_tracks ?? [];
+      } catch (e) {
+        setError(errorMessage(e));
+        return;
+      }
+      const overwriteEdited = confirmReplaceEdited(edited, "Re-time words");
+      if (overwriteEdited !== null) {
+        await onRun("retime", overwriteEdited);
+      }
+    } finally {
+      retimeInFlight.current = false;
+      setRetiming(false);
     }
   };
 
@@ -1110,7 +1123,7 @@ export function PipelinePanel() {
                           {forcedAlignmentOn(cfg) ? (
                             <WordAlignerStatus
                               status={cfg.components[WORD_ALIGNER_COMPONENT]}
-                              disabled={running || starting}
+                              disabled={running || starting || retiming}
                               onDownloaded={() =>
                                 void refreshConfig().catch((e: unknown) =>
                                   setError(errorMessage(e)),
