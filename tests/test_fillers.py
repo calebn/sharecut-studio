@@ -513,6 +513,57 @@ def test_pause_max_end_clamps_breath_extension():
     assert result.end == pytest.approx(3.15)
 
 
+def test_pause_across_ripple_deleted_material_is_not_proposed():
+    """A ripple delete leaves no clip over the removed source range.
+
+    Two words that are adjacent in the surviving transcript can still be far
+    apart on the source clock (#772): the material between them was already
+    cut from the timeline, so a source-clock gap check would find one even
+    though nothing plays there any more. The next clip starts flush with the
+    resume word, so none of the gap survives on the timeline.
+    """
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="her", start=2.5, end=2.8),
+        TranscriptWord(text="anyway", start=80.3, end=80.6),
+    ]
+    project = _project_with_transcript(words)
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=3.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=80.3, source_end=90.0, timeline_start=3.0),
+    ]
+    candidates = _collect_candidates(
+        project.transcripts[0],
+        {"tighten": {"filler_words": [], "max_pause_sec": 1.2}},
+        project=project,
+    )
+    assert candidates == []
+
+
+def test_pause_gap_is_measured_on_the_timeline_not_the_source_clock():
+    """A partially ripple-deleted gap is sized by what still plays, not raw source distance."""
+    from podcast_mcp.edits.fillers import _collect_candidates
+
+    words = [
+        TranscriptWord(text="her", start=4.2, end=4.5),
+        TranscriptWord(text="anyway", start=16.0, end=16.3),
+    ]
+    project = _project_with_transcript(words)
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=15.0, source_end=30.0, timeline_start=5.0),
+    ]
+    candidates = _collect_candidates(
+        project.transcripts[0],
+        {"tighten": {"filler_words": [], "max_pause_sec": 1.2}},
+        project=project,
+    )
+    # Raw source distance is 11.5s (16.0 - 4.5); surviving timeline air is only
+    # 0.5s (4.5->5.0) + 1.0s (15.0->16.0) = 1.5s.
+    assert [c.reason for c in candidates] == ["pause:1.50s:solo"]
+
+
 def test_collect_candidates_without_project_uses_turn_floor():
     from podcast_mcp.edits.fillers import _collect_candidates
 
@@ -551,10 +602,73 @@ def test_repetition_candidates_are_bounded_and_review_required():
         project.transcripts[0], {"tighten": {"filler_words": []}}, project=project
     )
     assert [candidate.reason for candidate in candidates] == ["repetition:word:i"]
+    assert candidates[0].min_start == pytest.approx(0.0)
+    assert candidates[0].max_end == pytest.approx(0.15)
     decisions = analyze_fillers_and_pauses(
         project, project.transcripts[0], {"tighten": {"filler_words": []}}
     )
     assert decisions[0].review_required is True
+
+
+def test_repetition_cut_cannot_widen_past_the_duplicate_word():
+    """Waveform snapping must stay on the repeated word, never a neighbor (#772).
+
+    Before this bound, the join-quality optimizer was free to slide the cut
+    onto whatever low-energy point it liked, which could land on the word
+    before the repeat or eat into the kept second copy.
+    """
+    from podcast_mcp.edits.cut_quality import CutRisk
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+
+    words = [
+        TranscriptWord(text="what,", start=1.0, end=1.3),
+        TranscriptWord(text="what", start=1.3, end=1.5),
+        TranscriptWord(text="comes", start=1.5, end=1.8),
+    ]
+    project = _project_with_transcript(words)
+    cand = _CutCandidate(
+        track_id="host",
+        start=1.0,
+        end=1.3,
+        reason="repetition:word:what",
+        cut_kind="repeat",
+        min_start=1.0,
+        max_end=1.3,
+    )
+
+    def fake_opt(*args, **kwargs):
+        # Suggests sliding onto the second "what"/"comes", well past the
+        # duplicate word this candidate identified.
+        return (
+            OptimizedCutRange(
+                start=0.7,
+                end=1.8,
+                mode="vocal_transcript_guided",
+                shifted_start_ms=0.0,
+                shifted_end_ms=0.0,
+                confidence=0.9,
+                details={},
+            ),
+            CutRisk(score=0.1, reasons=[]),
+        )
+
+    with (
+        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            return_value=("session", None),
+        ),
+    ):
+        result = _analyze_candidate(
+            project,
+            cand,
+            {"tighten": {"filler_words": [], "leave_in_if_risky": True}},
+        )
+    assert result is not None
+    assert result.start == pytest.approx(1.0)
+    assert result.end == pytest.approx(1.3)
 
 
 def test_phrase_restart_and_marked_partial_word_are_review_candidates():
@@ -1591,6 +1705,43 @@ def test_analyze_marks_review_when_peer_speech_requires_it():
     assert "other_speaking:guest" in result.reason
     assert result.replace_gap_sec is None
     assert result.scope == "track"
+
+
+@pytest.mark.parametrize("action", ["track_local", "review"])
+def test_analyze_drops_pause_when_peer_speech_forces_track_local(action):
+    """A track-local punch never ripples, so it can't shorten the timeline.
+
+    Proposing a ``pause`` cut for review only to have it accomplish nothing
+    once approved wastes the reviewer's time; drop it instead (#772).
+    """
+    from types import SimpleNamespace
+
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+
+    project = _project_with_transcript(
+        [
+            TranscriptWord(text="so", start=1.0, end=1.2),
+            TranscriptWord(text="anyway", start=5.0, end=5.3),
+        ]
+    )
+    guard = SimpleNamespace(blocked=True, action=action, blocking_track_ids=["guest"])
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        return_value=("track", guard),
+    ):
+        result = _analyze_candidate(
+            project,
+            _CutCandidate(
+                track_id="host",
+                start=1.2,
+                end=5.0,
+                reason="pause:3.80s",
+                cut_kind="pause",
+                max_end=5.0,
+            ),
+            {"tighten": {}},
+        )
+    assert result is None
 
 
 def test_discourse_trailing_pause_qualifies_like():

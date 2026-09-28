@@ -294,9 +294,10 @@ class _CutCandidate:
     filler_confidence: float | None = None
     # Pause cuts: hard ceiling so trailing-energy / breath cannot eat the retain floor.
     max_end: float | None = None
-    # Strictly bounded candidates (acoustic gap runs): hard floor so waveform
-    # snapping, breath extension, and pacing never move the cut back onto an ASR
-    # word; such candidates also skip gap expansion during pacing.
+    # Strictly bounded candidates (acoustic gap runs; repetition/restart word
+    # spans): hard floor so waveform snapping, breath extension, and pacing
+    # never move the cut off the identified span onto a neighboring word; such
+    # candidates also skip gap expansion during pacing.
     min_start: float | None = None
     # Proposal-only regardless of risk (never auto-applied).
     review_only: bool = False
@@ -411,6 +412,8 @@ def _collect_repetition_candidates(
                         reason=f"restart:partial:{partial}",
                         cut_kind="restart",
                         filler_confidence=first.confidence,
+                        min_start=first.start,
+                        max_end=first.end,
                     )
                 )
                 continue
@@ -460,6 +463,8 @@ def _collect_repetition_candidates(
                         reason=f"restart:partial:{partial}",
                         cut_kind="restart",
                         filler_confidence=partial_word.confidence,
+                        min_start=words[start_i].start,
+                        max_end=partial_word.end,
                     )
                 )
                 split_repair_found = True
@@ -510,6 +515,8 @@ def _collect_repetition_candidates(
                     ),
                     cut_kind="restart",
                     filler_confidence=_span_confidence(words, start_i, end_i),
+                    min_start=words[start_i].start,
+                    max_end=words[end_i].end,
                 )
             )
             phrase_found = True
@@ -535,6 +542,8 @@ def _collect_repetition_candidates(
                         reason=f"repetition:word:{first_token}",
                         cut_kind="repeat",
                         filler_confidence=first.confidence,
+                        min_start=first.start,
+                        max_end=first.end,
                     )
                 )
     return candidates
@@ -656,6 +665,27 @@ def _pause_trim_end_for_timeline_floor(
     return trim
 
 
+def _timeline_pause_gap_sec(
+    project: EpisodeProject, track_id: str, gap_start: float, gap_end: float
+) -> float:
+    """Audible timeline duration remaining in a source word gap.
+
+    ``TranscriptWord`` timestamps stay in source-media seconds even after a
+    ripple delete removes the material between them (see
+    ``docs/architecture.md`` Timebase), so two words that are adjacent in the
+    surviving transcript can still be far apart on the source clock. Map the
+    gap through :class:`SessionTimeline` and sum only the spans that still
+    have a clip -- material a ripple already deleted contributes nothing.
+    """
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
+
+    spans = SessionTimeline(project).map_source_span(
+        track_id, SourceSec(gap_start), SourceSec(gap_end)
+    )
+    return sum(float(end) - float(start) for start, end in spans)
+
+
 def _retained_pause_floor_sec(
     project: EpisodeProject,
     track_id: str,
@@ -766,6 +796,14 @@ def _collect_candidates(
             if gap >= max_pause and gap > 0:
                 gap_start, gap_end = word.end, words[i + 1].start
                 if project is not None:
+                    # A ripple delete leaves no clip over the deleted source range,
+                    # so a source-clock gap can span material the listener never
+                    # hears any more. Measure what actually remains on the timeline
+                    # before proposing a cut sized off the (possibly much larger)
+                    # source gap.
+                    gap = _timeline_pause_gap_sec(project, track_id, gap_start, gap_end)
+                    if gap < max_pause:
+                        continue
                     retain, solo = _retained_pause_floor_sec(
                         project, track_id, gap_start, gap_end, defaults, peer_indexes
                     )
@@ -1226,6 +1264,14 @@ def _analyze_candidate(
     except ValueError:
         return None
     if guard is not None and guard.blocked:
+        if candidate.cut_kind == "pause":
+            # A peer is audibly speaking over this gap, so the guard forces a
+            # track-local punch instead of a session ripple. A punch leaves a
+            # silent hole on this track only -- the peer's track still spans
+            # the same window, so the timeline does not get any shorter. A
+            # pause proposal exists only to shorten the timeline, so it is
+            # useless (and confusing to review) once it can't.
+            return None
         peers = ",".join(guard.blocking_track_ids)
         if guard.action == "review":
             review_required = True
