@@ -4,6 +4,7 @@ import {
   clampRollDelta,
   clampTrimSourceSec,
   clipGeometryDuringRoll,
+  clipRowDuringRoll,
   MIN_EDGE_SPAN_SEC,
   rollNeighborBounds,
   sourceSecFromTimelineDelta,
@@ -101,6 +102,43 @@ describe("clipEdgePreview", () => {
     expect(lg.timelineStart + (lg.sourceEnd - lg.sourceStart)).toBe(
       rg.timelineStart,
     );
+  });
+
+  it("applies a roll preview to clip rows", () => {
+    const left = {
+      id: "L",
+      source_start: 0,
+      source_end: 10,
+      timeline_start: 0,
+      timeline_end: 10,
+    };
+    const right = {
+      id: "R",
+      source_start: 20,
+      source_end: 30,
+      timeline_start: 10,
+      timeline_end: 20,
+    };
+    const other = {
+      id: "O",
+      source_start: 30,
+      source_end: 35,
+      timeline_start: 20,
+      timeline_end: 25,
+    };
+    const preview = { leftClipId: "L", rightClipId: "R", deltaSec: 1.5 };
+    expect(clipRowDuringRoll(left, preview)).toEqual({
+      ...left,
+      source_end: 11.5,
+      timeline_end: 11.5,
+    });
+    expect(clipRowDuringRoll(right, preview)).toEqual({
+      ...right,
+      source_start: 21.5,
+      timeline_start: 11.5,
+    });
+    expect(clipRowDuringRoll(other, preview)).toBe(other);
+    expect(clipRowDuringRoll(left, null)).toBe(left);
   });
 });
 

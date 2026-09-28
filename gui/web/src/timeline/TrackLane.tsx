@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import type { RollPreview } from "../edit/clipEdgePreview";
+import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
@@ -42,6 +42,11 @@ const NOOP = () => undefined;
 interface TrackLaneProps {
   track: TrackView;
   trackIndex: number;
+  /**
+   * Sorted by `timeline_start`, as every backend clip list returns them:
+   * ClipBlock's `prevClip`/`nextClip` and the join badges take `clips[i ± 1]`
+   * as a clip's neighbours.
+   */
   clips: readonly ClipRow[];
   width: number;
   zoomPxPerSec: number;
@@ -297,20 +302,20 @@ export function TrackLaneView({
             />
           );
         })}
-        {/* One badge per drawn join, at the top of the seam (#690). */}
+        {/* One badge per drawn join, at the top of the seam (#690). A live
+            roll reshapes both sides, so the join rule and the seam read the
+            rolled rows ClipBlock draws. */}
         {clips.map((clip, i) => {
-          const prev = clips[i - 1];
-          if (
-            !prev ||
-            !isDrawnJoin(prev, clip, zoomPxPerSec) ||
-            isMoving(prev.id) ||
-            isMoving(clip.id)
-          ) {
+          const prevRow = clips[i - 1];
+          if (!prevRow || isMoving(prevRow.id) || isMoving(clip.id)) {
+            return null;
+          }
+          const prev = clipRowDuringRoll(prevRow, rollPreview);
+          const right = clipRowDuringRoll(clip, rollPreview);
+          if (!isDrawnJoin(prev, right, zoomPxPerSec)) {
             return null;
           }
           const glyph = joinGlyph(clip);
-          const rollSec =
-            rollPreview?.rightClipId === clip.id ? rollPreview.deltaSec : 0;
           return (
             <JoinBadge
               key={`join-${clip.id}`}
@@ -318,7 +323,7 @@ export function TrackLaneView({
               blocked={
                 glyph === "crossfade" && clip.join_crossfade_blocked != null
               }
-              seamSec={clip.timeline_start + rollSec}
+              seamSec={right.timeline_start}
               zoomPxPerSec={zoomPxPerSec}
             />
           );

@@ -167,3 +167,36 @@ export function rollNeighborBounds(
     mediaEnd,
   };
 }
+
+/**
+ * `clip` with a roll preview applied, as a row, so join rules such as
+ * `isDrawnJoin` see what ClipBlock draws live. Returns `clip` itself when the
+ * preview does not touch it.
+ */
+export function clipRowDuringRoll<
+  T extends {
+    id: string;
+    source_start: number;
+    source_end: number;
+    timeline_start: number;
+    timeline_end: number;
+  },
+>(clip: T, preview: RollPreview | null): T {
+  if (
+    preview == null ||
+    (preview.leftClipId !== clip.id && preview.rightClipId !== clip.id)
+  ) {
+    return clip;
+  }
+  const geom = clipGeometryDuringRoll(clip, preview);
+  return {
+    ...clip,
+    source_start: geom.sourceStart,
+    source_end: geom.sourceEnd,
+    timeline_start: geom.timelineStart,
+    timeline_end:
+      preview.leftClipId === clip.id
+        ? clip.timeline_end + preview.deltaSec
+        : clip.timeline_end,
+  };
+}

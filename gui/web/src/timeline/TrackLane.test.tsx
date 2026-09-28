@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -295,6 +295,46 @@ describe("TrackLane join badges", () => {
     const { container } = lane();
     expect(container.querySelector(".join-diamond")).toBeTruthy();
     expect(container.querySelector(".join-badge")).toBeTruthy();
+  });
+
+  it("moves the badge with a live roll of its join", () => {
+    const { container } = lane();
+    const diamond = container.querySelector<HTMLElement>(
+      "button.join-diamond",
+    )!;
+    // 50 px at 100 px/s rolls the c0 | c1 join 0.5 s right.
+    fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 7 });
+    fireEvent.pointerMove(diamond, { clientX: 150, pointerId: 7 });
+    const badge = container.querySelector<HTMLElement>(".join-badge")!;
+    expect(badge.style.left).toBe("550px");
+  });
+
+  it("hides badges whose clip a live roll shrinks below the minimum width", () => {
+    const c2: ClipRow = {
+      ...clip,
+      id: "c2",
+      source_start: 10,
+      source_end: 15,
+      timeline_start: 10,
+      timeline_end: 15,
+      join_left_clip_id: "c1",
+    };
+    const { container } = lane({
+      track: { ...track, duration_sec: 15 },
+      clips: [left, right, c2],
+      zoomPxPerSec: 10,
+      width: 150,
+    });
+    expect(container.querySelectorAll(".join-badge")).toHaveLength(2);
+    // c2's diamond rolls the c1 | c2 join 2.7 s left, so c1 draws 2.3 s = 23 px:
+    // both joins that touch c1 fall under MIN_JOIN_CLIP_PX until pointer-up.
+    const diamonds = container.querySelectorAll<HTMLElement>(
+      "button.join-diamond",
+    );
+    const diamond = diamonds[diamonds.length - 1]!;
+    fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 8 });
+    fireEvent.pointerMove(diamond, { clientX: 73, pointerId: 8 });
+    expect(container.querySelectorAll(".join-badge")).toHaveLength(0);
   });
 });
 
