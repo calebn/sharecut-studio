@@ -477,3 +477,19 @@ def test_analyze_prosody_file_clamps_segments_past_end_of_audio() -> None:
     assert len(segs) == 1
     assert segs[0]["start"] == pytest.approx(0.2)
     assert segs[0]["end"] == pytest.approx(2.0)
+
+
+def test_parselmouth_window_sound_keeps_absolute_start_time() -> None:
+    """Per-segment windows (#727) rely on ``start_time`` keeping contour times absolute."""
+    parselmouth = pytest.importorskip("parselmouth")
+    sr = 16000
+    t0 = 12.5
+    t = np.arange(sr) / sr
+    tone = 0.3 * np.sin(2 * np.pi * 150 * t)
+    snd = parselmouth.Sound(tone, sampling_frequency=float(sr), start_time=t0)
+    assert snd.xmin == pytest.approx(t0)
+    assert snd.xmax == pytest.approx(t0 + 1.0)
+    pitch = snd.to_pitch_ac(pitch_floor=75.0, pitch_ceiling=500.0)
+    assert t0 <= pitch.xs()[0] and pitch.xs()[-1] <= t0 + 1.0
+    intensity = snd.to_intensity()
+    assert t0 <= intensity.xs()[0] and intensity.xs()[-1] <= t0 + 1.0
