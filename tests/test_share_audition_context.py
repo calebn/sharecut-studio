@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.pipeline_config import config_store
 from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS, tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.share import (
@@ -19,6 +20,7 @@ from podcast_mcp.services.share import (
     share_audition_context_image,
     share_audition_context_info,
 )
+from prosody_helpers import seed_prosody_profile
 
 
 def _seed_dialogue(minimal_project, sample_wav, tmp_workspace) -> ProjectWorkspace:
@@ -320,6 +322,26 @@ def test_guest_audition_context_prosody_allowlist_drops_unknown_fields(
         "segments": [{"line": "F0 180Hz", "source_start": 0.0, "source_end": 1.0}],
     }
     assert "/abs" not in json.dumps(info)
+
+
+def test_guest_audition_context_prosody_stale_from_staged_params_has_no_hint(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_dialogue(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    seed_prosody_profile(ws.project)  # computed with the shipped defaults
+    store = config_store()
+    try:
+        info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+        assert info["tracks"][0]["prosody"]["status"] == "fresh"
+
+        store.put(ws.path, config={"prosody": {"pitch_floor_hz": 90.0}})
+        info = share_audition_context_info(share["token"], start=0.0, end=1.0, visual=False)
+        assert info["tracks"][0]["prosody"] == {"status": "stale"}
+        assert info["prosody_notes"] == []
+        assert "analyze_prosody" not in json.dumps(info)
+    finally:
+        store._by_path.pop(store._key(ws.path), None)
 
 
 def test_share_audition_context_errors(minimal_project, sample_wav, tmp_workspace, monkeypatch):
