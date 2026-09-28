@@ -35,7 +35,7 @@ from podcast_mcp.util.progress import (
     resolve_progress_task,
 )
 from podcast_mcp.util.project_state import current_cancel_check
-from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
+from podcast_mcp.util.workspace_paths import resolve_cache_file, resolve_under_workspace
 from podcast_mcp.whisper_models import (
     DEFAULT_WHISPER_MODEL,
     ensure_whisper_model_cached,
@@ -127,10 +127,7 @@ def _info_duration(info: Any) -> float | None:
 
 
 def _cache_file(project: EpisodeProject, cache_id: str, name: str) -> Path:
-    try:
-        return resolve_within(project.transcripts_dir(), name)
-    except ValueError:
-        raise ValueError(f"transcript cache escaped transcripts dir: {cache_id}") from None
+    return resolve_cache_file(project.transcripts_dir(), name, kind="transcript", cache_id=cache_id)
 
 
 def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str) -> Path:

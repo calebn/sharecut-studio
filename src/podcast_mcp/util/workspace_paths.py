@@ -27,6 +27,18 @@ def resolve_within(root: Path, stored: str, *, base: Path | None = None) -> Path
     return resolved
 
 
+def resolve_cache_file(directory: Path, name: str, *, kind: str, cache_id: str) -> Path:
+    """``resolve_within(directory, name)`` for a derived per-id cache file.
+
+    An escape re-raises as ``ValueError("<kind> cache escaped <directory.name> dir: <cache_id>")``,
+    which names the cache id and never the resolved host path.
+    """
+    try:
+        return resolve_within(directory, name)
+    except ValueError:
+        raise ValueError(f"{kind} cache escaped {directory.name} dir: {cache_id}") from None
+
+
 def resolve_under_workspace(project: EpisodeProject, stored: str) -> Path:
     """Join *stored* to the workspace and require the result stays inside it.
 
