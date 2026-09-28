@@ -97,6 +97,7 @@ def test_memoized_hash_reused_for_an_unchanged_file(tmp_path: Path, monkeypatch)
     assert manifest_mismatch(tmp_path, manifest, memoize=True) is None
     assert manifest_mismatch(tmp_path, manifest, memoize=True) is None
     assert len(calls) == 1
+    assert str((tmp_path / "a.txt").resolve()) not in model_manifest._MEMO_LOCKS
 
 
 def test_memoized_hash_re_hashes_after_the_file_changes(tmp_path: Path, monkeypatch) -> None:
@@ -180,6 +181,7 @@ def test_concurrent_status_checks_hash_an_unchanged_file_once(tmp_path: Path, mo
 
     assert results == [None, None]
     assert len(calls) == 1
+    assert str((tmp_path / "a.txt").resolve()) not in model_manifest._MEMO_LOCKS
 
 
 def test_oserror_during_memoized_hash_propagates_and_is_not_cached(
@@ -199,10 +201,12 @@ def test_oserror_during_memoized_hash_propagates_and_is_not_cached(
 
     with pytest.raises(OSError):
         manifest_mismatch(tmp_path, manifest, memoize=True)
+    assert str((tmp_path / "a.txt").resolve()) not in model_manifest._MEMO_LOCKS
 
     # Recovers on the next call instead of the OSError being remembered.
     assert manifest_mismatch(tmp_path, manifest, memoize=True) is None
     assert calls["n"] == 2
+    assert str((tmp_path / "a.txt").resolve()) not in model_manifest._MEMO_LOCKS
 
 
 def _pin(tmp_path: Path) -> tuple[PinnedSnapshot, Path]:
