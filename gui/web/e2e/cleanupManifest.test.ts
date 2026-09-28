@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   cleanupE2eManifest,
   createE2eCleanupManifest,
+  managedTmpWorkspace,
   registerE2eCleanupWorkspace,
 } from "./cleanupManifest";
 import { removeAfterTest, tempWorkspace } from "./testWorkspace";
@@ -78,5 +79,31 @@ describe("E2E cleanup manifest", () => {
         manifest.manifestPath,
       ),
     ).toBe(false);
+  });
+});
+
+describe("managedTmpWorkspace", () => {
+  it("returns the resolved path of a sharecut-e2e- dir inside tmp", () => {
+    const dir = path.join(os.tmpdir(), "x", "..", "sharecut-e2e-abc");
+    expect(managedTmpWorkspace(dir)).toBe(
+      path.join(path.resolve(os.tmpdir()), "sharecut-e2e-abc"),
+    );
+  });
+
+  it("rejects tmp dirs without the sharecut-e2e- prefix", () => {
+    expect(managedTmpWorkspace(path.join(os.tmpdir(), "other-abc"))).toBe(
+      undefined,
+    );
+  });
+
+  it("rejects sharecut-e2e- dirs outside tmp", () => {
+    const outside = path.join(
+      path.dirname(path.resolve(os.tmpdir())),
+      "sharecut-e2e-abc",
+    );
+    expect(managedTmpWorkspace(outside)).toBe(undefined);
+    expect(
+      managedTmpWorkspace(path.join(os.tmpdir(), "..", "sharecut-e2e-abc")),
+    ).toBe(undefined);
   });
 });
