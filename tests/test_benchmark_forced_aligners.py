@@ -891,6 +891,45 @@ def test_prepare_items_checks_cached_faster_whisper_version(tmp_path) -> None:
     assert calls == ["base", "base"]
 
 
+def test_prepare_items_checks_any_recorded_native_library(tmp_path) -> None:
+    """#715: the version guard applies to whatever library the cached words name."""
+    from importlib.metadata import version
+
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    calls: list[str] = []
+    inner = _tones_native(calls)
+
+    def library_native(library, library_version):
+        def fake_native(audio_path, model):
+            payload = inner(audio_path, model)
+            payload["provenance"].update(library=library, library_version=library_version)
+            return payload
+
+        return fake_native
+
+    numpy_version = version("numpy")
+    same_dir = tmp_path / "same"
+    bfa.prepare_items([item], runs_dir=same_dir, native=library_native("numpy", numpy_version))
+    bfa.prepare_items([item], runs_dir=same_dir, native=library_native("numpy", numpy_version))
+    assert calls == ["base"]
+
+    stale_dir = tmp_path / "stale"
+    bfa.prepare_items([item], runs_dir=stale_dir, native=library_native("numpy", "0.0.0"))
+    with pytest.raises(
+        ValueError, match=re.escape(f"numpy 0.0.0, but {numpy_version} is installed")
+    ):
+        bfa.prepare_items([item], runs_dir=stale_dir, native=library_native("numpy", numpy_version))
+
+    missing_dir = tmp_path / "missing"
+    gone = "sharecut-no-such-native-backend"
+    bfa.prepare_items([item], runs_dir=missing_dir, native=library_native(gone, "1.0"))
+    with pytest.raises(ValueError, match="it is not installed"):
+        bfa.prepare_items([item], runs_dir=missing_dir, native=library_native(gone, "1.0"))
+    assert calls == ["base", "base", "base"]
+
+
 def test_prepare_items_holds_the_native_lock_while_resolving(tmp_path) -> None:
     """#715: the cache check, Whisper run and write happen under <id>.native.lock."""
     item = bfa.BenchItem(

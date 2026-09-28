@@ -14,6 +14,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from fnmatch import fnmatch
+from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
@@ -506,14 +507,16 @@ def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str
     A file for different audio (``audio_sha256`` mismatch) is a soft miss: its
     words are stale, so the caller re-runs Whisper and overwrites it. A file for
     this audio with no ``provenance.model``, from a different ``--native-model``,
-    or (for faster-whisper words)
-    from a different installed faster-whisper version, raises instead: an earlier
-    pass's ``<id>.<label>.pred.json`` in the same runs dir was built from those
-    words, and overwriting them would silently pair mismatched native words with
-    those predictions. The caller (:func:`prepare_items`) holds the item's
-    ``<id>.native.lock`` across this check, the Whisper run and the write, so two
-    passes started together into one runs dir cannot both miss and overwrite
-    each other.
+    or recorded under a ``provenance.library`` whose installed version differs
+    from ``library_version`` (or which is not installed), raises instead: an
+    earlier pass's ``<id>.<label>.pred.json`` in the same runs dir was built
+    from those words, and overwriting them would silently pair mismatched
+    native words with those predictions. Words with no ``provenance.library``
+    (hand-authored fixtures; :func:`native_prediction` always records one) are
+    reused without a version check. The caller (:func:`prepare_items`) holds
+    the item's ``<id>.native.lock`` across this check, the Whisper run and the
+    write, so two passes started together into one runs dir cannot both miss
+    and overwrite each other.
 
     Deliberately not shared with the checked-in fixture check in
     :func:`prepare_items` (which raises on an audio mismatch) or
@@ -538,14 +541,18 @@ def _cached_native(path: Path, audio_sha256: str, native_model: str) -> dict[str
             f"{native_model!r}; pass --native-model {cached_model}, use another "
             "--runs-dir, or delete the file to re-run Whisper"
         )
-    if provenance.get("library") == "faster-whisper":
-        installed = package_version("faster-whisper")
+    library = provenance.get("library")
+    if library is not None:
+        try:
+            installed: str | None = package_version(library)
+        except PackageNotFoundError:
+            installed = None
         cached_version = provenance.get("library_version")
         if cached_version != installed:
+            where = f"{installed} is installed" if installed is not None else "it is not installed"
             raise ValueError(
-                f"{path} holds native words from faster-whisper {cached_version}, but "
-                f"{installed} is installed; use another --runs-dir or delete the file "
-                "to re-run Whisper"
+                f"{path} holds native words from {library} {cached_version}, but "
+                f"{where}; use another --runs-dir or delete the file to re-run Whisper"
             )
     return payload
 
@@ -566,7 +573,7 @@ def prepare_items(
     already in ``runs_dir`` for the same ``audio_sha256`` (an earlier ``run`` or
     ``pipeline`` into the same dir); otherwise from a fresh ``native(...)``
     (Whisper) run. A cached file for the same audio but another ``native_model``
-    or faster-whisper version raises (see :func:`_cached_native`) rather than
+    or native-library version raises (see :func:`_cached_native`) rather than
     being overwritten. The result is written as ``<id>.native.json``, so a
     ``run_suite`` and a ``run_pipeline_pass`` pointed at the same ``runs_dir``
     score the exact same native words and audio. Each item's check, Whisper run
