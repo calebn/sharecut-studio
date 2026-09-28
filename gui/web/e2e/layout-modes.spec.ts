@@ -3,7 +3,11 @@ import { e2eProjectPath } from "./env";
 import { followUntilBannerVisible, withTwoHostPages } from "./followBanner";
 import { openTransportMenu } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
-import { openGuestShare, openHostShare } from "./shareNavigation";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const VIEWPORT = { width: 1512, height: 805 };
@@ -106,12 +110,8 @@ async function withGuestViewer(
       { viewport: VIEWPORT },
       async (host, guest) => {
         await openHostShare(host, projectPath);
-        const created = await host.request.post("/api/shares", {
-          data: { path: projectPath, role: "viewer" },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const body = (await created.json()) as { share: { token: string } };
-        await openGuestShare(guest, body.share.token);
+        const token = await createReviewShare(host, projectPath);
+        await openGuestShare(guest, token);
         await run(guest);
       },
     );

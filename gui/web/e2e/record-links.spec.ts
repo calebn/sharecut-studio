@@ -2,6 +2,7 @@ import { type Browser, expect, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { createRecordRoom } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
+import { createReviewShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
 
 test.describe("record links", () => {
@@ -60,16 +61,8 @@ test.describe("record links", () => {
           const recAsReview = await pageA.request.get(`/r/${guest}`);
           expect(recAsReview.status()).toBe(404);
 
-          const reviewShare = await host.request.post("/api/shares", {
-            data: { path: projectPath, role: "viewer" },
-          });
-          expect(reviewShare.ok(), await reviewShare.text()).toBeTruthy();
-          const reviewBody = (await reviewShare.json()) as {
-            share: { token: string };
-          };
-          const reviewAsRec = await pageA.request.get(
-            `/rec/${reviewBody.share.token}`,
-          );
+          const reviewToken = await createReviewShare(host, projectPath);
+          const reviewAsRec = await pageA.request.get(`/rec/${reviewToken}`);
           expect(reviewAsRec.status()).toBe(404);
 
           await expectReadingSurfaceAxeClean(pageA);

@@ -11,7 +11,11 @@ import { followUntilBannerVisible, waitForFollowBanner } from "./followBanner";
 import { openTransportMenu } from "./overlayReachability";
 import { scrollTimelineBy } from "./scroll";
 import { withShareableProject } from "./shareableProject";
-import { openGuestShare, openHostShare } from "./shareNavigation";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
 import { zoomTimelineIn } from "./timelineZoom";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
@@ -207,14 +211,7 @@ async function withHostGuestPages<T>(
         await openHostShare(host, projectPath);
         const token = await test.step(
           role === "editor" ? "create editor share" : "create viewer share",
-          async () => {
-            const created = await host.request.post("/api/shares", {
-              data: { path: projectPath, role },
-            });
-            expect(created.ok(), await created.text()).toBeTruthy();
-            const body = (await created.json()) as { share: { token: string } };
-            return body.share.token;
-          },
+          async () => createReviewShare(host, projectPath, role),
         );
         await test.step(
           role === "editor" ? "open editor guest" : "open viewer guest",

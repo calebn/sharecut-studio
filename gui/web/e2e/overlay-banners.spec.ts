@@ -7,7 +7,11 @@ import {
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 import { withShareableProject } from "./shareableProject";
-import { openGuestShare, openHostShare } from "./shareNavigation";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
 import { withTwoBrowserPages } from "./twoBrowserPages";
 
 test.describe("overlay with follow banner", () => {
@@ -49,12 +53,8 @@ test.describe("overlay with guest and follow banners", () => {
           { viewport },
           async (host, guest) => {
             await openHostShare(host, projectPath);
-            const created = await host.request.post("/api/shares", {
-              data: { path: projectPath, role: "viewer" },
-            });
-            expect(created.ok(), await created.text()).toBeTruthy();
-            const body = (await created.json()) as { share: { token: string } };
-            await openGuestShare(guest, body.share.token);
+            const token = await createReviewShare(host, projectPath);
+            await openGuestShare(guest, token);
             await expect(guest.locator(".guest-banner")).toBeVisible();
 
             // Stack the follow banner under the guest banner. Phone uses the

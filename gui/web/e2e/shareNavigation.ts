@@ -24,6 +24,22 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
   expect(response.status()).toBe(200);
 }
 
+export type ReviewShareRole = "viewer" | "editor";
+
+/** Create a review share for `projectPath` and return its token. */
+export async function createReviewShare(
+  host: Page,
+  projectPath: string,
+  role: ReviewShareRole = "viewer",
+): Promise<string> {
+  const created = await host.request.post("/api/shares", {
+    data: { path: projectPath, role },
+  });
+  expect(created.ok(), await created.text()).toBeTruthy();
+  const body = (await created.json()) as { share: { token: string } };
+  return body.share.token;
+}
+
 /** Open a host share and wait for the hydrated shell's lazy requests. */
 export async function openHostShare(
   page: Page,
