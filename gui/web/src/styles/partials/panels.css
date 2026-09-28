@@ -475,8 +475,9 @@
    Correct mode selects the stop too, and the dashed marker must win the
    outline (same specificity) while .selected keeps its background.
    Solid --color-warning, not the 80-85% underline mix: the outline sits on
-   the active segment's accent-muted fill and needs 3:1 (WCAG 1.4.11);
-   light 3.2:1, dark 5.2:1 there. */
+   the active segment's accent-muted fill and needs 3:1 (WCAG 1.4.11) in both
+   themes; test_review_stop_outline_meets_non_text_contrast in
+   tests/test_brand_color_roles.py guards it. */
 .utterance-word.review-current {
   outline: var(--focus-ring-width) dashed var(--color-warning);
   outline-offset: 1px;

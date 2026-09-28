@@ -488,6 +488,32 @@ def test_selected_chip_and_fields_keep_text_contrast(theme: str) -> None:
         assert _contrast_ratio(_resolve_hex(text, roles), field) >= 4.5, (theme, text, "field")
 
 
+_ACCENT_WASH_RE = re.compile(
+    r"color-mix\(in srgb, var\(--color-accent\) (\d+(?:\.\d+)?)%, transparent\)"
+)
+
+
+def _accent_wash_alpha(name: str, roles: dict[str, str]) -> float:
+    match = _ACCENT_WASH_RE.fullmatch(roles[name])
+    assert match, f"{name} must be --color-accent mixed over transparent: {roles[name]}"
+    return float(match.group(1)) / 100
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_review_stop_outline_meets_non_text_contrast(theme: str) -> None:
+    """The low-confidence walkthrough stop (#634, `.utterance-word.review-current`)
+    draws a solid --color-warning outline over the active turn (accent-subtle) and
+    segment (accent-muted) washes on --color-bg-surface; WCAG 1.4.11 needs 3:1."""
+    roles = _studio_roles(theme)
+    accent = _resolve_hex("--color-accent", roles)
+    surface = _resolve_hex("--color-bg-surface", roles)
+    turn = _mix(accent, surface, _accent_wash_alpha("--color-accent-subtle", roles))
+    segment = _mix(accent, turn, _accent_wash_alpha("--color-accent-muted", roles))
+    outline = _resolve_hex("--color-warning", roles)
+    for fill in (surface, turn, segment):
+        assert _contrast_ratio(outline, fill) >= 3.0, (theme, fill)
+
+
 THEME_FIXED = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
 
 
