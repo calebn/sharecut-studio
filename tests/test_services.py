@@ -742,7 +742,7 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
     _with_words(ws)
     svc = EditService(ws)
 
-    with pytest.raises(TranscriptTextChangedError, match="changed since this correction started"):
+    with pytest.raises(TranscriptTextChangedError, match="changed since you read it"):
         svc.set_word_suppressed("host", 0, True, expected_text="the")
     assert ws.project.transcripts[0].words[0].suppressed is False
 
@@ -758,7 +758,7 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
     _with_words(ws)
     svc = EditService(ws)
 
-    with pytest.raises(TranscriptTextChangedError, match="changed since this correction started"):
+    with pytest.raises(TranscriptTextChangedError, match="changed since you read it"):
         svc.set_words_ignored("host", 0, 1, True, expected_text="nope")
     assert not any(w.ignored for w in ws.project.transcripts[0].words)
 

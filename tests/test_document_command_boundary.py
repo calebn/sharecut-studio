@@ -295,7 +295,7 @@ def test_host_mcp_stale_expected_text_is_conflict(minimal_project):
         Transcript(track_id="host", words=[TranscriptWord(text="teh", start=0.0, end=0.5)])
     ]
     ws.save()
-    with pytest.raises(DocumentConflictError, match="changed since this correction started"):
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
         submit_host_document_command(
             str(minimal_project),
             "CorrectTranscriptWord",
