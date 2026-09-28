@@ -125,6 +125,8 @@ describe("TranscriptPanel", () => {
       pointerKind: "fine",
       transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
+      transcriptAnnotate: false,
+      transcriptReviewCursor: null,
     });
   });
 
@@ -1252,6 +1254,157 @@ describe("TranscriptPanel", () => {
     fireEvent.scroll(list);
     expect(useDawStore.getState().transcriptFollowPlayhead).toBe(false);
     expect(useDawStore.getState().followingClientId).toBeNull();
+  });
+
+  describe("low-confidence review (#634)", () => {
+    function lowConfidenceProject() {
+      const base = project();
+      base.transcript!.utterances[0].words![1].confidence = 0.4;
+      return base;
+    }
+
+    beforeEach(() => {
+      useDawStore.setState({
+        transcriptAnnotate: false,
+        transcriptReviewCursor: null,
+      });
+    });
+
+    it("shows no review group with Annotate off, or with no low-confidence words", () => {
+      const { container, rerender } = render(<TranscriptPanel />);
+      expect(
+        within(container).queryByRole("group", {
+          name: "Low-confidence review",
+        }),
+      ).toBeNull();
+
+      useDawStore.setState({ project: lowConfidenceProject() });
+      rerender(<TranscriptPanel />);
+      expect(
+        within(container).queryByRole("group", {
+          name: "Low-confidence review",
+        }),
+      ).toBeNull();
+    });
+
+    it("shows the group and count once Annotate is on, and runs the commands", async () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+      });
+      const { container } = render(<TranscriptPanel />);
+      const group = within(container).getByRole("group", {
+        name: "Low-confidence review",
+      });
+      expect(within(group).getByText("1 low-confidence")).toBeInTheDocument();
+      fireEvent.click(
+        within(group).getByRole("button", {
+          name: /^Next low-confidence word/,
+        }),
+      );
+      expect(execute).toHaveBeenCalledWith(
+        "transcript.nextLowConfidence",
+        {},
+        expect.objectContaining({ skipWhen: true }),
+      );
+      fireEvent.click(
+        within(group).getByRole("button", {
+          name: /^Previous low-confidence word/,
+        }),
+      );
+      expect(execute).toHaveBeenCalledWith(
+        "transcript.prevLowConfidence",
+        {},
+        expect.objectContaining({ skipWhen: true }),
+      );
+    });
+
+    it("marks the current stop and updates the count", () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+      });
+      const { container } = render(<TranscriptPanel />);
+      const chip = within(container).getByRole("button", { name: "there" });
+      expect(chip).toHaveAttribute("aria-current", "true");
+      expect(chip).toHaveClass("review-current");
+      expect(
+        within(container).getByText("1/1 low-confidence"),
+      ).toBeInTheDocument();
+
+      useDawStore.setState({ transcriptAnnotate: false });
+      const { container: container2 } = render(<TranscriptPanel />);
+      expect(
+        within(container2).queryByRole("button", { name: "there" }),
+      ).not.toHaveClass("review-current");
+    });
+
+    it("selects the word in Correct mode when the cursor steps, but not in navigate mode", () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+      });
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /^Correct:/i }),
+      );
+      act(() => {
+        useDawStore.setState({
+          transcriptReviewCursor: {
+            trackId: "host",
+            wordIndex: 1,
+            position: 0,
+          },
+        });
+      });
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "transcriptWord",
+        trackId: "host",
+        wordIndex: 1,
+      });
+    });
+
+    it("does not select in navigate mode when the cursor steps", () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+      });
+      render(<TranscriptPanel />);
+      act(() => {
+        useDawStore.setState({
+          transcriptReviewCursor: {
+            trackId: "host",
+            wordIndex: 1,
+            position: 0,
+          },
+        });
+      });
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("does not select a cursor already set before switching to Correct", () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+      });
+      const { container } = render(<TranscriptPanel />);
+      fireEvent.click(
+        within(container).getByRole("button", { name: /^Correct:/i }),
+      );
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("has no a11y violations with the group and current stop shown", async () => {
+      useDawStore.setState({
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+        transcriptReviewCursor: { trackId: "host", wordIndex: 1, position: 0 },
+      });
+      const { container } = render(<TranscriptPanel />);
+      await expectNoA11yViolations(container);
+    });
   });
 });
 

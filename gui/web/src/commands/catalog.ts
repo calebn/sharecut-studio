@@ -491,6 +491,24 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only",
   },
+  "transcript.nextLowConfidence": {
+    id: "transcript.nextLowConfidence",
+    category: "navigation",
+    label: "Next low-confidence word",
+    when: "hasProject",
+    notes:
+      "Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634)",
+    breaksFollow: true,
+  },
+  "transcript.prevLowConfidence": {
+    id: "transcript.prevLowConfidence",
+    category: "navigation",
+    label: "Previous low-confidence word",
+    when: "hasProject",
+    notes:
+      "Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634)",
+    breaksFollow: true,
+  },
   "view.showCutAway": {
     id: "view.showCutAway",
     category: "view",

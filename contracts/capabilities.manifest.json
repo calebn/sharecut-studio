@@ -2262,6 +2262,56 @@
       }
     },
     {
+      "id": "daw.transcript.nextLowConfidence",
+      "label": "Next low-confidence word",
+      "tooltip": "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "transcript.nextLowConfidence",
+        "gui": [
+          "transcript.lowConfidenceNext"
+        ],
+        "skill": "podcast-transcript-correct"
+      },
+      "omit": {
+        "keyboard_reason": "no industry-standard key (#649); command palette"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
+      "id": "daw.transcript.prevLowConfidence",
+      "label": "Previous low-confidence word",
+      "tooltip": "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
+      "service": "Sharecut Studio command bus",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "transcript.prevLowConfidence",
+        "gui": [
+          "transcript.lowConfidencePrev"
+        ],
+        "skill": "podcast-transcript-correct"
+      },
+      "omit": {
+        "keyboard_reason": "no industry-standard key (#649); command palette"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      }
+    },
+    {
       "id": "daw.view.showCutAway",
       "label": "Show cut away",
       "tooltip": "Show words removed by timeline cuts (drag boundaries to restore)",

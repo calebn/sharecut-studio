@@ -368,6 +368,16 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip_pressed:
       "Restore: un-mute the selection and remove its strikethrough",
   },
+  "daw.transcript.nextLowConfidence": {
+    label: "Next low-confidence word",
+    tooltip:
+      "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
+  },
+  "daw.transcript.prevLowConfidence": {
+    label: "Previous low-confidence word",
+    tooltip:
+      "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
+  },
   "daw.view.showCutAway": {
     label: "Show cut away",
     tooltip: "Show words removed by timeline cuts (drag boundaries to restore)",
@@ -456,6 +466,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.ignore": "daw.transcript.ignore",
   "transcript.restoreIgnored": "daw.transcript.ignore",
   "inspector.word.ignore": "daw.transcript.ignore",
+  "transcript.lowConfidenceNext": "daw.transcript.nextLowConfidence",
+  "transcript.lowConfidencePrev": "daw.transcript.prevLowConfidence",
   "transcript.showCutAway": "daw.view.showCutAway",
   "timeline.clip.trimHandle": "daw.edit.trimClipEdge",
   "timeline.clip.body": "daw.edit.moveClips",

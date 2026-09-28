@@ -21,6 +21,11 @@ import {
 } from "../transcript/editBoundaryPlacement";
 import { InlineWordEditor } from "../transcript/InlineWordEditor";
 import { ignoredRuns, selectionAllIgnored } from "../transcript/ignoredWords";
+import {
+  isLowConfidenceWord,
+  lowConfidenceStops,
+  reviewCursorIndex,
+} from "../transcript/lowConfidence";
 import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
   type TranscriptTurnSegment,
@@ -49,6 +54,7 @@ import {
   transcriptWordAnchor,
   turnKey,
   turnSeekSec,
+  visibleTranscriptUtterances,
   wordSeekSec,
   wordsForUtterance,
 } from "../utils/transcript";
@@ -59,7 +65,6 @@ import {
   transcriptActiveKey,
 } from "./transcriptActive";
 
-const LOW_CONFIDENCE = 0.7;
 const EMPTY_UTTERANCES: CombinedUtterance[] = [];
 const EMPTY_BOUNDARIES: EditBoundaryView[] = [];
 
@@ -124,6 +129,7 @@ export function TranscriptPanel() {
     setTranscriptInlineCommitPending,
     transcriptInlineEditFailure,
     setTranscriptInlineEditFailure,
+    transcriptReviewCursor,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -148,6 +154,7 @@ export function TranscriptPanel() {
     setTranscriptInlineCommitPending: s.setTranscriptInlineCommitPending,
     transcriptInlineEditFailure: s.transcriptInlineEditFailure,
     setTranscriptInlineEditFailure: s.setTranscriptInlineEditFailure,
+    transcriptReviewCursor: s.transcriptReviewCursor,
   }));
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRef = useRef<HTMLElement | null>(null);
@@ -194,6 +201,7 @@ export function TranscriptPanel() {
   const inlineFocusRestoreRef = useRef<WordRef | null>(null);
   /** Word under the finger at pointerdown (long-press fires on release). */
   const pressedWordRef = useRef<WordRef | null>(null);
+  const lastReviewCursorRef = useRef(transcriptReviewCursor);
   const longPressReleasedRef = useRef(false);
   /** State to restore when a gesture-opened correction closes. */
   const gestureRestoreRef = useRef<{
@@ -271,6 +279,19 @@ export function TranscriptPanel() {
       setSelection(null);
     }
   }, [intent, selection, setSelection]);
+
+  // A walkthrough step in Correct mode opens its word in the word editor (#634).
+  // Only a new cursor acts: entering Correct later does not reselect a stale stop.
+  useEffect(() => {
+    if (transcriptReviewCursor === lastReviewCursorRef.current) return;
+    lastReviewCursorRef.current = transcriptReviewCursor;
+    if (!transcriptReviewCursor || intent !== "correct" || !canCorrect) return;
+    setSelection({
+      kind: "transcriptWord",
+      trackId: transcriptReviewCursor.trackId,
+      wordIndex: transcriptReviewCursor.wordIndex,
+    });
+  }, [transcriptReviewCursor, intent, canCorrect, setSelection]);
 
   useEffect(() => {
     const onUp = () => {
@@ -399,18 +420,27 @@ export function TranscriptPanel() {
     () => selectUnmappedUtterances(allUtterances).length,
     [allUtterances],
   );
-  const utterances = useMemo(() => {
+  const utterances = useMemo(
     // Cut-away reveal is nested under Annotate (clean view stays clean).
-    if (transcriptAnnotate && showCutAwayUtterances) {
-      return allUtterances;
-    }
-    return allUtterances.filter((u) => u.mappable !== false);
-  }, [allUtterances, showCutAwayUtterances, transcriptAnnotate]);
+    () =>
+      visibleTranscriptUtterances(
+        allUtterances,
+        transcriptAnnotate,
+        showCutAwayUtterances,
+      ),
+    [allUtterances, showCutAwayUtterances, transcriptAnnotate],
+  );
   const editBoundaries = project?.edit_boundaries ?? EMPTY_BOUNDARIES;
   const turns = useMemo(
     () => groupConsecutiveSpeakerTurns(utterances),
     [utterances],
   );
+  // Walkthrough stops (#634): the words that get the low-confidence underline.
+  const reviewStops = useMemo(
+    () => lowConfidenceStops(utterances),
+    [utterances],
+  );
+  const reviewPosition = reviewCursorIndex(reviewStops, transcriptReviewCursor);
   // The highlight, selected as one string key rather than the playhead: a
   // tick re-renders the panel only when an utterance or word changes.
   const activeIndexData = useMemo(
@@ -749,6 +779,40 @@ export function TranscriptPanel() {
               {showCutAwayUtterances ? "Hide cut away" : "Show cut away"}
             </ToggleButton>
           )}
+          {transcriptAnnotate && reviewStops.length > 0 && (
+            <div
+              className="transcript-review-group"
+              role="group"
+              aria-label="Low-confidence review"
+            >
+              <CommandButton
+                commandId="transcript.prevLowConfidence"
+                className="transcript-follow-btn"
+                title={capabilityTooltip("daw.transcript.prevLowConfidence")}
+                aria-label={capabilityTooltip(
+                  "daw.transcript.prevLowConfidence",
+                )}
+              >
+                Previous
+              </CommandButton>
+              <span className="transcript-review-count">
+                {reviewPosition >= 0
+                  ? `${reviewPosition + 1}/${reviewStops.length}`
+                  : reviewStops.length}{" "}
+                low-confidence
+              </span>
+              <CommandButton
+                commandId="transcript.nextLowConfidence"
+                className="transcript-follow-btn"
+                title={capabilityTooltip("daw.transcript.nextLowConfidence")}
+                aria-label={capabilityTooltip(
+                  "daw.transcript.nextLowConfidence",
+                )}
+              >
+                Next
+              </CommandButton>
+            </div>
+          )}
           {hostEditable && (
             <div
               className="transcript-mode-group"
@@ -975,10 +1039,12 @@ export function TranscriptPanel() {
                     u.track_id,
                     wordIndex,
                   );
-                  const lowConf =
+                  const lowConf = transcriptAnnotate && isLowConfidenceWord(w);
+                  const reviewCurrent =
                     transcriptAnnotate &&
-                    w.confidence != null &&
-                    w.confidence < LOW_CONFIDENCE;
+                    wordIndex != null &&
+                    transcriptReviewCursor?.trackId === u.track_id &&
+                    transcriptReviewCursor.wordIndex === wordIndex;
                   // Suppressed words are already handled; they keep only the strikethrough.
                   const suspectChip =
                     transcriptAnnotate &&
@@ -1055,6 +1121,7 @@ export function TranscriptPanel() {
                     unmapped: w.mappable === false,
                     selected,
                     lowConfidence: lowConf,
+                    reviewCurrent,
                     suspectHallucination: suspectChip,
                     interactive: wordInteractive,
                     activeRef: bindActiveRef(wActive),

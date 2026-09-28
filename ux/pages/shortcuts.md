@@ -147,6 +147,8 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Correct transcript | `transcript.correctIntent` | Project loaded |  |
 | Select transcript range | `transcript.selectIntent` | Project loaded |  |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
+| Next low-confidence word | `transcript.nextLowConfidence` | Project loaded | Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
+| Previous low-confidence word | `transcript.prevLowConfidence` | Project loaded | Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
 | Trim clip edge | `edit.trimClipEdge` | Host or shared edit mode | Pointer trim handles on clip blocks (start / end) |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |

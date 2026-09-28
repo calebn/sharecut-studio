@@ -35,6 +35,14 @@ export interface TranscriptInlineEditFailure {
   message: string;
 }
 
+/** Low-confidence walkthrough position (#634). */
+export interface TranscriptReviewCursor {
+  trackId: string;
+  wordIndex: number;
+  /** Stop index when visited; locates the next stop once this word leaves the list (corrected). */
+  position: number;
+}
+
 export type DawTab = PresenceTab;
 
 /** Phone bottom-nav mode (Listen / Timeline / Text / More). */
@@ -114,6 +122,8 @@ export interface DawState {
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
+  /** Current low-confidence walkthrough stop; outlives a TranscriptPanel remount, reset by a project switch (hydrate). */
+  transcriptReviewCursor: TranscriptReviewCursor | null;
   /** The overlay legend's + Chapter add is in flight for the current project; outlives a View-menu remount, reset by a project switch (hydrate). */
   chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
@@ -221,6 +231,7 @@ export interface DawState {
   setTranscriptInlineEditFailure: (
     failure: TranscriptInlineEditFailure | null,
   ) => void;
+  setTranscriptReviewCursor: (cursor: TranscriptReviewCursor | null) => void;
   setChapterAddPending: (pending: boolean) => void;
   setTranscriptAnnotate: (on: boolean) => void;
   toggleTranscriptAnnotate: () => void;

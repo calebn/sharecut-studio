@@ -11,6 +11,7 @@ import { registerProjectMediaCommands } from "./projectMedia";
 import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
+import { registerTranscriptReviewCommands } from "./transcriptReview";
 import {
   registerPaletteCommands,
   registerTranscriptViewCommands,
@@ -38,4 +39,5 @@ export function registerDawCommands(): void {
   registerTightenCommands();
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();
+  registerTranscriptReviewCommands();
 }
