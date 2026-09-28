@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
+import { ApiError } from "../../utils/apiError";
 import { TranscriptWordInspector } from "./TranscriptWordInspector";
 
 vi.mock("../../api", async (orig) => ({
@@ -495,5 +496,205 @@ describe("TranscriptWordInspector", () => {
     });
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
     expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+  });
+
+  it("a phrase draft and its baseline survive a peer edit of the anchor word (#746)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    const peerEdited = project();
+    peerEdited.transcript!.utterances[0]!.words![0]!.text = "Howdy";
+    act(() => {
+      useDawStore.setState({ project: peerEdited });
+    });
+    expect(screen.getByLabelText("Corrected text")).toHaveValue("Hello there");
+    expect(screen.getByLabelText("End word index")).toHaveValue(1);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there",
+        "hello there",
+      );
+    });
+  });
+
+  it("a single-word draft and its baseline survive a peer edit of the anchor word (#746)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hiya" },
+    });
+    const peerEdited = project();
+    peerEdited.transcript!.utterances[0]!.words![0]!.text = "Howdy";
+    act(() => {
+      useDawStore.setState({ project: peerEdited });
+    });
+    expect(screen.getByLabelText("Corrected text")).toHaveValue("Hiya");
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        "Hiya",
+        "hello",
+      );
+    });
+  });
+
+  it("a second single-word Apply sends the first Apply's text (#746)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      1,
+      "/tmp/ep",
+      "host",
+      0,
+      "Hello",
+      "hello",
+    );
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "World" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(correctTranscriptWord).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/ep",
+      "host",
+      0,
+      "World",
+      "Hello",
+    );
+  });
+
+  it("a phrase Apply that adds a word moves End index to 2 and the baseline to the new text (#746)", async () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there new" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenNthCalledWith(
+        1,
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there new",
+        "hello there",
+      );
+    });
+    await vi.waitFor(() => {
+      expect(screen.getByLabelText("End word index")).toHaveValue(2);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenNthCalledWith(
+        2,
+        "/tmp/ep",
+        "host",
+        0,
+        2,
+        "Hello there new",
+        "Hello there new",
+      );
+    });
+  });
+
+  it('after a 409, the second Apply sends the store\'s new span text ("hello where") (#746)', async () => {
+    let reject!: (e: Error) => void;
+    vi.mocked(correctTranscriptPhrase).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello there" },
+    });
+    fireEvent.change(screen.getByLabelText("End word index"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() =>
+      expect(correctTranscriptPhrase).toHaveBeenCalledTimes(1),
+    );
+    const peerEdited = project();
+    peerEdited.transcript!.utterances[0]!.words![1]!.text = "where";
+    act(() => {
+      useDawStore.setState({ project: peerEdited });
+    });
+    await act(async () => {
+      reject(new ApiError("stale", null, 409));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptPhrase).toHaveBeenNthCalledWith(
+        2,
+        "/tmp/ep",
+        "host",
+        0,
+        1,
+        "Hello there",
+        "hello where",
+      );
+    });
+  });
+
+  it("a non-409 failure keeps the baseline (#746)", async () => {
+    vi.mocked(correctTranscriptWord).mockRejectedValueOnce(
+      new ApiError("boom", null, 500),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(screen.getByLabelText("Corrected text")).toHaveValue("Hello");
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenLastCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        "Hello",
+        "hello",
+      );
+    });
+  });
+
+  it("the draft seeds once the words finish hydrating (#746)", () => {
+    const notHydrated = project();
+    notHydrated.meta = {
+      ...notHydrated.meta,
+      hydration: { transcript_words: false },
+    };
+    useDawStore.setState({ project: notHydrated, projectPath: "/tmp/ep" });
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    expect(screen.getByText("Loading transcript words…")).toBeInTheDocument();
+    act(() => {
+      useDawStore.setState({ project: project() });
+    });
+    expect(screen.getByLabelText("Corrected text")).toHaveValue("hello");
   });
 });
