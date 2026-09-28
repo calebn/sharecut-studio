@@ -51,9 +51,11 @@ def _staged_files() -> list[str]:
 def _commit_msg_allows_skip() -> bool:
     if os.environ.get("UX_PACK_SKIP", "").strip() in {"1", "true", "yes"}:
         return True
-    # pre-commit may not have the message yet; check MERGE_MSG / COMMIT_EDITMSG when present
-    for rel in (".git/COMMIT_EDITMSG", ".git/MERGE_MSG"):
-        path = os.path.join(_git("rev-parse", "--show-toplevel"), rel)
+    # pre-commit may not have the message yet; check MERGE_MSG / COMMIT_EDITMSG when present.
+    # Use `git rev-parse --git-path` (not a literal ".git/..." join) so this also
+    # resolves correctly inside a linked worktree, where ".git" is a file, not a directory.
+    for name in ("COMMIT_EDITMSG", "MERGE_MSG"):
+        path = _git("rev-parse", "--git-path", name)
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as f:
                 text = f.read()
