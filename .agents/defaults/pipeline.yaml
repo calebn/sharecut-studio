@@ -250,7 +250,8 @@ transcribe:
   forced_alignment:
     enabled: false
     # Aligned words whose mean character posterior is below this get
-    # suspect_hallucination (flag only, never deleted; #195). 0 = off.
+    # suspect_hallucination (flag only, never deleted; #195). Stored scores keep
+    # flagging when enabled is turned off; 0 = off.
     min_word_score: 0.01
 
 align:

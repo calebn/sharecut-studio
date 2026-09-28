@@ -199,7 +199,9 @@ word(s) with no acoustic evidence". A text correction drops the word's stale sco
 clears `alignment_score` and the flag when the text changes, and `correct_phrase` writes new
 unscored words, so the evidence flag does not come back on a corrected word (the silence filter
 still re-checks its span on the next run). A changed floor re-flags reused transcripts without
-decoding Whisper; transcripts re-timed before scores existed, or scored under an older
+decoding Whisper; turning `forced_alignment.enabled` off does not remove scores already stored on
+reused transcripts, so they keep flagging until `min_word_score` is 0 or the track is
+re-transcribed; transcripts re-timed before scores existed, or scored under an older
 `alignment_score_method`, show as "not re-timed" until Re-time words runs.
 
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
