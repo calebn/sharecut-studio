@@ -3,7 +3,7 @@ import { userEvent, within } from "storybook/test";
 /**
  * Story play step for dialogs previewed behind a launcher button. Standalone
  * Canvas stories render the dialog open; autodocs examples start closed. Clicks
- * the launcher only when no dialog is open, then returns the named dialog
+ * the launcher only when the named dialog is not already open, then returns it
  * (portaled into `document.body`).
  */
 export async function openDialogViaLauncher(
@@ -11,7 +11,7 @@ export async function openDialogViaLauncher(
   launcherName: string,
   dialogName: string,
 ): Promise<HTMLElement> {
-  if (!within(document.body).queryByRole("dialog")) {
+  if (!within(document.body).queryByRole("dialog", { name: dialogName })) {
     await userEvent.click(
       within(canvasElement).getByRole("button", { name: launcherName }),
     );
