@@ -4,7 +4,11 @@ import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
-import { openGuestShare, openHostShare } from "./shareNavigation";
+import {
+  createReviewShare,
+  openGuestShare,
+  openHostShare,
+} from "./shareNavigation";
 import { zoomTimelineIn } from "./timelineZoom";
 import {
   crashWaveformWorker,
@@ -198,21 +202,15 @@ test.describe("pyramid waveforms", () => {
       try {
         const host = await hostContext.newPage();
         await openHostShare(host, projectPath);
-        const created = await host.request.post("/api/shares", {
-          data: { path: projectPath, role: "viewer" },
-        });
-        expect(created.ok(), await created.text()).toBeTruthy();
-        const { share } = (await created.json()) as {
-          share: { token: string };
-        };
+        const token = await createReviewShare(host, projectPath);
 
         const guest = await guestContext.newPage();
         const seen = watchWaveformTraffic(guest);
-        await openGuestShare(guest, share.token);
+        await openGuestShare(guest, token);
         await expectPaintedWaveformTile(guest);
         expect(
           seen.tiles.some((t) =>
-            t.url.includes(`/api/review/${share.token}/daw/waveform/tiles/`),
+            t.url.includes(`/api/review/${token}/daw/waveform/tiles/`),
           ),
         ).toBe(true);
         expect(seen.tiles.every((t) => t.url.includes("/api/review/"))).toBe(
