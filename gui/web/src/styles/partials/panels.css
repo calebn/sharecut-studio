@@ -52,6 +52,16 @@
   min-width: 8rem;
 }
 
+.comment-author-line {
+  margin: 0;
+  align-self: center;
+  color: var(--text-dim);
+}
+
+.comment-author-line strong {
+  color: var(--text);
+}
+
 .comments-toolbar > button,
 .comment-compose button,
 .comment-card-footer button {

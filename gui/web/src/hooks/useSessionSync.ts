@@ -24,6 +24,7 @@ import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
+import { HOST_SESSION_LABEL } from "../utils/commentAuthor";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
 const PLAYHEAD_HEARTBEAT_MS = 200;
@@ -59,7 +60,7 @@ function wsUrl(projectPath: string, clientId: string): string {
     path: projectPath,
     client_id: clientId,
     role: "viewer",
-    label: "Host",
+    label: HOST_SESSION_LABEL,
   });
   const tok = getSessionToken();
   if (tok) {
@@ -142,7 +143,7 @@ export function useSessionSync(
   const viewerSnapshot = (): ViewerSessionSnapshot => ({
     ...buildViewerSnapshot(),
     client_id: clientIdRef.current,
-    label: "Host",
+    label: HOST_SESSION_LABEL,
   });
 
   /** HTTP publish: the socket-down path, and the recovery when a WS publish is rejected or never echoed. */
@@ -317,7 +318,7 @@ export function useSessionSync(
   const sendPresence = useCallback((frame: Record<string, unknown>) => {
     sendRef.current?.(frame);
   }, []);
-  usePresencePublisher(wsReady ? sendPresence : null, "Host");
+  usePresencePublisher(wsReady ? sendPresence : null, HOST_SESSION_LABEL);
 
   // The sanity poll catches session commands written by another process
   // (stdio MCP, `podcast session` / `podcast play`).

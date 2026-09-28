@@ -24,17 +24,12 @@ import { mergeOfflineSnapshot } from "../state/offlineStore";
 import { requestGuestDrainLazy } from "../state/requestDrainLazy";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
-import { loadCommentAuthor } from "../utils/commentAuthor";
+import { sessionDisplayName } from "../utils/commentAuthor";
 import { createFallbackPoll } from "../utils/fallbackPoll";
 import {
   type GuestProgressEvent,
   guestProgressToJob,
 } from "../utils/guestProgress";
-
-function guestDisplayName(): string {
-  const raw = loadCommentAuthor();
-  return raw === "viewer" ? "Guest" : raw;
-}
 
 function guestWsUrl(token: string, clientId: string, name: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -89,7 +84,7 @@ export function useGuestSync(
   const clientIdRef = useRef(connectIdRef.current);
   const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
-  const guestName = guestDisplayName();
+  const guestName = sessionDisplayName("guest");
 
   useEffect(() => {
     const token = shareTokenFromKey(projectPath);
@@ -148,7 +143,7 @@ export function useGuestSync(
         return;
       }
       ws = new WebSocket(
-        guestWsUrl(token, connectIdRef.current, guestDisplayName()),
+        guestWsUrl(token, connectIdRef.current, sessionDisplayName("guest")),
       );
       ws.onopen = () => {
         wsOpenRef.current = true;

@@ -28,6 +28,7 @@ vi.mock("../api", () => ({
 
 describe("CommentsPanel", () => {
   beforeEach(() => {
+    localStorage.clear();
     registerDawCommands();
     patchComment.mockReset().mockResolvedValue(null);
     createComment.mockReset();
@@ -105,6 +106,50 @@ describe("CommentsPanel", () => {
       screen.queryByRole("button", { name: "Resolve" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("comments as Host by default", () => {
+    render(<CommentsPanel />);
+    expect(screen.getByText(/Commenting as/)).toBeInTheDocument();
+    expect(screen.getByText("Host")).toBeInTheDocument();
+  });
+
+  it("shows a saved comment name", () => {
+    localStorage.setItem("podcast-mcp-comment-author", "Caleb");
+    render(<CommentsPanel />);
+    expect(screen.getByText("Caleb")).toBeInTheDocument();
+  });
+
+  it("comments as Guest by default for a guest share", () => {
+    render(<CommentsPanel guestShare />);
+    expect(screen.getByText("Guest")).toBeInTheDocument();
+  });
+
+  it("Change then a new name saves it and is used on the next post", async () => {
+    const user = userEvent.setup();
+    render(<CommentsPanel />);
+    await user.click(
+      screen.getByRole("button", { name: "Change your comment name" }),
+    );
+    const input = screen.getByRole("textbox", { name: "Your name" });
+    await user.clear(input);
+    await user.type(input, "Ada{Enter}");
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(localStorage.getItem("podcast-mcp-comment-author")).toBe("Ada");
+
+    act(() => {
+      useDawStore.getState().setCommentMode(true);
+      useDawStore.getState().setCommentDraft({ startSec: 1, endSec: null });
+    });
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "Feedback",
+    );
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({ author: "Ada" }),
+    );
   });
 
   it("is axe-clean with the toast visible", async () => {
