@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { presenceColorVar, rosterDisplayName } from "../presence/colors";
 import { createCursorMotion } from "../presence/cursorMotion";
 import {
@@ -184,7 +184,7 @@ export function PresenceOverlayView({
   const others = remotePresenceClients(clients, localClientId, nowMs);
 
   const cursorEls = useRef<Map<string, HTMLDivElement>>(new Map());
-  const motion = useRef(createCursorMotion());
+  const [motion] = useState(() => createCursorMotion());
   const othersRef = useRef(others);
   othersRef.current = others;
   const zoomRef = useRef(zoomPxPerSec);
@@ -201,8 +201,12 @@ export function PresenceOverlayView({
       return;
     }
     let raf = 0;
+    // Ids stepped on the previous frame: any that drop out are forgotten so
+    // the motion maps do not grow with every visitor.
+    let stepped = new Set<string>();
     const tick = () => {
       const z = zoomRef.current;
+      const current = new Set<string>();
       for (const c of othersRef.current) {
         const cursor = c.meta?.cursor;
         if (!isLaneCursor(cursor)) {
@@ -217,18 +221,30 @@ export function PresenceOverlayView({
           continue;
         }
         const el = cursorEls.current.get(c.client_id);
-        motion.current.step(
+        motion.step(
           c.client_id,
           { left: cursor.t_sec * z, top: targetTop },
           el,
           `${cursor.t_sec}:${cursor.track_id ?? ""}:${cursor.lane_pos ?? ""}`,
         );
+        current.add(c.client_id);
       }
+      for (const id of stepped) {
+        if (!current.has(id)) {
+          motion.drop(id);
+        }
+      }
+      stepped = current;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [hasRemoteCursor]);
+    return () => {
+      cancelAnimationFrame(raf);
+      for (const id of stepped) {
+        motion.drop(id);
+      }
+    };
+  }, [hasRemoteCursor, motion]);
 
   if (others.length === 0) {
     return null;
