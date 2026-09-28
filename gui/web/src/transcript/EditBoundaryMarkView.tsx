@@ -277,6 +277,9 @@ export function EditBoundaryMarkView({
       window.removeEventListener("pointermove", onMove, true);
       window.removeEventListener("pointerup", onUp, true);
       window.removeEventListener("pointercancel", onUp, true);
+      // Always true today: startDrag ignores a second pointer while
+      // dragRef is set, so no newer drag can own the ref yet. Kept so that
+      // relaxing that guard never clears another drag's remover.
       if (removeWindowListenersRef.current === removeListeners) {
         removeWindowListenersRef.current = null;
       }
