@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../test/deferred";
 import type { FileMeta } from "./useFileMetaPoll";
 import { SANITY_POLL_MS, useFileMetaPoll } from "./useFileMetaPoll";
 
@@ -289,5 +290,35 @@ describe("useFileMetaPoll", () => {
     });
 
     expect(fetchMeta).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a focus check while the baseline read is in flight", async () => {
+    const baseline = deferred<FileMeta>();
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockReturnValueOnce(baseline.promise);
+    const onChange = vi.fn();
+
+    renderHook(() => useFileMetaPoll(true, fetchMeta, onChange, 100));
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      baseline.resolve({ mtime_ns: 1, size: 10, server_seq: 1 });
+      await Promise.resolve();
+    });
+
+    const next: FileMeta = { mtime_ns: 2, size: 10, server_seq: 2 };
+    fetchMeta.mockResolvedValueOnce(next);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(2);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(next);
   });
 });
