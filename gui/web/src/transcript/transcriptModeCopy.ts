@@ -26,6 +26,10 @@ export const TRANSCRIPT_CORRECT_TIMING_NOTE =
 export const TRANSCRIPT_SPAN_UNVERIFIED_NOTE =
   "Apply can't confirm the current text of every word in this range, so it can't check whether someone else changed these words first.";
 
+/** Correct inspector error after a 409 (#746): it has already re-captured the span, so Apply again retries. MCP/CLI keep the host's re-read wording. */
+export const TRANSCRIPT_CORRECT_CONFLICT_NOTE =
+  "These words changed since you started this correction, so it was not applied. Apply again to retry against the current text.";
+
 /** Appended to the Select-mode Ignore/Restore status announcement when the range's text
  * couldn't be confirmed, so the command was sent without the #744 stale-text guard. */
 export const TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX = " (text not verified)";

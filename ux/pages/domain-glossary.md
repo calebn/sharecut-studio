@@ -214,7 +214,7 @@ open. Either way it is also listed in **Needs attention**. The Correct inspector
 current text on its own, so trying Apply again is enough (if it could not load the current
 text yet, it says to re-read instead); with the inline word editor,
 reopen the word and try again, and after a Select-mode or hover Ignore/Restore refusal,
-re-read the selection and try again.
+re-read the selection and try again. Undoing your own correction does not count as a conflict.
 
 ```mermaid
 sequenceDiagram

@@ -15,6 +15,7 @@ import {
 } from "../../transcript/detachedWordFailure";
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
+  TRANSCRIPT_CORRECT_CONFLICT_NOTE,
   TRANSCRIPT_CORRECT_TIMING_NOTE,
   TRANSCRIPT_SPAN_UNVERIFIED_NOTE,
   TRANSCRIPT_SUPPRESS_TIP,
@@ -242,6 +243,7 @@ export function TranscriptWordInspector({
           endIndex,
         ),
       );
+      setError(TRANSCRIPT_CORRECT_CONFLICT_NOTE);
     }
   };
 
