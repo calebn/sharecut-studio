@@ -1601,6 +1601,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
         (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
     )
     assert timing["forced_alignment"]["retime"]["retimed"] == ["Track host"]
+    assert timing["forced_alignment"]["retime"]["failed"] == []
 
 
 def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
@@ -1648,6 +1649,7 @@ def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
@@ -1656,11 +1658,77 @@ def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
         cache_file.unlink()
 
     defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
-    with patch.object(
-        Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")
+    aligner = MagicMock()
+    aligner.model = word_aligner_model()
+    aligner.supports_language.return_value = True
+    aligner.cache_identity.return_value = {"model": "stub"}
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
     ):
         summary = steps.transcribe_tracks(proj, defaults)
     assert "1 track(s) with no ASR cache not re-timed (Re-transcribe to re-time)" in summary
+
+
+def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        _first_pass(proj)
+    before = [(w.text, w.start, w.end) for w in proj.transcripts[0].words]
+
+    defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        patch(
+            "podcast_mcp.engines.word_align.WordAligner.load",
+            side_effect=WordAlignerMissingError("onnx-base"),
+        ),
+    ):
+        with pytest.raises(WordAlignerMissingError):
+            steps.transcribe_tracks(proj, defaults)
+
+    assert proj.transcripts[0].word_aligner is None
+    after = [(w.text, w.start, w.end) for w in proj.transcripts[0].words]
+    assert after == before
+
+
+def test_transcribe_tracks_retime_words_reports_alignment_failure_as_not_retimed(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.word_aligner_models import word_aligner_model
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        _first_pass(proj)
+
+    defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
+    aligner = MagicMock()
+    aligner.model = word_aligner_model()
+    aligner.supports_language.return_value = True
+    aligner.cache_identity.return_value = {"model": "stub"}
+    aligner.align.side_effect = RuntimeError("decode failed")
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
+    ):
+        summary = steps.transcribe_tracks(proj, defaults)
+
+    assert "1 track(s) not re-timed (forced alignment failed)" in summary
+    assert "re-timed from the ASR cache" not in summary
+
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"]["retime"]["retimed"] == []
+    assert timing["forced_alignment"]["retime"]["failed"] == ["Track host"]
 
 
 def test_transcribe_tracks_retime_words_ignored_for_flag_off_config(

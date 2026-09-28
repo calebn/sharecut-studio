@@ -142,10 +142,14 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     # Run-only (Studio Re-time words, CLI --retime-words, MCP retime_words); never in yaml.
     retime = options.forced_alignment_enabled and bool(cfg.get("retime_words", False))
     if retime:
+        engine = make_engine()
+        # Fail fast: without the aligner a re-time would only replace stored transcripts
+        # with Whisper's cached words (raises WordAlignerMissingError with the bootstrap hint).
+        engine.load_word_aligner()
         plan_retime(
             project,
             plan,
-            make_engine(),
+            engine,
             language=language,
             allow_edited=bool(cfg.get("overwrite_edited", False)),
         )
@@ -176,9 +180,17 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
         "jobs": align_jobs,
     }
+    retime_ok = {
+        j["label"]
+        for j in align_jobs
+        if j.get("status") in ("aligned", "cached") and j.get("aligned_words", 0) > 0
+    }
+    retimed = [j.label for j in plan.retime if j.label in retime_ok]
+    retime_failed = [j.label for j in plan.retime if j.label not in retime_ok]
     if retime:
         forced_alignment["retime"] = {
-            "retimed": [j.label for j in plan.retime],
+            "retimed": retimed,
+            "failed": retime_failed,
             "skipped_edited": plan.retime_skipped_edited,
             "skipped_no_asr_cache": plan.retime_skipped_no_cache,
         }
@@ -214,9 +226,11 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", silence filter skipped on {skipped} track(s)"
     if options.forced_alignment_enabled:
         summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
-        if plan.retime:
-            summary += f", {len(plan.retime)} reused track(s) re-timed from the ASR cache"
         if retime:
+            if retimed:
+                summary += f", {len(retimed)} reused track(s) re-timed from the ASR cache"
+            if retime_failed:
+                summary += f", {len(retime_failed)} track(s) not re-timed (forced alignment failed)"
             if plan.retime_skipped_edited:
                 summary += (
                     f", {len(plan.retime_skipped_edited)} edited track(s) not re-timed "
