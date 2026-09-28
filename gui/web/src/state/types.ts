@@ -172,6 +172,8 @@ export interface DawState {
   hostMcpDialogOpen: boolean;
   /** Host Help → diagnostics bundle dialog. */
   helpDialogOpen: boolean;
+  /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/JoinBadge.tsx). */
+  openJoinId: string | null;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */
   highlightStaleRender: boolean;
   /** Refresh-mix / render_preview in flight. */
@@ -303,6 +305,7 @@ export interface DawState {
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
+  setOpenJoinId: (id: string | null) => void;
   setHighlightStaleRender: (on: boolean) => void;
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean) => void;

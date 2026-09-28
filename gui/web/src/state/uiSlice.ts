@@ -209,6 +209,8 @@ type UiSlice = Pick<
   | "setHostMcpDialogOpen"
   | "helpDialogOpen"
   | "setHelpDialogOpen"
+  | "openJoinId"
+  | "setOpenJoinId"
   | "fitToWindow"
   | "measureTimelineViewport"
 >;
@@ -636,6 +638,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setHostMcpDialogOpen: (hostMcpDialogOpen) => set({ hostMcpDialogOpen }),
     helpDialogOpen: false,
     setHelpDialogOpen: (helpDialogOpen) => set({ helpDialogOpen }),
+    openJoinId: null,
+    setOpenJoinId: (openJoinId) => set({ openJoinId }),
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());
       if (duration > 0 && viewportWidth > 0) {

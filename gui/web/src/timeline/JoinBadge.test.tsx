@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
@@ -124,13 +124,34 @@ const right = clipRow({
   join_left_clip_id: "c0",
   join_in_mode: "fade",
 });
+const left2 = clipRow({
+  id: "d0",
+  source_start: 0,
+  source_end: 5,
+  timeline_start: 0,
+  timeline_end: 5,
+});
+const right2 = clipRow({
+  id: "d1",
+  source_start: 5,
+  source_end: 10,
+  timeline_start: 5,
+  timeline_end: 10,
+  fade_in_ms: 10,
+  join_left_clip_id: "d0",
+  join_in_mode: "fade",
+});
 
 describe("JoinBadge (live)", () => {
-  it("opens and closes the join popover, and closes on Escape with focus restored", async () => {
-    const user = userEvent.setup();
+  beforeEach(() => {
     useDawStore
       .getState()
       .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
+    useDawStore.setState({ openJoinId: null });
+  });
+
+  it("opens and closes the join popover, and closes on Escape with focus restored", async () => {
+    const user = userEvent.setup();
     render(
       <JoinBadge
         left={left}
@@ -156,9 +177,6 @@ describe("JoinBadge (live)", () => {
   });
 
   it("has no axe violations while open", async () => {
-    useDawStore
-      .getState()
-      .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
     render(
       <JoinBadge
         left={left}
@@ -172,5 +190,58 @@ describe("JoinBadge (live)", () => {
       screen.getByRole("button", { name: "Fade join at 0:05.0" }),
     );
     await expectNoA11yViolations(document.body);
+  });
+
+  it("keeps one join popover open: opening another badge by keyboard closes the first", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <JoinBadge
+          left={left}
+          right={right}
+          seamSec={5}
+          zoomPxPerSec={50}
+          trackFadeMaxMs={null}
+        />
+        <JoinBadge
+          left={left2}
+          right={right2}
+          seamSec={5}
+          zoomPxPerSec={50}
+          trackFadeMaxMs={null}
+        />
+      </>,
+    );
+    const [a, b] = screen.getAllByRole("button", {
+      name: "Fade join at 0:05.0",
+    });
+    await user.click(a);
+    b.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(a).toHaveAttribute("aria-expanded", "false");
+    expect(b).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(b).toHaveFocus();
+  });
+
+  it("closes its popover when the badge unmounts", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <JoinBadge
+        left={left}
+        right={right}
+        seamSec={5}
+        zoomPxPerSec={50}
+        trackFadeMaxMs={null}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Fade join at 0:05.0" }),
+    );
+    expect(useDawStore.getState().openJoinId).toBe("c1");
+    unmount();
+    expect(useDawStore.getState().openJoinId).toBeNull();
   });
 });
