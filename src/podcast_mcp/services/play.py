@@ -168,6 +168,17 @@ def _mix_cache_extra(inputs: list[tuple[Path, float]]) -> str:
     )
 
 
+def _cache_last_used(path: Path) -> float:
+    """Last-use time of a play-cache WAV: its ``st_atime`` lease.
+
+    ``_refresh_cache_access`` renews the lease on reuse. Eviction reads it only
+    here, so tests can pin last-use times instead of racing external readers
+    (indexers, backup/sync agents) that reset a fresh file's atime (#735).
+    Raises ``FileNotFoundError`` when the file is gone.
+    """
+    return path.stat().st_atime
+
+
 class PlayService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
@@ -188,7 +199,7 @@ class PlayService:
                 if path.is_symlink() or not path.is_file():
                     continue
                 try:
-                    accessed = path.stat().st_atime
+                    accessed = _cache_last_used(path)
                 except FileNotFoundError:
                     continue
                 candidates.append((accessed, path))
@@ -200,7 +211,7 @@ class PlayService:
                     continue
                 # Re-stat under the lock: a concurrent serve may have refreshed it.
                 try:
-                    age = now - path.stat().st_atime
+                    age = now - _cache_last_used(path)
                 except FileNotFoundError:
                     continue
                 if age <= _PLAY_CACHE_MIN_EVICT_AGE_SEC:
