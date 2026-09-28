@@ -88,6 +88,11 @@ def flag_words_over_silence(
     return flagged
 
 
+def below_evidence_floor(score: float | None, min_score: float) -> bool:
+    """True when an aligned word's ``score`` is below ``min_score`` (``min_score <= 0`` = off)."""
+    return min_score > 0 and score is not None and score < min_score
+
+
 def flag_words_without_acoustic_evidence(
     words: Sequence[TranscriptWord], *, min_score: float
 ) -> int:
@@ -96,11 +101,9 @@ def flag_words_without_acoustic_evidence(
     ``alignment_score`` is None for words the forced aligner did not place (no evidence either
     way). ``min_score <= 0`` turns the signal off. Returns how many words it flagged.
     """
-    if min_score <= 0:
-        return 0
     flagged = 0
     for w in words:
-        if w.alignment_score is not None and w.alignment_score < min_score:
+        if below_evidence_floor(w.alignment_score, min_score):
             w.suspect_hallucination = True
             flagged += 1
     return flagged

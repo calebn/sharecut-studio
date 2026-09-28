@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
+from podcast_mcp.engines.asr_silence import (
+    below_evidence_floor,
+    refresh_silence_flags,
+    silence_filter_fingerprint,
+)
 from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
     DEFAULT_MAX_WORD_DURATION_SEC,
@@ -484,7 +488,10 @@ class TranscriptionEngine:
             entry["align_sec"] = align_sec
         min_score = self.options.forced_alignment_min_word_score
         if min_score > 0:
-            entry["no_evidence_words"] = sum(1 for s in scores if s is not None and s < min_score)
+            # Same predicate flag_words_without_acoustic_evidence applies to these words.
+            entry["no_evidence_words"] = sum(
+                1 for w in transcript.words if below_evidence_floor(w.alignment_score, min_score)
+            )
         transcript.word_aligner = aligner.model.id
 
     def transcribe_file(
