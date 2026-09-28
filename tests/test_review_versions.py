@@ -42,13 +42,10 @@ from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import project_state_lock
-
-requires_safe_cleanup = pytest.mark.skipif(
-    not review_versions._SAFE_STALE_CLEANUP_SUPPORTED,
-    reason="descriptor-relative directory operations are unavailable",
-)
+from review_platform import requires_safe_cleanup, requires_safe_failed_cleanup
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("source", ["premix", "mastered"])
 def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_workspace, source):
     proj = load_project(minimal_project)
@@ -121,6 +118,7 @@ def test_resolve_source_mix_ships_hashless_master_without_premix(minimal_project
     assert not (art / "mastered.hash").exists()
 
 
+@requires_safe_failed_cleanup
 def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav, monkeypatch):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -159,6 +157,7 @@ def test_failed_mp3_publish_removes_only_new_version(minimal_project, sample_wav
     assert created[0] not in review_versions._active_stage_leases
 
 
+@requires_safe_failed_cleanup
 def test_interrupted_publish_removes_new_version(minimal_project, sample_wav, monkeypatch):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -178,6 +177,7 @@ def test_interrupted_publish_removes_new_version(minimal_project, sample_wav, mo
     assert proj.review.versions == []
 
 
+@requires_safe_failed_cleanup
 def test_failed_publish_after_review_root_retarget_preserves_new_target(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -210,6 +210,7 @@ def test_failed_publish_after_review_root_retarget_preserves_new_target(
     assert proj.review.versions == []
 
 
+@requires_safe_failed_cleanup
 def test_service_publish_failure_keeps_persisted_versions_unchanged(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -233,6 +234,7 @@ def test_service_publish_failure_keeps_persisted_versions_unchanged(
     assert load_project(minimal_project).review.active_version_id is None
 
 
+@requires_safe_failed_cleanup
 @pytest.mark.parametrize("failure", ["history", "commit"])
 def test_service_publish_removes_media_after_persistence_failure(
     minimal_project, sample_wav, monkeypatch, failure
@@ -284,6 +286,7 @@ def test_service_publish_removes_media_after_persistence_failure(
     assert ProjectWorkspace.open(minimal_project).project.review.versions == []
 
 
+@requires_safe_failed_cleanup
 def test_service_publish_keeps_media_when_history_was_not_rolled_back(
     minimal_project, sample_wav, monkeypatch, caplog
 ):
@@ -313,6 +316,7 @@ def test_service_publish_keeps_media_when_history_was_not_rolled_back(
     assert "Review history changed during failed publication" in caplog.text
 
 
+@requires_safe_failed_cleanup
 def test_service_publish_preserves_media_if_commit_landed_before_error(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -345,6 +349,7 @@ def test_service_publish_preserves_media_if_commit_landed_before_error(
     assert [version.id for version in ws.project.review.versions] == ["committed"]
 
 
+@requires_safe_failed_cleanup
 def test_service_publish_cleanup_failure_preserves_commit_error(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -377,15 +382,27 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
     assert ws.project.review.versions == []
 
 
-requires_safe_failed_cleanup = pytest.mark.skipif(
-    not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED,
-    reason="descriptor-relative directory operations are unavailable",
-)
-
-
 def test_safe_failed_cleanup_requires_root_relative_mkdir():
     if os.mkdir not in os.supports_dir_fd:
         assert not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+
+
+def test_review_publication_support_matches_the_ci_platform():
+    """Guard the CI split: publication support must be True on POSIX, False on Windows.
+
+    ``desktop.yml``'s ``project-commit-lock-windows`` job skips the
+    ``requires_safe_failed_cleanup`` / ``requires_safe_cleanup`` tests on the
+    assumption that Windows never has safe, descriptor-relative directory
+    operations. If a future Windows/Python change made these flags True there,
+    CI would silently stop exercising publication anywhere. Conversely, POSIX CI
+    must keep running them, or the publication paths go untested everywhere.
+    """
+    if sys.platform.startswith("win"):
+        assert not review_versions._SAFE_STALE_CLEANUP_SUPPORTED
+        assert not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+    else:
+        assert review_versions._SAFE_STALE_CLEANUP_SUPPORTED
+        assert review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
 
 
 def _fail_publication(stage, project, project_path, monkeypatch):
@@ -413,6 +430,7 @@ def _fail_publication(stage, project, project_path, monkeypatch):
         ReviewService(ProjectWorkspace.open(project_path)).publish(label="new")
 
 
+@requires_safe_failed_cleanup
 def test_failed_publish_keeps_replacement_during_quarantine(tmp_path, monkeypatch):
     version_dir, identity = _created_version_dir(tmp_path)
     original = version_dir.with_name("original")
@@ -507,6 +525,7 @@ def test_service_sweeps_before_taking_state_lock(minimal_project, sample_wav, mo
     assert acquired == [True]
 
 
+@requires_safe_failed_cleanup
 def test_failed_publish_keeps_quarantine_when_rmtree_fails(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -850,6 +869,7 @@ def test_quarantine_sweep_rejects_shared_writable_root(minimal_project, sample_w
     assert (quarantine / "media" / "mix.wav").exists()
 
 
+@requires_safe_failed_cleanup
 def test_direct_publish_cleans_stage_when_commit_lock_fails(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -864,6 +884,7 @@ def test_direct_publish_cleans_stage_when_commit_lock_fails(
     assert not list((art / "review").glob(".staging-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_direct_publish_cleans_promoted_media_after_attach_failure(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -1028,6 +1049,7 @@ def test_clean_created_version_close_failure_still_releases_everything(tmp_path,
     assert not list(version_dir.parent.glob(".failed-review-*"))
 
 
+@requires_safe_failed_cleanup
 def test_publish_id_collision_preserves_existing_directory(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -1675,6 +1697,7 @@ def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):
     assert not root.exists() or not any(root.iterdir())
 
 
+@requires_safe_failed_cleanup
 def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sample_wav):
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -1786,6 +1809,7 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
     assert project.review.active_version_id == second.id
 
 
+@requires_safe_failed_cleanup
 def test_publish_removes_staged_media_when_history_read_fails(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -1826,6 +1850,7 @@ def test_attach_version_leaves_audio_fingerprint_unchanged(
     assert audio_state_fingerprint(project) == before
 
 
+@requires_safe_failed_cleanup
 def test_publish_keeps_committed_media_when_lock_release_fails(
     minimal_project, sample_wav, monkeypatch
 ):

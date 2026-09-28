@@ -26,6 +26,7 @@ from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
 from process_helpers import reap
+from review_platform import requires_safe_failed_cleanup
 
 _CTX = mp.get_context("spawn")
 
@@ -101,6 +102,7 @@ def test_commit_waits_for_lock_held_by_another_process(minimal_project, monkeypa
     ProjectStore(minimal_project).commit(project)
 
 
+@requires_safe_failed_cleanup
 def test_publication_encodes_while_another_process_holds_lock(
     minimal_project, sample_wav, monkeypatch
 ):
@@ -144,6 +146,7 @@ def test_publication_encodes_while_another_process_holds_lock(
     assert load_project(minimal_project).review.versions == []
 
 
+@requires_safe_failed_cleanup
 def test_failed_publication_cleanup_is_not_raced_by_history_goto(minimal_project, sample_wav):
     project = load_project(minimal_project)
     art = Path(project.workspace_dir) / "artifacts"
