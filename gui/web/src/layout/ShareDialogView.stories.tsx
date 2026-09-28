@@ -83,6 +83,10 @@ function ShareDialogPreview({
             setRows((prev) => prev.filter((r) => r.session_id !== sessionId));
             args.onEndRoom(sessionId);
           }}
+          onOpenRoomPanel={() => {
+            close();
+            args.onOpenRoomPanel();
+          }}
         />
       )}
     </DialogLauncher>
@@ -172,6 +176,9 @@ export const RecordRoom: Story = {
       within(dialog).getByRole("button", { name: "Open room panel" }),
     );
     await expect(args.onOpenRoomPanel).toHaveBeenCalledOnce();
+    await waitFor(() =>
+      expect(within(document.body).queryByRole("dialog")).toBeNull(),
+    );
     const reopened = await openDialog(canvasElement);
     await userEvent.click(
       within(reopened).getByRole("button", { name: "End room" }),
