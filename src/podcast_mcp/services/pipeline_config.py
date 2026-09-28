@@ -364,6 +364,7 @@ class PipelineConfigStore:
                 unattended=True,
             )
         ws = self._by_path[key]
+        ws.edited = True
         if ws.enabled_steps is None:
             previous_enabled = set(default_enabled_steps(ws.config))
         else:
@@ -414,9 +415,13 @@ def config_store() -> PipelineConfigStore:
 
 
 def _staged_config(project_path: Path | str) -> dict[str, Any] | None:
-    """The staged working set's config, or ``None`` when nothing is staged (never creates one)."""
+    """The config staged by an explicit write, or ``None`` (never creates a working set).
+
+    A working set that ``get()`` auto-created for a read (``GET /api/pipeline/config``,
+    ``pipeline_get_config_tool``) holds only shipped defaults and does not count as staged.
+    """
     staged = config_store().peek(project_path)
-    return staged.config if staged is not None else None
+    return staged.config if staged is not None and staged.edited else None
 
 
 def _staged_or_default_config(project_path: Path | str) -> dict[str, Any]:
@@ -433,7 +438,10 @@ def asr_options_for(project_path: Path | str) -> AsrOptions:
 
 
 def prosody_params_for(project_path: Path | str) -> ProsodyParams | None:
-    """The staged working set's ``prosody.*`` params, or ``None`` when nothing is staged.
+    """The staged working set's ``prosody.*`` params, or ``None`` when nothing was staged by a write.
+
+    Reading the config (``build_config_payload``) auto-creates an unedited working set,
+    which does not count as staged (#721).
 
     ``None`` tells the prosody reader to trust the params stored in the cached profile:
     the working set is process-local, so an unstaged process cannot know which params

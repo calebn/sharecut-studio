@@ -1213,6 +1213,8 @@ class WorkingSet:
     config: dict[str, Any] = field(default_factory=dict)
     enabled_steps: list[str] | None = None
     unattended: bool = True
+    edited: bool = False
+    """True once something wrote this working set (``put`` / ``apply_patches``); ``get()``'s auto-created defaults stay False."""
 
 
 def set_by_path(data: dict[str, Any], path: str, value: Any) -> None:

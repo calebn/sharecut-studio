@@ -16,6 +16,7 @@ from podcast_mcp.pipeline.meta import (
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
 from podcast_mcp.services.pipeline_config import (
     asr_options_for,
+    build_config_payload,
     config_assignment_paths,
     config_assignments,
     config_store,
@@ -1002,6 +1003,39 @@ def test_prosody_params_for_reads_staged_config(tmp_path):
         assert prosody_params_for(proj).pitch_floor_hz == 90.0
     finally:
         config_store()._by_path.pop(config_store()._key(proj), None)
+
+
+def test_prosody_params_for_ignores_a_config_read(tmp_path, monkeypatch):
+    from podcast_mcp.engines.prosody import ProsodyParams
+
+    cache = tmp_path / "whisper-cache"
+    cache.mkdir()
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    proj = tmp_path / "ep5.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = config_store()
+    try:
+        build_config_payload(proj)  # GET /api/pipeline/config, pipeline_get_config_tool
+        assert store.peek(proj) is not None
+        assert prosody_params_for(proj) is None
+        store.put(proj)  # an explicit write stages, even with no changes
+        assert prosody_params_for(proj) == ProsodyParams.from_defaults(load_defaults())
+    finally:
+        store._by_path.pop(store._key(proj), None)
+
+
+def test_apply_patches_marks_the_working_set_staged(tmp_path):
+    proj = tmp_path / "ep6.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = config_store()
+    try:
+        store.get(proj)
+        assert store.peek(proj).edited is False
+        store.apply_patches(proj, {"prosody": {"pitch_floor_hz": 90.0}})
+        assert store.peek(proj).edited is True
+        assert prosody_params_for(proj).pitch_floor_hz == 90.0
+    finally:
+        store._by_path.pop(store._key(proj), None)
 
 
 def test_step_noop_reason():

@@ -831,6 +831,25 @@ def test_audition_context_prosody_unstaged_trusts_stored_params(minimal_project,
     assert ctx["prosody_notes"]
 
 
+def test_audition_context_prosody_config_read_keeps_stored_params(minimal_project, tmp_workspace):
+    from podcast_mcp.engines.prosody import ProsodyParams
+    from podcast_mcp.services.pipeline_config import config_store
+
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    seed_prosody_profile(
+        proj, params=ProsodyParams(pitch_floor_hz=90.0, pitch_ceiling_hz=500.0).key()
+    )
+    ws = ProjectWorkspace.open(minimal_project)
+    store = config_store()
+    try:
+        store.get(ws.path)  # opening the Pipeline tab / pipeline_get_config_tool
+        ctx = PlayService(ws).audition_context(0.0, 2.0)
+        host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+        assert host["prosody"]["status"] == "fresh"
+    finally:
+        store._by_path.pop(store._key(ws.path), None)
+
+
 def test_play_service_audition_context_uses_staged_prosody_params(minimal_project, tmp_workspace):
     from podcast_mcp.services.pipeline_config import config_store
 
