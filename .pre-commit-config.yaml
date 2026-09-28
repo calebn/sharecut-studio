@@ -1,12 +1,13 @@
 repos:
   - repo: local
     hooks:
-      - id: ux-pack-sync
-        name: UX Pages pack stays in sync with Sharecut Studio
-        entry: python3 scripts/check_ux_pack_sync.py
+      - id: docs-sync
+        name: Docs-sync (warn only; CI gates the PR)
+        entry: python3 scripts/docs_sync.py check --staged
         language: system
-        pass_filenames: true
-        files: ^(gui/web/src/layout/|gui/web/src/keymap/|gui/web/src/commands/catalog\.ts|gui/web/src/styles/partials/(responsive|bottom-sheet)\.css|gui/web/src/ui/BottomSheet|docs/gui-(mobile|integration)\.md|docs/ui-philosophy\.md|docs/daw-editing\.md|docs/host-online-relay\.md|docs/session-sync\.md|docs/recording-session\.md|schemas/episode\.project\.schema\.json)
+        pass_filenames: false
+        always_run: true
+        verbose: true # the hook always exits 0, and pre-commit hides a passing hook's output otherwise
       - id: docs-sync-table
         name: AGENTS.md docs-sync table stays generated
         entry: python3 scripts/docs_sync.py table --check

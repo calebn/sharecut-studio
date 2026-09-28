@@ -102,7 +102,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Progress framework (long-running UX) | `docs/progress.md`, `contracts/progress-exemptions.json`, `contracts/progress-richness.json`, `src/podcast_mcp/util/progress.py`; CLI adapter `docs/cli-progress.md`; `make progress-check` / pre-commit `progress-compliance` (warn → later error) |
 | E2E fixture / play CLI | `docs/e2e-fixture-manual.md`, `tests/fixtures/aligned_dialogue/README.md` |
 | Roadmap / future work | `ROADMAP.md`; native apps + BYOK agent detail: `docs/cross-platform-byok.md` |
-| UX onboarding pack (shareable site) | `ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; keep in sync via `scripts/check_ux_pack_sync.py` / pre-commit (triggers include GUI shells, `docs/ui-philosophy.md`, `docs/gui-mobile.md`, `docs/host-online-relay.md`, `docs/session-sync.md`, `docs/recording-session.md`, episode schema) |
+| UX onboarding pack (shareable site) | `ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema) |
 | Play modes (raw / processed / premix) | `docs/setup.md` — `processed:<id>` for FX+edits, `track:<id>` for raw |
 <!-- /docs-sync:generated -->
 

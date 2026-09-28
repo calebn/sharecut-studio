@@ -2,7 +2,9 @@
 """Check a change against the docs-sync map in contracts/docs-sync.json.
 
 Usage:
-  python3 scripts/docs_sync.py table [--check]   # AGENTS.md § Docs in sync
+  python3 scripts/docs_sync.py check --range origin/main...HEAD   # the gate: exit 1 on a violation
+  python3 scripts/docs_sync.py check --staged                     # pre-commit: warn, always exit 0
+  python3 scripts/docs_sync.py table [--check]                    # AGENTS.md § Docs in sync
 
 Stdlib only, so CI runs it before installing anything. Never reads ``__file__``:
 review_packet.py pipes this file into ``python3 -`` from a git object (see
@@ -438,7 +440,91 @@ def load_contract(rev: str | None) -> Contract:
     return parse_contract(json.loads(read_repo_file(CONTRACT_PATH, rev)))
 
 
+def _resolve_base(preferred: str = DEFAULT_BASE) -> str:
+    """merge-base(preferred, HEAD), falling back to ``main`` (no ``origin`` remote) and then
+    to HEAD itself (a shallow or single-commit clone), so the hook never hard-fails offline."""
+    for ref in (preferred, "main"):
+        try:
+            return git("merge-base", ref, "HEAD").strip()
+        except subprocess.CalledProcessError:
+            continue
+    return "HEAD"
+
+
+def change_for_range(spec: str) -> tuple[Change, str]:
+    """``A...B`` diffs from merge-base(A, B); ``A..B`` diffs from A. Returns the change and
+    the head rev B, whose contract judges it (a PR is checked against its own contract)."""
+    if "..." in spec:
+        base_spec, _, head = spec.partition("...")
+        base = git("merge-base", base_spec, head).strip()
+    elif ".." in spec:
+        base, _, head = spec.partition("..")
+    else:
+        raise ContractError(f"invalid range {spec!r}: expected A...B or A..B")
+    files = tuple(
+        f for f in git("diff", "--name-only", "--no-renames", base, head).splitlines() if f
+    )
+    waivers = parse_waivers(git("log", "--format=%h%x00%B%x1e", f"{base}..{head}"))
+    return Change(label=spec, files=files, waivers=waivers), head
+
+
+def change_for_index(base_ref: str = DEFAULT_BASE) -> Change:
+    """Branch-so-far plus staged: diff merge-base(base_ref, HEAD) against the index, so docs
+    committed earlier on the branch count. Waivers come from <base>..HEAD; the commit being
+    written has no message yet, so the index itself never carries a waiver."""
+    base = _resolve_base(base_ref)
+    files = tuple(
+        f for f in git("diff", "--name-only", "--no-renames", "--cached", base).splitlines() if f
+    )
+    waivers = parse_waivers(git("log", "--format=%h%x00%B%x1e", f"{base}..HEAD"))
+    return Change(label="index", files=files, waivers=waivers)
+
+
 # ---------------------------------------------------------------- output
+
+
+_OUTCOME_ORDER: tuple[Outcome, ...] = ("violated", "satisfied", "waived", "advisory")
+
+
+def format_report(report: Report) -> str:
+    """Text for humans, CI logs and the review packet. Literal shape:
+
+    docs-sync origin/main...HEAD: 2 fired (1 violated, 1 satisfied)
+      VIOLATED  ux-pack  UX onboarding pack (shareable site)
+                triggered by: docs/ui-philosophy.md
+                update one of: ux/, ux/pages/, ...
+                or waive: Docs-Sync-Waive: ux-pack <reason>
+      satisfied python-deps  pyproject.toml
+      waived    ux-pack  f3a2d74: relay-only fix
+      advisory  python-deps  pyproject.toml
+      PROBLEM   abc1234: Docs-Sync-Waive names unknown rule 'ux-pak'
+    """
+    counts = {outcome: 0 for outcome in _OUTCOME_ORDER}
+    for finding in report.findings:
+        counts[finding.outcome] += 1
+    summary = ", ".join(f"{counts[o]} {o}" for o in _OUTCOME_ORDER if counts[o])
+    lines = [f"docs-sync {report.change.label}: {len(report.findings)} fired ({summary or 'none'})"]
+
+    for finding in report.findings:
+        rule = finding.rule
+        title = rule.when.strip()
+        if finding.outcome == "violated":
+            docs_list = ", ".join(g.text for g in rule.docs)
+            lines.append(f"  VIOLATED  {rule.id}  {title}")
+            lines.append(f"            triggered by: {', '.join(finding.triggered_by)}")
+            lines.append(f"            update one of: {docs_list}")
+            lines.append(f"            or waive: Docs-Sync-Waive: {rule.id} <reason>")
+        elif finding.outcome == "satisfied":
+            lines.append(f"  satisfied {rule.id}  {', '.join(finding.satisfied_by)}")
+        elif finding.outcome == "waived":
+            by = "; ".join(f"{w.commit}: {w.reason or '(no reason)'}" for w in finding.waivers)
+            lines.append(f"  waived    {rule.id}  {by}")
+        else:
+            lines.append(f"  advisory  {rule.id}  {', '.join(finding.triggered_by)}")
+
+    for problem in report.problems:
+        lines.append(f"  PROBLEM   {problem}")
+    return "\n".join(lines)
 
 
 def render_table(contract: Contract) -> str:
@@ -470,6 +556,27 @@ def _current_table_region(agents_md: str) -> str:
 # ---------------------------------------------------------------- CLI
 
 
+def _cmd_check(args: argparse.Namespace) -> int:
+    if args.range:
+        change, head = change_for_range(args.range)
+        contract = load_contract(head)
+        report = evaluate(contract, change)
+        print(format_report(report))
+        return 1 if report.blocking else 0
+
+    # --staged: warn only, never fails the commit. CI's `check --range` is the gate, so any
+    # failure here (a malformed contract, no origin/main or main to diff against, a git
+    # failure) is a warning on stderr, not a blocked commit.
+    try:
+        change = change_for_index()
+        contract = load_contract(":")
+        report = evaluate(contract, change)
+        print(format_report(report))
+    except Exception as exc:
+        print(f"docs-sync (warn): {exc}", file=sys.stderr)
+    return 0
+
+
 def _cmd_table(args: argparse.Namespace) -> int:
     contract = load_contract(None)
     table = render_table(contract)
@@ -493,11 +600,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    check_parser = sub.add_parser(
+        "check", help="evaluate a PR diff (--range, the gate) or staged files (--staged, warn only)"
+    )
+    scope = check_parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--range")
+    scope.add_argument("--staged", action="store_true")
+
     table_parser = sub.add_parser("table", help="regenerate (or --check) the AGENTS.md table")
     table_parser.add_argument("--check", action="store_true")
 
     args = parser.parse_args(argv)
     try:
+        if args.cmd == "check":
+            return _cmd_check(args)
         if args.cmd == "table":
             return _cmd_table(args)
         raise ContractError(

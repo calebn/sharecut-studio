@@ -56,8 +56,7 @@ cd ux && python3 -m http.server 8766
 When Sharecut Studio shells, the UI philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
-2. Pre-commit hook **`ux-pack-sync`** (`.pre-commit-config.yaml`) fails the commit if trigger paths change without a staged UX pack update.
-3. Agents: same rule in [AGENTS.md](../AGENTS.md) and [.agents/rules/engineering-standards.md](../.agents/rules/engineering-standards.md).
+2. The `ux-pack` row of the docs-sync map ([contracts/docs-sync.json](../contracts/docs-sync.json)) is the source of truth, generated into [AGENTS.md](../AGENTS.md) § Docs in sync. `make docs-sync` runs the same PR-diff gate CI runs before you open a PR; the `docs-sync` pre-commit hook runs the equivalent check on staged files but only warns (CI is the gate). See [docs/contributing.md § Docs in sync](../docs/contributing.md#docs-in-sync).
 
 Install hooks once per clone or git worktree (`./install.sh` does this too):
 
@@ -67,7 +66,7 @@ make worktree-setup   # hooks + venv + gui/web node_modules (lint-staged)
 
 The pre-commit hook provisions a fresh worktree itself, and runs the check-only hooks via `pre-commit` or, when that is not installed, `uvx pre-commit`.
 
-Rare bypass: `UX_PACK_SKIP=1` or commit message `[skip ux-pack]` (explain why in the PR).
+When the rule genuinely does not apply, waive it with a commit trailer instead of skipping silently: `git commit --trailer "Docs-Sync-Waive: ux-pack <reason>"`.
 
 ## Edit guidelines
 

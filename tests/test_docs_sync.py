@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -263,6 +266,132 @@ def test_parse_waivers() -> None:
         ds.Waiver(rule_id="ux-pack", reason=None, commit="22b10d3"),
         ds.Waiver(rule_id="ux-pack", reason=None, commit="9cf1296"),
     )
+
+
+# ---------------------------------------------------------------- check --range / --staged (git-backed)
+
+
+def _git(repo: Path, *args: str) -> str:
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.com",
+    }
+    return subprocess.run(
+        ["git", *args], cwd=repo, check=True, capture_output=True, text=True, env=env
+    ).stdout
+
+
+def _write(repo: Path, rel: str, text: str = "x\n") -> None:
+    path = repo / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+_ONE_RULE_CONTRACT = json.dumps(
+    {
+        "api_version": 1,
+        "rules": [
+            {
+                "id": "ux-pack",
+                "when": "UX onboarding pack",
+                "update": "`ux/pages/`",
+                "docs": ["ux/pages/"],
+                "gate": {"include": ["docs/ui-philosophy.md"]},
+            }
+        ],
+    }
+)
+
+
+@pytest.fixture
+def check_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    _git(tmp_path, "init", "-q", "-b", "base")
+    _write(tmp_path, "contracts/docs-sync.json", _ONE_RULE_CONTRACT)
+    _write(tmp_path, "docs/ui-philosophy.md")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "base")
+    _git(tmp_path, "checkout", "-qb", "feature")
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def test_check_range_violated_then_satisfied(check_repo: Path) -> None:
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(check_repo, "commit", "-qm", "docs: tweak philosophy")
+    assert ds.main(["check", "--range", "base...HEAD"]) == 1
+
+    _write(check_repo, "ux/pages/brief.md")
+    _git(check_repo, "add", "ux/pages/brief.md")
+    _git(check_repo, "commit", "-qm", "docs: add ux page")
+    assert ds.main(["check", "--range", "base...HEAD"]) == 0
+
+
+def test_check_range_waiver_trailer_passes(
+    check_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(
+        check_repo,
+        "commit",
+        "-qm",
+        "docs: tweak philosophy\n\nDocs-Sync-Waive: ux-pack relay-only fix",
+    )
+    assert ds.main(["check", "--range", "base...HEAD"]) == 0
+    assert "waived    ux-pack" in capsys.readouterr().out
+
+
+def test_check_range_legacy_waiver_is_a_problem_and_still_fails(check_repo: Path) -> None:
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(check_repo, "commit", "-qm", "docs: tweak philosophy [skip ux-pack]")
+    assert ds.main(["check", "--range", "base...HEAD"]) == 1
+
+
+def test_check_range_judges_the_pr_against_its_own_head_contract(check_repo: Path) -> None:
+    """A PR that adds a new rule is checked against that rule, not the base contract."""
+    two_rule_contract = json.loads(_ONE_RULE_CONTRACT)
+    two_rule_contract["rules"].append(
+        {
+            "id": "new-rule",
+            "when": "New thing",
+            "update": "`docs/new.md`",
+            "docs": ["docs/new.md"],
+            "gate": {"include": ["src/new.py"]},
+        }
+    )
+    _write(check_repo, "contracts/docs-sync.json", json.dumps(two_rule_contract))
+    _write(check_repo, "src/new.py")
+    _git(check_repo, "add", ".")
+    _git(check_repo, "commit", "-qm", "feat: new thing, undocumented")
+    assert ds.main(["check", "--range", "base...HEAD"]) == 1
+
+
+def test_check_staged_reads_the_index_and_always_exits_zero(check_repo: Path) -> None:
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    assert ds.main(["check", "--staged"]) == 0  # warn only, never blocks the commit
+
+
+def test_check_staged_never_blocks_on_a_broken_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Any failure reading/parsing the contract (or the git state around it) is a warning
+    on stderr, not a blocked commit. `check --range` (the CI gate) keeps failing loudly."""
+    _git(tmp_path, "init", "-q", "-b", "base")
+    _write(tmp_path, "contracts/docs-sync.json", "not valid json")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "base")
+    _write(tmp_path, "x")
+    _git(tmp_path, "add", "x")
+    monkeypatch.chdir(tmp_path)
+
+    assert ds.main(["check", "--staged"]) == 0
+    assert "docs-sync (warn):" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------- render_table / splice_table
