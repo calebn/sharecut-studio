@@ -2,8 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { currentServerClockOffsetMs } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
+import { pendingInboundCount } from "../sync/inboundQueue";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
+import { stubRaf } from "../test/raf";
 import type { SessionState } from "../types/session";
 import { SANITY_POLL_MS } from "./useFileMetaPoll";
 import { useSessionSync } from "./useSessionSync";
@@ -636,6 +638,60 @@ describe("useSessionSync presence", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(2000);
       });
+      expect(postSessionState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends the ViewerState echo wait at receipt, before the inbound queue flushes", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      stubRaf();
+      const { postSessionState } = await import("../api");
+      renderHook(() =>
+        useSessionSync(
+          "/tmp/ep.project.json",
+          vi.fn(),
+          () => ({ playhead_sec: 0, is_playing: false }),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const frames = FakeWebSocket.instances[0].sent
+        .map(
+          (s) =>
+            JSON.parse(s) as {
+              type: string;
+              snapshot?: { client_id?: string };
+            },
+        )
+        .filter((f) => f.type === "ViewerState");
+      const clientId = frames[0].snapshot?.client_id;
+
+      await act(async () => {
+        FakeWebSocket.instances[0].deliver({
+          type: "Echo",
+          command: { type: "ViewerState", client_id: clientId, role: "viewer" },
+          snapshot: { server_seq: 1, last_command_id: "cmd-1" },
+        });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(pendingInboundCount()).toBe(1);
       expect(postSessionState).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
