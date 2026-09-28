@@ -5,7 +5,8 @@
     "**/*.test.*",
     "**/*.stories.*",
     "uv.lock",
-    "gui/web/package-lock.json"
+    "gui/web/package-lock.json",
+    "tests/"
   ],
   "rules": [
     {
@@ -15,7 +16,12 @@
       "docs": [
         "docs/architecture.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/*/__init__.py",
+          "src/podcast_mcp/**/__init__.py"
+        ]
+      }
     },
     {
       "id": "source-timeline-timebase-sessiontimeline-or",
@@ -28,7 +34,18 @@
         "docs/testing.md",
         "src/podcast_mcp/util/tool_timebase.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/util/timebase.py",
+          "src/podcast_mcp/util/tool_timebase.py",
+          "src/podcast_mcp/engines/session_timeline.py",
+          "src/podcast_mcp/engines/timemap.py",
+          "src/podcast_mcp/engines/session_clock.py",
+          "src/podcast_mcp/edits/timeline_span.py",
+          "src/podcast_mcp/edits/transcript_sync.py",
+          "gui/web/src/utils/timebase.ts"
+        ]
+      }
     },
     {
       "id": "setup-commands-or-repo-layout",
@@ -38,7 +55,16 @@
         "README.md",
         "docs/setup.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "Makefile",
+          "install.sh",
+          "scripts/worktree-setup.sh",
+          ".githooks/pre-commit",
+          ".nvmrc",
+          "src/podcast_mcp/cli/main.py"
+        ]
+      }
     },
     {
       "id": "python-deps",
@@ -49,7 +75,11 @@
         "uv.lock",
         "docs/setup.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "pyproject.toml"
+        ]
+      }
     },
     {
       "id": "contributor-workflow",
@@ -71,7 +101,17 @@
         "docs/timeline-comments.md",
         ".agents/skills/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/mcp/tools/",
+          "src/podcast_mcp/mcp/server.py",
+          "src/podcast_mcp/clips/",
+          "src/podcast_mcp/services/clip.py"
+        ],
+        "exclude": [
+          "src/podcast_mcp/mcp/tools/guest/"
+        ]
+      }
     },
     {
       "id": "prosody-profile",
@@ -88,7 +128,16 @@
         "src/podcast_mcp/engines/prosody.py",
         "src/podcast_mcp/edits/prosody_profile.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/engines/prosody.py",
+          "src/podcast_mcp/edits/prosody_profile.py",
+          "src/podcast_mcp/edits/audition_context.py",
+          "gui/web/src/prosody/",
+          "gui/web/src/api/prosody.ts",
+          "gui/web/src/types/prosody.ts"
+        ]
+      }
     },
     {
       "id": "timeline-review-comments-action-items",
@@ -100,7 +149,20 @@
         "schemas/episode.project.schema.json",
         ".agents/skills/podcast-timeline-comments/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/comments.py",
+          "src/podcast_mcp/edits/comment_remap.py",
+          "src/podcast_mcp/services/comment.py",
+          "src/podcast_mcp/mcp/tools/comments.py",
+          "src/podcast_mcp/gui/routes/comments.py",
+          "src/podcast_mcp/cli/comment.py",
+          "src/podcast_mcp/services/document_sync/handlers/comments.py",
+          "gui/web/src/comments/",
+          "gui/web/src/api/comments.ts",
+          "gui/web/src/inspector/views/CommentInspector.tsx"
+        ]
+      }
     },
     {
       "id": "public-share-tokens",
@@ -112,7 +174,14 @@
         "src/podcast_mcp/edits/review_shares.py",
         "src/podcast_mcp/services/share.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/share_registry.py",
+          "src/podcast_mcp/edits/review_shares.py",
+          "src/podcast_mcp/services/share.py",
+          "src/podcast_mcp/cli/review.py"
+        ]
+      }
     },
     {
       "id": "recording-session",
@@ -127,7 +196,22 @@
         "ux/pages/guest-journeys.md",
         "ux/pages/domain-glossary.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/record/",
+          "src/podcast_mcp/services/record_share.py",
+          "src/podcast_mcp/gui/routes/record_host.py",
+          "src/podcast_mcp/gui/routes/record_share.py",
+          "src/podcast_mcp/gui/routes/record_upload_http.py",
+          "src/podcast_mcp/mcp/tools/record.py",
+          "src/podcast_mcp/cli/record.py",
+          "gui/web/src/record/",
+          "gui/web/src/audio/mixMinus.ts",
+          "gui/web/src/api/sharesRecord.ts",
+          "gui/web/src/styles/partials/record.css",
+          "gui/web/src/styles/partials/record-entry.css"
+        ]
+      }
     },
     {
       "id": "durable-stores",
@@ -136,7 +220,25 @@
       "docs": [
         "docs/persistence.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/project_store.py",
+          "src/podcast_mcp/project_io.py",
+          "src/podcast_mcp/project_merge.py",
+          "src/podcast_mcp/transcript_context.py",
+          "src/podcast_mcp/whisper_models.py",
+          "src/podcast_mcp/util/atomic_json.py",
+          "src/podcast_mcp/util/project_state.py",
+          "src/podcast_mcp/util/object_store.py",
+          "src/podcast_mcp/util/sqlite_tx.py",
+          "src/podcast_mcp/util/file_locks.py",
+          "src/podcast_mcp/services/session_sync/sqlite.py",
+          "src/podcast_mcp/services/session_sync/log.py",
+          "src/podcast_mcp/services/share_auth/store.py",
+          "src/podcast_mcp/services/media_store.py",
+          "src/podcast_mcp/edits/share_registry.py"
+        ]
+      }
     },
     {
       "id": "daw-viewer-launch",
@@ -147,7 +249,13 @@
         "docs/setup.md",
         "src/podcast_mcp/services/gui_launch.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/gui_launch.py",
+          "src/podcast_mcp/mcp/tools/gui.py",
+          "src/podcast_mcp/cli/gui.py"
+        ]
+      }
     },
     {
       "id": "undo-non-destructive-mutations",
@@ -160,7 +268,19 @@
         ".agents/INSTRUCTIONS.md",
         ".agents/rules/engineering-standards.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/history/",
+          "src/podcast_mcp/services/history.py",
+          "src/podcast_mcp/services/workspace.py",
+          "src/podcast_mcp/mcp/tools/history.py",
+          "src/podcast_mcp/cli/history.py",
+          "src/podcast_mcp/models/history.py",
+          "src/podcast_mcp/edits/edit_log.py",
+          "src/podcast_mcp/services/document_sync/handlers/history.py",
+          "gui/web/src/commands/history.ts"
+        ]
+      }
     },
     {
       "id": "cut-boundary-optimization",
@@ -175,7 +295,19 @@
         ".agents/skills/podcast-inaudible-cuts/",
         ".agents/skills/podcast-audio-cleanup/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/silence_islands.py",
+          "src/podcast_mcp/edits/inaudible_cuts.py",
+          "src/podcast_mcp/edits/cut_quality.py",
+          "src/podcast_mcp/edits/join_detectors.py",
+          "src/podcast_mcp/edits/join_ranker.py",
+          "src/podcast_mcp/edits/join_labels.py",
+          "src/podcast_mcp/edits/acoustic_gap.py",
+          "src/podcast_mcp/edits/breath_detect.py",
+          "src/podcast_mcp/edits/speech_energy_guard.py"
+        ]
+      }
     },
     {
       "id": "join-continuity-splice-qa",
@@ -186,7 +318,13 @@
         "src/podcast_mcp/edits/join_continuity.py",
         "src/podcast_mcp/edits/join_cost_spectral.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/join_continuity.py",
+          "src/podcast_mcp/edits/join_cost_spectral.py",
+          "src/podcast_mcp/edits/join_neural.py"
+        ]
+      }
     },
     {
       "id": "clip-join-modes",
@@ -199,7 +337,16 @@
         "schemas/episode.project.schema.json",
         ".agents/defaults/pipeline.yaml"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/join_modes.py",
+          "src/podcast_mcp/engines/timeline_render.py",
+          "src/podcast_mcp/render.py",
+          "contracts/join-length-limits.json",
+          "gui/web/src/edit/joinRender.ts",
+          "gui/web/src/edit/fadeLimits.ts"
+        ]
+      }
     },
     {
       "id": "audio-diagnostics-or-mastering-loudness-qc",
@@ -210,7 +357,17 @@
         ".agents/skills/podcast-audio-cleanup/",
         ".agents/skills/podcast-master-export/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/engines/audio_audit.py",
+          "src/podcast_mcp/edits/audio_quality.py",
+          "src/podcast_mcp/edits/loudness.py",
+          "src/podcast_mcp/util/loudness.py",
+          "src/podcast_mcp/util/dsp.py",
+          "src/podcast_mcp/effects/presets.py",
+          "src/podcast_mcp/export/audio.py"
+        ]
+      }
     },
     {
       "id": "bounce-stem-range-export",
@@ -222,7 +379,15 @@
         ".agents/skills/podcast-bounce-export/",
         "src/podcast_mcp/services/bounce.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/bounce.py",
+          "src/podcast_mcp/gui/routes/export_routes.py",
+          "src/podcast_mcp/export/names.py",
+          "gui/web/src/layout/BounceDialog*",
+          "gui/web/src/api/exportJobs.ts"
+        ]
+      }
     },
     {
       "id": "waveform-pyramid-renderer-tiles",
@@ -234,7 +399,20 @@
         "docs/gui-integration.md",
         "docs/persistence.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/engines/waveform_pyramid.py",
+          "src/podcast_mcp/engines/waveform_media.py",
+          "src/podcast_mcp/services/waveform.py",
+          "src/podcast_mcp/gui/routes/waveform.py",
+          "src/podcast_mcp/util/timeline_zoom.py",
+          "src/podcast_mcp/util/timeline-zoom.json",
+          "scripts/export_timeline_zoom.py",
+          "gui/web/src/waveform/",
+          "gui/web/src/api/waveform.ts",
+          "gui/web/src/utils/timelineZoom.generated.ts"
+        ]
+      }
     },
     {
       "id": "ffmpeg-model-bootstrap-native-binary-resolution",
@@ -248,7 +426,26 @@
         "src/podcast_mcp/util/binaries.py",
         "src/podcast_mcp/util/model_assets.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/util/binaries.py",
+          "src/podcast_mcp/util/model_assets.py",
+          "src/podcast_mcp/util/model_manifest.py",
+          "src/podcast_mcp/util/asset_sources.py",
+          "src/podcast_mcp/util/bootstrap-assets.json",
+          "src/podcast_mcp/services/bootstrap.py",
+          "src/podcast_mcp/services/doctor.py",
+          "src/podcast_mcp/services/config_check.py",
+          "src/podcast_mcp/cli/setup_cmd.py",
+          "src/podcast_mcp/gui/routes/bootstrap.py",
+          "src/podcast_mcp/gui/bootstrap_jobs.py",
+          "src/podcast_mcp/whisper_models.py",
+          "src/podcast_mcp/word_aligner_models.py",
+          "contracts/bootstrap-assets.json",
+          "scripts/mirror_bootstrap_assets.py",
+          "gui/web/src/api/bootstrapDiagnostics.ts"
+        ]
+      }
     },
     {
       "id": "raw-multitrack-per-speaker-tracks",
@@ -259,7 +456,25 @@
         ".agents/skills/podcast-align-audio/",
         ".agents/skills/podcast-ingest-align/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/ingest/",
+          "src/podcast_mcp/engines/align.py",
+          "src/podcast_mcp/engines/alignment_audit.py",
+          "src/podcast_mcp/services/ingest.py",
+          "src/podcast_mcp/services/align_accept.py",
+          "src/podcast_mcp/edits/align_accept_status.py",
+          "src/podcast_mcp/edits/conversation_align.py",
+          "src/podcast_mcp/edits/ingest_placement.py",
+          "src/podcast_mcp/edits/track_media.py",
+          "src/podcast_mcp/cli/ingest.py",
+          "src/podcast_mcp/cli/align_cmd.py",
+          "src/podcast_mcp/mcp/tools/ingest.py",
+          "src/podcast_mcp/mcp/tools/align.py",
+          "scripts/verify_align_acoustic.py",
+          "gui/web/src/ingest/"
+        ]
+      }
     },
     {
       "id": "episode-project-format-v2",
@@ -269,7 +484,16 @@
         "docs/episode-format-v2.md",
         "schemas/episode.project.schema.json"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/models/episode.py",
+          "src/podcast_mcp/models/project_format.py",
+          "src/podcast_mcp/models/words_revision.py",
+          "src/podcast_mcp/project_io.py",
+          "src/podcast_mcp/project_merge.py",
+          "src/podcast_mcp/edits/edit_log.py"
+        ]
+      }
     },
     {
       "id": "gui-timeline-inspector-apis",
@@ -280,7 +504,17 @@
         "docs/history.md",
         "src/podcast_mcp/util/tool_timebase.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/gui/schemas.py",
+          "src/podcast_mcp/gui/mapper.py",
+          "src/podcast_mcp/gui/routes/project.py",
+          "src/podcast_mcp/history/diff.py",
+          "src/podcast_mcp/mcp/tools/timeline.py",
+          "gui/web/src/inspector/",
+          "gui/web/src/types/project.ts"
+        ]
+      }
     },
     {
       "id": "read-only-daw-viewer",
@@ -290,7 +524,15 @@
         "docs/gui-integration.md",
         "docs/setup.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/gui/serve.py",
+          "src/podcast_mcp/gui/server.py",
+          "src/podcast_mcp/gui/static_assets.py",
+          "src/podcast_mcp/gui/bind.py",
+          "src/podcast_mcp/cli/gui.py"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-css-units-theme-tokens",
@@ -303,7 +545,14 @@
         "ux/pages/brand.md",
         "docs/gui-mobile.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/stylelint.config.js",
+          "gui/web/src/styles/theme/",
+          "gui/web/src/styles/theme.css",
+          "deploy/brand/brand-tokens.css"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-mobile-responsive-shells",
@@ -314,7 +563,21 @@
         "docs/gui-integration.md",
         "ROADMAP.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/src/layout/MobileShell.tsx",
+          "gui/web/src/layout/StudioShell.tsx",
+          "gui/web/src/layout/ListenHero.tsx",
+          "gui/web/src/layout/ListenPlayhead.tsx",
+          "gui/web/src/hooks/useViewportClass.ts",
+          "gui/web/src/hooks/usePointerType.ts",
+          "gui/web/src/ui/BottomSheet*",
+          "gui/web/src/ui/GesturesSheet.tsx",
+          "gui/web/src/commands/gestures.ts",
+          "gui/web/src/styles/partials/responsive.css",
+          "gui/web/src/styles/partials/bottom-sheet.css"
+        ]
+      }
     },
     {
       "id": "native-ios-android-engine-in-app-byok-agent",
@@ -334,7 +597,24 @@
         "ROADMAP.md",
         "docs/session-sync.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/src/edit/",
+          "gui/web/src/document/",
+          "gui/web/src/transcript/",
+          "gui/web/src/hooks/useBladeCut.ts",
+          "gui/web/src/commands/editing.ts",
+          "gui/web/src/commands/trackMutation.ts",
+          "gui/web/src/commands/tighten.ts",
+          "gui/web/src/api/documentEdits.ts",
+          "src/podcast_mcp/services/document_sync/handlers/edits.py",
+          "src/podcast_mcp/services/document_sync/handlers/transcript.py"
+        ],
+        "exclude": [
+          "gui/web/src/edit/joinRender.ts",
+          "gui/web/src/edit/fadeLimits.ts"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-keyboard-command-bus",
@@ -354,7 +634,19 @@
         "contracts/capabilities.manifest.json",
         "docs/entry-points.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/src/commands/catalog.ts",
+          "gui/web/src/keymap/registry.ts",
+          "gui/web/src/capabilities/",
+          "src/podcast_mcp/mcp/tools/",
+          "src/podcast_mcp/cli/",
+          ".agents/skills/"
+        ],
+        "exclude": [
+          "src/podcast_mcp/mcp/tools/guest/"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-shortcut-cheatsheet",
@@ -363,7 +655,14 @@
       "docs": [
         "ux/pages/shortcuts.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/web/src/keymap/",
+          "gui/web/src/commands/catalog.ts",
+          "gui/web/src/commands/gestures.ts",
+          "gui/web/scripts/generate-keymap-cheatsheet.ts"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-desktop-packaging",
@@ -374,7 +673,37 @@
         "gui/desktop/",
         "contracts/bootstrap-assets.json"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "gui/desktop/",
+          "scripts/build_desktop.sh",
+          "scripts/build_sidecar.py",
+          "scripts/check_desktop.sh",
+          "scripts/pack_macos_dmg.sh",
+          "scripts/sign_windows_authenticode.sh",
+          "scripts/build_linux_appimage*.sh",
+          "scripts/smoke_linux_appimage.sh",
+          "scripts/tauri_sidecar_hook.py",
+          "scripts/sidecar_*.rs",
+          "scripts/mirror_bootstrap_assets.py",
+          "scripts/generate_distribution_config.py",
+          "contracts/bootstrap-assets.json",
+          "contracts/bootstrap-assets.schema.json",
+          "contracts/distribution-profile.schema.json",
+          "config/distribution.dev.json",
+          "src/podcast_mcp/distribution.py",
+          "src/podcast_mcp/gui/routes/bootstrap.py",
+          "src/podcast_mcp/gui/bootstrap_jobs.py",
+          "src/podcast_mcp/gui/host_file_dialog.py",
+          "gui/web/src/desktop/",
+          ".github/workflows/desktop.yml",
+          ".github/workflows/release-desktop-build.yml"
+        ],
+        "exclude": [
+          "gui/desktop/package-lock.json",
+          "gui/desktop/src-tauri/Cargo.lock"
+        ]
+      }
     },
     {
       "id": "sharecut-studio-extensions-api-freemium-split",
@@ -385,7 +714,14 @@
         "docs/extension-seams.md",
         "contracts/caps.json"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/extensions/",
+          "scripts/check_extension_contracts.py",
+          "contracts/caps.json",
+          "gui/web/src/extensions/"
+        ]
+      }
     },
     {
       "id": "host-online-relay-tunnel-share-capabilities",
@@ -405,7 +741,34 @@
         "deploy/relay/",
         "docs/timeline-comments.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/remote_mcp/",
+          "src/podcast_mcp/services/share_auth/",
+          "src/podcast_mcp/services/tunnel.py",
+          "src/podcast_mcp/services/session_sync/authz.py",
+          "src/podcast_mcp/gui/routes/remote_mcp.py",
+          "src/podcast_mcp/gui/routes/auth.py",
+          "src/podcast_mcp/gui/routes/review_share.py",
+          "src/podcast_mcp/gui/routes/shares.py",
+          "src/podcast_mcp/gui/routes/share_common.py",
+          "src/podcast_mcp/gui/routes/guest_ws_common.py",
+          "src/podcast_mcp/gui/middleware_share_identity.py",
+          "src/podcast_mcp/mcp/tools/guest/",
+          "src/podcast_mcp/util/rate_limit.py",
+          "src/podcast_mcp/util/proxy_paths.py",
+          "src/podcast_mcp/util/body_limits.py",
+          "src/podcast_mcp/util/ws_limits.py",
+          "src/podcast_mcp/cli/tunnel.py",
+          "src/podcast_mcp/edits/share_capabilities.py",
+          "src/podcast_mcp/extensions/collaboration.py",
+          "src/podcast_relay/",
+          "deploy/relay/",
+          "config/relay.example.yaml",
+          ".github/workflows/relay-ci.yml",
+          "scripts/verify_remote_mcp_shares.py"
+        ]
+      }
     },
     {
       "id": "agent-daw-session-sync",
@@ -417,7 +780,31 @@
         "src/podcast_mcp/services/session_sync/",
         "src/podcast_mcp/services/session_control.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/session_sync/",
+          "src/podcast_mcp/services/session_control.py",
+          "src/podcast_mcp/services/cross_process_sync.py",
+          "src/podcast_mcp/services/fanout_hub.py",
+          "src/podcast_mcp/services/document_sync/",
+          "src/podcast_mcp/gui/routes/session.py",
+          "src/podcast_mcp/gui/routes/document.py",
+          "src/podcast_mcp/cli/session_cmd.py",
+          "src/podcast_mcp/mcp/tools/session.py",
+          "src/podcast_mcp/mcp/tools/agent_document.py",
+          "gui/web/src/sync/",
+          "gui/web/src/session/",
+          "gui/web/src/presence/",
+          "gui/web/src/hooks/useSessionSync.ts",
+          "gui/web/src/types/session.ts",
+          "gui/web/src/api/documentTransport.ts"
+        ],
+        "exclude": [
+          "src/podcast_mcp/services/session_sync/authz.py",
+          "src/podcast_mcp/services/document_sync/payloads.py",
+          "src/podcast_mcp/services/document_sync/handlers/"
+        ]
+      }
     },
     {
       "id": "document-command-schema-developer-docs-pack",
@@ -427,7 +814,16 @@
         "schemas/document-commands.schema.json",
         "docs-site/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/document_sync/payloads.py",
+          "src/podcast_mcp/services/remote_mcp/allowlist.py",
+          "src/podcast_mcp/gui/routes/review_share.py",
+          "scripts/export_document_command_schema.py",
+          "scripts/export_docs_site_contract.py",
+          "scripts/export_capabilities_docs.py"
+        ]
+      }
     },
     {
       "id": "pipeline-defaults-or-export-paths",
@@ -437,7 +833,15 @@
         ".agents/defaults/pipeline.yaml",
         "docs/"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/pipeline/",
+          "src/podcast_mcp/config.py",
+          "src/podcast_mcp/services/pipeline_config.py",
+          "src/podcast_mcp/export/names.py",
+          "src/podcast_mcp/util/workspace_paths.py"
+        ]
+      }
     },
     {
       "id": "gui-pipeline-config-analyze-run",
@@ -447,7 +851,20 @@
         "docs/pipeline.md",
         "docs/gui-integration.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/gui/routes/pipeline.py",
+          "src/podcast_mcp/services/pipeline_config.py",
+          "gui/web/src/panels/PipelinePanel.tsx",
+          "gui/web/src/panels/TightenPanel.tsx",
+          "gui/web/src/panels/WhisperModelPicker.tsx",
+          "gui/web/src/panels/WordAlignerStatus.tsx",
+          "gui/web/src/layout/PipelineStatusChip.tsx",
+          "gui/web/src/api/pipeline.ts",
+          "gui/web/src/types/pipeline.ts",
+          "gui/web/src/utils/pipeline.ts"
+        ]
+      }
     },
     {
       "id": "pipeline-step-parallelism-performance",
@@ -460,7 +877,13 @@
         "src/podcast_mcp/util/parallel.py",
         "src/podcast_mcp/edits/audio_cache.py"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/util/parallel.py",
+          "src/podcast_mcp/edits/audio_cache.py",
+          "src/podcast_mcp/pipeline/runner.py"
+        ]
+      }
     },
     {
       "id": "testing-or-coverage-policy",
@@ -472,7 +895,29 @@
         "gui/web/README.md",
         "docs/desktop-packaging.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "pyproject.toml",
+          "Makefile",
+          ".pre-commit-config.yaml",
+          ".githooks/pre-commit",
+          "lint-staged.config.mjs",
+          ".github/workflows/test.yml",
+          ".github/workflows/storybook.yml",
+          "gui/web/vitest.config.ts",
+          "gui/web/playwright.config.ts",
+          "gui/web/playwright.compat.config.ts",
+          "gui/web/biome.json",
+          "gui/web/.oxlintrc.json",
+          "gui/web/stylelint.config.js",
+          "gui/web/scripts/run-e2e.ts",
+          "gui/web/scripts/start-e2e-gui.ts",
+          "gui/web/scripts/check-bundle-*.ts",
+          "scripts/check_desktop.sh",
+          "scripts/biome_format.py",
+          "scripts/lint-staged-biome.sh"
+        ]
+      }
     },
     {
       "id": "dependency-update-automation",
@@ -484,7 +929,11 @@
         "docs/testing.md",
         "docs/contributing.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          ".github/dependabot.yml"
+        ]
+      }
     },
     {
       "id": "progress-framework",
@@ -497,7 +946,18 @@
         "src/podcast_mcp/util/progress.py",
         "docs/cli-progress.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/util/progress.py",
+          "src/podcast_mcp/util/progress_install.py",
+          "src/podcast_mcp/services/guest_progress.py",
+          "src/podcast_mcp/services/remote_mcp/progress.py",
+          "scripts/check_progress.py",
+          "schemas/progress-exemptions.schema.json",
+          "schemas/progress-richness.schema.json",
+          "gui/web/src/layout/StaleProgressCopy.tsx"
+        ]
+      }
     },
     {
       "id": "e2e-fixture-play-cli",
@@ -507,7 +967,16 @@
         "docs/e2e-fixture-manual.md",
         "tests/fixtures/aligned_dialogue/README.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/e2e_fixture.py",
+          "src/podcast_mcp/fixture_seed.py",
+          "src/podcast_mcp/cli/fixture.py",
+          "src/podcast_mcp/cli/play.py",
+          "scripts/bootstrap_fixture_5min.sh",
+          "scripts/run_e2e_battery.sh"
+        ]
+      }
     },
     {
       "id": "roadmap-future-work",
@@ -558,7 +1027,16 @@
       "docs": [
         "docs/setup.md"
       ],
-      "advisory": null
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/play.py",
+          "src/podcast_mcp/cli/play.py",
+          "src/podcast_mcp/mcp/tools/play.py",
+          "src/podcast_mcp/engines/transcript_gated_play.py",
+          "src/podcast_mcp/engines/play_audit.py",
+          "src/podcast_mcp/gui/audio.py"
+        ]
+      }
     }
   ]
 }
