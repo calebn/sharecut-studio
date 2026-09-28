@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, RefObject } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { presenceColorVar, rosterDisplayName } from "../presence/colors";
 import { createCursorMotion } from "../presence/cursorMotion";
 import {
@@ -167,6 +167,116 @@ function selectionBox(
   return transcriptWordBox(project, tracks, sel, laneHeight);
 }
 
+type PresenceOverlayRowProps = {
+  client: SessionClient;
+  cursorEls: RefObject<Map<string, HTMLDivElement>>;
+  project: ProjectView | null;
+  durationSec: number;
+  zoomPxPerSec: number;
+  height: number;
+  laneHeight: number;
+  tracks: TrackView[];
+  clipsByTrack: Record<string, ClipRow[]>;
+  hidePlayheadForClientId: string | null;
+};
+
+/**
+ * One remote client's playhead chip / lane cursor / selection box. Memoised
+ * so a `PresenceDelta` that replaces only one roster entry
+ * (`presence/roster.ts`'s `applyPresenceDelta`) re-renders only that
+ * client's row: every other client keeps its prior object identity
+ * (`SessionRoster`'s per-entry stability), and the shared per-render values
+ * below (zoom, lanes, project) change together for every row anyway.
+ */
+const PresenceOverlayRow = memo(function PresenceOverlayRow({
+  client: c,
+  cursorEls,
+  project,
+  durationSec,
+  zoomPxPerSec,
+  height,
+  laneHeight,
+  tracks,
+  clipsByTrack,
+  hidePlayheadForClientId,
+}: PresenceOverlayRowProps) {
+  const color = presenceColorVar(c.meta?.color_index);
+  const name = rosterDisplayName(c);
+  const playhead = remotePlayheadSec(c, durationSec);
+  const box = selectionBox(
+    clipsByTrack,
+    tracks,
+    project,
+    c.meta?.selection ?? null,
+    laneHeight,
+  );
+  const lane = isLaneCursor(c.meta?.cursor)
+    ? laneCursorTop(c.meta.cursor, tracks, laneHeight)
+    : null;
+  return (
+    <div>
+      {playhead != null &&
+      c.client_id !== hidePlayheadForClientId &&
+      !isObservingClient(c) ? (
+        <div
+          className="presence-playhead"
+          style={
+            {
+              left: playhead * zoomPxPerSec,
+              height,
+              "--presence-color": color,
+            } as CSSProperties
+          }
+        >
+          <span className="presence-playhead-chip">
+            <Avatar
+              name={name}
+              colorIndex={c.meta?.color_index}
+              sessionRole={c.role}
+              size="sm"
+            />
+          </span>
+        </div>
+      ) : null}
+      {isLaneCursor(c.meta?.cursor) && lane != null ? (
+        <div
+          className="presence-cursor"
+          ref={(el) => {
+            if (el) {
+              cursorEls.current.set(c.client_id, el);
+            } else {
+              cursorEls.current.delete(c.client_id);
+            }
+          }}
+          style={
+            {
+              left: c.meta.cursor.t_sec * zoomPxPerSec,
+              top: lane,
+              "--presence-color": color,
+            } as CSSProperties
+          }
+        >
+          <span className="presence-cursor-tag">{name}</span>
+        </div>
+      ) : null}
+      {box ? (
+        <div
+          className="presence-selection"
+          style={
+            {
+              left: box.left * zoomPxPerSec,
+              width: Math.max(box.minPx, box.width * zoomPxPerSec),
+              top: box.top,
+              height: laneHeight,
+              "--presence-color": color,
+            } as CSSProperties
+          }
+        />
+      ) : null}
+    </div>
+  );
+});
+
 /** Remote presence over the lanes, taking the session roster as a prop. */
 export function PresenceOverlayView({
   clients,
@@ -252,83 +362,21 @@ export function PresenceOverlayView({
 
   return (
     <div className="presence-overlay" aria-hidden>
-      {others.map((c) => {
-        const color = presenceColorVar(c.meta?.color_index);
-        const name = rosterDisplayName(c);
-        const playhead = remotePlayheadSec(c, durationSec);
-        const box = selectionBox(
-          clipsByTrack,
-          tracks,
-          project,
-          c.meta?.selection ?? null,
-          laneHeight,
-        );
-        const lane = isLaneCursor(c.meta?.cursor)
-          ? laneCursorTop(c.meta.cursor, tracks, laneHeight)
-          : null;
-        return (
-          <div key={c.client_id}>
-            {playhead != null &&
-            c.client_id !== hidePlayheadForClientId &&
-            !isObservingClient(c) ? (
-              <div
-                className="presence-playhead"
-                style={
-                  {
-                    left: playhead * zoomPxPerSec,
-                    height,
-                    "--presence-color": color,
-                  } as CSSProperties
-                }
-              >
-                <span className="presence-playhead-chip">
-                  <Avatar
-                    name={name}
-                    colorIndex={c.meta?.color_index}
-                    sessionRole={c.role}
-                    size="sm"
-                  />
-                </span>
-              </div>
-            ) : null}
-            {isLaneCursor(c.meta?.cursor) && lane != null ? (
-              <div
-                className="presence-cursor"
-                ref={(el) => {
-                  if (el) {
-                    cursorEls.current.set(c.client_id, el);
-                  } else {
-                    cursorEls.current.delete(c.client_id);
-                  }
-                }}
-                style={
-                  {
-                    left: c.meta.cursor.t_sec * zoomPxPerSec,
-                    top: lane,
-                    "--presence-color": color,
-                  } as CSSProperties
-                }
-              >
-                <span className="presence-cursor-tag">{name}</span>
-              </div>
-            ) : null}
-            {box ? (
-              <div
-                className="presence-selection"
-                style={
-                  {
-                    left: box.left * zoomPxPerSec,
-                    width: Math.max(box.minPx, box.width * zoomPxPerSec),
-                    top: box.top,
-                    height: laneHeight,
-                    "--presence-color": color,
-                  } as CSSProperties
-                }
-              />
-            ) : null}
-          </div>
-        );
-      })}
+      {others.map((c) => (
+        <PresenceOverlayRow
+          key={c.client_id}
+          client={c}
+          cursorEls={cursorEls}
+          project={project}
+          durationSec={durationSec}
+          zoomPxPerSec={zoomPxPerSec}
+          height={height}
+          laneHeight={laneHeight}
+          tracks={tracks}
+          clipsByTrack={clipsByTrack}
+          hidePlayheadForClientId={hidePlayheadForClientId}
+        />
+      ))}
     </div>
   );
 }

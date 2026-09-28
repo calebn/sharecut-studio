@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { minimalProject, sampleTrack, sessionRoster } from "../test/fixtures";
 import { StatusBar } from "./StatusBar";
 
 // Delegates to the real hook; its call count is how many times StatusBar's
@@ -130,7 +130,7 @@ describe("StatusBar live region", () => {
   it("counts only share guests in presence (#533)", () => {
     useDawStore.setState({
       localClientId: "h1",
-      sessionClients: [{ client_id: "h1", role: "viewer" }],
+      sessionClients: sessionRoster([{ client_id: "h1", role: "viewer" }]),
     } as never);
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
@@ -141,16 +141,19 @@ describe("StatusBar live region", () => {
     expect(screen.queryByText(/guest/)).toBeNull();
     act(() => {
       useDawStore.setState({
-        sessionClients: [
+        sessionClients: sessionRoster([
           { client_id: "h1", role: "viewer" },
           { client_id: "guest-abcd1234-g1", role: "viewer" },
           { client_id: "a1", role: "agent" },
-        ],
+        ]),
       } as never);
     });
     expect(screen.getByText("Presence: You + 1 guest · 1 agent")).toBeTruthy();
     act(() => {
-      useDawStore.setState({ localClientId: null, sessionClients: [] });
+      useDawStore.setState({
+        localClientId: null,
+        sessionClients: sessionRoster([]),
+      });
     });
   });
 
@@ -479,15 +482,17 @@ describe("StatusBar live region", () => {
     act(() => {
       useDawStore.setState({
         localClientId: "h1",
-        sessionClients: [{ client_id: "h1", role: "viewer" }] as never,
+        sessionClients: sessionRoster([
+          { client_id: "h1", role: "viewer" },
+        ]) as never,
       });
     });
     act(() => {
       useDawStore.setState({
-        sessionClients: [
+        sessionClients: sessionRoster([
           { client_id: "h1", role: "viewer" },
           { client_id: "guest-abcd1234-g1", role: "viewer" },
-        ] as never,
+        ]) as never,
       });
     });
     expect(breakdownCalls).not.toHaveBeenCalled();
@@ -502,14 +507,14 @@ describe("StatusBar live region", () => {
     );
     act(() => {
       useDawStore.setState({
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "x",
             role: "viewer",
             label: "old",
             meta: { display_name: "Ada" },
           },
-        ],
+        ]),
       });
     });
     expect(screen.getByTitle("Ada (viewer)")).toBeTruthy();

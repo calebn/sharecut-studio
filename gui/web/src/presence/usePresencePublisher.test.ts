@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useFollowUi } from "../hooks/useFollowUi";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { setPresenceCursor, setPresenceCursorSink } from "./followSync";
 import { usePresencePublisher } from "./usePresencePublisher";
 
@@ -131,14 +131,14 @@ describe("usePresencePublisher", () => {
       followingClientId: "leader",
       activeTab: "comments",
       mobileMode: "listen",
-      sessionClients: [
+      sessionClients: sessionRoster([
         {
           client_id: "leader",
           role: "viewer",
           last_seen_ns: Date.now() * 1e6,
           meta: { ui },
         },
-      ],
+      ]),
     });
     renderHook(() => useFollowUi());
     expect(useDawStore.getState().mobileMode).toBe("text");
@@ -164,14 +164,14 @@ describe("usePresencePublisher", () => {
         followingClientId: "leader",
         activeTab: "comments",
         mobileMode: "text",
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "leader",
             role: "viewer",
             last_seen_ns: Date.now() * 1e6,
             meta: { ui },
           },
-        ],
+        ]),
       });
       renderHook(() => useFollowUi());
       expect(useDawStore.getState().mobileMode).toBe(mode);

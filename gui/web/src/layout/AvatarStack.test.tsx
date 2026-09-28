@@ -5,7 +5,7 @@ import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sessionRoster } from "../test/fixtures";
 import { AvatarStack } from "./AvatarStack";
 
 vi.mock("../commands/execute", () => ({
@@ -28,7 +28,7 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "me",
             role: "viewer",
@@ -61,7 +61,7 @@ describe("AvatarStack", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Cy", color_index: 5 },
           },
-        ],
+        ]),
       });
     });
     expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();
@@ -85,7 +85,7 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "me",
             role: "viewer",
@@ -98,7 +98,7 @@ describe("AvatarStack", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Ada", color_index: 2 },
           },
-        ],
+        ]),
       });
     });
     expect(screen.getByRole("group", { name: "People" })).toBeTruthy();
@@ -117,7 +117,7 @@ describe("AvatarStack", () => {
     act(() => {
       useDawStore.setState({
         localClientId: null,
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "guest-token-me",
             role: "viewer",
@@ -127,7 +127,7 @@ describe("AvatarStack", () => {
               cursor: { t_sec: 1, track_id: "host" },
             },
           },
-        ],
+        ]),
       });
     });
     expect(screen.queryByRole("button", { name: /Follow/ })).toBeNull();
@@ -143,7 +143,7 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: "a",
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "me",
             role: "viewer",
@@ -156,7 +156,7 @@ describe("AvatarStack", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Ada", color_index: 2 },
           },
-        ],
+        ]),
       });
     });
     expect(
@@ -176,7 +176,7 @@ describe("AvatarStack", () => {
       useDawStore.setState({
         localClientId: "me",
         followingClientId: null,
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "me",
             role: "viewer",
@@ -184,7 +184,7 @@ describe("AvatarStack", () => {
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Me" },
           },
-        ],
+        ]),
       });
     });
     expect(screen.queryByRole("group", { name: "People" })).toBeNull();
@@ -206,7 +206,7 @@ describe("AvatarStack", () => {
         useDawStore.setState({
           localClientId: "me",
           followingClientId: null,
-          sessionClients: [
+          sessionClients: sessionRoster([
             {
               client_id: "me",
               role: "viewer",
@@ -219,7 +219,7 @@ describe("AvatarStack", () => {
               last_seen_ns: Date.now() * 1e6,
               meta: { display_name: "Ada" },
             },
-          ],
+          ]),
         });
       });
       expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();

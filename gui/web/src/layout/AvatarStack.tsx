@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { execute } from "../commands/execute";
 import { disambiguatedNames } from "../presence/colors";
 import { isLocalPresenceClient } from "../presence/followSync";
+import { sessionClientList } from "../presence/roster";
 import { useLivePresenceClients } from "../presence/useLivePresenceClients";
 import { useDawStore } from "../state/dawStore";
 import type { SessionClient } from "../types/session";
@@ -23,7 +24,9 @@ function follow(clientId: string): void {
 }
 
 export function AvatarStack({ variant = "inline" }: Props) {
-  const sessionClients = useDawStore((s) => s.sessionClients);
+  const sessionClients = useDawStore((s) =>
+    sessionClientList(s.sessionClients),
+  );
   const localClientId = useDawStore((s) => s.localClientId);
   const followingClientId = useDawStore((s) => s.followingClientId);
 

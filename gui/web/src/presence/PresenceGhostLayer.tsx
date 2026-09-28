@@ -1,15 +1,76 @@
 import type { CSSProperties, RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { useDawStore } from "../state/dawStore";
-import type { SessionSelection } from "../types/session";
+import type { SessionClient, SessionSelection } from "../types/session";
 import { presenceAnchor, resolvePresenceAnchor } from "./anchors";
 import { presenceColorVar, rosterDisplayName } from "./colors";
 import { createCursorMotion } from "./cursorMotion";
+import { sessionClientList } from "./roster";
 import { useLivePresenceClients } from "./useLivePresenceClients";
 
 type Props = {
   rootRef: RefObject<HTMLElement | null>;
 };
+
+type GhostRowProps = {
+  client: SessionClient;
+  cursorEls: RefObject<Map<string, HTMLDivElement>>;
+  selEls: RefObject<Map<string, HTMLDivElement>>;
+};
+
+/**
+ * One remote client's ghost cursor/selection markup. Memoised so a
+ * `PresenceDelta` that replaces only one roster entry (`presence/roster.ts`'s
+ * `applyPresenceDelta`) re-renders only that client's row: `PresenceGhostLayer`
+ * passes each `others` element straight through, and every other client keeps
+ * its prior object identity (`SessionRoster`'s per-entry stability).
+ */
+const GhostRow = memo(function GhostRow({
+  client: c,
+  cursorEls,
+  selEls,
+}: GhostRowProps) {
+  return (
+    <div>
+      {c.meta?.cursor?.anchor ? (
+        <div
+          className="presence-cursor presence-cursor--ghost"
+          ref={(el) => {
+            if (el) {
+              cursorEls.current.set(c.client_id, el);
+            } else {
+              cursorEls.current.delete(c.client_id);
+            }
+          }}
+          style={
+            {
+              "--presence-color": presenceColorVar(c.meta?.color_index),
+            } as CSSProperties
+          }
+        >
+          <span className="presence-cursor-tag">{rosterDisplayName(c)}</span>
+        </div>
+      ) : null}
+      {wordSelectionAnchors(c.meta?.selection) ? (
+        <div
+          className="presence-selection presence-selection--ghost"
+          ref={(el) => {
+            if (el) {
+              selEls.current.set(c.client_id, el);
+            } else {
+              selEls.current.delete(c.client_id);
+            }
+          }}
+          style={
+            {
+              "--presence-color": presenceColorVar(c.meta?.color_index),
+            } as CSSProperties
+          }
+        />
+      ) : null}
+    </div>
+  );
+});
 
 type AnchorCache = { anchor: string; el: HTMLElement };
 
@@ -69,7 +130,9 @@ function unionRect(
 }
 
 export function PresenceGhostLayer({ rootRef }: Props) {
-  const sessionClients = useDawStore((s) => s.sessionClients);
+  const sessionClients = useDawStore((s) =>
+    sessionClientList(s.sessionClients),
+  );
   const localClientId = useDawStore((s) => s.localClientId);
   const { others: live } = useLivePresenceClients(
     sessionClients,
@@ -172,46 +235,12 @@ export function PresenceGhostLayer({ rootRef }: Props) {
   return (
     <div className="presence-ghost-layer" aria-hidden>
       {others.map((c) => (
-        <div key={c.client_id}>
-          {c.meta?.cursor?.anchor ? (
-            <div
-              className="presence-cursor presence-cursor--ghost"
-              ref={(el) => {
-                if (el) {
-                  cursorEls.current.set(c.client_id, el);
-                } else {
-                  cursorEls.current.delete(c.client_id);
-                }
-              }}
-              style={
-                {
-                  "--presence-color": presenceColorVar(c.meta?.color_index),
-                } as CSSProperties
-              }
-            >
-              <span className="presence-cursor-tag">
-                {rosterDisplayName(c)}
-              </span>
-            </div>
-          ) : null}
-          {wordSelectionAnchors(c.meta?.selection) ? (
-            <div
-              className="presence-selection presence-selection--ghost"
-              ref={(el) => {
-                if (el) {
-                  selEls.current.set(c.client_id, el);
-                } else {
-                  selEls.current.delete(c.client_id);
-                }
-              }}
-              style={
-                {
-                  "--presence-color": presenceColorVar(c.meta?.color_index),
-                } as CSSProperties
-              }
-            />
-          ) : null}
-        </div>
+        <GhostRow
+          key={c.client_id}
+          client={c}
+          cursorEls={cursorEls}
+          selEls={selEls}
+        />
       ))}
     </div>
   );

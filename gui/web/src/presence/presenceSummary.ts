@@ -59,5 +59,5 @@ export function presenceSummary(
 export function selectAgentPresent(
   s: Pick<DawState, "sessionClients">,
 ): boolean {
-  return s.sessionClients.some((c) => c.role === "agent");
+  return Object.values(s.sessionClients).some((c) => c.role === "agent");
 }

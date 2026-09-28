@@ -11,7 +11,7 @@ export function FollowBanner() {
   if (!followingClientId) {
     return null;
   }
-  const target = sessionClients.find((c) => c.client_id === followingClientId);
+  const target = sessionClients[followingClientId];
   return (
     <FollowBannerView
       name={target ? rosterDisplayName(target) : followingClientId}

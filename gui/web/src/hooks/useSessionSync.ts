@@ -7,6 +7,12 @@ import {
 } from "react";
 import { loadSessionMeta, loadSessionState, postSessionState } from "../api";
 import { applyServerClock } from "../presence/clock";
+import {
+  applyPresenceFrame,
+  carriesFullRoster,
+  isPresenceOnlyFrame,
+  type PresenceCarryingFrame,
+} from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
 import { useRecordHostStore } from "../record/hostStore";
 import { bindRecordHostSend } from "../record/hostWire";
@@ -20,6 +26,7 @@ import {
   shouldApplyRemote,
   shouldHandleWsMessage,
 } from "../session/dedupe";
+import { createRosterRequester } from "../session/rosterRequest";
 import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
@@ -57,13 +64,11 @@ function stopViewerStateWait(wait: ViewerStateWait): void {
 }
 
 /** The session WS's own wire message shape, hoisted so both `onmessage` and the queued `handleSessionFrame` job can share it. */
-type SessionWireMsg = {
+type SessionWireMsg = PresenceCarryingFrame & {
   type: string;
   code?: string;
   plane?: string;
   server_time_ns?: number;
-  clients?: SessionState["clients"];
-  snapshot?: SessionState & { participants?: unknown };
   command?: { role?: string; type?: string; client_id?: string };
 };
 
@@ -182,6 +187,9 @@ export function useSessionSync(
     let cancelled = false;
     let retry: number | null = null;
     let socket: WebSocket | null = null;
+    const rosterRequester = createRosterRequester((frame) =>
+      sendRef.current?.(frame),
+    );
 
     /**
      * Everything but the record plane, the clock sample and the own-client
@@ -194,8 +202,13 @@ export function useSessionSync(
       if (cancelled) {
         return;
       }
-      if (msg.type === "Presence" && Array.isArray(msg.clients)) {
-        useDawStore.getState().setSessionClients(msg.clients);
+      if (carriesFullRoster(msg)) {
+        rosterRequester.onRosterReceived();
+      }
+      if (applyPresenceFrame(msg)) {
+        rosterRequester.request();
+      }
+      if (isPresenceOnlyFrame(msg)) {
         return;
       }
       if (
@@ -213,9 +226,6 @@ export function useSessionSync(
         msg.snapshot
       ) {
         const snap = msg.snapshot;
-        if (Array.isArray(snap.clients)) {
-          useDawStore.getState().setSessionClients(snap.clients);
-        }
         if (msg.type === "Snapshot" && cursorRef.current.serverSeq === 0) {
           const { apply, next } = baselineFromSnapshot(snap, cursorRef.current);
           if (apply) {
@@ -330,6 +340,7 @@ export function useSessionSync(
         detachSocket(socket);
       }
       sendRef.current = null;
+      rosterRequester.dispose();
       stopViewerStateWait(viewerStateWait);
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();

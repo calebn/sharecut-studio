@@ -8,7 +8,11 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, recordSnapshot } from "../test/fixtures";
+import {
+  minimalProject,
+  recordSnapshot,
+  sessionRoster,
+} from "../test/fixtures";
 import { readWaveformViewPref } from "../utils/waveformViewPref";
 import { TransportBar } from "./TransportBar";
 
@@ -224,14 +228,14 @@ describe("TransportBar collapsed", () => {
     act(() => {
       useDawStore.setState({
         localClientId: "me",
-        sessionClients: [
+        sessionClients: sessionRoster([
           {
             client_id: "a",
             role: "viewer",
             last_seen_ns: Date.now() * 1e6,
             meta: { display_name: "Ada", color_index: 2 },
           },
-        ],
+        ]),
       });
     });
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));

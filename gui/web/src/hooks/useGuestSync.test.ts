@@ -57,11 +57,8 @@ describe("useGuestSync", () => {
   it("connects to the guest daw ws and demuxes session vs document", async () => {
     const apply = vi.fn();
     const setProject = vi.fn();
-    const setClients = vi.fn();
 
-    renderHook(() =>
-      useGuestSync("share:tok123", apply, setProject, setClients, true),
-    );
+    renderHook(() => useGuestSync("share:tok123", apply, setProject, true));
 
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(FakeWebSocket.instances[0].url).toContain(
@@ -103,10 +100,7 @@ describe("useGuestSync", () => {
   });
 
   it("applies Presence clients roster", async () => {
-    const setClients = vi.fn();
-    renderHook(() =>
-      useGuestSync("share:tok", vi.fn(), vi.fn(), setClients, true),
-    );
+    renderHook(() => useGuestSync("share:tok", vi.fn(), vi.fn(), true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
         type: "Presence",
@@ -114,15 +108,13 @@ describe("useGuestSync", () => {
         clients: [{ client_id: "g1", role: "viewer", label: "Guest" }],
       });
     });
-    expect(setClients).toHaveBeenCalledWith([
-      { client_id: "g1", role: "viewer", label: "Guest" },
-    ]);
+    expect(useDawStore.getState().sessionClients).toEqual({
+      g1: { client_id: "g1", role: "viewer", label: "Guest" },
+    });
   });
 
   it("adopts the server-assigned session client_id", async () => {
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     expect(useDawStore.getState().localClientId).toBeNull();
     const url = FakeWebSocket.instances[0].url;
     expect(url).toContain("client_id=");
@@ -148,9 +140,7 @@ describe("useGuestSync", () => {
   });
 
   it("applies server_time_ns clock offset", async () => {
-    renderHook(() =>
-      useGuestSync("share:tok", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok", vi.fn(), vi.fn(), true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
         type: "Presence",
@@ -169,9 +159,7 @@ describe("useGuestSync", () => {
     });
     useDawStore.getState().hydrate("share:tok", project);
 
-    renderHook(() =>
-      useGuestSync("share:tok", apply, setProject, vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok", apply, setProject, true));
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -190,9 +178,7 @@ describe("useGuestSync", () => {
 
   it("ignores older document server_seq", async () => {
     const setProject = vi.fn();
-    renderHook(() =>
-      useGuestSync("share:tok", vi.fn(), setProject, vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok", vi.fn(), setProject, true));
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -231,9 +217,7 @@ describe("useGuestSync", () => {
           resolveMeta = resolve;
         }),
     );
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
         type: "Applied",
@@ -257,16 +241,12 @@ describe("useGuestSync", () => {
   });
 
   it("does not connect when disabled or non-share path", () => {
-    renderHook(() =>
-      useGuestSync("/local/path.json", vi.fn(), vi.fn(), vi.fn(), false),
-    );
+    renderHook(() => useGuestSync("/local/path.json", vi.fn(), vi.fn(), false));
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
   it("stores guest progress plane events as the activity job", async () => {
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
         type: "progress",
@@ -288,7 +268,7 @@ describe("useGuestSync", () => {
 
   it("reports whether the guest socket is open", async () => {
     const { result } = renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), true),
     );
     expect(result.current).toBe(false);
     await act(async () => {
@@ -303,15 +283,13 @@ describe("useGuestSync", () => {
 
   it("reports false when disabled or on a non-share path", () => {
     const { result } = renderHook(() =>
-      useGuestSync("/local/path.json", vi.fn(), vi.fn(), vi.fn(), false),
+      useGuestSync("/local/path.json", vi.fn(), vi.fn(), false),
     );
     expect(result.current).toBe(false);
   });
 
   it("notes a document-plane project snapshot's file for the poll skip", async () => {
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
         type: "Snapshot",
@@ -331,9 +309,7 @@ describe("useGuestSync", () => {
   it("covers the first handshake with the fallback poll until the socket opens", async () => {
     vi.useFakeTimers();
     FakeWebSocket.autoOpen = false;
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     expect(loadProjectMeta).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1500);
     expect(loadProjectMeta).toHaveBeenCalledTimes(1);
@@ -345,10 +321,7 @@ describe("useGuestSync", () => {
   });
 
   it("coalesces queued guest Presence frames into the newest roster", async () => {
-    const setClients = vi.fn();
-    renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), setClients, true),
-    );
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
     const sock = FakeWebSocket.instances[0];
     await act(async () => {
       sock.deliver({
@@ -370,11 +343,10 @@ describe("useGuestSync", () => {
       expect(pendingInboundCount()).toBe(1);
       flushInbound();
     });
-    expect(setClients).toHaveBeenCalledTimes(1);
-    expect(setClients).toHaveBeenCalledWith([
-      { client_id: "g1", role: "viewer", label: "Guest" },
-      { client_id: "g2", role: "viewer", label: "Guest 2" },
-    ]);
+    expect(useDawStore.getState().sessionClients).toEqual({
+      g1: { client_id: "g1", role: "viewer", label: "Guest" },
+      g2: { client_id: "g2", role: "viewer", label: "Guest 2" },
+    });
   });
 
   it("swallows a failed document resync load instead of rejecting unhandled", async () => {
@@ -382,9 +354,7 @@ describe("useGuestSync", () => {
     process.on("unhandledRejection", unhandled);
     try {
       loadProject.mockRejectedValueOnce(new Error("offline"));
-      renderHook(() =>
-        useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
-      );
+      renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
       await act(async () => {
         FakeWebSocket.instances[0].emit({
           type: "Applied",
@@ -403,12 +373,64 @@ describe("useGuestSync", () => {
 
   it("detaches the socket's handlers on unmount", () => {
     const { unmount } = renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), true),
     );
     const sock = FakeWebSocket.instances[0];
     unmount();
     expect(sock.closed).toBe(true);
     expect(sock.onmessage).toBeNull();
     expect(sock.onclose).toBeNull();
+  });
+
+  it("applies a PresenceDelta for a known client at the current roster version", async () => {
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        plane: "session",
+        roster_version: 4,
+        clients: [{ client_id: "g1", role: "viewer", label: "Guest" }],
+      });
+    });
+    await act(async () => {
+      sock.emit({
+        type: "PresenceDelta",
+        plane: "session",
+        author_client_id: "g1",
+        roster_version: 4,
+        changes: { label: "Guest2" },
+      });
+    });
+    expect(useDawStore.getState().sessionClients.g1?.label).toBe("Guest2");
+    expect(useDawStore.getState().sessionRosterVersion).toBe(4);
+  });
+
+  it("sends exactly one RosterRequest on a version gap", async () => {
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        plane: "session",
+        roster_version: 4,
+        clients: [{ client_id: "g1", role: "viewer", label: "Guest" }],
+      });
+    });
+    sock.sent = [];
+    await act(async () => {
+      sock.emit({
+        type: "PresenceDelta",
+        plane: "session",
+        author_client_id: "g1",
+        roster_version: 9,
+        changes: { label: "Guest2" },
+      });
+    });
+    const rosterRequests = sock.sent
+      .map((s) => JSON.parse(s) as { type: string })
+      .filter((f) => f.type === "RosterRequest");
+    expect(rosterRequests).toHaveLength(1);
+    expect(useDawStore.getState().sessionClients.g1?.label).toBe("Guest");
   });
 });

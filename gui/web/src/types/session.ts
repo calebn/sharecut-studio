@@ -102,6 +102,9 @@ export interface SessionState {
   compare_segments?: unknown[] | null;
   clients?: SessionClient[];
   server_time_ns?: number;
+  /** One process-wide monotonic roster version (#598). Present on `snapshot()` /
+   * `Presence` / the hello `Snapshot`; absent on a durable Applied that omits `clients`. */
+  roster_version?: number;
 }
 
 export interface SessionMeta {
