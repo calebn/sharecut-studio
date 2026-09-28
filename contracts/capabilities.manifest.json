@@ -2460,46 +2460,6 @@
         "cursor": "time",
         "follow": "none"
       }
-    },
-    {
-      "id": "daw.view.editBoundary",
-      "label": "Edit boundary",
-      "tooltip": "Edit boundary glyph (Annotate)",
-      "service": "Sharecut Studio UI over edit_boundaries",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "view.focusEditBoundary"
-      },
-      "omit": {
-        "keyboard_reason": "inline glyph; no industry-standard key"
-      }
-    },
-    {
-      "id": "daw.view.cutAwayWord",
-      "label": "Cut-away word",
-      "tooltip": "Cut away: not in the mix \u00b7 drag nearby boundary to restore",
-      "service": "Sharecut Studio UI over edit_boundaries",
-      "industry_standard_key": false,
-      "gates": [
-        "hasProject"
-      ],
-      "surfaces": {
-        "command": "view.focusCutAwayWord",
-        "gui": [
-          "transcript.cutAwayWord"
-        ]
-      },
-      "omit": {
-        "keyboard_reason": "inline chip; no industry-standard key"
-      },
-      "presence": {
-        "cursor": "anchor",
-        "follow": "look",
-        "anchor": "transcript:word:<track>:<i>"
-      }
     }
   ]
 }

@@ -20,6 +20,7 @@ import {
 } from "../edit/ghostPreview";
 import type { ClipRow, EditBoundaryView } from "../types/project";
 import { GhostWordChips } from "./GhostWordChips";
+import { TRANSCRIPT_EDIT_BOUNDARY_TIP } from "./transcriptModeCopy";
 
 export interface EditBoundaryMarkViewProps {
   boundary: EditBoundaryView;
@@ -99,7 +100,7 @@ export function EditBoundaryMarkView({
   const tip =
     leftClip && rightClip
       ? capabilityTooltip("daw.edit.rollClipJoin")
-      : capabilityTooltip("daw.view.editBoundary");
+      : TRANSCRIPT_EDIT_BOUNDARY_TIP;
 
   useEffect(() => {
     return () => {

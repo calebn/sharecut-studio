@@ -151,11 +151,6 @@ export function registerTranscriptViewCommands(): void {
   });
 }
 
-export function registerViewFocusCommands(): void {
-  registerCommand("view.focusEditBoundary", () => ({ status: "ok" }));
-  registerCommand("view.focusCutAwayWord", () => ({ status: "ok" }));
-}
-
 export function registerPaletteCommands(): void {
   registerCommand("ui.toggleCommandPalette", () => {
     useDawStore.getState().toggleCommandPalette();

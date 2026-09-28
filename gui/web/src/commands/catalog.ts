@@ -557,20 +557,6 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment)",
   },
-  "view.focusEditBoundary": {
-    id: "view.focusEditBoundary",
-    category: "view",
-    label: "Focus edit boundary",
-    when: "hasProject",
-    paletteRunnable: false,
-  },
-  "view.focusCutAwayWord": {
-    id: "view.focusCutAwayWord",
-    category: "view",
-    label: "Focus cut-away word",
-    when: "hasProject",
-    paletteRunnable: false,
-  },
   "view.setTab": {
     id: "view.setTab",
     category: "view",

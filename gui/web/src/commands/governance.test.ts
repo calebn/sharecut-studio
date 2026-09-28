@@ -46,6 +46,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "layout/BottomTabsSplitterView.tsx",
   "tracks/TrackHeaderView.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",
+  "tracks/TrackHeader.tsx",
+  "comments/CommentAuthorLine.tsx",
   "commands/governance.test.ts",
 ]);
 
@@ -205,6 +207,12 @@ describe("command bus", () => {
 });
 
 describe("command governance", () => {
+  it("registers no view.focus* no-op commands (#701)", () => {
+    expect(
+      Object.keys(COMMANDS).filter((id) => id.startsWith("view.focus")),
+    ).toEqual([]);
+  });
+
   it("every keymap id exists in the command catalog", () => {
     for (const k of KEYMAP_COMMANDS) {
       expect(COMMANDS[k.id], k.id).toBeDefined();

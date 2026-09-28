@@ -5,6 +5,7 @@ import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { clipRow } from "../test/fixtures";
 import type { EditBoundaryView } from "../types/project";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
+import { TRANSCRIPT_EDIT_BOUNDARY_TIP } from "./transcriptModeCopy";
 
 const boundary: EditBoundaryView = {
   id: "eb:left:right",
@@ -111,7 +112,7 @@ export const TrimEdge: Story = {
     ) as HTMLElement;
     await expect(button).toHaveAttribute(
       "aria-label",
-      capabilityTooltip("daw.view.editBoundary"),
+      TRANSCRIPT_EDIT_BOUNDARY_TIP,
     );
   },
 };

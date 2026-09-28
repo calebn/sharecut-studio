@@ -33,6 +33,7 @@ import {
   TranscriptTurnView,
 } from "../transcript/TranscriptTurnView";
 import {
+  TRANSCRIPT_CUT_AWAY_WORD_TIP,
   TRANSCRIPT_IGNORED_WORD_TIP,
   TRANSCRIPT_INLINE_SAVING_STATUS,
   TRANSCRIPT_MODE_HINT,
@@ -1087,7 +1088,7 @@ export function TranscriptPanel() {
                     ),
                   );
                   const cutAwayTip = cutAwayChip
-                    ? capabilityTooltip("daw.view.cutAwayWord")
+                    ? TRANSCRIPT_CUT_AWAY_WORD_TIP
                     : undefined;
                   const suspectTip = suspectChip ? SILENCE_WARNING : undefined;
                   const ignoredTip = w.ignored
