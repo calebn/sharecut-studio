@@ -101,4 +101,36 @@ describe("useProsodyOverlay", () => {
     await settle();
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
   });
+
+  it("hides the payload from aligned consumers after a clip edit until the refetch lands", async () => {
+    const aligned = renderHook(() =>
+      useProsodyOverlay(true, { alignedToLayout: true }),
+    );
+    const plain = renderHook(() => useProsodyOverlay(true));
+    await settle();
+    expect(aligned.result.current).toEqual(PAYLOAD);
+    expect(plain.result.current).toEqual(PAYLOAD);
+    act(() => {
+      useDawStore.setState((s) => ({
+        project: { ...s.project!, clips: { ...s.project!.clips } },
+      }));
+    });
+    expect(aligned.result.current).toBeNull();
+    expect(plain.result.current).toEqual(PAYLOAD);
+    await settle();
+    expect(aligned.result.current).toEqual(PAYLOAD);
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the aligned payload across a non-clip project change", async () => {
+    const { result } = renderHook(() =>
+      useProsodyOverlay(true, { alignedToLayout: true }),
+    );
+    await settle();
+    expect(result.current).toEqual(PAYLOAD);
+    act(() => {
+      useDawStore.setState((s) => ({ project: { ...s.project! } }));
+    });
+    expect(result.current).toEqual(PAYLOAD);
+  });
 });

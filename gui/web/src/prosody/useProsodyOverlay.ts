@@ -13,12 +13,14 @@ type Entry = {
   project: ProjectView | null;
   jobKey: string;
   payload: ProsodyOverlay | null;
+  payloadClips: ProjectView["clips"] | null;
 };
 const EMPTY: Entry = {
   projectPath: "",
   project: null,
   jobKey: "",
   payload: null,
+  payloadClips: null,
 };
 let entry: Entry = EMPTY;
 let inflight: AbortController | null = null;
@@ -43,6 +45,7 @@ function request(
     project,
     jobKey,
     payload: samePath ? entry.payload : null,
+    payloadClips: samePath ? entry.payloadClips : null,
   };
   if (!samePath) changes.emit();
   inflight?.abort();
@@ -60,7 +63,7 @@ function request(
         )
           return;
         inflight = null;
-        entry = { ...entry, payload };
+        entry = { ...entry, payload, payloadClips: project.clips };
         changes.emit();
       })
       .catch(() => {
@@ -75,8 +78,14 @@ const getSnapshot = () => entry;
  * The host's cached prosody overlay while `enabled` (#719). It refetches (debounced) when the project
  * object changes or a pipeline job starts/ends (analyze_prosody writes the cache without touching the
  * project). Always null for share keys (host-only route).
+ *
+ * `alignedToLayout` returns null while the payload was computed for another clip layout (the
+ * timeline). The transcript keys words by word_index and keeps the last payload.
  */
-export function useProsodyOverlay(enabled: boolean): ProsodyOverlay | null {
+export function useProsodyOverlay(
+  enabled: boolean,
+  { alignedToLayout = false }: { alignedToLayout?: boolean } = {},
+): ProsodyOverlay | null {
   const projectPath = useDawStore((s) => s.projectPath);
   const project = useDawStore((s) => s.project);
   const jobKey = useDawStore((s) =>
@@ -93,7 +102,10 @@ export function useProsodyOverlay(enabled: boolean): ProsodyOverlay | null {
     if (active && project) request(projectPath, project, jobKey);
   }, [active, projectPath, project, jobKey]);
   const snap = useSyncExternalStore(changes.subscribe, getSnapshot);
-  return active && snap.projectPath === projectPath ? snap.payload : null;
+  if (!active || snap.projectPath !== projectPath) return null;
+  // Timeline geometry: only a payload mapped against the current clip layout (a clip edit hides it until the refetch lands).
+  if (alignedToLayout && snap.payloadClips !== project?.clips) return null;
+  return snap.payload;
 }
 
 /** Test seam: forget the shared entry and cancel any pending fetch. */

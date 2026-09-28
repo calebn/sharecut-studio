@@ -204,7 +204,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       };
     }),
   );
-  const prosody = useProsodyOverlay(layers.showProsody);
+  const prosody = useProsodyOverlay(layers.showProsody, {
+    alignedToLayout: true,
+  });
   const prosodyByTrack = useMemo(
     () =>
       new Map<string, ProsodyOverlayTrack>(
