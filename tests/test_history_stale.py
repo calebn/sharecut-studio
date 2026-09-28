@@ -67,3 +67,16 @@ def test_a_history_move_hashes_each_dialogue_track_once_per_state(tmp_path, monk
     assert sorted(calls) == ["guest", "host"]
     mark_history_move_stale(project, before)
     assert sorted(calls) == ["guest", "guest", "host", "host"]
+
+
+def test_a_track_the_move_removed_loses_its_cause_journal_rows(tmp_path) -> None:
+    project = _project(tmp_path, ("host", "guest"))
+    record_invalidation(project, track_ids=["guest"], reason="cut")
+    record_invalidation(project, track_ids=["host", "guest"], reason="cut")
+    before = AudioStateBefore.capture(project)
+    project.timeline.tracks = [t for t in project.timeline.tracks if t.id != "guest"]
+    project.timeline.clips = [c for c in project.timeline.clips if c.track_id != "guest"]
+
+    mark_history_move_stale(project, before)
+
+    assert [inv.track_ids for inv in project.render.invalidations] == [["host"]]
