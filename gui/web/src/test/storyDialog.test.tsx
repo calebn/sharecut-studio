@@ -50,6 +50,23 @@ describe("openDialogByLauncher", () => {
     expect(dialog).toHaveAttribute("aria-label", "Sample");
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("clicks the launcher when only a different dialog is open", async () => {
+    const { container } = render(
+      <>
+        <div role="dialog" aria-label="Other" />
+        <DialogLauncher label="Open sample" initiallyOpen={false}>
+          {(open) => (open ? <div role="dialog" aria-label="Sample" /> : null)}
+        </DialogLauncher>
+      </>,
+    );
+
+    const dialog = await openDialogByLauncher(container, {
+      launcherName: "Open sample",
+      dialogName: "Sample",
+    });
+    expect(dialog).toHaveAttribute("aria-label", "Sample");
+  });
 });
 
 describe("useArgState", () => {
