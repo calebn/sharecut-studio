@@ -12,6 +12,16 @@ def test_yaml_defaults_equal_dataclass_defaults():
     assert AsrOptions.from_defaults(load_defaults()) == AsrOptions()
 
 
+def test_forced_alignment_flag_reads_yaml_and_is_not_a_decode_key():
+    assert (
+        AsrOptions.from_defaults(
+            {"transcribe": {"forced_alignment": {"enabled": True}}}
+        ).forced_alignment_enabled
+        is True
+    )
+    assert AsrOptions(forced_alignment_enabled=True).decode_key() == AsrOptions().decode_key()
+
+
 def test_from_defaults_overrides_and_bounds():
     opts = AsrOptions.from_defaults(
         {

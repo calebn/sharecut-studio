@@ -44,6 +44,7 @@ Notes (verified in a disposable Linux Docker image):
 - `uv sync --all-extras` installs every pip extra (`dev`, `gui`, `bootstrap`, `relay`, `object-store`, `speaker`, `speaker-lite`, `joinqc`).
 - Expect CUDA-flavored `torch` on Linux even without a GPU; plan for several GB of free disk.
 - `podcast bootstrap --component nisqa` is **opt-in** (not part of `--component all`). The default release URL may 404 — set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights directory if you need neural NISQA.
+- `podcast bootstrap --component word-aligner` is **opt-in** (not part of `--component all`); it pairs with `transcribe.forced_alignment.enabled` for precise word boundaries (English).
 - Without `uv`: `python3 -m venv .venv && .venv/bin/pip install -e ".[all]"` then the same bootstrap/doctor steps.
 
 Detail: [docs/setup.md § Maximal install](docs/setup.md#maximal-install-all-extras).

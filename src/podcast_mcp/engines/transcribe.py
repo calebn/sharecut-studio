@@ -7,7 +7,7 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
@@ -35,6 +35,9 @@ from podcast_mcp.whisper_models import (
     ensure_whisper_model_cached,
     validate_whisper_model,
 )
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.word_align import WordAligner
 
 log = logging.getLogger(__name__)
 
@@ -136,6 +139,22 @@ def _read_cache(path: Path) -> Transcript | None:
         return None
 
 
+def _read_align_cache(path: Path, count: int) -> list[tuple[float, float] | None] | None:
+    """Cached aligned spans, or None (miss) when absent, unreadable or not matching ``count``."""
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))["spans"]
+        spans = [None if s is None else (float(s[0]), float(s[1])) for s in raw]
+    except (OSError, ValueError, KeyError, TypeError, IndexError) as exc:
+        log.warning("ignoring unreadable word-alignment cache %s: %s", path.name, exc)
+        return None
+    if len(spans) != count or any(s is not None and not 0 <= s[0] < s[1] for s in spans):
+        log.warning("ignoring mismatched word-alignment cache %s", path.name)
+        return None
+    return spans
+
+
 _CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"
 
 
@@ -221,6 +240,9 @@ class TranscriptionEngine:
         self._model = None
         # Job labels whose silence filter could not decode the audio (step summary).
         self.silence_filter_skipped: list[str] = []
+        # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
+        self.forced_alignment_jobs: list[dict[str, Any]] = []
+        self._word_aligner: WordAligner | None = None
 
     def _get_model(self):
         if self._model is None:
@@ -259,6 +281,112 @@ class TranscriptionEngine:
         inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
         name = f"{_cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
+
+    def _load_word_aligner(self) -> WordAligner:
+        # Only a loaded aligner is kept: a missing model is re-checked on the next job,
+        # so a bootstrap in a long-lived process (Studio) takes effect without restart.
+        if self._word_aligner is None:
+            from podcast_mcp.engines.word_align import WordAligner
+
+            self._word_aligner = WordAligner.load()
+        return self._word_aligner
+
+    def word_align_cache_path(
+        self,
+        project: EpisodeProject,
+        cache_id: str,
+        asr_cache: Path,
+        aligner: WordAligner,
+        words: list[TranscriptWord],
+    ) -> Path:
+        """Alignment cache beside the ASR cache: same audio/inputs key + aligner + Whisper's words."""
+        key_src = json.dumps(
+            {
+                "aligner": aligner.cache_identity(),
+                "words": [[w.text, w.start, w.end] for w in words],
+            },
+            sort_keys=True,
+        )
+        key = hashlib.sha256(key_src.encode()).hexdigest()[:16]
+        return _cache_file(project, cache_id, f"{asr_cache.stem}.word_align_{key}.json")
+
+    def _align_words(
+        self,
+        project: EpisodeProject,
+        job: TranscribeJob,
+        transcript: Transcript,
+        asr_cache: Path,
+        *,
+        use_cache: bool,
+    ) -> None:
+        """Opt-in forced alignment; on any failure Whisper's times stay and the job is reported."""
+        if not self.options.forced_alignment_enabled or not transcript.words:
+            return
+        from podcast_mcp.engines.word_align import apply_word_spans
+
+        entry: dict[str, Any] = {"label": job.label, "track_id": job.track_id}
+        self.forced_alignment_jobs.append(entry)
+
+        def keep_whisper(status: str, reason: str) -> None:
+            entry.update(
+                status=status,
+                reason=reason,
+                aligned_words=0,
+                unaligned_words=len(transcript.words),
+            )
+            log.warning(
+                "%s: forced alignment %s, keeping Whisper timestamps: %s",
+                job.label,
+                status,
+                reason,
+            )
+
+        try:
+            aligner = self._load_word_aligner()
+        except Exception as exc:  # missing model / onnxruntime / corrupt snapshot
+            keep_whisper("failed", str(exc))
+            return
+        if not aligner.supports_language(transcript.language):
+            keep_whisper(
+                "skipped",
+                f"{aligner.model.id} does not support language {transcript.language!r}",
+            )
+            return
+        path = self.word_align_cache_path(
+            project, job.cache_id, asr_cache, aligner, transcript.words
+        )
+        spans = _read_align_cache(path, len(transcript.words)) if use_cache else None
+        status = "cached"
+        if spans is None:
+            status = "aligned"
+            try:
+                with resolve_progress_task("forced_alignment", f"Aligning words {job.label}"):
+                    result = aligner.align(job.audio, transcript.words)
+            except Exception as exc:  # decode / inference failure
+                keep_whisper("failed", str(exc))
+                return
+            spans = result.spans
+            write_text_atomic(
+                path,
+                json.dumps(
+                    {
+                        "aligner": aligner.cache_identity(),
+                        "spans": [None if s is None else list(s) for s in spans],
+                        "stats": result.stats.as_dict(),
+                        "runtime_sec": round(result.runtime_sec, 3),
+                    },
+                    indent=2,
+                ),
+            )
+        retimed = apply_word_spans(transcript.words, spans)
+        if not retimed:
+            keep_whisper("failed", "no words aligned")
+            return
+        entry.update(
+            status=status,
+            aligned_words=retimed,
+            unaligned_words=len(transcript.words) - retimed,
+        )
 
     def transcribe_file(
         self,
@@ -354,15 +482,19 @@ class TranscriptionEngine:
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id
         transcript.audio_sha256 = sha
-        flag_anomalous_asr_durations(
-            transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
-        )
         # Cached words carry no silence flags: they are recomputed below from the current
         # transcribe.silence_filter settings (not a cache input) on every read.
         for word in transcript.words:
             word.suspect_hallucination = False
         if fresh:
+            # Whisper's own times (transcribe_file already flagged them with this
+            # max_word_sec); alignment has its own cache, so the flag never re-runs Whisper.
             write_text_atomic(cache, transcript.model_dump_json(indent=2))
+        self._align_words(project, job, transcript, cache, use_cache=use_cache)
+        # Backstop on the final spans (aligned, or Whisper's where alignment was off/failed).
+        flag_anomalous_asr_durations(
+            transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
+        )
         n = refresh_silence_flags(transcript.words, job.audio, self.options)
         if n is None:
             self.silence_filter_skipped.append(job.label)

@@ -93,7 +93,7 @@ podcast doctor
 
 | Extra | Adds | When you need it |
 |-------|------|------------------|
-| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), mcp, … | Always — `uv sync` with no extras |
+| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), mcp, onnxruntime + huggingface-hub (explicit; used by the opt-in forced aligner), … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
@@ -117,6 +117,7 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
+| `word-aligner` | Pinned wav2vec2-base CTC ONNX snapshot (~360 MB, English; **opt-in only**; not in `--component all`) | `transcribe.forced_alignment.enabled`; `PODCAST_MCP_WORD_ALIGNER_MODEL` points at a local snapshot dir |
 
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights.
 
@@ -127,6 +128,7 @@ podcast setup --whisper-model medium.en   # persist without downloading
 # Use another downloaded model for one standalone transcription run.
 podcast transcribe --project /path/to/episode.project.json --model small.en
 podcast bootstrap --component nisqa    # only when using joinqc neural path
+podcast bootstrap --component word-aligner  # opt-in precise word boundaries (transcribe.forced_alignment.enabled)
 ```
 
 ### npm (Sharecut Studio viewer)
@@ -278,6 +280,7 @@ All bootstrapped/downloaded assets live under `~/.cache/podcast_mcp/`
 | `prefs.yaml` | Machine Whisper model preference (setup / bootstrap / first-run wizard) |
 | `bin/` | Bootstrapped `ffmpeg`/`ffprobe` (only if no system install was found) |
 | `models/` | Bootstrapped model assets (RNNoise `.rnnn`; optional NISQA dir) |
+| `word-aligner/` | Opt-in forced-aligner Hugging Face snapshot |
 
 Nothing here is committed to the git repo or bundled in the installed
 package — fetch via `podcast bootstrap` (or the Sharecut Studio wizard / Pipeline

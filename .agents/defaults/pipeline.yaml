@@ -222,6 +222,13 @@ transcribe:
   silence_filter:
     enabled: true
     peak_dbfs: -60.0
+  # Opt-in forced alignment (#714): re-time Whisper's words with a local wav2vec2
+  # CTC aligner (English; download first: `podcast bootstrap --component
+  # word-aligner`). Off = Whisper's own word timestamps and nothing downloaded.
+  # Words it cannot place, and every word when the model is missing, keep
+  # Whisper's times (reported in artifacts/transcript_timing.json).
+  forced_alignment:
+    enabled: false
 
 align:
   # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.

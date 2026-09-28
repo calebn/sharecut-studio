@@ -54,7 +54,7 @@ Add `{workspace}/show_glossary.yaml` for show-specific replacements (see doc exa
 |---------|-------|
 | Bleed / wrong track audible | reconcile → audition if ambiguous |
 | Cross-track word mismatch | precorrect report → refine |
-| Stretched ASR token / missing words in a long span | `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times) |
+| Stretched ASR token / missing words in a long span | `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times) (with `transcribe.forced_alignment.enabled` most words are re-timed; the deferred flag remains the backstop on what the aligner leaves) |
 | Episode name / Spanish garble | show_glossary → precorrect → refine |
 | Low-confidence / grammar | refine → audition |
 | One unclear span | audition only |

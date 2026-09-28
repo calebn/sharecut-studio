@@ -50,3 +50,5 @@ the gold fixtures is asserted in
 `tests/test_word_boundary_metrics.py::test_checked_in_candidate_reports_match_reference_fixture`;
 the aggregate numbers and the recommendation are in
 [docs/testing.md § Word-boundary benchmark](../../../docs/testing.md#word-boundary-benchmark).
+`onnx-base` is also the production pin in `src/podcast_mcp/word_aligner_models.py`,
+kept equal to this file by `test_catalog_pin_matches_benchmarked_candidate`.

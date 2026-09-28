@@ -905,7 +905,9 @@ def test_param_field_default_matches_yaml(field) -> None:
 def test_transcribe_asr_yaml_keys_have_param_fields() -> None:
     cfg = load_defaults()["transcribe"]
     leaves = {
-        f"transcribe.{sec}.{key}" for sec in ("vad", "decode", "silence_filter") for key in cfg[sec]
+        f"transcribe.{sec}.{key}"
+        for sec in ("vad", "decode", "silence_filter", "forced_alignment")
+        for key in cfg[sec]
     }
     fields = {f.path for f in PARAM_FIELDS}
     # temperature is a list; ParamField has no list type (yaml / config_json only).
