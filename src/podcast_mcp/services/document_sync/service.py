@@ -286,6 +286,30 @@ class DocumentSyncService:
         """Comments + history groups without a ProjectView dump."""
         return self.document_snapshot(projection="comments")
 
+    def _snapshot_or_resync(self, projection: str, server_seq: int) -> dict[str, Any]:
+        """``projection`` snapshot, else SHELL, else a ``resync`` marker at ``server_seq``."""
+        try:
+            return self.document_snapshot(projection=projection)
+        except Exception:
+            try:
+                return self.document_snapshot(projection="shell")
+            except Exception:
+                return {"server_seq": server_seq, "resync": True}
+
+    def _publish_applied(self, row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
+        """Fan out ``Applied`` for journal ``row``. Call under the project and journal write
+        locks so in-process subscribers see events in ``server_seq`` order. publish only
+        schedules (test_hub_publish_only_schedules_delivery)."""
+        event = {
+            "type": "Applied",
+            "plane": "document",
+            "command": row,
+            "snapshot": api_snap,
+            "server_seq": row["server_seq"],
+        }
+        get_hub().publish(self._project_key, event)
+        return event
+
     def submit(
         self,
         command: DocumentCommand,
@@ -301,7 +325,6 @@ class DocumentSyncService:
             authorize_document_command(capabilities, command.type)
 
         store = self.store
-        event: dict[str, Any] | None = None
         from podcast_mcp.services.document_sync.projections import projection_for_command
 
         if command.type == "SetEnvelope":
@@ -371,26 +394,10 @@ class DocumentSyncService:
                     raise RuntimeError(
                         "document journal row was claimed outside the project transaction"
                     )
-                try:
-                    api_snap = self.document_snapshot(projection=snap_proj)
-                except Exception:
-                    try:
-                        api_snap = self.document_snapshot(projection="shell")
-                    except Exception:
-                        api_snap = {"server_seq": int(row["server_seq"]), "resync": True}
+                api_snap = self._snapshot_or_resync(snap_proj, int(row["server_seq"]))
                 if file_before is not None and not api_snap.get("resync"):
                     api_snap["file_before"] = file_before
-                event = {
-                    "type": "Applied",
-                    "plane": "document",
-                    "command": row,
-                    "snapshot": api_snap,
-                    "server_seq": row["server_seq"],
-                }
-                # Publish under the locks so in-process subscribers see Applied in
-                # server_seq order. publish only schedules
-                # (test_hub_publish_only_schedules_delivery).
-                get_hub().publish(self._project_key, event)
+                event = self._publish_applied(row, api_snap)
         return {"ok": True, **event}
 
     def publish_document_changed(self, *, projection: str = "shell") -> dict[str, Any]:
