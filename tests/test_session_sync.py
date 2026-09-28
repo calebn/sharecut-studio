@@ -36,6 +36,7 @@ from podcast_mcp.services.session_sync.viewer import (
     publish_viewer_snapshot,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
+from sync_helpers import _foreign_session_write
 
 
 def test_play_os_vs_audition_commands(minimal_project) -> None:
@@ -655,6 +656,178 @@ def test_hub_unsubscribe_and_full_queue(minimal_project) -> None:
     loop.close()
     hub.publish(key, {"n": 1})
     hub.unsubscribe(key, q3)
+
+
+def test_session_hub_remembers_the_last_applied_seq_per_key() -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import SessionHub
+
+    hub = SessionHub()
+    key = "k-seq"
+    hub.publish(key, {"type": "Applied", "server_seq": 3})
+    assert hub.last_applied_seq(key) == 3
+
+    hub.publish(key, {"type": "Presence", "server_seq": 9})
+    assert hub.last_applied_seq(key) == 3
+
+    hub.publish(key, {"type": "Applied", "server_seq": True})
+    assert hub.last_applied_seq(key) == 3
+
+    assert hub.last_applied_seq("other-key") is None
+
+    loop = asyncio.new_event_loop()
+    try:
+        q = hub.subscribe(key, loop)
+        hub.unsubscribe(key, q)
+    finally:
+        loop.close()
+    assert hub.last_applied_seq(key) is None
+
+
+def test_sync_store_command_at(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    store = SyncStore(sync_db_path(proj), enforce_command_ids=True)
+    try:
+        row1, _snap, _idem = store.append_and_apply(
+            command_id="cmd-1",
+            client_id="c1",
+            client_seq=None,
+            role="agent",
+            type="SetPlayhead",
+            payload={"playhead_sec": 1.0},
+            causation_id=None,
+            apply_fn=apply_command,
+            empty_snap_fn=empty_snapshot,
+        )
+        row2, _snap2, _idem2 = store.append_and_apply(
+            command_id="cmd-2",
+            client_id="c1",
+            client_seq=None,
+            role="agent",
+            type="SetPlayhead",
+            payload={"playhead_sec": 2.0},
+            causation_id=None,
+            apply_fn=apply_command,
+            empty_snap_fn=empty_snapshot,
+        )
+        found = store.command_at(int(row2["server_seq"]))
+        assert found is not None
+        assert found["command_id"] == row2["command_id"] == "cmd-2"
+        assert row1["command_id"] == "cmd-1"
+        assert store.command_at(99) is None
+    finally:
+        store.close()
+
+
+def test_session_server_seq_at_missing_empty_and_unreadable(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import service as session_service
+
+    proj = load_project(minimal_project)
+    path = sync_db_path(proj)
+    assert session_service.session_server_seq_at(path) == 0
+
+    SessionSyncService(proj).submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 1.0},
+            client_id="c1",
+            role="agent",
+            client_seq=1,
+        )
+    )
+    assert session_service.session_server_seq_at(path) == 1
+
+    def _raise(_resolved):
+        raise sqlite3.OperationalError("boom")
+
+    monkeypatch.setattr(session_service, "_applied_session_snapshot", _raise)
+    assert session_service.session_server_seq_at(path) is None
+
+
+def test_session_publish_cross_process_head(minimal_project) -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    key = str(proj.workspace_path())
+    hub = get_hub()
+    loop = asyncio.new_event_loop()
+    try:
+        queue = hub.subscribe(key, loop)
+        row = _foreign_session_write(proj, 4.5)
+
+        event = svc.publish_cross_process_head()
+        assert event is not None
+        assert event["command"]["type"] == "SetPlayhead"
+        assert event["command"]["role"] == "agent"
+        assert event["snapshot"]["playhead_sec"] == 4.5
+        assert event["server_seq"] == row["server_seq"]
+
+        loop.run_until_complete(asyncio.sleep(0))
+        assert queue.qsize() >= 1
+
+        assert svc.publish_cross_process_head() is None
+
+        svc.submit(
+            SyncCommand(
+                type="SetPlayhead",
+                payload={"playhead_sec": 9.0},
+                client_id="c1",
+                role="agent",
+                client_seq=1,
+            )
+        )
+        assert svc.publish_cross_process_head() is None
+        hub.unsubscribe(key, queue)
+    finally:
+        loop.close()
+
+
+def test_session_publish_cross_process_head_with_no_store(tmp_path, sample_wav) -> None:
+    from podcast_mcp.models import EpisodeProject, save_project
+
+    workspace = tmp_path / "fresh_ws"
+    raw = workspace / "raw"
+    raw.mkdir(parents=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    project = EpisodeProject.create("fresh_episode", str(workspace))
+    project.ensure_dirs()
+    fresh_project_path = save_project(project)
+    fresh_project = load_project(fresh_project_path)
+
+    # A project with no sync.db at all returns None.
+    assert SessionSyncService(fresh_project).publish_cross_process_head() is None
+
+
+def test_submit_publishes_under_the_session_publish_lock(minimal_project, monkeypatch) -> None:
+    from podcast_mcp.services.session_sync import service as session_service
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    hub = get_hub()
+    recorded: list[bool] = []
+    original = hub.publish
+
+    def spy(key, event):
+        if event.get("type") == "Applied":
+            recorded.append(session_service._publish_lock(key).locked())
+        return original(key, event)
+
+    monkeypatch.setattr(hub, "publish", spy)
+    svc.submit(
+        SyncCommand(
+            type="SetPlayhead",
+            payload={"playhead_sec": 1.0},
+            client_id="c1",
+            role="agent",
+            client_seq=1,
+        )
+    )
+    assert recorded == [True]
 
 
 def test_hub_publish_only_schedules_delivery() -> None:

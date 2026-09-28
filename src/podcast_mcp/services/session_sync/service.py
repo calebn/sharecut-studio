@@ -38,6 +38,7 @@ from podcast_mcp.services.session_sync.snapshot import (
     empty_snapshot,
     flatten_for_api,
 )
+from podcast_mcp.util.keyed_lock import KeyedLocks
 
 _SEQ = itertools.count(1)
 
@@ -49,6 +50,15 @@ SYNC_META_READ_ERRORS: tuple[type[Exception], ...] = (OSError, sqlite3.DatabaseE
 _T = TypeVar("_T")
 _CORRUPT_META_WARNED: set[str] = set()
 _CORRUPT_META_WARNED_LOCK = threading.Lock()
+
+_PUBLISH_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
+
+
+def _publish_lock(project_key: str) -> threading.Lock:
+    """Held from a durable submit's journal append through its hub publish, and by
+    ``publish_cross_process_head``. The watcher then never sees this process's row
+    before its ``Applied`` is published, and never re-sends it (#695)."""
+    return _PUBLISH_LOCKS.get(project_key)
 
 
 def _symlink_loop_as_oserror(resolve: Callable[[], _T]) -> _T:
@@ -206,14 +216,19 @@ def _missing_session_meta(path: str) -> dict[str, Any]:
     return {"path": path, "mtime_ns": 0, "size": 0, "exists": False, "server_seq": 0}
 
 
+def _applied_session_snapshot(resolved: Path) -> dict[str, Any] | None:
+    """Snapshot row of the sync.db at resolved path ``resolved``; ``None`` when missing or empty."""
+    store = _existing_store_at(resolved)
+    snap = store.get_snapshot() if store is not None else None
+    return None if _is_empty_authority(snap) else snap
+
+
 def _read_session_meta(db_path: Path) -> dict[str, Any]:
     resolved = resolve_meta_path(db_path)
     path = str(resolved)
-    store = _existing_store_at(resolved)
-    snap = store.get_snapshot() if store is not None else None
-    if _is_empty_authority(snap):
+    snap = _applied_session_snapshot(resolved)
+    if snap is None:
         return _missing_session_meta(path)
-    assert snap is not None
     return {
         "path": path,
         "mtime_ns": int(snap.get("updated_at_ns") or 0),
@@ -221,6 +236,20 @@ def _read_session_meta(db_path: Path) -> dict[str, Any]:
         "exists": True,
         "server_seq": int(snap.get("server_seq") or 0),
     }
+
+
+def session_server_seq_at(db_path: Path) -> int | None:
+    """Committed sync.db ``server_seq`` at ``db_path``: 0 when missing or empty, ``None``
+    when unreadable (unlike ``session_meta_at``, which reports an error as seq 0).
+
+    Parse-free twin of ``document_server_seq_at`` for the cross-process watcher (#695).
+    The caller must pass a path it has already authorized."""
+
+    def _read() -> int:
+        snap = _applied_session_snapshot(resolve_meta_path(db_path))
+        return int(snap.get("server_seq") or 0) if snap is not None else 0
+
+    return best_effort_meta(_read, None, what="session server_seq", path=db_path)
 
 
 def session_meta_at(db_path: Path) -> dict[str, Any]:
@@ -263,6 +292,15 @@ def session_meta(project_path: str | Path) -> dict[str, Any]:
         what="session meta",
         path=project_path,
     )
+
+
+def _applied_event(row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "Applied",
+        "command": row,
+        "snapshot": api_snap,
+        "server_seq": row["server_seq"],
+    }
 
 
 class SessionSyncService:
@@ -313,6 +351,34 @@ class SessionSyncService:
 
     def meta(self) -> dict[str, Any]:
         return session_meta_at(sync_db_path(self.project))
+
+    def publish_cross_process_head(self) -> dict[str, Any] | None:
+        """Fan out the sync.db head when another process committed it (#695).
+
+        Called by the cross-process watcher. Under ``_publish_lock`` a row this process
+        appended is already published (``SessionHub.last_applied_seq``), so it is never
+        re-sent. Several foreign commands within one watcher tick collapse into one
+        ``Applied`` for the head row with the full snapshot. Returns the event, or
+        ``None`` when the head is empty, already published, or its row is gone.
+        """
+        store = self._store_optional()
+        if store is None:
+            return None
+        hub = get_hub()
+        with _publish_lock(self._project_key):
+            snap = store.get_snapshot()
+            if _is_empty_authority(snap):
+                return None
+            assert snap is not None
+            seq = int(snap.get("server_seq") or 0)
+            if hub.last_applied_seq(self._project_key) == seq:
+                return None
+            row = store.command_at(seq)
+            if row is None:
+                return None
+            event = _applied_event(row, flatten_for_api(snap, store.list_clients()))
+            hub.publish(self._project_key, event)
+            return event
 
     def submit(self, command: SyncCommand) -> dict[str, Any]:
         """Append command, materialize snapshot, fanout. Idempotent on client_seq."""
@@ -365,43 +431,39 @@ class SessionSyncService:
                 "idempotent": True,
             }
 
-        row, snap, idempotent = store.append_and_apply(
-            command_id=command.command_id,
-            client_id=command.client_id,
-            client_seq=command.client_seq,
-            role=command.role,
-            type=command.type,
-            payload=command.payload,
-            causation_id=command.causation_id,
-            apply_fn=apply_command,
-            empty_snap_fn=empty_snapshot,
-        )
-        if idempotent:
-            api_snap = flatten_for_api(snap, store.list_clients())
-            return {
-                "ok": True,
-                "type": "Applied",
-                "command": row,
-                "snapshot": api_snap,
-                "server_seq": row["server_seq"],
-                "idempotent": True,
-            }
-        store.touch_client(
-            command.client_id,
-            role=command.role,
-            playhead_sec=normalize_presence_playhead(snap.get("playhead_sec")),
-            meta={"display_name": "Agent"} if command.role == "agent" else None,
-        )
-        clients = store.list_clients()
-        api_snap = flatten_for_api(snap, clients)
-        event = {
-            "type": "Applied",
-            "command": row,
-            "snapshot": api_snap,
-            "server_seq": row["server_seq"],
-        }
-        get_hub().publish(self._project_key, event)
-        return {"ok": True, **event}
+        with _publish_lock(self._project_key):
+            row, snap, idempotent = store.append_and_apply(
+                command_id=command.command_id,
+                client_id=command.client_id,
+                client_seq=command.client_seq,
+                role=command.role,
+                type=command.type,
+                payload=command.payload,
+                causation_id=command.causation_id,
+                apply_fn=apply_command,
+                empty_snap_fn=empty_snapshot,
+            )
+            if idempotent:
+                api_snap = flatten_for_api(snap, store.list_clients())
+                return {
+                    "ok": True,
+                    "type": "Applied",
+                    "command": row,
+                    "snapshot": api_snap,
+                    "server_seq": row["server_seq"],
+                    "idempotent": True,
+                }
+            store.touch_client(
+                command.client_id,
+                role=command.role,
+                playhead_sec=normalize_presence_playhead(snap.get("playhead_sec")),
+                meta={"display_name": "Agent"} if command.role == "agent" else None,
+            )
+            clients = store.list_clients()
+            api_snap = flatten_for_api(snap, clients)
+            event = _applied_event(row, api_snap)
+            get_hub().publish(self._project_key, event)
+            return {"ok": True, **event}
 
     def _presence_event(self) -> dict[str, Any]:
         snap = self.snapshot()

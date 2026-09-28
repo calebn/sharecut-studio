@@ -47,6 +47,7 @@ from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from sqlite_helpers import FailingConnection
+from sync_helpers import _foreign_document_write
 
 
 def test_document_add_comment_and_idempotent(minimal_project):
@@ -1330,6 +1331,61 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
     finally:
         get_hub().unsubscribe(key, queue)
         loop.close()
+
+
+def test_document_publish_cross_process_head_sends_a_shell_head(minimal_project):
+    proj = load_project(minimal_project)
+    svc = DocumentSyncService.open(minimal_project)
+
+    row = _foreign_document_write(proj)
+
+    event = svc.publish_cross_process_head()
+    assert event is not None
+    assert event["plane"] == "document"
+    assert event["command"]["type"] == "ExternalMutate"
+    assert "project" in event["snapshot"]
+    assert event["snapshot"]["server_seq"] == row["server_seq"]
+
+    assert svc.publish_cross_process_head() is None
+
+    svc.submit(
+        DocumentCommand(
+            type="AddComment",
+            payload={
+                "body": "in-process",
+                "author": "viewer",
+                "timeline_start": 1.0,
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert svc.publish_cross_process_head() is None
+
+
+def test_document_publish_cross_process_head_with_no_store(tmp_path, sample_wav):
+    from podcast_mcp.models import EpisodeProject
+
+    workspace = tmp_path / "fresh_ws"
+    raw = workspace / "raw"
+    raw.mkdir(parents=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    project = EpisodeProject.create("fresh_episode", str(workspace))
+    project.ensure_dirs()
+    fresh_project_path = save_project(project)
+    fresh_project = load_project(fresh_project_path)
+
+    assert (
+        DocumentSyncService.open(fresh_project.workspace_path()).publish_cross_process_head()
+        is None
+    )
+
+
+def test_document_server_seq_at_is_public(tmp_path):
+    from podcast_mcp.services.document_sync.service import document_server_seq_at
+
+    assert document_server_seq_at(tmp_path / "no_such.db") == 0
 
 
 def test_comments_http_authz_loopback_ok(minimal_project):
