@@ -870,6 +870,47 @@ def test_prepare_items_checks_cached_faster_whisper_version(tmp_path) -> None:
     assert calls == ["base", "base"]
 
 
+def test_prepare_items_holds_the_native_lock_while_resolving(tmp_path) -> None:
+    """#715: the cache check, Whisper run and write happen under <id>.native.lock."""
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    runs_dir = tmp_path / "runs"
+    lock_path = runs_dir / "tones.native.lock"
+    held: list[bool] = []
+    inner = _tones_native()
+
+    def fake_native(audio_path, model):
+        held.append(
+            bfa.shared_file_lock(lock_path, timeout=bfa.NATIVE_CACHE_LOCK_TIMEOUT_SEC).is_locked
+        )
+        return inner(audio_path, model)
+
+    bfa.prepare_items([item], runs_dir=runs_dir, native=fake_native)
+    assert held == [True]
+    assert not bfa.shared_file_lock(lock_path, timeout=bfa.NATIVE_CACHE_LOCK_TIMEOUT_SEC).is_locked
+
+
+def test_prepare_items_waits_for_another_pass_holding_the_native_lock(
+    tmp_path, monkeypatch
+) -> None:
+    """#715: a pass whose item lock is held elsewhere times out without running Whisper."""
+    from filelock import FileLock
+
+    item = bfa.BenchItem(
+        item_id="tones", audio=SYNTH / "tones.wav", gold=None, words=None, clip=None
+    )
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir()
+    monkeypatch.setattr(bfa, "NATIVE_CACHE_LOCK_TIMEOUT_SEC", 0.05)
+    calls: list[str] = []
+    other_pass = FileLock(str(runs_dir / "tones.native.lock"))
+    with other_pass, pytest.raises(TimeoutError):
+        bfa.prepare_items([item], runs_dir=runs_dir, native=_tones_native(calls))
+    assert calls == []
+    assert not (runs_dir / "tones.native.json").exists()
+
+
 def _tones_native(calls: list[str] | None = None):
     prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
 
