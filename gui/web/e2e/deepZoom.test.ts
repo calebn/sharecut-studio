@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { formatRulerTime } from "../src/utils/time";
 import { effectiveMaxZoomPxPerSec } from "../src/utils/timelineZoom.generated";
 import {
@@ -12,6 +11,7 @@ import {
   stretchProjectToSession,
 } from "./deepZoom";
 import { committedE2eProjectPath } from "./env";
+import { tempWorkspace } from "./testWorkspace";
 
 describe("parseRulerLabel", () => {
   it("round-trips formatRulerTime", () => {
@@ -60,16 +60,8 @@ describe("expectedLastRulerTick", () => {
 type Clip = { track_id: string; id: string; timeline_start: number };
 
 describe("stretchProjectToSession", () => {
-  const dirs: string[] = [];
-  afterEach(() => {
-    for (const d of dirs.splice(0)) {
-      fs.rmSync(d, { recursive: true, force: true });
-    }
-  });
   function copy(): string {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deep-zoom-"));
-    dirs.push(dir);
-    const dest = path.join(dir, "episode.project.json");
+    const dest = path.join(tempWorkspace("deep-zoom-"), "episode.project.json");
     fs.copyFileSync(committedE2eProjectPath, dest);
     return dest;
   }
