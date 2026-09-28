@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SRC_ROOT } from "../test/sourceFiles";
 import {
   clampClipFades,
   clampFadeMs,
@@ -77,6 +80,37 @@ describe("joinLengthMaxMs", () => {
       ),
     ).toBe(0);
   });
+});
+
+type JoinLengthCase = {
+  name: string;
+  left_duration_sec: number;
+  left_fade_in_ms: number;
+  right_duration_sec: number;
+  track_fade_max_ms: number | null;
+  max_ms: number;
+};
+
+const JOIN_LENGTH_CASES: JoinLengthCase[] = JSON.parse(
+  readFileSync(
+    join(SRC_ROOT, "../../../contracts/join-length-limits.json"),
+    "utf-8",
+  ),
+).cases;
+
+describe("joinLengthMaxMs matches set_clip_join (contracts/join-length-limits.json)", () => {
+  it.each(JOIN_LENGTH_CASES.map((c) => [c.name, c] as const))(
+    "%s",
+    (_name, c) => {
+      expect(
+        joinLengthMaxMs(
+          { durationSec: c.left_duration_sec, fadeInMs: c.left_fade_in_ms },
+          { durationSec: c.right_duration_sec },
+          c.track_fade_max_ms,
+        ),
+      ).toBe(c.max_ms);
+    },
+  );
 });
 
 describe("clampClipFades", () => {

@@ -121,7 +121,9 @@ def set_clip_join(
     ``fade`` sets both to ``length_ms``; without one it keeps the current fades, seeding
     ``inaudible_cuts.micro_fade_ms`` when both are 0. Fades go through ``clamp_clip_fades``
     like ``set_clip_fade``. Non-abutting neighbours are allowed; the result reports
-    ``crossfade_blocked``.
+    ``crossfade_blocked``. The DAW's join Length slider max mirrors this clamp order
+    (``gui/web/src/edit/fadeLimits.ts`` ``joinLengthMaxMs``); ``contracts/join-length-limits.json``
+    pins both.
     """
     cfg = defaults or load_defaults()
     left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
