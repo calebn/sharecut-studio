@@ -220,6 +220,68 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
+  it("records a late Ignore failure under the ignored flag (#634)", async () => {
+    let reject!: (e: Error) => void;
+    vi.mocked(setTranscriptWordsIgnored).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    const { rerender } = render(
+      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ignore" }));
+    rerender(
+      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+    );
+    await act(async () => {
+      reject(new Error("boom"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 0,
+      originalText: "hello",
+      flag: { name: "ignored", was: false },
+      message: "Could not update “hello”: boom",
+    });
+  });
+
+  it("records a late Apply failure as a text fix with no flag (#634)", async () => {
+    let reject!: (e: Error) => void;
+    vi.mocked(correctTranscriptWord).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    const { rerender } = render(
+      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+    );
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => expect(correctTranscriptWord).toHaveBeenCalled());
+    rerender(
+      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+    );
+    await act(async () => {
+      reject(new Error("boom"));
+    });
+    const failure = useDawStore.getState().transcriptInlineEditFailure;
+    expect(failure).toEqual({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 0,
+      originalText: "hello",
+      message: "Could not fix “hello”: boom",
+    });
+    expect(failure).not.toHaveProperty("flag");
+  });
+
   it("shows a failure under the same word while it is still open", async () => {
     vi.mocked(setTranscriptWordSuppressed).mockRejectedValueOnce(
       new Error("boom"),
