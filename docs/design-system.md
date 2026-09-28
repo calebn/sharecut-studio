@@ -412,8 +412,9 @@ that store or simulate command execution.
 - 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
   with the props-only `ShareDialogView` and `BounceDialogView` rendered by
   their live adapters, closing #608. Dialog stories (including
-  `Organisms/Dialog` and `Organisms/BottomSheet`) now share `DialogLauncher`
-  and `openDialogByLauncher`.
+  `Organisms/Dialog` and `Organisms/BottomSheet`) now share `DialogLauncher`,
+  and their play functions open the dialog through `openDialogByLauncher`
+  outside autodocs.
 
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DialogLauncher } from "../test/DialogLauncher";
+import { openDialogByLauncher } from "../test/storyDialog";
 import { Button, Dialog } from "./index";
 
 const meta: Meta<typeof Dialog> = {
@@ -49,6 +50,13 @@ function DemoDialog({
 
 export const Default: Story = {
   render: () => <DemoDialog title="Confirm export" />,
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    await openDialogByLauncher(canvasElement, {
+      launcherName: "Open dialog",
+      dialogName: "Confirm export",
+    });
+  },
 };
 
 export const Danger: Story = {
@@ -59,6 +67,13 @@ export const Danger: Story = {
       confirmLabel="Delete clip"
     />
   ),
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    await openDialogByLauncher(canvasElement, {
+      launcherName: "Open dialog",
+      dialogName: "Delete clip?",
+    });
+  },
   parameters: {
     docs: {
       description: {

@@ -39,7 +39,8 @@ function DemoSheet({ title }: { title?: string }) {
 
 export const Default: Story = {
   render: () => <DemoSheet title="Inspector" />,
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
     await openDialogByLauncher(canvasElement, {
       launcherName: "Open sheet",
       dialogName: "Inspector",
