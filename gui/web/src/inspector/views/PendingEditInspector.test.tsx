@@ -61,6 +61,7 @@ const sessionCut: PendingEditView = {
 
 describe("PendingEditInspector", () => {
   beforeEach(() => {
+    localStorage.clear();
     registerDawCommands();
     loadHostCommandCount.mockReset().mockResolvedValue(1);
     createComment.mockReset();
@@ -154,9 +155,32 @@ describe("PendingEditInspector", () => {
       "/tmp/p.json",
       expect.objectContaining({
         body: "Why this cut?",
+        author: "Host",
         editDecisionId: "ed1",
         timelineStart: 10,
         timelineEnd: 12,
+      }),
+    );
+  });
+
+  it("prefills a saved real name for the Ask", async () => {
+    localStorage.setItem("podcast-mcp-comment-author", "Caleb");
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(
+      sampleComment({ edit_decision_id: "ed1", body: "Why this cut?" }),
+    );
+    render(<PendingEditInspector edit={sessionCut} />);
+    await user.type(
+      screen.getByPlaceholderText("Ask for more context before deciding…"),
+      "Why this cut?",
+    );
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({
+        body: "Why this cut?",
+        author: "Caleb",
+        editDecisionId: "ed1",
       }),
     );
   });

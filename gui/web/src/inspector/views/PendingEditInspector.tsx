@@ -25,7 +25,7 @@ import {
   InspectorSeekFooter,
 } from "../../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
-import { loadCommentAuthor } from "../../utils/commentAuthor";
+import { sessionDisplayName } from "../../utils/commentAuthor";
 import {
   pendingReasonLabel,
   pendingTypeLabel,
@@ -70,7 +70,9 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
   );
-  const [author, setAuthor] = useState(loadCommentAuthor);
+  const commentRole =
+    guestMode || isShareProjectKey(projectPath) ? "guest" : "host";
+  const [author, setAuthor] = useState(() => sessionDisplayName(commentRole));
   const [askBody, setAskBody] = useState("");
   const timeHintId = useId();
   const {
@@ -191,7 +193,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       const tlEnd = isSplit ? tlStart : (edit.timeline_end ?? edit.source_end);
       await createComment(projectPath, {
         body: text,
-        author: author.trim() || "viewer",
+        author: author.trim() || sessionDisplayName(commentRole),
         timelineStart: tlStart,
         timelineEnd: tlEnd,
         trackIds: edit.track_ids ?? [edit.track_id],

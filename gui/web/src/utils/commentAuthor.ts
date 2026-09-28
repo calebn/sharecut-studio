@@ -13,7 +13,7 @@ const PLACEHOLDER_NAMES = new Set([
   GUEST_SESSION_LABEL,
 ]);
 
-export function loadCommentAuthor(): string {
+function savedCommentAuthor(): string {
   return readLocal(STORAGE_KEY) ?? DEFAULT_AUTHOR;
 }
 
@@ -37,6 +37,6 @@ export function sessionDisplayName(role: "host" | "guest"): string {
 
 /** Identity for resolve / action-item completion; never empty. */
 export function resolveCommentActor(explicit?: string | null): string {
-  const who = (explicit ?? "").trim() || loadCommentAuthor().trim();
+  const who = (explicit ?? "").trim() || savedCommentAuthor().trim();
   return who || DEFAULT_AUTHOR;
 }

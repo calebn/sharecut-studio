@@ -9,9 +9,9 @@ import type { TimelineComment } from "../types/project";
 import { EmptyState, ErrorScreen, InlineError, LoadingScreen } from "../ui";
 import { errorMessage, readApiError } from "../utils/apiError";
 import {
-  loadCommentAuthor,
   resolveCommentActor,
   saveCommentAuthor,
+  sessionDisplayName,
 } from "../utils/commentAuthor";
 import {
   pipelineKindLabel,
@@ -49,7 +49,7 @@ export function ReviewApp({ token }: { token: string }) {
   const [project, setProject] = useState<ReviewProject | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [author, setAuthor] = useState(loadCommentAuthor);
+  const [author, setAuthor] = useState(() => sessionDisplayName("guest"));
   const [body, setBody] = useState("");
   const [startSec, setStartSec] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -168,7 +168,7 @@ export function ReviewApp({ token }: { token: string }) {
       },
       canComment: mcpCanComment,
       addComment: async (bodyText) => {
-        const who = resolveCommentActor(loadCommentAuthor());
+        const who = resolveCommentActor(sessionDisplayName("guest"));
         await createComment(projectKey, {
           body: bodyText,
           author: who,
