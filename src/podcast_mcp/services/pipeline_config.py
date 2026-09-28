@@ -413,9 +413,15 @@ def config_store() -> PipelineConfigStore:
     return _STORE
 
 
-def _staged_or_default_config(project_path: Path | str) -> dict[str, Any]:
+def _staged_config(project_path: Path | str) -> dict[str, Any] | None:
+    """The staged working set's config, or ``None`` when nothing is staged (never creates one)."""
     staged = config_store().peek(project_path)
-    return staged.config if staged is not None else load_defaults()
+    return staged.config if staged is not None else None
+
+
+def _staged_or_default_config(project_path: Path | str) -> dict[str, Any]:
+    staged = _staged_config(project_path)
+    return staged if staged is not None else load_defaults()
 
 
 def asr_options_for(project_path: Path | str) -> AsrOptions:
@@ -435,8 +441,8 @@ def prosody_params_for(project_path: Path | str) -> ProsodyParams | None:
     """
     from podcast_mcp.engines.prosody import ProsodyParams
 
-    staged = config_store().peek(project_path)
-    return ProsodyParams.from_defaults(staged.config) if staged is not None else None
+    staged = _staged_config(project_path)
+    return ProsodyParams.from_defaults(staged) if staged is not None else None
 
 
 def build_config_payload(project_path: Path | str) -> dict[str, Any]:
