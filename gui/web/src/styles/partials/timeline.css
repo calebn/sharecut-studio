@@ -389,19 +389,20 @@ button.join-diamond {
 }
 
 /* One badge per drawn join, at the top of the seam (#690): | cut, ╲╱ fade,
-   ✕ crossfade. Centred on the lane's top edge, it sits in the gutter above the
-   clips (.clip-block top inset) so it clears the clips' top-corner fade handles
-   and the mid-height join diamond (e2e/fade-curves.spec.ts checks both).
-   TrackLane draws it above the resting clips. It is display-only and
-   click-through (the trim strips under it keep their input) until the join
-   popover (#691) makes it a button. Declared after `.lane-inner > *` so its
-   pointer-events wins. */
+   ✕ crossfade. It fills the lane's top gutter (the .clip-block 8px top inset;
+   0.5rem at the default root size) and never leaves its own lane, so it
+   clears the clips' top-corner fade handles, the mid-height join diamond and,
+   on the first track, the marker lane above (e2e/fade-curves.spec.ts checks
+   all three). TrackLane draws it above the resting clips. It is display-only
+   and click-through (the trim strips under it keep their input) until the
+   join popover (#691) makes it a button. Declared after `.lane-inner > *` so
+   its pointer-events wins. */
 .join-badge {
   position: absolute;
   top: 0;
   width: 1rem;
-  height: 1rem;
-  translate: -50% -50%;
+  height: 0.5rem;
+  translate: -50% 0;
   display: grid;
   place-items: center;
   box-sizing: border-box;
@@ -419,11 +420,11 @@ button.join-diamond {
 }
 
 .join-badge-glyph {
-  width: 0.625rem;
-  height: 0.625rem;
+  width: 0.375rem;
+  height: 0.375rem;
   fill: none;
   stroke: var(--color-text-on-overlay);
-  stroke-width: 1.5;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
