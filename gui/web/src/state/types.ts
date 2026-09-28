@@ -216,6 +216,12 @@ export interface DawState {
    * jobs and speaks the copy once it arrives.
    */
   pendingJobResults: PendingJobResults;
+  /**
+   * Job whose own result copy `useJobStatusAnnouncement` spoke most recently.
+   * Kept in the store rather than the hook so a remount (desktop <-> phone
+   * shell) does not speak the generic headline over a result already spoken (#704).
+   */
+  spokenJobResultId: string | null;
   /** Presence roster from session Snapshot / Presence events, keyed by `client_id`
    * (#598: a `PresenceDelta` replaces only its own entry). */
   sessionClients: SessionRoster;
@@ -359,6 +365,8 @@ export interface DawState {
   announceJobResult: (jobId: string, message: string) => void;
   /** Drop a job's pending result (spoken, failed or aborted). */
   settleJobResult: (jobId: string) => void;
+  /** Record the job whose result copy was just spoken (see `spokenJobResultId`). */
+  setSpokenJobResultId: (jobId: string | null) => void;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */

@@ -112,6 +112,7 @@ type UiSlice = Pick<
   | "ingestDropTrackId"
   | "statusAnnouncement"
   | "pendingJobResults"
+  | "spokenJobResultId"
   | "setHighlightStaleRender"
   | "setRenderPreviewBusy"
   | "setIngestBusy"
@@ -120,6 +121,7 @@ type UiSlice = Pick<
   | "expectJobResult"
   | "announceJobResult"
   | "settleJobResult"
+  | "setSpokenJobResultId"
   | "zoomPxPerSec"
   | "waveformAmpZoom"
   | "waveformScale"
@@ -236,6 +238,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     ingestDropTrackId: null as string | null,
     statusAnnouncement: "",
     pendingJobResults: {},
+    spokenJobResultId: null as string | null,
     setHighlightStaleRender: (highlightStaleRender) =>
       set({ highlightStaleRender }),
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
@@ -262,6 +265,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
             }
           : {},
       ),
+    setSpokenJobResultId: (spokenJobResultId) => set({ spokenJobResultId }),
 
     zoomPxPerSec: 40,
     waveformAmpZoom: 1,
