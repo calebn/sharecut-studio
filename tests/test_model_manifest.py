@@ -265,3 +265,52 @@ def test_download_pinned_snapshot_verifies_the_download(tmp_path: Path, monkeypa
     assert download_pinned_snapshot(pin, tmp_path / "cache") == (snap, None)
     assert seen["force_download"] is False
     assert "local_files_only" not in seen
+
+
+def _fake_download(snap: Path, calls: list[bool], repaired: bytes | None):
+    def fake(repo, **kwargs):
+        calls.append(kwargs["force_download"])
+        if kwargs["force_download"] and repaired is not None:
+            (snap / "a.txt").write_bytes(repaired)
+        return str(snap)
+
+    return fake
+
+
+def test_download_pinned_snapshot_refetches_a_cached_mismatch_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    pin, snap = _pin(tmp_path)
+    (snap / "a.txt").write_bytes(b"tampered")
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", _fake_download(snap, calls, b"a"), raising=False
+    )
+    assert download_pinned_snapshot(pin, tmp_path / "cache") == (snap, None)
+    assert calls == [False, True]
+
+
+def test_download_pinned_snapshot_reports_a_mismatch_the_refetch_keeps(
+    tmp_path: Path, monkeypatch
+) -> None:
+    pin, snap = _pin(tmp_path)
+    (snap / "a.txt").write_bytes(b"tampered")
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", _fake_download(snap, calls, None), raising=False
+    )
+    _, mismatch = download_pinned_snapshot(pin, tmp_path / "cache")
+    assert mismatch is not None and mismatch.startswith("a.txt ")
+    assert calls == [False, True]
+
+
+def test_download_pinned_snapshot_with_force_fetches_once(tmp_path: Path, monkeypatch) -> None:
+    pin, snap = _pin(tmp_path)
+    (snap / "a.txt").write_bytes(b"tampered")
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", _fake_download(snap, calls, None), raising=False
+    )
+    _, mismatch = download_pinned_snapshot(pin, tmp_path / "cache", force=True)
+    assert mismatch is not None
+    assert calls == [True]
