@@ -124,26 +124,36 @@ def _presence_resync(event: dict[str, Any] | None) -> bool:
     return isinstance(event, dict) and event.get("type") == PRESENCE_RESYNC
 
 
-def _drop_buffered_presence(q: asyncio.Queue[dict[str, Any]]) -> bool:
-    """Remove every buffered presence frame (resync markers included) from ``q``, keeping
-    the rest in order. True when anything was removed.
-    """
+def _drain_to_list(q: asyncio.Queue[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove and return every buffered row in ``q``, in order."""
     buffered: list[dict[str, Any]] = []
     while True:
         try:
             buffered.append(q.get_nowait())
         except asyncio.QueueEmpty:
-            break
-    kept = [row for row in buffered if not _presence_frame(row)]
-    for row in kept:
-        with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
+            return buffered
+
+
+def _refill(q: asyncio.Queue[dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+    """Put ``rows`` back into ``q`` in order (a row that no longer fits is dropped)."""
+    for row in rows:
+        with contextlib.suppress(asyncio.QueueFull):
             q.put_nowait(row)
+
+
+def _drop_buffered_presence(q: asyncio.Queue[dict[str, Any]]) -> bool:
+    """Remove every buffered presence frame (resync markers included) from ``q``, keeping
+    the rest in order. True when anything was removed.
+    """
+    buffered = _drain_to_list(q)
+    kept = [row for row in buffered if not _presence_frame(row)]
+    _refill(q, kept)
     return len(kept) != len(buffered)
 
 
 def _session_overflow(q: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
     if _document_applied(event):
-        _drain_queue(q)
+        _drain_to_list(q)
         with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
             q.put_nowait(document_overflow_resync(event))
         return
@@ -166,17 +176,10 @@ def _enqueue_prefer_drop_signal(
     q: asyncio.Queue[dict[str, Any]],
     event: dict[str, Any],
 ) -> dict[str, Any] | None:
-    buffered: list[dict[str, Any]] = []
-    while True:
-        try:
-            buffered.append(q.get_nowait())
-        except asyncio.QueueEmpty:
-            break
+    buffered = _drain_to_list(q)
     drop_at = next((i for i, row in enumerate(buffered) if _record_signal(row)), None)
     if drop_at is None and _record_signal(event):
-        for row in buffered:
-            with contextlib.suppress(asyncio.QueueFull):
-                q.put_nowait(row)
+        _refill(q, buffered)
         return None
     if drop_at is not None:
         del buffered[drop_at]
@@ -190,9 +193,7 @@ def _enqueue_prefer_drop_signal(
             0,
         )
         del buffered[drop_at]
-    for row in buffered:
-        with contextlib.suppress(asyncio.QueueFull):
-            q.put_nowait(row)
+    _refill(q, buffered)
     return event
 
 
@@ -200,14 +201,6 @@ def _document_applied(event: dict[str, Any] | None) -> bool:
     if not isinstance(event, dict) or event.get("plane") != "document":
         return False
     return event.get("type") in {"Applied", "Snapshot"}
-
-
-def _drain_queue(q: asyncio.Queue[dict[str, Any]]) -> None:
-    while True:
-        try:
-            q.get_nowait()
-        except asyncio.QueueEmpty:
-            return
 
 
 def document_overflow_resync(event: dict[str, Any]) -> dict[str, Any]:
