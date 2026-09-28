@@ -615,6 +615,12 @@ class SessionTimeline:
         piece at least ``_REL_DRIFT_MIN_PIECE_SEC`` long is sampled at its midpoint, so
         an offset region anywhere inside the clip is seen, while a sliver left by per-lane
         cut snapping is not. Ripple cuts shift every track alike and cancel out.
+
+        A piece whose midpoint falls where the reference track itself has no clip
+        (its own track-local punch hole, or simply past its last clip) carries no
+        alignment information: comparing against it would score against whichever
+        clip happens to be nearest, on either side of an unrelated cut. Such pieces
+        are skipped rather than scored.
         """
         start, end = float(clip.timeline_start), float(clip.timeline_end)
         own = -clip_source_to_timeline_shift(clip)
@@ -631,7 +637,11 @@ class SessionTimeline:
         ] or [(start, end)]
         worst = 0.0
         for a, b in pieces:
-            rel = own - self.drift_at(reference_track_id, TimelineSec((a + b) / 2.0))
+            mid = TimelineSec((a + b) / 2.0)
+            ref_src = self.timeline_to_source(reference_track_id, mid)
+            if ref_src is None:
+                continue
+            rel = own - (float(ref_src) - float(mid))
             if abs(rel) > abs(worst):
                 worst = rel
         return worst
