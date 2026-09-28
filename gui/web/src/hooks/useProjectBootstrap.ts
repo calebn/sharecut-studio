@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { loadProject, loadProjectDetail } from "../api";
-import { currentDocumentSeq, resetDocumentSeq } from "../document/cursor";
+import { resetDocumentSeq } from "../document/cursor";
+import { fetchWhileSeqStable } from "../document/fetchWhileSeqStable";
 import { mergeProjectPatch } from "../document/projectPatch";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -42,25 +43,20 @@ export function useProjectBootstrap(
         if (isShareProjectKey(projectPath)) {
           return;
         }
-        while (!cancelled) {
-          const seqAtStart = currentDocumentSeq();
-          const detail = await loadProjectDetail(projectPath, {
-            signal: ac.signal,
-          });
-          if (cancelled) {
-            return;
-          }
-          if (currentDocumentSeq() !== seqAtStart) {
-            // A WS snapshot or edit landed during DETAIL. Retry against the
-            // current document instead of leaving its transcript unhydrated.
-            await new Promise((resolve) => window.setTimeout(resolve, 150));
-            continue;
-          }
-          const prev = useDawStore.getState().project;
-          if (prev) {
-            useDawStore.getState().setProject(mergeProjectPatch(prev, detail));
-          }
+        // A WS snapshot or edit that lands during DETAIL retries it against
+        // the current document instead of leaving its transcript unhydrated.
+        const detail = await fetchWhileSeqStable(
+          () => loadProjectDetail(projectPath, { signal: ac.signal }),
+          { delayMs: 150, isCancelled: () => cancelled },
+        );
+        if (!detail) {
           return;
+        }
+        const prev = useDawStore.getState().project;
+        if (prev) {
+          useDawStore
+            .getState()
+            .setProject(mergeProjectPatch(prev, detail.value));
         }
       } catch (e: unknown) {
         if (!cancelled && !isAbortError(e)) {
