@@ -8,6 +8,7 @@ network on import or resolve) — same contract as ``util/binaries.py``.
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -63,35 +64,51 @@ def _rnnoise_ready() -> bool:
     return rnnoise_model_path().is_file()
 
 
-def whisper_component(model: str) -> dict[str, Any]:
-    """Whisper readiness for ``model`` (no download) for bootstrap status and Pipeline badges.
+def _pinned_component_status(
+    problem: Callable[[], Exception | None],
+    mismatch: type[Exception],
+    base: dict[str, Any],
+    *,
+    missing_hint: str,
+    bootstrap: str,
+    upgrade_bootstrap: str,
+) -> dict[str, Any]:
+    """The status payload shared by pinned model components (Whisper, word aligner).
 
-    A pin mismatch carries ``pin_mismatch: true``, its own hint and an ``--upgrade``
-    bootstrap command, like ``word_aligner_component``.
+    ``ok: True`` when ``problem()`` returns None. A pin mismatch adds ``pin_mismatch:
+    true``, the mismatch as ``hint`` and ``upgrade_bootstrap``; any other problem gets
+    ``missing_hint`` and ``bootstrap``. An unexpected error is reported, never raised.
     """
     try:
-        problem = whisper_model_problem(model, memoize=True)
+        found = problem()
     except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
-        return {"ok": False, "model": model, "hint": str(exc), "bootstrap": WHISPER_BOOTSTRAP}
-    if problem is None:
-        return {"ok": True, "model": model}
-    if isinstance(problem, WhisperPinMismatchError):
+        return {**base, "ok": False, "hint": str(exc), "bootstrap": bootstrap}
+    if found is None:
+        return {**base, "ok": True}
+    if isinstance(found, mismatch):
         return {
+            **base,
             "ok": False,
-            "model": model,
             "pin_mismatch": True,
-            "hint": str(problem),
-            "bootstrap": whisper_bootstrap_command(model, upgrade=True),
+            "hint": str(found),
+            "bootstrap": upgrade_bootstrap,
         }
-    return {
-        "ok": False,
-        "model": model,
-        "hint": (
+    return {**base, "ok": False, "hint": missing_hint, "bootstrap": bootstrap}
+
+
+def whisper_component(model: str) -> dict[str, Any]:
+    """Whisper readiness for ``model`` (no download) for bootstrap status and Pipeline badges."""
+    return _pinned_component_status(
+        lambda: whisper_model_problem(model, memoize=True),
+        WhisperPinMismatchError,
+        {"model": model},
+        missing_hint=(
             f"Whisper model {model!r} is not downloaded — pick Download in the Pipeline tab "
             f"or run {whisper_bootstrap_command(model)}"
         ),
-        "bootstrap": WHISPER_BOOTSTRAP,
-    }
+        bootstrap=WHISPER_BOOTSTRAP,
+        upgrade_bootstrap=whisper_bootstrap_command(model, upgrade=True),
+    )
 
 
 def word_aligner_component() -> dict[str, Any]:
@@ -104,29 +121,17 @@ def word_aligner_component() -> dict[str, Any]:
         "required_for_first_run": False,
         "opt_in": True,
     }
-    try:
-        problem = word_aligner_problem(model.id, memoize=True)
-    except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
-        return {**base, "ok": False, "hint": str(exc), "bootstrap": WORD_ALIGNER_BOOTSTRAP}
-    if problem is None:
-        return {**base, "ok": True}
-    if isinstance(problem, WordAlignerPinMismatchError):
-        return {
-            **base,
-            "ok": False,
-            "pin_mismatch": True,
-            "hint": str(problem),
-            "bootstrap": f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
-        }
-    return {
-        **base,
-        "ok": False,
-        "hint": (
+    return _pinned_component_status(
+        lambda: word_aligner_problem(model.id, memoize=True),
+        WordAlignerPinMismatchError,
+        base,
+        missing_hint=(
             f"{model.label} ({model.size}) is not downloaded; Precise word boundaries keeps "
             "Whisper's times until it is. Download it next to that field in the Pipeline tab"
         ),
-        "bootstrap": WORD_ALIGNER_BOOTSTRAP,
-    }
+        bootstrap=WORD_ALIGNER_BOOTSTRAP,
+        upgrade_bootstrap=f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
+    )
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
