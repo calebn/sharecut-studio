@@ -189,31 +189,65 @@ test("transport zones never overlap across desktop widths", async ({
   // warning pills: wider than half the centered grid's spare room at 1440.
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
-  for (const width of [1280, 1360, 1440, 1520, 1680, 1920]) {
-    await page.setViewportSize({ width, height: 900 });
-    const zones = await page.evaluate(() =>
-      [...document.querySelectorAll("header.transport .transport-zone")].map(
-        (zone) => {
-          const boxes = [...zone.children]
-            .map((child) => child.getBoundingClientRect())
-            .filter((box) => box.width > 0);
-          return {
-            left: Math.min(...boxes.map((box) => box.left)),
-            right: Math.max(...boxes.map((box) => box.right)),
-          };
-        },
-      ),
-    );
-    expect(zones, `${width}px`).toHaveLength(3);
-    const [start, center, end] = zones;
-    expect(start.right, `${width}px start vs center`).toBeLessThanOrEqual(
-      center.left,
-    );
-    expect(center.right, `${width}px center vs end`).toBeLessThanOrEqual(
-      end.left,
-    );
-    expect(end.right, `${width}px end vs viewport`).toBeLessThanOrEqual(width);
+  const title = page.locator("header.transport h1");
+  const fixtureTitle = (await title.textContent()) ?? "";
+  // A long project name must truncate before the end zone gives way (#726
+  // review): the fixture's short name alone never exercised the shrink.
+  const longTitle =
+    "Episode 142: A long conversation about documentary podcasts";
+  for (const name of [fixtureTitle, longTitle]) {
+    await title.evaluate((node, text) => {
+      node.textContent = text;
+    }, name);
+    for (const width of [1280, 1360, 1440, 1520, 1680, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      const zones = await page.evaluate(() =>
+        [...document.querySelectorAll("header.transport .transport-zone")].map(
+          (zone) => {
+            const boxes = [...zone.children]
+              .map((child) => child.getBoundingClientRect())
+              .filter((box) => box.width > 0);
+            return {
+              left: Math.min(...boxes.map((box) => box.left)),
+              right: Math.max(...boxes.map((box) => box.right)),
+            };
+          },
+        ),
+      );
+      expect(zones, `${width}px "${name}"`).toHaveLength(3);
+      const [start, center, end] = zones;
+      expect(
+        start.right,
+        `${width}px "${name}" start vs center`,
+      ).toBeLessThanOrEqual(center.left);
+      expect(
+        center.right,
+        `${width}px "${name}" center vs end`,
+      ).toBeLessThanOrEqual(end.left);
+      expect(
+        end.right,
+        `${width}px "${name}" end vs viewport`,
+      ).toBeLessThanOrEqual(width);
+    }
   }
+});
+
+test("timecode total is visually hidden below 85rem but stays announced", async ({
+  page,
+}) => {
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  await expect(page.locator(".timeline-scroll .track-headers")).toBeVisible();
+  const timecode = page.locator("header.transport .timecode");
+  const total = timecode.locator(".timecode-total");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // Still in the text (and so the accessibility tree), just clipped.
+  await expect(total).toContainText("/");
+  await expect(total).toHaveCSS("position", "absolute");
+  expect((await total.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
+  await expect(timecode).toHaveAttribute("title", /\//);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(total).toHaveCSS("position", "static");
+  expect((await total.boundingBox())?.width ?? 0).toBeGreaterThan(1);
 });
 
 test("light transport keeps legible status and stable control hover paint", async ({

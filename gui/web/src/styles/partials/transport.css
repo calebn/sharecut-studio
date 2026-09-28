@@ -78,29 +78,41 @@
     flex: 0 1 auto;
   }
 
-  /* Fixed-size controls never shrink (they spilled over their neighbours);
-     the title and the agent/session region pill are what give way. */
+  /* Fixed-size controls never shrink (they spilled over their neighbours).
+     Only the title gives way: the end zone keeps its content width, so a
+     long project name truncates instead of the status pills sliding left
+     over the audition modes. */
   .transport:not(.transport--collapsed) .transport-zone--center {
     flex: 0 0 auto;
   }
 
   .transport:not(.transport--collapsed) .transport-zone--end {
-    flex: 1 1 auto;
+    flex: 1 0 auto;
   }
 
   .transport:not(.transport--collapsed) .transport-zone--end > * {
     flex: 0 0 auto;
   }
 
+  /* The end zone no longer shrinks, so the agent/session region pill takes
+     a tighter cap here instead; its title keeps the full range. */
   .transport:not(.transport--collapsed) .transport-zone--end > .pill.audition {
-    flex: 0 1 auto;
-    min-inline-size: 3rem;
+    max-inline-size: 8rem;
   }
 
-  /* The episode total gives way before the controls do; the playhead stays
-     and the timecode's title still carries "current / total". */
+  /* The episode total gives way before the controls do. It is visually
+     hidden (the .sr-only pattern in layout.css), not display: none, so
+     screen readers still announce "current / total"; the timecode's title
+     keeps the pair for hover. Collapsed chrome drops the total in JS
+     instead (TransportTimecode showTotal). */
   .transport:not(.transport--collapsed) .timecode-total {
-    display: none;
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

@@ -6,7 +6,12 @@ import { transportTimecode } from "../utils/time";
 type Props = {
   /** Episode duration, for the digit layout and the `total` readout. */
   durationSec: number;
-  /** False in collapsed transport chrome: playhead only, no `/ total`. */
+  /**
+   * False in collapsed transport chrome: playhead only, `/ total` not
+   * rendered. Separately, `styles/partials/transport.css` visually hides the
+   * rendered total on a wide bar in an app container under 85rem (still
+   * announced). Keep both in mind when changing when the total shows.
+   */
   showTotal?: boolean;
 };
 
