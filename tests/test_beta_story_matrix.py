@@ -20,8 +20,9 @@ STORY_ISSUES = {
 
 STATUSES = {"Automated", "Partial"}
 
-# Steps an "Automated" row may still list under "Still manual": they need
-# hardware (Tauri desktop recording) or a human ear, so no check can replace them.
+# Steps that do not make a row Partial: they need hardware (Tauri desktop
+# recording) or a human ear, so no check can replace them. An "Automated" row may
+# list only these under "Still manual"; a "Partial" row must list another step.
 HARDWARE_OR_BY_EAR_STEPS = {"tauri recording", "listening by ear"}
 
 _CODE_SPAN_RE = re.compile(r"`([^`]+)`")
@@ -85,15 +86,19 @@ def test_issue_and_status_cells_are_valid() -> None:
         assert status in STATUSES, f"{story}: bad status {status!r}"
 
 
-def test_automated_rows_list_only_hardware_or_by_ear_steps() -> None:
+def test_status_matches_still_manual_steps() -> None:
     for story, _issue, status, _coverage, manual in _matrix_rows():
-        if status != "Automated":
-            continue
         extra = [step for step in _manual_steps(manual) if step not in HARDWARE_OR_BY_EAR_STEPS]
-        assert not extra, (
-            f"{story}: marked Automated but Still manual lists non-hardware steps {extra}; "
-            "automate them or mark the row Partial"
-        )
+        if status == "Automated":
+            assert not extra, (
+                f"{story}: marked Automated but Still manual lists non-hardware steps {extra}; "
+                "automate them or mark the row Partial"
+            )
+        else:
+            assert extra, (
+                f"{story}: marked Partial but Still manual lists only hardware or by-ear "
+                "steps; mark the row Automated or name the step that still needs a manual run"
+            )
 
 
 def test_coverage_cells_cite_only_existing_repo_paths() -> None:
