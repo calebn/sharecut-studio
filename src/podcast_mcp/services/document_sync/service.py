@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from podcast_mcp.edits.comments import comments_for_view
+from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
@@ -46,6 +47,11 @@ EXTERNAL_MUTATE = "ExternalMutate"
 
 EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 """``client_id`` of an ``ExternalMutate`` row; never equals a tab's ``documentClientId()``."""
+
+# Domain errors meaning "the client's view of the target is stale": each is a 409 conflict,
+# raised before mutation, history, or the command log (#650). They subclass ValueError, so
+# ``_apply`` must catch them before its generic ValueError branch.
+STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (TranscriptTextChangedError,)
 
 
 def document_db_path_for_workspace(workspace: Path) -> Path:
@@ -526,6 +532,10 @@ class DocumentSyncService:
             payload["_structural_mode"] = mode.value
         try:
             return apply_command(self.ws, command.type, payload)
+        except STALE_TARGET_ERRORS as exc:
+            from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+            raise DocumentConflictError(str(exc)) from exc
         except KeyError as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
