@@ -16,20 +16,8 @@ import { useDawStore } from "../state/dawStore";
 import { isApplePlatform } from "../utils/platform";
 import { getKeymapOverride } from "./remaps";
 
-export type KeymapCategory =
-  | "transport"
-  | "tools"
-  | "layout"
-  | "navigation"
-  | "review"
-  | "history"
-  | "edit"
-  | "view"
-  | "ui"
-  | "presence";
-
-/** Display order for keymap categories (in-app palette tabs and generated cheatsheets). */
-export const KEYMAP_CATEGORY_ORDER: readonly KeymapCategory[] = [
+/** Keymap categories in display order (in-app palette tabs and generated cheatsheets); `KeymapCategory` and `keymapByCategory()` derive from it. */
+export const KEYMAP_CATEGORY_ORDER = [
   "transport",
   "tools",
   "layout",
@@ -40,7 +28,9 @@ export const KEYMAP_CATEGORY_ORDER: readonly KeymapCategory[] = [
   "view",
   "ui",
   "presence",
-];
+] as const;
+
+export type KeymapCategory = (typeof KEYMAP_CATEGORY_ORDER)[number];
 
 export type KeymapCommand = {
   id: string;
@@ -705,18 +695,9 @@ export function keymapCommandById(id: string): KeymapCommand | undefined {
 }
 
 export function keymapByCategory(): Record<KeymapCategory, KeymapCommand[]> {
-  const out: Record<KeymapCategory, KeymapCommand[]> = {
-    transport: [],
-    tools: [],
-    layout: [],
-    navigation: [],
-    review: [],
-    history: [],
-    edit: [],
-    view: [],
-    ui: [],
-    presence: [],
-  };
+  const out = Object.fromEntries(
+    KEYMAP_CATEGORY_ORDER.map((category) => [category, []]),
+  ) as unknown as Record<KeymapCategory, KeymapCommand[]>;
   for (const cmd of KEYMAP_COMMANDS) {
     out[cmd.category].push(cmd);
   }
