@@ -7,6 +7,7 @@ import { capabilityTooltip } from "../../capabilities/copy";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
+import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
   TRANSCRIPT_CORRECT_TIMING_NOTE,
   TRANSCRIPT_SUPPRESS_TIP,
@@ -25,8 +26,6 @@ import {
 } from "../../ui";
 import { findTranscriptWord, wordSeekSec } from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
-
-const LOW_CONFIDENCE = 0.7;
 
 export function TranscriptWordInspector({
   trackId,
@@ -63,7 +62,7 @@ export function TranscriptWordInspector({
   const editable = !isShareProjectKey(projectPath);
   const suppressed = Boolean(word?.suppressed);
   const ignored = Boolean(word?.ignored);
-  const lowConf = word?.confidence != null && word.confidence < LOW_CONFIDENCE;
+  const lowConf = word != null && isLowConfidenceWord(word);
 
   const applyText = async () => {
     const endIndex = Number.parseInt(endIndexStr, 10);
