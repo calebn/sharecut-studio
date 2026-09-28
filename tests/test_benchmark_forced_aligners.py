@@ -683,18 +683,21 @@ def test_main_plan_and_download_commands_print_json(capsys) -> None:
 class _FakeAligner:
     """Stands in for ``WordAligner``: same ``.align`` signature, no ONNX runtime."""
 
-    def __init__(self, spans, stats, runtime_sec: float = 0.02) -> None:
+    def __init__(self, spans, stats, runtime_sec: float = 0.02, scores=()) -> None:
         self.model = SimpleNamespace(hf_repo="fake/repo", revision="deadbeef", onnx_file="m.onnx")
         self.calls = 0
         self._spans = spans
         self._stats = stats
         self._runtime_sec = runtime_sec
+        self._scores = scores
 
     def align(self, audio_path, words):
         from podcast_mcp.engines.word_align import WordAlignResult
 
         self.calls += 1
-        return WordAlignResult(list(self._spans), self._stats, self._runtime_sec)
+        return WordAlignResult(
+            list(self._spans), self._stats, self._runtime_sec, tuple(self._scores)
+        )
 
 
 def _retime_stats(**overrides):
@@ -715,6 +718,7 @@ def test_pipeline_prediction_retimes_words_and_drops_zero_duration() -> None:
         spans=[(0.1, 0.3), (0.5, 0.5), (0.6, 0.9)],
         stats=_retime_stats(aligned_words=3),
         runtime_sec=0.02,
+        scores=(0.9, 0.5, 0.004),
     )
 
     output, stats, runtime_sec = bfa.pipeline_prediction(Path("clip.wav"), words, aligner)
@@ -725,6 +729,7 @@ def test_pipeline_prediction_retimes_words_and_drops_zero_duration() -> None:
     assert output[0]["aligned"] is True
     assert output[1]["start"] == pytest.approx(0.6)
     assert output[1]["end"] == pytest.approx(0.9)
+    assert [w["alignment_score"] for w in output] == [0.9, 0.004]
     assert stats["aligned_words"] == 3
     assert stats["dropped_zero_duration"] == 1
     assert runtime_sec == pytest.approx(0.02)
@@ -741,6 +746,7 @@ def test_pipeline_prediction_clamps_unaligned_word_between_aligned_neighbours() 
     aligner = _FakeAligner(
         spans=[(0.1, 0.4), None, (0.5, 0.8)],
         stats=_retime_stats(aligned_words=2, unaligned_words=1),
+        scores=(0.8, None, 0.7),
     )
 
     output, stats, _ = bfa.pipeline_prediction(Path("clip.wav"), words, aligner)
@@ -748,6 +754,7 @@ def test_pipeline_prediction_clamps_unaligned_word_between_aligned_neighbours() 
     b = output[1]
     assert (b["start"], b["end"]) == pytest.approx((0.4, 0.5))
     assert b["aligned"] is False
+    assert output[1]["alignment_score"] is None
     assert stats["unaligned_words"] == 1
     assert stats["dropped_zero_duration"] == 0
 
