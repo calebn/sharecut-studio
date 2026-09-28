@@ -175,7 +175,7 @@ class TranscriptWords(list[TranscriptWord]):
         super().__init__(words)
         self._memo: dict[str, tuple[int, object]] = {}
 
-    def __reduce_ex__(self, protocol: SupportsIndex) -> tuple[Any, ...]:
+    def __reduce_ex__(self, _protocol: SupportsIndex) -> tuple[Any, ...]:
         # deepcopy/pickle rebuild via __init__: no per-item append, so no revision bump.
         return (type(self), (list(self),))
 
