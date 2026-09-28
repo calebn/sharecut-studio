@@ -1,4 +1,5 @@
 import { submitDocumentCommand } from "../api";
+import { clearSupersededCorrectionConflicts } from "../api/documentEdits";
 import { shareProjectKey } from "../shareMode";
 import { isPermanentRejection } from "../utils/apiError";
 import {
@@ -40,7 +41,10 @@ export interface ReplaySource {
  * already recorded it as a conflict and dequeued it before they throw;
  * `drainOfflineQueue.integration.test.ts` pins this. Anything else
  * (transport error, 408 / 429, 5xx, a replay the submit layer left queued)
- * stays queued and stops the pass, so no later edit overtakes it.
+ * stays queued and stops the pass, so no later edit overtakes it. A landed
+ * CorrectTranscriptWord / CorrectTranscriptPhrase also clears earlier
+ * refused corrections of the same word from Needs attention
+ * (clearSupersededCorrectionConflicts), as the live path does.
  */
 export async function replayQueuedCommands(
   source: ReplaySource,
@@ -66,6 +70,12 @@ export async function replayQueuedCommands(
       );
       if (result.queued === true) break;
       completed.push(cmd.command_id);
+      // A landed correction supersedes earlier refusals of the same word (#746).
+      await clearSupersededCorrectionConflicts(
+        source.path,
+        cmd.type,
+        cmd.payload,
+      );
     } catch (error) {
       if (isPermanentRejection(error)) continue;
       break;

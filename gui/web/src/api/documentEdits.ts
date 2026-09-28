@@ -229,7 +229,7 @@ async function submitTranscriptCorrection(
     throw error;
   }
   if (result.queued !== true) {
-    await clearSupersededCorrectionConflicts(projectPath, payload);
+    await clearSupersededCorrectionConflicts(projectPath, type, payload);
   }
 }
 
@@ -238,20 +238,29 @@ function correctionStart(payload: Record<string, unknown>): unknown {
   return payload.word_index ?? payload.start_word_index;
 }
 
+function isTranscriptCorrection(type: string): boolean {
+  return type === "CorrectTranscriptWord" || type === "CorrectTranscriptPhrase";
+}
+
 /**
- * After a transcript correction lands, drop Needs attention entries for
- * earlier refused corrections of the same word (same track and start
- * index), so the banner stops asking the user to redo a correction that
- * has now been made (#746). A failed cleanup never fails the correction;
- * Dismiss all still clears it.
+ * After a transcript correction lands, live (submitTranscriptCorrection) or
+ * replayed from the offline queue (state/drainOfflineQueue.ts
+ * replayQueuedCommands), drop Needs attention entries for earlier refused
+ * corrections of the same word (same track and start index), so the banner
+ * stops asking the user to redo a correction that has now been made (#746);
+ * a no-op for any other command type. A failed cleanup never fails the
+ * correction; Dismiss all still clears it.
  */
-async function clearSupersededCorrectionConflicts(
+export async function clearSupersededCorrectionConflicts(
   projectPath: string,
+  type: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
+  if (!isTranscriptCorrection(type)) {
+    return;
+  }
   const superseded = ({ command }: OfflineConflict) =>
-    (command.type === "CorrectTranscriptWord" ||
-      command.type === "CorrectTranscriptPhrase") &&
+    isTranscriptCorrection(command.type) &&
     command.payload.track_id === payload.track_id &&
     correctionStart(command.payload) === correctionStart(payload);
   const token = shareTokenFromKey(projectPath);
