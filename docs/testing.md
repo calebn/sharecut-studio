@@ -583,7 +583,7 @@ Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 in `recordRoom.ts` and `bouncedWavs` in `gui/web/e2e/exportFiles.ts`),
 `gui/web/e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`) and
 `gui/web/e2e/transcriptEdit.ts` (`openTranscriptPanel`,
-`recordDocumentCommandTypes`) and `gui/web/e2e/launchOptions.ts`
+`withDocumentCommandTypes`) and `gui/web/e2e/launchOptions.ts`
 (`withLaunchArgs`); guest review
 shares come from `createReviewShare` in `gui/web/e2e/shareNavigation.ts`. This
 keeps coverage focused on high-risk entry points without multiplying the

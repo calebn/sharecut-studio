@@ -3,7 +3,7 @@ import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import {
   openTranscriptPanel,
-  recordDocumentCommandTypes,
+  withDocumentCommandTypes,
 } from "./transcriptEdit";
 
 test.describe("Transcript inline word edit", () => {
@@ -18,37 +18,37 @@ test.describe("Transcript inline word edit", () => {
     const original = list
       .getByRole("button", { name: "welcome", exact: true })
       .first();
-    const { types: commands, stop } = recordDocumentCommandTypes(page);
     let committed = false;
     try {
-      await original.dblclick();
-      const input = list.getByRole("textbox", { name: /Correct word/ });
-      await expect(input).toBeFocused();
-      await input.press("Escape");
-      await expect(input).toHaveCount(0);
-      expect(commands).not.toContain("CorrectTranscriptWord");
+      await withDocumentCommandTypes(page, async (commands) => {
+        await original.dblclick();
+        const input = list.getByRole("textbox", { name: /Correct word/ });
+        await expect(input).toBeFocused();
+        await input.press("Escape");
+        await expect(input).toHaveCount(0);
+        expect(commands).not.toContain("CorrectTranscriptWord");
 
-      await original.dblclick();
-      await expect(input).toBeFocused();
-      await expectPageAxeClean(page, ".transcript-panel");
-      await input.fill("Welcome");
-      await input.press("Enter");
-      await expect(
-        list.getByRole("button", { name: "Welcome", exact: true }).first(),
-      ).toBeVisible();
-      committed = true;
-      expect(commands).toContain("CorrectTranscriptWord");
+        await original.dblclick();
+        await expect(input).toBeFocused();
+        await expectPageAxeClean(page, ".transcript-panel");
+        await input.fill("Welcome");
+        await input.press("Enter");
+        await expect(
+          list.getByRole("button", { name: "Welcome", exact: true }).first(),
+        ).toBeVisible();
+        committed = true;
+        expect(commands).toContain("CorrectTranscriptWord");
 
-      await page.keyboard.press("ControlOrMeta+Z");
-      await expect(
-        list.getByRole("button", { name: "welcome", exact: true }).first(),
-      ).toBeVisible();
-      await expect(
-        list.getByRole("button", { name: "Welcome", exact: true }),
-      ).toHaveCount(0);
-      committed = false;
+        await page.keyboard.press("ControlOrMeta+Z");
+        await expect(
+          list.getByRole("button", { name: "welcome", exact: true }).first(),
+        ).toBeVisible();
+        await expect(
+          list.getByRole("button", { name: "Welcome", exact: true }),
+        ).toHaveCount(0);
+        committed = false;
+      });
     } finally {
-      stop();
       if (committed) {
         // Leave the shared live E2E project as later specs expect it.
         await page.request.post(
