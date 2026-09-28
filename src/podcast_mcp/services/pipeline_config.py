@@ -230,10 +230,13 @@ def ensure_whisper_cached_for_run(
     from_step: str | None = None,
     only_step: str | None = None,
     skip_steps: list[str] | None = None,
+    memoize: bool = False,
 ) -> None:
     """Fail fast when selected steps include transcription without weights.
 
     No-op when ``transcribe_tracks`` is not among the steps that would run.
+    ``memoize=True`` is only for Studio's early 409 in the Run route;
+    ``PipelineService.run`` re-checks uncached before its checkpoint.
     """
     from podcast_mcp.pipeline.runner import TRANSCRIBE_STEP, select_pipeline_steps
     from podcast_mcp.whisper_models import ensure_whisper_model_cached
@@ -241,7 +244,7 @@ def ensure_whisper_cached_for_run(
     selected = select_pipeline_steps(from_step, only_step, set(skip_steps or []))
     if TRANSCRIBE_STEP not in {name for name, _ in selected}:
         return
-    ensure_whisper_model_cached(_selected_whisper_model(config))
+    ensure_whisper_model_cached(_selected_whisper_model(config), memoize=memoize)
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
@@ -282,7 +285,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         import faster_whisper  # noqa: F401
 
         model = resolve_whisper_model(requested=whisper_model)
-        problem = whisper_model_problem(model)
+        problem = whisper_model_problem(model, memoize=True)
         if problem is None:
             out["whisper"] = {"ok": True, "model": model}
         elif isinstance(problem, WhisperPinMismatchError):

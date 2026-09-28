@@ -426,7 +426,7 @@ def _build_report_json(
         "ffmpeg": ffmpeg_probe_info(),
         "whisper": {
             "model": model,
-            "cached": whisper_model_is_cached(model),
+            "cached": whisper_model_is_cached(model, memoize=True),
         },
         "gpu": _torch_gpu_flags(),
         "gui_dist_present": _gui_dist_present(),

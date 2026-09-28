@@ -375,9 +375,14 @@ def resolve_whisper_model_path(model: str) -> str:
     return str(path)
 
 
-def whisper_model_problem(model: str) -> WhisperWeightsMissingError | None:
+def whisper_model_problem(
+    model: str, *, memoize: bool = False
+) -> WhisperWeightsMissingError | None:
     """Why ``model`` is not ready to load (never downloads), or None when it is.
-    Pinned sizes must match their manifest (memoised per file for status polls)."""
+
+    Pinned sizes must match their manifest. ``memoize=True`` is for status polls only
+    (see ``util/model_manifest.manifest_mismatch``); the run gate and bootstrap hash fresh.
+    """
     canonical = validate_whisper_model(model)
     pin = WHISPER_PINS.get(canonical)
     if pin is None:
@@ -385,7 +390,9 @@ def whisper_model_problem(model: str) -> WhisperWeightsMissingError | None:
             None if _unpinned_weights_on_disk(canonical) else WhisperWeightsMissingError(canonical)
         )
     try:
-        verify_whisper_snapshot(_pinned_snapshot_dir(canonical, pin), canonical, pin, memoize=True)
+        verify_whisper_snapshot(
+            _pinned_snapshot_dir(canonical, pin), canonical, pin, memoize=memoize
+        )
     except WhisperWeightsMissingError as exc:
         return exc
     except OSError:  # a pinned file vanished mid-check
@@ -393,16 +400,16 @@ def whisper_model_problem(model: str) -> WhisperWeightsMissingError | None:
     return None
 
 
-def whisper_model_is_cached(model: str) -> bool:
+def whisper_model_is_cached(model: str, *, memoize: bool = False) -> bool:
     """True when ``model`` can load offline: a pinned catalog size's snapshot matches its
     manifest; another size has a complete-looking weight file on disk."""
-    return whisper_model_problem(model) is None
+    return whisper_model_problem(model, memoize=memoize) is None
 
 
-def ensure_whisper_model_cached(model: str) -> str:
+def ensure_whisper_model_cached(model: str, *, memoize: bool = False) -> str:
     """Return the canonical model id, or raise if weights are missing or mismatched."""
     canonical = validate_whisper_model(model)
-    problem = whisper_model_problem(canonical)
+    problem = whisper_model_problem(canonical, memoize=memoize)
     if problem is not None:
         raise problem
     return canonical
@@ -454,7 +461,7 @@ def catalog_payload() -> list[dict[str, Any]]:
     return [
         {
             **dict(item),
-            "cached": whisper_model_is_cached(item["id"]),
+            "cached": whisper_model_is_cached(item["id"], memoize=True),
         }
         for item in WHISPER_MODEL_CATALOG
     ]

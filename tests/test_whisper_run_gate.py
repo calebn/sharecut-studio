@@ -262,3 +262,18 @@ def test_selected_whisper_model_uses_yaml_when_prefs_unset(
     )
     assert _selected_whisper_model({"transcribe": {"model": "   "}}) == DEFAULT_WHISPER_MODEL
     assert _selected_whisper_model({"transcribe": "broken"}) == DEFAULT_WHISPER_MODEL
+
+
+def test_ensure_whisper_cached_for_run_forwards_memoize(monkeypatch) -> None:
+    from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
+
+    seen: list[bool] = []
+
+    def fake(model: str, *, memoize: bool = False) -> str:
+        seen.append(memoize)
+        return model
+
+    monkeypatch.setattr("podcast_mcp.whisper_models.ensure_whisper_model_cached", fake)
+    ensure_whisper_cached_for_run(only_step="transcribe_tracks")
+    ensure_whisper_cached_for_run(only_step="transcribe_tracks", memoize=True)
+    assert seen == [False, True]

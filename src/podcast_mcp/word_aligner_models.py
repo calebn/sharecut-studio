@@ -164,17 +164,20 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
         raise WordAlignerMissingError(model.id, exc.detail) from exc
 
 
-def word_aligner_problem(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerMissingError | None:
+def word_aligner_problem(
+    model_id: str = DEFAULT_WORD_ALIGNER, *, memoize: bool = False
+) -> WordAlignerMissingError | None:
     """Why ``model_id`` is not ready (never downloads), or None when it is.
 
-    The pinned snapshot (not an override dir) must match its manifest; that check is
-    memoised per file, so status polls hash the snapshot once per process.
+    The pinned snapshot (not an override dir) must match its manifest. ``memoize=True``
+    (status polls only) hashes an unchanged file once per process; bootstrap's skip check
+    and load hash fresh.
     """
     model = word_aligner_model(model_id)
     try:
         path = resolve_word_aligner_dir(model.id)
         if word_aligner_override_dir() is None:
-            verify_word_aligner_snapshot(path, model, memoize=True)
+            verify_word_aligner_snapshot(path, model, memoize=memoize)
     except WordAlignerMissingError as exc:
         return exc
     except OSError as exc:  # a pinned file vanished mid-check
@@ -182,9 +185,9 @@ def word_aligner_problem(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerMis
     return None
 
 
-def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
+def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER, *, memoize: bool = False) -> bool:
     """A complete local snapshot; the pinned one must also match every file's sha256."""
-    return word_aligner_problem(model_id) is None
+    return word_aligner_problem(model_id, memoize=memoize) is None
 
 
 def bootstrap_word_aligner(

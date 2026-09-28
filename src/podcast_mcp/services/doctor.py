@@ -111,7 +111,7 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", str(exc), err=True))
 
     preferred = resolve_whisper_model()
-    whisper_problem = whisper_model_problem(preferred)
+    whisper_problem = whisper_model_problem(preferred, memoize=True)
     if whisper_problem is None:
         report.checks.append(DoctorCheck("ok", f"whisper model {preferred} cached"))
     elif isinstance(whisper_problem, WhisperPinMismatchError):
@@ -129,7 +129,7 @@ def run_doctor_checks(
             )
         )
 
-    aligner_problem = word_aligner_problem()
+    aligner_problem = word_aligner_problem(memoize=True)
     if isinstance(aligner_problem, WordAlignerPinMismatchError):
         report.checks.append(DoctorCheck("fail", f"word-aligner: {aligner_problem}", err=True))
 

@@ -160,6 +160,7 @@ def pipeline_run(
             from_step=req.from_step,
             only_step=req.only_step,
             skip_steps=skip_steps,
+            memoize=True,  # early 409 only; PipelineService.run re-hashes before its checkpoint
         )
     except WhisperWeightsMissingError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
