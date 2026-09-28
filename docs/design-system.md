@@ -241,9 +241,10 @@ Standalone Canvas stories open their dialogs for visual review. Autodocs
 examples start with launchers so the previews remain independently inspectable
 and closable. Their `play` functions open the dialog with
 `openDialogViaLauncher` (`src/storybook/openDialog.ts`), which clicks the
-launcher only when no dialog is open. They cover an open episode, the
-no-episode warning, the gesture sheet's callback handoff to keyboard
-shortcuts, and a 360px phone viewport without app or network context.
+launcher only when the named dialog is not already open. They cover an
+open episode, the no-episode warning, the gesture sheet's callback handoff
+to keyboard shortcuts, and a 360px phone viewport without app or network
+context.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking

@@ -43,4 +43,24 @@ describe("openDialogViaLauncher", () => {
 
     expect(dialog).toBe(screen.getByRole("dialog", { name: "X" }));
   });
+
+  it("clicks the launcher when a different dialog is already open", async () => {
+    function OtherDialogOpen() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <div role="dialog" aria-label="Other" />
+          <button type="button" onClick={() => setOpen(true)}>
+            Open x
+          </button>
+          {open && <div role="dialog" aria-label="X" />}
+        </>
+      );
+    }
+    const { container } = render(<OtherDialogOpen />);
+
+    const dialog = await openDialogViaLauncher(container, "Open x", "X");
+
+    expect(dialog).toBe(screen.getByRole("dialog", { name: "X" }));
+  });
 });
