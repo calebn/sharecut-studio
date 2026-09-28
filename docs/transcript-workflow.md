@@ -222,7 +222,8 @@ document commands and the `correct_transcript_tool` / `correct_transcript_phrase
 MCP tools take an optional `expected_text` — the word (or space-joined phrase) text the
 caller read at those indices. `EditService.correct_word` / `correct_phrase` check it
 inside the same transaction as the mutation (`edits/transcript_correct.require_word_text`),
-comparing whitespace-collapsed, case-sensitive text; a mismatch means another edit (a
+comparing whitespace-collapsed, case-sensitive text; indices that no longer exist count as
+a mismatch too; a mismatch means another edit (a
 remote host, a guest, or an agent) shifted or changed those words since the caller last
 read them. A document command mismatch is a 409 conflict, same shape as other stale-state
 conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool error. Studio

@@ -339,12 +339,20 @@ def test_transcript_text_changed_error_is_value_error() -> None:
     assert issubclass(TranscriptTextChangedError, ValueError)
 
 
-@pytest.mark.parametrize(("start", "end"), [(5, 5), (2, 1)])
-def test_require_word_text_bad_range_does_not_raise(start: int, end: int) -> None:
+@pytest.mark.parametrize(("start", "end"), [(5, 5), (1, 3)])
+def test_require_word_text_vanished_range_raises(start: int, end: int) -> None:
+    p = _stale_guard_project()
+    with pytest.raises(TranscriptTextChangedError):
+        require_word_text(p, "host", start, end, "anything")
+
+
+def test_require_word_text_unknown_track_raises() -> None:
+    p = _stale_guard_project()
+    with pytest.raises(TranscriptTextChangedError):
+        require_word_text(p, "missing-track", 0, 0, "anything")
+
+
+@pytest.mark.parametrize(("start", "end"), [(2, 1), (-1, 0)])
+def test_require_word_text_malformed_range_does_not_raise(start: int, end: int) -> None:
     p = _stale_guard_project()
     require_word_text(p, "host", start, end, "anything")
-
-
-def test_require_word_text_unknown_track_does_not_raise() -> None:
-    p = _stale_guard_project()
-    require_word_text(p, "missing-track", 0, 0, "anything")
