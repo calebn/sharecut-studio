@@ -220,7 +220,8 @@ viewport without app or network context. Dialog stories share
 `src/test/DialogLauncher.tsx` (launcher button plus open state) and
 `openDialogByLauncher` / `useArgState` from `src/test/storyDialog.ts`, so play
 functions open a dialog the same way and Controls keep driving state the
-preview owns.
+preview owns. A Controls edit to an arg replaces any local change the preview
+made to that value.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
