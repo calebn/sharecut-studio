@@ -343,7 +343,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.view.transcriptAnnotate": {
     label: "Annotate transcript",
     tooltip:
-      "Annotate: show edit boundaries, low-confidence words, unsuppressed words over silence, and cut-away text",
+      "Annotate: show edit boundaries, low-confidence words, unsuppressed words with no matching speech, and cut-away text",
     tooltip_pressed: "Hide annotate marks (clean reading view)",
     toggle: true,
   },
