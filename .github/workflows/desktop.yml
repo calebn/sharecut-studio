@@ -20,6 +20,8 @@ on:
       - "tests/test_review_versions.py"
       - "tests/process_helpers.py"
       - "tests/review_platform.py"
+      - "tests/conftest.py"
+      - "pyproject.toml"
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
@@ -37,6 +39,8 @@ on:
       - "tests/test_review_versions.py"
       - "tests/process_helpers.py"
       - "tests/review_platform.py"
+      - "tests/conftest.py"
+      - "pyproject.toml"
       - ".github/workflows/desktop.yml"
   workflow_dispatch:
 

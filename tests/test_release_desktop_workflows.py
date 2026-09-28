@@ -125,6 +125,8 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
         assert "tests/test_review_versions.py" in paths
         assert "tests/process_helpers.py" in paths
         assert "tests/review_platform.py" in paths
+        assert "tests/conftest.py" in paths
+        assert "pyproject.toml" in paths
 
     job = data["jobs"]["project-commit-lock-windows"]
     assert job["runs-on"] == "windows-latest"
