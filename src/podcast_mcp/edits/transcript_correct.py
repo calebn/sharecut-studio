@@ -85,7 +85,12 @@ def _correct_word(project: EpisodeProject, track_id: str, word_index: int, new_t
     if not has_meaningful_text(new_text):
         raise ValueError("correction text must not be empty")
     w = tr.words[word_index]
-    tr.words[word_index] = w.model_copy(update={"text": new_text, "confidence": 1.0})
+    update: dict[str, object] = {"text": new_text, "confidence": 1.0}
+    if new_text != w.text:
+        # The aligner scored the old text (#195); like correct_phrase's new words, the
+        # corrected word has no score and no flag until the next run re-checks its span.
+        update.update(alignment_score=None, suspect_hallucination=False)
+    tr.words[word_index] = w.model_copy(update=update)
 
 
 def correct_phrase(
