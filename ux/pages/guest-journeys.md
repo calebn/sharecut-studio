@@ -325,7 +325,7 @@ never reported landed; its earlier project registration is rolled back instead. 
 write itself fails, it is saved and retried automatically on the next land, and the track's media is
 moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a Land click) each re-read the saved project first, so neither drops the clips or live comments the other landed.
 
-**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The keeper capture → upload → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix)); Firefox is not covered.
+**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with "Host offline: still recording locally.", and after a long drop the take returns PAUSED until the host resumes. The keeper capture → upload → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix)); Firefox is not covered.
 
 ---
 
