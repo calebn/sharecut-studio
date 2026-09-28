@@ -932,6 +932,14 @@ describe("PipelinePanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("names a message-less Analyze progress bar Analyze progress", async () => {
+    dawState.activityJob = analyzeJobSnap({ message: null });
+    render(<PipelinePanel />);
+    expect(
+      await screen.findByRole("progressbar", { name: "Analyze progress" }),
+    ).toHaveAttribute("aria-valuenow", "50");
+  });
+
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);

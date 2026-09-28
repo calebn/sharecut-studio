@@ -1074,7 +1074,10 @@ export function PipelinePanel() {
               aria-valuemin={0}
               aria-valuenow={pct}
               aria-valuemax={100}
-              aria-label={job.message ?? "Pipeline progress"}
+              aria-label={
+                job.message ??
+                (analyzeJob ? "Analyze progress" : "Pipeline progress")
+              }
             >
               <div className="pipeline-bar-fill" style={{ width: `${pct}%` }} />
             </div>
