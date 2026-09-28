@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import html
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -40,6 +42,7 @@ from podcast_mcp.gui.routes.deps import require_host
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
 from podcast_mcp.gui.validation_errors import format_validation_errors
+from podcast_mcp.services.cross_process_sync import cross_process_bridge
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
 
@@ -180,6 +183,17 @@ def _project_mismatch_page(request: Request, served: Path) -> HTMLResponse:
     )
 
 
+@asynccontextmanager
+async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Run the host MCP session manager for the app's life, then stop the
+    cross-process watchers on shutdown (#695)."""
+    try:
+        async with host_mcp_lifespan(app):
+            yield
+    finally:
+        cross_process_bridge().stop_all()
+
+
 def create_app(
     *,
     static_dir: Path | None = None,
@@ -211,7 +225,7 @@ def create_app(
         docs_url="/docs" if enable_openapi else None,
         redoc_url="/redoc" if enable_openapi else None,
         openapi_url="/openapi.json" if enable_openapi else None,
-        lifespan=host_mcp_lifespan,
+        lifespan=_gui_lifespan,
     )
     app.state.jobs = jobs
     app.state.bootstrap_jobs = bootstrap_jobs
