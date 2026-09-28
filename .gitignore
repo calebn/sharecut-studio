@@ -38,6 +38,7 @@ htmlcov/
 .ruff_cache/
 .cursor/
 .DS_Store
+*.orig
 gui/desktop/node_modules/
 gui/desktop/src-tauri/target/
 gui/desktop/src-tauri/gen/
