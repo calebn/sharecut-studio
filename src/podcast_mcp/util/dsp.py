@@ -78,7 +78,11 @@ def frame_rms_db_stream(
     """:func:`frame_rms_db` over a forward-only chunk stream.
 
     Same frames and values as on the concatenated samples, holding one chunk plus
-    fewer than ``frame`` carried samples.
+    fewer than ``frame`` carried samples. The carry-buffer loop has the same shape as
+    ``engines.asr_silence.peak_envelope`` and ``engines.waveform_pyramid.build_levels``;
+    the reductions differ (overlapping RMS frames, block max, min/max/sum-of-squares
+    bins), so they stay separate. If a fourth streaming reducer appears, fold all of
+    them into one shared ``util.dsp`` helper instead of adding another copy.
     """
     if frame <= 0 or hop <= 0:
         return np.empty(0, dtype=np.float64)
