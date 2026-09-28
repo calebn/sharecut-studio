@@ -58,7 +58,6 @@ export {
   setTranscriptWordsIgnored,
   splitAtTime,
   submitDocumentCommand,
-  suggestPendingEdit,
   trimClipEdge,
   undoHistory,
   updateChapter,
