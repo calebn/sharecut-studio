@@ -1506,6 +1506,34 @@ def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
     assert "1 reused track(s) not re-timed (Re-transcribe to re-time)" in summary
 
 
+@pytest.mark.parametrize(
+    "asr",
+    [
+        pytest.param({"language": "de"}, id="unsupported-language"),
+        pytest.param({"words": []}, id="no-words"),
+    ],
+)
+def test_transcribe_tracks_flag_on_skips_reused_tracks_the_aligner_cannot_place(
+    minimal_project, sample_wav, tmp_workspace, asr
+):
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    fields = {"words": [TranscriptWord(text="teh", start=0.0, end=0.5)], **asr}
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=Transcript(track_id="", **fields)):
+        steps.transcribe_tracks(proj, load_defaults())
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        summary = steps.transcribe_tracks(proj, defaults)
+    eng_cls.assert_not_called()
+    assert "0 transcribed, 1 reused" in summary
+    assert "not re-timed" not in summary
+
+
 def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
     minimal_project, sample_wav, tmp_workspace
 ):

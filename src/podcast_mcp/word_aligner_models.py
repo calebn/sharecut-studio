@@ -44,6 +44,10 @@ class WordAlignerModel:
     def allow_patterns(self) -> list[str]:
         return ["vocab.json", "config.json", "preprocessor_config.json", self.onnx_file]
 
+    def supports_language(self, language: str | None) -> bool:
+        """True when this aligner can re-time a transcript in ``language`` (None means English)."""
+        return (language or "en") in self.languages
+
 
 WORD_ALIGNER_CATALOG: tuple[WordAlignerModel, ...] = (
     WordAlignerModel(
