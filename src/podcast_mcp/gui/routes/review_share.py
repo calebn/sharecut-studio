@@ -984,6 +984,9 @@ async def daw_ws(
                 )
                 seq, guard.malformed = result.seq, result.malformed
                 if result.reply is not None:
+                    # Sent directly, not via the hub queue: order vs hub frames is not
+                    # guaranteed; clients drop a full Presence older than their roster
+                    # version (presenceFrames.ts).
                     await guard.send_json(result.reply)
                 if guard.malformed > GUEST_MALFORMED_LIMIT:
                     await guard.close(4400, "too many malformed frames")
