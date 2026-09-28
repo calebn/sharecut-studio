@@ -58,7 +58,9 @@ export async function submitWordCorrection(
  * index regardless of how many words the correction text contains. A phrase
  * fix's new end index comes from the token count of the applied text,
  * matching the backend's `_correct_phrase`, which re-indexes by
- * `new_text.split()`.
+ * `new_text.split()`. The inspector uses this only to predict the End index;
+ * it reads the baseline text back from the store after the host's result
+ * lands.
  */
 export function appliedCorrectionSpan(
   startWordIndex: number,
