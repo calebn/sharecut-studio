@@ -40,6 +40,7 @@ import {
 } from "../ui";
 import { audioErrorLabel } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
+import { joinSentences } from "../utils/format";
 import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
@@ -188,9 +189,7 @@ export function TransportBar({
   const refreshHint = mayRefresh
     ? `Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : null;
-  const staleTitle = [breakdown?.summary, refreshHint]
-    .filter(Boolean)
-    .join(". ");
+  const staleTitle = joinSentences([breakdown?.summary, refreshHint]);
   // The wide-bar pill reads just MIX_STALE_LABEL so the transport fits at
   // 1280px; the refresh verb lives in its title, name, Mod+B and the
   // collapsed Menu item. Name starts with the visible text (WCAG 2.5.3).
@@ -202,9 +201,7 @@ export function TransportBar({
       : null;
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
-    : `${[MIX_STALE_LABEL, staleCause, mayRefresh ? "Refresh mix" : null]
-        .filter(Boolean)
-        .join(". ")}.`;
+    : `${joinSentences([MIX_STALE_LABEL, staleCause, mayRefresh ? "Refresh mix" : null])}.`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };

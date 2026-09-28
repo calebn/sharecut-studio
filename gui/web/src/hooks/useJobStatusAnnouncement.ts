@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { joinSentences } from "../utils/format";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import {
   pipelineKindLabel,
@@ -95,7 +96,7 @@ export function useJobStatusAnnouncement(): void {
     }
     // One write: `statusAnnouncement` is a single field, so one write per
     // result would keep only the last.
-    announceStatus(messages.join(". "));
+    announceStatus(joinSentences(messages));
     markJobResultsSpoken(readyIds);
   }, [
     announceStatus,

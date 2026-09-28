@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capitalize, overflowLabel, plural } from "./format";
+import { capitalize, joinSentences, overflowLabel, plural } from "./format";
 
 describe("plural", () => {
   it("returns the singular form when count is 1", () => {
@@ -28,5 +28,15 @@ describe("capitalize", () => {
   it("upper-cases the first character", () => {
     expect(capitalize("medium")).toBe("Medium");
     expect(capitalize("")).toBe("");
+  });
+});
+
+describe("joinSentences", () => {
+  it("joins non-empty parts with period-space", () => {
+    expect(joinSentences(["A", "B"])).toBe("A. B");
+  });
+  it("drops empty, null, undefined and false parts", () => {
+    expect(joinSentences(["A", "", null, undefined, false, "B"])).toBe("A. B");
+    expect(joinSentences([])).toBe("");
   });
 });
