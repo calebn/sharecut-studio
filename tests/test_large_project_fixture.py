@@ -274,7 +274,18 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     assert project.timeline.clips[0].fade_in_ms == 10
 
 
-def test_large_project_fixture_history_prunes_cleanly_past_the_cap(tmp_path, caplog):
+@pytest.mark.parametrize(
+    ("extra_pairs", "cursor_back", "expected_pruned"),
+    [
+        pytest.param(1, 0, 2, id="one-pair-over-cursor-at-end"),
+        pytest.param(3, 0, 6, id="three-pairs-over-cursor-at-end"),
+        pytest.param(1, 1, 2, id="one-pair-over-redo-pending"),
+        pytest.param(1, 400, 0, id="deep-undo-keeps-pairs-whole"),
+    ],
+)
+def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
+    tmp_path, caplog, extra_pairs, cursor_back, expected_pruned
+):
     from podcast_mcp.project_store import ProjectStore
 
     builder = _load_fixture_builder()
@@ -290,23 +301,37 @@ def test_large_project_fixture_history_prunes_cleanly_past_the_cap(tmp_path, cap
     history = project.history
     assert len(history.entries) == HISTORY_ENTRY_LIMIT
 
-    oldest_pair_ids = {history.entries[0].id, history.entries[1].id}
     last_before, last_after = history.entries[-2], history.entries[-1]
-    next_id = len(history.entries)
-    new_before = last_before.model_copy(update={"id": f"{next_id:012x}"})
-    new_after = last_after.model_copy(update={"id": f"{next_id + 1:012x}"})
-    history.entries = [*history.entries, new_before, new_after]
-    history.cursor = len(history.entries) - 1
+    extra = []
+    for _ in range(extra_pairs):
+        next_id = len(history.entries) + len(extra)
+        extra.append(last_before.model_copy(update={"id": f"{next_id:012x}"}))
+        extra.append(last_after.model_copy(update={"id": f"{next_id + 1:012x}"}))
+    history.entries = [*history.entries, *extra]
+    history.cursor = len(history.entries) - 1 - cursor_back
+    cursor_id = history.entries[history.cursor].id
+    original_ids = [e.id for e in history.entries]
+
+    # ProjectStore deletes a pruned entry's snapshot by its id (snapshots/<id>.json),
+    # never by entry.snapshot_file; the fixture's shared benchmark-*.json files rely
+    # on that. Give the oldest entries their own id-named files so the test sees the
+    # real delete path remove exactly the pruned ones.
+    snapshots_dir = project_path.parent / "history" / "snapshots"
+    shared = (snapshots_dir / "benchmark-base.json").read_bytes()
+    owned_ids = original_ids[: 2 * extra_pairs + 2]
+    for entry_id in owned_ids:
+        (snapshots_dir / f"{entry_id}.json").write_bytes(shared)
 
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.project_store"):
         store.commit(project)
     assert not any("Skipping" in record.message for record in caplog.records)
 
     reloaded = store.load()
-    assert len(reloaded.history.entries) == HISTORY_ENTRY_LIMIT
-    assert oldest_pair_ids.isdisjoint({e.id for e in reloaded.history.entries})
-
-    snapshots_dir = project_path.parent / "history" / "snapshots"
+    kept_ids = [e.id for e in reloaded.history.entries]
+    assert kept_ids == original_ids[expected_pruned:]
+    assert reloaded.history.entries[reloaded.history.cursor].id == cursor_id
+    for entry_id in owned_ids:
+        assert (snapshots_dir / f"{entry_id}.json").is_file() == (entry_id in kept_ids)
     assert (snapshots_dir / "benchmark-base.json").is_file()
     assert (snapshots_dir / "benchmark-faded.json").is_file()
 
