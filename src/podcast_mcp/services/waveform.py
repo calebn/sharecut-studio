@@ -28,7 +28,7 @@ import wave
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from threading import BoundedSemaphore, Lock
+from threading import Lock
 from typing import Any, Literal, TypeVar, cast
 
 from podcast_mcp.engines.waveform_media import (
@@ -61,6 +61,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
 from podcast_mcp.util.project_state import FileRevision, file_revision
+from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from podcast_mcp.util.timeline_zoom import (
     max_tiles_per_request,
     pcm_block_frames,
@@ -68,7 +69,6 @@ from podcast_mcp.util.timeline_zoom import (
 )
 
 __all__ = [
-    "PCM_BUSY_RETRY_AFTER_SEC",
     "PCM_DECODE_MAX_CONCURRENT",
     "MediaEntry",
     "MediaIndex",
@@ -99,7 +99,6 @@ _INDEX_MAX = 16
 _META_MAX = 256
 _PCM_MAX = 32  # decoded compressed blocks; each at most pcm_block_frames * 4 bytes (256 KiB)
 PCM_DECODE_MAX_CONCURRENT = 4  # the host viewer's fetchLimit, so one tab never trips it
-PCM_BUSY_RETRY_AFTER_SEC = 1
 GC_MIN_AGE_SEC = 7 * 86_400.0
 
 log = logging.getLogger(__name__)
@@ -115,6 +114,10 @@ class WaveformDecodeError(LookupError):
 
 class WaveformBusyError(RuntimeError):
     """Every compressed-media PCM decode slot is taken (HTTP 503 with ``Retry-After``)."""
+
+    def __init__(self, decision: RateLimitDecision) -> None:
+        super().__init__("waveform decoder busy")
+        self.retry_after = decision.retry_after_header
 
 
 _WatchSig = tuple[tuple[int, int] | None, ...]
@@ -136,7 +139,8 @@ _META: OrderedDict[tuple[str, str], PyramidMeta] = OrderedDict()
 _META_LOCK = Lock()
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
-_PCM_DECODES = BoundedSemaphore(PCM_DECODE_MAX_CONCURRENT)
+_PCM_DECODES = ConcurrencyGate(limit=PCM_DECODE_MAX_CONCURRENT, bucket_name="pcm_decode")
+_PCM_GATE_KEY = "host"  # the gate is keyed; the decode budget is one process-wide key
 _PcmKey = tuple[str, str, int]  # (media path, pyramid key, block)
 _PCM: OrderedDict[_PcmKey, bytes] = OrderedDict()
 _PCM_LOCK = Lock()
@@ -406,12 +410,13 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
         hit = _lru_get(_PCM, cache_key)
     if hit is not None:  # the key was checked live above; a hit never needs a slot
         return hit
-    if not _PCM_DECODES.acquire(blocking=False):
-        raise WaveformBusyError("waveform decoder busy")
+    decision = _PCM_DECODES.try_enter(_PCM_GATE_KEY)
+    if not decision.allowed:
+        raise WaveformBusyError(decision)
     try:
         body = _read_pcm_bytes(entry, key, meta, start, frames)
     finally:
-        _PCM_DECODES.release()
+        _PCM_DECODES.exit(_PCM_GATE_KEY)
     with _PCM_LOCK:
         _lru_put(_PCM, cache_key, body, _PCM_MAX)
     return body
