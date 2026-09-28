@@ -536,6 +536,115 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.meta.hydration?.transcript_words).toBe(true);
   });
 
+  it("refuses the word overlay when a row's suppressed_only flag flips", () => {
+    const utterance = {
+      track_id: "guest",
+      speaker: "guest",
+      start: 0.1,
+      end: 0.6,
+      text: "um uh",
+      timeline_start: 0.1,
+      timeline_end: 0.6,
+    };
+    const words = [
+      {
+        text: "um",
+        start: 0.1,
+        end: 0.3,
+        timeline_start: 0.1,
+        suppressed: true,
+        word_index: 0,
+      },
+      {
+        text: "uh",
+        start: 0.4,
+        end: 0.6,
+        timeline_start: 0.4,
+        suppressed: true,
+        word_index: 1,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [{ ...utterance, words, suppressed_only: true }],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        // The row is no longer suppressed_only (a word was unsuppressed
+        // elsewhere) while sharing the same track/start/end/text key (#758).
+        utterances: [{ ...utterance }],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  it("keeps the word overlay for a matching suppressed-only row", () => {
+    const utterance = {
+      track_id: "guest",
+      speaker: "guest",
+      start: 0.1,
+      end: 0.6,
+      text: "um uh",
+      timeline_start: 0.1,
+      timeline_end: 0.6,
+      suppressed_only: true,
+    };
+    const words = [
+      {
+        text: "um",
+        start: 0.1,
+        end: 0.3,
+        timeline_start: 0.1,
+        suppressed: true,
+        word_index: 0,
+      },
+      {
+        text: "uh",
+        start: 0.4,
+        end: 0.6,
+        timeline_start: 0.4,
+        suppressed: true,
+        word_index: 1,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [{ ...utterance, words }],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [{ ...utterance }],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toHaveLength(2);
+    expect(next?.meta.hydration?.transcript_words).toBe(true);
+  });
+
   it("refetches DETAIL when a neighbour's removal and restore move edge-suppressed attachments", () => {
     const meta = (transcriptWords: boolean) => ({
       name: "Test",

@@ -99,4 +99,10 @@ describe("transcriptActiveKey", () => {
     expect(active.utterances.size).toBe(0);
     expect(active.words.size).toBe(0);
   });
+
+  it("skips suppressed-only rows", () => {
+    const rows = [utt(0, 2, [[0, 1]], { suppressed_only: true })];
+    const index = buildTranscriptActiveIndex(rows);
+    expect(transcriptActiveKey(index, 0.5)).toBe("|");
+  });
 });

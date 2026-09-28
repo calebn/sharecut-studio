@@ -52,3 +52,10 @@ export const TRANSCRIPT_EDIT_BOUNDARY_TIP = "Edit boundary glyph (Annotate)";
 /** Title on a cut-away word chip (Annotate + Show cut-away). */
 export const TRANSCRIPT_CUT_AWAY_WORD_TIP =
   "Cut away: not in the mix · drag nearby boundary to restore";
+
+/** Note shown next to the speaker label on a suppressed-only turn (#758). */
+export const TRANSCRIPT_SUPPRESSED_ONLY_NOTE = "all suppressed";
+
+/** Title/tooltip on a suppressed-only turn or chip (#758). */
+export const TRANSCRIPT_SUPPRESSED_ONLY_TIP =
+  "Every word on this track is suppressed from the transcript text (audio unchanged). Correct → Unsuppress puts a word back.";

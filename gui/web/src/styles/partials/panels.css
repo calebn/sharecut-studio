@@ -376,6 +376,15 @@
   color: var(--color-text-unmapped);
 }
 
+.utterance-turn.suppressed-only,
+.utterance-seg.suppressed-only {
+  color: var(--color-text-unmapped);
+}
+
+.utterance-note {
+  color: var(--text-dim);
+}
+
 .utterance-word {
   /* Inline text targets (WCAG 2.5.8 inline exception): no forced box, so
      short words keep natural word spacing. */

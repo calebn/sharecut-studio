@@ -151,6 +151,14 @@ function sameEdgeSuppressedWords(
   );
 }
 
+/** Same suppressed_only flag on both utterance rows (#758). */
+function sameSuppressedOnly(
+  a: CombinedUtterance,
+  b: CombinedUtterance,
+): boolean {
+  return Boolean(a.suppressed_only) === Boolean(b.suppressed_only);
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
@@ -174,7 +182,8 @@ function overlayTranscriptWords(
       !prior?.words ||
       prior.text !== utterance.text ||
       !sameIgnoredWords(prior, utterance) ||
-      !sameEdgeSuppressedWords(prior, utterance)
+      !sameEdgeSuppressedWords(prior, utterance) ||
+      !sameSuppressedOnly(prior, utterance)
     ) {
       complete = false;
       return utterance;

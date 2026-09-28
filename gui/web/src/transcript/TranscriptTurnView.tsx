@@ -3,6 +3,10 @@ import type { VirtualRowSlotProps } from "../hooks/useVirtualRows";
 import type { TranscriptWordView } from "../types/project";
 import { HALLUCINATION_WARNING } from "./hallucinationWarning";
 import { PROMINENT_NOTE } from "./prominence";
+import {
+  TRANSCRIPT_SUPPRESSED_ONLY_NOTE,
+  TRANSCRIPT_SUPPRESSED_ONLY_TIP,
+} from "./transcriptModeCopy";
 
 export type TranscriptTurnWord = {
   word: TranscriptWordView;
@@ -36,6 +40,8 @@ export type TranscriptTurnSegment = {
   key: string;
   active?: boolean;
   unmapped?: boolean;
+  /** All utterances in this segment are suppressed-only rows (#758). */
+  suppressedOnly?: boolean;
   activeRef?: Ref<HTMLElement>;
   words: readonly TranscriptTurnWord[];
 };
@@ -47,6 +53,8 @@ export type TranscriptTurnViewProps = {
   onSeek?: () => void;
   active?: boolean;
   unmapped?: boolean;
+  /** Every utterance in this turn is a suppressed-only row (#758). */
+  suppressedOnly?: boolean;
   turnIndex?: number;
   anchorProps?: Record<string, string>;
   slotProps?: VirtualRowSlotProps;
@@ -62,6 +70,7 @@ export function TranscriptTurnView({
   onSeek,
   active,
   unmapped,
+  suppressedOnly,
   turnIndex,
   anchorProps,
   slotProps,
@@ -70,7 +79,7 @@ export function TranscriptTurnView({
 }: TranscriptTurnViewProps) {
   return (
     <div
-      className={`utterance-turn${active ? " active" : ""}${unmapped ? " unmapped" : ""}`}
+      className={`utterance-turn${active ? " active" : ""}${unmapped ? " unmapped" : ""}${suppressedOnly ? " suppressed-only" : ""}`}
       {...slotProps}
       data-turn-index={turnIndex}
       {...anchorProps}
@@ -91,12 +100,20 @@ export function TranscriptTurnView({
           <span className="utterance-time">[{labelSec.toFixed(1)}s]</span>
         </>
       )}{" "}
+      {suppressedOnly ? (
+        <span className="utterance-note" title={TRANSCRIPT_SUPPRESSED_ONLY_TIP}>
+          ({TRANSCRIPT_SUPPRESSED_ONLY_NOTE}){" "}
+        </span>
+      ) : null}
       {boundaryBefore}
       {segments.map((segment, segmentIndex) => (
         <span
           key={segment.key}
           ref={segment.activeRef}
-          className={`utterance-seg${segment.active ? " active" : ""}${segment.unmapped ? " unmapped" : ""}`}
+          className={`utterance-seg${segment.active ? " active" : ""}${segment.unmapped ? " unmapped" : ""}${segment.suppressedOnly ? " suppressed-only" : ""}`}
+          title={
+            segment.suppressedOnly ? TRANSCRIPT_SUPPRESSED_ONLY_TIP : undefined
+          }
         >
           {segmentIndex > 0 ? " " : ""}
           {segment.words.map((item, wordIndex) => {

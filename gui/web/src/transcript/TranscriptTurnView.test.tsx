@@ -110,6 +110,45 @@ describe("TranscriptTurnView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("dims a suppressed-only turn and notes it (#758)", async () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          suppressedOnly
+          segments={[
+            {
+              key: "guest-758",
+              suppressedOnly: true,
+              words: [
+                {
+                  word: {
+                    text: "um",
+                    start: 0,
+                    end: 0.2,
+                    word_index: 0,
+                    suppressed: true,
+                  },
+                  trackId: "guest",
+                },
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    expect(
+      container.querySelector(".utterance-turn.suppressed-only"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(".utterance-seg.suppressed-only"),
+    ).toHaveTextContent("um");
+    expect(container.querySelector(".utterance-note")).toHaveTextContent(
+      "all suppressed",
+    );
+    await expectNoA11yViolations(container);
+  });
+
   it("renders a word's editor slot instead of its chip", () => {
     const { container, queryByRole, getByLabelText } = render(
       <main>
