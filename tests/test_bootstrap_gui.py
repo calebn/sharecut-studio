@@ -79,6 +79,34 @@ def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
     assert component["hint"] == "boom"
 
 
+def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    def raise_runtime_error(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(boot, "whisper_model_problem", raise_runtime_error)
+    assert boot.whisper_component("small.en") == {
+        "ok": False,
+        "model": "small.en",
+        "hint": "boom",
+        "bootstrap": boot.WHISPER_BOOTSTRAP,
+    }
+
+
+def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.whisper_models import WhisperWeightsMissingError
+
+    monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
+    component = boot.whisper_component("small.en")
+    assert component["ok"] is False
+    assert "pin_mismatch" not in component
+    assert component["bootstrap"] == boot.WHISPER_BOOTSTRAP
+    assert "is not downloaded" in component["hint"]
+    assert "--whisper-model small.en" in component["hint"]
+
+
 def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
