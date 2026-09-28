@@ -1,6 +1,15 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+function source(relative: string): string {
+  return readFileSync(join(here, relative), "utf8");
+}
 
 type DecoratorArgs = Parameters<typeof timelineLaneStoryDecorator>;
 
@@ -66,10 +75,26 @@ describe("timelineLaneStoryDecorator", () => {
     const first = main.firstElementChild as HTMLElement;
     expect(first.hasAttribute("data-story-ruler-room")).toBe(true);
     expect(first.getAttribute("aria-hidden")).toBe("true");
+    expect(first.style.height).toBe("var(--ruler-height)");
     const laneRow = main.querySelector(".lane-row");
     expect(
       first.compareDocumentPosition(laneRow!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("loads a positive --ruler-height into the Storybook preview", () => {
+    expect(source("../../.storybook/preview.ts")).toContain(
+      'import "../src/styles/daw.css";',
+    );
+    expect(source("../styles/daw.css")).toContain('@import "./theme.css";');
+    expect(source("../styles/theme.css")).toContain(
+      '@import "./theme/tokens.css";',
+    );
+    const match = source("../styles/theme/tokens.css").match(
+      /--ruler-height:\s*(\d+(?:\.\d+)?)(px|rem)\s*;/,
+    );
+    expect(match).not.toBeNull();
+    expect(Number(match![1])).toBeGreaterThan(0);
   });
 });

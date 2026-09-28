@@ -109,9 +109,12 @@ export const PlayheadAndCursor: Story = {
     await expect(
       canvasElement.querySelector(".presence-playhead-chip"),
     ).not.toBeNull();
-    await expect(
-      canvasElement.querySelector("[data-story-ruler-room]"),
-    ).not.toBeNull();
+    const rulerRoom = canvasElement.querySelector(
+      "[data-story-ruler-room]",
+    ) as HTMLElement | null;
+    await expect(rulerRoom).not.toBeNull();
+    // Sized by the live ruler token so the chip above the first lane shows.
+    await expect(rulerRoom?.style.height).toBe("var(--ruler-height)");
   },
 };
 
