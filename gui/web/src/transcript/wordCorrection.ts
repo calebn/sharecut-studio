@@ -58,9 +58,19 @@ export interface CorrectionSpan {
   text: string;
 }
 
-/** One successful Apply: the guarded span it replaced and the span it wrote. */
+/**
+ * The span an Apply replaced. `text` is null when that Apply went out
+ * unguarded because the span was unverified (#650): a word not loaded, a
+ * disagreeing duplicate, or a baseline the store did not read back (#746).
+ */
+export interface ReplacedSpan {
+  endWordIndex: number;
+  text: string | null;
+}
+
+/** One successful Apply: the span it replaced (text null if it was sent unguarded) and the span it wrote. */
 export interface AppliedCorrection {
-  before: CorrectionSpan;
+  before: ReplacedSpan;
   after: CorrectionSpan;
 }
 
@@ -99,22 +109,27 @@ export function appliedCorrectionSpan(
  * `before`, it returns `before` (Undo); the reverse returns `after` (Redo).
  * Returns null when `current` still matches the words, or when they changed
  * to anything else, so a peer's edit still fails the stale-text guard.
+ * When that Apply was sent unguarded (before.text null), any move away from
+ * its after returns that unverified before, so the next Apply sends no text
+ * (the hint under Apply shows) instead of a stale baseline.
  */
 export function reconciledCorrectionBaseline(
   texts: TrackWordTexts,
   startWordIndex: number,
   current: CorrectionSpan,
   applied: readonly AppliedCorrection[],
-): CorrectionSpan | null {
-  const reads = (span: CorrectionSpan) =>
+): ReplacedSpan | null {
+  const reads = (span: ReplacedSpan) =>
     spanTextFromIndex(texts, startWordIndex, span.endWordIndex) === span.text;
-  const same = (a: CorrectionSpan, b: CorrectionSpan) =>
+  const same = (a: ReplacedSpan, b: ReplacedSpan) =>
     a.endWordIndex === b.endWordIndex && a.text === b.text;
   if (reads(current)) {
     return null;
   }
   for (const { before, after } of [...applied].reverse()) {
-    if (same(current, after) && reads(before)) {
+    // An Apply sent unguarded has no text to check its Undo against: once
+    // the words leave what it wrote, go back to sending none, as before it.
+    if (same(current, after) && (before.text == null || reads(before))) {
       return before;
     }
     if (same(current, before) && reads(after)) {

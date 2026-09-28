@@ -170,4 +170,21 @@ describe("reconciledCorrectionBaseline", () => {
       ]),
     ).toEqual(before);
   });
+
+  it("an Undo of an Apply sent unguarded returns its unverified before", () => {
+    const unverified = { endWordIndex: 0, text: null };
+    expect(
+      reconciledCorrectionBaseline(texts(["hello"]), 0, b, [
+        { before: unverified, after: b },
+      ]),
+    ).toEqual(unverified);
+  });
+
+  it("keeps an unguarded Apply's after while the words still read it", () => {
+    expect(
+      reconciledCorrectionBaseline(texts(["Hello"]), 0, b, [
+        { before: { endWordIndex: 0, text: null }, after: b },
+      ]),
+    ).toBeNull();
+  });
 });

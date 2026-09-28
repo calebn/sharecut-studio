@@ -118,7 +118,8 @@ export function TranscriptWordInspector({
 
   // Each successful Apply as (span it replaced, span it wrote), so an Undo
   // or Redo of our own correction moves the baseline with the words instead
-  // of failing the next Apply with a 409 that blames someone else (#746).
+  // of failing the next Apply with a 409 that blames someone else (#746). An
+  // Apply sent unguarded is recorded with a null before text.
   const [appliedCorrections, setAppliedCorrections] = useState<
     readonly AppliedCorrection[]
   >([]);
@@ -220,7 +221,7 @@ export function TranscriptWordInspector({
       const baseline = stored === applied.text ? stored : null;
       setEndIndexStr(String(applied.endWordIndex));
       setExpectedText(baseline);
-      if (expectedText != null && baseline != null) {
+      if (baseline != null) {
         const before = { endWordIndex: endIndex, text: expectedText };
         const after = { endWordIndex: applied.endWordIndex, text: baseline };
         setAppliedCorrections((prev) =>
