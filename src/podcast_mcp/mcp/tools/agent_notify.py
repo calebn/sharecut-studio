@@ -21,7 +21,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 def agent_mutated(project: str | Path | ProjectWorkspace) -> None:
     """Journal a seq-advancing ``ExternalMutate`` row and fan out a SHELL ProjectView to
-    host Sharecut Studio tabs after an MCP/CLI mutate (#661)."""
+    host Sharecut Studio tabs after an MCP mutate (#661)."""
     after_agent_mutation(project)
 
 
