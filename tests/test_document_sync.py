@@ -1500,7 +1500,7 @@ def test_document_set_track_media_rejects_path_escape(minimal_project, sample_wa
         )
 
 
-def test_submit_snapshot_dump_falls_back_to_shell(minimal_project, monkeypatch):
+def test_submit_snapshot_dump_falls_back_to_shell(minimal_project, monkeypatch, caplog):
     svc = DocumentSyncService.open(minimal_project)
     n = {"i": 0}
     orig = DocumentSyncService.document_snapshot
@@ -1512,40 +1512,44 @@ def test_submit_snapshot_dump_falls_back_to_shell(minimal_project, monkeypatch):
         return orig(self, projection=projection)
 
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", flaky)
-    result = svc.submit(
-        DocumentCommand(
-            type="AddComment",
-            payload={"body": "note", "author": "a", "timeline_start": 1.0},
-            client_id="c-dump",
-            role="viewer",
-            client_seq=1,
+    with caplog.at_level(logging.WARNING):
+        result = svc.submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": "note", "author": "a", "timeline_start": 1.0},
+                client_id="c-dump",
+                role="viewer",
+                client_seq=1,
+            )
         )
-    )
     assert result["ok"]
     assert "project" in result["snapshot"]
     assert result["snapshot"]["comments"][0]["body"] == "note"
+    assert "falling back to shell" in caplog.text
 
 
-def test_submit_snapshot_dump_tags_resync_when_shell_fails(minimal_project, monkeypatch):
+def test_submit_snapshot_dump_tags_resync_when_shell_fails(minimal_project, monkeypatch, caplog):
     svc = DocumentSyncService.open(minimal_project)
 
     def boom(self, *, projection="shell"):
         raise RuntimeError("dump failed")
 
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", boom)
-    result = svc.submit(
-        DocumentCommand(
-            type="AddComment",
-            payload={"body": "note", "author": "a", "timeline_start": 1.0},
-            client_id="c-resync",
-            role="viewer",
-            client_seq=1,
+    with caplog.at_level(logging.WARNING):
+        result = svc.submit(
+            DocumentCommand(
+                type="AddComment",
+                payload={"body": "note", "author": "a", "timeline_start": 1.0},
+                client_id="c-resync",
+                role="viewer",
+                client_seq=1,
+            )
         )
-    )
     assert result["ok"]
     assert result["snapshot"]["resync"] is True
     assert int(result["snapshot"]["server_seq"]) >= 1
     assert result["command"]["payload"]["body"] == "note"
+    assert "sending resync" in caplog.text
 
 
 def _set_envelope_command(expected, *, points=None, client_id="viewer"):

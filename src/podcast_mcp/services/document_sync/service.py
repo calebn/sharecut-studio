@@ -302,9 +302,20 @@ class DocumentSyncService:
         try:
             return self.document_snapshot(projection=projection)
         except Exception:
+            log.warning(
+                "Document %s snapshot failed at server_seq %d; falling back to shell",
+                projection,
+                server_seq,
+                exc_info=True,
+            )
             try:
                 return self.document_snapshot(projection="shell")
             except Exception:
+                log.warning(
+                    "Document shell snapshot failed at server_seq %d; sending resync",
+                    server_seq,
+                    exc_info=True,
+                )
                 return {"server_seq": server_seq, "resync": True}
 
     def _publish_applied(self, row: dict[str, Any], api_snap: dict[str, Any]) -> dict[str, Any]:
