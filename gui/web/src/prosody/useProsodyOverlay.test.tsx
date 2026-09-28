@@ -13,6 +13,22 @@ const { useProsodyOverlay, resetProsodyOverlay } = await import(
 
 const PAYLOAD = { schema: "prosody_overlay.v1", tracks: [] };
 
+function job(id: string, status: string) {
+  return {
+    id,
+    project_path: "/tmp/p.json",
+    from_step: null,
+    only_step: null,
+    status,
+    current: null,
+    total: null,
+    message: null,
+    error: null,
+    elapsed_sec: 0,
+    steps: [],
+  };
+}
+
 describe("useProsodyOverlay", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -20,7 +36,7 @@ describe("useProsodyOverlay", () => {
     loadProsodyOverlay.mockResolvedValue(PAYLOAD);
     resetProsodyOverlay();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ pipelineJob: null });
+    useDawStore.setState({ pipelineJob: null, activityJob: null });
   });
 
   afterEach(() => {
@@ -82,22 +98,31 @@ describe("useProsodyOverlay", () => {
     await settle();
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(1);
     act(() => {
-      useDawStore.setState({
-        pipelineJob: {
-          id: "job-1",
-          project_path: "/tmp/p.json",
-          from_step: null,
-          only_step: null,
-          status: "running",
-          current: null,
-          total: null,
-          message: null,
-          error: null,
-          elapsed_sec: 0,
-          steps: [],
-        },
-      });
+      useDawStore.setState({ pipelineJob: job("job-1", "running") });
     });
+    await settle();
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches on an agent (activity) job id/status change", async () => {
+    renderHook(() => useProsodyOverlay(true));
+    await settle();
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(1);
+    act(() => {
+      useDawStore.setState({ activityJob: job("agent-1", "running") });
+    });
+    await settle();
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
+  });
+
+  it("refetches when the layer is turned back on", async () => {
+    const { rerender } = renderHook(({ on }) => useProsodyOverlay(on), {
+      initialProps: { on: true },
+    });
+    await settle();
+    expect(loadProsodyOverlay).toHaveBeenCalledTimes(1);
+    rerender({ on: false });
+    rerender({ on: true });
     await settle();
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
   });
