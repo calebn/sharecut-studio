@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import wave
+from itertools import pairwise
 from types import SimpleNamespace
 
 import numpy as np
@@ -141,3 +142,83 @@ def test_apply_word_spans_rejects_length_mismatch() -> None:
     words = [TranscriptWord(text="a", start=0.0, end=0.5)]
     with pytest.raises(ValueError, match="length mismatch"):
         apply_word_spans(words, [])
+
+
+def _monotonic(words):
+    return all(a.end <= b.start for a, b in pairwise(words))
+
+
+def test_apply_word_spans_clamps_unaligned_word_between_aligned_neighbours() -> None:
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="1990", start=0.5, end=0.9),
+        TranscriptWord(text="bye", start=0.9, end=1.2),
+    ]
+    assert apply_word_spans(words, [(0.0, 0.6), None, (0.8, 1.1)]) == 2
+    assert (words[1].start, words[1].end) == pytest.approx((0.6, 0.8))
+    assert words[1].audibility_status is None
+    assert _monotonic(words)
+
+
+def test_apply_word_spans_flags_collapsed_unaligned_word_deferred() -> None:
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="1990", start=0.5, end=0.9),
+        TranscriptWord(text="bye", start=0.9, end=1.2),
+    ]
+    apply_word_spans(words, [(0.0, 0.95), None, (1.0, 1.1)])
+    assert (words[1].start, words[1].end) == pytest.approx((0.95, 0.95))
+    assert words[1].audibility_status == "deferred"
+    assert _monotonic(words)
+
+
+def test_apply_word_spans_clamps_runs_and_leaves_open_edges() -> None:
+    words = [
+        TranscriptWord(text="a", start=0.0, end=0.4),
+        TranscriptWord(text="$5", start=0.4, end=0.8),
+        TranscriptWord(text="%", start=0.8, end=1.0),
+        TranscriptWord(text="b", start=1.0, end=1.5),
+        TranscriptWord(text="42", start=1.5, end=2.0),
+    ]
+    apply_word_spans(words, [(0.0, 0.5), None, None, (0.9, 1.4), None])
+    assert [(w.start, w.end) for w in words] == pytest.approx(
+        [(0.0, 0.5), (0.5, 0.8), (0.8, 0.9), (0.9, 1.4), (1.5, 2.0)]
+    )
+    assert _monotonic(words)
+
+
+def test_apply_word_spans_overlapping_aligned_neighbours_collapse_kept_word() -> None:
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="1990", start=0.5, end=0.9),
+        TranscriptWord(text="bye", start=0.9, end=1.2),
+    ]
+    apply_word_spans(words, [(0.0, 0.7), None, (0.6, 1.1)])
+    assert (words[1].start, words[1].end) == pytest.approx((0.7, 0.7))
+    assert words[1].audibility_status == "deferred"
+
+
+def test_apply_word_spans_real_decode_keeps_unencodable_word_monotonic(tmp_path) -> None:
+    wav_path = tmp_path / "clip.wav"
+    with wave.open(str(wav_path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(b"\x00\x00" * round(1.2 * 16000))
+
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
+    aligner = WordAligner(word_aligner_model(), backend, vocab)
+    words = [
+        TranscriptWord(text="hi", start=0.0, end=0.5),
+        TranscriptWord(text="42", start=0.5, end=0.7),
+        TranscriptWord(text="bye", start=0.7, end=1.2),
+    ]
+
+    result = aligner.align(wav_path, words)
+    apply_word_spans(words, result.spans)
+
+    assert _monotonic(words)
+    assert words[1].start == pytest.approx(0.08)
+    assert words[1].end == pytest.approx(0.08)
+    assert words[1].audibility_status == "deferred"

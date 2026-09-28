@@ -124,6 +124,12 @@ def apply_word_spans(
     gave it, since an ASR result only carries the status that
     ``flag_anomalous_asr_durations`` set on Whisper's span, and the backstop
     re-judges the aligned span afterwards.
+
+    A word the aligner could not place (``None``, e.g. ``1990`` has no wav2vec2
+    encoding) keeps Whisper's times clamped between its nearest re-timed
+    neighbours, so ``words`` stays in time order for consumers that read gaps
+    pairwise. A kept word the clamp collapses to zero length is flagged
+    ``deferred`` for refine / audition.
     """
     if len(words) != len(spans):
         raise ValueError(f"words/spans length mismatch: {len(words)} != {len(spans)}")
@@ -135,4 +141,39 @@ def apply_word_spans(
         if word.audibility_status == "deferred":
             word.audibility_status = None
         retimed += 1
+    _clamp_unaligned_runs(words, spans)
     return retimed
+
+
+def _clamp_unaligned_runs(
+    words: list[TranscriptWord], spans: Sequence[tuple[float, float] | None]
+) -> None:
+    n = len(words)
+    i = 0
+    while i < n:
+        if spans[i] is not None:
+            i += 1
+            continue
+        j = i
+        while j < n and spans[j] is None:
+            j += 1
+        # words[i:j] kept Whisper's times; words[i - 1] and words[j] (when present) were re-timed.
+        lo = words[i - 1].end if i > 0 else None
+        hi = words[j].start if j < n else None
+        if lo is not None and hi is not None and hi < lo:
+            hi = lo
+        for word in words[i:j]:
+            had_length = word.end > word.start
+            word.start = _clamp(word.start, lo, hi)
+            word.end = _clamp(word.end, lo, hi)
+            if had_length and word.end <= word.start and word.audibility_status is None:
+                word.audibility_status = "deferred"
+        i = j
+
+
+def _clamp(value: float, lo: float | None, hi: float | None) -> float:
+    if lo is not None:
+        value = max(value, lo)
+    if hi is not None:
+        value = min(value, hi)
+    return value
