@@ -95,8 +95,8 @@ def _run_mutation_locked(
 ) -> T:
     store = ProjectStore(path)
     mgr = HistoryManager(path)
-    fingerprint_before = audio_state_fingerprint(project)
     track_hashes_before = dialogue_render_hashes(project)
+    fingerprint_before = audio_state_fingerprint(project, track_hashes_before)
     log_len_before = len(project.editorial.edit_log)
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
@@ -133,10 +133,11 @@ def _record_audio_changes(
     log_len_before: int,
     operation: str | None,
 ) -> None:
-    if audio_state_fingerprint(project) == fingerprint_before:
+    hashes_after = dialogue_render_hashes(project)
+    if audio_state_fingerprint(project, hashes_after) == fingerprint_before:
         return
     mark_reconciliation_stale(project)
-    changed_tracks = changed_render_hashes(track_hashes_before, dialogue_render_hashes(project))
+    changed_tracks = changed_render_hashes(track_hashes_before, hashes_after)
     record_after_audio_mutation(
         project,
         changed_track_ids=changed_tracks,

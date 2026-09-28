@@ -49,3 +49,21 @@ def test_a_matching_sidecar_with_its_wav_drops_the_cause_journal(tmp_path, sampl
 
     assert project.render.invalidations == []
     assert project.reconciliation_stale is True
+
+
+def test_a_history_move_hashes_each_dialogue_track_once_per_state(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import play_audit
+
+    project = _project(tmp_path, ("host", "guest"))
+    real = play_audit.track_render_hash
+    calls: list[str] = []
+
+    def counting(p, tid):
+        calls.append(tid)
+        return real(p, tid)
+
+    monkeypatch.setattr(play_audit, "track_render_hash", counting)
+    before = AudioStateBefore.capture(project)
+    assert sorted(calls) == ["guest", "host"]
+    mark_history_move_stale(project, before)
+    assert sorted(calls) == ["guest", "guest", "host", "host"]

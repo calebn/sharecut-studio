@@ -7,6 +7,7 @@ import pytest
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     clear_invalidations_if_current,
+    dialogue_render_hashes,
     expected_stem_duration_sec,
     mix_render_hash,
     probe_wav_duration_sec,
@@ -368,3 +369,14 @@ def test_changed_render_hashes() -> None:
     before = {"a": "1", "b": "2"}
     after = {"a": "1", "b": "3", "c": "4"}
     assert changed_render_hashes(before, after) == ["b", "c"]
+
+
+def test_reconciliation_fingerprint_accepts_precomputed_render_hashes(tmp_path) -> None:
+    project = EpisodeProject.create("fp", str(tmp_path))
+    project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
+    project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0)
+    ]
+    assert audio_state_fingerprint(project, dialogue_render_hashes(project)) == (
+        audio_state_fingerprint(project)
+    )
