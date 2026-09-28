@@ -2,20 +2,27 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from podcast_mcp.edits.mute_regions import mute_regions_payload
-from podcast_mcp.engines.play_audit import envelope_audio_payload, track_render_hash
+from podcast_mcp.engines.play_audit import dialogue_render_hashes, envelope_audio_payload
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.tracks import dialogue_track_ids
 
 
-def audio_state_fingerprint(project: EpisodeProject) -> str:
-    """Hash of the audio state reconciliation measures: dialogue tracks only."""
+def audio_state_fingerprint(
+    project: EpisodeProject, render_hashes: Mapping[str, str] | None = None
+) -> str:
+    """Hash of the audio state reconciliation measures: dialogue tracks only.
+
+    ``render_hashes`` is this project's ``dialogue_render_hashes`` when the caller already
+    has it; passing it skips hashing every dialogue track a second time.
+    """
+    hashes = dialogue_render_hashes(project) if render_hashes is None else render_hashes
     parts: list[str] = []
-    dialogue = sorted(dialogue_track_ids(project))
+    dialogue = sorted(hashes)
     for tid in dialogue:
-        parts.append(track_render_hash(project, tid))
+        parts.append(hashes[tid])
         track = project.track_by_id(tid)
         if track:
             for clip in sorted(

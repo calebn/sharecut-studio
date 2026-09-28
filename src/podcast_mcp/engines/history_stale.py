@@ -29,7 +29,8 @@ class AudioStateBefore:
 
     @classmethod
     def capture(cls, project: EpisodeProject) -> AudioStateBefore:
-        return cls(audio_state_fingerprint(project), dialogue_render_hashes(project))
+        hashes = dialogue_render_hashes(project)
+        return cls(audio_state_fingerprint(project, hashes), hashes)
 
 
 def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -> None:
@@ -49,7 +50,7 @@ def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -
     hash, so a sidecar only ever names the bytes beside it. Keep that order.
     """
     after = dialogue_render_hashes(project)
-    if audio_state_fingerprint(project) != before.fingerprint:
+    if audio_state_fingerprint(project, after) != before.fingerprint:
         mark_reconciliation_stale(project)
     changed = changed_render_hashes(before.render_hashes, after)
     rendered = [tid for tid in changed if stem_hash_matches(project, tid, after[tid])]

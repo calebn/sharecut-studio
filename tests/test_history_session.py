@@ -537,7 +537,9 @@ def test_failed_audio_bookkeeping_restores_render_state(
     path, proj, _index_path = _setup(minimal_project)
     render_before = proj.render.model_copy(deep=True)
     fingerprints = iter(["a", "b"])
-    monkeypatch.setattr(session_mod, "audio_state_fingerprint", lambda _p: next(fingerprints))
+    monkeypatch.setattr(
+        session_mod, "audio_state_fingerprint", lambda _p, _h=None: next(fingerprints)
+    )
 
     def broken(*_a, **_k):
         raise RuntimeError("bookkeeping")
