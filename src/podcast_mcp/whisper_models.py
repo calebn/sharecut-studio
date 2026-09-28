@@ -116,7 +116,8 @@ _V3_TOKENIZER_SHA256 = (
 
 # Pinned Hugging Face snapshots for the catalog sizes (#728): the repo faster-whisper
 # resolves the size to, the commit that was ``main`` on 2026-09-28, and the sha256 of
-# every file faster-whisper's download takes from it. Provenance: util/model_manifest.py.
+# every file faster-whisper's download takes from it. Provenance and the check/re-pin
+# recipe: docs/setup.md § Pinned model manifests.
 # Sizes outside the catalog stay unpinned (faster-whisper's own download; presence check).
 WHISPER_PINS: dict[str, PinnedSnapshot] = {
     "tiny.en": PinnedSnapshot(
@@ -429,6 +430,12 @@ def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str
     snapshot that fails its pin is re-fetched once even without ``force``, and a mismatch
     that survives raises ``WhisperPinMismatchError``. Any other size uses faster-whisper's
     own unpinned download, where ``force`` has no effect.
+
+    No lock of our own guards the shared snapshot cache (as in ``word_aligner_models.py``):
+    a (forced) re-download racing a load relies on huggingface_hub's per-file atomic
+    rename and file locks, and a pinned file that vanishes mid-check reads as not
+    downloaded. The hash-then-load window is intrinsic and stays inside the same OS-user
+    trust boundary (guest and share callers cannot reach it).
     """
     from podcast_mcp.config import whisper_cache_dir
 

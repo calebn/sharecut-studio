@@ -151,6 +151,23 @@ pin mismatch (Whisper or word aligner) as `ok: false` with
 `pin_mismatch: true`, the mismatch as `hint`, and an `--upgrade` `bootstrap`
 command naming the model.
 
+To check the shipped pins against a clean download (network; bootstrap hashes every
+file uncached and exits 1 on a mismatch):
+
+```bash
+PODCAST_MCP_CACHE="$(mktemp -d)" uv run podcast bootstrap --component whisper --whisper-model small.en
+PODCAST_MCP_CACHE="$(mktemp -d)" uv run podcast bootstrap --component word-aligner
+```
+
+To derive a new pin, download exactly the manifest's files at the new revision and hash
+each one (repeat per catalog size):
+
+```bash
+uv run hf download Systran/faster-whisper-small.en config.json model.bin tokenizer.json vocabulary.txt \
+  --revision <new-commit-sha> --local-dir /tmp/pin-check
+shasum -a 256 /tmp/pin-check/config.json /tmp/pin-check/model.bin /tmp/pin-check/tokenizer.json /tmp/pin-check/vocabulary.txt
+```
+
 Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 
 ```bash

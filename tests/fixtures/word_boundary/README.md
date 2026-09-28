@@ -57,7 +57,8 @@ downloaded file's sha256, not just the ONNX), kept equal to the production catal
 by the same test. The hashes were obtained from a clean download of the pinned
 revision: the hub's LFS sha256 for the ONNX weights, and the sha256 of the small
 config/vocab files' bytes, whose git blob id and size were checked against the hub
-metadata for that revision — see `src/podcast_mcp/util/model_manifest.py`.
+metadata for that revision — see `src/podcast_mcp/util/model_manifest.py`. To check
+or re-derive the hashes, follow [docs/setup.md § Pinned model manifests](../../../docs/setup.md).
 
 ## Shipped production pass (#715)
 
