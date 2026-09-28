@@ -144,9 +144,6 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     retime = options.forced_alignment_enabled and bool(cfg.get("retime_words", False))
     if retime:
         engine = make_engine()
-        # Fail fast: without the aligner a re-time would only replace stored transcripts
-        # with Whisper's cached words (raises WordAlignerMissingError with the bootstrap hint).
-        engine.load_word_aligner()
         plan_retime(
             project,
             plan,
@@ -154,6 +151,12 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             language=language,
             allow_edited=bool(cfg.get("overwrite_edited", False)),
         )
+        if plan.run:
+            # Fail fast before any transcript changes: without the aligner a re-time would
+            # only replace stored transcripts with Whisper's cached words (raises
+            # WordAlignerMissingError with the bootstrap hint). A re-time with nothing to
+            # run skips the load and its ~360 MB pin hash.
+            engine.load_word_aligner()
 
     transcripts = run_transcribe_plan(
         project,
