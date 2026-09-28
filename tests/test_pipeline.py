@@ -12,15 +12,16 @@ from podcast_mcp.project_merge import ProjectMergeConflict
 def test_pipeline_step_order():
     assert STEP_NAMES[0] == "ingest_tracks"
     assert STEP_NAMES[-1] == "export_deliverables"
-    assert len(_STEP_MAP) == 20
-    assert len(ORDERED_STEP_NAMES) == 21
+    assert len(_STEP_MAP) == 21
+    assert len(ORDERED_STEP_NAMES) == 22
     assert STEP_NAMES[STEP_NAMES.index("transcribe_tracks") + 1] == "align_tracks"
     assert STEP_NAMES[STEP_NAMES.index("align_tracks") + 1] == "require_align_accept"
     assert STEP_NAMES[STEP_NAMES.index("require_align_accept") + 1] == "merge_transcript"
     assert STEP_NAMES[STEP_NAMES.index("merge_transcript") + 1] == "render_dialogue_stems"
     assert STEP_NAMES[STEP_NAMES.index("render_dialogue_stems") + 1] == "reconcile_transcript"
     assert STEP_NAMES[STEP_NAMES.index("precorrect_transcript") + 1] == "require_transcript_refine"
-    assert STEP_NAMES[STEP_NAMES.index("require_transcript_refine") + 1] == "analyze_focus_cuts"
+    assert STEP_NAMES[STEP_NAMES.index("require_transcript_refine") + 1] == "analyze_prosody"
+    assert STEP_NAMES[STEP_NAMES.index("analyze_prosody") + 1] == "analyze_focus_cuts"
     assert STEP_NAMES[STEP_NAMES.index("analyze_focus_cuts") + 1] == "focus_from_transcript"
     assert STEP_NAMES[STEP_NAMES.index("focus_from_transcript") + 1] == "analyze_fillers_pauses"
     assert STEP_NAMES[STEP_NAMES.index("assemble_timeline") + 1] == "reconcile_transcript"

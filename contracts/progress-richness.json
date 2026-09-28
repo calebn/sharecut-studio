@@ -7,6 +7,7 @@
     "analyze",
     "analyze_fillers_pauses",
     "analyze_focus_cuts",
+    "analyze_prosody",
     "apply_bleed_suppression_tool",
     "assemble_timeline",
     "balance_tracks",

@@ -268,6 +268,15 @@ def merge_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepS
     return f"{len(utts)} utterances"
 
 
+def analyze_prosody(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    from podcast_mcp.edits.prosody_profile import run_prosody_analysis
+    from podcast_mcp.pipeline.meta import step_noop_reason
+
+    if reason := step_noop_reason("analyze_prosody", defaults):
+        return f"skipped ({reason})"
+    return run_prosody_analysis(project, defaults).summary()
+
+
 def analyze_focus_cuts(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.focus import propose_focus_cuts, write_focus_outline
     from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
