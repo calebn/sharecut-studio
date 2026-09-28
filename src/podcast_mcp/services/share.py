@@ -64,6 +64,7 @@ _PENDING_PREVIEW_MODES = frozenset({"current", "suggested", "ab"})
 _PENDING_PREVIEW_IMAGE_KINDS = frozenset({"wave", "spec"})
 _AUDITION_IMAGE_KINDS = frozenset({"wave", "spec"})
 _GUEST_VISUAL_ERROR = "diagnostics failed"
+_GUEST_PROSODY_ERROR = "prosody unavailable"
 _DEFAULT_SHARE_ORIGIN = "http://127.0.0.1:8765"
 _create_for_host_lock = threading.Lock()
 
@@ -1084,6 +1085,24 @@ def share_audition_context_image_cached(
     return dest if dest.is_file() else None
 
 
+def _guest_prosody(prosody: dict[str, Any]) -> dict[str, Any]:
+    """Guest-safe prosody window: no host-only rerun hint, no exception text."""
+    out = {k: v for k, v in prosody.items() if k not in ("hint", "error")}
+    if prosody.get("status") == "unavailable":
+        out["error"] = _GUEST_PROSODY_ERROR
+    return out
+
+
+def _guest_tracks(tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for track in tracks:
+        row = dict(track)
+        if isinstance(row.get("prosody"), dict):
+            row["prosody"] = _guest_prosody(row["prosody"])
+        out.append(row)
+    return out
+
+
 def share_audition_context_info(
     token: str,
     *,
@@ -1102,13 +1121,14 @@ def share_audition_context_info(
         "timeline_end": ctx.get("timeline_end"),
         "mid_sec": ctx.get("mid_sec"),
         "detail": "visual" if visual else ctx.get("detail"),
-        "tracks": ctx.get("tracks") or [],
+        "tracks": _guest_tracks(ctx.get("tracks") or []),
         "clip_skew": ctx.get("clip_skew"),
         "comments": ctx.get("comments"),
         "edits": ctx.get("edits"),
         "render_status": ctx.get("render_status"),
         "warnings": ctx.get("warnings") or [],
         "summary": ctx.get("summary"),
+        "prosody_notes": ctx.get("prosody_notes") or [],
         "note": (
             "Stream PNGs via the share HTTP URLs (or relay public origin). "
             "Remote MCP does not play audio on the host machine."
