@@ -83,7 +83,7 @@ Listen-first review keeps the conversation on the pending inspector (current tim
 
 - Hideable orange pins / range bars (Overlay legend → Comments)
 - **Comment** mode in the transport: click ruler = instant, drag = span; Esc exits
-- **Comments** tab: filter open / open actions / resolved / all; compose; you comment as your session display name (**Commenting as Caleb · Change**: the name saved for comments, else Host or Guest; **Change** edits it inline, Enter saves, Esc cancels); replies; check action items; resolve (an **Undo** toast follows for the most recent resolve only — resolving another comment replaces it, and earlier ones stay reopenable with **Reopen**; hosts on touch can swipe left)
+- **Comments** tab: filter open / open actions / resolved / all; compose; you comment as your session display name (**Commenting as Caleb · Change**: the name saved for comments, else Host or Guest; **Change** edits it inline; Enter or moving to another control saves, Esc cancels, and focus returns to **Change** only after Enter or Esc); replies; check action items; resolve (an **Undo** toast follows for the most recent resolve only — resolving another comment replaces it, and earlier ones stay reopenable with **Reopen**; hosts on touch can swipe left)
 - Playback bubble when the playhead overlaps a comment (capped to one; toggled with Comments layer)
 - Inspector when a comment is selected
 - Mutations: `POST /api/comments`, `PATCH /api/comments/{id}`, `POST .../replies`, `POST .../actions/{id}/done`

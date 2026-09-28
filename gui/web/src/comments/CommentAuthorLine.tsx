@@ -12,7 +12,7 @@ export function CommentAuthorLine({ name, onChange }: Props) {
   const [draft, setDraft] = useState(name);
   const inputRef = useRef<HTMLInputElement>(null);
   const changeRef = useRef<HTMLButtonElement>(null);
-  const wasEditing = useRef(false);
+  const restoreFocus = useRef(false);
   const cancelled = useRef(false);
 
   function start() {
@@ -38,10 +38,12 @@ export function CommentAuthorLine({ name, onChange }: Props) {
       cancelled.current = false;
       inputRef.current?.focus();
       inputRef.current?.select();
-    } else if (wasEditing.current) {
+    } else if (restoreFocus.current) {
+      // Only Enter / Escape inside the field hand focus back to Change;
+      // a blur already moved focus where the user wanted it.
+      restoreFocus.current = false;
       changeRef.current?.focus();
     }
-    wasEditing.current = editing;
   }, [editing]);
 
   if (editing) {
@@ -56,10 +58,12 @@ export function CommentAuthorLine({ name, onChange }: Props) {
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
+              restoreFocus.current = true;
               finish(true);
             } else if (e.key === "Escape") {
               e.preventDefault();
               e.stopPropagation();
+              restoreFocus.current = true;
               cancelled.current = true;
               finish(false);
             }
