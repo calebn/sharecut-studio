@@ -184,6 +184,24 @@ def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
     assert any("onnx/model.onnx" in p for p in problems)
 
 
+def test_verify_candidate_ignores_undeclared_card_license() -> None:
+    """An unset model-card license (None) is not drift: the pin may still be correct,
+    the Hub just never recorded a license for that repo."""
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    # _fake_hub falls back to candidate.license when license= is falsy, so build the
+    # card_data by hand to force an explicit None (undeclared license upstream).
+    info = SimpleNamespace(
+        sha=candidate.revision,
+        card_data=SimpleNamespace(license=None),
+        siblings=[
+            SimpleNamespace(rfilename=name)
+            for name in ["vocab.json", "config.json", "preprocessor_config.json", "onnx/model.onnx"]
+        ],
+    )
+    hub = SimpleNamespace(model_info=lambda repo, revision: info)
+    assert bfa.verify_candidate(candidate, hub) == []
+
+
 @pytest.mark.parametrize(
     ("error_name", "status", "wording"),
     [
