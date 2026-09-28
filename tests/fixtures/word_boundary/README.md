@@ -41,5 +41,11 @@ download command for a candidate with `download-commands`, then score it
 against these clips with `run --target librispeech`; the harness never
 downloads a model itself. Check that the pins still resolve and the licenses
 still match the model cards with `verify-candidates` (network, metadata
-only). No candidate report is checked in yet — results are pending
-[#641](https://github.com/calebn/sharecut-studio/issues/641).
+only). `<id>.<label>.json` (`<label>` one of `onnx-base`, `onnx-base-int8`,
+`torch-large`) are the measured [#641](https://github.com/calebn/sharecut-studio/issues/641)
+reports: produced by `run --target librispeech --threads 4` and copied
+unchanged from `<runs-dir>/<id>.<label>.report.json`. Re-scoring them against
+the gold fixtures is asserted in
+`tests/test_word_boundary_metrics.py::test_checked_in_candidate_reports_match_reference_fixture`;
+the aggregate numbers and the recommendation are in
+[docs/testing.md § Word-boundary benchmark](../../../docs/testing.md#word-boundary-benchmark).

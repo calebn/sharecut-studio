@@ -706,13 +706,98 @@ Each prediction's provenance records `runtime_sec`, `realtime_factor`,
 `run` later candidates inherit earlier peaks; for per-candidate memory run one
 `--candidate` per invocation.
 
-**Candidate results: pending #641.** This issue proves the harness and metric
-only; no candidate MAE/runtime number is checked in. Run it yourself with:
+**Candidate results (#641).** Measured 2026-09-27 on an Apple M2 Pro (12
+cores, 32 GiB RAM), `--threads 4`, onnxruntime 1.27.0, torch 2.14.0,
+transformers 5.17.0, faster-whisper 1.2.1. Reproduce with:
 
 ```bash
 uv run python scripts/benchmark_forced_aligners.py download-commands   # then run what it prints
-uv run python scripts/benchmark_forced_aligners.py run --target librispeech --runs-dir .lab-runs/align/librispeech
+uv run python scripts/benchmark_forced_aligners.py run --target librispeech --runs-dir .lab-runs/align/librispeech --threads 4
 ```
+
+For per-candidate peak RSS (`peak_rss_mb` is process-wide) run one
+`--candidate` per process, and for the agreement targets:
+
+```bash
+uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate onnx-base --runs-dir .lab-runs/align/librispeech-onnx-base --threads 4
+uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate onnx-base-int8 --runs-dir .lab-runs/align/librispeech-onnx-base-int8 --threads 4
+uv run python scripts/benchmark_forced_aligners.py run --target librispeech --candidate torch-large --runs-dir .lab-runs/align/librispeech-torch-large --threads 4
+uv run python scripts/benchmark_forced_aligners.py run --target aligned_dialogue --runs-dir .lab-runs/align/aligned_dialogue --threads 4
+$LAB/scripts/with-asr-lock.sh uv run python scripts/benchmark_forced_aligners.py run --target lab --lab "$LAB" --threads 4
+```
+
+**Table 1 — scored, LibriSpeech, 3 clips (42 matched / 48 reference words).**
+
+| Candidate       | matched/ref | MAE (ms) | over 150 ms  | start bias (ms) | end bias (ms) | unaligned words | alignment runtime (s, summed) | RTF    | load (s) | peak RSS (MiB) | download |
+| --------------- | ----------- | -------- | ------------ | ---------------- | -------------- | ---------------- | ------------------------------ | ------ | -------- | -------------- | -------- |
+| native `base`   | 42/48       | 82.26    | 15/42 (35.7%) | −62.38            | −85.95          | n/a (ASR)         | n/a (23.96 s incl. 3 process starts) | n/a  | n/a      | n/a            | already cached |
+| `onnx-base`     | 42/48       | 42.98    | 2/42 (4.8%)   | +43.81            | −40.24          | 0                 | 0.81                            | 0.044  | 2.01     | 843.9          | 451 MiB (shared repo) |
+| `onnx-base-int8`| 42/48       | 47.26    | 4/42 (9.5%)   | +43.81            | −48.81          | 0                 | 1.36                            | 0.074  | 1.23     | 599.3          | 451 MiB (shared repo) |
+| `torch-large`   | 42/48       | 48.69    | 1/42 (2.4%)   | +58.57            | −34.05          | 0                 | 3.32                            | 0.181  | 35.10    | 2070.7         | 1.2 GiB |
+
+`onnx-base` and `onnx-base-int8` share one Hub repo
+(`onnx-community/wav2vec2-base-960h-ONNX`), so 451 MiB (`du -sh` on the cache
+snapshot) covers both `onnx/model.onnx` and `onnx/model_int8.onnx` together;
+`torch-large`'s 1.2 GiB is `facebook/wav2vec2-large-960h-lv60-self`'s
+`pytorch_model.bin` plus config files. Native's row is faster-whisper ASR, not
+a forced aligner, so its runtime/RTF/RSS aren't comparable to the candidates.
+
+**Table 2 — agreement against native Whisper `base`.** `aligned_dialogue`
+(2 × 60 s) produced **zero** native words: its canned transcript doesn't match
+the synthesized audio closely enough for faster-whisper `base` to transcribe
+anything, so every candidate — which re-times the native word list, not the
+audio directly — also has zero predicted words there. There is no agreement
+number to report for `aligned_dialogue`; the lab tape is the only agreement
+source below. On the **lab** tape (3 × 60 s, real 3-speaker Zoom speech):
+
+| Candidate        | MAE vs native (ms) | over 150 ms   | start bias (ms) | end bias (ms) | RTF   | `onnx-base~X` pairwise MAE (ms) |
+| ---------------- | ------------------- | -------------- | ---------------- | -------------- | ----- | -------------------------------- |
+| `onnx-base`       | 115.56               | 53/162 (32.7%) | +162.59           | +18.40          | 0.018 | —                                 |
+| `onnx-base-int8`  | 120.00               | 51/162 (31.5%) | +159.75           | +17.53          | 0.031 | (`onnx-base~onnx-base-int8`, small; not the decision path) |
+| `torch-large`     | 127.65               | 58/162 (35.8%) | +185.06           | +42.35          | 0.035 | 33.37 (163 matched)               |
+
+Agreement is not accuracy: it says how much the candidates disagree with
+native Whisper's own (possibly wrong) word timestamps on real speech, not how
+close either is to the truth. `onnx-base`'s share over 150 ms (32.7%) is under
+the 50% threshold that would call for auditing `largest_disagreements` by
+ear (see § Lab tape below), so no audit was needed.
+
+**Recommendation: ship `onnx-base`.** Walking the fixed decision rule
+(candidate #640 → #641 handoff) against the numbers above:
+
+1. *Eligible* means lower MAE than native (82.26 ms) and fewer words over
+   150 ms than native (15 of 42), with `unaligned_words` ≤ 3. All three
+   candidates clear this (MAE 42.98/47.26/48.69 ms; over-150 counts 2/4/1;
+   `unaligned_words` 0 for all three) — every candidate is eligible.
+2. Prefer ONNX among eligible candidates (no new heavy framework, per #639).
+   `onnx-base-int8` would be preferred over `onnx-base` only if its MAE were
+   within 5 ms of fp32 **and** its over-150 ms count within 1 word of fp32.
+   The MAE gap is 4.29 ms (within 5 ms) but the over-150 ms gap is 2 words
+   (4 vs 2, not within 1) — so `onnx-base` (fp32) stays the ONNX pick.
+3. `torch-large` only wins if it beats the best eligible ONNX candidate
+   (`onnx-base`) by ≥15 ms MAE **and** ≥3 fewer over-150 ms words.
+   `torch-large`'s MAE (48.69 ms) is *worse* than `onnx-base`'s (42.98 ms),
+   so it does not qualify regardless of its over-150 ms count.
+4. The winner's LibriSpeech RTF must be <0.5 at `--threads 4`. `onnx-base`'s
+   RTF is 0.044 — comfortably under. No runtime fallback is needed.
+5. At least one candidate is eligible, so this is not a "do not integrate"
+   result.
+6. Lab audit: `onnx-base`'s over-150 ms share on the lab tape is 32.7%, under
+   the 50% by-ear-audit trigger, so no audit was performed.
+7. **Small-sample caveat.** 42 matched read-speech words across 3 LibriSpeech
+   clips is not podcast accuracy; the ~82 ms native MAE and the candidates'
+   ~43–49 ms MAE are read-speech numbers. The lab agreement numbers (real,
+   messier 3-speaker Zoom audio) exist to catch a candidate that only works
+   on read speech — `onnx-base` stays the best (or tied-best) agreement
+   candidate there too, so nothing in the lab run contradicts the LibriSpeech
+   pick, but treat both as directional, not production accuracy claims.
+
+**Padding hint for #639.** `onnx-base`'s signed LibriSpeech bias is
+`mean_start_error_ms = +43.81 ms` (the candidate starts words late) and
+`mean_end_error_ms = −40.24 ms` (the candidate clips word ends early). If
+#639 adds boundary padding around `onnx-base` cuts, that suggests roughly
+44 ms of pre-roll and 40 ms of post-roll to compensate — data only; #641
+does not tune anything. See [#639](https://github.com/calebn/sharecut-studio/issues/639).
 
 ### Lab tape: alignment testing grounds
 
