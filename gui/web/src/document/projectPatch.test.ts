@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleComment } from "../test/fixtures";
+import type { ProjectView } from "../types/project";
+import { transcriptSpanText } from "../utils/transcript";
 import {
   commentFromCommandResult,
   mergeProjectPatch,
@@ -532,6 +534,119 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
     expect(next?.transcript?.utterances[1]?.words?.[0]?.text).toBe("world");
     expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  describe("SHELL overlay of a word listed under two utterances", () => {
+    // Word index 1 ("quick") straddles the utterance boundary, so the mapper
+    // lists it under both rows. SHELL strips `words` from every row, so each
+    // overlaid listing comes from the same previous snapshot. This pins the
+    // invariant that keeps transcriptSpanText's disagreement branch defensive.
+    const straddlingRows = (first: string, second: string) => [
+      {
+        track_id: "host",
+        speaker: "Host",
+        start: 0,
+        end: 2,
+        text: first,
+        timeline_start: 0,
+        timeline_end: 2,
+      },
+      {
+        track_id: "host",
+        speaker: "Host",
+        start: 1,
+        end: 3,
+        text: second,
+        timeline_start: 1,
+        timeline_end: 3,
+      },
+    ];
+    const hydratedPrev = () => {
+      const [a, b] = straddlingRows("the quick", "quick fox");
+      return minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: true, history_groups: true },
+        },
+        transcript: {
+          utterances: [
+            {
+              ...a,
+              words: [
+                { text: "the", word_index: 0, start: 0, end: 1 },
+                { text: "quick", word_index: 1, start: 1, end: 2 },
+              ],
+            },
+            {
+              ...b,
+              words: [
+                { text: "quick", word_index: 1, start: 1, end: 2 },
+                { text: "fox", word_index: 2, start: 2, end: 3 },
+              ],
+            },
+          ],
+        },
+      });
+    };
+    const shell = (first: string, second: string) =>
+      minimalProject({
+        meta: {
+          name: "Test",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: false, history_groups: false },
+        },
+        transcript: { utterances: straddlingRows(first, second) },
+      });
+    const listingsOf = (project: ProjectView | null, wordIndex: number) =>
+      (project?.transcript?.utterances ?? []).flatMap((u) =>
+        (u.words ?? [])
+          .filter((w) => u.track_id === "host" && w.word_index === wordIndex)
+          .map((w) => w.text),
+      );
+
+    it.each([
+      {
+        label: "neither row's text changed",
+        first: "the quick",
+        second: "quick fox",
+        complete: true,
+        listings: ["quick", "quick"],
+      },
+      {
+        label: "a correction changed both rows",
+        first: "the quack",
+        second: "quack fox",
+        complete: false,
+        listings: [],
+      },
+      {
+        label: "a correction changed only one row",
+        first: "the quack",
+        second: "quick fox",
+        complete: false,
+        listings: ["quick"],
+      },
+    ])(
+      "leaves the listings agreeing or the words incomplete when $label",
+      ({ first, second, complete, listings }) => {
+        const next = projectFromDocumentSnapshot(hydratedPrev(), {
+          project: shell(first, second),
+        });
+        const texts = listingsOf(next, 1);
+        expect(next?.meta.hydration?.transcript_words).toBe(complete);
+        expect(texts).toEqual(listings);
+        expect(new Set(texts).size <= 1 || !complete).toBe(true);
+      },
+    );
+
+    it("keeps the straddling word verifiable after an unchanged SHELL overlay", () => {
+      const next = projectFromDocumentSnapshot(hydratedPrev(), {
+        project: shell("the quick", "quick fox"),
+      });
+      expect(transcriptSpanText(next, "host", 1, 1)).toBe("quick");
+      expect(transcriptSpanText(next, "host", 0, 2)).toBe("the quick fox");
+    });
   });
 
   it("replaces groups when snapshot.history includes them", () => {
