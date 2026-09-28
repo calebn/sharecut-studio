@@ -7,7 +7,7 @@ import json
 import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -31,6 +31,9 @@ from podcast_mcp.pipeline.meta import (
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, STEP_NAMES
 from podcast_mcp.util.dicts import deep_merge, get_by_path
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.prosody import ProsodyParams
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
@@ -410,13 +413,27 @@ def config_store() -> PipelineConfigStore:
     return _STORE
 
 
+def _staged_or_default_config(project_path: Path | str) -> dict[str, Any]:
+    staged = config_store().peek(project_path)
+    return staged.config if staged is not None else load_defaults()
+
+
 def asr_options_for(project_path: Path | str) -> AsrOptions:
     """ASR options ``pipeline_run`` would use: the staged working set, else shipped defaults.
 
     Read-only: an unstaged project gets no working-set entry.
     """
-    staged = config_store().peek(project_path)
-    return AsrOptions.from_defaults(staged.config if staged is not None else load_defaults())
+    return AsrOptions.from_defaults(_staged_or_default_config(project_path))
+
+
+def prosody_params_for(project_path: Path | str) -> ProsodyParams:
+    """Prosody params ``pipeline_run`` would use: the staged working set, else shipped defaults.
+
+    Read-only: an unstaged project gets no working-set entry.
+    """
+    from podcast_mcp.engines.prosody import ProsodyParams
+
+    return ProsodyParams.from_defaults(_staged_or_default_config(project_path))
 
 
 def build_config_payload(project_path: Path | str) -> dict[str, Any]:

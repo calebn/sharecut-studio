@@ -5,12 +5,13 @@ ASR transcript cache: ``transcripts/prosody/{track_id}_{audio16}_{inputs16}.json
 audio-identity reuse (``edits.transcript_reuse.audio_identity``), and the
 timeline-mapped window handed to ``audition_context`` (see #196).
 
-The reader (:func:`load_track_profile`) never hashes audio or reads pipeline config:
-it lists this track's cache files (one after the writer prunes), picks the newest, and
-compares its stored ``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words
-fingerprint. The writer (:func:`run_prosody_analysis`) is the only thing that hashes
-audio or reruns Praat, and refreshes those stat fields on a reuse (e.g. a touch with no
-content change).
+The reader (:func:`load_track_profile`) never hashes audio: it lists this track's
+cache files (one after the writer prunes), picks the newest, and compares its stored
+``audio_size``/``audio_mtime_ns`` against ``stat()`` plus a words fingerprint, and
+compares the stored ``params`` with the caller's current ``prosody.*`` params. The
+writer (:func:`run_prosody_analysis`) is the only thing that hashes audio or reruns
+Praat, and refreshes those stat fields on a reuse (e.g. a touch with no content
+change).
 """
 
 from __future__ import annotations
@@ -312,13 +313,17 @@ class ProfileLookup:
     hint: str | None = None
 
 
-def load_track_profile(project: EpisodeProject, track_id: str) -> ProfileLookup:
+def load_track_profile(
+    project: EpisodeProject, track_id: str, *, params: ProsodyParams | None = None
+) -> ProfileLookup:
     """Read the newest cached profile for ``track_id`` without hashing audio.
 
     Per call: a listing of this track's cache files (normally one, since
     :func:`run_prosody_analysis` prunes superseded profiles), one JSON read, one
     ``stat`` of the media, and an O(words) fingerprint of the track's transcript,
-    checked cheapest first. No Praat run and no audio decode.
+    checked cheapest first. No Praat run and no audio decode. It also compares the
+    stored ``params`` with ``params`` (the caller's current ``prosody.*`` settings;
+    default: shipped pipeline defaults).
     """
     profile = _existing_profile(project, track_id)
     if profile is None:
@@ -334,6 +339,14 @@ def load_track_profile(project: EpisodeProject, track_id: str) -> ProfileLookup:
             profile,
             "stale",
             "Prosody algorithm or engine changed since the profile was computed; "
+            "re-run analyze_prosody.",
+        )
+    current_params = (params if params is not None else ProsodyParams.from_defaults()).key()
+    if profile.params != current_params:
+        return ProfileLookup(
+            profile,
+            "stale",
+            "Prosody settings (prosody.*) changed since the profile was computed; "
             "re-run analyze_prosody.",
         )
     track = project.track_by_id(track_id)
@@ -390,13 +403,15 @@ def prosody_window(
     st: SessionTimeline,
     track_id: str,
     source_spans: list[tuple[SourceSec, SourceSec]],
+    *,
+    params: ProsodyParams | None = None,
 ) -> dict[str, Any]:
     """The prosody segments overlapping ``source_spans``, mapped to the timeline.
 
     Returns ``{"status": "missing"|"stale", "hint": ...}`` when no fresh profile is
     cached. Caps at :data:`MAX_WINDOW_SEGMENTS` segments (``truncated`` marks more).
     """
-    lookup = load_track_profile(project, track_id)
+    lookup = load_track_profile(project, track_id, params=params)
     if lookup.status != "fresh" or lookup.profile is None:
         out: dict[str, Any] = {"status": lookup.status}
         if lookup.hint:
