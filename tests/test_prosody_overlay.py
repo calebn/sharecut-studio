@@ -154,3 +154,21 @@ def test_api_project_prosody_route(minimal_project):
     assert res.status_code == 200
     body = res.json()
     assert body["tracks"][0]["status"] == "fresh"
+
+
+def test_prosody_overlay_builds_one_clip_index_per_track(minimal_project, monkeypatch):
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+
+    proj = single_track_prosody_project(minimal_project)
+    seed_prosody_profile(proj)
+    proj = load_project(minimal_project)
+    calls: list[str] = []
+    original = SessionTimeline._index
+
+    def counting(self, track_id):
+        calls.append(track_id)
+        return original(self, track_id)
+
+    monkeypatch.setattr(SessionTimeline, "_index", counting)
+    prosody_overlay(proj)
+    assert calls == ["host", "host"]
