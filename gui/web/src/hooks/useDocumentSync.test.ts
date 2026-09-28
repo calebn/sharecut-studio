@@ -5,11 +5,11 @@ import {
   resetDocumentSeqForTests,
 } from "../document/cursor";
 import { useDawStore } from "../state/dawStore";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { useDocumentSync } from "./useDocumentSync";
-import { SANITY_POLL_MS } from "./useFileMetaPoll";
 
 vi.mock("../state/requestDrainLazy", () => ({
   requestHostDrainLazy: vi.fn(),

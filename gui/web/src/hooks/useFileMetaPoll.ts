@@ -1,4 +1,7 @@
 import { useEffect, useRef } from "react";
+import { SANITY_POLL_MS } from "../state/syncCadence";
+
+export { SANITY_POLL_MS } from "../state/syncCadence";
 
 export interface FileMeta {
   mtime_ns: number;
@@ -6,10 +9,6 @@ export interface FileMeta {
   exists?: boolean;
   server_seq?: number;
 }
-
-// Sockets deliver in-process changes immediately; this sanity poll only
-// catches writes made by other processes (#662).
-export const SANITY_POLL_MS = 30_000;
 
 /**
  * Poll a meta endpoint; call onChange when mtime_ns, size or server_seq changes.

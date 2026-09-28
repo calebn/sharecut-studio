@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
-import { SANITY_POLL_MS } from "../hooks/useFileMetaPoll";
 import { useDawStore } from "../state/dawStore";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import { deferred } from "../test/deferred";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { TrackView } from "../types/project";
