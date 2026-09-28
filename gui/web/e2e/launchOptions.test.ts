@@ -21,6 +21,13 @@ describe("withLaunchArgs", () => {
     ).toEqual({ slowMo: 5, args: ["--base", "--a", "--b"] });
   });
 
+  it("keeps a base that has no args key", () => {
+    expect(withLaunchArgs({ slowMo: 5 }, ["--a"])).toEqual({
+      slowMo: 5,
+      args: ["--a"],
+    });
+  });
+
   it("does not mutate its inputs", () => {
     const base = { args: ["--base"] };
     const first = withLaunchArgs(base, ["--a"]);
