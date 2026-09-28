@@ -475,12 +475,17 @@
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
 }
 
-/* Prosody layer (#719): prominent word. An overline (not box-shadow, like
-   .low-confidence's underline) so the two compose on the same word: Stylelint's
-   declaration-strict-value plugin cannot validate a comma-separated multi-shadow
-   value, and box-shadow only holds one value per element anyway. */
+/* Prosody layer (#719): prominent word. Always bold. The overline (not
+   box-shadow, so it composes with .low-confidence's inset underline: Stylelint's
+   declaration-strict-value plugin cannot validate a multi-shadow value) is
+   drawn only when no other state owns text-decoration. .suppressed / .ignored
+   strikes and the .suspect-hallucination dotted underline set the same
+   property at the same specificity, and must stay visible (#732 review). */
 .utterance-word.prominent {
   font-weight: 600;
+}
+
+.utterance-word.prominent:not(.suppressed, .ignored, .suspect-hallucination) {
   text-decoration-line: overline;
   text-decoration-color: var(--color-prosody-prominent);
   text-decoration-thickness: 0.125rem;
