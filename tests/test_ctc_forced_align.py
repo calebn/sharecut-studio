@@ -136,6 +136,15 @@ def test_plan_windows_single_overlong_word_gets_its_own_window() -> None:
     assert [w.word_indices for w in windows] == [(0,), (1,)]
 
 
+def test_plan_windows_lone_overlong_span_window_exceeds_max_window() -> None:
+    windows = plan_windows([(1.0, 1.3), (1.4, 45.0), (46.0, 46.2)])
+    assert [w.word_indices for w in windows] == [(0,), (1,), (2,)]
+    middle = windows[1]
+    assert middle.end_sec - middle.start_sec > DEFAULT_MAX_WINDOW_SEC
+    assert middle.start_sec == pytest.approx(1.35)
+    assert middle.end_sec == pytest.approx(45.5)
+
+
 def test_plan_windows_overlapping_words_keep_unpadded_bounds() -> None:
     windows = plan_windows(
         [(0.0, 2.0), (1.0, 3.0)], audio_sec=10.0, max_window_sec=1.5, pad_sec=1.0
