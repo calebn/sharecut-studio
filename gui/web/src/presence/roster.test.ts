@@ -3,7 +3,9 @@ import {
   applyPresenceDelta,
   EMPTY_ROSTER,
   mergeRosterClient,
+  rosterEntry,
   rosterFromList,
+  type SessionRoster,
   sessionClientList,
 } from "./roster";
 
@@ -40,6 +42,19 @@ describe("rosterFromList", () => {
 
   it("defaults to EMPTY_ROSTER as the base", () => {
     expect(rosterFromList([])).toEqual({});
+  });
+
+  it("keeps a __proto__ client id as an ordinary entry", () => {
+    const roster = rosterFromList([
+      { client_id: "__proto__", role: "viewer" },
+      { client_id: "b", role: "agent" },
+    ]);
+    expect(
+      sessionClientList(roster)
+        .map((c) => c.client_id)
+        .sort(),
+    ).toEqual(["__proto__", "b"]);
+    expect(Object.getPrototypeOf(roster)).toBeNull();
   });
 });
 
@@ -159,5 +174,35 @@ describe("applyPresenceDelta", () => {
     const result = applyPresenceDelta(two, 1, "a", { label: "New" }, 1);
     expect(result.roster.b).toBe(two.b);
     expect(result.roster.a).not.toBe(two.a);
+  });
+
+  it.each(["constructor", "toString", "__proto__"])(
+    "requests a resync for an inherited-name author %s that is not in the roster",
+    (id) => {
+      const result = applyPresenceDelta(roster, 1, id, { label: "New" }, 1);
+      expect(result.outcome).toBe("resync");
+    },
+  );
+
+  it("applies a delta to a __proto__ client that is in the roster", () => {
+    const protoRoster = rosterFromList([
+      { client_id: "__proto__", role: "viewer", label: "Old" },
+    ]);
+    const result = applyPresenceDelta(
+      protoRoster,
+      1,
+      "__proto__",
+      { playhead_sec: 3 },
+      1,
+    );
+    expect(result.outcome).toBe("applied");
+    expect(rosterEntry(result.roster, "__proto__")?.playhead_sec).toBe(3);
+    expect(Object.getPrototypeOf(result.roster)).toBeNull();
+  });
+});
+
+describe("rosterEntry", () => {
+  it("returns undefined for an inherited-name key on a plain object", () => {
+    expect(rosterEntry({} as SessionRoster, "constructor")).toBeUndefined();
   });
 });
