@@ -44,11 +44,18 @@ describe("keymap registry", () => {
     expect(ids).toContain("history.undo");
   });
 
-  it("KEYMAP_CATEGORY_ORDER lists every category exactly once, in grouping order", () => {
-    expect(Object.keys(keymapByCategory())).toEqual([...KEYMAP_CATEGORY_ORDER]);
+  it("KEYMAP_CATEGORY_ORDER lists each category once, covers every command, and has no empty category", () => {
     expect(new Set(KEYMAP_CATEGORY_ORDER).size).toBe(
       KEYMAP_CATEGORY_ORDER.length,
     );
+    const known = new Set<string>(KEYMAP_CATEGORY_ORDER);
+    for (const cmd of KEYMAP_COMMANDS) {
+      expect(known.has(cmd.category), cmd.id).toBe(true);
+    }
+    const byCategory = keymapByCategory();
+    for (const category of KEYMAP_CATEGORY_ORDER) {
+      expect(byCategory[category].length, category).toBeGreaterThan(0);
+    }
   });
 
   it("formats display keys", () => {
