@@ -7,6 +7,7 @@ import {
   type RasterOutMsg,
 } from "../waveform/rasterProtocol";
 import type { MediaRef, ReadyEntry } from "../waveform/types";
+import { stubResizeObserver } from "./resizeObserver";
 
 /** A stand-in raster `Worker` that records what it is sent. */
 export class FakeRasterWorker {
@@ -97,40 +98,6 @@ export function readyEntry(
   };
 }
 
-/**
- * A ResizeObserver that reports at once on `observe()` (a first layout) and
- * again on `fire()` (a resize). `all` lists every observer built since the
- * last `stubWaveformLayerDom`.
- */
-export class InstantResizeObserver {
-  static all: InstantResizeObserver[] = [];
-  targets: Element[] = [];
-  private readonly cb: ResizeObserverCallback;
-  constructor(cb: ResizeObserverCallback) {
-    this.cb = cb;
-    InstantResizeObserver.all.push(this);
-  }
-  observe(el: Element): void {
-    this.targets.push(el);
-    this.cb(
-      [{ target: el } as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
-  unobserve(el: Element): void {
-    this.targets = this.targets.filter((t) => t !== el);
-  }
-  disconnect(): void {
-    this.targets = [];
-  }
-  fire(): void {
-    this.cb(
-      this.targets.map((target) => ({ target }) as ResizeObserverEntry),
-      this as unknown as ResizeObserver,
-    );
-  }
-}
-
 /** A computed lane fill, as `getComputedStyle` reports it. */
 export const CLIP_FILL = "rgb(13, 126, 117)";
 
@@ -147,15 +114,15 @@ export const WAVEFORM_LAYER_PROPS = {
 };
 
 /**
- * The DOM stubs a `WaveformLayer` needs in jsdom; `setClientHeight` changes
+ * The DOM stubs a `WaveformLayer` needs in jsdom, with a `FakeResizeObserver`
+ * that reports on `observe()` (a first layout); `setClientHeight` changes
  * every element's stubbed `clientHeight` (50 px by default).
  */
 export function stubWaveformLayerDom(drawImage: ReturnType<typeof vi.fn>): {
   setClientHeight: (px: number) => void;
 } {
   clearWaveformFillCache();
-  InstantResizeObserver.all = [];
-  vi.stubGlobal("ResizeObserver", InstantResizeObserver);
+  stubResizeObserver({ reportOnObserve: true });
   vi.stubGlobal("devicePixelRatio", 1);
   let clientHeightPx = 50;
   Object.defineProperty(HTMLElement.prototype, "clientHeight", {

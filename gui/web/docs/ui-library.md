@@ -93,7 +93,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `UndoToast` | Polite `role="status"` toast with Undo / Dismiss; auto-dismiss pauses on hover, focus, or a disabled Undo |
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`; `returnFocusRef` picks where focus returns) |
 | `useOutsidePointerDown` | Window `pointerdown` outside a floating panel and its trigger → close (`Menu`, the timeline join popover) |
-| `useResizeObserver` | Element resize → latest callback from one `ResizeObserver` (targets: elements, refs or getters, re-observed when one changes; `enabled` flag). The only place the GUI constructs a `ResizeObserver` (transport collapse, timeline fit, waveform layer height, join popover placement) |
+| `useResizeObserver` | Element resize → latest callback from one `ResizeObserver` (targets: elements, refs or getters, re-observed when one changes; `enabled` flag). The only place the GUI constructs a `ResizeObserver` (transport collapse, timeline fit, waveform layer height, join popover placement); tests stub it with `stubResizeObserver()` (`src/test/resizeObserver.ts`) |
 | `Icon` | Compact stroke icons for transport / tools (`currentColor`); play, pause, and stop are filled |
 | `SegmentedControl` | Track of quiet `ToggleButton`s (audition Mix/FX/Raw); themed on panes, dark in the transport, radio rows in a `Menu` |
 | `Pill` | Read-only status chip (`neutral` / `ok` / `warning` / `audition`) |

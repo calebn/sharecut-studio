@@ -8,6 +8,7 @@ import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleComment } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { readyEntry } from "../test/waveform";
 import type { ClipRow, ProjectView } from "../types/project";
 import {
@@ -212,8 +213,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     await new Promise((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(resolve)),
     );
-    RecordingResizeObserver.all = [];
-    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    stubResizeObserver();
     raf = stubRaf();
     stubElementSize(400, 600);
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
@@ -336,7 +336,7 @@ describe("TimelineView fixed playhead (#385)", () => {
     useDawStore.setState({ userZoomed: false, fitToWindow: fit });
     const { container } = mountFixed(<div className="track-headers" />);
     expect(fit).toHaveBeenCalledTimes(1);
-    const ro = RecordingResizeObserver.all.find((o) =>
+    const ro = FakeResizeObserver.all.find((o) =>
       o.targets.includes(
         container.querySelector(".timeline-scroll") as Element,
       ),
@@ -345,11 +345,11 @@ describe("TimelineView fixed playhead (#385)", () => {
     const header = container.querySelector(".track-headers") as Element;
     expect(ro?.targets).toContain(header);
 
-    act(() => ro?.fire(400, 700)); // height only
-    act(() => ro?.fire(400, 700, header)); // header entry, same width
+    act(() => resize(ro as FakeResizeObserver, 400, 700)); // height only
+    act(() => resize(ro as FakeResizeObserver, 400, 700, header)); // header entry, same width
     expect(fit).toHaveBeenCalledTimes(1);
 
-    act(() => ro?.fire(500, 700));
+    act(() => resize(ro as FakeResizeObserver, 500, 700));
     expect(fit).toHaveBeenCalledTimes(2);
     expect(fit).toHaveBeenLastCalledWith(500);
   });
@@ -366,30 +366,15 @@ describe("TimelineView fixed playhead (#385)", () => {
   });
 });
 
-/** ResizeObserver that records what it watches and fires on demand. */
-class RecordingResizeObserver {
-  static all: RecordingResizeObserver[] = [];
-  targets: Element[] = [];
-  private readonly cb: ResizeObserverCallback;
-  constructor(cb: ResizeObserverCallback) {
-    this.cb = cb;
-    RecordingResizeObserver.all.push(this);
-  }
-  observe(el: Element): void {
-    this.targets.push(el);
-  }
-  unobserve(): void {}
-  disconnect(): void {
-    this.targets = [];
-  }
-  /** Resize the stubbed elements, then notify for `target` (the scroller). */
-  fire(width: number, height: number, target = this.targets[0]): void {
-    stubElementSize(width, height);
-    this.cb(
-      [{ target, contentRect: { width, height } } as ResizeObserverEntry],
-      this as unknown as ResizeObserver,
-    );
-  }
+/** Resize the stubbed elements, then have `ro` report `target` (the scroller). */
+function resize(
+  ro: FakeResizeObserver,
+  width: number,
+  height: number,
+  target = ro.targets[0],
+): void {
+  stubElementSize(width, height);
+  ro.fire(target, { contentRect: { width, height } as DOMRectReadOnly });
 }
 
 /** Every element's clientWidth/clientHeight, as a resize would change them. */
@@ -446,8 +431,7 @@ describe("TimelineView lane fit", () => {
   const chrome = RULER_HEIGHT + MARKER_ROW_HEIGHT + FIT_GUTTER;
 
   beforeEach(() => {
-    RecordingResizeObserver.all = [];
-    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    stubResizeObserver();
     stubElementSize(800, chrome + 2 * 150);
     useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject());
     useDawStore.setState({
@@ -481,7 +465,7 @@ describe("TimelineView lane fit", () => {
     );
     expect(laneHeightVar(container)).toBe("150px");
     const scroller = container.querySelector(".timeline-scroll");
-    const watching = RecordingResizeObserver.all.filter((ro) =>
+    const watching = FakeResizeObserver.all.filter((ro) =>
       ro.targets.includes(scroller as Element),
     );
     expect(watching).toHaveLength(1);
@@ -494,9 +478,7 @@ describe("TimelineView lane fit", () => {
       </DawProvider>,
     );
     const watchers = (el: Element | null) =>
-      el
-        ? RecordingResizeObserver.all.filter((ro) => ro.targets.includes(el))
-        : [];
+      el ? FakeResizeObserver.all.filter((ro) => ro.targets.includes(el)) : [];
     const firstScroller = container.querySelector(".timeline-scroll");
     expect(watchers(firstScroller)).toHaveLength(1);
 
@@ -594,11 +576,16 @@ describe("TimelineView lane fit", () => {
 
       // A header-only resize (a density switch) reaches the edge too.
       const header = container.querySelector(".track-headers") as Element;
-      const ro = RecordingResizeObserver.all.find((o) =>
-        o.targets.includes(header),
-      );
+      const ro = FakeResizeObserver.all.find((o) => o.targets.includes(header));
       headerPx = 140;
-      act(() => ro?.fire(stubbedSize.width, stubbedSize.height, header));
+      act(() =>
+        resize(
+          ro as FakeResizeObserver,
+          stubbedSize.width,
+          stubbedSize.height,
+          header,
+        ),
+      );
       expect(edge("--timeline-header-offset")).toBe("140px");
     } finally {
       for (const spy of spies) {
@@ -634,16 +621,16 @@ describe("TimelineView lane fit", () => {
       </DawProvider>,
     );
     const scroller = container.querySelector(".timeline-scroll") as Element;
-    const ro = RecordingResizeObserver.all.find((o) =>
+    const ro = FakeResizeObserver.all.find((o) =>
       o.targets.includes(scroller),
-    ) as RecordingResizeObserver;
+    ) as FakeResizeObserver;
     onRender.mockClear();
 
     // A pixel of splitter drag: same whole-px lane height, no re-render.
-    act(() => ro.fire(800, chrome + 2 * 150 + 1));
+    act(() => resize(ro, 800, chrome + 2 * 150 + 1));
     expect(onRender).not.toHaveBeenCalled();
 
-    act(() => ro.fire(800, chrome + 2 * 180));
+    act(() => resize(ro, 800, chrome + 2 * 180));
     expect(onRender).toHaveBeenCalled();
     expect(laneHeightVar(container)).toBe("180px");
   });
@@ -657,10 +644,10 @@ describe("TimelineView lane fit", () => {
     );
     expect(laneHeightVar(container)).toBe("144px");
     const scroller = container.querySelector(".timeline-scroll") as Element;
-    const ro = RecordingResizeObserver.all.find((o) =>
+    const ro = FakeResizeObserver.all.find((o) =>
       o.targets.includes(scroller),
-    ) as RecordingResizeObserver;
-    act(() => ro.fire(800, chrome + 2 * 300));
+    ) as FakeResizeObserver;
+    act(() => resize(ro, 800, chrome + 2 * 300));
     expect(laneHeightVar(container)).toBe("144px");
 
     // Switching to fit uses the stage height measured while fixed, clamped
@@ -813,8 +800,7 @@ describe("TimelineView render isolation", () => {
     });
 
   beforeEach(() => {
-    RecordingResizeObserver.all = [];
-    vi.stubGlobal("ResizeObserver", RecordingResizeObserver);
+    stubResizeObserver();
     stubElementSize(800, 600);
     // Every clip's layer holds a ready pyramid, as in a loaded session.
     waveStatus.entry = readyEntry("c3".repeat(10), {

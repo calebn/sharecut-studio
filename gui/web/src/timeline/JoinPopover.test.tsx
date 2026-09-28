@@ -6,6 +6,7 @@ import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { JoinPopover } from "./JoinPopover";
 
 vi.mock("../api", () => ({
@@ -225,27 +226,14 @@ describe("JoinPopover", () => {
 
   it("re-places the panel when its content resizes (a mode change adds the Length row)", () => {
     const original = globalThis.ResizeObserver;
-    let onResize: ResizeObserverCallback | undefined;
-    const observed: Element[] = [];
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        constructor(cb: ResizeObserverCallback) {
-          onResize = cb;
-        }
-        observe(el: Element) {
-          observed.push(el);
-        }
-        unobserve() {}
-        disconnect() {}
-      },
-    );
+    stubResizeObserver();
     try {
       render(<Harness />);
       const panel = screen.getByRole("dialog");
-      expect(observed).toContain(panel);
+      const ro = FakeResizeObserver.all.find((o) => o.targets.includes(panel));
+      expect(ro).toBeTruthy();
       panel.style.top = "";
-      onResize?.([], {} as ResizeObserver);
+      ro?.fire(panel);
       expect(panel.style.top).toMatch(/px$/);
     } finally {
       vi.stubGlobal("ResizeObserver", original);
