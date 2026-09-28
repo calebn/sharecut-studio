@@ -632,7 +632,7 @@
 .timeline-blade-mode .time-ruler,
 .timeline-blade-mode .marker-lane,
 .timeline-blade-mode .trim-handle,
-.timeline-blade-mode .fade-handle,
+.timeline-blade-mode .fade-corner,
 .timeline-blade-mode .join-diamond {
   cursor: var(--blade-cursor);
 }

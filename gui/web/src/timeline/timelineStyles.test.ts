@@ -45,22 +45,24 @@ describe("timeline styles", () => {
     expect(rule(css, ".clip-mute-region")).toMatch(/margin-left:\s*-1px/);
   });
 
-  it("keeps the zero-length fade-out handle at the clip end", () => {
+  it("puts fade curves on the border box and fade handles at the top corners", () => {
     const css = partial("timeline.css");
-    const out = rule(css, ".fade-handle-zero.out");
-    expect(out).toMatch(/right:\s*0/);
-    expect(out).toMatch(/left:\s*auto/);
-    expect(rule(css, ".fade-handle-zero.in")).toMatch(/left:\s*0/);
-    // Non-zero handles straddle their fade edge (no -0.5rem override elsewhere).
-    expect(rule(css, ".fade-handle.end")).toMatch(/right:\s*-0\.25rem/);
-    expect(rule(css, ".fade-handle.start")).toMatch(/left:\s*-0\.25rem/);
+    const curves = rule(css, ".clip-fade-curves");
+    expect(curves).toMatch(/left:\s*-1px/);
+    expect(curves).toMatch(/right:\s*-1px/);
+    expect(curves).toMatch(/pointer-events:\s*none/);
+    const corner = rule(css, ".fade-corner");
+    expect(corner).toMatch(/top:\s*0/);
+    expect(corner).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(partial("layout.css")).toMatch(
-      /\.timeline-blade-mode \.fade-handle\s*[,{]/,
+      /\.timeline-blade-mode \.fade-corner\s*[,{]/,
     );
     const dir = join(here, "../styles/partials");
     for (const name of readdirSync(dir)) {
-      if (name.endsWith(".css") && name !== "timeline.css") {
-        expect(partial(name), name).not.toMatch(/\.fade-handle\.(start|end)\b/);
+      if (name.endsWith(".css")) {
+        expect(partial(name), name).not.toMatch(
+          /\.fade-(handle|region|in-region|out-region)\b/,
+        );
       }
     }
     expect(css).not.toMatch(/\.fade-(in|out)\s*[,{]/);
@@ -70,6 +72,7 @@ describe("timeline styles", () => {
     const readout = rule(partial("timeline.css"), ".fade-readout");
     expect(readout).toMatch(/background:\s*var\(--color-overlay-black-90\)/);
     expect(readout).toMatch(/color:\s*var\(--color-clip-label\)/);
+    expect(readout).toMatch(/top:\s*0\.75rem/);
   });
 
   it("matches a grouped selector in any order or spacing", () => {

@@ -905,7 +905,7 @@ describe("TimelineView render isolation", () => {
     const block = screen
       .getByRole("button", { name: "Select clip host-2" })
       .closest(".clip-block");
-    expect(block?.querySelector(".fade-in-region")).not.toBeNull();
+    expect(block?.querySelector(".clip-fade-line")).not.toBeNull();
     // The snapshot path built new objects instead of mutating the old ones.
     expect(prev.clips.tracks.host![2]!.fade_in_ms).toBe(0);
   });
