@@ -128,7 +128,8 @@ export function useProsodyOverlayViews(enabled: boolean): ProsodyOverlayViews {
   // Clip layout = `project.clips` identity. This holds because document sync (mergeProjectPatch /
   // document/reuseUnchanged.ts) keeps `clips` referentially stable across edits that do not touch
   // clips. A setProject() path that rebuilds `clips` on every edit would hide this layer and refetch
-  // after each edit; the "real merge path" test in useProsodyOverlay.test.tsx locks that in.
+  // after each edit; the "real document-sync path" tests in useProsodyOverlay.test.tsx (a clips patch
+  // and a full SHELL snapshot re-sending equal clips) lock that in.
   const aligned =
     latest && snap.payloadClips === project?.clips ? latest : null;
   return useMemo(() => ({ latest, aligned }), [latest, aligned]);
