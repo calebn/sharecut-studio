@@ -676,3 +676,108 @@ def test_main_plan_and_download_commands_print_json(capsys) -> None:
     assert bfa.main(["download-commands"]) == 0
     lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
     assert len(lines) == 3
+
+
+class _FakeAligner:
+    """Stands in for ``WordAligner``: same ``.align`` signature, no ONNX runtime."""
+
+    def __init__(self, spans, stats, runtime_sec: float = 0.02) -> None:
+        self.model = SimpleNamespace(hf_repo="fake/repo", revision="deadbeef", onnx_file="m.onnx")
+        self.calls = 0
+        self._spans = spans
+        self._stats = stats
+        self._runtime_sec = runtime_sec
+
+    def align(self, audio_path, words):
+        from podcast_mcp.engines.word_align import WordAlignResult
+
+        self.calls += 1
+        return WordAlignResult(list(self._spans), self._stats, self._runtime_sec)
+
+
+def _retime_stats(**overrides):
+    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+
+    defaults = {"windows": 1, "failed_windows": 0, "aligned_words": 0, "unaligned_words": 0}
+    return RetimeStats(**{**defaults, **overrides})
+
+
+def test_pipeline_prediction_retimes_words_and_drops_zero_duration() -> None:
+    """#715 T4: pipeline_prediction drives WordAligner.align + apply_word_spans."""
+    words = [
+        {"text": "hi", "start": 0.0, "end": 0.5},
+        {"text": "uh", "start": 0.5, "end": 0.5},  # zero-duration: dropped after retiming
+        {"text": "bye", "start": 0.5, "end": 1.0},
+    ]
+    aligner = _FakeAligner(
+        spans=[(0.1, 0.3), (0.5, 0.5), (0.6, 0.9)],
+        stats=_retime_stats(aligned_words=3),
+        runtime_sec=0.02,
+    )
+
+    output, stats, runtime_sec = bfa.pipeline_prediction(Path("clip.wav"), words, aligner)
+
+    assert [w["text"] for w in output] == ["hi", "bye"]
+    assert output[0]["start"] == pytest.approx(0.1)
+    assert output[0]["end"] == pytest.approx(0.3)
+    assert output[0]["aligned"] is True
+    assert output[1]["start"] == pytest.approx(0.6)
+    assert output[1]["end"] == pytest.approx(0.9)
+    assert stats["aligned_words"] == 3
+    assert stats["dropped_zero_duration"] == 1
+    assert runtime_sec == pytest.approx(0.02)
+    assert aligner.calls == 1
+
+
+def test_pipeline_prediction_clamps_unaligned_word_between_aligned_neighbours() -> None:
+    """#715 T5: an unaligned word keeps Whisper's times, clamped between its retimed neighbours."""
+    words = [
+        {"text": "a", "start": 0.0, "end": 0.3},
+        {"text": "b", "start": 0.3, "end": 0.6},
+        {"text": "c", "start": 0.6, "end": 0.9},
+    ]
+    aligner = _FakeAligner(
+        spans=[(0.1, 0.4), None, (0.5, 0.8)],
+        stats=_retime_stats(aligned_words=2, unaligned_words=1),
+    )
+
+    output, stats, _ = bfa.pipeline_prediction(Path("clip.wav"), words, aligner)
+
+    b = output[1]
+    assert (b["start"], b["end"]) == pytest.approx((0.4, 0.5))
+    assert b["aligned"] is False
+    assert stats["unaligned_words"] == 1
+    assert stats["dropped_zero_duration"] == 0
+
+
+def test_main_pipeline_dispatches_to_run_pipeline_pass(monkeypatch, tmp_path) -> None:
+    """#715 T5b: the ``pipeline`` subcommand resolves the target and calls run_pipeline_pass."""
+    calls: list[dict] = []
+
+    def fake_run_pipeline_pass(items, **kwargs):
+        calls.append({"items": items, **kwargs})
+        return {"target": kwargs["target"]}
+
+    monkeypatch.setattr(bfa, "run_pipeline_pass", fake_run_pipeline_pass)
+
+    runs_dir = tmp_path / "runs"
+    assert (
+        bfa.main(
+            [
+                "pipeline",
+                "--target",
+                "librispeech",
+                "--runs-dir",
+                str(runs_dir),
+                "--threads",
+                "2",
+            ]
+        )
+        == 0
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["target"] == "librispeech"
+    assert calls[0]["runs_dir"] == runs_dir
+    assert calls[0]["threads"] == 2
+    assert len(calls[0]["items"]) == 3

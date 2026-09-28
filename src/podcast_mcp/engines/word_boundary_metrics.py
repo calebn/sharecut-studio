@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from math import isfinite
+from math import ceil, isfinite
 from typing import Any
 
 MAX_BENCHMARK_WORDS = 256
+
+# #715: the sensitivity table for DEFAULT_MAX_WORD_DURATION_SEC re-tuning.
+DURATION_THRESHOLDS_SEC = (1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5)
 
 
 def _key(text: str) -> str:
@@ -73,6 +77,57 @@ def measure_word_boundaries(
         words_over_150ms=over,
         words_over_150ms_fraction=over / matched if matched else None,
     )
+
+
+@dataclass(frozen=True)
+class DurationProfile:
+    """Word-duration distribution, for the DEFAULT_MAX_WORD_DURATION_SEC sensitivity table (#715)."""
+
+    words: int
+    max_sec: float | None
+    p95_sec: float | None
+    p99_sec: float | None
+    # threshold (e.g. "1.50") -> count of words strictly longer than it.
+    over_sec: dict[str, int]
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def word_duration_profile(
+    words: Sequence[dict[str, Any]], *, thresholds: Sequence[float] = DURATION_THRESHOLDS_SEC
+) -> DurationProfile:
+    """Profile ``end - start`` across ``words`` (predicted or reference, either side)."""
+    durations = sorted(word["end"] - word["start"] for word in words)
+    n = len(durations)
+
+    def _percentile(p: float) -> float | None:
+        if not n:
+            return None
+        index = min(n - 1, max(0, ceil(p * n) - 1))
+        return durations[index]
+
+    return DurationProfile(
+        words=n,
+        max_sec=durations[-1] if n else None,
+        p95_sec=_percentile(0.95),
+        p99_sec=_percentile(0.99),
+        over_sec={
+            f"{threshold:.2f}": sum(1 for d in durations if d > threshold)
+            for threshold in thresholds
+        },
+    )
+
+
+def duration_errors_sec(
+    pairs: Sequence[tuple[dict[str, Any], dict[str, Any]]],
+) -> list[float]:
+    """Absolute |predicted duration - reference duration| for each matched pair.
+
+    Takes the output of :func:`matched_word_pairs` directly, so it only scores
+    words both sides transcribed the same text for.
+    """
+    return [abs((pred["end"] - pred["start"]) - (ref["end"] - ref["start"])) for ref, pred in pairs]
 
 
 def matched_word_pairs(
