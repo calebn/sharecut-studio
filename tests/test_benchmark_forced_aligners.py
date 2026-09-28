@@ -288,6 +288,30 @@ def test_main_verify_candidates_prints_notes_without_failing(monkeypatch, capsys
     assert "all candidates verified" not in out
 
 
+def test_main_verify_candidates_prints_notes_before_problems_and_fails(monkeypatch, capsys) -> None:
+    """One candidate yields a note (undeclared card license) and another yields real
+    drift: notes print first, then problems, the exit code is 1, and no summary
+    line is printed."""
+    import huggingface_hub
+
+    onnx, torch = bfa.load_candidates(labels=["onnx-base", "torch-large"])
+    hubs = {
+        onnx.hf_repo: _fake_hub(onnx, undeclared_license=True),
+        torch.hf_repo: _fake_hub(torch, license="mit", files=["config.json", "pytorch_model.bin"]),
+    }
+    api = SimpleNamespace(model_info=lambda repo, revision: hubs[repo].model_info(repo, revision))
+    monkeypatch.setattr(huggingface_hub, "HfApi", lambda: api)
+
+    assert (
+        bfa.main(["verify-candidates", "--candidate", "onnx-base", "--candidate", "torch-large"])
+        == 1
+    )
+    assert capsys.readouterr().out.splitlines() == [
+        "note: onnx-base: model card declares no license; pinned 'apache-2.0' not verified",
+        "torch-large: model card license 'mit', pinned 'apache-2.0'",
+    ]
+
+
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
     monkeypatch.setitem(sys.modules, "onnxruntime", None)
     with pytest.raises(RuntimeError, match="onnxruntime"):
