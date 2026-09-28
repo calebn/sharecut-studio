@@ -88,6 +88,35 @@ describe("WordAlignerStatus", () => {
     ).toBeEnabled();
   });
 
+  it("shows the server's busy message when another download holds the slot", async () => {
+    const user = userEvent.setup();
+    runBootstrap.mockRejectedValue(
+      new Error(
+        "Another download is already running (whisper); try again when it finishes",
+      ),
+    );
+
+    render(
+      <WordAlignerStatus
+        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        disabled={false}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    );
+    expect(
+      await screen.findByText(
+        /Another download is already running \(whisper\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    ).toBeEnabled();
+  });
+
   it("shows downloaded and calls onRetime when ok", async () => {
     const user = userEvent.setup();
     const onRetime = vi.fn();

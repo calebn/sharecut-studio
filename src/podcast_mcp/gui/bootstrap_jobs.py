@@ -208,7 +208,10 @@ class BootstrapJobManager:
         model = resolve_whisper_model(requested=whisper_model)
         with self._lock:
             if self._job is not None and self._job.status in LIVE_JOB_STATUSES:
-                raise RuntimeError("A bootstrap job is already running")
+                running = ", ".join(self._job.components) or "setup"
+                raise RuntimeError(
+                    f"Another download is already running ({running}); try again when it finishes"
+                )
             if self._job is not None and self._job.status in TERMINAL_JOB_STATUSES:
                 self._finished[self._job.id] = self._job
             job = BootstrapJob(
