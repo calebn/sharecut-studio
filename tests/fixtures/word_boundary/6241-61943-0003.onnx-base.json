@@ -1,0 +1,174 @@
+{
+  "fixture_id": "6241-61943-0003",
+  "audio_sha256": "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+  "reference": "MFA-derived LibriSpeech alignments via gilkeyio/librispeech-alignments dev_clean dataset row 6",
+  "prediction_source": ".lab-runs/align/librispeech/6241-61943-0003.onnx-base.pred.json",
+  "provenance": {
+    "model": "onnx-community/wav2vec2-base-960h-ONNX",
+    "version": "729c1a6730fb549c20a1c73a3d3f96f11020225e",
+    "license": "apache-2.0",
+    "settings": {
+      "backend": "onnx",
+      "onnx_file": "onnx/model.onnx",
+      "threads": 4,
+      "sample_rate": 16000,
+      "max_gap_sec": 1.0,
+      "max_window_sec": 20.0,
+      "pad_sec": 0.5
+    },
+    "runtime_sec": 0.3556760000064969,
+    "load_sec": 0.6069783330895007,
+    "audio_sec": 7.825,
+    "realtime_factor": 0.04545380191776318,
+    "peak_rss_mb": 852.921875,
+    "peak_rss_scope": "process",
+    "alignment_stats": {
+      "windows": 1,
+      "failed_windows": 0,
+      "aligned_words": 21,
+      "unaligned_words": 0,
+      "dropped_zero_duration": 0
+    }
+  },
+  "runtime_sec": 0.3556760000064969,
+  "metrics": {
+    "reference_words": 21,
+    "predicted_words": 21,
+    "matched_words": 20,
+    "missed_reference_words": 1,
+    "extra_predicted_words": 1,
+    "boundary_mae_ms": 45.999999999999986,
+    "mean_start_error_ms": 50.50000000000002,
+    "mean_end_error_ms": -40.49999999999995,
+    "words_over_150ms": 1,
+    "words_over_150ms_fraction": 0.05
+  },
+  "words": [
+    {
+      "text": "My",
+      "start": 0.44,
+      "end": 0.52,
+      "aligned": true
+    },
+    {
+      "text": "uncle",
+      "start": 0.6,
+      "end": 0.8,
+      "aligned": true
+    },
+    {
+      "text": "was",
+      "start": 0.86,
+      "end": 0.96,
+      "aligned": true
+    },
+    {
+      "text": "delighted.",
+      "start": 1.02,
+      "end": 1.44,
+      "aligned": true
+    },
+    {
+      "text": "For",
+      "start": 1.94,
+      "end": 2.02,
+      "aligned": true
+    },
+    {
+      "text": "myself,",
+      "start": 2.08,
+      "end": 2.5,
+      "aligned": true
+    },
+    {
+      "text": "Moody",
+      "start": 3.0,
+      "end": 3.24,
+      "aligned": true
+    },
+    {
+      "text": "and",
+      "start": 3.3,
+      "end": 3.36,
+      "aligned": true
+    },
+    {
+      "text": "dissatisfied,",
+      "start": 3.4,
+      "end": 4.16,
+      "aligned": true
+    },
+    {
+      "text": "I",
+      "start": 4.64,
+      "end": 4.66,
+      "aligned": true
+    },
+    {
+      "text": "appeared",
+      "start": 4.74,
+      "end": 5.02,
+      "aligned": true
+    },
+    {
+      "text": "almost",
+      "start": 5.12,
+      "end": 5.36,
+      "aligned": true
+    },
+    {
+      "text": "to",
+      "start": 5.4,
+      "end": 5.48,
+      "aligned": true
+    },
+    {
+      "text": "expect",
+      "start": 5.54,
+      "end": 5.86,
+      "aligned": true
+    },
+    {
+      "text": "that",
+      "start": 5.9,
+      "end": 5.98,
+      "aligned": true
+    },
+    {
+      "text": "glimpse",
+      "start": 6.02,
+      "end": 6.3,
+      "aligned": true
+    },
+    {
+      "text": "of",
+      "start": 6.34,
+      "end": 6.38,
+      "aligned": true
+    },
+    {
+      "text": "the",
+      "start": 6.42,
+      "end": 6.48,
+      "aligned": true
+    },
+    {
+      "text": "ghost",
+      "start": 6.54,
+      "end": 6.76,
+      "aligned": true
+    },
+    {
+      "text": "of",
+      "start": 6.82,
+      "end": 6.86,
+      "aligned": true
+    },
+    {
+      "text": "Hamlet.",
+      "start": 6.94,
+      "end": 7.32,
+      "aligned": true
+    }
+  ]
+}

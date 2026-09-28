@@ -276,13 +276,15 @@ def test_fixture_readme_candidate_example_has_required_provenance() -> None:
     assert isinstance(payload["provenance"].get("settings"), dict)
 
 
-def test_checked_in_native_reports_match_reference_fixture() -> None:
+def _rescore_checked_in_reports(suffix: str) -> tuple[int, int, int, float]:
+    """Re-score every ``<id>.<suffix>.json`` against its gold; assert stored metrics and
+    hashes; return (matched, reference, over_150ms, weighted_mae_ms)."""
     fixture = Path(__file__).parent / "fixtures" / "word_boundary"
     total_matches = total_reference = total_over = 0
     weighted_mae = 0.0
     for gold_path in sorted(fixture.glob("*.gold.json")):
         gold = json.loads(gold_path.read_text(encoding="utf-8"))
-        report_path = fixture / gold_path.name.replace(".gold.json", ".native-base.json")
+        report_path = fixture / gold_path.name.replace(".gold.json", f".{suffix}.json")
         report = json.loads(report_path.read_text(encoding="utf-8"))
         metrics = measure_word_boundaries(gold["words"], report["words"])
         assert metrics.as_dict() == report["metrics"]
@@ -293,8 +295,38 @@ def test_checked_in_native_reports_match_reference_fixture() -> None:
         total_reference += metrics.reference_words
         total_over += metrics.words_over_150ms
         weighted_mae += metrics.boundary_mae_ms * metrics.matched_words
-    assert (total_matches, total_reference, total_over) == (42, 48, 15)
-    assert weighted_mae / total_matches == pytest.approx(82.2619, abs=0.0001)
+    mae = weighted_mae / total_matches if total_matches else None
+    return total_matches, total_reference, total_over, mae
+
+
+def test_checked_in_native_reports_match_reference_fixture() -> None:
+    matched, reference, over, mae = _rescore_checked_in_reports("native-base")
+    assert (matched, reference, over) == (42, 48, 15)
+    assert mae == pytest.approx(82.2619, abs=0.0001)
+
+
+@pytest.mark.parametrize(
+    ("label", "matched", "reference", "over", "mae"),
+    [
+        ("onnx-base", 42, 48, 2, 42.9762),
+        ("onnx-base-int8", 42, 48, 4, 47.2619),
+        ("torch-large", 42, 48, 1, 48.6905),
+    ],
+)
+def test_checked_in_candidate_reports_match_reference_fixture(
+    label: str, matched: int, reference: int, over: int, mae: float
+) -> None:
+    got_matched, got_reference, got_over, got_mae = _rescore_checked_in_reports(label)
+    assert (got_matched, got_reference, got_over) == (matched, reference, over)
+    assert got_mae == pytest.approx(mae, abs=0.0001)
+
+    fixture = Path(__file__).parent / "fixtures" / "word_boundary"
+    candidates = json.loads((fixture / "candidates.json").read_text(encoding="utf-8"))
+    pinned = next(c for c in candidates["candidates"] if c["label"] == label)
+    for report_path in sorted(fixture.glob(f"*.{label}.json")):
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert report["provenance"]["model"] == pinned["hf_repo"]
+        assert report["provenance"]["version"] == pinned["revision"]
 
 
 def test_matched_word_pairs_validates_and_returns_monotone_pairs() -> None:
