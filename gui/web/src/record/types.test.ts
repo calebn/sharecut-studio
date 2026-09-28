@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { recordSnapshot } from "../test/fixtures";
 import {
   captureAttention,
+  findCurrentTake,
   hostKeeperResetKey,
   hostReconnectPauseCopy,
   hostReconnectPauseCopyFromSnapshot,
@@ -220,5 +221,21 @@ describe("captureAttention", () => {
       capture: null,
       noAudio: false,
     });
+  });
+});
+
+describe("findCurrentTake", () => {
+  const takes = [{ take_index: 0 }, { take_index: 1 }];
+
+  it("returns the take matching take_index", () => {
+    expect(findCurrentTake({ take_index: 1, takes })).toBe(takes[1]);
+  });
+
+  it("returns undefined without a match instead of falling back to the last take", () => {
+    expect(findCurrentTake({ take_index: 2, takes })).toBeUndefined();
+  });
+
+  it("returns undefined when the snapshot has no takes", () => {
+    expect(findCurrentTake({ take_index: 0 })).toBeUndefined();
   });
 });
