@@ -8,7 +8,6 @@ import json
 import logging
 import re
 import secrets
-import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -55,6 +54,7 @@ from podcast_mcp.services.remote_mcp.limits import (
     get_host_limiters,
     host_rate_limit_enabled,
     rate_limit_detail,
+    ws_roster_request_allowed,
 )
 from podcast_mcp.services.review_media import media_type_for_path
 from podcast_mcp.services.session_sync.authz import authorize_share_token
@@ -700,19 +700,6 @@ def _guest_session_frame(event: dict[str, Any], *, guest_client_id: str) -> dict
 
 
 @dataclass
-class _RosterThrottle:
-    """Per-connection ``RosterRequest`` reply throttle: at most one reply per second."""
-
-    last_at: float = 0.0
-
-    def allow(self, now: float, *, min_interval_s: float = 1.0) -> bool:
-        if now - self.last_at < min_interval_s:
-            return False
-        self.last_at = now
-        return True
-
-
-@dataclass
 class GuestFrameResult:
     """One inbound guest frame's outcome: the next ``seq``, the malformed-frame count, an
     optional close reason, and an optional reply to send only to this connection."""
@@ -733,7 +720,6 @@ def _handle_guest_presence_frame(
     token: str,
     websocket: WebSocket,
     malformed: int,
-    roster_throttle: _RosterThrottle,
 ) -> GuestFrameResult:
     """Parse one guest inbound frame (``Presence`` or ``RosterRequest``)."""
     if len(text) > GUEST_FRAME_MAX_BYTES:
@@ -757,7 +743,7 @@ def _handle_guest_presence_frame(
             log.info("guest presence rejected token-rate token=%s", token[:8])
             return GuestFrameResult(seq, malformed, None)
     if msg.get("type") == ROSTER_REQUEST:
-        if not roster_throttle.allow(time.monotonic()):
+        if not ws_roster_request_allowed(f"guest:{token}:{id(websocket)}"):
             return GuestFrameResult(seq, malformed, None)
         reply = _guest_session_frame(session_svc.roster_event(), guest_client_id=guest_client_id)
         return GuestFrameResult(seq, malformed, None, reply=reply)
@@ -978,7 +964,6 @@ async def daw_ws(
             conn.spawn(_pump_session())
             conn.spawn(_pump_document())
             conn.spawn(_pump_guest_progress(token, guard, q_progress))
-            roster_throttle = _RosterThrottle()
             while True:
                 try:
                     text = await websocket.receive_text()
@@ -996,7 +981,6 @@ async def daw_ws(
                     token=token,
                     websocket=websocket,
                     malformed=guard.malformed,
-                    roster_throttle=roster_throttle,
                 )
                 seq, guard.malformed = result.seq, result.malformed
                 if result.reply is not None:

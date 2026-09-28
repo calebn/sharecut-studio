@@ -1685,7 +1685,7 @@ def test_guest_daw_ws_drops_invalid_playhead(
 
 
 def test_handle_guest_presence_frame_invalid_playhead_not_malformed(minimal_project) -> None:
-    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame, _RosterThrottle
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     svc = SessionSyncService(load_project(minimal_project))
@@ -1698,7 +1698,6 @@ def test_handle_guest_presence_frame_invalid_playhead_not_malformed(minimal_proj
         token="abcd1234token",
         websocket=MagicMock(),
         malformed=0,
-        roster_throttle=_RosterThrottle(),
     )
     assert (result.seq, result.malformed, result.close_reason) == (4, 0, None)
     assert result.reply is None
@@ -1707,7 +1706,7 @@ def test_handle_guest_presence_frame_invalid_playhead_not_malformed(minimal_proj
 
 
 def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame, _RosterThrottle
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     class _Dec:
@@ -1738,9 +1737,7 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
     }
 
     def _handle(text: str, *, malformed: int):
-        return _handle_guest_presence_frame(
-            text, malformed=malformed, roster_throttle=_RosterThrottle(), **kwargs
-        )
+        return _handle_guest_presence_frame(text, malformed=malformed, **kwargs)
 
     mal = _handle("x" * 5000, malformed=0).malformed
     assert mal == 1
@@ -1771,7 +1768,7 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
 
 
 def test_handle_guest_presence_frame_rejects_viewer_state(minimal_project) -> None:
-    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame, _RosterThrottle
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     svc = SessionSyncService(load_project(minimal_project))
@@ -1784,18 +1781,16 @@ def test_handle_guest_presence_frame_rejects_viewer_state(minimal_project) -> No
         token="abcd1234token",
         websocket=MagicMock(),
         malformed=0,
-        roster_throttle=_RosterThrottle(),
     )
     assert (result.seq, result.malformed, result.close_reason) == (2, 1, None)
     assert svc.state_or_none() is None
 
 
 def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
-    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame, _RosterThrottle
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     svc = SessionSyncService(load_project(minimal_project))
-    throttle = _RosterThrottle()
     kwargs = {
         "session_svc": svc,
         "guest_client_id": "guest-abcd-tab",
@@ -1804,7 +1799,6 @@ def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
         "token": "abcd1234token",
         "websocket": MagicMock(),
         "malformed": 0,
-        "roster_throttle": throttle,
     }
     result = _handle_guest_presence_frame('{"type":"RosterRequest"}', **kwargs)
     assert result.close_reason is None
