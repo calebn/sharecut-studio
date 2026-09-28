@@ -179,6 +179,96 @@ describe("analyze job helpers", () => {
     );
   });
 
+  it("cancels the started job when the signal aborts mid-wait", async () => {
+    let cancelBody: unknown = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (url.includes("/api/pipeline/analyze") && init?.method === "POST") {
+          return new Response(JSON.stringify({ job: analyzeJob() }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/api/pipeline/status")) {
+          return new Response(
+            JSON.stringify({
+              running: true,
+              job: analyzeJob({ status: "running" }),
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/api/pipeline/cancel") && init?.method === "POST") {
+          cancelBody = JSON.parse(init?.body as string);
+          return new Response(
+            JSON.stringify({
+              job: analyzeJob({
+                status: "running",
+                message: "Cancel requested…",
+              }),
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }),
+    );
+    const ctrl = new AbortController();
+    const p = analyzePipeline("/tmp/p.json", { signal: ctrl.signal });
+    await vi.waitFor(() => expect(FakeEventSource.instances.length).toBe(1));
+    ctrl.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(cancelBody).toEqual({ job_id: "an-1" }));
+  });
+
+  it("cancels a job whose start POST resolves after the signal aborted", async () => {
+    let cancelBody: unknown = null;
+    const ctrl = new AbortController();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (url.includes("/api/pipeline/analyze") && init?.method === "POST") {
+          ctrl.abort();
+          return new Response(JSON.stringify({ job: analyzeJob() }), {
+            status: 200,
+          });
+        }
+        if (url.includes("/api/pipeline/cancel") && init?.method === "POST") {
+          cancelBody = JSON.parse(init?.body as string);
+          return new Response(
+            JSON.stringify({
+              job: analyzeJob({
+                status: "running",
+                message: "Cancel requested…",
+              }),
+            }),
+            { status: 200 },
+          );
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      }),
+    );
+    const onJob = vi.fn();
+    await expect(
+      analyzePipeline("/tmp/p.json", { signal: ctrl.signal, onJob }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(cancelBody).toEqual({ job_id: "an-1" }));
+    expect(onJob).not.toHaveBeenCalled();
+    expect(FakeEventSource.instances.length).toBe(0);
+  });
+
   it("rejects for a shared guest project key without fetching", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

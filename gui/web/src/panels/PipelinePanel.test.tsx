@@ -920,7 +920,7 @@ describe("PipelinePanel", () => {
     expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
   });
 
-  it("aborts the Analyze wait on project switch", async () => {
+  it("aborts the Analyze wait on project switch (analyzePipeline then cancels the job)", async () => {
     const user = userEvent.setup();
     let captured: AbortSignal | undefined;
     analyzePipeline.mockImplementation(

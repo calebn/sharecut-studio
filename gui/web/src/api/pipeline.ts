@@ -84,11 +84,18 @@ export async function startPipelineAnalyze(
 /** Analyze decodes every dialogue track; a multi-hour episode can outlast the 10 min default (stays under the 2^31-1 ms timer cap). */
 export const ANALYZE_WAIT_MS = 6 * 60 * 60 * 1000;
 
+/** Fire-and-forget cancel for an Analyze job its caller abandoned (the pipeline slot is process-wide). */
+function cancelAbandonedJob(jobId: string): void {
+  void cancelPipelineRun(jobId).catch(() => undefined);
+}
+
 /**
  * Start Analyze, hand its job to `onJob` (seed Studio chrome), then follow it to a
  * terminal snapshot. Resolves the Analyze response carried on `result` (also for a
  * cancel that landed after the working set was patched), `null` when it was cancelled
- * before a result, and throws the job error when it failed.
+ * before a result, and throws the job error when it failed. Aborting `signal` (even
+ * while the start POST is in flight) stops the wait and cancels the started job, so an
+ * abandoned Analyze never holds the process-wide pipeline slot.
  */
 export async function analyzePipeline(
   projectPath: string,
@@ -98,12 +105,27 @@ export async function analyzePipeline(
     onJob?: (job: PipelineJobSnapshot) => void;
   },
 ): Promise<PipelineAnalyzeResponse | null> {
+  const signal = opts?.signal;
+  // The start POST is deliberately not aborted: once the server has it a job may
+  // exist, and only the response names it, so an abort is honoured right after.
   const job = await startPipelineAnalyze(projectPath, { apply: opts?.apply });
+  if (signal?.aborted) {
+    cancelAbandonedJob(job.id);
+    throw new DOMException("Aborted", "AbortError");
+  }
   opts?.onJob?.(job);
-  const done = await waitForPipelineJob(job.id, {
-    timeoutMs: ANALYZE_WAIT_MS,
-    signal: opts?.signal,
-  });
+  let done: PipelineJobSnapshot;
+  try {
+    done = await waitForPipelineJob(job.id, {
+      timeoutMs: ANALYZE_WAIT_MS,
+      signal,
+    });
+  } catch (e) {
+    if (signal?.aborted) {
+      cancelAbandonedJob(job.id);
+    }
+    throw e;
+  }
   if (done.result) {
     return done.result as unknown as PipelineAnalyzeResponse;
   }
