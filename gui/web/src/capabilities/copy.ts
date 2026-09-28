@@ -463,6 +463,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
+  "timeline.join.badge": "daw.edit.setClipJoin",
   "transcript.cutAwayWord": "daw.view.cutAwayWord",
 };
 

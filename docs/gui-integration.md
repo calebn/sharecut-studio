@@ -166,7 +166,7 @@ An Approve click made while another live host command from the same tab (or this
 
 ### Clip join fields
 
-`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector sets a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
+`list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector's Join control and the timeline join popover set a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
 
 ### Layout (Reaper-style)
 
@@ -332,7 +332,7 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
 
 ### Timeline layers (bottom → top)
 
-1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade curves (straight gain ramps with the attenuated side dimmed) and a fade handle at each non-cut top corner that slides inward with the fade length, with a live ms readout under it while dragged; trim strips on the clip edges and zero-length fade corners show only on hover (fine pointers), keyboard focus or selection and stay in the tab order while hidden, a display-only join badge at the top of each drawn join (inside the lane's top gutter above the clips, `--clip-inset-top` px so it holds at any root font size, clear of the fade corners, join diamond and marker lane) (`TrackLane`; `|` cut, `╲╱` fade, `✕` crossfade; abutting neighbours both at least 24 px wide), crossfade border, width-tiered role/duration labels  
+1. **Clips** — pyramid waveform tiles (two-tone peak + RMS), quiet wash and snap ticks, fade curves (straight gain ramps with the attenuated side dimmed) and a fade handle at each non-cut top corner that slides inward with the fade length, with a live ms readout under it while dragged; trim strips on the clip edges and zero-length fade corners show only on hover (fine pointers), keyboard focus or selection and stay in the tab order while hidden, a join badge button at the top of each drawn join (opens the join popover: mode, length, Audition join) (inside the lane's top gutter above the clips, `--clip-inset-top` px so it holds at any root font size, clear of the fade corners, join diamond and marker lane) (`TrackLane`; `|` cut, `╲╱` fade, `✕` crossfade; abutting neighbours both at least 24 px wide), crossfade border, width-tiered role/duration labels  
 2. **Levels** — volume automation polyline from `envelopes[]` (toggle)  
 3. **Edits** — applied edits draw as narrow, non-interactive seam/edge ticks with a
    top notch, above the clips (`.applied-edit-layer`, z above `.clip-block`; dense

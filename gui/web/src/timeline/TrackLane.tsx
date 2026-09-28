@@ -5,7 +5,7 @@ import type {
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { isDrawnJoin, joinGlyph } from "../edit/joinRender";
+import { isDrawnJoin } from "../edit/joinRender";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -302,9 +302,9 @@ export function TrackLaneView({
             />
           );
         })}
-        {/* One badge per drawn join, at the top of the seam (#690). A live
-            roll reshapes both sides, so the join rule and the seam read the
-            rolled rows ClipBlock draws. */}
+        {/* One badge per drawn join, at the top of the seam (#690); clicking it
+            opens the join popover (#691). A live roll reshapes both sides, so
+            the join rule and the seam read the rolled rows ClipBlock draws. */}
         {clips.map((clip, i) => {
           const prevRow = clips[i - 1];
           if (!prevRow || isMoving(prevRow.id) || isMoving(clip.id)) {
@@ -315,16 +315,14 @@ export function TrackLaneView({
           if (!isDrawnJoin(prev, right, zoomPxPerSec)) {
             return null;
           }
-          const glyph = joinGlyph(clip);
           return (
             <JoinBadge
               key={`join-${clip.id}`}
-              glyph={glyph}
-              blocked={
-                glyph === "crossfade" && clip.join_crossfade_blocked != null
-              }
+              left={prev}
+              right={right}
               seamSec={right.timeline_start}
               zoomPxPerSec={zoomPxPerSec}
+              trackFadeMaxMs={track.fade_max_ms ?? null}
             />
           );
         })}

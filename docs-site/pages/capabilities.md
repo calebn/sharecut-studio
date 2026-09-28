@@ -108,7 +108,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |
 | Set clip fade | `edit.setClipFade` | — (pointer fade handle; no industry-standard key) | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
-| Set clip join | `edit.setClipJoin` | — (inspector select; no industry-standard key) | `inspector.clip.joinMode` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
+| Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Edit boundary | `view.focusEditBoundary` | — (inline glyph; no industry-standard key) | — | — | — | — | — | — |
 | Cut-away word | `view.focusCutAwayWord` | — (inline chip; no industry-standard key) | `transcript.cutAwayWord` | — | — | — | — | anchor · look |
 

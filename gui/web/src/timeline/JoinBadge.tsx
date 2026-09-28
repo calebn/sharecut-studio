@@ -1,6 +1,8 @@
-import { memo } from "react";
-import { JOIN_MODE_SHORT, type JoinGlyph } from "../edit/joinRender";
-import { formatRulerTime } from "../utils/time";
+import { memo, type Ref, useCallback, useId, useRef, useState } from "react";
+import { capabilityTooltip } from "../capabilities/copy";
+import { type JoinGlyph, joinGlyph, joinSeamLabel } from "../edit/joinRender";
+import type { ClipRow } from "../types/project";
+import { JoinPopover } from "./JoinPopover";
 
 /** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
 const GLYPH_PATH: Record<JoinGlyph, string> = {
@@ -9,31 +11,44 @@ const GLYPH_PATH: Record<JoinGlyph, string> = {
   crossfade: "M1 1L11 11M11 1L1 11",
 };
 
-interface JoinBadgeProps {
+export interface JoinBadgeViewProps {
   glyph: JoinGlyph;
   /** A crossfade render cannot blend (`join_crossfade_blocked`). */
   blocked: boolean;
   /** Seam on the timeline (s), following a live roll. */
   seamSec: number;
   zoomPxPerSec: number;
+  /** Whether its join popover is open. */
+  expanded: boolean;
+  /** The popover's id (aria-controls while open). */
+  popoverId?: string;
+  onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
 }
 
-/**
- * One glyph per drawn join, at the top of the seam (#690). Display-only and
- * click-through for now; #691 makes it the button that opens the join popover.
- */
+/** One glyph per drawn join, at the top of the seam (#690); a button that opens the join popover. */
 export function JoinBadgeView({
   glyph,
   blocked,
   seamSec,
   zoomPxPerSec,
-}: JoinBadgeProps) {
+  expanded,
+  popoverId,
+  onClick,
+  ref,
+}: JoinBadgeViewProps) {
   return (
-    <span
+    <button
+      ref={ref}
+      type="button"
       className={`join-badge join-badge--${glyph}${blocked ? " join-badge--blocked" : ""}`}
       style={{ left: seamSec * zoomPxPerSec }}
-      role="img"
-      aria-label={`${JOIN_MODE_SHORT[glyph]} join at ${formatRulerTime(seamSec, 0.1)}${blocked ? ", will not blend" : ""}`}
+      aria-label={`${joinSeamLabel(glyph, seamSec)}${blocked ? ", will not blend" : ""}`}
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      aria-controls={expanded ? popoverId : undefined}
+      title={capabilityTooltip("timeline.join.badge")}
+      onClick={onClick}
     >
       <svg
         className="join-badge-glyph"
@@ -43,9 +58,56 @@ export function JoinBadgeView({
       >
         <path d={GLYPH_PATH[glyph]} />
       </svg>
-    </span>
+    </button>
   );
 }
 
-/** Re-renders only when its own (primitive) props change. */
-export const JoinBadge = memo(JoinBadgeView);
+interface JoinBadgeProps {
+  left: ClipRow;
+  right: ClipRow;
+  seamSec: number;
+  zoomPxPerSec: number;
+  trackFadeMaxMs: number | null;
+}
+
+function JoinBadgeLive({
+  left,
+  right,
+  seamSec,
+  zoomPxPerSec,
+  trackFadeMaxMs,
+}: JoinBadgeProps) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  const glyph = joinGlyph(right);
+  return (
+    <>
+      <JoinBadgeView
+        ref={buttonRef}
+        glyph={glyph}
+        blocked={glyph === "crossfade" && right.join_crossfade_blocked != null}
+        seamSec={seamSec}
+        zoomPxPerSec={zoomPxPerSec}
+        expanded={open}
+        popoverId={popoverId}
+        onClick={() => setOpen((o) => !o)}
+      />
+      {open ? (
+        <JoinPopover
+          id={popoverId}
+          left={left}
+          right={right}
+          seamSec={seamSec}
+          trackFadeMaxMs={trackFadeMaxMs}
+          anchorRef={buttonRef}
+          onClose={close}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** Re-renders only when its props change (rows keep identity across unrelated edits). */
+export const JoinBadge = memo(JoinBadgeLive);
