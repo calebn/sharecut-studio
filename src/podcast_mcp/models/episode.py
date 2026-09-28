@@ -153,9 +153,12 @@ class TranscriptWord(BaseModel):
     ignored: bool = False
 
     def __setattr__(self, name: str, value: Any) -> None:
-        # In-place edits (refresh_silence_flags, word_align) must invalidate words memos (#729).
+        # In-place edits (refresh_silence_flags, word_align) must invalidate words memos (#729);
+        # re-setting an equal value (the per-pass suspect_hallucination = False resets) does not.
+        unchanged = name in type(self).model_fields and getattr(self, name) == value
         super().__setattr__(name, value)
-        bump_words_revision()
+        if not unchanged:
+            bump_words_revision()
 
 
 # One transcript per (track_id, source_id) within a project.
