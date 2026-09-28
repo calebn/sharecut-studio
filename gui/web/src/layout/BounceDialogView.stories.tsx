@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import type { ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { DialogLauncher } from "../test/DialogLauncher";
-import { openDialogByLauncher } from "../test/storyDialog";
+import { openDialogByLauncher, useArgState } from "../test/storyDialog";
 import { BounceDialogView } from "./BounceDialogView";
 
 const openDialog = (canvasElement: HTMLElement) =>
@@ -16,9 +16,9 @@ function BounceDialogPreview({
   initiallyOpen,
   ...args
 }: ComponentProps<typeof BounceDialogView> & { initiallyOpen: boolean }) {
-  const [source, setSource] = useState(args.source);
-  const [useRegion, setUseRegion] = useState(args.useRegion);
-  const [includeMp3, setIncludeMp3] = useState(args.includeMp3);
+  const [source, setSource] = useArgState(args.source);
+  const [useRegion, setUseRegion] = useArgState(args.useRegion);
+  const [includeMp3, setIncludeMp3] = useArgState(args.includeMp3);
   return (
     <DialogLauncher label="Open bounce dialog" initiallyOpen={initiallyOpen}>
       {(open, close) => (
