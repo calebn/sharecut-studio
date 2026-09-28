@@ -234,17 +234,22 @@ export function TranscriptWordInspector({
       // The server refused because the span changed since we last snapshot
       // it. `correctTranscriptWord` / `correctTranscriptPhrase` already loaded
       // the host's current words into the store before rethrowing, so
-      // re-snapshot from the store — not `wordTexts`, which reflects this
-      // render — and Apply again retries against it (#746).
-      setExpectedText(
-        transcriptSpanText(
-          useDawStore.getState().project,
-          trackId,
-          wordIndex,
-          endIndex,
-        ),
+      // re-snapshot from the store — not wordTexts, which reflects this
+      // render. When that moved, Apply again retries against it (#746).
+      const current = transcriptSpanText(
+        useDawStore.getState().project,
+        trackId,
+        wordIndex,
+        endIndex,
       );
-      setError(TRANSCRIPT_CORRECT_CONFLICT_NOTE);
+      setExpectedText(current);
+      // Promise a retry only when the store now reads differently. If the
+      // refresh failed and no live update has arrived, it still holds the
+      // text just refused, so Apply again would 409 the same way: keep the
+      // host's re-read wording that `run` already set.
+      if (current !== expectedText) {
+        setError(TRANSCRIPT_CORRECT_CONFLICT_NOTE);
+      }
     }
   };
 

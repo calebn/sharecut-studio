@@ -26,7 +26,7 @@ export const TRANSCRIPT_CORRECT_TIMING_NOTE =
 export const TRANSCRIPT_SPAN_UNVERIFIED_NOTE =
   "Apply can't confirm the current text of every word in this range, so it can't check whether someone else changed these words first.";
 
-/** Correct inspector error after a 409 (#746): it has already re-captured the span, so Apply again retries. MCP/CLI keep the host's re-read wording. */
+/** Correct inspector error after a 409 (#746), shown when its re-captured span differs from the refused text, so Apply again retries. Otherwise (the refresh failed and nothing newer arrived), and for MCP/CLI, the host's re-read wording stays. */
 export const TRANSCRIPT_CORRECT_CONFLICT_NOTE =
   "These words changed since you started this correction, so it was not applied. Apply again to retry against the current text.";
 
