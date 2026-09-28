@@ -14,6 +14,12 @@ const KNOWN: Record<string, ParamLabel> = {
 /**
  * Per-effect overrides where a shared key means something else. `deesser`'s
  * `frequency` is ffmpeg's normalized 0–1 `f`, not Hz (engines/ffmpeg.py).
+ *
+ * Only the builtin presets are checked (builtinEffectPresets.fixture.json, kept
+ * in sync by tests/test_effects_presets.py). Overlay presets from
+ * `resolve_presets` and new effects are not: their keys fall back to `KNOWN` /
+ * `SUFFIX_UNITS`, so add an entry here when an effect gives a shared key a
+ * different unit.
  */
 const BY_EFFECT: Record<string, Record<string, ParamLabel>> = {
   deesser: { frequency: { label: "frequency (0–1)" } },
