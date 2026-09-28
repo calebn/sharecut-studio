@@ -40,6 +40,22 @@ export function edgeFadeMaxMs(
 }
 
 /**
+ * Longest join length (ms) `SetClipJoin` keeps on both edges: the left clip's
+ * fade-out is bounded by what its fade-in leaves, and the right clip's fade-in by
+ * the cap and its length (`join_modes.set_clip_join` clamps fade-in first).
+ */
+export function joinLengthMaxMs(
+  left: { durationSec: number; fadeInMs: number },
+  right: { durationSec: number },
+  trackFadeMaxMs: number | null | undefined,
+): number {
+  return Math.min(
+    edgeFadeMaxMs(left.durationSec, trackFadeMaxMs, left.fadeInMs),
+    maxFadeMs(right.durationSec, trackFadeMaxMs),
+  );
+}
+
+/**
  * Clamp both edge fades the way the server's `set_clip_fade` does
  * (`join_modes.clamp_clip_fades`): fade-in first, then fade-out to what it leaves.
  */

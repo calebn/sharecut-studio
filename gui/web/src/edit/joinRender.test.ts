@@ -8,11 +8,14 @@ import {
   isCutJoin,
   isDrawnJoin,
   JOIN_GAP_TOLERANCE_SEC,
+  JOIN_GLYPHS,
   JOIN_MODE_OPTIONS,
   JOIN_MODE_SHORT,
   joinGlyph,
+  joinLengthMs,
   joinModeLabel,
   joinRenderNote,
+  joinSeamLabel,
   MIN_JOIN_CLIP_PX,
 } from "./joinRender";
 
@@ -157,5 +160,53 @@ describe("drawn joins", () => {
       fade: "Fade",
       crossfade: "Crossfade",
     });
+  });
+
+  it("orders the popover's glyphs cut, fade, crossfade", () => {
+    expect(JOIN_GLYPHS).toEqual(["cut", "fade", "crossfade"]);
+  });
+
+  it("names the seam by mode and time", () => {
+    expect(joinSeamLabel("fade", 5)).toBe("Fade join at 0:05.0");
+    expect(joinSeamLabel("crossfade", 0)).toBe("Crossfade join at 0:00.0");
+  });
+
+  it("reads the join's current length for the popover slider", () => {
+    expect(
+      joinLengthMs(
+        { fade_out_ms: 10 },
+        { fade_in_ms: 20, join_in_mode: "fade" },
+      ),
+    ).toBe(20);
+    expect(
+      joinLengthMs(
+        { fade_out_ms: 10 },
+        {
+          fade_in_ms: 25,
+          join_in_mode: "crossfade",
+          join_crossfade_ms: 25,
+        },
+      ),
+    ).toBe(25);
+    expect(
+      joinLengthMs(
+        { fade_out_ms: 10 },
+        {
+          fade_in_ms: 20,
+          join_in_mode: "crossfade",
+          join_crossfade_ms: 0,
+        },
+      ),
+    ).toBe(20);
+    expect(
+      joinLengthMs(
+        { fade_out_ms: 10 },
+        {
+          fade_in_ms: 20,
+          join_in_mode: "crossfade",
+          join_crossfade_ms: undefined,
+        },
+      ),
+    ).toBe(20);
   });
 });
