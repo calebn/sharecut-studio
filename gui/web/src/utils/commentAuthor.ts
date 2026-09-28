@@ -43,3 +43,19 @@ export function resolveCommentActor(
 ): string {
   return (explicit ?? "").trim() || sessionDisplayName(role);
 }
+
+/**
+ * Resolve the actor (`resolveCommentActor`), show it in the author field via
+ * `show`, and save it so the next post starts from the same name. Shared by
+ * the review page and the DAW's `useCommentActions`.
+ */
+export function commitCommentActor(
+  explicit: string | null | undefined,
+  role: CommentRole,
+  show?: (name: string) => void,
+): string {
+  const who = resolveCommentActor(explicit, role);
+  show?.(who);
+  saveCommentAuthor(who);
+  return who;
+}

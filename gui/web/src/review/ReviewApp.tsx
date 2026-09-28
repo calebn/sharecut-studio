@@ -8,11 +8,7 @@ import { hasShareCapability, shareProjectKey } from "../shareMode";
 import type { TimelineComment } from "../types/project";
 import { EmptyState, ErrorScreen, InlineError, LoadingScreen } from "../ui";
 import { errorMessage, readApiError } from "../utils/apiError";
-import {
-  resolveCommentActor,
-  saveCommentAuthor,
-  sessionDisplayName,
-} from "../utils/commentAuthor";
+import { commitCommentActor, sessionDisplayName } from "../utils/commentAuthor";
 import {
   pipelineKindLabel,
   pipelineStatusLabel,
@@ -180,9 +176,7 @@ export function ReviewApp({ token }: { token: string }) {
   }, [projectReady, mcpCanComment, projectKey, refresh]);
 
   const onPost = async () => {
-    const who = resolveCommentActor(author, "guest");
-    setAuthor(who);
-    saveCommentAuthor(who);
+    const who = commitCommentActor(author, "guest", setAuthor);
     if (!body.trim()) {
       setError("Comment body is required");
       return;
@@ -221,9 +215,7 @@ export function ReviewApp({ token }: { token: string }) {
   const modeLabel = project.guest_mode ?? "comment";
 
   const onReply = async (commentId: string, text: string) => {
-    const who = resolveCommentActor(author, "guest");
-    setAuthor(who);
-    saveCommentAuthor(who);
+    const who = commitCommentActor(author, "guest", setAuthor);
     if (!text.trim()) {
       setError("Reply body is required");
       return;
@@ -253,9 +245,7 @@ export function ReviewApp({ token }: { token: string }) {
     if (!beginInflight()) {
       return;
     }
-    const who = resolveCommentActor(author, "guest");
-    setAuthor(who);
-    saveCommentAuthor(who);
+    const who = commitCommentActor(author, "guest", setAuthor);
     try {
       await setCommentActionDone(projectKey, commentId, actionId, {
         done,

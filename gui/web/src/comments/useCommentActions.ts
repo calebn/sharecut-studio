@@ -9,7 +9,7 @@ import { execute } from "../commands/execute";
 import type { CommentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
-import { resolveCommentActor, saveCommentAuthor } from "../utils/commentAuthor";
+import { commitCommentActor } from "../utils/commentAuthor";
 
 export function useCommentActions(opts: {
   role: CommentRole;
@@ -33,12 +33,10 @@ export function useCommentActions(opts: {
   const [error, setError] = useState<string | null>(null);
   const { role, author, setAuthor } = opts;
 
-  const actor = useCallback(() => {
-    const who = resolveCommentActor(author, role);
-    setAuthor?.(who);
-    saveCommentAuthor(who);
-    return who;
-  }, [author, role, setAuthor]);
+  const actor = useCallback(
+    () => commitCommentActor(author, role, setAuthor),
+    [author, role, setAuthor],
+  );
 
   const wrap = useCallback(
     async (fn: () => Promise<void>): Promise<boolean> => {
