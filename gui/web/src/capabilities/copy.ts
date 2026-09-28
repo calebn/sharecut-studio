@@ -9,394 +9,404 @@ export type CapabilityCopy = {
 
 export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   "daw.transport.togglePlay": {
-    "label": "Play / pause",
-    "tooltip": "Play / pause"
+    label: "Play / pause",
+    tooltip: "Play / pause",
   },
   "daw.transport.seek": {
-    "label": "Seek playhead"
+    label: "Seek playhead",
   },
   "daw.transport.stop": {
-    "label": "Stop playback",
-    "tooltip": "Stop and return to where playback started"
+    label: "Stop playback",
+    tooltip: "Stop and return to where playback started",
   },
   "daw.transport.audition": {
-    "label": "Audition Mix / FX / Raw",
-    "tooltip": "Audition Mix, FX, or Raw"
+    label: "Audition Mix / FX / Raw",
+    tooltip: "Audition Mix, FX, or Raw",
   },
   "daw.presence.follow": {
-    "label": "Follow",
-    "tooltip": "Follow this person"
+    label: "Follow",
+    tooltip: "Follow this person",
   },
   "daw.presence.unfollow": {
-    "label": "Stop following",
-    "tooltip": "Stop following"
+    label: "Stop following",
+    tooltip: "Stop following",
   },
   "daw.tool.select": {
-    "label": "Select tool",
-    "tooltip": "Select tool"
+    label: "Select tool",
+    tooltip: "Select tool",
   },
   "daw.tool.blade": {
-    "label": "Blade tool",
-    "tooltip": "Blade tool"
+    label: "Blade tool",
+    tooltip: "Blade tool",
   },
   "daw.review.exitCommentMode": {
-    "label": "Exit comment mode"
+    label: "Exit comment mode",
   },
   "daw.edit.clearSelection": {
-    "label": "Clear selection",
-    "tooltip": "Clear selection"
+    label: "Clear selection",
+    tooltip: "Clear selection",
   },
   "daw.review.toggleCommentMode": {
-    "label": "Toggle comment mode",
-    "tooltip": "Toggle comment mode"
+    label: "Toggle comment mode",
+    tooltip: "Toggle comment mode",
   },
   "daw.review.resolveComment": {
-    "label": "Resolve comment",
-    "tooltip": "Resolve this comment"
+    label: "Resolve comment",
+    tooltip: "Resolve this comment",
   },
   "daw.tighten.applyHit": {
-    "label": "Apply tighten hit",
-    "tooltip": "Apply the selected tighten cut"
+    label: "Apply tighten hit",
+    tooltip: "Apply the selected tighten cut",
   },
   "daw.tighten.skipHit": {
-    "label": "Skip tighten hit",
-    "tooltip": "Skip the selected tighten cut"
+    label: "Skip tighten hit",
+    tooltip: "Skip the selected tighten cut",
   },
   "daw.tighten.applyAllSafe": {
-    "label": "Apply eligible tighten hits",
-    "tooltip": "Apply listed tighten hits, skipping harsh cuts when enabled"
+    label: "Apply eligible tighten hits",
+    tooltip: "Apply listed tighten hits, skipping harsh cuts when enabled",
   },
   "daw.tighten.previewHit": {
-    "label": "Preview tighten hit",
-    "tooltip": "Preview the selected tighten hit"
+    label: "Preview tighten hit",
+    tooltip: "Preview the selected tighten hit",
   },
   "daw.tighten.goToHit": {
-    "label": "Go to tighten hit",
-    "tooltip": "Seek the playhead to a tighten hit"
+    label: "Go to tighten hit",
+    tooltip: "Seek the playhead to a tighten hit",
   },
   "daw.layout.default": {
-    "label": "Restore layout",
-    "tooltip": "Restore layout"
+    label: "Restore layout",
+    tooltip: "Restore layout",
   },
   "daw.layout.timeline": {
-    "label": "Maximize timeline",
-    "tooltip": "Maximize timeline"
+    label: "Maximize timeline",
+    tooltip: "Maximize timeline",
   },
   "daw.layout.text": {
-    "label": "Maximize transcript",
-    "tooltip": "Maximize transcript"
+    label: "Maximize transcript",
+    tooltip: "Maximize transcript",
   },
   "daw.layout.review": {
-    "label": "Review layout",
-    "tooltip": "Review layout"
+    label: "Review layout",
+    tooltip: "Review layout",
   },
   "daw.navigation.nudgePlayheadBack": {
-    "label": "Nudge playhead back"
+    label: "Nudge playhead back",
   },
   "daw.navigation.nudgePlayheadForward": {
-    "label": "Nudge playhead forward"
+    label: "Nudge playhead forward",
   },
   "daw.navigation.goToStart": {
-    "label": "Go to start",
-    "tooltip": "Go to start"
+    label: "Go to start",
+    tooltip: "Go to start",
   },
   "daw.navigation.goToEnd": {
-    "label": "Go to end",
-    "tooltip": "Go to end"
+    label: "Go to end",
+    tooltip: "Go to end",
   },
   "daw.edit.bladeCut": {
-    "label": "Blade cut",
-    "tooltip": "Blade cut at the playhead or clicked time"
+    label: "Blade cut",
+    tooltip: "Blade cut at the playhead or clicked time",
   },
   "daw.edit.bladeCut.confirm": {
-    "label": "Confirm blade cut",
-    "tooltip": "Confirm blade cut"
+    label: "Confirm blade cut",
+    tooltip: "Confirm blade cut",
   },
   "daw.edit.bladeCut.cancel": {
-    "label": "Cancel blade cut",
-    "tooltip": "Cancel blade cut"
+    label: "Cancel blade cut",
+    tooltip: "Cancel blade cut",
   },
   "daw.edit.delete": {
-    "label": "Delete clip",
-    "tooltip": "Delete clip"
+    label: "Delete clip",
+    tooltip: "Delete clip",
   },
   "daw.track.remove": {
-    "label": "Remove track",
-    "tooltip": "Remove track"
+    label: "Remove track",
+    tooltip: "Remove track",
   },
   "daw.track.reorder": {
-    "label": "Reorder track",
-    "tooltip": "Reorder track"
+    label: "Reorder track",
+    tooltip: "Reorder track",
   },
   "daw.track.moveUp": {
-    "label": "Move track up",
-    "tooltip": "Move track up"
+    label: "Move track up",
+    tooltip: "Move track up",
   },
   "daw.track.moveDown": {
-    "label": "Move track down",
-    "tooltip": "Move track down"
+    label: "Move track down",
+    tooltip: "Move track down",
   },
   "daw.edit.rippleDelete": {
-    "label": "Ripple delete clip",
-    "tooltip": "Ripple delete clip"
+    label: "Ripple delete clip",
+    tooltip: "Ripple delete clip",
   },
   "daw.edit.copy": {
-    "label": "Copy"
+    label: "Copy",
   },
   "daw.edit.cut": {
-    "label": "Cut"
+    label: "Cut",
   },
   "daw.edit.paste": {
-    "label": "Paste"
+    label: "Paste",
   },
   "daw.track.selectAll": {
-    "label": "Select all tracks",
-    "tooltip": "Select all tracks"
+    label: "Select all tracks",
+    tooltip: "Select all tracks",
   },
   "daw.track.deselectAll": {
-    "label": "Deselect all tracks",
-    "tooltip": "Deselect all tracks"
+    label: "Deselect all tracks",
+    tooltip: "Deselect all tracks",
   },
   "daw.track.muteToggle": {
-    "label": "Toggle track mute",
-    "tooltip": "Toggle track mute"
+    label: "Toggle track mute",
+    tooltip: "Toggle track mute",
   },
   "daw.track.soloToggle": {
-    "label": "Toggle track solo",
-    "tooltip": "Toggle track solo"
+    label: "Toggle track solo",
+    tooltip: "Toggle track solo",
   },
   "daw.track.setVolume": {
-    "label": "Set track volume",
-    "tooltip": "Set track volume"
+    label: "Set track volume",
+    tooltip: "Set track volume",
   },
   "daw.view.zoomIn": {
-    "label": "Zoom in",
-    "tooltip": "Zoom in"
+    label: "Zoom in",
+    tooltip: "Zoom in",
   },
   "daw.view.zoomOut": {
-    "label": "Zoom out",
-    "tooltip": "Zoom out"
+    label: "Zoom out",
+    tooltip: "Zoom out",
   },
   "daw.view.fit": {
-    "label": "Fit session width",
-    "tooltip": "Fit session width"
+    label: "Fit session width",
+    tooltip: "Fit session width",
   },
   "daw.view.setTab": {
-    "label": "Switch editor tab",
-    "tooltip": "Switch editor tab"
+    label: "Switch editor tab",
+    tooltip: "Switch editor tab",
   },
   "daw.view.setMobileMode": {
-    "label": "Switch phone mode",
-    "tooltip": "Switch phone Listen / Timeline / Text / More"
+    label: "Switch phone mode",
+    tooltip: "Switch phone Listen / Timeline / Text / More",
   },
   "daw.view.waveformZoomIn": {
-    "label": "Waveform amplitude zoom in",
-    "tooltip": "Waveform amplitude zoom in"
+    label: "Waveform amplitude zoom in",
+    tooltip: "Waveform amplitude zoom in",
   },
   "daw.view.waveformZoomOut": {
-    "label": "Waveform amplitude zoom out",
-    "tooltip": "Waveform amplitude zoom out"
+    label: "Waveform amplitude zoom out",
+    tooltip: "Waveform amplitude zoom out",
   },
   "daw.view.fitTracksHeight": {
-    "label": "Fit tracks to window height",
-    "tooltip": "Fit tracks to window height",
-    "tooltip_pressed": "Use a fixed track height",
-    "toggle": true
+    label: "Fit tracks to window height",
+    tooltip: "Fit tracks to window height",
+    tooltip_pressed: "Use a fixed track height",
+    toggle: true,
   },
   "daw.view.trackHeightIncrease": {
-    "label": "Increase track height",
-    "tooltip": "Increase track height"
+    label: "Increase track height",
+    tooltip: "Increase track height",
   },
   "daw.view.trackHeightDecrease": {
-    "label": "Decrease track height",
-    "tooltip": "Decrease track height"
+    label: "Decrease track height",
+    tooltip: "Decrease track height",
   },
   "daw.history.undo": {
-    "label": "Undo",
-    "tooltip": "Undo"
+    label: "Undo",
+    tooltip: "Undo",
   },
   "daw.history.redo": {
-    "label": "Redo",
-    "tooltip": "Redo"
+    label: "Redo",
+    tooltip: "Redo",
   },
   "daw.ui.toggleCommandPalette": {
-    "label": "Command cheatsheet",
-    "tooltip": "Command cheatsheet"
+    label: "Command cheatsheet",
+    tooltip: "Command cheatsheet",
   },
   "daw.render.refreshMix": {
-    "label": "Refresh mix",
-    "tooltip": "Refresh mix"
+    label: "Refresh mix",
+    tooltip: "Refresh mix",
   },
   "daw.export.bounce": {
-    "label": "Bounce…",
-    "tooltip": "Bounce…"
+    label: "Bounce…",
+    tooltip: "Bounce…",
   },
   "daw.share.manage": {
-    "label": "Share…",
-    "tooltip": "Share…"
+    label: "Share…",
+    tooltip: "Share…",
   },
   "daw.record.start": {
-    "label": "Start recording",
-    "tooltip": "Start recording"
+    label: "Start recording",
+    tooltip: "Start recording",
   },
   "daw.record.pause": {
-    "label": "Pause recording",
-    "tooltip": "Pause recording"
+    label: "Pause recording",
+    tooltip: "Pause recording",
   },
   "daw.record.resume": {
-    "label": "Resume recording",
-    "tooltip": "Resume recording"
+    label: "Resume recording",
+    tooltip: "Resume recording",
   },
   "daw.record.stop": {
-    "label": "Stop recording",
-    "tooltip": "Stop recording"
+    label: "Stop recording",
+    tooltip: "Stop recording",
   },
   "daw.record.land": {
-    "label": "Land recording on timeline",
-    "tooltip": "Land recording on timeline"
+    label: "Land recording on timeline",
+    tooltip: "Land recording on timeline",
   },
   "daw.record.discardTake": {
-    "label": "Discard recording take",
-    "tooltip": "Discard recording take"
+    label: "Discard recording take",
+    tooltip: "Discard recording take",
   },
   "daw.record.panel": {
-    "label": "Record panel",
-    "tooltip": "Record panel"
+    label: "Record panel",
+    tooltip: "Record panel",
   },
   "daw.record.marker": {
-    "label": "Record marker",
-    "tooltip": "Record marker"
+    label: "Record marker",
+    tooltip: "Record marker",
   },
   "daw.mcp.connect": {
-    "label": "Connect agent…",
-    "tooltip": "Connect agent…"
+    label: "Connect agent…",
+    tooltip: "Connect agent…",
   },
   "daw.help.diagnosticsBundle": {
-    "label": "Help…",
-    "tooltip": "Create a sanitized diagnostics bundle"
+    label: "Help…",
+    tooltip: "Create a sanitized diagnostics bundle",
   },
   "daw.export.deliverables": {
-    "label": "Export deliverables",
-    "tooltip": "Export deliverables"
+    label: "Export deliverables",
+    tooltip: "Export deliverables",
   },
   "daw.project.new": {
-    "label": "New project",
-    "tooltip": "New project"
+    label: "New project",
+    tooltip: "New project",
   },
   "daw.project.open": {
-    "label": "Open project",
-    "tooltip": "Open project"
+    label: "Open project",
+    tooltip: "Open project",
   },
   "daw.track.add": {
-    "label": "New track",
-    "tooltip": "New track"
+    label: "New track",
+    tooltip: "New track",
   },
   "daw.media.import": {
-    "label": "Import audio",
-    "tooltip": "Import audio"
+    label: "Import audio",
+    tooltip: "Import audio",
   },
   "agent.episode": {
-    "label": "Episode / track CRUD"
+    label: "Episode / track CRUD",
   },
   "agent.transcript": {
-    "label": "Transcript layers"
+    label: "Transcript layers",
   },
   "agent.edits": {
-    "label": "Edit decisions / NL cuts"
+    label: "Edit decisions / NL cuts",
   },
   "agent.timeline": {
-    "label": "Timeline / FX / reconcile"
+    label: "Timeline / FX / reconcile",
   },
   "agent.social_clips": {
-    "label": "Social clips"
+    label: "Social clips",
   },
   "agent.comments": {
-    "label": "Timeline comments"
+    label: "Timeline comments",
   },
   "agent.review": {
-    "label": "Review versions / share"
+    label: "Review versions / share",
   },
   "agent.pipeline": {
-    "label": "Pipeline / master / bounce"
+    label: "Pipeline / master / bounce",
   },
   "agent.history": {
-    "label": "History"
+    label: "History",
   },
   "agent.play": {
-    "label": "Play / audition"
+    label: "Play / audition",
   },
   "agent.session": {
-    "label": "DAW session sync"
+    label: "DAW session sync",
   },
   "agent.ingest": {
-    "label": "Ingest alignment"
+    label: "Ingest alignment",
   },
   "agent.align-accept": {
-    "label": "Align accept gate"
+    label: "Align accept gate",
   },
   "agent.speaker": {
-    "label": "Speaker attribution"
+    label: "Speaker attribution",
   },
   "agent.gui": {
-    "label": "Open Sharecut Studio GUI"
+    label: "Open Sharecut Studio GUI",
   },
   "daw.view.transcriptAnnotate": {
-    "label": "Annotate transcript",
-    "tooltip": "Annotate: show edit boundaries, low-confidence words, unsuppressed words over silence, and cut-away text",
-    "tooltip_pressed": "Hide annotate marks (clean reading view)",
-    "toggle": true
+    label: "Annotate transcript",
+    tooltip:
+      "Annotate: show edit boundaries, low-confidence words, unsuppressed words over silence, and cut-away text",
+    tooltip_pressed: "Hide annotate marks (clean reading view)",
+    toggle: true,
   },
   "daw.transcript.correct": {
-    "label": "Correct transcript",
-    "tooltip": "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
-    "tooltip_pressed": "Exit Correct (restore seek-on-click)",
-    "toggle": true
+    label: "Correct transcript",
+    tooltip:
+      "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
+    tooltip_pressed: "Exit Correct (restore seek-on-click)",
+    toggle: true,
   },
   "daw.transcript.select": {
-    "label": "Select transcript range",
-    "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
-    "tooltip_pressed": "Exit Select (restore seek-on-click)",
-    "toggle": true
+    label: "Select transcript range",
+    tooltip:
+      "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
+    tooltip_pressed: "Exit Select (restore seek-on-click)",
+    toggle: true,
   },
   "daw.transcript.ignore": {
-    "label": "Ignore / restore transcript words",
-    "tooltip": "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
-    "tooltip_pressed": "Restore: un-mute the selection and remove its strikethrough"
+    label: "Ignore / restore transcript words",
+    tooltip:
+      "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
+    tooltip_pressed:
+      "Restore: un-mute the selection and remove its strikethrough",
   },
   "daw.transcript.nextLowConfidence": {
-    "label": "Next low-confidence word",
-    "tooltip": "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor"
+    label: "Next low-confidence word",
+    tooltip:
+      "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
   },
   "daw.transcript.prevLowConfidence": {
-    "label": "Previous low-confidence word",
-    "tooltip": "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor"
+    label: "Previous low-confidence word",
+    tooltip:
+      "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
   },
   "daw.view.showCutAway": {
-    "label": "Show cut away",
-    "tooltip": "Show words removed by timeline cuts (drag boundaries to restore)",
-    "tooltip_pressed": "Hide cut-away words",
-    "toggle": true
+    label: "Show cut away",
+    tooltip: "Show words removed by timeline cuts (drag boundaries to restore)",
+    tooltip_pressed: "Hide cut-away words",
+    toggle: true,
   },
   "daw.edit.trimClipEdge": {
-    "label": "Trim clip edge",
-    "tooltip": "Drag clip start or end to expand or trim this clip · waveform preview shows restored audio"
+    label: "Trim clip edge",
+    tooltip:
+      "Drag clip start or end to expand or trim this clip · waveform preview shows restored audio",
   },
   "daw.edit.moveClips": {
-    "label": "Move clips",
-    "tooltip": "Drag clip bodies to move in time or onto another track · gaps and overlap allowed"
+    label: "Move clips",
+    tooltip:
+      "Drag clip bodies to move in time or onto another track · gaps and overlap allowed",
   },
   "daw.edit.rollClipJoin": {
-    "label": "Roll clip join",
-    "tooltip": "Drag join to roll both clip edges · clips stay flush"
+    label: "Roll clip join",
+    tooltip: "Drag join to roll both clip edges · clips stay flush",
   },
   "daw.edit.setClipFade": {
-    "label": "Set clip fade",
-    "tooltip": "Drag to set fade length (distinct from trim)"
+    label: "Set clip fade",
+    tooltip: "Drag to set fade length (distinct from trim)",
   },
   "daw.edit.setClipJoin": {
-    "label": "Set clip join",
-    "tooltip": "How this clip meets the previous one: cut, fade or crossfade, with its length"
-  }
+    label: "Set clip join",
+    tooltip:
+      "How this clip meets the previous one: cut, fade or crossfade, with its length",
+  },
 };
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
@@ -405,41 +415,41 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
   "presence.followBanner": "daw.presence.unfollow",
-  "toolModeToggle": "daw.tool.blade",
+  toolModeToggle: "daw.tool.blade",
   "transport.comment": "daw.review.toggleCommentMode",
   "mobileShell.gesture.swipeLeftComment": "daw.review.resolveComment",
-  "tightenPanel": "daw.tighten.goToHit",
-  "layoutChip": "daw.layout.default",
+  tightenPanel: "daw.tighten.goToHit",
+  layoutChip: "daw.layout.default",
   "transport.layout": "daw.layout.timeline",
   "transport.menu": "daw.media.import",
-  "editingToolRail": "daw.media.import",
-  "timeline": "daw.edit.bladeCut",
-  "bladeConfirmSheet": "daw.edit.bladeCut.cancel",
-  "clipInspector": "daw.edit.rippleDelete",
-  "trackInspector": "daw.track.setVolume",
-  "trackHeader": "daw.track.soloToggle",
-  "trackHeadersWell": "daw.track.deselectAll",
+  editingToolRail: "daw.media.import",
+  timeline: "daw.edit.bladeCut",
+  bladeConfirmSheet: "daw.edit.bladeCut.cancel",
+  clipInspector: "daw.edit.rippleDelete",
+  trackInspector: "daw.track.setVolume",
+  trackHeader: "daw.track.soloToggle",
+  trackHeadersWell: "daw.track.deselectAll",
   "transport.fit": "daw.view.fit",
-  "tabBar": "daw.view.setTab",
-  "mobileNav": "daw.view.setMobileMode",
+  tabBar: "daw.view.setTab",
+  mobileNav: "daw.view.setMobileMode",
   "timeline.waveform": "daw.view.waveformZoomOut",
   "transport.viewMenu.waveformAmplitudeIn": "daw.view.waveformZoomIn",
   "transport.viewMenu.waveformAmplitudeOut": "daw.view.waveformZoomOut",
   "transport.fitTracksHeight": "daw.view.fitTracksHeight",
   "transport.viewMenu.fitTracksHeight": "daw.view.fitTracksHeight",
-  "historyPanel": "daw.history.redo",
+  historyPanel: "daw.history.redo",
   "mobileShell.gesture.twoFingerTap": "daw.history.undo",
-  "staleRenderPill": "daw.render.refreshMix",
-  "BounceDialog": "daw.export.bounce",
-  "ShareDialog": "daw.share.manage",
-  "RecordPanel": "daw.record.panel",
+  staleRenderPill: "daw.render.refreshMix",
+  BounceDialog: "daw.export.bounce",
+  ShareDialog: "daw.share.manage",
+  RecordPanel: "daw.record.panel",
   "transport.recChip": "daw.record.stop",
-  "LiveComments": "daw.record.marker",
-  "HostMcpDialog": "daw.mcp.connect",
+  LiveComments: "daw.record.marker",
+  HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
-  "HelpDialog": "daw.help.diagnosticsBundle",
-  "trackLane": "daw.track.add",
-  "drop": "daw.media.import",
+  HelpDialog: "daw.help.diagnosticsBundle",
+  trackLane: "daw.track.add",
+  drop: "daw.media.import",
   "transcript.annotate": "daw.view.transcriptAnnotate",
   "transcript.correct": "daw.transcript.correct",
   "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
@@ -457,14 +467,16 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.editBoundary": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
-  "timeline.join.badge": "daw.edit.setClipJoin"
+  "timeline.join.badge": "daw.edit.setClipJoin",
 };
 
 export function capabilityTooltip(
   idOrGui: string,
   opts?: { pressed?: boolean },
 ): string {
-  const id = CAPABILITY_COPY[idOrGui] ? idOrGui : GUI_SURFACE_TO_CAPABILITY[idOrGui];
+  const id = CAPABILITY_COPY[idOrGui]
+    ? idOrGui
+    : GUI_SURFACE_TO_CAPABILITY[idOrGui];
   const row = id ? CAPABILITY_COPY[id] : undefined;
   if (!row) return idOrGui;
   if (opts?.pressed && row.tooltip_pressed) return row.tooltip_pressed;
@@ -472,7 +484,9 @@ export function capabilityTooltip(
 }
 
 export function capabilityLabel(idOrGui: string): string {
-  const id = CAPABILITY_COPY[idOrGui] ? idOrGui : GUI_SURFACE_TO_CAPABILITY[idOrGui];
+  const id = CAPABILITY_COPY[idOrGui]
+    ? idOrGui
+    : GUI_SURFACE_TO_CAPABILITY[idOrGui];
   const row = id ? CAPABILITY_COPY[id] : undefined;
   return row?.label ?? idOrGui;
 }
