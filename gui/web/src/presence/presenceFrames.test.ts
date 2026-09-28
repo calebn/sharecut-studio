@@ -1,8 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rosterFromList } from "../presence/roster";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sessionClient } from "../test/fixtures";
-import { applyPresenceFrame, isPresenceOnlyFrame } from "./presenceFrames";
+import {
+  applyPresenceFrame,
+  handlePresenceWsFrame,
+  isPresenceOnlyFrame,
+} from "./presenceFrames";
 
 describe("PresenceResync", () => {
   beforeEach(() => {
@@ -69,5 +73,67 @@ describe("applyPresenceFrame: out-of-band Presence ordering", () => {
     const state = useDawStore.getState();
     expect(state.sessionRosterVersion).toBe(1);
     expect(Object.keys(state.sessionClients)).toEqual(["a"]);
+  });
+});
+
+describe("handlePresenceWsFrame", () => {
+  beforeEach(() => {
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    useDawStore.setState({
+      sessionClients: rosterFromList([sessionClient({ client_id: "a" })]),
+      sessionRosterVersion: 1,
+    });
+  });
+
+  const rosterRequester = () => ({
+    request: vi.fn(),
+    onRosterReceived: vi.fn(),
+    dispose: vi.fn(),
+  });
+
+  it("a full Presence settles the outstanding request and returns true", () => {
+    const rr = rosterRequester();
+    const result = handlePresenceWsFrame(
+      {
+        type: "Presence",
+        clients: [sessionClient({ client_id: "a" })],
+        roster_version: 1,
+      },
+      rr,
+    );
+    expect(result).toBe(true);
+    expect(rr.onRosterReceived).toHaveBeenCalledOnce();
+    expect(rr.request).not.toHaveBeenCalled();
+  });
+
+  it("a version-gap PresenceDelta requests a resync and returns true", () => {
+    const rr = rosterRequester();
+    const result = handlePresenceWsFrame(
+      {
+        type: "PresenceDelta",
+        author_client_id: "a",
+        changes: { last_seen_ns: 1 },
+        roster_version: 9,
+      },
+      rr,
+    );
+    expect(result).toBe(true);
+    expect(rr.request).toHaveBeenCalledOnce();
+    expect(rr.onRosterReceived).not.toHaveBeenCalled();
+  });
+
+  it("a PresenceResync requests a resync", () => {
+    const rr = rosterRequester();
+    const result = handlePresenceWsFrame({ type: "PresenceResync" }, rr);
+    expect(result).toBe(true);
+    expect(rr.request).toHaveBeenCalledOnce();
+  });
+
+  it("an Applied without clients returns false and calls neither", () => {
+    const rr = rosterRequester();
+    const result = handlePresenceWsFrame({ type: "Applied" }, rr);
+    expect(result).toBe(false);
+    expect(rr.request).not.toHaveBeenCalled();
+    expect(rr.onRosterReceived).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import type { RosterRequester } from "../session/rosterRequest";
 import { useDawStore } from "../state/dawStore";
 import type { SessionState } from "../types/session";
 
@@ -89,4 +90,23 @@ export function carriesFullRoster(msg: PresenceCarryingFrame): boolean {
     return Array.isArray(msg.snapshot?.clients);
   }
   return false;
+}
+
+/**
+ * The presence half of the session / guest WS frame handlers: settles an outstanding
+ * `RosterRequest` when `msg` carries a full roster, applies the frame, and asks for a
+ * resync on a stale/unknown version or a `PresenceResync`. Returns `true` when `msg` is
+ * presence-only, so the caller has nothing left to do.
+ */
+export function handlePresenceWsFrame(
+  msg: PresenceCarryingFrame,
+  rosterRequester: RosterRequester,
+): boolean {
+  if (carriesFullRoster(msg)) {
+    rosterRequester.onRosterReceived();
+  }
+  if (applyPresenceFrame(msg)) {
+    rosterRequester.request();
+  }
+  return isPresenceOnlyFrame(msg);
 }
