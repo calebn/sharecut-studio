@@ -161,6 +161,17 @@ export function selectUnmappedUtterances(
   return utterances.filter((u) => u.mappable === false);
 }
 
+/** Utterances the transcript panel lists: cut-away ones only under Annotate + Show cut away. */
+export function visibleTranscriptUtterances(
+  utterances: CombinedUtterance[],
+  annotate: boolean,
+  showCutAway: boolean,
+): CombinedUtterance[] {
+  return annotate && showCutAway
+    ? utterances
+    : utterances.filter((u) => u.mappable !== false);
+}
+
 /** Display turn: consecutive same-speaker (same track) utterances. */
 export interface TranscriptTurn {
   speaker: string;
