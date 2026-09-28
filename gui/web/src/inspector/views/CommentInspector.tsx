@@ -17,12 +17,13 @@ export function CommentInspector({ comment, onSeek }: Props) {
     shareCapabilities: s.shareCapabilities,
     projectPath: s.projectPath,
   }));
-  const guestShare = guestMode != null;
+  const role = commentRole(projectPath, guestMode);
+  const guestShare = role === "guest";
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const mayAction = canSetAction(projectPath, shareCapabilities);
   const [replyBody, setReplyBody] = useState("");
   const { busy, error, resolve, reply, toggleAction } = useCommentActions({
-    role: commentRole(projectPath, guestMode),
+    role,
   });
 
   const timeLabel = commentTimeLabel(comment);
