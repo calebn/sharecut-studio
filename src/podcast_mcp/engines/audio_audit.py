@@ -158,15 +158,26 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
 # ``peak_count`` is occasions at the file's own peak, not digital max — do not
 # treat a positive count as clipping by itself.
 CLIPPING_PEAK_LEVEL_DB = -0.3
+# Below this peak nothing can be clipped: flat_factor also counts repeated sample
+# values in dithered near-silence (a gated Zoom track peaked at -68.7 dBFS with
+# flat_factor 6.0, #775), so the flat-factor test needs a level floor.
+CLIPPING_MIN_PEAK_DB = -20.0
 
 
 def clipping_indicated(astats: dict[str, Any] | None) -> bool:
-    """True when astats show pinned crests or near-full-scale peaks."""
+    """True when astats show pinned crests or near-full-scale peaks.
+
+    A missing ``peak_level_db`` is treated as loud enough, so an astats row that
+    only carries ``flat_factor`` still counts.
+    """
     if not astats:
         return False
     peak = astats.get("peak_level_db")
-    if isinstance(peak, (int, float)) and peak >= CLIPPING_PEAK_LEVEL_DB:
-        return True
+    if isinstance(peak, (int, float)):
+        if peak >= CLIPPING_PEAK_LEVEL_DB:
+            return True
+        if peak < CLIPPING_MIN_PEAK_DB:
+            return False
     flat = astats.get("flat_factor")
     return isinstance(flat, (int, float)) and flat > 0
 

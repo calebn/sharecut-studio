@@ -54,8 +54,10 @@ values for fields FFmpeg only prints once, e.g. `Crest factor`):
   means over-compression/over-limiting already baked into the source.
 - `flat_factor` — consecutive samples at the crest. Treat it as clipping only together
   with `peak_level_db` near 0 dBFS; quantized quiet tones can look "flat" without
-  hitting digital max. `peak_count` is how many times the file hit *its own* peak,
-  not 0 dBFS.
+  hitting digital max. `clipping_indicated` therefore ignores `flat_factor` when the
+  peak is under `CLIPPING_MIN_PEAK_DB` (-20 dBFS): a gated Zoom track peaking at
+  -68.7 dBFS reported `flat_factor` 6.0 and is not clipped (#775). `peak_count` is how
+  many times the file hit *its own* peak, not 0 dBFS.
 - `noise_floor_db` / `dynamic_range_db` — how much room is between noise and peaks.
 
 ## High-bleed warning

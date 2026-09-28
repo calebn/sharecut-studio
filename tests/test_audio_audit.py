@@ -1596,3 +1596,17 @@ def test_clipping_indicated_unions_astats_signals() -> None:
     assert (
         clipping_indicated({"peak_level_db": -12.0, "flat_factor": 0.0, "peak_count": 99}) is False
     )
+    assert clipping_indicated({"peak_level_db": -12.0, "flat_factor": 6.0}) is True
+
+
+def test_clipping_indicated_ignores_flat_factor_in_near_silence() -> None:
+    """A gated track peaking at -68.7 dBFS repeats sample values (flat_factor 6.0)
+    without clipping anything (#775)."""
+    from podcast_mcp.engines.audio_audit import clipping_indicated
+
+    assert (
+        clipping_indicated({"peak_level_db": -68.725109, "flat_factor": 6.0206, "peak_count": 2})
+        is False
+    )
+    assert clipping_indicated({"peak_level_db": -20.0, "flat_factor": 6.0}) is True
+    assert clipping_indicated({"peak_level_db": -20.1, "flat_factor": 6.0}) is False
