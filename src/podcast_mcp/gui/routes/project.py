@@ -26,7 +26,7 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
-from podcast_mcp.services import HistoryService, ProjectWorkspace
+from podcast_mcp.services import HistoryService, PlayService, ProjectWorkspace
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
 _AUDIO_BUSY_DETAIL = (
@@ -241,6 +241,19 @@ def get_waveform_snap(
         )
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/project/prosody")
+def get_project_prosody(
+    request: Request,
+    path: str = Query(..., description="Path to episode.project.json"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """Cached prosody profile per dialogue track, timeline-mapped, for the DAW overlay (#719)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(path, request)
+    return PlayService(ProjectWorkspace.open(project_path)).prosody_overlay()
 
 
 @router.get("/api/audio")

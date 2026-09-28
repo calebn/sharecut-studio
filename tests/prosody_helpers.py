@@ -5,6 +5,41 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.models import (
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+    load_project,
+    save_project,
+)
+
+
+def single_track_prosody_project(minimal_project: Path) -> EpisodeProject:
+    """A one-track (``host``) project with a two-word transcript, for prosody tests."""
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        ),
+    ]
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.1, end=0.4, confidence=0.9),
+                TranscriptWord(text="world", start=0.5, end=0.9, confidence=0.9),
+            ],
+        )
+    ]
+    save_project(proj, minimal_project)
+    return load_project(minimal_project)
+
 
 def seed_prosody_profile(proj, *, params: dict[str, Any] | None = None) -> Path:
     """Write a one-segment profile for track ``host``, computed with ``params`` (default: shipped defaults)."""

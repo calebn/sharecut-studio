@@ -15,7 +15,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.play import PlayService
 from podcast_mcp.services.workspace import ProjectWorkspace
-from prosody_helpers import seed_prosody_profile
+from prosody_helpers import seed_prosody_profile, single_track_prosody_project
 
 
 def _two_track_project(minimal_project, sample_wav, tmp_workspace, *, skew_sec: float = 0.0):
@@ -755,31 +755,8 @@ def test_audition_context_dsp_failure_is_unavailable(
     assert root not in dumped
 
 
-def _single_track_project(minimal_project, tmp_workspace):
-    proj = load_project(minimal_project)
-    proj.tracks = [
-        Track(
-            id="host",
-            label="Host",
-            role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="raw/host.wav"),
-        ),
-    ]
-    proj.transcripts = [
-        Transcript(
-            track_id="host",
-            words=[
-                TranscriptWord(text="hello", start=0.1, end=0.4, confidence=0.9),
-                TranscriptWord(text="world", start=0.5, end=0.9, confidence=0.9),
-            ],
-        )
-    ]
-    save_project(proj, minimal_project)
-    return load_project(minimal_project)
-
-
 def test_audition_context_prosody_missing_hint(minimal_project, tmp_workspace):
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     ctx = build_audition_context(proj, 0.0, 2.0)
     host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
     assert host["prosody"]["status"] == "missing"
@@ -788,7 +765,7 @@ def test_audition_context_prosody_missing_hint(minimal_project, tmp_workspace):
 
 
 def test_audition_context_prosody_seeded_profile_maps_to_timeline(minimal_project, tmp_workspace):
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
     ctx = build_audition_context(proj, 0.0, 2.0)
@@ -806,7 +783,7 @@ def test_audition_context_prosody_seeded_profile_maps_to_timeline(minimal_projec
 def test_audition_context_prosody_stale_when_params_differ(minimal_project, tmp_workspace):
     from podcast_mcp.engines.prosody import ProsodyParams
 
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
     ctx = build_audition_context(proj, 0.0, 2.0, prosody_params=ProsodyParams(pitch_floor_hz=90.0))
@@ -819,7 +796,7 @@ def test_audition_context_prosody_unstaged_trusts_stored_params(minimal_project,
     from podcast_mcp.engines.prosody import ProsodyParams
     from podcast_mcp.services.pipeline_config import config_store
 
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     assert config_store().peek(minimal_project) is None
     seed_prosody_profile(
         proj, params=ProsodyParams(pitch_floor_hz=90.0, pitch_ceiling_hz=500.0).key()
@@ -835,7 +812,7 @@ def test_audition_context_prosody_config_read_keeps_stored_params(minimal_projec
     from podcast_mcp.engines.prosody import ProsodyParams
     from podcast_mcp.services.pipeline_config import config_store
 
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(
         proj, params=ProsodyParams(pitch_floor_hz=90.0, pitch_ceiling_hz=500.0).key()
     )
@@ -853,7 +830,7 @@ def test_audition_context_prosody_config_read_keeps_stored_params(minimal_projec
 def test_play_service_audition_context_uses_staged_prosody_params(minimal_project, tmp_workspace):
     from podcast_mcp.services.pipeline_config import config_store
 
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)  # computed with the shipped defaults
     ws = ProjectWorkspace.open(minimal_project)
     store = config_store()
@@ -874,7 +851,7 @@ def test_play_service_audition_context_uses_staged_prosody_params(minimal_projec
 
 
 def test_audition_context_prosody_skip_via_include_prosody_false(minimal_project, tmp_workspace):
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
     ctx = build_audition_context(proj, 0.0, 2.0, include_prosody=False)
@@ -884,7 +861,7 @@ def test_audition_context_prosody_skip_via_include_prosody_false(minimal_project
 
 
 def test_audition_context_prosody_unavailable_on_error(minimal_project, tmp_workspace, monkeypatch):
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     root = str(proj.workspace_path())
 
     def boom(*_args, **_kwargs):
@@ -905,7 +882,7 @@ def test_audition_context_prosody_unavailable_on_error(minimal_project, tmp_work
 def test_audition_context_prosody_unavailable_on_malformed_profile(
     minimal_project, tmp_workspace, monkeypatch
 ):
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
 
     def malformed(*_args, **_kwargs):
         raise KeyError("start")
@@ -920,7 +897,7 @@ def test_audition_context_prosody_unavailable_on_malformed_profile(
 def test_audition_context_prosody_no_workspace_path_leak(minimal_project, tmp_workspace):
     import json as json_mod
 
-    proj = _single_track_project(minimal_project, tmp_workspace)
+    proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)
     proj = load_project(minimal_project)
     ctx = build_audition_context(proj, 0.0, 2.0)

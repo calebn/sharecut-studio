@@ -1000,6 +1000,13 @@ class PlayService:
             prosody_params=prosody_params_for(self.ws.path),
         )
 
+    def prosody_overlay(self) -> dict:
+        """Timeline-mapped prosody profile per dialogue track for the DAW overlay (#719)."""
+        from podcast_mcp.edits.prosody_profile import prosody_overlay
+        from podcast_mcp.services.pipeline_config import prosody_params_for
+
+        return prosody_overlay(self.project, params=prosody_params_for(self.ws.path))
+
     def play_compose(
         self,
         track_ids: list[str],
