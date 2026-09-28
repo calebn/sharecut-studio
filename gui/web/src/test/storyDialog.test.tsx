@@ -1,4 +1,5 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { userEvent } from "storybook/test";
 import { describe, expect, it, vi } from "vitest";
 import { DialogLauncher } from "./DialogLauncher";
@@ -69,6 +70,14 @@ describe("openDialogByLauncher", () => {
   });
 });
 
+function useCommittedArgState(arg: number, committed: number[]) {
+  const state = useArgState(arg);
+  useLayoutEffect(() => {
+    committed.push(state[0]);
+  });
+  return state;
+}
+
 describe("useArgState", () => {
   it("re-syncs from the arg only when the arg itself changes", () => {
     const { result, rerender } = renderHook(
@@ -90,5 +99,20 @@ describe("useArgState", () => {
     });
     rerender({ arg: 2 });
     expect(result.current[0]).toBe(7);
+  });
+
+  it("commits a changed arg without a stale intermediate render", () => {
+    const committed: number[] = [];
+    const { result, rerender } = renderHook(
+      ({ arg }: { arg: number }) => useCommittedArgState(arg, committed),
+      { initialProps: { arg: 1 } },
+    );
+    act(() => {
+      result.current[1](5);
+    });
+    committed.length = 0;
+
+    rerender({ arg: 2 });
+    expect(committed).toEqual([2]);
   });
 });

@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { userEvent, within } from "storybook/test";
 
 /**
@@ -22,12 +22,16 @@ export async function openDialogByLauncher(
 /**
  * Local story state seeded from an arg that re-syncs whenever the arg
  * changes, so Storybook Controls keep driving a preview that also owns
- * the value between interactions.
+ * the value between interactions. Controls win on purpose: editing an arg
+ * replaces any local change the preview made to that value (for example a
+ * revoked share row). Play functions keep args fixed, so they never hit this.
  */
 export function useArgState<T>(arg: T): [T, Dispatch<SetStateAction<T>>] {
+  const [prevArg, setPrevArg] = useState(arg);
   const [value, setValue] = useState(arg);
-  useEffect(() => {
+  if (!Object.is(prevArg, arg)) {
+    setPrevArg(arg);
     setValue(arg);
-  }, [arg]);
+  }
   return [value, setValue];
 }
