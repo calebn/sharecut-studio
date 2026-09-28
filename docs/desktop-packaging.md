@@ -117,7 +117,10 @@ only by Rust for the confirmation dialog. Do not widen
 `capabilities/default.json` or add `remote.urls` to support this guard.
 
 Pinned bootstrap assets, when a distributor elects to mirror them, are described
-by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json).
+by [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json). The
+manifest lists only assets a consumer build requires; opt-in components
+(`nisqa`, `word-aligner`) are intentionally absent and download from their
+upstream pins via `podcast bootstrap --component …`.
 
 ## Platforms
 
