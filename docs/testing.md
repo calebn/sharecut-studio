@@ -416,7 +416,9 @@ trimmed, since a fixture built past the cap could never survive a real
 commit. Seeded entry ids are 12-character lowercase hex (`f"{n:012x}"`),
 matching the generated-id shape `ProjectStore` requires before it will prune
 an entry's snapshot file (`HistoryManager` mints the same shape via
-`uuid4().hex[:12]`).
+`uuid4().hex[:12]`). The default 200 steps also meet the History list's
+`VIRTUALIZE_ON_ROWS` (200), so a default-shape run profiles the virtualized
+list; `tests/test_large_project_fixture.py` pins that.
 
 Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
 whole Playwright run, so every other spec would otherwise run against the

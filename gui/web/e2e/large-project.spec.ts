@@ -253,7 +253,9 @@ test.describe("large project benchmark (opt-in fixture)", () => {
           await expect(redo).toBeDisabled(HEAVY);
         }),
       );
-      // Each seeded before/after pair is one History step.
+      // Each seeded before/after pair is one History step. The fixture's default
+      // history reaches VIRTUALIZE_ON_ROWS (pinned in tests/test_large_project_fixture.py),
+      // so a default-shape run always profiles the virtualized list.
       if (shape.historyEntries / 2 >= VIRTUALIZE_ON_ROWS) {
         profiles.push(
           await profile(page, cdp, "history-keyboard", async () => {
