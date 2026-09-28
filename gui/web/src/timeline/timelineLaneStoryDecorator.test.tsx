@@ -3,7 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
+import { MARKER_ROW_HEIGHT } from "../utils/layout";
+import {
+  timelineLaneStoryDecorator,
+  timelineMarkerStoryDecorator,
+} from "./timelineLaneStoryDecorator";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +30,31 @@ function renderShell(parameters: Record<string, unknown>) {
   );
 }
 
+function renderMarkerShell(
+  parameters: Record<string, unknown>,
+  args: Record<string, unknown> = {},
+) {
+  const Story = (() => (
+    <span data-testid="story" />
+  )) as unknown as DecoratorArgs[0];
+  return render(
+    <>
+      {timelineMarkerStoryDecorator(Story, {
+        parameters,
+        args,
+      } as unknown as DecoratorArgs[1])}
+    </>,
+  );
+}
+
 describe("timelineLaneStoryDecorator", () => {
+  it("falls back to the default label for a blank lanePreviewLabel", () => {
+    const { container } = renderShell({ lanePreviewLabel: "   " });
+    expect(
+      container.querySelector("main[aria-label='Timeline lane preview']"),
+    ).not.toBeNull();
+  });
+
   it("renders a single lane with no data-track-id and the default label", () => {
     const { container } = renderShell({});
     const rows = container.querySelectorAll(".lane-row");
@@ -117,5 +145,54 @@ describe("timelineLaneStoryDecorator", () => {
         `${file}: --ruler-height: ${value}`,
       ).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("timelineMarkerStoryDecorator", () => {
+  it("wraps the story in a marker shell with the default label and no lane rows", () => {
+    const { container } = renderMarkerShell({});
+    const main = container.querySelector("main.timeline-area") as HTMLElement;
+    expect(main.getAttribute("aria-label")).toBe("Marker lane preview");
+    expect(main.querySelector("[data-testid='story']")).not.toBeNull();
+    expect(container.querySelector(".lane-row")).toBeNull();
+    expect(main.style.getPropertyValue("--marker-row-height")).toBe(
+      `${MARKER_ROW_HEIGHT}px`,
+    );
+    // No rows arg: all four marker rows are shown.
+    expect(main.style.getPropertyValue("--marker-lane-height")).toBe(
+      `${4 * MARKER_ROW_HEIGHT}px`,
+    );
+  });
+
+  it("uses a lanePreviewLabel override and falls back on a blank one", () => {
+    const { container, unmount } = renderMarkerShell({
+      lanePreviewLabel: "Chapters preview",
+    });
+    expect(
+      container.querySelector("main[aria-label='Chapters preview']"),
+    ).not.toBeNull();
+    unmount();
+    const blank = renderMarkerShell({ lanePreviewLabel: " " });
+    expect(
+      blank.container.querySelector("main[aria-label='Marker lane preview']"),
+    ).not.toBeNull();
+  });
+
+  it("sizes --marker-lane-height from a partial rows arg", () => {
+    const { container } = renderMarkerShell(
+      {},
+      {
+        rows: {
+          chapters: true,
+          social: false,
+          comments: false,
+          clipping: false,
+        },
+      },
+    );
+    const main = container.querySelector("main") as HTMLElement;
+    expect(main.style.getPropertyValue("--marker-lane-height")).toBe(
+      `${MARKER_ROW_HEIGHT}px`,
+    );
   });
 });

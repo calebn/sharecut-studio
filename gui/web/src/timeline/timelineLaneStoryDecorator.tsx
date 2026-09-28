@@ -23,15 +23,12 @@ function laneTrackIds(value: unknown): string[] {
  */
 export const timelineLaneStoryDecorator: Decorator = (Story, context) => {
   const { lanePreviewLabel, phoneWidth, reserveRulerRoom } = context.parameters;
-  const previewLabel =
-    typeof lanePreviewLabel === "string" && lanePreviewLabel.trim()
-      ? lanePreviewLabel
-      : "Timeline lane preview";
+  const label = previewLabel(lanePreviewLabel, "Timeline lane preview");
   const width = phoneWidth ? "360px" : "40rem";
   const ids = laneTrackIds(context.parameters.laneTrackIds);
   const [firstId, ...restIds] = ids.length > 0 ? ids : [undefined];
   return (
-    <main className="timeline-area" aria-label={previewLabel}>
+    <main className="timeline-area" aria-label={label}>
       {reserveRulerRoom ? (
         <div
           data-story-ruler-room=""
