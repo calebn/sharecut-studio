@@ -22,6 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.keyed_lock import KeyedLocks
 
 FileManifest = tuple[tuple[str, str], ...]
 """(path relative to the snapshot root, sha256 hex) for every pinned file."""
@@ -137,8 +138,9 @@ def download_pinned_snapshot(
     return path, mismatch
 
 
-# Serialises memoised hashing so overlapping status polls hash a file once, not once each.
-_MEMO_LOCK = threading.Lock()
+# One lock per resolved file: overlapping status polls hash a file once, not once each,
+# while polls for different files (a multi-GB model.bin, a small config) hash in parallel.
+_MEMO_LOCKS: KeyedLocks[str, threading.Lock] = KeyedLocks(threading.Lock)
 
 
 @lru_cache(maxsize=64)
@@ -149,7 +151,7 @@ def _sha256_for(resolved: str, size: int, mtime_ns: int) -> str:
 def _memoized_sha256(path: Path) -> str:
     resolved = path.resolve()
     st = resolved.stat()
-    with _MEMO_LOCK:
+    with _MEMO_LOCKS.get(str(resolved)):
         return _sha256_for(str(resolved), st.st_size, st.st_mtime_ns)
 
 
