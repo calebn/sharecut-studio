@@ -108,6 +108,17 @@ describe("mergeRosterClient", () => {
     mergeRosterClient("a", prev, { label: "New" });
     expect(prev.label).toBe("Old");
   });
+
+  it("ignores __proto__ / constructor / prototype meta keys", () => {
+    const changes = JSON.parse(
+      '{"meta":{"__proto__":{"x":1},"constructor":"c","display_name":"A"}}',
+    );
+    const merged = mergeRosterClient("a", undefined, changes);
+    expect(Object.getPrototypeOf(merged.meta)).toBe(Object.prototype);
+    expect((merged.meta as Record<string, unknown>).x).toBeUndefined();
+    expect(Object.hasOwn(merged.meta ?? {}, "constructor")).toBe(false);
+    expect(merged.meta?.display_name).toBe("A");
+  });
 });
 
 describe("applyPresenceDelta", () => {

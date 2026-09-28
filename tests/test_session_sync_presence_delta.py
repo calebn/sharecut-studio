@@ -9,7 +9,7 @@ from typing import ClassVar
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.session_sync import presence_fanout
-from podcast_mcp.services.session_sync.commands import SyncCommand
+from podcast_mcp.services.session_sync.commands import SyncCommand, normalize_presence_meta
 from podcast_mcp.services.session_sync.presence_delta import (
     PresenceRosterTracker,
     is_own_presence_echo,
@@ -422,6 +422,12 @@ def test_fanout_presence_after_commit_logs_and_swallows_a_store_error(
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.session_sync.service"):
         svc._fanout_presence_after_commit()
     assert any("presence fan-out failed" in r.message for r in caplog.records)
+
+
+def test_normalize_presence_meta_drops_unknown_and_reserved_keys() -> None:
+    assert normalize_presence_meta(
+        {"__proto__": {"x": 1}, "constructor": "c", "display_name": "A"}
+    ) == {"display_name": "A"}
 
 
 def _drain_types(q) -> list[str]:

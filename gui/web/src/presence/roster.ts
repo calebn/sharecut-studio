@@ -58,12 +58,20 @@ export type PresenceDeltaChanges = Partial<
   meta?: Record<string, unknown> | null;
 };
 
+/** Meta keys never merged from a peer delta: assigning `__proto__` on a plain object swaps
+ * its prototype. The server already allow-lists meta keys (`PresenceMeta`,
+ * `extra="ignore"`); this is defense in depth. */
+const UNSAFE_META_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function mergeMetaChanges(
   prev: SessionClient["meta"],
   changes: Record<string, unknown>,
 ): SessionClient["meta"] {
   const merged: Record<string, unknown> = { ...(prev ?? {}) };
   for (const [key, value] of Object.entries(changes)) {
+    if (UNSAFE_META_KEYS.has(key)) {
+      continue;
+    }
     if (value === null) {
       delete merged[key];
     } else {
