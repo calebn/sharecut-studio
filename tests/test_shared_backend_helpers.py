@@ -14,7 +14,7 @@ from podcast_mcp.edits.ranges import merge_intervals, merge_timeline_ranges
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.models import load_project
 from podcast_mcp.util.atomic_render import remove_partials, render_atomic
-from podcast_mcp.util.dsp import clamp01, linear_rms
+from podcast_mcp.util.dsp import clamp, clamp01, linear_rms
 from podcast_mcp.util.tracks import existing_stem_path, stem_path
 
 
@@ -97,6 +97,9 @@ def test_render_atomic_parallel_writers_and_cleanup(tmp_path: Path) -> None:
 
 def test_numeric_helpers_preserve_edge_values() -> None:
     assert (clamp01(-1.0), clamp01(0.25), clamp01(2.0)) == (0.0, 0.25, 1.0)
+    assert (clamp(-1.0, 0.0, 1.0), clamp(0.5, 0.0, 1.0), clamp(2.0, 0.0, 1.0)) == (0.0, 0.5, 1.0)
+    assert (clamp(-5.0, hi=1.0), clamp(5.0, lo=1.0), clamp(3.0)) == (-5.0, 5.0, 3.0)
+    assert clamp(0.5, 2.0, 1.0) == 2.0  # lo wins when the bounds cross
     assert linear_rms(np.array([], dtype=np.float64)) == 0.0
     assert linear_rms(np.array([0.0, 1.0])) == pytest.approx(2**-0.5)
 
