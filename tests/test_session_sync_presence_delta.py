@@ -12,6 +12,7 @@ from podcast_mcp.services.session_sync import presence_fanout
 from podcast_mcp.services.session_sync.commands import SyncCommand, normalize_presence_meta
 from podcast_mcp.services.session_sync.presence_delta import (
     PresenceRosterTracker,
+    get_roster_tracker,
     is_own_presence_echo,
     meta_changes,
     presence_delta_event,
@@ -353,6 +354,7 @@ def test_compact_applied_has_no_clients_or_fields(minimal_project) -> None:
     loop = asyncio.new_event_loop()
     try:
         q = hub.subscribe(key, loop)
+        before = get_roster_tracker().version(key)
         result = svc.submit_control("SetPlayhead", {"playhead_sec": 3.5}, client_id="agent-x")
         loop.run_until_complete(asyncio.sleep(0))
         wire_event = q.get_nowait()
@@ -364,7 +366,8 @@ def test_compact_applied_has_no_clients_or_fields(minimal_project) -> None:
     assert "clients" not in wire_event["snapshot"]
     assert "fields" not in wire_event["snapshot"]
     assert wire_event["author_client_id"] == "agent-x"
-    assert wire_event["roster_version"] >= 0
+    # The Applied is published before the post-commit roster fan-out.
+    assert wire_event["roster_version"] == before
 
     # submit()'s own return value keeps the full snapshot.
     assert "clients" in result["snapshot"]
