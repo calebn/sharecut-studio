@@ -18,6 +18,7 @@ from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.cross_process_sync import CrossProcessLease, watch_cross_process_writes
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
 from podcast_mcp.services.record.service import (
@@ -308,22 +309,12 @@ async def session_ws(
     write_lock = asyncio.Lock()
     rec_queue = None
     rec_tasks = WsTaskSet(f"session record ws client_id={client_id}")
+    hub_tasks = WsTaskSet(f"session ws client_id={client_id}")
     rec_svc: RecordSessionService | None = None
     attached_sid: str | None = None
     fail_until = 0.0
     host_record_conn_id = f"host:{client_id}:{secrets.token_hex(8)}"
     seq = 1
-    svc.submit(
-        SyncCommand(
-            type="PresenceHeartbeat",
-            payload={"label": label, "playhead_sec": None},
-            client_id=client_id,
-            role=role,  # type: ignore[arg-type]
-            client_seq=seq,
-        )
-    )
-    seq += 1
-    await websocket.send_json({"type": "Snapshot", "snapshot": svc.snapshot()})
 
     async def _send(payload: dict[str, Any]) -> None:
         async with write_lock:
@@ -410,10 +401,24 @@ async def session_ws(
                     }
                 )
 
-    await _attach_record()
-    hub_tasks = WsTaskSet(f"session ws client_id={client_id}")
-    hub_tasks.spawn(_pump_hub())
+    bridge_lease: CrossProcessLease | None = None
     try:
+        # After subscribe, before the hello snapshot (#695): a foreign write in between
+        # is in the snapshot or published by the watcher.
+        bridge_lease = await asyncio.to_thread(watch_cross_process_writes, ws_proj)
+        svc.submit(
+            SyncCommand(
+                type="PresenceHeartbeat",
+                payload={"label": label, "playhead_sec": None},
+                client_id=client_id,
+                role=role,  # type: ignore[arg-type]
+                client_seq=seq,
+            )
+        )
+        seq += 1
+        await websocket.send_json({"type": "Snapshot", "snapshot": svc.snapshot()})
+        await _attach_record()
+        hub_tasks.spawn(_pump_hub())
         while True:
             try:
                 msg = await websocket.receive_json()
@@ -480,6 +485,8 @@ async def session_ws(
         record_svc = rec_svc
         try:
             hub.unsubscribe(key, queue)
+            if bridge_lease is not None:
+                bridge_lease.release()
             try:
                 await hub_tasks.stop()
             finally:
