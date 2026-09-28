@@ -101,6 +101,10 @@ export const createProjectSlice: StateCreator<
             // A SetClipJoin that never settled must not block every join badge on the next project.
             openJoinId: null,
             joinMutationInFlight: false,
+            // Job-result announcement bookkeeping (#704) is per project: a
+            // stale id must not hush a headline on the next project.
+            pendingJobResults: {},
+            spokenJobResultIds: [],
             ...waveformViewState(projectPath),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),

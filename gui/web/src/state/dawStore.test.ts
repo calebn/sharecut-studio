@@ -321,6 +321,8 @@ describe("dawStore listen-first transport", () => {
       renderPreviewBusy: true,
       chapterAddPending: true,
       joinMutationInFlight: true,
+      pendingJobResults: { b1: null },
+      spokenJobResultIds: ["b0"],
     });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     const same = useDawStore.getState();
@@ -333,11 +335,15 @@ describe("dawStore listen-first transport", () => {
     expect(same.renderPreviewBusy).toBe(true);
     expect(same.chapterAddPending).toBe(true);
     expect(same.joinMutationInFlight).toBe(true);
+    expect(same.pendingJobResults).toEqual({ b1: null });
+    expect(same.spokenJobResultIds).toEqual(["b0"]);
 
     same.hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().projectEpoch).toBe(epoch + 1);
     expect(useDawStore.getState().chapterAddPending).toBe(false);
     expect(useDawStore.getState().joinMutationInFlight).toBe(false);
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().spokenJobResultIds).toEqual([]);
   });
 
   it("beginAudition bumps epoch", () => {
