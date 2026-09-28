@@ -37,7 +37,7 @@ from podcast_mcp.whisper_models import (
 )
 
 if TYPE_CHECKING:
-    from podcast_mcp.engines.word_align import WordAligner
+    from podcast_mcp.engines.word_align import WordAligner, WordAlignResult
 
 log = logging.getLogger(__name__)
 
@@ -153,6 +153,27 @@ def _read_align_cache(path: Path, count: int) -> list[tuple[float, float] | None
         log.warning("ignoring mismatched word-alignment cache %s", path.name)
         return None
     return spans
+
+
+def _write_align_cache(
+    path: Path, asr_cache: Path, aligner: WordAligner, result: WordAlignResult
+) -> None:
+    """Best-effort: the cache only saves a re-align, so a failed write keeps the aligned spans."""
+    try:
+        write_text_atomic(
+            path,
+            json.dumps(
+                {
+                    "aligner": aligner.cache_identity(),
+                    "spans": [None if s is None else list(s) for s in result.spans],
+                    "stats": result.stats.as_dict(),
+                    "runtime_sec": round(result.runtime_sec, 3),
+                },
+                indent=2,
+            ),
+        )
+    except OSError as exc:
+        log.warning("could not write word-alignment cache %s: %s", path.name, exc)
 
 
 _CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"
@@ -366,18 +387,7 @@ class TranscriptionEngine:
                 keep_whisper("failed", str(exc))
                 return
             spans = result.spans
-            write_text_atomic(
-                path,
-                json.dumps(
-                    {
-                        "aligner": aligner.cache_identity(),
-                        "spans": [None if s is None else list(s) for s in spans],
-                        "stats": result.stats.as_dict(),
-                        "runtime_sec": round(result.runtime_sec, 3),
-                    },
-                    indent=2,
-                ),
-            )
+            _write_align_cache(path, asr_cache, aligner, result)
         retimed = apply_word_spans(transcript.words, spans)
         if not retimed:
             keep_whisper("failed", "no words aligned")

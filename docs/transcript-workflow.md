@@ -137,7 +137,8 @@ With `transcribe.forced_alignment.enabled`, alignment results get their own
 cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
 keyed by the aligner identity (repo, revision, file, window settings) and a
 hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
-is not an ASR cache input, so toggling the flag never re-runs Whisper.
+is not an ASR cache input, so toggling the flag never re-runs Whisper. The cache write is
+best-effort: a failed write logs a warning and keeps the aligned spans.
 
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)

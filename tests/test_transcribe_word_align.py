@@ -262,3 +262,28 @@ def test_zero_aligned_words_counts_as_failed(minimal_project, tmp_path):
     entry = engine.forced_alignment_jobs[0]
     assert entry["status"] == "failed"
     assert entry["reason"] == "no words aligned"
+
+
+def test_alignment_cache_write_failure_still_retimes(minimal_project, tmp_path, caplog):
+    from podcast_mcp.engines import transcribe as transcribe_mod
+
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    engine._word_aligner = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
+    real_write = transcribe_mod.write_text_atomic
+
+    def flaky_write(path, text, **kwargs):
+        if ".word_align_" in path.name:
+            raise OSError(28, "No space left on device")
+        return real_write(path, text, **kwargs)
+
+    with (
+        patcher,
+        patch.object(transcribe_mod, "write_text_atomic", side_effect=flaky_write),
+        caplog.at_level("WARNING"),
+    ):
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert [(w.start, w.end) for w in tr.words] == [(0.1, 0.3), (0.6, 0.9)]
+    assert engine.forced_alignment_jobs[0]["status"] == "aligned"
+    assert not list(proj.transcripts_dir().glob("*.word_align_*.json"))
+    assert any("could not write word-alignment cache" in r.message for r in caplog.records)
