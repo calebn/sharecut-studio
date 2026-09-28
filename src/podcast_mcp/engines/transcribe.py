@@ -406,6 +406,7 @@ class TranscriptionEngine:
         )
         spans = _read_align_cache(path, len(transcript.words)) if use_cache else None
         status = "cached"
+        align_sec: float | None = None
         if spans is None:
             status = "aligned"
             raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
@@ -416,6 +417,7 @@ class TranscriptionEngine:
                 keep_whisper("failed", str(exc))
                 return
             spans = result.spans
+            align_sec = round(result.runtime_sec, 3)
             _write_align_cache(path, asr_cache, aligner, result)
         retimed = apply_word_spans(transcript.words, spans)
         if not retimed:
@@ -426,6 +428,8 @@ class TranscriptionEngine:
             aligned_words=retimed,
             unaligned_words=len(transcript.words) - retimed,
         )
+        if align_sec is not None:
+            entry["align_sec"] = align_sec
         transcript.word_aligner = aligner.model.id
 
     def transcribe_file(
