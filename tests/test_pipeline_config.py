@@ -299,14 +299,18 @@ def test_component_status_shape() -> None:
 def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
     from podcast_mcp.services.pipeline_config import component_status
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    monkeypatch.setattr(
+        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+    )
     status = component_status()
     assert "not downloaded" in status["word-aligner"]["hint"]
     assert status["word-aligner"]["bootstrap"] == "podcast bootstrap --component word-aligner"
 
 
 def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch) -> None:
+    from model_pin_helpers import plant_pinned_whisper
     from podcast_mcp.services import pipeline_config as pc
 
     cache = tmp_path / "whisper-cache"
@@ -318,11 +322,26 @@ def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch)
     assert status["whisper"]["model"] == "large-v3-turbo"
     assert "not downloaded" in status["whisper"]["hint"]
 
-    blob = cache / "models--Systran--faster-whisper-large-v3-turbo" / "blobs" / "model.bin"
-    blob.parent.mkdir(parents=True)
-    blob.write_bytes(b"x")
+    plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     status_ok = pc.component_status(whisper_model="large-v3-turbo")
     assert status_ok["whisper"]["ok"] is True
+
+
+def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
+    from model_pin_helpers import plant_pinned_whisper
+    from podcast_mcp.services import pipeline_config as pc
+
+    cache = tmp_path / "whisper-cache"
+    cache.mkdir()
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    snap = plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
+    (snap / "model.bin").write_bytes(b"tampered")
+
+    status = pc.component_status(whisper_model="large-v3-turbo")
+    assert status["whisper"]["ok"] is False
+    assert "does not match" in status["whisper"]["hint"]
+    assert "--upgrade" in status["whisper"]["hint"]
+    assert status["whisper"]["bootstrap"] == "podcast bootstrap --component whisper --upgrade"
 
 
 def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> None:

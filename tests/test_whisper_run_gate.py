@@ -8,11 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-
-def _plant_weight(cache: Path, model: str) -> None:
-    blob = cache / f"models--Systran--faster-whisper-{model}" / "blobs" / "model.bin"
-    blob.parent.mkdir(parents=True)
-    blob.write_bytes(b"x")
+from model_pin_helpers import plant_pinned_whisper
 
 
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
@@ -59,7 +55,7 @@ def test_ensure_whisper_cached_for_run_ok_when_cached(
     from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
 
     cache = tmp_path / "whisper"
-    _plant_weight(cache, "small.en")
+    plant_pinned_whisper(cache, "small.en", monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
     ensure_whisper_cached_for_run(
         only_step="transcribe_tracks",
@@ -147,15 +143,46 @@ def test_gui_pipeline_run_409_when_weights_missing(
     assert status.json()["running"] is False
 
 
+def test_gui_pipeline_run_409_on_pin_mismatch(
+    minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.pipeline_config import config_store
+
+    cache = tmp_path / "whisper"
+    snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
+    (snap / "vocabulary.txt").write_bytes(b"tampered")
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+
+    path = str(minimal_project)
+    config_store().put(
+        Path(path),
+        config={"transcribe": {"model": "small.en"}},
+        enabled_steps=["ingest_tracks", "transcribe_tracks"],
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.gui.jobs.PipelineJobManager.start",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("must not start")),
+    )
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/pipeline/run",
+        json={"path": path, "use_working_set": True},
+    )
+    assert res.status_code == 409
+    assert "--upgrade" in res.json()["detail"]
+
+
 def test_transcription_engine_uses_local_files_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.engines.transcribe import TranscriptionEngine
 
-    _plant_weight(tmp_path, "tiny.en")
+    cache = tmp_path / "whisper"
+    snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
-        lambda: tmp_path,
+        lambda: cache,
     )
     captured: dict = {}
 
@@ -168,7 +195,33 @@ def test_transcription_engine_uses_local_files_only(
         eng = TranscriptionEngine("tiny.en")
         eng._get_model()
     assert captured["local_files_only"] is True
-    assert captured["name"] == "tiny.en"
+    assert captured["name"] == str(snap)
+
+
+def test_transcription_engine_refuses_a_tampered_pinned_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.transcribe import TranscriptionEngine
+    from podcast_mcp.whisper_models import WhisperPinMismatchError
+
+    cache = tmp_path / "whisper"
+    snap = plant_pinned_whisper(cache, "tiny.en", monkeypatch)
+    (snap / "config.json").write_bytes(b"tampered")
+    monkeypatch.setattr(
+        "podcast_mcp.config.whisper_cache_dir",
+        lambda: cache,
+    )
+    called = {"n": 0}
+
+    def fake_model(name, **kwargs):
+        called["n"] += 1
+        return MagicMock()
+
+    with patch("faster_whisper.WhisperModel", side_effect=fake_model):
+        eng = TranscriptionEngine("tiny.en")
+        with pytest.raises(WhisperPinMismatchError, match=r"config\.json"):
+            eng._get_model()
+    assert called["n"] == 0
 
 
 def test_transcription_engine_raises_when_weights_missing(

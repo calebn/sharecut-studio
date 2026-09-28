@@ -240,3 +240,25 @@ def test_doctor_word_aligner_not_downloaded_prints_no_line(tmp_path, monkeypatch
         result = runner.invoke(setup_app, ["doctor"])
     assert "word-aligner" not in result.stderr
     assert "word-aligner" not in result.stdout
+
+
+def test_doctor_fails_on_whisper_pin_mismatch(tmp_path, monkeypatch):
+    from podcast_mcp.whisper_models import WhisperPinMismatchError
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    with (
+        patch(
+            "podcast_mcp.services.doctor.FFmpegEngine.check_available",
+            return_value=(True, "ffmpeg 7.0"),
+        ),
+        patch(
+            "podcast_mcp.services.doctor.whisper_model_problem",
+            return_value=WhisperPinMismatchError(
+                "large-v3-turbo", "model.bin sha256 abc does not match the pin"
+            ),
+        ),
+    ):
+        result = runner.invoke(setup_app, ["doctor"])
+    assert result.exit_code == 1
+    assert "[fail] whisper model large-v3-turbo" in result.stderr
+    assert "--upgrade" in result.stderr

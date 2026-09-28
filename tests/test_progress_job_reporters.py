@@ -107,14 +107,14 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         boot,
         "bootstrap_whisper_model",
-        lambda _m: (_ for _ in ()).throw(ImportError("no whisper")),
+        lambda _m, **_k: (_ for _ in ()).throw(ImportError("no whisper")),
     )
     assert boot._run_whisper("base")["ok"] is False
 
     monkeypatch.setattr(
         boot,
         "bootstrap_whisper_model",
-        lambda _m: (_ for _ in ()).throw(RuntimeError("dl fail")),
+        lambda _m, **_k: (_ for _ in ()).throw(RuntimeError("dl fail")),
     )
     assert boot._run_whisper("base")["ok"] is False
 
@@ -132,7 +132,7 @@ def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
 
     # Cover run_bootstrap rnnoise branch
     monkeypatch.setattr(boot, "_run_ffmpeg", lambda **_k: {"ok": True})
-    monkeypatch.setattr(boot, "_run_whisper", lambda _m: {"ok": True})
+    monkeypatch.setattr(boot, "_run_whisper", lambda _m, **_k: {"ok": True})
     monkeypatch.setattr(boot, "_run_rnnoise", lambda **_k: {"ok": True})
     monkeypatch.setattr(
         boot,

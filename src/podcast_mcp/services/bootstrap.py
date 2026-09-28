@@ -156,7 +156,8 @@ def run_bootstrap(
     """Download selected components; report ProgressReporter events.
 
     Torch / NISQA / speaker extras are intentionally unsupported here. The opt-in word
-    aligner downloads only when ``components`` names it.
+    aligner downloads only when ``components`` names it. ``force`` also re-downloads a
+    pinned Whisper catalog snapshot (``bootstrap_whisper_model(..., force=True)``).
     """
     model = resolve_whisper_model(requested=whisper_model)
     wanted = list(components) if components else list(DEFAULT_FIRST_RUN_COMPONENTS)
@@ -181,7 +182,7 @@ def run_bootstrap(
             if name == "ffmpeg":
                 results[name] = _run_ffmpeg(force=force)
             elif name == "whisper":
-                results[name] = _run_whisper(model)
+                results[name] = _run_whisper(model, force=force)
             elif name == "rnnoise":
                 results[name] = _run_rnnoise(force=force)
             elif name == "word-aligner":
@@ -207,9 +208,9 @@ def _run_ffmpeg(*, force: bool) -> dict[str, Any]:
     }
 
 
-def _run_whisper(model_size: str) -> dict[str, Any]:
+def _run_whisper(model_size: str, *, force: bool = False) -> dict[str, Any]:
     try:
-        return bootstrap_whisper_model(model_size)
+        return bootstrap_whisper_model(model_size, force=force)
     except ImportError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:

@@ -114,7 +114,7 @@ Assets land under `~/.cache/podcast_mcp/` (override with `PODCAST_MCP_CACHE`):
 | Component | What it fetches | Needed for |
 |-----------|------------------|------------|
 | `ffmpeg` | Static `ffmpeg`/`ffprobe` via CDN when `PODCAST_BOOTSTRAP_CDN_BASE` is set **and** `sha256_by_platform` pins exist; otherwise `static-ffmpeg` | Everything if no system FFmpeg |
-| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. |
+| `whisper` | A `faster-whisper` model (`--whisper-model large-v3-turbo` by default) | Required before pipeline/transcribe runs. Pipeline Run will not auto-download; use bootstrap, the Sharecut Studio first-run wizard, or the Pipeline picker. Smaller sizes (`tiny.en` … `medium.en`, `large-v3`) trade accuracy for disk. Catalog sizes are pinned: `podcast_mcp.whisper_models.WHISPER_PINS` records the Hugging Face revision and every file's sha256. They are checked at download, at load (every run, about 1–3 s for the large models) and in status checks (Pipeline badge, bootstrap status, `podcast doctor`; memoised per file). A mismatch reports `[fail]` with a `--upgrade` hint, and `--upgrade` re-downloads. A catalog snapshot cached at another revision reads as not downloaded until bootstrap fetches the pin. Other faster-whisper sizes (`tiny`, `base`, `large-v2`, `distil-*`, …) are unpinned. |
 | `rnnoise` | An RNNoise `.rnnn` model | `noise_reduction_rnnoise` FX preset |
 | `silero-vad` | Nothing — verifies the model bundled with `faster-whisper` | Optional VAD breath handling |
 | `nisqa` | NISQA weights (**opt-in only**; not included in `--component all`) | Neural join QC with `joinqc` extra. Default GitHub release URL may 404; set `PODCAST_MCP_NISQA_MODEL` to an unpacked weights dir if needed |
@@ -127,7 +127,24 @@ benchmarks a heavier `torch-large` candidate, which is not wired into
 shipped `onnx-base` tier's measured cost and accuracy on real audio are in
 [docs/testing.md § Shipped pass results (#715)](testing.md#shipped-pass-results-715).
 
-Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights. Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
+**Pinned model manifests (#728).** The word aligner (`onnx-base`) and the
+Whisper catalog sizes (below) are pinned to a Hugging Face revision plus a
+per-file sha256 manifest (`util/model_manifest.py`, a shared
+`FileManifest`/`PinnedSnapshot`/`manifest_mismatch` used by both catalogs).
+Every downloaded file is verified, not just the model weights, so a swapped
+`vocab.json` or tokenizer config is caught before it can silently shift
+transcript or alignment output. Pins live in `word_aligner_models.py`
+(`WordAlignerModel.file_sha256`) and `whisper_models.py` (`WHISPER_PINS`).
+Hashes were obtained from a clean download of the pinned revisions on
+2026-09-28: LFS files (weights) use the hub's LFS sha256
+(`HfApi().model_info(..., files_metadata=True)`); small non-LFS files are the
+sha256 of the bytes at that revision, whose git blob id and size were checked
+against the same call. To re-pin (a new upstream revision or a compromised
+pin), bump the revision and every file's hash together in one change — for
+the word aligner, also update `tests/fixtures/word_boundary/candidates.json`,
+which a test asserts equals the production catalog.
+
+Optional asset mirror: set `PODCAST_BOOTSTRAP_CDN_BASE` (public HTTPS base, no trailing slash) so FFmpeg/RNNoise try CDN object keys from [`contracts/bootstrap-assets.json`](../contracts/bootstrap-assets.json) before upstream fallbacks. CDN bytes are skipped until the matching `sha256` / `sha256_by_platform` pins are present. `GET /api/bootstrap/status` reports whether an environment override or non-null manifest `cdn_base_default` configured a mirror. Installer manifests and publishing configuration belong to the operator. Whisper still uses `faster-whisper` / Hugging Face until the mirror ships those weights (the catalog sizes at their pinned revisions). Opt-in components (`nisqa`, `word-aligner`) are not in the manifest and always download from upstream.
 
 ```bash
 podcast bootstrap --component all      # ffmpeg + whisper (large-v3-turbo) + rnnoise + silero check

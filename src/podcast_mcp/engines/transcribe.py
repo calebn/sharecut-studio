@@ -38,7 +38,7 @@ from podcast_mcp.util.project_state import current_cancel_check
 from podcast_mcp.util.workspace_paths import resolve_cache_file, resolve_under_workspace
 from podcast_mcp.whisper_models import (
     DEFAULT_WHISPER_MODEL,
-    ensure_whisper_model_cached,
+    resolve_whisper_model_path,
     validate_whisper_model,
 )
 
@@ -294,9 +294,9 @@ class TranscriptionEngine:
         if self._model is None:
             from faster_whisper import WhisperModel
 
-            ensure_whisper_model_cached(self.model_size)
+            model_path = resolve_whisper_model_path(self.model_size)
             self._model = WhisperModel(
-                self.model_size,
+                model_path,
                 device=self.device,
                 compute_type="int8" if self.device == "cpu" else "float16",
                 download_root=str(whisper_cache_dir()),

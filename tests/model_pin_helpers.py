@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp import word_aligner_models
+from podcast_mcp import whisper_models, word_aligner_models
 from podcast_mcp.util.model_manifest import FileManifest
 
 
@@ -33,3 +33,14 @@ def pin_word_aligner_to_fake_snapshot(root: Path, monkeypatch: pytest.MonkeyPatc
         (dataclasses.replace(model, file_sha256=manifest),),
     )
     return root
+
+
+def plant_pinned_whisper(cache: Path, model: str, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A complete HF-layout snapshot for a catalog size under ``cache``, pin patched to it."""
+    pin = whisper_models.WHISPER_PINS[model]
+    snap = cache / f"models--{pin.hf_repo.replace('/', '--')}" / "snapshots" / pin.revision
+    manifest = write_fake_files(snap, pin.allow_patterns)
+    monkeypatch.setitem(
+        whisper_models.WHISPER_PINS, model, dataclasses.replace(pin, file_sha256=manifest)
+    )
+    return snap

@@ -2,6 +2,9 @@
 
 Product default is ``large-v3-turbo`` (lowest practical WER). Smaller sizes
 remain selectable at setup so machines that cannot spare ~1.6 GB still work.
+The catalog sizes (``WHISPER_MODEL_CATALOG``) are pinned to a Hugging Face
+revision plus a per-file sha256 manifest (``WHISPER_PINS``, #728); other
+``FASTER_WHISPER_SIZES`` stay unpinned.
 """
 
 from __future__ import annotations
@@ -12,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+
+from podcast_mcp.util.model_manifest import PinnedSnapshot, manifest_mismatch, missing_files
 
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
 
@@ -85,6 +90,81 @@ WHISPER_MODEL_CATALOG: tuple[dict[str, str], ...] = (
 
 WHISPER_MODEL_IDS: tuple[str, ...] = tuple(item["id"] for item in WHISPER_MODEL_CATALOG)
 WHISPER_SIZE_ENUM: tuple[str, ...] = tuple(sorted(FASTER_WHISPER_SIZES))
+
+# Files shared across repos (identical bytes at each pinned revision).
+_EN_TOKENIZER_SHA256 = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+_EN_VOCABULARY_SHA256 = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
+_V3_PREPROCESSOR_SHA256 = "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711"
+_V3_VOCABULARY_SHA256 = "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1"
+
+# Pinned Hugging Face snapshots for the catalog sizes (#728): the repo faster-whisper
+# resolves the size to, the commit that was ``main`` on 2026-09-28, and the sha256 of
+# every file faster-whisper's download takes from it. Provenance: util/model_manifest.py.
+# Sizes outside the catalog stay unpinned (faster-whisper's own download; presence check).
+WHISPER_PINS: dict[str, PinnedSnapshot] = {
+    "tiny.en": PinnedSnapshot(
+        hf_repo="Systran/faster-whisper-tiny.en",
+        revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba",
+        file_sha256=(
+            ("config.json", "14b1b421a90349bc551b881461426b561a874049cb9e4c4864f2ca384f6a7cc5"),
+            ("model.bin", "1a5afae06a4db91c975c9a9d78be5cc110ee4ea022ad57d55492e4550e936b2a"),
+            ("tokenizer.json", _EN_TOKENIZER_SHA256),
+            ("vocabulary.txt", _EN_VOCABULARY_SHA256),
+        ),
+    ),
+    "base.en": PinnedSnapshot(
+        hf_repo="Systran/faster-whisper-base.en",
+        revision="3d3d5dee26484f91867d81cb899cfcf72b96be6c",
+        file_sha256=(
+            ("config.json", "f3bc3821e9fc76a27bae538e11ae5b677dcdd352b4600429ce7951d398569aeb"),
+            ("model.bin", "2a166925539a16005f14ff328359f9b9adb9dc4fb631bb3b227526862e93e2ef"),
+            ("tokenizer.json", _EN_TOKENIZER_SHA256),
+            ("vocabulary.txt", _EN_VOCABULARY_SHA256),
+        ),
+    ),
+    "small.en": PinnedSnapshot(
+        hf_repo="Systran/faster-whisper-small.en",
+        revision="d1d751a5f8271d482d14ca55d9e2deeebbae577f",
+        file_sha256=(
+            ("config.json", "666a9605530ac1f61fa8177f3702b4dacec9966749e42610839fcc32661d5fae"),
+            ("model.bin", "62b2a45b05ee59acb4a5341b33ee35e041395d378d418a18acfe4c9e768ee37a"),
+            ("tokenizer.json", _EN_TOKENIZER_SHA256),
+            ("vocabulary.txt", _EN_VOCABULARY_SHA256),
+        ),
+    ),
+    "medium.en": PinnedSnapshot(
+        hf_repo="Systran/faster-whisper-medium.en",
+        revision="a29b04bd15381511a9af671baec01072039215e3",
+        file_sha256=(
+            ("config.json", "4a1848ebabe7938d9797c15a2e8e4ce1d36e6fd4a43d096ae5955257c67c7962"),
+            ("model.bin", "11b220779aea4c6f3ce9d2549c8a95ea869ed84066864b999531ef53e594fe5b"),
+            ("tokenizer.json", _EN_TOKENIZER_SHA256),
+            ("vocabulary.txt", _EN_VOCABULARY_SHA256),
+        ),
+    ),
+    "large-v3-turbo": PinnedSnapshot(
+        hf_repo="mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+        revision="0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+        file_sha256=(
+            ("config.json", "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e"),
+            ("preprocessor_config.json", _V3_PREPROCESSOR_SHA256),
+            ("model.bin", "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"),
+            ("tokenizer.json", "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd"),
+            ("vocabulary.json", _V3_VOCABULARY_SHA256),
+        ),
+    ),
+    "large-v3": PinnedSnapshot(
+        hf_repo="Systran/faster-whisper-large-v3",
+        revision="edaa852ec7e145841d8ffdb056a99866b5f0a478",
+        file_sha256=(
+            ("config.json", "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9"),
+            ("preprocessor_config.json", _V3_PREPROCESSOR_SHA256),
+            ("model.bin", "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1"),
+            ("tokenizer.json", "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca"),
+            ("vocabulary.json", _V3_VOCABULARY_SHA256),
+        ),
+    ),
+}
 
 
 def prefs_path() -> Path:
@@ -189,50 +269,28 @@ def apply_whisper_model_to_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
 class WhisperWeightsMissingError(RuntimeError):
     """Raised when a pipeline/transcribe run needs weights that are not on disk."""
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, message: str | None = None) -> None:
         self.model = model
         super().__init__(
-            f"Whisper model {model!r} is not downloaded. "
-            f"Run: podcast bootstrap --component whisper --whisper-model {model} "
-            "or use a downloaded model with "
-            "podcast transcribe --model <model>."
+            message
+            or (
+                f"Whisper model {model!r} is not downloaded. "
+                f"Run: podcast bootstrap --component whisper --whisper-model {model} "
+                "or use a downloaded model with "
+                "podcast transcribe --model <model>."
+            )
         )
 
 
-def ensure_whisper_model_cached(model: str) -> str:
-    """Return the canonical model id, or raise if weights are missing."""
-    canonical = validate_whisper_model(model)
-    if not whisper_model_is_cached(canonical):
-        raise WhisperWeightsMissingError(canonical)
-    return canonical
+class WhisperPinMismatchError(WhisperWeightsMissingError):
+    """A downloaded pinned Whisper snapshot whose files are not the pinned bytes (#728)."""
 
-
-def bootstrap_whisper_model(model_size: str) -> dict[str, Any]:
-    """Download weights into the cache and persist the machine preference."""
-    from faster_whisper import WhisperModel
-
-    from podcast_mcp.config import whisper_cache_dir
-
-    canonical = validate_whisper_model(model_size)
-    # Intentional download path — the only WhisperModel construction without
-    # local_files_only=True.
-    WhisperModel(
-        canonical,
-        device="cpu",
-        compute_type="int8",
-        download_root=str(whisper_cache_dir()),
-    )
-    persist_error: str | None = None
-    try:
-        persist_whisper_model(canonical)
-    except (OSError, yaml.YAMLError) as exc:
-        persist_error = str(exc)
-    return {
-        "ok": True,
-        "model": canonical,
-        "cache": str(whisper_cache_dir()),
-        "persist_error": persist_error,
-    }
+    def __init__(self, model: str, detail: str) -> None:
+        super().__init__(
+            model,
+            f"Whisper model {model!r} does not match its pinned download ({detail}). "
+            f"Run: podcast bootstrap --component whisper --whisper-model {model} --upgrade",
+        )
 
 
 def cache_path_matches_model(posix: str, model: str) -> bool:
@@ -248,8 +306,8 @@ def cache_path_matches_model(posix: str, model: str) -> bool:
 _WEIGHT_NAMES = frozenset({"model.bin", "model.safetensors"})
 
 
-def whisper_model_is_cached(model: str) -> bool:
-    """True when a complete-looking faster-whisper weight file is on disk.
+def _unpinned_weights_on_disk(model: str) -> bool:
+    """True when a complete-looking faster-whisper weight file is on disk (unpinned sizes only).
 
     Requires ``model.bin`` or ``model.safetensors`` under a path that belongs to
     ``model`` so a partial Hugging Face download does not count as ready.
@@ -259,13 +317,138 @@ def whisper_model_is_cached(model: str) -> bool:
     root = whisper_cache_dir()
     if not root.is_dir():
         return False
-    canonical = validate_whisper_model(model)
     return any(
         path.is_file()
         and path.name in _WEIGHT_NAMES
-        and cache_path_matches_model(path.as_posix(), canonical)
+        and cache_path_matches_model(path.as_posix(), model)
         for path in root.rglob("*")
     )
+
+
+def _pinned_snapshot_dir(model: str, pin: PinnedSnapshot) -> Path:
+    """The complete local pinned snapshot for ``model``; never downloads."""
+    from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import LocalEntryNotFoundError
+
+    from podcast_mcp.config import whisper_cache_dir
+
+    try:
+        path = Path(
+            snapshot_download(
+                pin.hf_repo,
+                revision=pin.revision,
+                allow_patterns=pin.allow_patterns,
+                cache_dir=str(whisper_cache_dir()),
+                local_files_only=True,
+            )
+        )
+    except LocalEntryNotFoundError as exc:
+        raise WhisperWeightsMissingError(model) from exc
+    if missing_files(path, pin.file_sha256):
+        raise WhisperWeightsMissingError(model)
+    return path
+
+
+def verify_whisper_snapshot(
+    model_dir: Path, model: str, pin: PinnedSnapshot, *, memoize: bool = False
+) -> None:
+    """Fail closed when any pinned file is not the pinned bytes (corrupt or swapped)."""
+    mismatch = manifest_mismatch(model_dir, pin.file_sha256, memoize=memoize)
+    if mismatch is not None:
+        raise WhisperPinMismatchError(model, mismatch)
+
+
+def resolve_whisper_model_path(model: str) -> str:
+    """What ``WhisperModel`` loads: the verified pinned snapshot dir (hashed uncached on
+    every call) for a catalog size, else the size id. Raises WhisperWeightsMissingError."""
+    canonical = validate_whisper_model(model)
+    pin = WHISPER_PINS.get(canonical)
+    if pin is None:
+        return ensure_whisper_model_cached(canonical)
+    path = _pinned_snapshot_dir(canonical, pin)
+    verify_whisper_snapshot(path, canonical, pin)
+    return str(path)
+
+
+def whisper_model_problem(model: str) -> WhisperWeightsMissingError | None:
+    """Why ``model`` is not ready to load (never downloads), or None when it is.
+    Pinned sizes must match their manifest (memoised per file for status polls)."""
+    canonical = validate_whisper_model(model)
+    pin = WHISPER_PINS.get(canonical)
+    if pin is None:
+        return (
+            None if _unpinned_weights_on_disk(canonical) else WhisperWeightsMissingError(canonical)
+        )
+    try:
+        verify_whisper_snapshot(_pinned_snapshot_dir(canonical, pin), canonical, pin, memoize=True)
+    except WhisperWeightsMissingError as exc:
+        return exc
+    except OSError:  # a pinned file vanished mid-check
+        return WhisperWeightsMissingError(canonical)
+    return None
+
+
+def whisper_model_is_cached(model: str) -> bool:
+    """True when ``model`` can load offline: a pinned catalog size's snapshot matches its
+    manifest; another size has a complete-looking weight file on disk."""
+    return whisper_model_problem(model) is None
+
+
+def ensure_whisper_model_cached(model: str) -> str:
+    """Return the canonical model id, or raise if weights are missing or mismatched."""
+    canonical = validate_whisper_model(model)
+    problem = whisper_model_problem(canonical)
+    if problem is not None:
+        raise problem
+    return canonical
+
+
+def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str, Any]:
+    """Download weights into the cache and persist the machine preference.
+
+    A catalog size downloads its pinned snapshot and verifies every file (a mismatch
+    raises ``WhisperPinMismatchError``; ``force`` re-downloads it). Any other size uses
+    faster-whisper's own unpinned download, where ``force`` has no effect.
+    """
+    from podcast_mcp.config import whisper_cache_dir
+
+    canonical = validate_whisper_model(model_size)
+    pin = WHISPER_PINS.get(canonical)
+    if pin is None:
+        from faster_whisper import WhisperModel
+
+        # Intentional download path — the only WhisperModel construction without
+        # local_files_only=True.
+        WhisperModel(
+            canonical,
+            device="cpu",
+            compute_type="int8",
+            download_root=str(whisper_cache_dir()),
+        )
+    else:
+        from huggingface_hub import snapshot_download
+
+        # Intentional download path: the only Whisper snapshot_download without
+        # local_files_only=True.
+        path = snapshot_download(
+            pin.hf_repo,
+            revision=pin.revision,
+            allow_patterns=pin.allow_patterns,
+            cache_dir=str(whisper_cache_dir()),
+            force_download=force,
+        )
+        verify_whisper_snapshot(Path(path), canonical, pin)
+    persist_error: str | None = None
+    try:
+        persist_whisper_model(canonical)
+    except (OSError, yaml.YAMLError) as exc:
+        persist_error = str(exc)
+    return {
+        "ok": True,
+        "model": canonical,
+        "cache": str(whisper_cache_dir()),
+        "persist_error": persist_error,
+    }
 
 
 def catalog_payload() -> list[dict[str, Any]]:

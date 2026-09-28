@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -58,26 +58,38 @@ def test_bootstrap_ffmpeg_success(tmp_path: Path) -> None:
 
 
 def test_bootstrap_whisper_success() -> None:
-    with patch("faster_whisper.WhisperModel", return_value=MagicMock()):
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        return_value={
+            "ok": True,
+            "model": "large-v3-turbo",
+            "cache": "/tmp/cache",
+            "persist_error": None,
+        },
+    ) as mocked:
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 0
     assert "whisper model 'large-v3-turbo'" in result.stdout
-    from podcast_mcp.whisper_models import read_whisper_model_pref
-
-    assert read_whisper_model_pref() == "large-v3-turbo"
+    mocked.assert_called_once_with("large-v3-turbo", force=False)
 
 
 def test_bootstrap_whisper_model_flag() -> None:
-    with patch("faster_whisper.WhisperModel", return_value=MagicMock()):
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        return_value={
+            "ok": True,
+            "model": "small.en",
+            "cache": "/tmp/cache",
+            "persist_error": None,
+        },
+    ) as mocked:
         result = runner.invoke(
             app,
             ["bootstrap", "--component", "whisper", "--whisper-model", "small.en"],
         )
     assert result.exit_code == 0
     assert "whisper model 'small.en'" in result.stdout
-    from podcast_mcp.whisper_models import read_whisper_model_pref
-
-    assert read_whisper_model_pref() == "small.en"
+    mocked.assert_called_once_with("small.en", force=False)
 
 
 def test_bootstrap_whisper_model_unknown() -> None:
@@ -90,29 +102,74 @@ def test_bootstrap_whisper_model_unknown() -> None:
 
 
 def test_bootstrap_whisper_import_failure() -> None:
-    with patch.dict("sys.modules", {"faster_whisper": None}):
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        side_effect=ImportError("faster-whisper missing"),
+    ):
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 1
 
 
 def test_bootstrap_whisper_download_failure() -> None:
-    with patch("faster_whisper.WhisperModel", side_effect=RuntimeError("network down")):
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        side_effect=RuntimeError("network down"),
+    ):
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 1
     assert "network down" in result.stderr
 
 
 def test_bootstrap_whisper_persist_failure_still_ok() -> None:
-    with (
-        patch("faster_whisper.WhisperModel", return_value=MagicMock()),
-        patch(
-            "podcast_mcp.whisper_models.persist_whisper_model",
-            side_effect=OSError("disk full"),
-        ),
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        return_value={
+            "ok": True,
+            "model": "large-v3-turbo",
+            "cache": "/tmp/cache",
+            "persist_error": "disk full",
+        },
     ):
         result = runner.invoke(app, ["bootstrap", "--component", "whisper"])
     assert result.exit_code == 0
     assert "could not persist" in result.stderr
+
+
+def test_bootstrap_whisper_upgrade_forces_download() -> None:
+    with patch(
+        "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+        return_value={
+            "ok": True,
+            "model": "large-v3-turbo",
+            "cache": "/tmp/cache",
+            "persist_error": None,
+        },
+    ) as mocked:
+        result = runner.invoke(app, ["bootstrap", "--component", "whisper", "--upgrade"])
+    assert result.exit_code == 0
+    mocked.assert_called_once_with("large-v3-turbo", force=True)
+
+
+def test_bootstrap_whisper_tampered_snapshot_fails_with_upgrade_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from model_pin_helpers import plant_pinned_whisper
+
+    cache = tmp_path / "cache" / "whisper"
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
+    (snap / "vocabulary.txt").write_bytes(b"tampered")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    result = runner.invoke(
+        app,
+        ["bootstrap", "--component", "whisper", "--whisper-model", "small.en"],
+    )
+    assert result.exit_code == 1
+    assert "[fail] whisper" in result.stderr
+    assert "vocabulary.txt" in result.stderr
+    assert "--upgrade" in result.stderr
 
 
 def test_bootstrap_rnnoise_success(tmp_path: Path) -> None:
@@ -150,7 +207,15 @@ def test_bootstrap_silero_vad_unavailable() -> None:
 
 def test_bootstrap_all_runs_every_component(tmp_path: Path) -> None:
     with patch("podcast_mcp.cli.setup_cmd.shutil.which", return_value="/usr/bin/ffmpeg"):
-        with patch("faster_whisper.WhisperModel", return_value=MagicMock()):
+        with patch(
+            "podcast_mcp.cli.setup_cmd.bootstrap_whisper_model",
+            return_value={
+                "ok": True,
+                "model": "large-v3-turbo",
+                "cache": "/tmp/cache",
+                "persist_error": None,
+            },
+        ):
             with patch(
                 "podcast_mcp.cli.setup_cmd.bootstrap_rnnoise_model",
                 return_value=tmp_path / "model.rnnn",
@@ -217,6 +282,23 @@ def test_bootstrap_word_aligner_failure_exits_1() -> None:
     assert "hub down" in result.stderr
 
 
+def test_bootstrap_word_aligner_tampered_snapshot_fails_with_upgrade_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from model_pin_helpers import pin_word_aligner_to_fake_snapshot
+
+    snap = pin_word_aligner_to_fake_snapshot(tmp_path / "snap", monkeypatch)
+    (snap / "vocab.json").write_bytes(b"tampered")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    result = runner.invoke(app, ["bootstrap", "--component", "word-aligner"])
+    assert result.exit_code == 1
+    assert "[fail] word-aligner" in result.stderr
+    assert "--upgrade" in result.stderr
+    assert "[skip]" not in result.stdout
+
+
 def test_doctor_reports_rnnoise_and_silero_status() -> None:
     result = runner.invoke(app, ["doctor"])
     assert "rnnoise model" in result.stdout
@@ -238,5 +320,5 @@ def test_bootstrap_whisper_cli_uses_shared_downloader() -> None:
             ["bootstrap", "--component", "whisper", "--whisper-model", "small.en"],
         )
     assert result.exit_code == 0
-    mocked.assert_called_once_with("small.en")
+    mocked.assert_called_once_with("small.en", force=False)
     assert "small.en" in result.stdout
