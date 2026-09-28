@@ -151,18 +151,27 @@ describe("ClipBlock waveform", () => {
     expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: 0 });
   });
 
-  it("gives zero-length fade handles no contradictory start/end class", () => {
-    const { container } = render(<ClipBlock {...base} />);
-    for (const which of ["in", "out"]) {
-      const handle = container.querySelector(
-        `button.fade-handle-zero.${which}`,
-      ) as HTMLElement;
-      expect(handle).toBeTruthy();
-      expect(handle.classList.contains("start")).toBe(false);
-      expect(handle.classList.contains("end")).toBe(false);
-      // Blade mode's cursor rule targets .fade-handle.
-      expect(handle.classList.contains("fade-handle")).toBe(true);
-    }
+  it("puts one top-corner fade handle on each edge, marked .zero at 0 ms", () => {
+    const { container, rerender } = render(<ClipBlock {...base} />);
+    const zeroIn = container.querySelector(
+      "button.fade-corner.in.zero",
+    ) as HTMLElement;
+    expect(zeroIn).toBeTruthy();
+    expect(zeroIn.style.left).toBe("0px");
+    const zeroOut = container.querySelector(
+      "button.fade-corner.out.zero",
+    ) as HTMLElement;
+    expect(zeroOut).toBeTruthy();
+    expect(zeroOut.style.right).toBe("0px");
+    rerender(<ClipBlock {...base} clip={{ ...clip, fade_in_ms: 40 }} />);
+    const cornerIn = container.querySelector(
+      "button.fade-corner.in",
+    ) as HTMLElement;
+    expect(cornerIn.classList.contains("zero")).toBe(false);
+    expect(cornerIn.style.left).toBe("2px");
+    expect(container.querySelector(".clip-fade-line")?.getAttribute("d")).toBe(
+      "M0 100L2 0",
+    );
   });
 
   it("hides only the fades at a cut join and keeps trim and roll", () => {
@@ -171,7 +180,7 @@ describe("ClipBlock waveform", () => {
     const { container, rerender } = render(
       <ClipBlock {...base} clip={faded} prevClip={prev} />,
     );
-    expect(container.querySelectorAll(".fade-region")).toHaveLength(2);
+    expect(container.querySelectorAll(".clip-fade-line")).toHaveLength(2);
     // Incoming join is a cut: the fade-in goes, the fade-out stays.
     rerender(
       <ClipBlock
@@ -180,8 +189,12 @@ describe("ClipBlock waveform", () => {
         prevClip={prev}
       />,
     );
-    expect(container.querySelector(".fade-in-region")).toBeNull();
-    expect(container.querySelector(".fade-out-region")).not.toBeNull();
+    expect(container.querySelectorAll(".clip-fade-line")).toHaveLength(1);
+    expect(container.querySelector(".clip-fade-line")?.getAttribute("d")).toBe(
+      "M99 0L100 100",
+    );
+    expect(container.querySelector("button.fade-corner.in")).toBeNull();
+    expect(container.querySelector("button.fade-corner.out")).not.toBeNull();
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
     expect(container.querySelector("button.join-diamond")).not.toBeNull();
     // Outgoing join is a cut: the fade-out goes, the fade-in stays.
@@ -198,8 +211,12 @@ describe("ClipBlock waveform", () => {
         }}
       />,
     );
-    expect(container.querySelector(".fade-out-region")).toBeNull();
-    expect(container.querySelector(".fade-in-region")).not.toBeNull();
+    expect(container.querySelectorAll(".clip-fade-line")).toHaveLength(1);
+    expect(container.querySelector(".clip-fade-line")?.getAttribute("d")).toBe(
+      "M0 100L1 0",
+    );
+    expect(container.querySelector("button.fade-corner.out")).toBeNull();
+    expect(container.querySelector("button.fade-corner.in")).not.toBeNull();
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
   });
 
@@ -216,7 +233,7 @@ describe("ClipBlock waveform", () => {
         prevClip={null}
       />,
     );
-    expect(container.querySelector(".fade-in-region")).not.toBeNull();
+    expect(container.querySelector(".clip-fade-line")).not.toBeNull();
   });
 
   describe("fade handle drags", () => {
@@ -226,7 +243,7 @@ describe("ClipBlock waveform", () => {
     ) => {
       const view = render(<ClipBlock {...base} {...props} />);
       const handle = view.container.querySelector(
-        "button.fade-handle-zero.in",
+        "button.fade-corner.in",
       ) as HTMLElement;
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
       fireEvent.pointerMove(handle, { clientX: 100 + dxPx, pointerId: 3 });
@@ -243,6 +260,11 @@ describe("ClipBlock waveform", () => {
       expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
         "40 ms",
       );
+      expect(
+        (container.querySelector(".fade-readout.in") as HTMLElement).style.left,
+      ).toBe("2px");
+      expect(handle.style.left).toBe("2px");
+      expect(handle.classList.contains("zero")).toBe(true);
       fireEvent.pointerUp(handle, { clientX: 125, pointerId: 3 });
       await waitFor(() =>
         expect(setClipFade).toHaveBeenCalledWith(
@@ -282,7 +304,7 @@ describe("ClipBlock waveform", () => {
         <ClipBlock {...base} clip={{ ...clip, fade_in_ms: 40 }} />,
       );
       const handle = container.querySelector(
-        ".fade-in-region .fade-handle",
+        "button.fade-corner.in",
       ) as HTMLElement;
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
       fireEvent.pointerMove(handle, { clientX: 0, pointerId: 3 });
@@ -324,7 +346,7 @@ describe("ClipBlock waveform", () => {
         />,
       );
       const handle = container.querySelector(
-        ".fade-in-region .fade-handle",
+        "button.fade-corner.in",
       ) as HTMLElement;
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
       fireEvent.pointerMove(handle, { clientX: 110, pointerId: 3 });
@@ -345,7 +367,7 @@ describe("ClipBlock waveform", () => {
     it("shows and commits the out-edge readout", async () => {
       const { container } = render(<ClipBlock {...base} fadeMaxMs={40} />);
       const handle = container.querySelector(
-        "button.fade-handle-zero.out",
+        "button.fade-corner.out",
       ) as HTMLElement;
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 3 });
       fireEvent.pointerMove(handle, { clientX: 75, pointerId: 3 });
@@ -369,14 +391,36 @@ describe("ClipBlock waveform", () => {
         <ClipBlock {...base} clip={{ ...clip, fade_out_ms: 30 }} />,
       );
       const zeroIn = container.querySelector(
-        "button.fade-handle-zero.in",
+        "button.fade-corner.in.zero",
       ) as HTMLElement;
       expect(zeroIn.getAttribute("aria-label")).toMatch(/ · in 0 ms$/);
       const regionOut = container.querySelector(
-        ".fade-out-region .fade-handle",
+        "button.fade-corner.out",
       ) as HTMLElement;
       expect(regionOut.getAttribute("aria-label")).toMatch(/ · out 30 ms$/);
     });
+  });
+
+  it("draws curves but no fade handles on a ghost or a share project", () => {
+    const { container: ghostContainer } = render(
+      <ClipBlock
+        {...base}
+        interactive={false}
+        clip={{ ...clip, fade_in_ms: 40 }}
+      />,
+    );
+    expect(ghostContainer.querySelectorAll(".fade-corner")).toHaveLength(0);
+    expect(ghostContainer.querySelectorAll(".clip-fade-line")).toHaveLength(1);
+
+    useDawStore.setState({ projectPath: "share:tok" });
+    try {
+      const { container } = render(
+        <ClipBlock {...base} clip={{ ...clip, fade_in_ms: 40 }} />,
+      );
+      expect(container.querySelectorAll(".fade-corner")).toHaveLength(0);
+    } finally {
+      useDawStore.setState({ projectPath: "" });
+    }
   });
 
   describe("trim and roll handle clicks", () => {

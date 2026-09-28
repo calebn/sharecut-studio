@@ -207,63 +207,67 @@
   border-style: dashed;
 }
 
-.fade-region {
+/* Fade curves (#677): straight gain ramps, the shape render plays (afade /
+   acrossfade `tri`), on the clip's border box like .clip-waveform; the dim
+   wash covers the attenuated side. */
+.clip-fade-curves {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--color-overlay-black-22);
+  left: -1px;
+  right: -1px;
+  z-index: var(--z-fade);
   pointer-events: none;
-  z-index: 2;
 }
 
-.fade-in-region {
-  left: 0;
-  border-right: 1px solid var(--color-overlay-white-25);
+.clip-fade-curves svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-.fade-out-region {
-  right: 0;
-  border-left: 1px solid var(--color-overlay-white-25);
+.clip-fade-dim {
+  fill: var(--color-overlay-black-35);
 }
 
-.fade-handle {
+.clip-fade-line {
+  fill: none;
+  stroke: var(--color-overlay-white-55);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Fade handle at the clip's top corner (#677): its outer edge follows the
+   ramp's full-gain end, so it slides inward as the fade grows. */
+.fade-corner {
   position: absolute;
   top: 0;
-  bottom: 0;
-  width: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--color-overlay-white-55);
+  background: var(--color-overlay-white-25);
   cursor: ew-resize;
   pointer-events: auto;
-  z-index: 4;
-  background: var(--color-overlay-white-15);
+  z-index: var(--z-join);
   appearance: none;
   box-sizing: border-box;
+  touch-action: none;
 }
 
-.fade-handle.end {
-  right: -0.25rem;
+.fade-corner.in {
+  border-radius: 0 0 var(--radius-xs) 0;
 }
 
-.fade-handle.start {
-  left: -0.25rem;
+.fade-corner.out {
+  border-radius: 0 0 0 var(--radius-xs);
 }
 
-.fade-handle-zero.in {
-  left: 0;
-  right: auto;
-}
-
-.fade-handle-zero.out {
-  right: 0;
-  left: auto;
-}
-
-/* White on at least 70% black (light theme --color-overlay-black-90): >= 8.5:1 over a pure-white lane, WCAG 1.4.3. */
+/* White on at least 70% black (light theme --color-overlay-black-90): >= 8.5:1 over a pure-white lane, WCAG 1.4.3. Sits under the dragged corner handle (inline left/right). */
 .fade-readout {
   position: absolute;
-  top: 0;
-  z-index: 5;
+  top: 0.75rem;
+  z-index: var(--z-bubble);
   padding: 0 var(--space-1);
   border-radius: var(--radius-xs);
   background: var(--color-overlay-black-90);
@@ -272,14 +276,6 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.fade-readout.in {
-  left: 0;
-}
-
-.fade-readout.out {
-  right: 0;
 }
 
 .trim-handle {
@@ -307,7 +303,8 @@
   border-radius: var(--radius-xs) 0 0;
 }
 
-.clip-block.trim-dragging {
+.clip-block.trim-dragging,
+.clip-block.fade-dragging {
   z-index: 8;
 }
 

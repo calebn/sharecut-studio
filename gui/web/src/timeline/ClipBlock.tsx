@@ -32,6 +32,7 @@ import type { ClipRow } from "../types/project";
 import { formatDurationCompact } from "../utils/time";
 import { clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
+import { FadeCurves } from "./FadeCurves";
 import { magnetSec } from "./snapOverlay";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { WaveformLayer } from "./WaveformLayer";
@@ -194,10 +195,6 @@ function clipLabel(role: string, durationSec: number, width: number): string {
   return `${role} · ${dur}`;
 }
 
-function msToPx(ms: number, zoomPxPerSec: number): number {
-  return Math.max(4, (ms / 1000) * zoomPxPerSec);
-}
-
 export function ClipBlockView({
   clip,
   trackId,
@@ -272,14 +269,11 @@ export function ClipBlockView({
   const label = clipLabel(role, durationSec, width);
   const fadeInMs = fadePreview?.inMs ?? clip.fade_in_ms;
   const fadeOutMs = fadePreview?.outMs ?? clip.fade_out_ms;
-  // The handle that starts a fade drag holds pointer capture, so it stays
-  // mounted for the whole drag: a committed fade's region keeps its (4 px
-  // minimum) width while dragged to 0, and a zero-length handle stays until
-  // the new length is committed.
-  const fadeInW =
-    fadeInMs > 0 || clip.fade_in_ms > 0 ? msToPx(fadeInMs, zoomPxPerSec) : 0;
-  const fadeOutW =
-    fadeOutMs > 0 || clip.fade_out_ms > 0 ? msToPx(fadeOutMs, zoomPxPerSec) : 0;
+  // Fade lengths in timeline px, following a live drag. Each edge has one
+  // corner handle whatever its length (`.zero` marks a committed 0 ms), so
+  // the handle that starts a drag holds pointer capture until it commits.
+  const fadeInPx = (fadeInMs / 1000) * zoomPxPerSec;
+  const fadeOutPx = (fadeOutMs / 1000) * zoomPxPerSec;
   const growingOut =
     trimPreview != null && trimPreview.sourceEnd > clip.source_end + 1e-9;
   const growingIn =
@@ -774,66 +768,48 @@ export function ClipBlockView({
           />
         </span>
       ) : null}
-      {!cutIn && fadeInW > 0 && (
-        <span className="fade-region fade-in-region" style={{ width: fadeInW }}>
-          {showHandles && (
-            <button
-              type="button"
-              className="fade-handle end"
-              title={fadeTip}
-              aria-label={`${fadeTip} · in ${fadeInMs} ms`}
-              onPointerDown={(e) => startFadeDrag("in", e)}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragUp}
-            />
-          )}
-        </span>
-      )}
-      {!cutOut && fadeOutW > 0 && (
-        <span
-          className="fade-region fade-out-region"
-          style={{ width: fadeOutW }}
-        >
-          {showHandles && (
-            <button
-              type="button"
-              className="fade-handle start"
-              title={fadeTip}
-              aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
-              onPointerDown={(e) => startFadeDrag("out", e)}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragUp}
-            />
-          )}
-        </span>
-      )}
-      {fadePreview ? (
-        <span className={`fade-readout ${fadePreview.edge}`} aria-hidden="true">
-          {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
-        </span>
-      ) : null}
-      {showHandles && !cutIn && clip.fade_in_ms === 0 && (
+      <FadeCurves
+        widthPx={width}
+        inPx={cutIn ? 0 : fadeInPx}
+        outPx={cutOut ? 0 : fadeOutPx}
+      />
+      {showHandles && !cutIn ? (
         <button
           type="button"
-          className="fade-handle fade-handle-zero in"
+          className={`fade-corner in${clip.fade_in_ms === 0 ? " zero" : ""}`}
+          style={{ left: fadeInPx }}
           title={fadeTip}
           aria-label={`${fadeTip} · in ${fadeInMs} ms`}
           onPointerDown={(e) => startFadeDrag("in", e)}
           onPointerMove={onDragMove}
           onPointerUp={onDragUp}
         />
-      )}
-      {showHandles && !cutOut && clip.fade_out_ms === 0 && (
+      ) : null}
+      {showHandles && !cutOut ? (
         <button
           type="button"
-          className="fade-handle fade-handle-zero out"
+          className={`fade-corner out${clip.fade_out_ms === 0 ? " zero" : ""}`}
+          style={{ right: fadeOutPx }}
           title={fadeTip}
           aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
           onPointerDown={(e) => startFadeDrag("out", e)}
           onPointerMove={onDragMove}
           onPointerUp={onDragUp}
         />
-      )}
+      ) : null}
+      {fadePreview ? (
+        <span
+          className={`fade-readout ${fadePreview.edge}`}
+          style={
+            fadePreview.edge === "in"
+              ? { left: fadeInPx }
+              : { right: fadeOutPx }
+          }
+          aria-hidden="true"
+        >
+          {fadePreview.edge === "in" ? fadePreview.inMs : fadePreview.outMs} ms
+        </span>
+      ) : null}
       {showHandles && (
         <>
           <button
