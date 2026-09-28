@@ -32,6 +32,30 @@ describe("WordAlignerStatus", () => {
     ).toBeInTheDocument();
   });
 
+  it("says a pin-mismatched snapshot needs downloading again", () => {
+    render(
+      <WordAlignerStatus
+        status={{
+          ok: false,
+          opt_in: true,
+          size: "~360 MB",
+          pin_mismatch: true,
+        }}
+        disabled={false}
+        retiming={false}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/does not match its pinned download \(~360 MB\)/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/needs download/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    ).toBeInTheDocument();
+  });
+
   it("downloads, shows progress, and calls onDownloaded", async () => {
     const user = userEvent.setup();
     const onDownloaded = vi.fn();
