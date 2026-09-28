@@ -1664,10 +1664,14 @@ def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
     aligner.cache_identity.return_value = {"model": "stub"}
     with (
         patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
-        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
+        patch(
+            "podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner
+        ) as load_aligner,
     ):
         summary = steps.transcribe_tracks(proj, defaults)
     assert "1 track(s) with no ASR cache not re-timed (Re-transcribe to re-time)" in summary
+    # nothing to re-time or transcribe: the aligner is not loaded (no pin hash)
+    load_aligner.assert_not_called()
 
 
 def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
