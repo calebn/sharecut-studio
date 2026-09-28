@@ -86,10 +86,14 @@ export async function recordParticipantId(
   projectPath: string,
   displayName: string,
 ): Promise<string> {
-  const id = (await hostRecordSnapshot(host, projectPath)).participants.find(
+  const { participants } = await hostRecordSnapshot(host, projectPath);
+  const id = participants.find(
     (participant) => participant.display_name === displayName,
   )?.participant_id;
-  expect(id, `no record participant named ${displayName}`).toBeTruthy();
+  expect(
+    id,
+    `no record participant named ${displayName}; host sees ${JSON.stringify(participants)}`,
+  ).toBeTruthy();
   return id as string;
 }
 
