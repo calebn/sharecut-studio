@@ -143,7 +143,6 @@ export function JoinPopover({
           padSec={JOIN_AUDITION_PAD_SEC}
           seekLabel="Seek join"
           playLabel="Audition join"
-          actionVariant="default"
         />
       }
     />,

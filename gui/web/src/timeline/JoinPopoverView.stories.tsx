@@ -52,7 +52,6 @@ const meta: Meta<typeof JoinPopoverView> = {
       <InspectorSeekFooterView
         seekLabel="Seek join"
         playLabel="Audition join"
-        actionVariant="default"
         onSeek={fn()}
         onPlay={fn()}
       />
