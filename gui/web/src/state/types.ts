@@ -1,5 +1,8 @@
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
-import type { PipelineJobSnapshot } from "../types/pipeline";
+import type {
+  JobResultAnnouncement,
+  PipelineJobSnapshot,
+} from "../types/pipeline";
 import type {
   ProjectView,
   Selection,
@@ -210,6 +213,12 @@ export interface DawState {
   ingestDropTrackId: string | null;
   /** Polite live-region status (refresh mix, etc.). */
   statusAnnouncement: string;
+  /**
+   * A job's own terminal-result copy, held until `StatusBar` sees that job's
+   * chip reach a terminal status (#704: it then wins over the generic
+   * Activity/Pipeline headline instead of racing it).
+   */
+  jobResultAnnouncement: JobResultAnnouncement | null;
   /** Presence roster from session Snapshot / Presence events, keyed by `client_id`
    * (#598: a `PresenceDelta` replaces only its own entry). */
   sessionClients: SessionRoster;
@@ -347,6 +356,8 @@ export interface DawState {
   setIngestBusy: (on: boolean) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
   announceStatus: (message: string) => void;
+  /** Record a job's own result copy for `StatusBar` to announce once that job goes terminal. */
+  announceJobResult: (jobId: string, message: string) => void;
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */

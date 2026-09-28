@@ -87,6 +87,12 @@ describe("export.deliverables", () => {
     followMock.mockResolvedValue(["export/a.wav"]);
 
     expect((await execute("export.deliverables")).status).toBe("ok");
+    // The result is the job's own copy, held for StatusBar to announce once
+    // that job's chip goes terminal (#704), not written to statusAnnouncement here.
+    expect(useDawStore.getState().jobResultAnnouncement).toEqual({
+      jobId: "job-1",
+      message: "Exported 1 file(s) to export/",
+    });
     expect((await execute("export.deliverables")).status).toBe("ok");
     expect(startMock).toHaveBeenCalledTimes(2);
   });

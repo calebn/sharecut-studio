@@ -121,6 +121,7 @@ describe("StatusBar live region", () => {
     useDawStore.getState().setPipelineJob(null);
     useDawStore.getState().setActivityJob(null);
     useDawStore.getState().setActivityRunningCount(0);
+    useDawStore.setState({ jobResultAnnouncement: null });
   });
 
   afterEach(() => {
@@ -323,6 +324,98 @@ describe("StatusBar live region", () => {
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("2 activities");
     expect(status.textContent).toContain("Activity: running");
+  });
+
+  it("announces a job's own result once its chip reaches a terminal status (#704)", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore
+        .getState()
+        .announceJobResult("b1", "Bounced 1 file(s) to export/bounces/");
+      useDawStore.getState().setActivityJob({
+        id: "b1",
+        project_path: "/tmp/p.json",
+        from_step: null,
+        only_step: null,
+        kind: "bounce",
+        label: "Bounce",
+        status: "ok",
+        message: "Bounce complete",
+        current: 2,
+        total: 2,
+        error: null,
+        elapsed_sec: 3,
+        steps: [],
+      });
+    });
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Bounced 1 file(s) to export/bounces/");
+    expect(status.textContent).not.toContain("Activity: ok");
+  });
+
+  it("stays quiet for a matching job result while its chip is still running", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    const before = screen.getByRole("status").textContent;
+    act(() => {
+      useDawStore
+        .getState()
+        .announceJobResult("b1", "Bounced 1 file(s) to export/bounces/");
+      useDawStore.getState().setActivityJob({
+        id: "b1",
+        project_path: "/tmp/p.json",
+        from_step: null,
+        only_step: null,
+        kind: "bounce",
+        label: "Bounce",
+        status: "running",
+        message: "Mixing bounce…",
+        current: 1,
+        total: 2,
+        error: null,
+        elapsed_sec: 1,
+        steps: [],
+      });
+    });
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe(before);
+  });
+
+  it("falls back to the generic headline when the stored result is for a different job", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <StatusBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore
+        .getState()
+        .announceJobResult("b0", "Bounced 1 file(s) to export/bounces/");
+      useDawStore.getState().setActivityJob({
+        id: "b1",
+        project_path: "/tmp/p.json",
+        from_step: null,
+        only_step: null,
+        kind: "bounce",
+        label: "Bounce",
+        status: "ok",
+        message: "Bounce complete",
+        current: 2,
+        total: 2,
+        error: null,
+        elapsed_sec: 3,
+        steps: [],
+      });
+    });
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Activity: ok: Bounce complete");
   });
 
   it("opens Pipeline from a bounce chip and leaves agent chips inert", async () => {
