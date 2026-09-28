@@ -22,6 +22,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_MAX_WORD_DURATION_SEC,
     word_duration_is_anomalous,
 )
+from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -684,40 +685,20 @@ class TranscriptionEngine:
     def merge_transcripts(self, project: EpisodeProject) -> CombinedTranscript:
         utterances: list[CombinedUtterance] = []
         for transcript in project.transcripts:
-            track = project.track_by_id(transcript.track_id)
-            speaker = (track.speaker if track else None) or transcript.track_id
             if not transcript.words:
                 continue
-            buf: list[TranscriptWord] = []
-            gap_threshold = 0.8
-
-            def flush(
-                *,
-                _buf: list[TranscriptWord] = buf,
-                _transcript: Transcript = transcript,
-                _speaker: str = speaker,
-            ) -> None:
-                if not _buf:
-                    return
-                text = " ".join(w.text for w in _buf).strip()
+            speaker = utterance_speaker(project, transcript.track_id)
+            kept = [word for word in transcript.words if not word.suppressed]
+            for run in utterance_runs(kept):
+                words = kept[run.start : run.stop]
                 utterances.append(
                     CombinedUtterance(
-                        track_id=_transcript.track_id,
-                        speaker=_speaker,
-                        start=_buf[0].start,
-                        end=_buf[-1].end,
-                        text=text,
+                        track_id=transcript.track_id,
+                        speaker=speaker,
+                        start=words[0].start,
+                        end=words[-1].end,
+                        text=utterance_text(words),
                     )
                 )
-                _buf.clear()
-
-            for word in transcript.words:
-                if word.suppressed:
-                    continue
-                if buf and word.start - buf[-1].end > gap_threshold:
-                    flush()
-                buf.append(word)
-            flush()
-
         utterances.sort(key=lambda u: u.start)
         return CombinedTranscript(utterances=utterances)
