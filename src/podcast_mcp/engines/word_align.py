@@ -34,6 +34,7 @@ from podcast_mcp.word_aligner_models import (
     WordAlignerModel,
     resolve_word_aligner_dir,
     word_aligner_model,
+    word_aligner_override_dir,
 )
 
 # The #641 measurement setting.
@@ -69,10 +70,19 @@ class WordAlignResult:
 
 
 class WordAligner:
-    def __init__(self, model: WordAlignerModel, backend: LogProbBackend, vocab: CtcVocab) -> None:
+    def __init__(
+        self,
+        model: WordAlignerModel,
+        backend: LogProbBackend,
+        vocab: CtcVocab,
+        *,
+        local_source: dict[str, Any] | None = None,
+    ) -> None:
         self.model = model
         self._backend = backend
         self._vocab = vocab
+        # Set when PODCAST_MCP_WORD_ALIGNER_MODEL loaded a local dir instead of the pinned snapshot.
+        self._local_source = local_source
 
     @classmethod
     def load(
@@ -83,17 +93,26 @@ class WordAligner:
         vocab = CtcVocab.from_token_map(
             json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
         )
+        onnx_path = model_dir / model.onnx_file
+        local_source: dict[str, Any] | None = None
+        if word_aligner_override_dir() is not None:
+            stat = onnx_path.stat()
+            local_source = {
+                "dir": str(model_dir.resolve()),
+                "onnx_size": stat.st_size,
+                "onnx_mtime_ns": stat.st_mtime_ns,
+            }
         backend = OnnxCtcBackend(
-            model_dir / model.onnx_file,
+            onnx_path,
             threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),
         )
-        return cls(model, backend, vocab)
+        return cls(model, backend, vocab, local_source=local_source)
 
     def supports_language(self, language: str | None) -> bool:
         return (language or "en") in self.model.languages
 
     def cache_identity(self) -> dict[str, Any]:
-        return {
+        identity: dict[str, Any] = {
             "model": self.model.id,
             "repo": self.model.hf_repo,
             "revision": self.model.revision,
@@ -102,6 +121,9 @@ class WordAligner:
             "max_window_sec": DEFAULT_MAX_WINDOW_SEC,
             "pad_sec": DEFAULT_PAD_SEC,
         }
+        if self._local_source is not None:
+            identity["local_source"] = self._local_source
+        return identity
 
     def align(self, audio_path: Path, words: Sequence[TranscriptWord]) -> WordAlignResult:
         start = time.perf_counter()

@@ -135,8 +135,9 @@ truncated. This changes future ASR output, not existing transcript words.
 
 With `transcribe.forced_alignment.enabled`, alignment results get their own
 cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
-keyed by the aligner identity (repo, revision, file, window settings) and a
-hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
+keyed by the aligner identity (repo, revision, file, window settings, plus the
+directory, size and mtime of a `PODCAST_MCP_WORD_ALIGNER_MODEL` override) and
+a hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
 is not an ASR cache input, so toggling the flag never re-runs Whisper. The cache write is
 best-effort: a failed write logs a warning and keeps the aligned spans.
 
