@@ -12,7 +12,13 @@ import jsonschema
 import pytest
 
 from podcast_mcp.models import load_project
-from podcast_mcp.project_store import _GENERATED_SNAPSHOT_ID, HISTORY_ENTRY_LIMIT
+from podcast_mcp.project_store import (
+    _GENERATED_SNAPSHOT_ID,
+    HISTORY_ENTRY_LIMIT,
+    history_index_path,
+    history_snapshot_path,
+    history_snapshots_dir,
+)
 from script_loader import load_script
 
 REPO = Path(__file__).resolve().parents[1]
@@ -316,11 +322,12 @@ def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
     # never by entry.snapshot_file; the fixture's shared benchmark-*.json files rely
     # on that. Give the oldest entries their own id-named files so the test sees the
     # real delete path remove exactly the pruned ones.
-    snapshots_dir = project_path.parent / "history" / "snapshots"
+    index_path = history_index_path(project)
+    snapshots_dir = history_snapshots_dir(index_path)
     shared = (snapshots_dir / "benchmark-base.json").read_bytes()
     owned_ids = original_ids[: 2 * extra_pairs + 2]
     for entry_id in owned_ids:
-        (snapshots_dir / f"{entry_id}.json").write_bytes(shared)
+        history_snapshot_path(index_path, entry_id).write_bytes(shared)
 
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.project_store"):
         store.commit(project)
@@ -331,7 +338,7 @@ def test_large_project_fixture_history_prunes_cleanly_past_the_cap(
     assert kept_ids == original_ids[expected_pruned:]
     assert reloaded.history.entries[reloaded.history.cursor].id == cursor_id
     for entry_id in owned_ids:
-        assert (snapshots_dir / f"{entry_id}.json").is_file() == (entry_id in kept_ids)
+        assert history_snapshot_path(index_path, entry_id).is_file() == (entry_id in kept_ids)
     assert (snapshots_dir / "benchmark-base.json").is_file()
     assert (snapshots_dir / "benchmark-faded.json").is_file()
 
