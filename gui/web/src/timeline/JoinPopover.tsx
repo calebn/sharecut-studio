@@ -11,7 +11,9 @@ import {
   InspectorSeekFooter,
   useDialogModal,
   useOutsidePointerDown,
+  useResizeObserver,
 } from "../ui";
+import { useStableCallback } from "../utils/useStableCallback";
 import { JoinPopoverView } from "./JoinPopoverView";
 import { placeJoinPopover } from "./joinPopoverPlacement";
 
@@ -60,41 +62,36 @@ export function JoinPopover({
     returnFocusRef: anchorRef,
   });
 
-  useLayoutEffect(() => {
-    const place = () => {
-      const anchor = anchorRef.current;
-      const panel = panelRef.current;
-      if (!anchor || !panel) {
-        return;
-      }
-      const rootPx =
-        Number.parseFloat(
-          getComputedStyle(document.documentElement).fontSize,
-        ) || 16;
-      const { left: x, top: y } = placeJoinPopover(
-        anchor.getBoundingClientRect(),
-        { width: panel.offsetWidth, height: panel.offsetHeight },
-        { width: window.innerWidth, height: window.innerHeight },
-        0.5 * rootPx,
-      );
-      panel.style.left = `${x}px`;
-      panel.style.top = `${y}px`;
-    };
-    place();
-    // A mode change adds or drops the Length row (an error adds a line), so
-    // re-place whenever the panel resizes, not only on window resize/scroll.
-    const observer = new ResizeObserver(place);
-    if (panelRef.current) {
-      observer.observe(panelRef.current);
+  const place = useStableCallback(() => {
+    const anchor = anchorRef.current;
+    const panel = panelRef.current;
+    if (!anchor || !panel) {
+      return;
     }
+    const rootPx =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+      16;
+    const { left: x, top: y } = placeJoinPopover(
+      anchor.getBoundingClientRect(),
+      { width: panel.offsetWidth, height: panel.offsetHeight },
+      { width: window.innerWidth, height: window.innerHeight },
+      0.5 * rootPx,
+    );
+    panel.style.left = `${x}px`;
+    panel.style.top = `${y}px`;
+  });
+  useLayoutEffect(() => {
+    place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
-      observer.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchorRef, seamSec]);
+  }, [place, anchorRef, seamSec]);
+  // A mode change adds or drops the Length row (an error adds a line), so
+  // re-place whenever the panel resizes, not only on window resize/scroll.
+  useResizeObserver(panelRef, place);
 
   useOutsidePointerDown([panelRef, anchorRef], dismiss);
 
