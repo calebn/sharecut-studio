@@ -19,7 +19,9 @@ export type IconName =
   | "more"
   | "maximize"
   | "restore"
-  | "fitHeight";
+  | "fitHeight"
+  | "check"
+  | "refresh";
 
 type Props = {
   name: IconName;
@@ -157,6 +159,15 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M10 6v8" />
       <path d="M7.5 8 10 5.5 12.5 8" />
       <path d="M7.5 12 10 14.5 12.5 12" />
+    </>
+  ),
+  check: <path d="m4.5 10.5 3.5 3.5 7.5-8" />,
+  refresh: (
+    <>
+      <path d="M4.5 8.5a5.75 5.75 0 0 1 10.2-2.8" />
+      <path d="M15.5 11.5a5.75 5.75 0 0 1-10.2 2.8" />
+      <path d="M14.7 3.5v3.2h-3.2" />
+      <path d="M5.3 16.5v-3.2h3.2" />
     </>
   ),
 };

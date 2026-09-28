@@ -53,6 +53,11 @@ describe("TrackHeaderView", () => {
     });
     expect(open).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByTitle("2 effects")).toHaveTextContent("FX 2");
+    expect(screen.getByRole("img", { name: "Stem up to date" })).toBeTruthy();
+    const out = screen.getByText("Out 0.0 dB");
+    expect(out).toHaveAttribute("title");
+    expect(container.querySelector(".gain-strip")).toBeNull();
+    expect(screen.getByText("dialogue")).toBeTruthy();
     await userEvent.click(open);
     expect(onSelect).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
@@ -75,10 +80,12 @@ describe("TrackHeaderView", () => {
       "drop-after",
       "reorderable",
     );
-    expect(screen.getByTitle("Stale: fx")).toHaveTextContent("FX");
-    expect(
-      screen.getByRole("button", { name: "Reorder track Mira" }),
-    ).toHaveAttribute("draggable", "true");
+    expect(screen.getByRole("img", { name: "Stem out of date" })).toBeTruthy();
+    expect(screen.getByTitle("Stem out of date: FX")).toHaveTextContent("FX");
+    const grip = screen.getByRole("button", { name: "Reorder track Mira" });
+    expect(grip).toHaveAttribute("draggable", "true");
+    expect(grip).not.toHaveAttribute("tabindex");
+    expect(grip).toHaveAttribute("title");
     rerender(
       <TrackHeaderView
         track={sampleTrack({
@@ -102,6 +109,28 @@ describe("TrackHeaderView", () => {
         onSelect={() => undefined}
       />,
     );
-    expect(container.querySelector(".stem-dot")).toBeNull();
+    expect(container.querySelector(".stem-status")).toBeNull();
+  });
+
+  it("selects the track when the reorder grip is clicked or Enter is pressed, not the open button", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onHandleSelect = vi.fn();
+    renderHeader({ mayReorder: true, onSelect, onHandleSelect });
+    const grip = screen.getByRole("button", { name: "Reorder track Mira" });
+    await user.click(grip);
+    expect(onHandleSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    grip.focus();
+    await user.keyboard("{Enter}");
+    expect(onHandleSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a speaker that repeats the track name", () => {
+    renderHeader({
+      track: sampleTrack({ id: "mira", label: "Mira", speaker: "Mira" }),
+    });
+    expect(screen.getByText("dialogue")).toBeTruthy();
+    expect(screen.queryByText("dialogue · Mira")).toBeNull();
   });
 });

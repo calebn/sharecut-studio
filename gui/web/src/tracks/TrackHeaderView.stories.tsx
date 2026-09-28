@@ -78,6 +78,7 @@ export const Default: Story = {
     await expect(canvas.getByText("Mira voice")).toBeVisible();
     await expect(canvas.getByText("dialogue · Mira")).toBeVisible();
     await expect(canvas.getByText("FX 2")).toBeVisible();
+    await expect(canvas.getByText("Out −3.0 dB")).toBeVisible();
   },
 };
 
@@ -184,8 +185,8 @@ export const StaleStem: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      canvasElement.querySelector(".stem-dot.stale"),
-    ).toHaveAttribute("title", "Stem out of date");
+      within(canvasElement).getByRole("img", { name: "Stem out of date" }),
+    ).toBeInTheDocument();
   },
 };
 
@@ -214,7 +215,7 @@ export const EmptyTrack: Story = {
   },
   play: async ({ canvasElement, args }) => {
     await expect(trackHasSourceAudio(args.track)).toBe(false);
-    await expect(canvasElement.querySelector(".stem-dot")).toBeNull();
+    await expect(canvasElement.querySelector(".stem-status")).toBeNull();
     await expect(
       canvasElement.querySelector(
         '[data-presence-anchor="track:blank-lane:mute"]',
@@ -226,16 +227,43 @@ export const EmptyTrack: Story = {
 export const ReorderTarget: Story = {
   args: { mayReorder: true, dragging: false, dropEdge: "after" },
   play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByRole("button", {
-        name: "Reorder track Mira voice",
-      }),
-    ).toHaveAttribute("draggable", "true");
+    const grip = within(canvasElement).getByRole("button", {
+      name: "Reorder track Mira voice",
+    });
+    await expect(grip).toHaveAttribute("draggable", "true");
+    await expect(grip).not.toHaveAttribute("tabindex");
+    await expect(grip.title).toContain("↑");
     await expect(
       canvasElement.querySelector(
         ".track-header-row.drop-after:not(.dragging)",
       ),
     ).toBeInTheDocument();
+  },
+};
+
+export const SpeakerMatchesName: Story = {
+  args: {
+    track: sampleTrack({
+      id: "mira",
+      label: "Mira",
+      speaker: "Mira",
+      fx_count: 0,
+    }),
+    mixer: (
+      <TrackMuteSoloButtonsView
+        trackId="mira"
+        trackLabel="Mira"
+        muteState="off"
+        solo={false}
+        editsMix
+        {...actions}
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("dialogue")).toBeVisible();
+    await expect(canvas.queryByText("dialogue · Mira")).toBeNull();
   },
 };
 

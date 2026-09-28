@@ -177,7 +177,9 @@ describe("TrackHeader", () => {
     );
   });
 
-  it("exposes the reorder grip as a drag handle, not a button", () => {
+  it("makes the reorder grip a tab stop that selects the track", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
     const project = projectWithTrack();
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
@@ -185,17 +187,16 @@ describe("TrackHeader", () => {
           track={project.tracks[0]}
           trackIndex={0}
           selected
-          onSelect={() => undefined}
+          onSelect={onSelect}
           reorderEnabled
         />
       </DawProvider>,
     );
-    expect(
-      screen.getByRole("button", { name: /Reorder track Guest/i }),
-    ).toHaveAttribute("tabindex", "-1");
-    expect(
-      screen.getByRole("button", { name: /Reorder track Guest/i }),
-    ).toHaveAttribute("aria-roledescription", "drag handle");
+    const grip = screen.getByRole("button", { name: /Reorder track Guest/i });
+    expect(grip).not.toHaveAttribute("tabindex");
+    expect(grip).toHaveAttribute("aria-roledescription", "drag handle");
+    await user.click(grip);
+    expect(onSelect).toHaveBeenCalledWith(false);
   });
 
   it("shows no stem dot for a new track with no audio, matching the status bar", () => {
@@ -225,7 +226,7 @@ describe("TrackHeader", () => {
         />
       </DawProvider>,
     );
-    expect(container.querySelector(".stem-dot")).toBeNull();
+    expect(container.querySelector(".stem-status")).toBeNull();
   });
 
   it("carries a lane-colored initials chip for the phone rail", () => {
