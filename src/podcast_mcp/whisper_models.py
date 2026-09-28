@@ -294,12 +294,13 @@ def whisper_bootstrap_command(model: str, *, upgrade: bool = False) -> str:
 class WhisperWeightsMissingError(RuntimeError):
     """Raised when a pipeline/transcribe run needs weights that are not on disk."""
 
-    def __init__(self, model: str, message: str | None = None) -> None:
+    def __init__(self, model: str, message: str | None = None, *, detail: str = "") -> None:
         self.model = model
+        suffix = f" ({detail})" if detail else ""
         super().__init__(
             message
             or (
-                f"Whisper model {model!r} is not downloaded. "
+                f"Whisper model {model!r} is not downloaded{suffix}. "
                 f"Run: {whisper_bootstrap_command(model)} "
                 "or use a downloaded model with "
                 "podcast transcribe --model <model>."
@@ -357,7 +358,7 @@ def _pinned_snapshot_dir(model: str, pin: PinnedSnapshot) -> Path:
     try:
         return resolve_pinned_snapshot(pin, whisper_cache_dir())
     except PinnedSnapshotMissingError as exc:
-        raise WhisperWeightsMissingError(model) from exc
+        raise WhisperWeightsMissingError(model, detail=exc.detail) from exc
 
 
 def verify_whisper_snapshot(
@@ -380,7 +381,7 @@ def resolve_whisper_model_path(model: str) -> str:
     try:
         verify_whisper_snapshot(path, canonical, pin)
     except OSError as exc:  # a pinned file vanished mid-check (e.g. a concurrent --upgrade)
-        raise WhisperWeightsMissingError(canonical) from exc
+        raise WhisperWeightsMissingError(canonical, detail=str(exc)) from exc
     return str(path)
 
 
@@ -404,8 +405,8 @@ def whisper_model_problem(
         )
     except WhisperWeightsMissingError as exc:
         return exc
-    except OSError:  # a pinned file vanished mid-check
-        return WhisperWeightsMissingError(canonical)
+    except OSError as exc:  # a pinned file vanished mid-check
+        return WhisperWeightsMissingError(canonical, detail=str(exc))
     return None
 
 

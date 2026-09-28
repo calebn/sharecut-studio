@@ -238,6 +238,7 @@ def test_missing_pinned_file_is_not_cached(tmp_path: Path, monkeypatch: pytest.M
     problem = whisper_model_problem("small.en")
     assert isinstance(problem, WhisperWeightsMissingError)
     assert not isinstance(problem, WhisperPinMismatchError)
+    assert "partial download" in str(problem)
 
 
 def test_status_check_memoises_whisper_hashes(
@@ -445,10 +446,17 @@ def test_unreadable_hub_cache_reads_as_not_downloaded(
     problem = whisper_model_problem("small.en")
     assert isinstance(problem, WhisperWeightsMissingError)
     assert not isinstance(problem, WhisperPinMismatchError)
-    with pytest.raises(WhisperWeightsMissingError):
+    assert "local cache unreadable" in str(problem)
+    with pytest.raises(WhisperWeightsMissingError, match="local cache unreadable"):
         ensure_whisper_model_cached("small.en")
-    with pytest.raises(WhisperWeightsMissingError):
+    with pytest.raises(WhisperWeightsMissingError, match="local cache unreadable"):
         resolve_whisper_model_path("small.en")
+
+
+def test_missing_error_without_detail_keeps_the_plain_message() -> None:
+    message = str(WhisperWeightsMissingError("small.en"))
+    assert "is not downloaded. Run:" in message
+    assert "(" not in message.split("Run:")[0]
 
 
 def test_resolve_whisper_model_path_maps_a_vanishing_file_to_missing(
