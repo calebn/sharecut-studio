@@ -772,6 +772,36 @@ def test_pcm_block_follower_decodes_after_a_failed_leader(tmp_path, monkeypatch)
     assert len(probes) == 2  # the follower probes only once it becomes the reader
 
 
+def test_pcm_block_waiter_gives_up_busy_after_the_wait_bound(tmp_path, monkeypatch):
+    _compressed(monkeypatch, slots=2)
+    monkeypatch.setattr(svc, "_PCM_WAIT_SEC", 0.05)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    real = svc.read_pcm_minmax
+    started, release = threading.Event(), threading.Event()
+    calls: list[int] = []
+
+    def gated(*a, **k):
+        calls.append(1)
+        started.set()
+        assert release.wait(5)
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", gated)
+    results: dict[str, object] = {}
+    leader = threading.Thread(target=_run_pcm, args=(results, "leader", project_path, key))
+    leader.start()
+    assert started.wait(5)
+    with pytest.raises(svc.WaveformBusyError) as busy:
+        pcm_block(project_path, "track:host", key, 0)
+    assert busy.value.retry_after == "1"
+    release.set()
+    leader.join(5)
+    assert isinstance(results["leader"], bytes)
+    assert len(calls) == 1  # the waiter that gave up never decoded
+    assert not _pcm_block_locked(project_path, key, 0)
+
+
 def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
     project_path = waveform_project(tmp_path)

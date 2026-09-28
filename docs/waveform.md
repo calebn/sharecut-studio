@@ -287,7 +287,10 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   after `Retry-After`, which costs latency, not correctness. Concurrent
   requests for one block share a decode: later callers wait on the block's
   lock instead of taking a slot, and the next one reads the block if it
-  failed. A decode runs to the end (at most the 30 s ffmpeg watchdog) even when
+  failed. A waiter gives up after `_PCM_WAIT_SEC` (the 30 s
+  `PCM_WINDOW_TIMEOUT_SEC` watchdog) with `WaveformBusyError` (the same 503 +
+  `Retry-After: 1`), so parked request threads stay bounded on their own. A
+  decode runs to the end (at most the 30 s ffmpeg watchdog) even when
   its client has gone away, for example after leaving the project, and holds
   its slot until then. Its block is still cached for a return visit. WAVs take
   no slot and are not cached (the fast path is cheaper than the memory). Only
