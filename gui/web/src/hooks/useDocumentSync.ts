@@ -48,8 +48,9 @@ type DocumentSnapshotMsg = {
  * A 4403 close (grant revoked by the post-accept authz recheck) is terminal: the session
  * token is read once per page, so reconnecting cannot succeed until reload. A refused
  * handshake closes before accept, which the browser reports as 1006, so it keeps retrying.
- * The offline-queue drain timer also runs on the 30 s sanity cadence (another process's
- * writes, #662); a dropped socket resyncs from the hello Snapshot on reconnect, not a poll.
+ * The offline-queue drain timer also runs on the 30 s sanity cadence (sanity net; other
+ * processes' writes arrive over the socket via the server's cross-process watcher, #695);
+ * a dropped socket resyncs from the hello Snapshot on reconnect, not a poll.
  * `commands/trackMix.ts` sizes `QUEUED_SHOWN_MS` from this cadence; keep them in step.
  */
 export function useDocumentSync(

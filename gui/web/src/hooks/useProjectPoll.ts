@@ -11,7 +11,8 @@ import { useFileMetaPoll } from "./useFileMetaPoll";
 
 /** Sanity poll (every `SANITY_POLL_MS`, and on focus): reload ProjectView (shell) on an
 episode.project.json mtime/size/seq change the document socket has not already delivered
-— in practice a write from another process (#662). */
+— in practice a write that advanced no journal seq, since the server's cross-process
+watcher pushes other processes' journal writes over the socket (#695). */
 export function useProjectPoll(
   projectPath: string,
   _setProject: (project: ProjectView) => void,
