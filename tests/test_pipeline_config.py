@@ -341,7 +341,10 @@ def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
     assert status["whisper"]["ok"] is False
     assert "does not match" in status["whisper"]["hint"]
     assert "--upgrade" in status["whisper"]["hint"]
-    assert status["whisper"]["bootstrap"] == "podcast bootstrap --component whisper --upgrade"
+    assert status["whisper"]["pin_mismatch"] is True
+    assert status["whisper"]["bootstrap"] == (
+        "podcast bootstrap --component whisper --whisper-model large-v3-turbo --upgrade"
+    )
 
 
 def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> None:

@@ -484,3 +484,12 @@ def test_run_gate_rehashes_a_file_a_status_poll_remembered(
         ensure_whisper_model_cached("small.en")
     with pytest.raises(WhisperPinMismatchError, match=r"vocabulary\.txt"):
         resolve_whisper_model_path("small.en")
+
+
+def test_whisper_bootstrap_command() -> None:
+    from podcast_mcp.whisper_models import whisper_bootstrap_command
+
+    assert whisper_bootstrap_command("small.en") == (
+        "podcast bootstrap --component whisper --whisper-model small.en"
+    )
+    assert whisper_bootstrap_command("small.en", upgrade=True).endswith("small.en --upgrade")

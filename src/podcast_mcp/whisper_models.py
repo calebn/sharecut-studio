@@ -25,6 +25,7 @@ from podcast_mcp.util.model_manifest import (
 )
 
 DEFAULT_WHISPER_MODEL = "large-v3-turbo"
+WHISPER_BOOTSTRAP = "podcast bootstrap --component whisper"
 
 # Official faster-whisper size ids (plus ``turbo`` alias).
 FASTER_WHISPER_SIZES: frozenset[str] = frozenset(
@@ -282,6 +283,12 @@ def apply_whisper_model_to_defaults(defaults: dict[str, Any]) -> dict[str, Any]:
     return defaults
 
 
+def whisper_bootstrap_command(model: str, *, upgrade: bool = False) -> str:
+    """The CLI that downloads ``model``; ``upgrade`` re-downloads a pinned snapshot."""
+    command = f"{WHISPER_BOOTSTRAP} --whisper-model {model}"
+    return f"{command} --upgrade" if upgrade else command
+
+
 class WhisperWeightsMissingError(RuntimeError):
     """Raised when a pipeline/transcribe run needs weights that are not on disk."""
 
@@ -291,7 +298,7 @@ class WhisperWeightsMissingError(RuntimeError):
             message
             or (
                 f"Whisper model {model!r} is not downloaded. "
-                f"Run: podcast bootstrap --component whisper --whisper-model {model} "
+                f"Run: {whisper_bootstrap_command(model)} "
                 "or use a downloaded model with "
                 "podcast transcribe --model <model>."
             )
@@ -305,7 +312,7 @@ class WhisperPinMismatchError(WhisperWeightsMissingError):
         super().__init__(
             model,
             f"Whisper model {model!r} does not match its pinned download ({detail}). "
-            f"Run: podcast bootstrap --component whisper --whisper-model {model} --upgrade",
+            f"Run: {whisper_bootstrap_command(model, upgrade=True)}",
         )
 
 
