@@ -5,6 +5,12 @@ so object identity cannot key a memo. ``TranscriptWord.__setattr__`` and every m
 of ``TranscriptWords`` (``models.episode``) call :func:`bump_words_revision` after the
 change; a memo stamped with :func:`words_revision` read *before* computing is valid only
 while the revision is unchanged. In-memory only: never persisted, restarts per process.
+
+Process-wide on purpose: a words edit on any transcript (any track, any project in the
+process) costs every other memo one recompute, never a stale hit. A per-transcript
+counter would need each ``TranscriptWord`` to reach every list that holds it (pydantic
+validation and ``TranscriptWords(...)`` copies share word objects). Revisit if one
+process serves several concurrently edited projects and the lower hit rate shows up.
 """
 
 from __future__ import annotations
@@ -29,6 +35,10 @@ def bump_words_revision() -> None:
     Lock-free: ``next`` on an ``itertools.count`` is atomic, so every bump stores a value
     no other bump stores. Two racing bumps may store theirs out of order, but a stamp
     matches only the single interval its value was current, never after a later bump.
+
+    This relies on the GIL making ``next(_counter)`` atomic. A free-threaded build
+    (PEP 703, ``python3.13t``) does not document that guarantee for ``itertools.count``, so
+    guard the ``next`` call with a ``threading.Lock`` before supporting one.
     """
     global _revision
     _revision = next(_counter)
