@@ -181,10 +181,11 @@ export function useSessionSync(
     let socket: WebSocket | null = null;
 
     /**
-     * Everything but the record plane and the clock sample: presence,
-     * ViewerState echo bookkeeping, and Snapshot/Applied/Echo application.
-     * Runs from the per-frame inbound queue, so N frames received between
-     * paints commit as one render.
+     * Everything but the record plane, the clock sample and the own-client
+     * ViewerState Echo's deadline bookkeeping (all handled at receipt in
+     * `onmessage`): presence, the rejected-ViewerState fallback, and
+     * Snapshot/Applied/Echo application. Runs from the per-frame inbound
+     * queue, so N frames received between paints commit as one render.
      */
     const handleSessionFrame = (msg: SessionWireMsg) => {
       if (cancelled) {
@@ -209,16 +210,6 @@ export function useSessionSync(
         msg.snapshot
       ) {
         const snap = msg.snapshot;
-        if (
-          msg.type === "Echo" &&
-          msg.command?.type === "ViewerState" &&
-          msg.command.client_id === clientIdRef.current
-        ) {
-          const oldest = viewerStateWaitRef.current.timers.shift();
-          if (oldest !== undefined) {
-            window.clearTimeout(oldest);
-          }
-        }
         if (Array.isArray(snap.clients)) {
           useDawStore.getState().setSessionClients(snap.clients);
         }
@@ -278,6 +269,20 @@ export function useSessionSync(
                 msg.snapshot as unknown as import("../record/types").RecordSnapshot,
               );
             return;
+          }
+          if (
+            msg.type === "Echo" &&
+            msg.snapshot &&
+            msg.command?.type === "ViewerState" &&
+            msg.command.client_id === clientIdRef.current
+          ) {
+            // At receipt, not in the queued job: the echo deadline is a plain
+            // timer, and a delayed flush could lose the race to it and send a
+            // redundant HTTP publish.
+            const oldest = viewerStateWaitRef.current.timers.shift();
+            if (oldest !== undefined) {
+              window.clearTimeout(oldest);
+            }
           }
           enqueueInbound(() => handleSessionFrame(msg), {
             coalesceKey:
