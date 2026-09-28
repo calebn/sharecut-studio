@@ -171,7 +171,9 @@ def place_words(
 
     first_frame: dict[int, int] = {}
     last_frame: dict[int, int] = {}
-    evidence: dict[int, list[float]] = {}
+    # Emitting (frame, token) pairs per word; exponentiated once per word below, not per frame.
+    emit_frames: dict[int, list[int]] = {}
+    emit_tokens: dict[int, list[int]] = {}
     for frame, state in enumerate(path):
         if state < 0:
             continue
@@ -181,15 +183,16 @@ def place_words(
         if word_index not in first_frame:
             first_frame[word_index] = frame
         last_frame[word_index] = frame
-        evidence.setdefault(word_index, []).append(float(np.exp(log_probs[frame, targets[state]])))
+        emit_frames.setdefault(word_index, []).append(frame)
+        emit_tokens.setdefault(word_index, []).append(targets[state])
 
     for word_index, first in first_frame.items():
         last = last_frame[word_index]
-        scores = evidence[word_index]
+        posteriors = np.exp(log_probs[emit_frames[word_index], emit_tokens[word_index]])
         results[word_index] = PlacedWord(
             round(offset_sec + first * frame_sec, 4),
             round(offset_sec + (last + 1) * frame_sec, 4),
-            round(sum(scores) / len(scores), 4),
+            round(float(posteriors.mean()), 4),
         )
     return results
 
