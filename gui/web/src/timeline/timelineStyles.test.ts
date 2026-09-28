@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -115,10 +115,22 @@ describe("timeline styles", () => {
     expect(badge).toMatch(/top:\s*0/);
     // Inside the lane's top gutter (clip top inset): clear of the fade corners, the join diamond and the marker lane above.
     expect(badge).toMatch(/translate:\s*-50%\s+0;/);
-    expect(badge).toMatch(/height:\s*0\.5rem/);
+    expect(badge).toMatch(/height:\s*var\(--clip-inset-top\)/);
     expect(badge).toMatch(/width:\s*1rem/);
     expect(badge).toMatch(/z-index:\s*var\(--z-join\)/);
     expect(badge).toMatch(/pointer-events:\s*none/);
+    // One px token sizes the clip's top inset, the badge and its glyph, so they line up at any root font size.
+    const clip = rule(css, ".clip-block");
+    expect(clip).toMatch(/top:\s*var\(--clip-inset-top\)/);
+    expect(clip).toMatch(
+      /height:\s*calc\(var\(--lane-height\) - 2 \* var\(--clip-inset-top\)\)/,
+    );
+    expect(rule(css, ".join-badge-glyph")).toMatch(
+      /height:\s*calc\(var\(--clip-inset-top\) - 1px - 1px\)/,
+    );
+    expect(
+      readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
+    ).toMatch(/--clip-inset-top:\s*8px;/);
     expect(rule(css, ".join-badge--blocked")).toMatch(
       /border-color:\s*var\(--warning\)/,
     );

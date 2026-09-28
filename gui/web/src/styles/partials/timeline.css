@@ -39,10 +39,9 @@
 
 .clip-block {
   position: absolute;
-  /* stylelint-disable meowtec/no-px -- user-approved: canvas clip inset vs lane height */
-  top: 8px;
-  height: calc(var(--lane-height) - 16px);
-  /* stylelint-enable meowtec/no-px */
+  /* The top inset is the lane's top gutter; .join-badge fills it (same token). */
+  top: var(--clip-inset-top);
+  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
   border-radius: var(--radius-md);
   border: 1px solid var(--color-overlay-white-15);
   cursor: pointer;
@@ -389,11 +388,11 @@ button.join-diamond {
 }
 
 /* One badge per drawn join, at the top of the seam (#690): | cut, ╲╱ fade,
-   ✕ crossfade. It fills the lane's top gutter (the .clip-block 8px top inset;
-   0.5rem at the default root size) and never leaves its own lane, so it
+   ✕ crossfade. It fills the lane's top gutter (--clip-inset-top, the .clip-block top
+   inset, in px so it holds at any root font size) and never leaves its own lane, so it
    clears the clips' top-corner fade handles, the mid-height join diamond and,
-   on the first track, the marker lane above (e2e/fade-curves.spec.ts checks
-   all three). TrackLane draws it above the resting clips. It is display-only
+   on the first track, the marker lane above (e2e/fade-curves.spec.ts checks all three,
+   at the default and a 24px root font size). TrackLane draws it above the resting clips. It is display-only
    and click-through (the trim strips under it keep their input) until the
    join popover (#691) makes it a button. Declared after `.lane-inner > *` so
    its pointer-events wins. */
@@ -401,7 +400,7 @@ button.join-diamond {
   position: absolute;
   top: 0;
   width: 1rem;
-  height: 0.5rem;
+  height: var(--clip-inset-top);
   translate: -50% 0;
   display: grid;
   place-items: center;
@@ -420,8 +419,9 @@ button.join-diamond {
 }
 
 .join-badge-glyph {
-  width: 0.375rem;
-  height: 0.375rem;
+  /* The badge's content box: the gutter minus its two 1px borders. */
+  width: calc(var(--clip-inset-top) - 1px - 1px);
+  height: calc(var(--clip-inset-top) - 1px - 1px);
   fill: none;
   stroke: var(--color-text-on-overlay);
   stroke-width: 2;
