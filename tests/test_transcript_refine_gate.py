@@ -203,6 +203,36 @@ def test_refresh_does_not_overwrite_concurrent_explicit_decision(minimal_project
     assert load_status(proj)["source"] == "user"
 
 
+def test_status_write_times_out_on_held_status_lock(minimal_project, monkeypatch):
+    from filelock import Timeout
+
+    import podcast_mcp.edits.transcript_refine_status as refine_mod
+
+    assert refine_mod._STATUS_LOCK_TIMEOUT_SEC > 0
+    proj = _with_words(minimal_project)
+    before = load_status(proj)
+    monkeypatch.setattr(refine_mod, "_STATUS_LOCK_TIMEOUT_SEC", 0.05)
+    started = threading.Event()
+    release = threading.Event()
+
+    def hold() -> None:
+        with refine_mod._status_lock(proj):
+            started.set()
+            release.wait(timeout=5)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        with pytest.raises(Timeout):
+            mark_refine_done(proj, source="user")
+    finally:
+        release.set()
+        thread.join(timeout=5)
+    assert load_status(proj) == before
+    assert mark_refine_done(proj, source="user")["status"] == "done"
+
+
 @pytest.mark.refine_gate
 def test_require_step_fails_interactive_pending(minimal_project):
     proj = _with_words(minimal_project)
