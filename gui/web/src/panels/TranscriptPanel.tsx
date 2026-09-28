@@ -23,8 +23,8 @@ import { InlineWordEditor } from "../transcript/InlineWordEditor";
 import { ignoredRuns, selectionAllIgnored } from "../transcript/ignoredWords";
 import {
   isLowConfidenceWord,
-  lowConfidenceStops,
   reviewCursorIndex,
+  selectLowConfidenceStops,
 } from "../transcript/lowConfidence";
 import { SILENCE_WARNING } from "../transcript/silenceWarning";
 import {
@@ -436,14 +436,11 @@ export function TranscriptPanel() {
     [utterances],
   );
   // Walkthrough stops (#634): the words that get the low-confidence underline.
-  const reviewStops = useMemo(
-    () =>
-      lowConfidenceStops(
-        allUtterances,
-        transcriptAnnotate,
-        showCutAwayUtterances,
-      ),
-    [allUtterances, transcriptAnnotate, showCutAwayUtterances],
+  // Memoized in the helper, shared with the Next/Previous commands.
+  const reviewStops = selectLowConfidenceStops(
+    allUtterances,
+    transcriptAnnotate,
+    showCutAwayUtterances,
   );
   const reviewPosition = reviewCursorIndex(reviewStops, transcriptReviewCursor);
   // The highlight, selected as one string key rather than the playhead: a

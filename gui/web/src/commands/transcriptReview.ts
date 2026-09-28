@@ -1,8 +1,8 @@
 import { presenceAnchor } from "../presence/anchors";
 import { useDawStore } from "../state/dawStore";
 import {
-  lowConfidenceStops,
   type ReviewDirection,
+  selectLowConfidenceStops,
   stepLowConfidence,
 } from "../transcript/lowConfidence";
 import { registerCommand } from "./execute";
@@ -11,7 +11,7 @@ import type { ExecuteResult } from "./types";
 function stepReview(direction: ReviewDirection): ExecuteResult {
   const s = useDawStore.getState();
   if (!s.project) return { status: "disabled", reason: "No project loaded" };
-  const stops = lowConfidenceStops(
+  const stops = selectLowConfidenceStops(
     s.project.transcript?.utterances ?? [],
     s.transcriptAnnotate,
     s.showCutAwayUtterances,
