@@ -21,7 +21,11 @@ from podcast_mcp.engines.play_audit import (
     track_render_hash,
     write_stem_hash,
 )
-from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
+from podcast_mcp.engines.reconciliation_state import (
+    audio_state_fingerprint,
+    mark_reconciliation_fresh,
+    reconciliation_status,
+)
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -414,6 +418,25 @@ def test_reconciliation_fingerprint_takes_the_track_set_from_the_project(tmp_pat
     )
     with pytest.raises(KeyError):
         audio_state_fingerprint(project, {"host": hashes["host"]})
+
+
+def test_reconciliation_status_hashes_each_dialogue_track_once(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.engines import play_audit
+
+    project = EpisodeProject.create("rs", str(tmp_path))
+    for tid in ("host", "guest"):
+        project.timeline.tracks.append(Track(id=tid, label=tid, role=TrackRole.DIALOGUE))
+    mark_reconciliation_fresh(project)
+    real = play_audit.track_render_hash
+    calls: list[str] = []
+
+    def counting(p, tid):
+        calls.append(tid)
+        return real(p, tid)
+
+    monkeypatch.setattr(play_audit, "track_render_hash", counting)
+    assert reconciliation_status(project)["stale"] is False
+    assert sorted(calls) == ["guest", "host"]
 
 
 def test_wav_duration_cache_is_bounded_by_the_named_size() -> None:
