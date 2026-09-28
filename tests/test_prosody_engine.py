@@ -15,6 +15,7 @@ from podcast_mcp.engines.prosody import (
     ProsodyUnavailable,
     WordSpan,
     _boundaries,
+    _frame_slice,
     _voice_quality,
     _words_by_span,
     parselmouth_version,
@@ -93,6 +94,12 @@ def test_words_by_span_matches_brute_force_filter() -> None:
         s, e = span
         brute = [w for w in ordered if s - 1e-6 <= w.start < e + 1e-6]
         assert result[span] == brute
+
+
+def test_frame_slice_matches_boolean_mask() -> None:
+    xs = np.arange(0.0, 5.0, 0.01)
+    for s, e in [(0.0, 1.0), (1.005, 2.5), (2.5, 2.5), (4.99, 10.0), (-1.0, 0.0)]:
+        assert np.array_equal(xs[_frame_slice(xs, s, e)], xs[(xs >= s) & (xs < e)])
 
 
 def test_voice_quality_flags_zero_hnr_as_low() -> None:
