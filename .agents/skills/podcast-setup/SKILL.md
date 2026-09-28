@@ -26,7 +26,7 @@ source .venv/bin/activate   # or: uv run …
 # Heavy torch extras (speaker / joinqc) are NOT included — see Optional downloads below.
 ```
 
-`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay`
+`./install.sh` runs `uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody`
 (or the same extras via pip without `uv`). Details:
 [docs/setup.md](../../../docs/setup.md#full-local-install).
 
