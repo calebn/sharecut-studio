@@ -633,6 +633,7 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", boom)
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 0)
+    assert svc._PCM_INFLIGHT == {}
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     gate.exit(svc._PCM_GATE_KEY)
 
@@ -647,6 +648,7 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 1)
+    assert svc._PCM_INFLIGHT == {}
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     gate.exit(svc._PCM_GATE_KEY)
 
@@ -671,6 +673,79 @@ def test_pcm_block_wav_fast_path_takes_no_slot(tmp_path, monkeypatch):
     assert len(seen) == 1
     assert isinstance(seen[0], wm_pyramid.PcmSource)
     assert seen[0].needs_decode is False  # the pcm_block probe is reused, not repeated
+
+
+def _run_pcm(results: dict[str, object], name: str, project_path: Path, key: str) -> None:
+    try:
+        results[name] = pcm_block(project_path, "track:host", key, 0)
+    except BaseException as exc:
+        results[name] = exc
+
+
+def test_pcm_block_coalesces_concurrent_decodes_of_one_block(tmp_path, monkeypatch):
+    _compressed(monkeypatch)  # one slot: the follower would be busy without coalescing
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    real = svc.read_pcm_minmax
+    started, release = threading.Event(), threading.Event()
+    calls: list[int] = []
+
+    def gated(*a, **k):
+        calls.append(1)
+        started.set()
+        assert release.wait(5)
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", gated)
+    results: dict[str, object] = {}
+    leader = threading.Thread(target=_run_pcm, args=(results, "leader", project_path, key))
+    leader.start()
+    assert started.wait(5)
+    follower = threading.Thread(target=_run_pcm, args=(results, "follower", project_path, key))
+    follower.start()
+    follower.join(0.2)
+    assert follower.is_alive()  # waiting on the leader's decode, not a busy error
+    release.set()
+    leader.join(5)
+    follower.join(5)
+    assert isinstance(results["leader"], bytes)
+    assert results["follower"] == results["leader"]
+    assert len(calls) == 1
+    assert svc._PCM_INFLIGHT == {}
+
+
+def test_pcm_block_follower_decodes_after_a_failed_leader(tmp_path, monkeypatch):
+    _compressed(monkeypatch)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    real = svc.read_pcm_minmax
+    started, release = threading.Event(), threading.Event()
+    calls: list[int] = []
+
+    def fail_first(*a, **k):
+        calls.append(1)
+        if len(calls) == 1:
+            started.set()
+            assert release.wait(5)
+            raise RuntimeError("ffmpeg failed")
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", fail_first)
+    results: dict[str, object] = {}
+    leader = threading.Thread(target=_run_pcm, args=(results, "leader", project_path, key))
+    leader.start()
+    assert started.wait(5)
+    follower = threading.Thread(target=_run_pcm, args=(results, "follower", project_path, key))
+    follower.start()
+    follower.join(0.2)
+    assert follower.is_alive()
+    release.set()
+    leader.join(5)
+    follower.join(5)
+    assert isinstance(results["leader"], svc.WaveformDecodeError)
+    assert isinstance(results["follower"], bytes)
+    assert len(calls) == 2
+    assert svc._PCM_INFLIGHT == {}
 
 
 def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
@@ -773,6 +848,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 2)
     assert svc._PCM == {}
+    assert svc._PCM_INFLIGHT == {}
 
     audio = project_path.parent / "raw" / "host.wav"
 
@@ -786,6 +862,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 3)
     assert svc._PCM == {}
+    assert svc._PCM_INFLIGHT == {}
 
 
 def test_media_index_sees_media_that_appears_later(tmp_path):
