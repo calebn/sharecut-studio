@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mergeProjectPatch } from "../document/projectPatch";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
@@ -162,6 +163,20 @@ describe("useProsodyOverlay", () => {
     expect(result.current.aligned).toEqual(PAYLOAD);
     act(() => {
       useDawStore.setState((s) => ({ project: { ...s.project! } }));
+    });
+    expect(result.current.aligned).toEqual(PAYLOAD);
+  });
+
+  it("keeps the aligned payload across a non-clip edit merged through the real document-sync path", async () => {
+    const { result } = renderHook(() => useProsodyOverlayViews(true));
+    await settle();
+    expect(result.current.aligned).toEqual(PAYLOAD);
+    act(() => {
+      useDawStore.setState((s) => ({
+        project: mergeProjectPatch(s.project!, {
+          transcript: { utterances: [] },
+        }),
+      }));
     });
     expect(result.current.aligned).toEqual(PAYLOAD);
   });
