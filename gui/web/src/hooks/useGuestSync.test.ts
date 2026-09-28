@@ -433,4 +433,25 @@ describe("useGuestSync", () => {
     expect(rosterRequests).toHaveLength(1);
     expect(useDawStore.getState().sessionClients.g1?.label).toBe("Guest");
   });
+
+  it("sends a RosterRequest on a PresenceResync", async () => {
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        plane: "session",
+        roster_version: 4,
+        clients: [{ client_id: "g1", role: "viewer", label: "Guest" }],
+      });
+    });
+    sock.sent = [];
+    await act(async () => {
+      sock.emit({ type: "PresenceResync", plane: "session" });
+    });
+    const rosterRequests = sock.sent
+      .map((s) => JSON.parse(s) as { type: string })
+      .filter((f) => f.type === "RosterRequest");
+    expect(rosterRequests).toHaveLength(1);
+  });
 });

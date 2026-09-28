@@ -1423,4 +1423,39 @@ describe("useSessionSync presence", () => {
     // The stale delta was dropped, not applied.
     expect(useDawStore.getState().sessionClients.x?.label).toBe("Ada");
   });
+
+  it("sends a RosterRequest on a PresenceResync", async () => {
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.emit({
+        type: "Presence",
+        roster_version: 7,
+        clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
+      });
+    });
+    sock.sent = [];
+    await act(async () => {
+      sock.emit({ type: "PresenceResync" });
+    });
+    const rosterRequests = sock.sent
+      .map((s) => JSON.parse(s) as { type: string })
+      .filter((f) => f.type === "RosterRequest");
+    expect(rosterRequests).toHaveLength(1);
+  });
 });

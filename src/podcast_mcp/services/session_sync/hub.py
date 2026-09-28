@@ -10,6 +10,11 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from podcast_mcp.services.fanout_hub import FanoutHub
+from podcast_mcp.services.session_sync.presence_delta import (
+    PRESENCE_DELTA,
+    PRESENCE_RESYNC,
+    presence_resync_event,
+)
 
 
 def _clear_presence_key(project_key: str) -> None:
@@ -104,17 +109,57 @@ def _record_applied(event: dict[str, Any] | None) -> bool:
     )
 
 
+_PRESENCE_TYPES = frozenset({"Presence", PRESENCE_DELTA, PRESENCE_RESYNC})
+
+
+def _presence_frame(event: dict[str, Any] | None) -> bool:
+    return (
+        isinstance(event, dict)
+        and event.get("plane") is None
+        and event.get("type") in _PRESENCE_TYPES
+    )
+
+
+def _presence_resync(event: dict[str, Any] | None) -> bool:
+    return isinstance(event, dict) and event.get("type") == PRESENCE_RESYNC
+
+
+def _drop_buffered_presence(q: asyncio.Queue[dict[str, Any]]) -> bool:
+    """Remove every buffered presence frame (resync markers included) from ``q``, keeping
+    the rest in order. True when anything was removed.
+    """
+    buffered: list[dict[str, Any]] = []
+    while True:
+        try:
+            buffered.append(q.get_nowait())
+        except asyncio.QueueEmpty:
+            break
+    kept = [row for row in buffered if not _presence_frame(row)]
+    for row in kept:
+        with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
+            q.put_nowait(row)
+    return len(kept) != len(buffered)
+
+
 def _session_overflow(q: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
     if _document_applied(event):
         _drain_queue(q)
         with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
             q.put_nowait(document_overflow_resync(event))
         return
-    to_put = _enqueue_prefer_drop_signal(q, event)
-    if to_put is None:
-        return
-    with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
-        q.put_nowait(to_put)
+    pending = [event]
+    if _drop_buffered_presence(q) or _presence_frame(event):
+        # Presence frames are incremental patches (PresenceDelta) or superseded by the next
+        # full roster: collapse them into one resync marker so the client sends a
+        # RosterRequest instead of silently missing a delta.
+        pending = [row for row in pending if not _presence_frame(row)]
+        pending.append(presence_resync_event())
+    for row in pending:
+        to_put = _enqueue_prefer_drop_signal(q, row) if q.full() else row
+        if to_put is None:
+            continue
+        with contextlib.suppress(asyncio.QueueFull):  # pragma: no cover
+            q.put_nowait(to_put)
 
 
 def _enqueue_prefer_drop_signal(
@@ -136,7 +181,14 @@ def _enqueue_prefer_drop_signal(
     if drop_at is not None:
         del buffered[drop_at]
     elif buffered:
-        drop_at = next((i for i, row in enumerate(buffered) if not _record_applied(row)), 0)
+        drop_at = next(
+            (
+                i
+                for i, row in enumerate(buffered)
+                if not _record_applied(row) and not _presence_resync(row)
+            ),
+            0,
+        )
         del buffered[drop_at]
     for row in buffered:
         with contextlib.suppress(asyncio.QueueFull):
