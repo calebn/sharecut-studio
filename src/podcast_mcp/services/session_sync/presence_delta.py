@@ -25,6 +25,7 @@ from typing import Any
 
 PRESENCE_DELTA = "PresenceDelta"
 ROSTER_REQUEST = "RosterRequest"
+PRESENCE_RESYNC = "PresenceResync"
 
 _ROSTER_VERSION = itertools.count(1)
 _ROSTER_VERSION_LOCK = threading.Lock()
@@ -98,6 +99,14 @@ def presence_delta_event(
         "roster_version": roster_version,
         "server_time_ns": server_time_ns if server_time_ns is not None else time.time_ns(),
     }
+
+
+def presence_resync_event() -> dict[str, Any]:
+    """Hub-overflow marker (``hub._session_overflow``): this subscriber's queue dropped
+    buffered ``Presence`` / ``PresenceDelta`` frames, so the client must send a
+    ``RosterRequest`` instead of trusting deltas it never received.
+    """
+    return {"type": PRESENCE_RESYNC}
 
 
 def is_own_presence_echo(event: dict[str, Any], client_id: str) -> bool:

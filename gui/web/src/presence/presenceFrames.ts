@@ -19,13 +19,17 @@ export type PresenceCarryingFrame = {
  * (`useSessionSync`) and guest (`useGuestSync`) sockets so both apply the same
  * version/roster rules (`presence/roster.ts`'s `applyPresenceDelta`).
  *
- * Returns `true` when a `PresenceDelta` landed on a stale or unknown-client version and
- * the caller should send a `RosterRequest` (`session/rosterRequest.ts`).
+ * Returns `true` when a `PresenceDelta` landed on a stale or unknown-client version, or
+ * the server sent a `PresenceResync` after its queue for this socket overflowed, and the
+ * caller should send a `RosterRequest` (`session/rosterRequest.ts`).
  */
 export function applyPresenceFrame(msg: PresenceCarryingFrame): boolean {
   if (msg.type === "Presence" && Array.isArray(msg.clients)) {
     useDawStore.getState().setSessionClients(msg.clients, msg.roster_version);
     return false;
+  }
+  if (msg.type === "PresenceResync") {
+    return true;
   }
   if (msg.type === "PresenceDelta") {
     if (typeof msg.author_client_id !== "string" || !msg.changes) {
@@ -54,9 +58,14 @@ export function applyPresenceFrame(msg: PresenceCarryingFrame): boolean {
 }
 
 /** True for the frame types `applyPresenceFrame` fully handles on its own
- * (`Presence` / `PresenceDelta`): the caller has nothing left to do for these. */
+ * (`Presence` / `PresenceDelta` / `PresenceResync`): the caller has nothing left to do for
+ * these. */
 export function isPresenceOnlyFrame(msg: PresenceCarryingFrame): boolean {
-  return msg.type === "Presence" || msg.type === "PresenceDelta";
+  return (
+    msg.type === "Presence" ||
+    msg.type === "PresenceDelta" ||
+    msg.type === "PresenceResync"
+  );
 }
 
 /** True for a frame that resolves an outstanding `RosterRequest`: it carries a full
