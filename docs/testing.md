@@ -404,11 +404,19 @@ DAW_E2E_PROJECT="$tmp_dir/project/episode.project.json" \
 transcripts; `--clips` must divide evenly). `--waveform synthetic|silent`
 (default `synthetic`) writes each track's `.wfpk` pyramid under the key the
 viewer asks for, without decoding: a speech-like envelope, or all zeros. The
-sparse WAVs are silent either way. `--history N` (default 500) seeds N
-before/after pairs (2N entries, 1,000 by default) that toggle the first clip's
+sparse WAVs are silent either way. `--history N` (default 200, the max) seeds N
+before/after pairs (2N entries, 400 by default) that toggle the first clip's
 fade-in and share two full-size snapshot files (`history/snapshots/benchmark-base.json`
 and `benchmark-faded.json`), so undo, redo, and diff use real snapshots without
-1,000 copies on disk; `--history 0` leaves the history empty.
+400 copies on disk; `--history 0` leaves the history empty. `ProjectStore`
+(`HISTORY_ENTRY_LIMIT`) prunes a project's history to 400 entries on every
+commit, so the default and the max both track that cap — `--history` values
+above `HISTORY_ENTRY_LIMIT // 2` (200) are refused rather than silently
+trimmed, since a fixture built past the cap could never survive a real
+commit. Seeded entry ids are 12-character lowercase hex (`f"{n:012x}"`),
+matching the generated-id shape `ProjectStore` requires before it will prune
+an entry's snapshot file (`HistoryManager` mints the same shape via
+`uuid4().hex[:12]`).
 
 Keep the `large-project.spec.ts` file filter: `DAW_E2E_PROJECT` applies to the
 whole Playwright run, so every other spec would otherwise run against the

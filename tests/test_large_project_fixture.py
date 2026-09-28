@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import wave
 from itertools import pairwise
 from pathlib import Path
@@ -10,6 +11,7 @@ import jsonschema
 import pytest
 
 from podcast_mcp.models import load_project
+from podcast_mcp.project_store import _GENERATED_SNAPSHOT_ID, HISTORY_ENTRY_LIMIT
 from script_loader import load_script
 
 REPO = Path(__file__).resolve().parents[1]
@@ -109,6 +111,7 @@ def test_large_project_fixture_odd_count_alternates_to_the_last_turn(tmp_path):
 @pytest.mark.e2e_real
 def test_large_project_fixture_default_two_hour_shape(tmp_path):
     builder = _load_fixture_builder()
+    assert 2 * builder.DEFAULT_HISTORY_STEPS == HISTORY_ENTRY_LIMIT
     project_path = builder.build_project(tmp_path / "large-project")
     _assert_benchmark_shape(
         project_path,
@@ -139,6 +142,19 @@ def test_large_project_fixture_default_two_hour_shape(tmp_path):
 def test_large_project_fixture_rejects_invalid_arguments(tmp_path, kwargs, match):
     with pytest.raises(ValueError, match=match):
         _load_fixture_builder().build_project(tmp_path / "invalid", **kwargs)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_large_project_fixture_rejects_history_over_commit_cap(tmp_path):
+    builder = _load_fixture_builder()
+    with pytest.raises(ValueError, match="history steps"):
+        builder.build_project(
+            tmp_path / "toobig",
+            duration=10,
+            clip_count=2,
+            utterance_count=2,
+            history_steps=builder.MAX_HISTORY_STEPS + 1,
+        )
     assert list(tmp_path.iterdir()) == []
 
 
@@ -224,6 +240,9 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     history = project.history
     assert len(history.entries) == 6
     assert history.cursor == 5
+    ids = [e.id for e in history.entries]
+    assert all(_GENERATED_SNAPSHOT_ID.fullmatch(entry_id) for entry_id in ids)
+    assert len(set(ids)) == len(ids)
     assert [e.label.split(" ")[0] for e in history.entries] == ["before", "after"] * 3
     files = {e.snapshot_file for e in history.entries}
     assert len(files) == 2
@@ -243,6 +262,43 @@ def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     assert status.cursor == 4
     assert project.history.can_redo()
     assert project.timeline.clips[0].fade_in_ms == 10
+
+
+def test_large_project_fixture_history_prunes_cleanly_past_the_cap(tmp_path, caplog):
+    from podcast_mcp.project_store import ProjectStore
+
+    builder = _load_fixture_builder()
+    project_path = builder.build_project(
+        tmp_path / "prune",
+        duration=10,
+        clip_count=2,
+        utterance_count=2,
+        history_steps=builder.MAX_HISTORY_STEPS,
+    )
+    store = ProjectStore(project_path)
+    project = store.load()
+    history = project.history
+    assert len(history.entries) == HISTORY_ENTRY_LIMIT
+
+    oldest_pair_ids = {history.entries[0].id, history.entries[1].id}
+    last_before, last_after = history.entries[-2], history.entries[-1]
+    next_id = len(history.entries)
+    new_before = last_before.model_copy(update={"id": f"{next_id:012x}"})
+    new_after = last_after.model_copy(update={"id": f"{next_id + 1:012x}"})
+    history.entries = [*history.entries, new_before, new_after]
+    history.cursor = len(history.entries) - 1
+
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.project_store"):
+        store.commit(project)
+    assert not any("Skipping" in record.message for record in caplog.records)
+
+    reloaded = store.load()
+    assert len(reloaded.history.entries) == HISTORY_ENTRY_LIMIT
+    assert oldest_pair_ids.isdisjoint({e.id for e in reloaded.history.entries})
+
+    snapshots_dir = project_path.parent / "history" / "snapshots"
+    assert (snapshots_dir / "benchmark-base.json").is_file()
+    assert (snapshots_dir / "benchmark-faded.json").is_file()
 
 
 def test_large_project_fixture_zero_history_steps_is_empty(tmp_path):
