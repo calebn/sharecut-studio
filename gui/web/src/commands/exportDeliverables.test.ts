@@ -124,4 +124,49 @@ describe("export.deliverables", () => {
     expect((await execute("export.deliverables")).status).toBe("ok");
     expect(startMock).toHaveBeenCalledTimes(2);
   });
+
+  it("aborts the follow when the project changes and announces nothing", async () => {
+    startMock.mockResolvedValue(jobSnapshot("job-1"));
+    followMock.mockImplementation(
+      (_id, _label, opts) =>
+        new Promise((_resolve, reject) => {
+          opts?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+
+    const run = execute("export.deliverables");
+    await vi.waitFor(() => expect(followMock).toHaveBeenCalled());
+    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
+
+    const result = await run;
+    expect(result.status).toBe("disabled");
+    if (result.status === "disabled") {
+      expect(result.reason).toBe("Project changed");
+    }
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+    expect(useDawStore.getState().statusAnnouncement).not.toContain(
+      "Export failed",
+    );
+
+    startMock.mockResolvedValue(jobSnapshot("job-2"));
+    followMock.mockResolvedValue(["export/a.wav"]);
+    expect((await execute("export.deliverables")).status).toBe("ok");
+  });
+
+  it("does not block another project's export", async () => {
+    _resetExportDeliverablesInFlightForTests();
+    startMock.mockResolvedValue(jobSnapshot("job-1"));
+    followMock.mockImplementationOnce(() => new Promise(() => {}));
+
+    void execute("export.deliverables");
+    await vi.waitFor(() => expect(followMock).toHaveBeenCalledTimes(1));
+
+    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
+
+    startMock.mockResolvedValue(jobSnapshot("job-2"));
+    followMock.mockResolvedValueOnce(["export/b.wav"]);
+    expect((await execute("export.deliverables")).status).toBe("ok");
+  });
 });
