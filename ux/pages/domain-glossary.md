@@ -205,10 +205,10 @@ as a conflict instead of changing a different word. Sharecut Studio's inline wor
 editor always sends that text, and the Correct inspector sends it whenever it can confirm the
 current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
 send the word or range's currently displayed text, or no guard when that text can't be
-confirmed, same as Apply. When that happens, Select-mode Ignore/Restore says "text not
-verified" in its status message.
+confirmed, same as Apply. When that happens, Select-mode Ignore/Restore and the hover Restore
+say "text not verified" in their status message.
 
-A refusal from the Correct inspector shows under the editor. A refusal from Select-mode or
+A refusal from the inline editor or the Correct inspector shows under the editor. A refusal from Select-mode or
 hover Ignore/Restore is announced as a status message instead, since those have no editor
 open. Either way it is also listed in **Needs attention**; re-read the word or selection and
 try again.
