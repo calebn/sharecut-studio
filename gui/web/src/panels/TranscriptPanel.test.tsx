@@ -1405,6 +1405,35 @@ describe("TranscriptPanel", () => {
       const { container } = render(<TranscriptPanel />);
       await expectNoA11yViolations(container);
     });
+
+    it("shows the walkthrough to guests without Correct mode or selection", () => {
+      useDawStore.setState({
+        projectPath: "share:tok",
+        project: lowConfidenceProject(),
+        transcriptAnnotate: true,
+      });
+      const { container } = render(<TranscriptPanel />);
+      const group = within(container).getByRole("group", {
+        name: "Low-confidence review",
+      });
+      expect(
+        within(group).getByRole("button", {
+          name: /^Next low-confidence word/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(container).queryByRole("button", { name: /^Correct:/i }),
+      ).toBeNull();
+      act(() => {
+        useDawStore.setState({
+          transcriptReviewCursor: { trackId: "host", wordIndex: 1, order: 1 },
+        });
+      });
+      expect(
+        within(container).getByRole("button", { name: "there" }),
+      ).toHaveAttribute("aria-current", "true");
+      expect(useDawStore.getState().selection).toBeNull();
+    });
   });
 });
 
