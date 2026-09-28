@@ -68,7 +68,7 @@ Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/
 | Transcript tab | Text mode |
 | Comments | Listen list + More → Comments |
 | History / Impact / Tighten / Pipeline | More hub |
-| Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Stale render** uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
+| Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
 
 ### Gestures
 
@@ -100,7 +100,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 │ ══════════●═══════════════════    │  ← coarse scrub (44px, brand accent)
 │     −15s  (▶)  ■  +15s            │  ← 44px targets; Play is the only orange control
 └───────────────────────────────────┘
-│ Pending: 3  ·  Stale render       │  ← chips (Pending → Timeline + first review-required)
+│ Pending: 3  ·  Mix out of date       │  ← chips (Pending → Timeline + first review-required)
 │ Activity: running · Aligning… 0:12│  ← Pipeline chip taps More/Pipeline; Activity chip is status-only
 │ ───────────────────────────────── │
 │ ● 04:12  “level feels low”        │
@@ -207,13 +207,13 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (session width, except Listen), Menu icon; desktop/tablet also **Layout** (maximize/restore) and, on the wide bar, a **Fit tracks to window height** icon beside Fit |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
 | Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables…. Home also has **Connect agent…** |
-| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Mix/FX/Raw, **Refresh mix** when render is stale, layers, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, layout, theme, Fit session width if omitted from bar, Help (wide desktop splits layers/zoom/track height/layout/theme into a **View** menu) |
+| Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Full mix/Edited stems/Original, **Refresh mix** when render is stale, layers, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, layout, theme, Fit session width if omitted from bar, Help (wide desktop splits layers/zoom/track height/layout/theme into a **View** menu) |
 
 ### Editing tool rail (phone / tablet Timeline)
 
 Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
 
-Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Stale render** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status.
+Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status.
 
 ## Desktop / tablet back-apply
 

@@ -164,7 +164,7 @@ test.describe("control state parity", () => {
 
     const mix = page
       .getByRole("group", { name: "Audition mode" })
-      .getByRole("button", { name: "Mix", exact: true });
+      .getByRole("button", { name: "Full mix", exact: true });
     await expect(mix).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("heading", { level: 1 }).hover();
     const mixRest = await paint(mix);

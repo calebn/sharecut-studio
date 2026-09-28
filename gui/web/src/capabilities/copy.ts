@@ -20,8 +20,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Stop and return to where playback started",
   },
   "daw.transport.audition": {
-    label: "Audition Mix / FX / Raw",
-    tooltip: "Audition Mix, FX, or Raw",
+    label: "Audition Full mix / Edited stems / Original",
+    tooltip: "Audition Full mix, Edited stems, or Original",
   },
   "daw.presence.follow": {
     label: "Follow",

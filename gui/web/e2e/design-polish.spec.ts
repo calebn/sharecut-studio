@@ -223,7 +223,7 @@ test("light transport keeps legible status and stable control hover paint", asyn
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
   await expect(page.locator(".lane-row").first()).toBeVisible();
   await setTheme(page, "light");
-  // Stale render (or the async audio-error pill) must be on screen first.
+  // Mix out of date (or the async audio-error pill) must be on screen first.
   await expect(page.locator(".transport .pill.warning").first()).toBeVisible();
 
   const colors = await page.locator(".transport").evaluate((transport) => {
@@ -274,7 +274,7 @@ test("light transport keeps legible status and stable control hover paint", asyn
   });
   const fx = page
     .getByRole("group", { name: "Audition mode" })
-    .getByRole("button", { name: "FX", exact: true });
+    .getByRole("button", { name: "Edited stems", exact: true });
   await fx.hover();
   await expect(fx).toHaveCSS("background-color", controlFill);
 

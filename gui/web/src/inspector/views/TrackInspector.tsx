@@ -28,6 +28,7 @@ import {
   FieldRow,
   InspectorSeekFooterView,
 } from "../../ui";
+import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
 import { playTimelineRange } from "../../utils/playRange";
 import { ModifierInspector } from "../ModifierInspector";
@@ -148,7 +149,7 @@ export function TrackInspector({
           seekLabel="Go to start"
           playLabel="Preview effects at track start"
           playDisabled={mixOnly}
-          playDisabledReason="Guests listen in Mix"
+          playDisabledReason={GUESTS_HEAR_FULL_MIX}
           onSeek={() => setPlayheadSec(0)}
           onPlay={playFxAround}
         />

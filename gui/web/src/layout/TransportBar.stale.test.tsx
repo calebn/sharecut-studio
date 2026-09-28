@@ -45,7 +45,7 @@ describe("TransportBar stale refresh", () => {
         <TransportBar />
       </DawProvider>,
     );
-    const pill = screen.getByRole("button", { name: /Stale render/i });
+    const pill = screen.getByRole("button", { name: /Mix out of date/i });
     expect(pill.getAttribute("aria-disabled")).toBeNull();
     await userEvent.hover(pill);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
@@ -74,7 +74,7 @@ describe("TransportBar stale refresh", () => {
         <TransportBar />
       </DawProvider>,
     );
-    const pill = screen.getByRole("button", { name: /Stale render/i });
+    const pill = screen.getByRole("button", { name: /Mix out of date/i });
     expect(pill.getAttribute("aria-disabled")).toBe("true");
     await userEvent.hover(pill);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
@@ -105,20 +105,22 @@ describe("TransportBar stale refresh", () => {
     );
   });
 
-  it("keeps Stale off the bar when collapsed and refreshes from Menu", async () => {
+  it("keeps Mix out of date off the bar when collapsed and refreshes from Menu", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={staleProject()}>
         <TransportBar compact />
       </DawProvider>,
     );
-    expect(screen.queryByRole("button", { name: /Stale render/i })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Mix out of date/i }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: /^Stale$/i })).toBeNull();
     expect(document.querySelector(".timecode")).toBeTruthy();
     expect(document.querySelector(".transport--collapsed")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const refresh = screen.getByRole("menuitem", {
-      name: /Refresh mix \(stale\)/i,
+      name: /Mix out of date · Refresh/i,
     });
     await userEvent.hover(refresh);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
@@ -139,7 +141,7 @@ describe("TransportBar stale refresh", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     await userEvent.hover(
-      screen.getByRole("menuitem", { name: /Refresh mix \(stale\)/i }),
+      screen.getByRole("menuitem", { name: /Mix out of date · Refresh/i }),
     );
     expect(useDawStore.getState().highlightStaleRender).toBe(true);
     await userEvent.keyboard("{Escape}");
@@ -161,10 +163,10 @@ describe("TransportBar stale refresh", () => {
         <TransportBar />
       </DawProvider>,
     );
-    const mix = screen.getByRole("button", { name: "Mix" });
+    const mix = screen.getByRole("button", { name: "Full mix" });
     expect(mix).not.toHaveClass("stale-highlight");
     await userEvent.hover(
-      screen.getByRole("button", { name: /Stale render/i }),
+      screen.getByRole("button", { name: /Mix out of date/i }),
     );
     expect(mix).toHaveClass("stale-highlight");
   });
@@ -181,7 +183,7 @@ describe("TransportBar stale refresh", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     const refresh = screen.getByRole("menuitem", {
-      name: /Refresh mix \(stale\)/i,
+      name: /Mix out of date · Refresh/i,
     });
     await userEvent.hover(refresh);
     expect(useDawStore.getState().highlightStaleRender).toBe(true);

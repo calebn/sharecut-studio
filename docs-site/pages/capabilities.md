@@ -30,7 +30,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Play / pause | `transport.togglePlay` | `Space` | `transport.play` | `set_session_playing_tool`, `play_audio_tool` | — | `podcast-play-audition` | — | anchor · look |
 | Seek playhead | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | `seek_session_tool` | — | — | — | — |
 | Stop playback | `transport.stop` | `K` | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
-| Audition Mix / FX / Raw | `transport.audition` | — (not industry-standard; Mix/FX/Raw toggle) | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
+| Audition Full mix / Edited stems / Original | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
 | Follow | `presence.follow` | — (not industry-standard; avatar click) | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
 | Stop following | `presence.unfollow` | `Escape` | `presence.followBanner` | — | — | — | — | none · none |
 | Select tool | `tool.select` | `V` | `toolModeToggle` | — | — | — | — | none · none |

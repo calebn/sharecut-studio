@@ -75,7 +75,7 @@ describe("StatusBar render state", () => {
         <StatusBar />
       </DawProvider>,
     );
-    expect(screen.getByRole("button", { name: "Render: fresh" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mix up to date" })).toBeTruthy();
     expect(screen.queryByText(/Rerender|Reconcile|Premix/)).toBeNull();
     expect(screen.queryByText("Transcript: needs sync")).toBeNull();
   });
@@ -109,7 +109,7 @@ describe("StatusBar render state", () => {
         <StatusBar />
       </DawProvider>,
     );
-    const chip = screen.getByRole("button", { name: "Render: stale" });
+    const chip = screen.getByRole("button", { name: "Mix out of date" });
     expect(chip.getAttribute("title")).toContain("No mix preview");
     expect(screen.getByText("Transcript: needs sync")).toBeTruthy();
   });

@@ -86,7 +86,7 @@ describe("StatusBarView", () => {
     );
     expect(onOpenTab).toHaveBeenCalledTimes(2);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
-    await user.click(screen.getByRole("button", { name: /^Render:/ }));
+    await user.click(screen.getByRole("button", { name: /^Mix /i }));
     expect(onOpenTab).toHaveBeenCalledTimes(3);
     expect(onOpenTab).toHaveBeenLastCalledWith("pipeline");
     await user.click(screen.getByRole("button", { name: "Open comments" }));
@@ -127,7 +127,9 @@ describe("StatusBarView", () => {
         onOpenTab={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Render: stale" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Mix out of date" }),
+    ).toBeTruthy();
     const notice = screen.getByText("Transcript: needs sync");
     expect(notice.className).toContain("stale-highlight");
   });

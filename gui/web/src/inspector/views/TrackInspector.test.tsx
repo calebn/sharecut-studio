@@ -8,6 +8,7 @@ import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject } from "../../test/fixtures";
 import type { TrackView } from "../../types/project";
+import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { TrackInspector } from "./TrackInspector";
 
 const setTrackMetaCommand = vi.fn();
@@ -94,6 +95,7 @@ describe("TrackInspector", () => {
       name: "Preview effects at track start",
     });
     expect(playFx).toBeDisabled();
+    expect(playFx).toHaveAttribute("title", GUESTS_HEAR_FULL_MIX);
     expect(await execute("transport.audition", { mode: "fx" })).toEqual({
       status: "disabled",
       reason: "guests hear Mix only",

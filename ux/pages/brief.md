@@ -63,7 +63,7 @@ Propose tighten/focus/transcript fixes via host MCP/CLI → same project file th
 | Remote takes start/stop at different times | Align into one session | Per-speaker tracks on one clock |
 | ASR wrong-mic / garbled names | Trust transcript enough to cut by words | Bleed suppressed; names fixed |
 | Episode feels slow | Tighten / focus without losing meaning | Dense dialogue, natural joins |
-| About to approve a cut | Hear before commit | Audition Mix / FX / Raw around the decision |
+| About to approve a cut | Hear before commit | Audition Full mix / Edited stems / Original around the decision |
 | Collaborator has no DAW | Review with others | Comments / actions; optional suggest or edit |
 | Ready to publish | Export for hosts | Masters + transcripts for Spotify / Apple / etc. |
 

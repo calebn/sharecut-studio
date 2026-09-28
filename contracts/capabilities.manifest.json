@@ -97,7 +97,7 @@
     },
     {
       "id": "daw.transport.audition",
-      "label": "Audition Mix / FX / Raw",
+      "label": "Audition Full mix / Edited stems / Original",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
       "gates": [
@@ -111,9 +111,9 @@
         "skill": "podcast-play-audition"
       },
       "omit": {
-        "keyboard_reason": "not industry-standard; Mix/FX/Raw toggle"
+        "keyboard_reason": "not industry-standard; Full mix/Edited stems/Original toggle"
       },
-      "tooltip": "Audition Mix, FX, or Raw",
+      "tooltip": "Audition Full mix, Edited stems, or Original",
       "presence": {
         "cursor": "anchor",
         "follow": "hear",

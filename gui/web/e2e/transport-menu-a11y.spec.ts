@@ -19,7 +19,7 @@ test.describe("compact transport menu accessibility", () => {
     const audition = menu.getByRole("group", { name: "Audition" });
     const radios = audition.getByRole("menuitemradio");
     await expect(radios).toHaveCount(3);
-    await expect(radios.nth(0)).toHaveAccessibleName("Mix");
+    await expect(radios.nth(0)).toHaveAccessibleName("Full mix");
     await expect(radios.nth(0)).toHaveAttribute("aria-checked", "true");
     await expect(radios.nth(0)).toBeEnabled();
 

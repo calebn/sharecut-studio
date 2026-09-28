@@ -73,7 +73,7 @@ flowchart TB
 | **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables… |
 | **Menu → Media / Help** | Import audio, track add / remove / move; Export diagnostics… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
 | **View menu (wide)** | Layer toggles (incl. **Silence shading** and **Snap points** with swatches), **Waveform scale** Auto/Linear/Log radios, **Waveform amplitude −/+** with a ×N readout, **Show waveforms post-fader**, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, Fit session width if omitted, Layout and Theme radio groups. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
-| **Menu (collapsed)** | One combined menu: Project, Media, audition Mix/FX/Raw, session, **Refresh mix** when render is stale, layers, view (incl. track height), Help |
+| **Menu (collapsed)** | One combined menu: Project, Media, audition Full mix/Edited stems/Original, session, **Refresh mix** when render is stale, layers, view (incl. track height), Help |
 | **Data shown** | Playhead (timeline sec) · duration · audition kind · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: real transport chrome, **Loading episode…**, play disabled. Zero tracks after load: ingest “Drop audio files” (not the loading well). Host with no path: home launch. Guest: token/project load failure. The empty stage names the import shortcut in platform form (⌘I on Apple platforms, Ctrl+I elsewhere) and uses themed ink on the light stage; Play stays disabled until the project has media. |
 | **Out of scope** | Full mixer; pipeline step runner (status chips / Pipeline tab) |
@@ -162,13 +162,13 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 │ ══════════●═══════════════════     │
 │     −15s  (▶)  ■  +15s               │
 └──────────────────────────────────────┘
-│ Pending: 3 · Stale render          │
+│ Pending: 3 · Mix out of date          │
 │ ● 04:12  “level feels low”         │
 │ ○ 11:02  “cut cold open?”          │
 ├─ Listen │ Timeline │ Text │ More ──┤
 ```
 
-Audition Mix / FX / Raw remains available in the compact transport Menu on Timeline, Text, and More; Listen keeps its review controls deliberately focused on playback, scrub, and comments.
+Audition Full mix / Edited stems / Original remains available in the compact transport Menu on Timeline, Text, and More; Listen keeps its review controls deliberately focused on playback, scrub, and comments.
 
 ---
 
@@ -382,7 +382,7 @@ Not ReviewApp. Prefix `/rec/` 404s a review token.
 | State | Where surfaced |
 |-------|----------------|
 | **Pending edits** | Host Impact · chips · edit overlay · inspector (guests: Timeline/inspector, not Impact) |
-| **Stale render** | Status · Listen chips · wide-bar transport pill; collapsed Menu → Refresh mix. On an edit share, Refresh mix starts a host job immediately; the guest waits on token-scoped status reads, then hears the refreshed mix or sees a failure. While another render holds the lock, a rerender request plays the previous render (the audio response carries `X-Sharecut-Render-Busy: 1`, which the transport does not read yet; the Stale render chip stays because the stem was not rebuilt). |
+| **Mix out of date** | Status · Listen chips · wide-bar transport pill; collapsed Menu → Refresh mix. On an edit share, Refresh mix starts a host job immediately; the guest waits on token-scoped status reads, then hears the refreshed mix or sees a failure. While another render holds the lock, a rerender request plays the previous render (the audio response carries `X-Sharecut-Render-Busy: 1`, which the transport does not read yet; the Mix out of date chip stays because the stem was not rebuilt). |
 | **Transcript stale / reconcile** | Status · Text affordances |
 | **Pipeline / activity running** | Pipeline tab lists pipeline jobs in the summary. While bounce/export/`render_preview` occupy the shared pipeline-slot, Run is disabled and Cancel is on the Pipeline tab. Host StatusBar + phone Listen chip show the most recent live job (`status-pipeline` chrome: truncated headline, dim **stale “last update Ns ago”** companion, elapsed, pulse; phone chip ellipsizes overflow). Guests also see the chip on phone Listen (non-interactive — Pipeline tab is host-only). Non-pipeline kinds (`agent` from in-process host MCP, `bounce`, `export`, `render_preview`, guest remote MCP) use **Activity** copy; a count badge (“2 activities”) when more than one job is live. Chip/Listen open Pipeline only for slot jobs; agent chips are not a navigation target. Instant tools never flash a chip. |
 | **Loading episode** | `?project=` known, shell not yet (HTTP or document WS): DAW grid/skeleton chrome (“Loading episode…”). Distinct from zero-track ingest coach. After shell, live edits apply SHELL snapshots and overlay word chips by source clocks |

@@ -89,7 +89,7 @@ function TransportPreview({
             <div className="transport-play">{controls}</div>
           </TransportZone>
           <TransportZone position="end">
-            <Pill tone="ok">Fresh</Pill>
+            <Pill tone="ok">Mix up to date</Pill>
           </TransportZone>
         </TransportFrame>
       </div>

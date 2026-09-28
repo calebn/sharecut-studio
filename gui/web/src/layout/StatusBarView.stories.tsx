@@ -107,7 +107,7 @@ export const Desktop: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText("Cut 24:28 of 28:09")).toBeInTheDocument();
     await expect(
-      canvas.getByRole("button", { name: "Render: fresh" }),
+      canvas.getByRole("button", { name: "Mix up to date" }),
     ).toBeInTheDocument();
   },
 };
@@ -120,7 +120,7 @@ export const StaleRender: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: "Render: stale" }),
+      canvas.getByRole("button", { name: "Mix out of date" }),
     ).toBeInTheDocument();
     await expect(
       canvas.getByText("Transcript: needs sync"),
