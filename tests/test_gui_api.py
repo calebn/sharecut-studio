@@ -813,6 +813,52 @@ def test_map_transcript_suppressed_only_rows_split_on_gaps() -> None:
     assert [w["word_index"] for w in rows[2]["words"]] == [2]
 
 
+def test_map_transcript_suppressed_only_rows_sorted_across_tracks() -> None:
+    """Two all-suppressed tracks' runs interleave by source start, not by track order (#758)."""
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=2.0, end=2.2, suppressed=True, confidence=0.4),
+                TranscriptWord(text="b", start=8.0, end=8.2, suppressed=True, confidence=0.4),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="c", start=1.0, end=1.2, suppressed=True, confidence=0.4),
+                TranscriptWord(text="d", start=5.0, end=5.2, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    assert combined["utterances"] == []
+
+    for include_words in (True, False):
+        mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
+        assert mapped is not None
+        rows = mapped["utterances"]
+        assert [(r["track_id"], r["start"]) for r in rows] == [
+            ("guest", 1.0),
+            ("host", 2.0),
+            ("guest", 5.0),
+            ("host", 8.0),
+        ]
+        assert all(r["suppressed_only"] is True for r in rows)
+
+
 def test_map_transcript_suppressed_only_row_lists_ignored_indices() -> None:
     """A suppressed_only row lists its ignored words, with and without word views (#758)."""
     p = _minimal()
