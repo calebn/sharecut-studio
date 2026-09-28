@@ -115,6 +115,28 @@ describe("transcript.ignoreWords", () => {
     );
   });
 
+  it("says a Restore was sent without a guard when a word is not loaded", async () => {
+    useDawStore.setState({ project: projectWithWords([true]) });
+    const result = await execute("transcript.ignoreWords", {
+      trackId: "host",
+      startWordIndex: 0,
+      endWordIndex: 1,
+      ignored: false,
+    });
+    expect(result).toEqual({ status: "ok" });
+    expect(api.setTranscriptWordsIgnored).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "host",
+      0,
+      1,
+      false,
+      null,
+    );
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Restored selection (text not verified)",
+    );
+  });
+
   it("drops a second ignore while the first is in flight", async () => {
     let release: () => void = () => {};
     vi.mocked(api.setTranscriptWordsIgnored).mockImplementationOnce(
