@@ -4,6 +4,19 @@ import { Button, InlineError } from "../ui";
 
 export const WORD_ALIGNER_COMPONENT = "word-aligner";
 
+function readinessMessage(
+  status: PipelineComponentStatus | undefined,
+  size: string,
+): string {
+  if (status?.ok === true) {
+    return `Word aligner is downloaded (${size}).`;
+  }
+  if (status?.pin_mismatch === true) {
+    return `Word aligner does not match its pinned download (${size}). Download it again; words keep Whisper's times until then.`;
+  }
+  return `Word aligner needs download (${size}). Words keep Whisper's times until it is downloaded.`;
+}
+
 /**
  * Readiness + download / Re-time words for "Precise word boundaries" (shown
  * only while the flag is on).
@@ -36,9 +49,7 @@ export function WordAlignerStatus({
   return (
     <div className="pipeline-aligner">
       <span className="pipeline-param-help" role="status">
-        {ok
-          ? `Word aligner is downloaded (${size}).`
-          : `Word aligner needs download (${size}). Words keep Whisper's times until it is downloaded.`}
+        {readinessMessage(status, size)}
       </span>
       {busy && progress ? (
         <span

@@ -107,6 +107,8 @@ export interface PipelineComponentStatus {
   model?: string;
   label?: string;
   size?: string;
+  /** True when a pinned model snapshot is present but fails its sha256 manifest (#728). */
+  pin_mismatch?: boolean;
 }
 
 export interface WhisperModelCatalogRow {
