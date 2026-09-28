@@ -194,4 +194,33 @@ describe("JoinPopover", () => {
       null,
     );
   });
+
+  it("re-places the panel when its content resizes (a mode change adds the Length row)", () => {
+    const original = globalThis.ResizeObserver;
+    let onResize: ResizeObserverCallback | undefined;
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          onResize = cb;
+        }
+        observe(el: Element) {
+          observed.push(el);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      render(<Harness />);
+      const panel = screen.getByRole("dialog");
+      expect(observed).toContain(panel);
+      panel.style.top = "";
+      onResize?.([], {} as ResizeObserver);
+      expect(panel.style.top).toMatch(/px$/);
+    } finally {
+      vi.stubGlobal("ResizeObserver", original);
+    }
+  });
 });

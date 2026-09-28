@@ -82,9 +82,16 @@ export function JoinPopover({
       panel.style.top = `${y}px`;
     };
     place();
+    // A mode change adds or drops the Length row (an error adds a line), so
+    // re-place whenever the panel resizes, not only on window resize/scroll.
+    const observer = new ResizeObserver(place);
+    if (panelRef.current) {
+      observer.observe(panelRef.current);
+    }
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
