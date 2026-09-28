@@ -3,15 +3,19 @@ from __future__ import annotations
 import json
 import sys
 import wave
+from collections.abc import Generator
 from itertools import pairwise
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend
+from ctc_fakes import HI_BYE_HOT, HI_BYE_TOKENS, FakeBackend, RecordingBackend
 from pcm_fakes import FakeStreamEngine
+from podcast_mcp.engines.audio_audit import load_mono_full
 from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2, CtcVocab, retime_spans
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.word_align import (
     OnnxCtcBackend,
     WordAligner,
@@ -154,6 +158,49 @@ def test_word_aligner_align_streams_the_decode_once(monkeypatch, tmp_path) -> No
     )
     assert result.spans == expected_spans
     assert result.stats == expected_stats
+
+
+def test_word_aligner_align_over_real_ffmpeg_stream_matches_whole_file_decode(tmp_path) -> None:
+    # Small real-ffmpeg chunks so windows straddle chunk boundaries; the backend must
+    # see exactly the samples the old whole-file load_mono_full decode gave it.
+    sr = SAMPLE_RATE_WAV2VEC2
+    rng = np.random.default_rng(11)
+    pcm = (rng.standard_normal(round(12.0 * sr)) * 3000).clip(-32768, 32767).astype("<i2")
+    wav_path = tmp_path / "noise.wav"
+    with wave.open(str(wav_path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes(pcm.tobytes())
+
+    words = [TranscriptWord(text="hi", start=t, end=t + 0.3) for t in (0.2, 2.5, 4.8, 7.1, 9.4)]
+    words.append(TranscriptWord(text="bye", start=11.8, end=12.6))  # straddles EOF
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+
+    class SmallChunkFFmpeg(FFmpegEngine):
+        def stream_mono_f32(
+            self, path: Path, *, sample_rate: int, chunk_frames: int = 1_001
+        ) -> Generator[np.ndarray, None, None]:
+            return super().stream_mono_f32(path, sample_rate=sample_rate, chunk_frames=chunk_frames)
+
+    stream_backend = RecordingBackend(FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7))
+    result = WordAligner(word_aligner_model(), stream_backend, vocab).align(
+        wav_path, words, engine=SmallChunkFFmpeg()
+    )
+
+    legacy_backend = RecordingBackend(FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7))
+    legacy_spans, legacy_stats = retime_spans(
+        load_mono_full(wav_path, sample_rate=sr),
+        [(w.text, w.start, w.end) for w in words],
+        legacy_backend,
+        vocab,
+    )
+
+    assert result.spans == legacy_spans
+    assert result.stats == legacy_stats
+    assert len(stream_backend.calls) == len(legacy_backend.calls) > 1
+    for streamed, legacy in zip(stream_backend.calls, legacy_backend.calls, strict=True):
+        np.testing.assert_array_equal(streamed, legacy)
 
 
 def test_word_aligner_align_closes_the_stream_when_the_backend_raises(tmp_path) -> None:
