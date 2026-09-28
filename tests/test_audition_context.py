@@ -895,6 +895,26 @@ def test_audition_context_prosody_unavailable_on_error(minimal_project, tmp_work
     assert host["prosody"]["status"] == "unavailable"
     assert "error" in host["prosody"]
 
+    import json as json_mod
+
+    assert root not in json_mod.dumps(ctx)
+    assert host["prosody"]["error"].startswith("OSError:")
+
+
+def test_audition_context_prosody_unavailable_on_malformed_profile(
+    minimal_project, tmp_workspace, monkeypatch
+):
+    proj = _single_track_project(minimal_project, tmp_workspace)
+
+    def malformed(*_args, **_kwargs):
+        raise KeyError("start")
+
+    monkeypatch.setattr("podcast_mcp.edits.prosody_profile.prosody_window", malformed)
+    ctx = build_audition_context(proj, 0.0, 2.0)
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert host["prosody"]["status"] == "unavailable"
+    assert ctx["prosody_notes"] == []
+
 
 def test_audition_context_prosody_no_workspace_path_leak(minimal_project, tmp_workspace):
     import json as json_mod

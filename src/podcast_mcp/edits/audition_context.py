@@ -255,13 +255,14 @@ def _prosody_for_track(
     track_id: str,
     spans: list[tuple[SourceSec, SourceSec]],
 ) -> dict[str, Any]:
-    """The cached prosody window for one track, never raising into the response."""
+    """The cached prosody window for one track; any cache/read error becomes a redacted `unavailable` entry."""
     from podcast_mcp.edits.prosody_profile import prosody_window
 
     try:
         return prosody_window(project, st, track_id, spans)
-    except (OSError, ValueError) as exc:
-        return {"status": "unavailable", "error": str(exc)}
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        # KeyError/TypeError: a hand-edited or truncated-but-valid cache file.
+        return {"status": "unavailable", "error": _safe_dsp_reason(exc, project)}
 
 
 def _prosody_notes(tracks_out: list[dict[str, Any]]) -> list[str]:
