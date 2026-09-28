@@ -139,7 +139,8 @@ keyed by the aligner identity (repo, revision, file, window settings, plus the
 directory, size and mtime of a `PODCAST_MCP_WORD_ALIGNER_MODEL` override) and
 a hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
 is not an ASR cache input, so toggling the flag never re-runs Whisper. The cache write is
-best-effort: a failed write logs a warning and keeps the aligned spans.
+best-effort: a failed write logs a warning and keeps the aligned spans. Writing a new
+alignment cache deletes older ones for the same ASR cache.
 
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)

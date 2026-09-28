@@ -172,8 +172,12 @@ def _write_align_cache(
                 indent=2,
             ),
         )
+        # One live sidecar per ASR cache: older words / aligner identities are stale.
+        for stale in path.parent.glob(f"{asr_cache.stem}.word_align_*.json"):
+            if stale != path:
+                stale.unlink(missing_ok=True)
     except OSError as exc:
-        log.warning("could not write word-alignment cache %s: %s", path.name, exc)
+        log.warning("could not update word-alignment cache %s: %s", path.name, exc)
 
 
 _CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"

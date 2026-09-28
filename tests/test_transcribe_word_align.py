@@ -286,4 +286,25 @@ def test_alignment_cache_write_failure_still_retimes(minimal_project, tmp_path, 
     assert [(w.start, w.end) for w in tr.words] == [(0.1, 0.3), (0.6, 0.9)]
     assert engine.forced_alignment_jobs[0]["status"] == "aligned"
     assert not list(proj.transcripts_dir().glob("*.word_align_*.json"))
-    assert any("could not write word-alignment cache" in r.message for r in caplog.records)
+    assert any("could not update word-alignment cache" in r.message for r in caplog.records)
+
+
+def test_new_alignment_prunes_stale_sidecars_of_the_same_asr_cache(minimal_project, tmp_path):
+    from podcast_mcp.util.hashing import sha256_file
+
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    engine._word_aligner = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
+    sha = sha256_file(job.audio)
+    asr_cache = engine.cache_path(proj, job.cache_id, job.audio, language="en", audio_sha256=sha)
+    asr_cache.parent.mkdir(parents=True, exist_ok=True)
+    stale = asr_cache.with_name(f"{asr_cache.stem}.word_align_{'0' * 16}.json")
+    other = asr_cache.with_name(f"guest_{'1' * 16}_{'2' * 16}.word_align_{'0' * 16}.json")
+    stale.write_text("{}", encoding="utf-8")
+    other.write_text("{}", encoding="utf-8")
+
+    with patcher:
+        engine.transcribe_job(proj, job, language="en")
+
+    assert not stale.exists()
+    assert other.exists()
+    assert len(list(asr_cache.parent.glob(f"{asr_cache.stem}.word_align_*.json"))) == 1
