@@ -67,6 +67,40 @@ describe("InlineWordEditor", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledWith(true));
   });
 
+  it("sends the text seen when the editor opened, even after a remote change", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hello"
+        onClose={onClose}
+      />,
+    );
+    const input = screen.getByRole("textbox", { name: /Correct word/ });
+    await user.clear(input);
+    await user.type(input, "Hello");
+    rerender(
+      <InlineWordEditor
+        trackId="host"
+        wordIndex={0}
+        initialText="hullo"
+        onClose={onClose}
+      />,
+    );
+    await user.type(input, "{Enter}");
+    await waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        "Hello",
+        "hello",
+      );
+    });
+  });
+
   it("closes without a call when the text is unchanged", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
