@@ -30,6 +30,18 @@ describe("timeline styles", () => {
     }
   });
 
+  it("moves the remote playhead chip inside the lanes, clear of the marker rows", () => {
+    const chip = rule(partial("presence.css"), ".presence-playhead-chip");
+    expect(chip).toMatch(/inset-inline-start:\s*100%/);
+    expect(chip).not.toMatch(/-110%/);
+  });
+
+  it("truncates a chapter label to the room before the next chapter", () => {
+    const label = rule(partial("timeline.css"), ".chapter-marker-label");
+    expect(label).toMatch(/text-overflow:\s*ellipsis/);
+    expect(label).toMatch(/var\(--chapter-label-room\)/);
+  });
+
   it("reserves the scrollbar gutter so fit-to-window cannot oscillate", () => {
     expect(rule(partial("layout.css"), ".timeline-scroll")).toMatch(
       /scrollbar-gutter:\s*stable/,

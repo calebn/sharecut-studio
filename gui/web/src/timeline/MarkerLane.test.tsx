@@ -324,6 +324,63 @@ describe("MarkerLaneView", () => {
     expect(onMoveChapter).toHaveBeenCalledWith({ time: 2, title: "Intro" }, 5);
   });
 
+  it("labels chapters with room and truncates a close pair to none", () => {
+    const longChapters = [
+      { time: 2, title: "Intro" },
+      { time: 30, title: "A very long second chapter title" },
+    ] as ChapterMarker[];
+    const { container } = renderView({
+      chapters: longChapters,
+      zoomPxPerSec: 10,
+      width: 400,
+    });
+    const markers = container.querySelectorAll(".chapter-marker");
+    expect(markers).toHaveLength(2);
+    const first = markers[0] as HTMLElement;
+    const label = first.querySelector(".chapter-marker-label");
+    expect(label?.textContent).toBe("Intro");
+    expect(first.style.getPropertyValue("--chapter-label-room")).toBe("252px");
+    const second = markers[1] as HTMLElement;
+    expect(second.querySelector(".chapter-marker-label")?.textContent).toBe(
+      "A very long second chapter title",
+    );
+  });
+
+  it("omits the label when the next chapter is too close, but keeps aria-label/title", () => {
+    const closeChapters = [
+      { time: 2, title: "Intro" },
+      { time: 3, title: "Next" },
+    ] as ChapterMarker[];
+    const { container } = renderView({
+      chapters: closeChapters,
+      zoomPxPerSec: 10,
+      width: 400,
+    });
+    const first = container.querySelector(".chapter-marker") as HTMLElement;
+    expect(first.querySelector(".chapter-marker-label")).toBeNull();
+    expect(first).toHaveAttribute("aria-label", "Chapter Intro");
+    expect(first).toHaveAttribute("title", "Intro");
+  });
+
+  it("drags a chapter starting from its label span", () => {
+    const longChapters = [
+      { time: 2, title: "Intro" },
+      { time: 30, title: "A very long second chapter title" },
+    ] as ChapterMarker[];
+    const { container, onMoveChapter } = renderView({
+      chapters: longChapters,
+      zoomPxPerSec: 10,
+      width: 400,
+    });
+    const label = container.querySelector(
+      ".chapter-marker-label",
+    ) as HTMLElement;
+    fireEvent.pointerDown(label, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(label, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerUp(label, { clientX: 130, pointerId: 1 });
+    expect(onMoveChapter).toHaveBeenCalledWith({ time: 2, title: "Intro" }, 5);
+  });
+
   it("commits a social end drag through onMoveSocial", () => {
     const { container, onMoveSocial } = renderView();
     const marker = container.querySelector(".social-marker") as HTMLElement;

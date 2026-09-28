@@ -170,8 +170,8 @@ reading the server clock itself, so its stories and tests never depend on the
 wall clock. All three views ship a 360px story (`PhoneEmpty`,
 `PhoneStaleClient`) alongside their desktop ones. All three stories share
 `timelineLaneStoryDecorator`; `Templates/PresenceOverlay` passes
-`laneTrackIds` for its second lane and `reserveRulerRoom`, so the remote
-playhead's avatar chip drawn above the lane stays inside the canvas. A guard test
+`laneTrackIds` for its second lane; the remote playhead's avatar chip sits
+inside the first lane, right of its needle. A guard test
 (`timeline/liveOverlayViews.test.ts`) parses each view's import specifiers
 (`importSpecifiers` from `test/storyGovernance.ts`, so a `../state` barrel is
 caught and comments are ignored) and checks they never reach the store, the

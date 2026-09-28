@@ -16,26 +16,17 @@ function laneTrackIds(value: unknown): string[] {
 /**
  * Production lane shell for prop-only overlay stories at desktop or phone
  * width. Story parameters: `lanePreviewLabel` (landmark name), `phoneWidth`
- * (360px lanes), `laneTrackIds` (one `lane-row` per id with `data-track-id`,
- * the story inside the first) and `reserveRulerRoom` (a ruler-height spacer
- * above the lanes, for chips drawn above the first lane as the live ruler
- * leaves room for).
+ * (360px lanes) and `laneTrackIds` (one `lane-row` per id with
+ * `data-track-id`, the story inside the first).
  */
 export const timelineLaneStoryDecorator: Decorator = (Story, context) => {
-  const { lanePreviewLabel, phoneWidth, reserveRulerRoom } = context.parameters;
+  const { lanePreviewLabel, phoneWidth } = context.parameters;
   const label = previewLabel(lanePreviewLabel, "Timeline lane preview");
   const width = phoneWidth ? "360px" : "40rem";
   const ids = laneTrackIds(context.parameters.laneTrackIds);
   const [firstId, ...restIds] = ids.length > 0 ? ids : [undefined];
   return (
     <main className="timeline-area" aria-label={label}>
-      {reserveRulerRoom ? (
-        <div
-          data-story-ruler-room=""
-          aria-hidden="true"
-          style={{ height: "var(--ruler-height)" }}
-        />
-      ) : null}
       <div className="lane-row" data-track-id={firstId} style={{ width }}>
         <div className="lane-inner" style={{ width: "100%" }}>
           <Story />
