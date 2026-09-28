@@ -1,16 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { deferred } from "../test/deferred";
 import { useSingleFlight } from "./useSingleFlight";
-
-function deferred<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
 
 describe("useSingleFlight", () => {
   it("is busy while a task is pending and resolves its value", async () => {
