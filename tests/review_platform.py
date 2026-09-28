@@ -10,6 +10,12 @@ Modules that import the markers also import the autouse fixture
 ``unmarked_tests_run_as_unsupported_platform`` by name. pytest registers an imported
 fixture for that module only, so an unmarked test there runs as it would on Windows on
 every platform.
+
+The fixture patches the pytest process only. A child started with
+``multiprocessing.get_context("spawn")`` re-imports ``review_versions`` and sees the
+real platform flags. A cross-process test whose child reaches review staging must
+therefore carry ``requires_safe_failed_cleanup`` itself. On POSIX a missing marker there
+still passes, and only ``desktop.yml``'s ``project-commit-lock-windows`` job catches it.
 """
 
 from __future__ import annotations
@@ -45,6 +51,9 @@ def unmarked_tests_run_as_unsupported_platform(
     Forcing them off everywhere makes a test that reaches review staging without
     ``requires_safe_failed_cleanup`` fail on POSIX machines too, not only on
     ``desktop.yml``'s ``project-commit-lock-windows`` job.
+
+    Only this process is patched; spawned children see the real flags (see the module
+    docstring).
     """
     if any(mark in _PLATFORM_MARKS for mark in request.node.iter_markers(name="skipif")):
         return

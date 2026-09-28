@@ -210,7 +210,7 @@ skip markers so `test_review_versions.py` and `test_project_commit_lock.py` skip
 staging/quarantine/publication tests together on a platform without safe, descriptor-relative
 directory operations (Windows); an autouse fixture defined once there (`unmarked_tests_run_as_unsupported_platform`, imported by name into both modules)
 forces both flags off for any test without one of those markers, so a test that stages media without
-`requires_safe_failed_cleanup` fails on POSIX too, not only on the Windows job;
+`requires_safe_failed_cleanup` fails on POSIX too, not only on the Windows job (the fixture patches only the pytest process, so a spawned child that stages media still needs the marker);
 `test_review_publication_support_matches_the_ci_platform` guards
 that those flags are `True` on POSIX and `False` on Windows, so CI cannot silently start skipping
 them everywhere.
