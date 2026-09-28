@@ -143,10 +143,14 @@ def test_resolve_model_dir_surfaces_other_hub_errors(monkeypatch) -> None:
         bfa.resolve_model_dir(candidate, None)
 
 
-def _fake_hub(candidate, *, sha=None, license=None, files=None, error=None):
+def _fake_hub(
+    candidate, *, sha=None, license=None, undeclared_license=False, files=None, error=None
+):
     info = SimpleNamespace(
         sha=sha or candidate.revision,
-        card_data=SimpleNamespace(license=license or candidate.license),
+        card_data=SimpleNamespace(
+            license=None if undeclared_license else (license or candidate.license)
+        ),
         siblings=[
             SimpleNamespace(rfilename=name)
             for name in (
@@ -184,22 +188,20 @@ def test_verify_candidate_reports_revision_license_and_file_drift() -> None:
     assert any("onnx/model.onnx" in p for p in problems)
 
 
-def test_verify_candidate_ignores_undeclared_card_license() -> None:
-    """An unset model-card license (None) is not drift: the pin may still be correct,
-    the Hub just never recorded a license for that repo."""
+def test_verify_candidate_notes_undeclared_card_license() -> None:
+    """An unset model-card license (None) is not drift, but it is reported as a note:
+    the pinned license was not verified."""
     candidate = bfa.load_candidates(labels=["onnx-base"])[0]
-    # _fake_hub falls back to candidate.license when license= is falsy, so build the
-    # card_data by hand to force an explicit None (undeclared license upstream).
-    info = SimpleNamespace(
-        sha=candidate.revision,
-        card_data=SimpleNamespace(license=None),
-        siblings=[
-            SimpleNamespace(rfilename=name)
-            for name in ["vocab.json", "config.json", "preprocessor_config.json", "onnx/model.onnx"]
-        ],
-    )
-    hub = SimpleNamespace(model_info=lambda repo, revision: info)
+    hub = _fake_hub(candidate, undeclared_license=True)
     assert bfa.verify_candidate(candidate, hub) == []
+
+    notes: list[str] = []
+    assert bfa.verify_candidate(candidate, hub, notes=notes) == []
+    assert notes == ["onnx-base: model card declares no license; pinned 'apache-2.0' not verified"]
+
+    declared: list[str] = []
+    assert bfa.verify_candidate(candidate, _fake_hub(candidate), notes=declared) == []
+    assert declared == []
 
 
 @pytest.mark.parametrize(
@@ -270,6 +272,20 @@ def test_main_verify_candidates_exit_code(monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "onnx-base: revision" in out
     assert "torch-large: revision" in out
+
+
+def test_main_verify_candidates_prints_notes_without_failing(monkeypatch, capsys) -> None:
+    import huggingface_hub
+
+    candidate = bfa.load_candidates(labels=["onnx-base"])[0]
+    monkeypatch.setattr(
+        huggingface_hub, "HfApi", lambda: _fake_hub(candidate, undeclared_license=True)
+    )
+    assert bfa.main(["verify-candidates", "--candidate", "onnx-base"]) == 0
+    out = capsys.readouterr().out
+    assert "note: onnx-base: model card declares no license" in out
+    assert "no drift found (see notes above)" in out
+    assert "all candidates verified" not in out
 
 
 def test_onnx_backend_names_missing_onnxruntime(monkeypatch, tmp_path) -> None:
