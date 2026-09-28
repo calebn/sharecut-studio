@@ -372,6 +372,19 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         maximum=0.0,
     ),
     ParamField(
+        path="transcribe.forced_alignment.enabled",
+        label="Precise word boundaries",
+        description=(
+            "Re-time Whisper's words with a local forced aligner (English). Download it "
+            "first: podcast bootstrap --component word-aligner. Off keeps Whisper's timestamps."
+        ),
+        type="boolean",
+        default=False,
+        group="advanced",
+        section="transcribe",
+        affects=("transcribe_tracks",),
+    ),
+    ParamField(
         path="transcribe.decode.no_speech_threshold",
         label="No-speech threshold",
         description="A window counts as silent when Whisper's no-speech probability is above this and its log probability is low.",

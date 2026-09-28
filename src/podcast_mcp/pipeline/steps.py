@@ -107,6 +107,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         collect_anomalous_asr_duration_flags,
         dialogue_transcribe_jobs,
     )
+    from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)
@@ -147,6 +148,12 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         project,
         max_word_sec=pol.max_word_audibility_sec,
     )
+    # Guarded so mocked engines in tests (and the flag-off path) contribute nothing.
+    align_jobs = (
+        [entry for e in engines for entry in e.forced_alignment_jobs]
+        if options.forced_alignment_enabled
+        else []
+    )
     timing_path = artifact(project, "transcript_timing.json")
     timing_path.write_text(
         json.dumps(
@@ -154,6 +161,11 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                 "max_word_sec": pol.max_word_audibility_sec,
                 "flag_count": len(timing_flags),
                 "flags": timing_flags,
+                "forced_alignment": {
+                    "enabled": options.forced_alignment_enabled,
+                    "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
+                    "jobs": align_jobs,
+                },
             },
             indent=2,
         ),
@@ -176,6 +188,11 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     skipped = sum(len(e.silence_filter_skipped) for e in engines) + len(reflag_skipped)
     if skipped:
         summary += f", silence filter skipped on {skipped} track(s)"
+    if options.forced_alignment_enabled:
+        summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
+        kept = sum(1 for j in align_jobs if j.get("status") in ("failed", "skipped"))
+        if kept:
+            summary += f", forced alignment kept Whisper timestamps on {kept} track(s)"
     return summary
 
 

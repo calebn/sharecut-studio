@@ -684,8 +684,8 @@ and harness, not aligner accuracy.
 CTC forced-aligner candidates (`plan` / `run` / `agree` / `download-commands` /
 `verify-candidates` subcommands) that re-time an existing word list — native Whisper output, or a
 candidate re-timing another candidate — using the numpy CTC Viterbi in
-`src/podcast_mcp/engines/ctc_forced_align.py` (benchmark-only until #639
-integrates it). Targets:
+`src/podcast_mcp/engines/ctc_forced_align.py` (shared with the opt-in pipeline
+pass in `engines/word_align.py`, #714). Targets:
 
 - `librispeech` — scored against the same gold fixture as above.
 - `aligned_dialogue` and `lab` — agreement only (native vs. each candidate,

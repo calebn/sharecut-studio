@@ -49,6 +49,9 @@ class AsrOptions:
     hallucination_silence_threshold: float | None = 2.0
     silence_filter_enabled: bool = True
     silence_peak_dbfs: float = -60.0
+    # Not part of decode_key(): alignment has its own cache beside the ASR cache,
+    # so toggling it never re-runs Whisper.
+    forced_alignment_enabled: bool = False
 
     @classmethod
     def from_defaults(cls, defaults: Mapping[str, Any] | None = None) -> AsrOptions:
@@ -60,6 +63,7 @@ class AsrOptions:
         vad = _section(defaults, "transcribe.vad")
         dec = _section(defaults, "transcribe.decode")
         sil = _section(defaults, "transcribe.silence_filter")
+        fa = _section(defaults, "transcribe.forced_alignment")
         hst = dec.get("hallucination_silence_threshold", base.hallucination_silence_threshold)
         return cls(
             vad_enabled=bool(vad.get("enabled", base.vad_enabled)),
@@ -96,6 +100,7 @@ class AsrOptions:
             silence_peak_dbfs=bounded_float(
                 sil.get("peak_dbfs"), base.silence_peak_dbfs, -120.0, 0.0
             ),
+            forced_alignment_enabled=bool(fa.get("enabled", base.forced_alignment_enabled)),
         )
 
     @classmethod

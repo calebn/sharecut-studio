@@ -514,6 +514,7 @@ def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp
     assert data["flag_count"] == 1
     assert data["flags"][0]["reason"] == "anomalous_word_duration"
     assert data["flags"][0]["end"] == 10.0
+    assert data["forced_alignment"] == {"enabled": False, "model": None, "jobs": []}
 
 
 def test_ingest_skips_track_without_media(minimal_project, sample_wav, tmp_workspace):
@@ -1440,3 +1441,45 @@ def test_transcribe_tracks_summary_reports_silence_filter_skip(
     ):
         summary = steps.transcribe_tracks(proj, load_defaults())
     assert "silence filter skipped on 1 track(s)" in summary
+
+
+def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav, tmp_workspace):
+    import copy
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+
+    align_jobs = [
+        {
+            "label": "Track host",
+            "status": "aligned",
+            "aligned_words": 3,
+            "unaligned_words": 0,
+        },
+        {
+            "label": "Track guest",
+            "status": "failed",
+            "reason": "x",
+            "aligned_words": 0,
+            "unaligned_words": 2,
+        },
+    ]
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            _asr_result(),
+            _asr_result(),
+        ]
+        eng_cls.return_value.forced_alignment_jobs = align_jobs
+        eng_cls.return_value.silence_filter_skipped = []
+        summary = steps.transcribe_tracks(proj, defaults)
+
+    timing = proj.artifacts_dir() / "transcript_timing.json"
+    data = json.loads(timing.read_text(encoding="utf-8"))
+    assert data["forced_alignment"] == {
+        "enabled": True,
+        "model": "onnx-base",
+        "jobs": align_jobs,
+    }
+    assert "3 words re-timed" in summary
+    assert "forced alignment kept Whisper timestamps on 1 track(s)" in summary

@@ -71,7 +71,7 @@ The reconciliation engine applies status, suppression, and reattribution togethe
 
 Word times stay in **source-media seconds** at every layer — reconcile, precorrect, and refine never rewrite them onto the edited clock. Audibility RMS and follow-transcript gating map word source spans to timeline seconds through `SessionTimeline` when they read rendered stems (see [episode-format-v2.md § Timebase invariant](episode-format-v2.md#timebase-invariant)).
 
-**ASR timing flags:** After `transcribe_tracks`, words longer than `analysis.heuristics.max_word_audibility_sec` (default **2.0 s**) are soft-marked `audibility_status: deferred` and listed in `artifacts/transcript_timing.json`. Timestamps are **not** clamped — a stretched Whisper token often covers real under-transcribed speech. Precorrect copies those into `deferred_queue` (`kind: anomalous_word_duration`) for refine/audition.
+**ASR timing flags:** After `transcribe_tracks`, words longer than `analysis.heuristics.max_word_audibility_sec` (default **2.0 s**) are soft-marked `audibility_status: deferred` and listed in `artifacts/transcript_timing.json`. Timestamps are **not** clamped — a stretched Whisper token often covers real under-transcribed speech. Precorrect copies those into `deferred_queue` (`kind: anomalous_word_duration`) for refine/audition. With `transcribe.forced_alignment.enabled`, the flag runs on the aligned spans; a re-timed word loses Whisper's `deferred` status and is re-judged.
 
 **Word-boundary benchmark:** `scripts/benchmark_word_boundaries.py` compares native
 Whisper or supplied candidate timestamps against the same real-audio reference
@@ -92,8 +92,10 @@ pinned CTC forced-aligner candidates (an ONNX wav2vec2-base and a
 WhisperX-style torch wav2vec2-large) over the same fixtures and the lab tape.
 [#641](https://github.com/calebn/sharecut-studio/issues/641) measured them and
 recommends `onnx-base`: 42.98 ms MAE and 4.8% of matched words over 150 ms on
-LibriSpeech, against native's 82.3 ms / 35.7%, at an RTF of 0.044. Integration
-is [#639](https://github.com/calebn/sharecut-studio/issues/639).
+LibriSpeech, against native's 82.3 ms / 35.7%, at an RTF of 0.044.
+`transcribe.forced_alignment.enabled` runs it in the pipeline (opt-in,
+[#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
+pipeline results are [#715](https://github.com/calebn/sharecut-studio/issues/715).
 See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
 
 **Does not fix:**
@@ -108,7 +110,7 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 |------|---------|
 | `{workspace}/show_glossary.yaml` | Show title, recurring terms, replacements |
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
-| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) |
+| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
 | `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
 
@@ -130,6 +132,12 @@ its default temperatures); with the shipped defaults that legacy file is ignored
 it never migrates or rewrites that file. The prompt
 has a 400-character limit by default, and Studio rejects terms that would be
 truncated. This changes future ASR output, not existing transcript words.
+
+With `transcribe.forced_alignment.enabled`, alignment results get their own
+cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
+keyed by the aligner identity (repo, revision, file, window settings) and a
+hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
+is not an ASR cache input, so toggling the flag never re-runs Whisper.
 
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)
