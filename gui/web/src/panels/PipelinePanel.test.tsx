@@ -1064,6 +1064,35 @@ describe("PipelinePanel", () => {
     expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
   });
 
+  it("follows a still-running remote Analyze again after switching back to its project", async () => {
+    dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
+    const { rerender } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    });
+    mockState.projectPath = "/tmp/other.project.json";
+    rerender(<PipelinePanel />);
+    await act(async () => {});
+    // Another project's pane does not adopt the job.
+    expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
+    waitForPipelineJob.mockResolvedValueOnce(
+      analyzeJobSnap({
+        id: "an-remote",
+        status: "ok",
+        message: "Analyze complete",
+        result: remoteAnalyzeResult(),
+      }),
+    );
+    mockState.projectPath = "/tmp/ep.project.json";
+    rerender(<PipelinePanel />);
+    expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
+    expect(waitForPipelineJob).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      // A, B and A loads, plus the re-read after the applied result.
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(4);
+    });
+  });
+
   it("re-reads a remote Analyze's config only after an in-flight param PUT settles", async () => {
     const user = userEvent.setup();
     const merged = withMasterLufsParam();
