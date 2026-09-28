@@ -40,6 +40,7 @@ import numpy as np
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.util.dsp import bool_runs, clamp01, frame_rms_db
+from podcast_mcp.util.intervals import merge_intervals
 
 try:  # pragma: no cover - exercised via ProsodyUnavailable / importorskip paths
     import parselmouth
@@ -181,12 +182,7 @@ def _segments_from_energy(
         return []
     hop_sec = hop / float(sr)
     spans = [(s * hop_sec, e * hop_sec) for s, e in runs]
-    merged: list[tuple[float, float]] = []
-    for s, e in spans:
-        if merged and s - merged[-1][1] <= gap_sec:
-            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
-        else:
-            merged.append((s, e))
+    merged = merge_intervals(spans, gap=gap_sec)
     out: list[tuple[float, float]] = []
     for s, e in merged:
         while e - s > max_sec:
