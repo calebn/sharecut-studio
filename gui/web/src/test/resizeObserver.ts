@@ -38,7 +38,7 @@ export class FakeResizeObserver {
     const ro = FakeResizeObserver.all.find((o) => o.targets.includes(target));
     if (!ro) {
       throw new Error(
-        `no FakeResizeObserver watches <${target.tagName.toLowerCase()} class="${target.className}">`,
+        `no FakeResizeObserver watches <${target.tagName.toLowerCase()} class="${target.getAttribute("class") ?? ""}">`,
       );
     }
     return ro;
