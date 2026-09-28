@@ -18,6 +18,7 @@ change).
 
 from __future__ import annotations
 
+import bisect
 import contextlib
 import hashlib
 import json
@@ -46,6 +47,7 @@ from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.wer import normalize_token
 from podcast_mcp.util.workspace_paths import resolve_cache_file
 
 log = logging.getLogger(__name__)
@@ -58,6 +60,7 @@ PROSODY_LOCK_TIMEOUT_SEC = 600.0
 OVERLAY_SCHEMA = "prosody_overlay.v1"
 _OVERLAY_UNAVAILABLE_HINT = "The cached prosody profile could not be read; re-run analyze_prosody."
 _ENERGY_THIRD_KEYS = ("start_third_db", "mid_third_db", "end_third_db")
+_WORD_MATCH_TOLERANCE_SEC = 0.25
 # ``_{audio16}_{inputs16}.json`` after the track's cache id, so ``host`` never matches ``host_b``.
 _PROFILE_SUFFIX_RE = re.compile(r"_[0-9a-f]{16}_[0-9a-f]{16}\.json")
 
@@ -492,13 +495,41 @@ def _timing_key(start: float, end: float) -> tuple[float, float]:
     return (round(float(start), 6), round(float(end), 6))
 
 
-def _word_index_by_timing(project: EpisodeProject, track_id: str) -> dict[tuple[float, float], int]:
-    """Transcript ``word_index`` (the GUI's, see ``gui/mapper.py``) per source timing; first wins."""
-    tr = project.transcript_for_track(track_id)
-    out: dict[tuple[float, float], int] = {}
-    for i, w in enumerate(tr.words if tr is not None else []):
-        out.setdefault(_timing_key(w.start, w.end), i)
-    return out
+class _TranscriptWordLookup:
+    """Transcript ``word_index`` (the GUI's, see ``gui/mapper.py``) for a cached prominent word.
+
+    Exact source timing first (first wins). Otherwise the nearest word with the same
+    normalized text whose start is within ``_WORD_MATCH_TOLERANCE_SEC``, so a stale
+    profile still marks words that a re-alignment re-timed (#732 review).
+    """
+
+    def __init__(self, project: EpisodeProject, track_id: str) -> None:
+        tr = project.transcript_for_track(track_id)
+        words = tr.words if tr is not None else []
+        self._exact: dict[tuple[float, float], int] = {}
+        for i, w in enumerate(words):
+            self._exact.setdefault(_timing_key(w.start, w.end), i)
+        self._by_start = sorted((float(w.start), i) for i, w in enumerate(words))
+        self._starts = [start for start, _ in self._by_start]
+        self._texts = [normalize_token(w.text) for w in words]
+
+    def index_of(self, start: float, end: float, text: str) -> int | None:
+        hit = self._exact.get(_timing_key(start, end))
+        if hit is not None:
+            return hit
+        norm = normalize_token(text)
+        if not norm:
+            return None
+        lo = bisect.bisect_left(self._starts, start - _WORD_MATCH_TOLERANCE_SEC)
+        hi = bisect.bisect_right(self._starts, start + _WORD_MATCH_TOLERANCE_SEC)
+        best: tuple[float, int] | None = None
+        for word_start, i in self._by_start[lo:hi]:
+            if self._texts[i] != norm:
+                continue
+            dist = abs(word_start - start)
+            if best is None or dist < best[0]:
+                best = (dist, i)
+        return best[1] if best is not None else None
 
 
 def _segment_source_spans(seg: dict[str, Any]) -> list[tuple[SourceSec, SourceSec]]:
@@ -551,7 +582,7 @@ def _overlay_track(
     lookup = load_track_profile(project, track_id, params=params)
     if lookup.profile is None:
         return _empty_overlay_track(track_id, lookup.status, lookup.hint)
-    word_index = _word_index_by_timing(project, track_id)
+    words_lookup = _TranscriptWordLookup(project, track_id)
     out = _empty_overlay_track(track_id, lookup.status, lookup.hint)
     segments = lookup.profile.segments
     mapped = st.map_source_spans(
@@ -586,7 +617,9 @@ def _overlay_track(
         {
             "text": str(w.get("text", "")),
             "score": float(w.get("score", 0.0)),
-            "word_index": word_index.get(_timing_key(w["start"], w["end"])),
+            "word_index": words_lookup.index_of(
+                float(w["start"]), float(w["end"]), str(w.get("text", ""))
+            ),
             "timeline_sec": float(tl) if tl is not None else None,
         }
         for w, tl in zip(words, word_tl, strict=True)

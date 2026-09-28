@@ -172,3 +172,29 @@ def test_prosody_overlay_builds_one_clip_index_per_track(minimal_project, monkey
     monkeypatch.setattr(SessionTimeline, "_index", counting)
     prosody_overlay(proj)
     assert calls == ["host", "host"]
+
+
+def _retime_first_word(minimal_project, *, start, end, text="hello"):
+    proj = load_project(minimal_project)
+    tr = proj.transcript_for_track("host")
+    tr.words[0] = tr.words[0].model_copy(update={"start": start, "end": end, "text": text})
+    save_project(proj, minimal_project)
+    return load_project(minimal_project)
+
+
+def test_prosody_overlay_stale_profile_still_marks_retimed_word(minimal_project):
+    proj = single_track_prosody_project(minimal_project)
+    seed_prosody_profile(proj)
+    proj = _retime_first_word(minimal_project, start=0.13, end=0.44)
+    host = prosody_overlay(proj)["tracks"][0]
+    assert host["status"] == "stale"
+    assert host["prominent_words"][0]["word_index"] == 0
+
+
+def test_prosody_overlay_does_not_match_a_far_or_different_word(minimal_project):
+    proj = single_track_prosody_project(minimal_project)
+    seed_prosody_profile(proj)
+    proj = _retime_first_word(minimal_project, start=0.13, end=0.44, text="yellow")
+    assert prosody_overlay(proj)["tracks"][0]["prominent_words"][0]["word_index"] is None
+    proj = _retime_first_word(minimal_project, start=0.6, end=0.8)
+    assert prosody_overlay(proj)["tracks"][0]["prominent_words"][0]["word_index"] is None
