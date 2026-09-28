@@ -89,6 +89,7 @@ def test_disabled_by_default_never_loads_the_aligner(minimal_project, tmp_path):
         tr = engine.transcribe_job(proj, job, language="en")
 
     assert [(w.start, w.end) for w in tr.words] == [(0.0, 0.5), (0.5, 1.0)]
+    assert tr.word_aligner is None
     assert engine.forced_alignment_jobs == []
     assert not list(proj.transcripts_dir().glob("*.word_align_*.json"))
 
@@ -102,6 +103,7 @@ def test_enabled_retimes_words_but_asr_cache_keeps_whisper_times(minimal_project
         tr = engine.transcribe_job(proj, job, language="en")
 
     assert [(w.start, w.end) for w in tr.words] == [(0.1, 0.3), (0.6, 0.9)]
+    assert tr.word_aligner == "onnx-base"
 
     from podcast_mcp.util.hashing import sha256_file
 
@@ -109,6 +111,7 @@ def test_enabled_retimes_words_but_asr_cache_keeps_whisper_times(minimal_project
     asr_cache = engine.cache_path(proj, job.cache_id, job.audio, language="en", audio_sha256=sha)
     cached = Transcript.model_validate_json(asr_cache.read_text(encoding="utf-8"))
     assert [(w.start, w.end) for w in cached.words] == [(0.0, 0.5), (0.5, 1.0)]
+    assert cached.word_aligner is None
 
     align_files = list(proj.transcripts_dir().glob("*.word_align_*.json"))
     assert len(align_files) == 1
@@ -178,6 +181,7 @@ def test_missing_model_keeps_whisper_times_and_reports(minimal_project, tmp_path
     ):
         tr = engine.transcribe_job(proj, job, language="en")
         assert [(w.start, w.end) for w in tr.words] == [(0.0, 0.5), (0.5, 1.0)]
+        assert tr.word_aligner is None
         entry = engine.forced_alignment_jobs[0]
         assert entry["status"] == "failed"
         assert "podcast bootstrap --component word-aligner" in entry["reason"]
@@ -259,6 +263,7 @@ def test_zero_aligned_words_counts_as_failed(minimal_project, tmp_path):
         tr = engine.transcribe_job(proj, job, language="en")
 
     assert [(w.start, w.end) for w in tr.words] == [(0.0, 0.5), (0.5, 1.0)]
+    assert tr.word_aligner is None
     entry = engine.forced_alignment_jobs[0]
     assert entry["status"] == "failed"
     assert entry["reason"] == "no words aligned"

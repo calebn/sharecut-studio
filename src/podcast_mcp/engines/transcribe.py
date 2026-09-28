@@ -418,6 +418,7 @@ class TranscriptionEngine:
             aligned_words=retimed,
             unaligned_words=len(transcript.words) - retimed,
         )
+        transcript.word_aligner = aligner.model.id
 
     def transcribe_file(
         self,
@@ -513,6 +514,8 @@ class TranscriptionEngine:
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id
         transcript.audio_sha256 = sha
+        # Whisper's own times until _align_words re-times them (the ASR cache never holds a marker).
+        transcript.word_aligner = None
         # Cached words carry no silence flags: they are recomputed below from the current
         # transcribe.silence_filter settings (not a cache input) on every read.
         for word in transcript.words:
