@@ -16,6 +16,7 @@ from podcast_mcp.engines.prosody import (
     WordSpan,
     _boundaries,
     _voice_quality,
+    _words_by_span,
     parselmouth_version,
     segment_bounds,
     syllable_count_text,
@@ -72,6 +73,26 @@ def test_boundaries_drop_weak_pauses_and_keep_strong_ones(monkeypatch: pytest.Mo
     assert gaps[0]["time"] == pytest.approx(0.62)
     assert gaps[0]["strength"] == pytest.approx(0.35, abs=1e-3)
     assert out[-1]["kind"] == "segment_end"
+
+
+def test_words_by_span_matches_brute_force_filter() -> None:
+    words = [
+        WordSpan("c", 3.0, 3.4),
+        WordSpan("a", 0.0, 0.5),
+        WordSpan("b", 0.6, 1.0),
+        WordSpan("z", 9.0, 9.2),
+    ]
+    bounds = [(0.0, 1.0), (3.0, 3.4)]
+    result = _words_by_span(words, bounds)
+    assert {span: [w.text for w in ws] for span, ws in result.items()} == {
+        (0.0, 1.0): ["a", "b"],
+        (3.0, 3.4): ["c"],
+    }
+    ordered = sorted(words, key=lambda w: w.start)
+    for span in bounds:
+        s, e = span
+        brute = [w for w in ordered if s - 1e-6 <= w.start < e + 1e-6]
+        assert result[span] == brute
 
 
 def test_voice_quality_flags_zero_hnr_as_low() -> None:
