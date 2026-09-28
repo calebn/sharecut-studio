@@ -16,6 +16,7 @@ from podcast_mcp.services import PipelineService, ProjectWorkspace
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     RenderBusyError,
+    current_cancel_check,
     project_commit_lock,
     project_state_lock,
     render_cancel_scope,
@@ -78,6 +79,16 @@ def test_render_cancel_scope_cancels_waits_in_its_context(minimal_project) -> No
         with pytest.raises(CancelledProgress):
             with render_lock(project):
                 pass
+
+
+def test_current_cancel_check_is_bound_only_inside_render_cancel_scope() -> None:
+    def check() -> bool:
+        return True
+
+    assert current_cancel_check() is None
+    with render_cancel_scope(check):
+        assert current_cancel_check() is check
+    assert current_cancel_check() is None
 
 
 def test_a_pipeline_step_waiting_for_the_render_lock_stops_on_cancel(minimal_project) -> None:

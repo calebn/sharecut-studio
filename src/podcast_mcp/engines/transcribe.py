@@ -28,7 +28,12 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.hashing import sha256_file
-from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
+from podcast_mcp.util.progress import (
+    ProgressReporter,
+    raise_if_cancel_requested,
+    resolve_progress_task,
+)
+from podcast_mcp.util.project_state import current_cancel_check
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 from podcast_mcp.whisper_models import (
     DEFAULT_WHISPER_MODEL,
@@ -40,6 +45,8 @@ if TYPE_CHECKING:
     from podcast_mcp.engines.word_align import WordAligner, WordAlignResult
 
 log = logging.getLogger(__name__)
+
+TRANSCRIBE_CANCELLED = "Transcription cancelled"
 
 
 def _cache_id_part(raw: str) -> str:
@@ -310,6 +317,8 @@ class TranscriptionEngine:
     def _load_word_aligner(self) -> WordAligner:
         # Only a loaded aligner is kept: a missing model is re-checked on the next job,
         # so a bootstrap in a long-lived process (Studio) takes effect without restart.
+        # Not locked: an engine runs its jobs one at a time (TranscriptService builds one
+        # engine per request). Add a lock if jobs ever run in parallel over one engine.
         if self._word_aligner is None:
             from podcast_mcp.engines.word_align import WordAligner
 
@@ -384,6 +393,7 @@ class TranscriptionEngine:
         status = "cached"
         if spans is None:
             status = "aligned"
+            raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             try:
                 with resolve_progress_task("forced_alignment", f"Aligning words {job.label}"):
                     result = aligner.align(job.audio, transcript.words)
@@ -564,6 +574,7 @@ class TranscriptionEngine:
             progress=progress,
         ) as task:
             for job in job_list:
+                raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
                 task.set_phase("track" if job.source_id is None else "source", job.label)
                 results.append(
                     self.transcribe_job(

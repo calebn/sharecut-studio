@@ -157,6 +157,11 @@ def render_cancel_scope(cancel_check: Callable[[], bool] | None) -> Iterator[Non
         _render_cancel_check.reset(token)
 
 
+def current_cancel_check() -> Callable[[], bool] | None:
+    """The ``cancel_check`` bound by ``render_cancel_scope`` (a pipeline run's), else None."""
+    return _render_cancel_check.get()
+
+
 def render_lock_held(project: EpisodeProject) -> bool:
     """Whether this thread holds ``render_lock(project)`` (the file lock is thread-local)."""
     return shared_file_lock(render_lock_path(project), timeout=RENDER_LOCK_TIMEOUT_SEC).is_locked
@@ -204,7 +209,7 @@ def render_lock(
             "render_lock taken while holding project_commit_lock; lock order is the render "
             "lock, then the project locks (#482)"
         )
-    check = cancel_check if cancel_check is not None else _render_cancel_check.get()
+    check = cancel_check if cancel_check is not None else current_cancel_check()
     deadline = time.monotonic() + timeout
     try:
         lock.acquire(timeout=0)

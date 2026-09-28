@@ -308,3 +308,26 @@ def test_new_alignment_prunes_stale_sidecars_of_the_same_asr_cache(minimal_proje
     assert not stale.exists()
     assert other.exists()
     assert len(list(asr_cache.parent.glob(f"{asr_cache.stem}.word_align_*.json"))) == 1
+
+
+def test_cancel_before_alignment_raises_without_aligning(minimal_project, tmp_path):
+    from podcast_mcp.util.progress import CancelledProgress
+    from podcast_mcp.util.project_state import render_cancel_scope
+
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
+    engine._word_aligner = stub
+    calls = iter([False, True])  # the per-job loop check passes, the alignment check cancels
+    with patcher, render_cancel_scope(lambda: next(calls)), pytest.raises(CancelledProgress):
+        engine.transcribe_all_dialogue(proj, jobs=[job], language="en")
+    assert stub.calls == 0
+
+
+def test_cancel_stops_the_per_job_loop_before_asr(minimal_project, tmp_path):
+    from podcast_mcp.util.progress import CancelledProgress
+    from podcast_mcp.util.project_state import render_cancel_scope
+
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    with patcher as asr, render_cancel_scope(lambda: True), pytest.raises(CancelledProgress):
+        engine.transcribe_all_dialogue(proj, jobs=[job], language="en")
+    asr.assert_not_called()
