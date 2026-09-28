@@ -88,7 +88,7 @@ describe("ProsodyOverlayView", () => {
   });
 
   it("dims a stale track and shows its status label", () => {
-    const { container, getByRole } = render(
+    const { container, queryByRole } = render(
       <ProsodyOverlayView
         track={track({ status: "stale", hint: "x" })}
         zoomPxPerSec={100}
@@ -97,11 +97,14 @@ describe("ProsodyOverlayView", () => {
       />,
     );
     expect(container.querySelector(".prosody-overlay--stale")).not.toBeNull();
-    expect(getByRole("status").textContent).toMatch(/out of date/i);
+    expect(
+      container.querySelector(".lane-prosody-status")?.textContent,
+    ).toMatch(/out of date/i);
+    expect(queryByRole("status")).toBeNull();
   });
 
   it("renders only the status label for a missing profile", () => {
-    const { container, getByRole } = render(
+    const { container, queryByRole } = render(
       <ProsodyOverlayView
         track={track({
           status: "missing",
@@ -115,7 +118,10 @@ describe("ProsodyOverlayView", () => {
       />,
     );
     expect(container.querySelector(".prosody-overlay")).toBeNull();
-    expect(getByRole("status").textContent).toMatch(/no prosody profile/i);
+    expect(
+      container.querySelector(".lane-prosody-status")?.textContent,
+    ).toMatch(/no prosody profile/i);
+    expect(queryByRole("status")).toBeNull();
   });
 
   it("has no a11y violations", async () => {

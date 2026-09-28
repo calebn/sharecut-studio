@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { energyTopPct, inPxRange, prosodyStatusLabel } from "./prosodyGeometry";
+import type { ProsodyOverlayTrack, ProsodyStatus } from "../types/prosody";
+import {
+  energyTopPct,
+  inPxRange,
+  prosodyStatusLabel,
+  prosodyStatusSummary,
+} from "./prosodyGeometry";
+
+function track(status: ProsodyStatus): ProsodyOverlayTrack {
+  return {
+    track_id: status,
+    status,
+    segments: [],
+    boundaries: [],
+    prominent_words: [],
+    energy_db: null,
+  };
+}
 
 describe("energyTopPct", () => {
   const range = { min: 50, max: 70 };
@@ -51,5 +68,33 @@ describe("prosodyStatusLabel", () => {
 
   it("has no label for fresh", () => {
     expect(prosodyStatusLabel("fresh")).toBeNull();
+  });
+});
+
+describe("prosodyStatusSummary", () => {
+  it("summarizes non-fresh tracks by status", () => {
+    const tracks = [
+      track("missing"),
+      track("missing"),
+      track("stale"),
+      track("fresh"),
+    ];
+    expect(prosodyStatusSummary(tracks)).toBe(
+      "Prosody: no profile on 2 tracks, out of date on 1 track",
+    );
+  });
+
+  it("singularizes a lone track", () => {
+    expect(prosodyStatusSummary([track("unavailable")])).toBe(
+      "Prosody: unavailable on 1 track",
+    );
+  });
+
+  it("is null when every track is fresh", () => {
+    expect(prosodyStatusSummary([track("fresh"), track("fresh")])).toBeNull();
+  });
+
+  it("is null for an empty list", () => {
+    expect(prosodyStatusSummary([])).toBeNull();
   });
 });
