@@ -16,3 +16,10 @@ export function overflowLabel(count: number): string {
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** The non-empty `parts` joined as sentences for titles and live-region copy (`["A", null, "B"]` → `"A. B"`, no trailing period). */
+export function joinSentences(
+  parts: readonly (string | null | undefined | false)[],
+): string {
+  return parts.filter((p): p is string => Boolean(p)).join(". ");
+}
