@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
+from podcast_mcp.util.workspace_paths import (
+    resolve_cache_file,
+    resolve_under_workspace,
+    resolve_within,
+)
 
 
 def test_resolve_within_relative_under_root(tmp_path: Path) -> None:
@@ -81,3 +85,18 @@ def test_resolve_under_workspace_message_unchanged(tmp_path: Path) -> None:
         resolve_under_workspace(project, "../x")
     result = resolve_under_workspace(project, "raw/a.wav")
     assert result.is_relative_to(project.workspace_path().resolve())
+
+
+def test_resolve_cache_file_inside_directory(tmp_path: Path) -> None:
+    d = tmp_path / "prosody"
+    assert (
+        resolve_cache_file(d, "host_x.json", kind="prosody", cache_id="host")
+        == (d / "host_x.json").resolve()
+    )
+
+
+def test_resolve_cache_file_escape_names_id_not_path(tmp_path: Path) -> None:
+    d = tmp_path / "prosody"
+    with pytest.raises(ValueError, match="prosody cache escaped prosody dir: evil") as excinfo:
+        resolve_cache_file(d, "../../x.json", kind="prosody", cache_id="evil")
+    assert str(tmp_path) not in str(excinfo.value)

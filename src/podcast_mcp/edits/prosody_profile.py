@@ -43,7 +43,7 @@ from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
-from podcast_mcp.util.workspace_paths import resolve_within
+from podcast_mcp.util.workspace_paths import resolve_cache_file
 
 log = logging.getLogger(__name__)
 
@@ -93,10 +93,13 @@ def inputs_key(params: ProsodyParams, words_fp: str) -> str:
 
 def profile_path(project: EpisodeProject, track_id: str, audio16: str, inputs16: str) -> Path:
     name = f"{cache_id_part(track_id)}_{audio16}_{inputs16}.json"
-    try:
-        return resolve_within(prosody_dir(project), name)
-    except ValueError:
-        raise ValueError(f"prosody cache escaped prosody dir: {track_id}") from None
+    return resolve_cache_file(prosody_dir(project), name, kind="prosody", cache_id=track_id)
+
+
+def _lock_path(project: EpisodeProject, track_id: str) -> Path:
+    return resolve_cache_file(
+        prosody_dir(project), f"{cache_id_part(track_id)}.lock", kind="prosody", cache_id=track_id
+    )
 
 
 @dataclass
@@ -219,7 +222,7 @@ def _analyze_track(
     project: EpisodeProject, track_id: str, job: TranscribeJob, params: ProsodyParams
 ) -> Literal["computed", "reused"]:
     """Compute or reuse one track's profile under a per-track lock, then prune."""
-    lock_path = prosody_dir(project) / f"{cache_id_part(track_id)}.lock"
+    lock_path = _lock_path(project, track_id)
     with shared_file_lock(lock_path, timeout=PROSODY_LOCK_TIMEOUT_SEC):
         existing = _existing_profile(project, track_id)
         sha, (size, mtime_ns) = audio_identity(job, existing)
