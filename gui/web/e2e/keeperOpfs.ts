@@ -14,7 +14,12 @@ export const ONE_SECOND_KEEPER_WAV_BYTES =
 
 export type RecordingWav = { path: string; size: number; header: number[] };
 
-/** Every `.wav` under the keeper OPFS root; null when that directory does not exist. */
+/**
+ * Every readable `.wav` under the keeper OPFS root; null when that directory
+ * does not exist. A keeper still being written can be locked and is skipped
+ * without any signal, so the result can be a subset: call this inside
+ * `expect.poll(...)`, never as a one-shot read.
+ */
 export async function recordingWavs(
   page: Page,
 ): Promise<RecordingWav[] | null> {
@@ -57,6 +62,11 @@ export async function recordingWavs(
   }, KEEPER_OPFS_ROOT);
 }
 
+/**
+ * Size of the largest keeper `.wav`, or 0 when there is none. It inherits
+ * `recordingWavs`' silent skip of locked files, so a single read can be stale
+ * or 0: only use it inside `expect.poll(...)`.
+ */
 export async function keeperWavBytes(page: Page): Promise<number> {
   return Math.max(
     0,
