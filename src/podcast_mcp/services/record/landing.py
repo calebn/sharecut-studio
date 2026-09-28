@@ -8,7 +8,7 @@ import threading
 import time
 import wave
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -78,7 +78,7 @@ from podcast_mcp.services.record.upload import (
 from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import copy_file_atomic
-from podcast_mcp.util.file_locks import shared_file_lock
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import resolve_progress_task
@@ -149,18 +149,20 @@ def room_land_lock(workspace_dir: Path, session_id: str) -> Iterator[None]:
     """Hold one room's land lock: the in-process session lock, then the cross-process file lock.
 
     Waits at most ``RECORD_LAND_LOCK_TIMEOUT_SEC`` for another process, then raises
-    ``RecordLandingError('land in progress')``.
+    ``RecordLandingError('land in progress')``. Only a timeout on entry becomes that
+    error; a filelock.Timeout raised inside the body propagates unchanged.
     """
-    with _LAND_LOCKS.get(session_id):
-        file_lock = shared_file_lock(record_land_lock_path(workspace_dir, session_id))
+    with _LAND_LOCKS.get(session_id), ExitStack() as stack:
         try:
-            file_lock.acquire(timeout=RECORD_LAND_LOCK_TIMEOUT_SEC)
+            stack.enter_context(
+                hold_shared_file_lock(
+                    record_land_lock_path(workspace_dir, session_id),
+                    timeout=RECORD_LAND_LOCK_TIMEOUT_SEC,
+                )
+            )
         except FileLockTimeout as exc:
             raise RecordLandingError("land in progress") from exc
-        try:
-            yield
-        finally:
-            file_lock.release()
+        yield
 
 
 _UNDO_HINT = "undo the record_land step through history to remove the stale registration"
