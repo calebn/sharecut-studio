@@ -17,7 +17,9 @@ as ``whisper_models.py`` does.
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -98,20 +100,30 @@ def verify_word_aligner_onnx(model_dir: Path, model: WordAlignerModel) -> None:
         )
 
 
-# (resolved onnx path, size, mtime_ns, pinned sha256) of snapshots that already matched their pin
-# in this process, so a status poll (Pipeline config, bootstrap status) hashes ~360 MB once.
-# Only successes are remembered; WordAligner.load and bootstrap still verify every time.
-_VERIFIED_ONNX: set[tuple[str, int, int, str]] = set()
+# Serialises the cached check so overlapping status requests hash the ONNX once, not each.
+_VERIFY_LOCK = threading.Lock()
+
+
+@lru_cache(maxsize=8)
+def _verify_onnx_cached(
+    model_dir: Path, model: WordAlignerModel, _onnx_key: tuple[str, int, int]
+) -> None:
+    """``verify_word_aligner_onnx``, remembered per (model pin, resolved path, size, mtime_ns).
+
+    Status polls (Pipeline config, bootstrap status) hash the ~360 MB snapshot once per
+    process. Only successes are remembered, because lru_cache does not cache a raised
+    error. A rewrite that keeps both size and mtime is not re-hashed here, but
+    ``WordAligner.load`` and ``bootstrap_word_aligner`` call ``verify_word_aligner_onnx``
+    uncached every time, so a stale status never loads a tampered file.
+    """
+    verify_word_aligner_onnx(model_dir, model)
 
 
 def _verify_word_aligner_onnx_once(model_dir: Path, model: WordAlignerModel) -> None:
     onnx = (model_dir / model.onnx_file).resolve()
     st = onnx.stat()
-    key = (str(onnx), st.st_size, st.st_mtime_ns, model.onnx_sha256)
-    if key in _VERIFIED_ONNX:
-        return
-    verify_word_aligner_onnx(model_dir, model)
-    _VERIFIED_ONNX.add(key)
+    with _VERIFY_LOCK:
+        _verify_onnx_cached(model_dir, model, (str(onnx), st.st_size, st.st_mtime_ns))
 
 
 def word_aligner_override_dir() -> Path | None:

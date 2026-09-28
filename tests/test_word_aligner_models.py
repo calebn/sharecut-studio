@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -23,7 +25,9 @@ def _isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
-    monkeypatch.setattr(word_aligner_models, "_VERIFIED_ONNX", set())
+    word_aligner_models._verify_onnx_cached.cache_clear()
+    yield
+    word_aligner_models._verify_onnx_cached.cache_clear()
 
 
 def test_catalog_pin_matches_benchmarked_candidate() -> None:
@@ -198,6 +202,53 @@ def test_is_cached_is_false_when_the_onnx_file_vanishes(tmp_path, monkeypatch) -
         "podcast_mcp.word_aligner_models._verify_word_aligner_onnx_once", raise_oserror
     )
     assert word_aligner_is_cached() is False
+
+
+def test_is_cached_hashes_once_under_concurrent_status_checks(tmp_path, monkeypatch) -> None:
+    snap = _complete_snapshot(tmp_path / "snap")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    calls: list[Path] = []
+
+    def fake_sha256(p: Path) -> str:
+        calls.append(p)
+        time.sleep(0.05)
+        return word_aligner_model().onnx_sha256
+
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", fake_sha256)
+
+    results: list[bool] = []
+    threads = [
+        threading.Thread(target=lambda: results.append(word_aligner_is_cached())) for _ in range(2)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert results == [True, True]
+    assert len(calls) == 1
+
+
+def test_is_cached_does_not_remember_a_pin_mismatch(tmp_path, monkeypatch) -> None:
+    snap = _complete_snapshot(tmp_path / "snap")
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download", lambda *a, **k: str(snap), raising=False
+    )
+    calls: list[Path] = []
+
+    def fake_sha256(p: Path) -> str:
+        calls.append(p)
+        if len(calls) == 1:
+            return "0" * 64
+        return word_aligner_model().onnx_sha256
+
+    monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", fake_sha256)
+
+    assert word_aligner_is_cached() is False
+    assert word_aligner_is_cached() is True
+    assert len(calls) == 2
 
 
 def test_model_supports_only_catalog_languages() -> None:
