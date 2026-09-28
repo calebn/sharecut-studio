@@ -92,6 +92,8 @@ class WordAligner:
         self._vocab = vocab
         # Set when PODCAST_MCP_WORD_ALIGNER_MODEL loaded a local dir instead of the pinned snapshot.
         self._local_source = local_source
+        # Built on the first align() without engine=, then reused (one aligner per run).
+        self._default_engine: FFmpegEngine | None = None
 
     @classmethod
     def load(
@@ -146,9 +148,11 @@ class WordAligner:
         engine: FFmpegEngine | None = None,
     ) -> WordAlignResult:
         start = time.perf_counter()
-        chunks = (engine or FFmpegEngine()).stream_mono_f32(
-            audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2
-        )
+        if engine is None:
+            if self._default_engine is None:
+                self._default_engine = FFmpegEngine()
+            engine = self._default_engine
+        chunks = engine.stream_mono_f32(audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2)
         with contextlib.closing(SequentialWindowReader(chunks, SAMPLE_RATE_WAV2VEC2)) as reader:
             spans, stats = retime_spans_stream(
                 reader, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab

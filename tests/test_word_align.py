@@ -221,6 +221,29 @@ def test_word_aligner_align_closes_the_stream_when_the_backend_raises(tmp_path) 
     assert fake.closed
 
 
+def test_word_aligner_reuses_one_default_ffmpeg_engine(monkeypatch, tmp_path) -> None:
+    samples = np.zeros(round(1.2 * SAMPLE_RATE_WAV2VEC2), dtype=np.float32)
+    fake = FakeStreamEngine(samples, SAMPLE_RATE_WAV2VEC2)
+    built: list[FakeStreamEngine] = []
+
+    def factory() -> FakeStreamEngine:
+        built.append(fake)
+        return fake
+
+    monkeypatch.setattr("podcast_mcp.engines.word_align.FFmpegEngine", factory)
+    vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
+    aligner = WordAligner(
+        word_aligner_model(), FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7), vocab
+    )
+    words = [TranscriptWord(text="hi", start=0.0, end=0.5)]
+
+    aligner.align(tmp_path / "a.wav", words)
+    aligner.align(tmp_path / "b.wav", words)
+
+    assert len(built) == 1
+    assert fake.calls == 2
+
+
 def test_word_aligner_align_raises_on_empty_decode(tmp_path) -> None:
     vocab = CtcVocab.from_token_map(HI_BYE_TOKENS)
     backend = FakeBackend(vocab, HI_BYE_HOT, frames=7, vocab_size=7)
