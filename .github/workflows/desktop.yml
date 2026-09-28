@@ -6,7 +6,7 @@ name: desktop
 
 on:
   pull_request:
-    paths:
+    paths: &desktop-paths
       - "gui/desktop/**"
       - "gui/web/**"
       - "src/podcast_mcp/**"
@@ -25,23 +25,7 @@ on:
       - ".github/workflows/desktop.yml"
   push:
     branches: [main]
-    paths:
-      - "gui/desktop/**"
-      - "gui/web/**"
-      - "src/podcast_mcp/**"
-      - "scripts/check_desktop.sh"
-      - "scripts/build_desktop.sh"
-      - "scripts/build_sidecar.py"
-      - "scripts/sidecar_*.rs"
-      - "tests/test_pinned_media.py"
-      - "tests/test_project_commit_lock.py"
-      - "tests/test_history.py"
-      - "tests/test_review_versions.py"
-      - "tests/process_helpers.py"
-      - "tests/review_platform.py"
-      - "tests/conftest.py"
-      - "pyproject.toml"
-      - ".github/workflows/desktop.yml"
+    paths: *desktop-paths
   workflow_dispatch:
 
 concurrency:
@@ -124,7 +108,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Python deps
+      - &install-python-dev-deps
+        name: Install Python deps
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[gui,dev]"
@@ -148,10 +133,7 @@ jobs:
         run: choco install ffmpeg --version 9.0.2 -y --no-progress
       - name: Check FFmpeg on PATH
         run: ffmpeg -version
-      - name: Install Python deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[gui,dev]"
+      - *install-python-dev-deps
       # Two separate steps: pwsh only fails the job on the last command's exit code.
       - name: Project commit-lock and history tests
         run: python -m pytest --no-cov -q -rs tests/test_project_commit_lock.py tests/test_history.py --timeout=180

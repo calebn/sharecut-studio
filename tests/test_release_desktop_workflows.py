@@ -153,6 +153,15 @@ def test_desktop_workflow_runs_project_commit_lock_tests_on_windows() -> None:
     assert "tests/test_review_versions.py" in publish_step["run"]
     assert " -k " not in publish_step["run"]
 
+    pinned_job = data["jobs"]["pinned-media-windows"]
+    install = next(step for step in job["steps"] if step.get("name") == "Install Python deps")
+    pinned_install = next(
+        step for step in pinned_job["steps"] if step.get("name") == "Install Python deps"
+    )
+    assert install == pinned_install
+    assert 'pip install -e ".[gui,dev]"' in install["run"]
+    assert data["on"]["push"]["paths"] == data["on"]["pull_request"]["paths"]
+
 
 def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     data = load_github_yaml(BUILD)
