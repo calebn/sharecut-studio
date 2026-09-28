@@ -370,11 +370,13 @@ def test_analyze_prosody_file_matches_array_path_with_bounded_windows(
     fake = _FakeStreamEngine(track, sr)
 
     window_lengths: list[int] = []
+    buffered: list[int] = []
     original_window = SequentialWindowReader.window
 
     def spy_window(self: SequentialWindowReader, start_sec: float, end_sec: float):
         samples, t0 = original_window(self, start_sec, end_sec)
         window_lengths.append(len(samples))
+        buffered.append(self.buffered_samples)
         return samples, t0
 
     monkeypatch.setattr(SequentialWindowReader, "window", spy_window)
@@ -386,6 +388,7 @@ def test_analyze_prosody_file_matches_array_path_with_bounded_windows(
     assert fake.calls == 1
     max_len = int((params.max_segment_sec + 2 * 0.5) * sr) + 2
     assert window_lengths and all(length <= max_len for length in window_lengths)
+    assert buffered and max(buffered) <= max_len + fake.chunk_frames
 
 
 def test_analyze_prosody_file_energy_path_decodes_twice() -> None:
