@@ -16,7 +16,6 @@ import {
   registerPaletteCommands,
   registerTranscriptViewCommands,
   registerViewCommands,
-  registerViewFocusCommands,
 } from "./view";
 
 export { setBladeCommandRunner } from "./editing";
@@ -35,7 +34,6 @@ export function registerDawCommands(): void {
   registerProjectMediaCommands();
   registerTranscriptViewCommands();
   registerClipMoveCommands();
-  registerViewFocusCommands();
   registerTightenCommands();
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();

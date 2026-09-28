@@ -33,3 +33,10 @@ export const TRANSCRIPT_SUPPRESS_TIP =
 /** Title on the word inspector's Unsuppress action (text only). */
 export const TRANSCRIPT_UNSUPPRESS_TIP =
   "Unsuppress: put the word back in the transcript text; its audio is unchanged";
+
+/** Title on a transcript edit-boundary glyph with no clip on one side (nothing to roll). */
+export const TRANSCRIPT_EDIT_BOUNDARY_TIP = "Edit boundary glyph (Annotate)";
+
+/** Title on a cut-away word chip (Annotate + Show cut-away). */
+export const TRANSCRIPT_CUT_AWAY_WORD_TIP =
+  "Cut away: not in the mix · drag nearby boundary to restore";

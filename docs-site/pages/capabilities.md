@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**102** capabilities · **86** Sharecut Studio commands · **51** keyed · **164** MCP tools · **17** skills on rows (+ **18** hub skills).
+**100** capabilities · **84** Sharecut Studio commands · **51** keyed · **164** MCP tools · **17** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -111,8 +111,6 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |
 | Set clip fade | `edit.setClipFade` | — (pointer fade handle; no industry-standard key) | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
 | Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
-| Edit boundary | `view.focusEditBoundary` | — (inline glyph; no industry-standard key) | — | — | — | — | — | — |
-| Cut-away word | `view.focusCutAwayWord` | — (inline chip; no industry-standard key) | `transcript.cutAwayWord` | — | — | — | — | anchor · look |
 
 ## Agent workflows
 
