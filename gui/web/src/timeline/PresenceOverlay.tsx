@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { rosterDisplayName } from "../presence/colors";
-import { remotePresenceClients } from "../presence/followSync";
-import { useServerNowMs } from "../presence/useServerNowMs";
+import { useLivePresenceClients } from "../presence/useLivePresenceClients";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, TrackView } from "../types/project";
 import type { SessionClient } from "../types/session";
@@ -16,27 +15,18 @@ type Props = {
   hidePlayheadForClientId?: string | null;
 };
 
-function usePresenceAnnouncer(
-  clients: SessionClient[],
-  localId: string | null,
-  nowMs: number,
-): void {
+function usePresenceAnnouncer(others: SessionClient[]): void {
   const prevRef = useRef<Set<string> | null>(null);
   useEffect(() => {
-    const ids = new Set(
-      remotePresenceClients(clients, localId, nowMs).map((c) => c.client_id),
-    );
+    const ids = new Set(others.map((c) => c.client_id));
     const prev = prevRef.current;
     prevRef.current = ids;
     if (prev == null) {
       return;
     }
-    for (const id of ids) {
-      if (!prev.has(id)) {
-        const c = clients.find((x) => x.client_id === id);
-        useDawStore
-          .getState()
-          .announceStatus(`${c ? rosterDisplayName(c) : id} joined`);
+    for (const c of others) {
+      if (!prev.has(c.client_id)) {
+        useDawStore.getState().announceStatus(`${rosterDisplayName(c)} joined`);
       }
     }
     for (const id of prev) {
@@ -44,7 +34,7 @@ function usePresenceAnnouncer(
         useDawStore.getState().announceStatus("Someone left");
       }
     }
-  }, [clients, localId, nowMs]);
+  }, [others]);
 }
 
 /** Remote presence over the lanes, reading the session roster itself. */
@@ -53,8 +43,8 @@ export function PresenceOverlay(props: Props) {
   const localClientId = useDawStore((s) => s.localClientId);
   const project = useDawStore((s) => s.project);
   const { laneHeight } = useTimelineMetrics();
-  const nowMs = useServerNowMs(clients, localClientId);
-  usePresenceAnnouncer(clients, localClientId, nowMs);
+  const { nowMs, others } = useLivePresenceClients(clients, localClientId);
+  usePresenceAnnouncer(others);
 
   return (
     <PresenceOverlayView
