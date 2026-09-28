@@ -259,7 +259,10 @@ export function registerHostCommands(): void {
       const job = await startExportJob(s.projectPath);
       seedStudioJob(job);
       const paths = await followExportJob(job.id, "Export failed");
-      s.announceStatus(`Exported ${paths.length} file(s) to export/`);
+      s.announceJobResult(
+        job.id,
+        `Exported ${paths.length} file(s) to export/`,
+      );
       return { status: "ok" };
     } catch (err) {
       const reason = errorMessage(err);

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { followExportJob, startBounceJob } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import type { PipelineJobSnapshot } from "../types/pipeline";
 import { BounceDialog } from "./BounceDialog";
 
 vi.mock("../api", () => ({
@@ -17,6 +18,22 @@ const projectStub = {
   tracks: [],
   clips: { tracks: {} },
 } as never;
+
+/** Shared start-job snapshot for tests that bounce once and inspect the result. */
+const bounceJobSnapshot: PipelineJobSnapshot = {
+  id: "b1",
+  project_path: "/tmp/ep.project.json",
+  from_step: null,
+  only_step: null,
+  kind: "bounce",
+  status: "queued",
+  current: null,
+  total: null,
+  message: "Bounce",
+  error: null,
+  elapsed_sec: 0,
+  steps: [],
+};
 
 describe("BounceDialog", () => {
   beforeEach(() => {
@@ -67,20 +84,7 @@ describe("BounceDialog", () => {
   it("aborts followExportJob when the dialog closes", async () => {
     const user = userEvent.setup();
     let captured: AbortSignal | undefined;
-    vi.mocked(startBounceJob).mockResolvedValue({
-      id: "b1",
-      project_path: "/tmp/ep.project.json",
-      from_step: null,
-      only_step: null,
-      kind: "bounce",
-      status: "queued",
-      current: null,
-      total: null,
-      message: "Bounce",
-      error: null,
-      elapsed_sec: 0,
-      steps: [],
-    });
+    vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
     vi.mocked(followExportJob).mockImplementation(async (_id, _label, opts) => {
       captured = opts?.signal;
       await new Promise<never>((_resolve, reject) => {
@@ -101,6 +105,28 @@ describe("BounceDialog", () => {
     useDawStore.setState({ bounceDialogOpen: false });
     await waitFor(() => {
       expect(captured?.aborted).toBe(true);
+    });
+  });
+
+  it("records the bounce result under its job id instead of announcing it directly", async () => {
+    const user = userEvent.setup();
+    vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
+    vi.mocked(followExportJob).mockResolvedValue([
+      "export/bounces/a.wav",
+      "export/bounces/a.mp3",
+    ]);
+    render(<BounceDialog />);
+    useDawStore.setState({ bounceDialogOpen: true });
+    const bounceBtn = await screen.findByRole("button", { name: "Bounce" });
+    await user.click(bounceBtn);
+    await waitFor(() => {
+      expect(useDawStore.getState().bounceDialogOpen).toBe(false);
+    });
+    // StatusBar owns announcing this once the "b1" chip goes terminal
+    // (#704); BounceDialog itself must not race it via announceStatus.
+    expect(useDawStore.getState().jobResultAnnouncement).toEqual({
+      jobId: "b1",
+      message: "Bounced 2 file(s) to export/bounces/",
     });
   });
 });

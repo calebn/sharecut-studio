@@ -34,6 +34,16 @@ export interface PipelineJobSnapshot {
   steps: PipelineStepTiming[];
 }
 
+/**
+ * A job's own terminal-result copy (e.g. "Bounced 1 file(s) to export/bounces/"),
+ * held until that job's chip status goes terminal so `StatusBar` announces it
+ * instead of the generic Activity/Pipeline status headline racing it (#704).
+ */
+export interface JobResultAnnouncement {
+  jobId: string;
+  message: string;
+}
+
 export interface PipelineStatusResponse {
   running: boolean;
   job: PipelineJobSnapshot | null;

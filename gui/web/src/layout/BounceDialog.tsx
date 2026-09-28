@@ -17,7 +17,7 @@ export function BounceDialog() {
     selectedTrackIds,
     soloTracks,
     sessionRegion,
-    announceStatus,
+    announceJobResult,
   } = useDaw((s) => ({
     bounceDialogOpen: s.bounceDialogOpen,
     setBounceDialogOpen: s.setBounceDialogOpen,
@@ -26,7 +26,7 @@ export function BounceDialog() {
     selectedTrackIds: s.selectedTrackIds,
     soloTracks: s.soloTracks,
     sessionRegion: s.sessionRegion,
-    announceStatus: s.announceStatus,
+    announceJobResult: s.announceJobResult,
   }));
   const [source, setSource] = useState<BounceSourceMode>("entire");
   const [includeMp3, setIncludeMp3] = useState(false);
@@ -86,7 +86,10 @@ export function BounceDialog() {
       const paths = await followExportJob(job.id, "Bounce failed", {
         signal: ac.signal,
       });
-      announceStatus(`Bounced ${paths.length} file(s) to export/bounces/`);
+      announceJobResult(
+        job.id,
+        `Bounced ${paths.length} file(s) to export/bounces/`,
+      );
       setBounceDialogOpen(false);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
