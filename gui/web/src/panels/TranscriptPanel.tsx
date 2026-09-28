@@ -39,6 +39,7 @@ import {
   TRANSCRIPT_NAVIGATE_TOUCH_HINT,
   type TranscriptIntent,
 } from "../transcript/transcriptModeCopy";
+import { wordInteractionTip } from "../transcript/wordInteractionTip";
 import type {
   CombinedUtterance,
   EditBoundaryView,
@@ -1108,19 +1109,12 @@ export function TranscriptPanel() {
                         .join(" ")
                     : "";
                   const interactionTip = wordInteractive
-                    ? intent === "correct"
-                      ? wordIndex != null
-                        ? "Click: select for Correct · Double-click: seek"
-                        : undefined
-                      : intent === "select"
-                        ? wordIndex != null
-                          ? "Click/drag: select range · Shift+click: extend · Double-click: seek"
-                          : undefined
-                        : wSeek != null
-                          ? inlineEditable
-                            ? `Click: seek ${wSeek.toFixed(1)}s · Double-click: fix text`
-                            : `Double-click: ${wSeek.toFixed(1)}s`
-                          : undefined
+                    ? wordInteractionTip({
+                        intent,
+                        wordIndex,
+                        seekSec: wSeek,
+                        inlineEditable,
+                      })
                     : undefined;
                   return {
                     word: w,
