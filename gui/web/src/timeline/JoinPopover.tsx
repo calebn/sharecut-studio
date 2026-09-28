@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect, useRef } from "react";
+import { type RefObject, useCallback, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { setClipJoin } from "../api";
 import { JOIN_AUDITION_PAD_SEC, joinGlyph } from "../edit/joinRender";
@@ -22,6 +22,8 @@ export interface JoinPopoverProps {
   trackFadeMaxMs: number | null;
   anchorRef: RefObject<HTMLElement | null>;
   onClose: () => void;
+  /** True while a SetClipJoin is in flight; owned by the badge so its toggle honours it too. */
+  inFlightRef: RefObject<boolean>;
 }
 
 /** Live adapter: portals `JoinPopoverView` to `<body>`, fixed at its badge. */
@@ -33,6 +35,7 @@ export function JoinPopover({
   trackFadeMaxMs,
   anchorRef,
   onClose,
+  inFlightRef,
 }: JoinPopoverProps) {
   const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -42,10 +45,17 @@ export function JoinPopover({
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const { busy, error, run } = useProjectMutation();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Dismissing mid-request would unmount the popover and drop a failure
+  // silently, so Escape, Close and an outside click wait for SetClipJoin to settle.
+  const dismiss = useCallback(() => {
+    if (!inFlightRef.current) {
+      onClose();
+    }
+  }, [inFlightRef, onClose]);
   // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus returns to this popover's badge.
   useDialogModal({
     open: true,
-    onClose,
+    onClose: dismiss,
     panelRef,
     mode: "sheet",
     returnFocusRef: anchorRef,
@@ -80,7 +90,14 @@ export function JoinPopover({
     };
   }, [anchorRef, seamSec]);
 
-  useOutsidePointerDown([panelRef, anchorRef], onClose);
+  useOutsidePointerDown([panelRef, anchorRef], dismiss);
+
+  const mutate = (fn: () => Promise<unknown>) => {
+    inFlightRef.current = true;
+    void run(fn).finally(() => {
+      inFlightRef.current = false;
+    });
+  };
 
   const mode = joinGlyph(right);
   return createPortal(
@@ -94,12 +111,12 @@ export function JoinPopover({
       editable={editable}
       busy={busy}
       error={error}
-      onClose={onClose}
+      onClose={dismiss}
       onModeChange={(next) =>
-        void run(() => setClipJoin(projectPath, left.id, right.id, next, null))
+        mutate(() => setClipJoin(projectPath, left.id, right.id, next, null))
       }
       onLengthCommit={(ms) =>
-        void run(() => setClipJoin(projectPath, left.id, right.id, mode, ms))
+        mutate(() => setClipJoin(projectPath, left.id, right.id, mode, ms))
       }
       footer={
         <InspectorSeekFooter
