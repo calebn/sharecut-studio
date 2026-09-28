@@ -378,6 +378,31 @@ Applied cuts (ripple deletes, approved removes, punches) drop the removed words,
 | Low-confidence word, grammar unclear | Refine batch → audition |
 | Single ambiguous span | Audition only |
 
+## Captions (SRT/VTT)
+
+`transcript export-srt` / `export-vtt` and the pipeline's `export_deliverables` step both
+build cues through `export/transcript.py` (`utterances_to_srt` / `utterances_to_vtt`), the
+one place SRT/VTT cues are built. Cues are word-timed: kept (non-suppressed) words are
+grouped per track the same way `merge_transcripts` groups a combined utterance
+(`engines/utterance_runs.transcript_word_runs`), each word is mapped source → timeline
+clock (`SessionTimeline.map_word_spans`), and a run is then greedily split into cues that
+respect `CaptionLimits` — never splitting inside a word, preferring a sentence-ending
+(`.!?…`) break over a phrase (`,;:`) break over a hard cutoff, and wrapping each cue's
+text onto up to `max_lines` lines of at most `max_chars_per_line` characters. A single
+word longer than `max_chars_per_line` still gets its own (overlong) line rather than being
+split. The markdown transcript (`combined_transcript_markdown`) is unaffected: it stays
+whole utterances.
+
+Defaults (common caption guidance — about 2 lines of about 42 characters, at most 7s):
+
+| Limit | Default | Config path |
+|-------|---------|-------------|
+| Max cue duration | 7.0s | `export.captions.max_duration_sec` |
+| Max characters per line | 42 | `export.captions.max_chars_per_line` |
+| Max lines per cue | 2 | `export.captions.max_lines` |
+
+Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml) (`export.captions`, used by `export_deliverables`), or per invocation with `podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …` (same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+
 ## Troubleshooting
 
 **Zero bleed words during known cross-talk** — See [transcript-reconcile.md](transcript-reconcile.md#debugging-no-bleed-words). Check stem freshness after `render_dialogue_stems`.

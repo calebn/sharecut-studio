@@ -9,6 +9,8 @@ from filelock import Timeout
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
+from podcast_mcp.config import load_defaults
+from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services import (
     EditService,
     ProjectWorkspace,
@@ -21,6 +23,23 @@ from podcast_mcp.services import (
 transcript_app = typer.Typer(help="Transcript correction and export.")
 context_app = typer.Typer(help="Episode transcript context and glossary.")
 transcript_app.add_typer(context_app, name="context")
+
+
+def _caption_limits(
+    *,
+    max_duration_sec: float | None,
+    max_chars_per_line: int | None,
+    max_lines: int | None,
+) -> CaptionLimits:
+    """Pipeline defaults' ``export.captions``, overridden by any CLI flags given."""
+    base = resolve_caption_limits(load_defaults().get("export", {}))
+    return CaptionLimits(
+        max_duration_sec=base.max_duration_sec if max_duration_sec is None else max_duration_sec,
+        max_chars_per_line=(
+            base.max_chars_per_line if max_chars_per_line is None else max_chars_per_line
+        ),
+        max_lines=base.max_lines if max_lines is None else max_lines,
+    )
 
 
 @transcript_app.command("correct")
@@ -59,18 +78,46 @@ def transcript_review_cmd(
 @transcript_app.command("export-srt")
 def transcript_export_srt_cmd(
     project: Path = typer.Option(..., "--project"),
+    max_duration_sec: float | None = typer.Option(
+        None, "--max-duration-sec", help="Cue duration cap in seconds (default: export.captions)."
+    ),
+    max_chars_per_line: int | None = typer.Option(
+        None, "--max-chars-per-line", help="Cue line-length cap (default: export.captions)."
+    ),
+    max_lines: int | None = typer.Option(
+        None, "--max-lines", help="Cue line-count cap (default: export.captions)."
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    path = TranscriptService(ws).export_subtitles("srt")
+    limits = _caption_limits(
+        max_duration_sec=max_duration_sec,
+        max_chars_per_line=max_chars_per_line,
+        max_lines=max_lines,
+    )
+    path = TranscriptService(ws).export_subtitles("srt", limits=limits)
     typer.echo(str(path))
 
 
 @transcript_app.command("export-vtt")
 def transcript_export_vtt_cmd(
     project: Path = typer.Option(..., "--project"),
+    max_duration_sec: float | None = typer.Option(
+        None, "--max-duration-sec", help="Cue duration cap in seconds (default: export.captions)."
+    ),
+    max_chars_per_line: int | None = typer.Option(
+        None, "--max-chars-per-line", help="Cue line-length cap (default: export.captions)."
+    ),
+    max_lines: int | None = typer.Option(
+        None, "--max-lines", help="Cue line-count cap (default: export.captions)."
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    path = TranscriptService(ws).export_subtitles("vtt")
+    limits = _caption_limits(
+        max_duration_sec=max_duration_sec,
+        max_chars_per_line=max_chars_per_line,
+        max_lines=max_lines,
+    )
+    path = TranscriptService(ws).export_subtitles("vtt", limits=limits)
     typer.echo(str(path))
 
 

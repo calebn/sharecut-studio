@@ -3,7 +3,12 @@ from __future__ import annotations
 import random
 
 from podcast_mcp.engines.transcribe import TranscriptionEngine
-from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
+from podcast_mcp.engines.utterance_runs import (
+    transcript_word_runs,
+    utterance_runs,
+    utterance_speaker,
+    utterance_text,
+)
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -87,6 +92,29 @@ def test_utterance_text_joins_and_strips() -> None:
         TranscriptWord(text="world", start=0.3, end=0.5),
     ]
     assert utterance_text(words) == "hello world"
+
+
+def test_transcript_word_runs_skips_empty_and_suppressed_sorted_across_tracks() -> None:
+    p = _minimal()
+    p.transcripts = [
+        Transcript(track_id="empty", words=[]),
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="Later", start=5.0, end=5.3)],
+        ),
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="gone", start=0.0, end=0.2, suppressed=True),
+                TranscriptWord(text="Hello", start=0.3, end=0.6),
+                TranscriptWord(text="world", start=0.65, end=0.9),
+            ],
+        ),
+    ]
+    runs = transcript_word_runs(p)
+    assert [r.track_id for r in runs] == ["host", "guest"]
+    assert [w.text for w in runs[0].words] == ["Hello", "world"]
+    assert runs[1].words[0].text == "Later"
 
 
 def test_merge_transcripts_uses_shared_runs() -> None:

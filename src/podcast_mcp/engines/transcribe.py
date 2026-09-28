@@ -22,7 +22,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_MAX_WORD_DURATION_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
+from podcast_mcp.engines.utterance_runs import transcript_word_runs, utterance_text
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
@@ -683,22 +683,14 @@ class TranscriptionEngine:
         return results
 
     def merge_transcripts(self, project: EpisodeProject) -> CombinedTranscript:
-        utterances: list[CombinedUtterance] = []
-        for transcript in project.transcripts:
-            if not transcript.words:
-                continue
-            speaker = utterance_speaker(project, transcript.track_id)
-            kept = [word for word in transcript.words if not word.suppressed]
-            for run in utterance_runs(kept):
-                words = kept[run.start : run.stop]
-                utterances.append(
-                    CombinedUtterance(
-                        track_id=transcript.track_id,
-                        speaker=speaker,
-                        start=words[0].start,
-                        end=words[-1].end,
-                        text=utterance_text(words),
-                    )
-                )
-        utterances.sort(key=lambda u: u.start)
+        utterances = [
+            CombinedUtterance(
+                track_id=run.track_id,
+                speaker=run.speaker,
+                start=run.words[0].start,
+                end=run.words[-1].end,
+                text=utterance_text(run.words),
+            )
+            for run in transcript_word_runs(project)
+        ]
         return CombinedTranscript(utterances=utterances)

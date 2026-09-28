@@ -10,7 +10,14 @@ from podcast_mcp.cli.history import history_app
 from podcast_mcp.cli.main import app
 from podcast_mcp.cli.speaker import speaker_app
 from podcast_mcp.cli.transcript_cmd import transcript_app
-from podcast_mcp.models import CombinedTranscript, CombinedUtterance, load_project, save_project
+from podcast_mcp.models import (
+    CombinedTranscript,
+    CombinedUtterance,
+    Transcript,
+    TranscriptWord,
+    load_project,
+    save_project,
+)
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services import HistoryRerenderError
 
@@ -275,6 +282,42 @@ def test_transcript_export_srt_vtt(tmp_path):
         ["export-vtt", "--project", str(project)],
     )
     assert vtt.exit_code == 0
+
+
+def test_transcript_export_srt_caption_limit_options(tmp_path):
+    project = _init_project(tmp_path)
+    proj = load_project(project)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=w, start=i * 0.5, end=i * 0.5 + 0.4)
+                for i, w in enumerate(["one", "two", "three", "four", "five", "six."])
+            ],
+        )
+    ]
+    save_project(proj, project)
+    result = runner.invoke(
+        transcript_app,
+        [
+            "export-srt",
+            "--project",
+            str(project),
+            "--max-duration-sec",
+            "100",
+            "--max-chars-per-line",
+            "8",
+            "--max-lines",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0
+    from pathlib import Path
+
+    text = Path(result.stdout.strip()).read_text(encoding="utf-8")
+    for block in text.strip().split("\n\n"):
+        line = block.splitlines()[2]
+        assert len(line) <= 8
 
 
 def test_transcript_context_show_and_set(tmp_path):

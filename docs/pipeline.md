@@ -236,6 +236,23 @@ podcast pipeline export-audio --project episode.project.json \
 
 MCP: `export_audio_tool` with optional `formats_json` (same array shape).
 
+### Caption cue limits
+
+`export_deliverables`' SRT (and `transcript export-srt`/`export-vtt`) split cues at word
+timings under `export.captions` in `pipeline.yaml`:
+
+```yaml
+export:
+  captions:
+    max_duration_sec: 7.0
+    max_chars_per_line: 42
+    max_lines: 2
+```
+
+Word-timed splitting, sentence/phrase break preference, and the CLI's matching
+`--max-duration-sec` / `--max-chars-per-line` / `--max-lines` options are documented in
+[transcript-workflow.md § Captions](transcript-workflow.md#captions-srtvtt).
+
 ## Performance
 
 Each completed step still commits its canonical state and `last_completed_step`

@@ -351,6 +351,13 @@ export:
   #     codec: libopus
   #     bitrate_kbps: 96
   # Optional per-format: format (container -f), sample_rate, channels, extra_args.
+  # SRT/VTT cue-splitting limits (word-timed, on the timeline clock). Common caption
+  # guidance: ~2 lines of ~42 characters, ~7s on screen. `podcast transcript
+  # export-srt`/`export-vtt` accept the same limits as CLI options.
+  captions:
+    max_duration_sec: 7.0
+    max_chars_per_line: 42
+    max_lines: 2
 
 # Effect presets are defined once, in src/podcast_mcp/effects/presets.py
 # (_BUILTIN_PRESETS). `effects:` here is a by-name overlay: add new presets,
