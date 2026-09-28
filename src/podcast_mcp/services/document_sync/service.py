@@ -7,6 +7,8 @@ import json
 import logging
 import sqlite3
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -319,6 +321,22 @@ class DocumentSyncService:
         get_hub().publish(self._project_key, event)
         return event
 
+    @contextmanager
+    def _journal_write_lock(self) -> Iterator[SyncStore]:
+        """The one document.db write critical section (#213, #377, #575), shared by
+        ``submit`` and ``publish_document_changed`` so their lock order cannot drift:
+        the project lock (``ws.transaction()``, which adopts any outside write), then a
+        command a crash saved without its journal row is journaled and committed on its
+        own (``journal_saved_command``), then one ``document.db`` write transaction
+        (BEGIN IMMEDIATE). Never take the sqlite write lock first. Yields the store;
+        ``self.project`` is the adopted project."""
+        store = self.store
+        with self.ws.transaction():
+            self.project = self.ws.project
+            journal_saved_command(store, self.project)
+            with store.write_transaction():
+                yield store
+
     def submit(
         self,
         command: DocumentCommand,
@@ -333,7 +351,6 @@ class DocumentSyncService:
 
             authorize_document_command(capabilities, command.type)
 
-        store = self.store
         from podcast_mcp.services.document_sync.projections import projection_for_command
 
         if command.type == "SetEnvelope":
@@ -352,61 +369,59 @@ class DocumentSyncService:
         # error fails the command before the project changes. The apply's commit also saves
         # the command as ``document_sync.last_command``, so after a crash or an I/O failure
         # of the journal INSERT or COMMIT after the apply, the next submit journals it
-        # first. Undo/redo with rerender holds both locks for its render. This is the only
-        # document.db writer and it takes the project lock first, so another writer waits on
+        # first. Undo/redo with rerender holds both locks for its render. Every
+        # document.db writer (this and publish_document_changed) enters through
+        # _journal_write_lock and takes the project lock first, so another writer waits on
         # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a
         # busy sqlite lock that escapes anyway maps to the same 503 / project_busy in the
         # routes.
-        with self.ws.transaction():
-            self.project = self.ws.project
-            journal_saved_command(store, self.project)
+        with self._journal_write_lock() as store:
             # The file this command applies on top of, after transaction() adopted any
             # outside write; clients chain it to the last file they received (#657).
             file_before = _file_wire(self.ws.loaded_file_revision)
-            with store.write_transaction():
-                existing = existing_document_command(store, command)
-                if existing is not None:
-                    retry_snap = self.document_snapshot(projection=snap_proj)
-                    # Nothing applied: file_before is the current file, so a client
-                    # holding it keeps it and any other client marks it unknown (#657).
-                    if file_before is not None:
-                        retry_snap["file_before"] = file_before
-                    return {
-                        "ok": True,
-                        "type": "Applied",
-                        "command": existing,
-                        "snapshot": retry_snap,
-                        "server_seq": existing["server_seq"],
-                        "idempotent": True,
-                    }
+            existing = existing_document_command(store, command)
+            if existing is not None:
+                retry_snap = self.document_snapshot(projection=snap_proj)
+                # Nothing applied: file_before is the current file, so a client
+                # holding it keeps it and any other client marks it unknown (#657).
+                if file_before is not None:
+                    retry_snap["file_before"] = file_before
+                return {
+                    "ok": True,
+                    "type": "Applied",
+                    "command": existing,
+                    "snapshot": retry_snap,
+                    "server_seq": existing["server_seq"],
+                    "idempotent": True,
+                }
 
-                result_payload = self._apply_saving_command(
-                    command,
-                    store,
-                    capabilities=capabilities,
-                    structural_mode=structural_mode,
+            result_payload = self._apply_saving_command(
+                command,
+                store,
+                capabilities=capabilities,
+                structural_mode=structural_mode,
+            )
+            row, _snap, claimed = store.append_and_apply(
+                command_id=command.command_id,
+                client_id=command.client_id,
+                client_seq=command.client_seq,
+                role=command.role,
+                type=command.type,
+                payload={**command.payload, "result": result_payload},
+                causation_id=command.causation_id,
+                apply_fn=_journal_snapshot,
+                empty_snap_fn=_empty_journal_snapshot,
+            )
+            if claimed:
+                # Unreachable while the write lock is held from the check; kept as a
+                # guard.
+                raise RuntimeError(
+                    "document journal row was claimed outside the project transaction"
                 )
-                row, _snap, claimed = store.append_and_apply(
-                    command_id=command.command_id,
-                    client_id=command.client_id,
-                    client_seq=command.client_seq,
-                    role=command.role,
-                    type=command.type,
-                    payload={**command.payload, "result": result_payload},
-                    causation_id=command.causation_id,
-                    apply_fn=_journal_snapshot,
-                    empty_snap_fn=_empty_journal_snapshot,
-                )
-                if claimed:
-                    # Unreachable while the write lock is held from the check; kept as a
-                    # guard.
-                    raise RuntimeError(
-                        "document journal row was claimed outside the project transaction"
-                    )
-                api_snap = self._snapshot_or_resync(snap_proj, int(row["server_seq"]))
-                if file_before is not None and not api_snap.get("resync"):
-                    api_snap["file_before"] = file_before
-                event = self._publish_applied(row, api_snap)
+            api_snap = self._snapshot_or_resync(snap_proj, int(row["server_seq"]))
+            if file_before is not None and not api_snap.get("resync"):
+                api_snap["file_before"] = file_before
+            event = self._publish_applied(row, api_snap)
         return {"ok": True, **event}
 
     def publish_document_changed(
@@ -422,30 +437,26 @@ class DocumentSyncService:
         to the shared ``document.db``: the GUI process then sees ``meta.server_seq`` move
         past its applied seq on its next ``/api/project/meta`` poll (#662).
 
-        Lock order matches ``submit``: the project lock (via ``ws.transaction()``), then a
-        crash-saved command is journaled first (``journal_saved_command``, #575) so it is
-        not orphaned by a seq that moves past its ``base_server_seq``, then one
-        ``document.db`` write transaction holds the row append, the snapshot and the hub
-        publish.
+        Runs in ``_journal_write_lock``, the same critical section as ``submit``: the
+        project lock, then a crash-saved command is journaled first
+        (``journal_saved_command``, #575) so a seq that moves past its
+        ``base_server_seq`` does not orphan it, then one ``document.db`` write
+        transaction holds the row append, the snapshot and the hub publish.
         """
-        store = self.store
-        with self.ws.transaction():
-            self.project = self.ws.project
-            journal_saved_command(store, self.project)
-            with store.write_transaction():
-                row, _snap, _idempotent = store.append_and_apply(
-                    command_id=uuid4().hex,
-                    client_id=EXTERNAL_MUTATE_CLIENT_ID,
-                    client_seq=None,
-                    role=role,
-                    type=EXTERNAL_MUTATE,
-                    payload={"projection": projection},
-                    causation_id=None,
-                    apply_fn=_journal_snapshot,
-                    empty_snap_fn=_empty_journal_snapshot,
-                )
-                api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
-                return self._publish_applied(row, api_snap)
+        with self._journal_write_lock() as store:
+            row, _snap, _idempotent = store.append_and_apply(
+                command_id=uuid4().hex,
+                client_id=EXTERNAL_MUTATE_CLIENT_ID,
+                client_seq=None,
+                role=role,
+                type=EXTERNAL_MUTATE,
+                payload={"projection": projection},
+                causation_id=None,
+                apply_fn=_journal_snapshot,
+                empty_snap_fn=_empty_journal_snapshot,
+            )
+            api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
+            return self._publish_applied(row, api_snap)
 
     def _apply(
         self,
