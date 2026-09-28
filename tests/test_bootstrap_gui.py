@@ -540,3 +540,57 @@ def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
             break
     assert recorded["components"] == ["whisper"]
     assert recorded["whisper_model"] == "small.en"
+
+
+def test_run_bootstrap_word_aligner_refetches_a_pin_mismatch_without_force(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from model_pin_helpers import pin_word_aligner_to_fake_snapshot
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.util.model_manifest import clear_manifest_memo
+
+    clear_manifest_memo()
+    snap = pin_word_aligner_to_fake_snapshot(tmp_path / "snap", monkeypatch)
+    good = (snap / "vocab.json").read_bytes()
+    (snap / "vocab.json").write_bytes(b"tampered")
+    downloads: list[bool] = []
+
+    def fake_snapshot_download(repo, **kwargs):
+        if not kwargs.get("local_files_only"):
+            downloads.append(kwargs["force_download"])
+            if kwargs["force_download"]:
+                (snap / "vocab.json").write_bytes(good)
+        return str(snap)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download, raising=False)
+    out = boot.run_bootstrap(["word-aligner"])
+    assert out["results"]["word-aligner"]["ok"] is True
+    assert downloads == [False, True]
+
+
+def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from model_pin_helpers import plant_pinned_whisper
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.util.model_manifest import clear_manifest_memo
+
+    clear_manifest_memo()
+    cache = tmp_path / "whisper"
+    monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
+    snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
+    good = (snap / "vocabulary.txt").read_bytes()
+    (snap / "vocabulary.txt").write_bytes(b"tampered")
+    downloads: list[bool] = []
+
+    def fake_snapshot_download(repo, **kwargs):
+        if not kwargs.get("local_files_only"):
+            downloads.append(kwargs["force_download"])
+            if kwargs["force_download"]:
+                (snap / "vocabulary.txt").write_bytes(good)
+        return str(snap)
+
+    monkeypatch.setattr("huggingface_hub.snapshot_download", fake_snapshot_download, raising=False)
+    out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
+    assert out["results"]["whisper"]["ok"] is True
+    assert downloads == [False, True]

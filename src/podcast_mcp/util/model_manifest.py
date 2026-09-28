@@ -110,20 +110,30 @@ def download_pinned_snapshot(
 
     The only pinned-snapshot network path. Returns the snapshot dir and its
     ``manifest_mismatch`` (None when every file matches); the caller raises its own
-    pin-mismatch error.
+    pin-mismatch error. huggingface_hub returns already-cached files without fetching
+    them, so a cached snapshot that fails its pin is fetched once more with
+    ``force_download=True``: a plain download (Studio's Download buttons, bootstrap
+    without ``--upgrade``) repairs a corrupt or swapped snapshot, not only ``force``.
     """
     from huggingface_hub import snapshot_download
 
-    path = Path(
-        snapshot_download(
-            pin.hf_repo,
-            revision=pin.revision,
-            allow_patterns=pin.allow_patterns,
-            cache_dir=str(cache_dir),
-            force_download=force,
+    def fetch(force_download: bool) -> Path:
+        return Path(
+            snapshot_download(
+                pin.hf_repo,
+                revision=pin.revision,
+                allow_patterns=pin.allow_patterns,
+                cache_dir=str(cache_dir),
+                force_download=force_download,
+            )
         )
-    )
-    return path, manifest_mismatch(path, pin.file_sha256)
+
+    path = fetch(force)
+    mismatch = manifest_mismatch(path, pin.file_sha256)
+    if mismatch is not None and not force:
+        path = fetch(True)
+        mismatch = manifest_mismatch(path, pin.file_sha256)
+    return path, mismatch
 
 
 # Serialises memoised hashing so overlapping status polls hash a file once, not once each.

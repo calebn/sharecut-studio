@@ -408,9 +408,10 @@ def ensure_whisper_model_cached(model: str) -> str:
 def bootstrap_whisper_model(model_size: str, *, force: bool = False) -> dict[str, Any]:
     """Download weights into the cache and persist the machine preference.
 
-    A catalog size downloads its pinned snapshot and verifies every file (a mismatch
-    raises ``WhisperPinMismatchError``; ``force`` re-downloads it). Any other size uses
-    faster-whisper's own unpinned download, where ``force`` has no effect.
+    A catalog size downloads its pinned snapshot and verifies every file; a cached
+    snapshot that fails its pin is re-fetched once even without ``force``, and a mismatch
+    that survives raises ``WhisperPinMismatchError``. Any other size uses faster-whisper's
+    own unpinned download, where ``force`` has no effect.
     """
     from podcast_mcp.config import whisper_cache_dir
 

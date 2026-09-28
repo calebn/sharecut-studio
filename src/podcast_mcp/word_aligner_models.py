@@ -190,7 +190,10 @@ def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
 def bootstrap_word_aligner(
     model_id: str = DEFAULT_WORD_ALIGNER, *, force: bool = False
 ) -> dict[str, Any]:
-    """Download the pinned snapshot into the word-aligner cache. The only network path."""
+    """Download the pinned snapshot into the word-aligner cache. The only network path.
+
+    A cached snapshot that fails its pin is re-fetched once even without ``force``.
+    """
     from podcast_mcp.config import word_aligner_cache_dir
 
     model = word_aligner_model(model_id)
