@@ -389,16 +389,19 @@ button.join-diamond {
 }
 
 /* One badge per drawn join, at the top of the seam (#690): | cut, ╲╱ fade,
-   ✕ crossfade. TrackLane draws it above the resting clips. It is display-only
-   and click-through (the fade corners and trim strips under it keep their
-   input) until the join popover (#691) makes it a button. Declared after
-   `.lane-inner > *` so its pointer-events wins. */
+   ✕ crossfade. Centred on the lane's top edge, it sits in the gutter above the
+   clips (.clip-block top inset) so it clears the clips' top-corner fade handles
+   and the mid-height join diamond (e2e/fade-curves.spec.ts checks both).
+   TrackLane draws it above the resting clips. It is display-only and
+   click-through (the trim strips under it keep their input) until the join
+   popover (#691) makes it a button. Declared after `.lane-inner > *` so its
+   pointer-events wins. */
 .join-badge {
   position: absolute;
   top: 0;
   width: 1rem;
   height: 1rem;
-  translate: -50% 0;
+  translate: -50% -50%;
   display: grid;
   place-items: center;
   box-sizing: border-box;
