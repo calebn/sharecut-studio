@@ -206,6 +206,10 @@ class SetTranscriptWordSuppressedPayload(BaseModel):
     track_id: str
     word_index: int
     suppressed: bool
+    expected_text: str | None = Field(
+        default=None,
+        description=_EXPECTED_TEXT_DESCRIPTION,
+    )
 
 
 class SetTranscriptWordsIgnoredPayload(BaseModel):
@@ -213,6 +217,10 @@ class SetTranscriptWordsIgnoredPayload(BaseModel):
     start_word_index: int = Field(ge=0)
     end_word_index: int = Field(ge=0)
     ignored: bool
+    expected_text: str | None = Field(
+        default=None,
+        description=_EXPECTED_TEXT_DESCRIPTION,
+    )
 
 
 class AddChapterPayload(BaseModel):

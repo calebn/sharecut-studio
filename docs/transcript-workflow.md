@@ -217,11 +217,13 @@ cross-track), reconciliation, speaker attribution, audio-quality and bleed
 suppression, and transcript sync. Editing `episode.project.json` by hand is not
 detected; set `"user_edited": true` on that transcript to protect it.
 
-**Stale-index guard (#650):** the `CorrectTranscriptWord` / `CorrectTranscriptPhrase`
-document commands and the `correct_transcript_tool` / `correct_transcript_phrase_tool`
-MCP tools take an optional `expected_text` — the word (or space-joined phrase) text the
-caller read at those indices. `EditService.correct_word` / `correct_phrase` check it
-inside the same transaction as the mutation (`edits/transcript_correct.require_word_text`),
+**Stale-index guard (#650, #744):** the `CorrectTranscriptWord` / `CorrectTranscriptPhrase` /
+`SetTranscriptWordSuppressed` / `SetTranscriptWordsIgnored` document commands and the
+`correct_transcript_tool` / `correct_transcript_phrase_tool` / `set_word_suppressed_tool` /
+`set_words_ignored_tool` MCP tools take an optional `expected_text` — the word (or
+space-joined phrase) text the caller read at those indices. `EditService` checks it inside
+the same transaction as the mutation, for all four via the shared
+`_guarded_transcript_edit` helper (`edits/transcript_correct.require_word_text`),
 comparing whitespace-collapsed, case-sensitive text; indices that no longer exist count as
 a mismatch too; a mismatch means another edit (a
 remote host, a guest, or an agent) shifted or changed those words since the caller last
@@ -230,11 +232,11 @@ conflicts, and nothing is applied; an MCP tool mismatch is a `ValueError` tool e
 inline editor always sends the text it opened with; the Correct inspector sends the span
 text captured when the word was selected or End index last changed, and only when every
 word in that range is loaded and its loaded copies agree (otherwise it sends none and
-shows a hint under Apply).
+shows a hint under Apply); Suppress and Ignore send the word's currently rendered text.
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
-`verify_transcript` paths do not send it, and omitting it keeps the correction unguarded.
-The fix for a rejected correction is to re-read the transcript and redo the correction
-against its current text.
+`verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
+The fix for a rejected edit is to re-read the transcript and redo it against its current
+text.
 
 **Ignore vs. suppress (#633):** `set_words_ignored_tool` (MCP), the Select-mode
 Ignore/Restore button, and the Correct word inspector's Ignore action all call

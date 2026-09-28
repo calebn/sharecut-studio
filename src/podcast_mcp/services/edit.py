@@ -1098,16 +1098,17 @@ class EditService:
         start_word_index: int,
         end_word_index: int,
         expected_text: str | None,
-        edit: Callable[[EpisodeProject], None],
-    ) -> None:
+        edit: Callable[[EpisodeProject], T],
+    ) -> T:
         """Check ``expected_text`` (#650) and apply ``edit`` in one transaction.
 
         ``transaction()`` is reentrant, so ``require_word_text`` and the nested ``mutate``
-        share one critical section; a stale text raises before mutation or history.
+        share one critical section; a stale text raises before mutation or history. Returns
+        ``edit``'s result.
         """
         with self.ws.transaction() as project:
             require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
-            self.ws.mutate(
+            return self.ws.mutate(
                 f"before {label}", f"after {label}", _user_transcript_edit(track_id, edit)
             )
 
@@ -1148,13 +1149,22 @@ class EditService:
             lambda p: correct_phrase(p, track_id, start_word_index, end_word_index, new_text),
         )
 
-    def set_word_suppressed(self, track_id: str, word_index: int, suppressed: bool) -> dict:
-        return self.ws.mutate(
-            "before set word suppressed",
-            "after set word suppressed",
-            _user_transcript_edit(
-                track_id, lambda p: set_word_suppressed(p, track_id, word_index, suppressed)
-            ),
+    def set_word_suppressed(
+        self,
+        track_id: str,
+        word_index: int,
+        suppressed: bool,
+        *,
+        expected_text: str | None = None,
+    ) -> dict:
+        """Toggle suppressed on one word. ``expected_text`` guards against a stale index (#744)."""
+        return self._guarded_transcript_edit(
+            "set word suppressed",
+            track_id,
+            word_index,
+            word_index,
+            expected_text,
+            lambda p: set_word_suppressed(p, track_id, word_index, suppressed),
         )
 
     def set_words_ignored(
@@ -1163,15 +1173,20 @@ class EditService:
         start_word_index: int,
         end_word_index: int,
         ignored: bool,
+        *,
+        expected_text: str | None = None,
     ) -> dict:
-        """Text-and-audio hide for a word range, muted at render without a cut (#633)."""
-        return self.ws.mutate(
-            "before set words ignored",
-            "after set words ignored",
-            _user_transcript_edit(
-                track_id,
-                lambda p: set_words_ignored(p, track_id, start_word_index, end_word_index, ignored),
-            ),
+        """Text-and-audio hide for a word range, muted at render without a cut (#633).
+
+        ``expected_text`` guards against a stale index range (#744).
+        """
+        return self._guarded_transcript_edit(
+            "set words ignored",
+            track_id,
+            start_word_index,
+            end_word_index,
+            expected_text,
+            lambda p: set_words_ignored(p, track_id, start_word_index, end_word_index, ignored),
         )
 
     def low_confidence_words(

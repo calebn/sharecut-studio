@@ -100,6 +100,31 @@ def test_mcp_transcript_correction_expected_text_guard(tmp_path, sample_wav):
     assert phrase["text"] == "Hi earth"
 
 
+def test_mcp_suppress_and_ignore_expected_text_guard(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_project(path, sample_wav)
+
+    with pytest.raises(ValueError, match="changed since this correction started"):
+        mcp_timeline.set_word_suppressed_tool(path, "host", 0, True, expected_text="world")
+    proj = load_project(Path(path))
+    assert proj.transcripts[0].words[0].suppressed is False
+
+    suppressed = json.loads(
+        mcp_timeline.set_word_suppressed_tool(path, "host", 0, True, expected_text="hello")
+    )
+    assert suppressed["suppressed"] is True
+
+    with pytest.raises(ValueError, match="changed since this correction started"):
+        mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="nope")
+    proj = load_project(Path(path))
+    assert not any(w.ignored for w in proj.transcripts[0].words)
+
+    ignored = json.loads(
+        mcp_timeline.set_words_ignored_tool(path, "host", 0, 1, True, expected_text="hello world")
+    )
+    assert ignored["changed"] == 2
+
+
 def test_mcp_timeline_move_and_duplicate(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)

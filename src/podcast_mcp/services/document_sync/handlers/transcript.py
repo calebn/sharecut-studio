@@ -45,6 +45,7 @@ def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> d
         track_id=str(p["track_id"]),
         word_index=int(p["word_index"]),
         suppressed=bool(p["suppressed"]),
+        expected_text=_expected_text(p),
     )
 
 
@@ -54,6 +55,7 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
         start_word_index=int(p["start_word_index"]),
         end_word_index=int(p["end_word_index"]),
         ignored=bool(p["ignored"]),
+        expected_text=_expected_text(p),
     )
 
 

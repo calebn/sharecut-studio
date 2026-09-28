@@ -199,11 +199,12 @@ If a selected envelope point changes in another tab before Apply or Delete,
 the inspector asks the user to select it again instead of editing a different
 point at the same timeline position.
 
-If the words a transcript correction targets change (another tab, a guest, or an
-agent) before it lands, a correction that carries the text it expected is refused
+If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
+guest, or an agent) before it lands, an edit that carries the text it expected is refused
 as a conflict instead of changing a different word. Sharecut Studio's inline word
 editor always sends that text, and the Correct inspector sends it whenever it can confirm the
-current text of every word in the range (otherwise it says so under Apply). A refusal shows under the editor
+current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
+send the word or range's currently displayed text. A refusal shows under the editor
 and in **Needs attention**; reopen the word and try again.
 
 ```mermaid

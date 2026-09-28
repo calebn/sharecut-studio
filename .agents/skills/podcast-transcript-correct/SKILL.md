@@ -17,8 +17,8 @@ For **batches**, grammar review, or post-precorrect work, use **[podcast-transcr
 
 - `low_confidence_words_tool(project_path, threshold=0.7)`
 - `correct_transcript_tool` / `correct_transcript_phrase_tool` — single fix (one undo step each); pass `expected_text` (the word or phrase text you just read) to refuse the fix if it changed meanwhile (#650)
-- `set_word_suppressed_tool` — toggle suppress on one per-track word (same path as Sharecut Studio Suppress/Unsuppress); text only, drops the word from `combined.json`, audio unchanged
-- `set_words_ignored_tool(project_path, track_id, start_word_index, end_word_index, ignored)` — strike through and mute a word range at render, non-destructively (#633; same path as Sharecut Studio Ignore/Restore). Unlike suppress, ignored words stay in the transcript text; only their audio is muted, computed from the transcript at render and never written to `Clip.mute_regions`. No cut, pending edit, or `EditDecision` is created. Host-only — not available to guests.
+- `set_word_suppressed_tool` — toggle suppress on one per-track word (same path as Sharecut Studio Suppress/Unsuppress); text only, drops the word from `combined.json`, audio unchanged; pass `expected_text` to refuse the toggle if the word changed meanwhile (#744)
+- `set_words_ignored_tool(project_path, track_id, start_word_index, end_word_index, ignored, expected_text=None)` — strike through and mute a word range at render, non-destructively (#633; same path as Sharecut Studio Ignore/Restore). Unlike suppress, ignored words stay in the transcript text; only their audio is muted, computed from the transcript at render and never written to `Clip.mute_regions`. No cut, pending edit, or `EditDecision` is created. Host-only — not available to guests. Pass `expected_text` (the space-joined words you read for this range) to refuse the toggle if those words changed meanwhile (#744).
 - `apply_transcript_cleanup_tool` — prefer via refine skill for multi-word batches
 - `history_undo` — revert last correction
 

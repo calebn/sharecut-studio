@@ -390,10 +390,19 @@ def set_word_suppressed_tool(
     track_id: str,
     word_index: int,
     suppressed: bool,
+    expected_text: str | None = None,
 ) -> str:
-    """Toggle suppressed on one per-track word (TOOL_TIMEBASE: source)."""
+    """Toggle suppressed on one per-track word (TOOL_TIMEBASE: source).
+
+    Pass ``expected_text`` (the word text you read) to refuse the toggle if the word at
+    ``word_index`` changed meanwhile; omit to skip.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).set_word_suppressed(track_id, word_index, suppressed))
+    return to_json(
+        EditService(ws).set_word_suppressed(
+            track_id, word_index, suppressed, expected_text=expected_text
+        )
+    )
 
 
 def set_words_ignored_tool(
@@ -402,16 +411,22 @@ def set_words_ignored_tool(
     start_word_index: int,
     end_word_index: int,
     ignored: bool,
+    expected_text: str | None = None,
 ) -> str:
     """Strike through and mute (or restore) a word range at render, without a cut.
 
     Text-and-audio hide (#633): unlike suppress, the words stay in the combined
     transcript; only their audio is muted, computed at render time and never
     written to ``Clip.mute_regions``. TOOL_TIMEBASE: source.
+
+    Pass ``expected_text`` (the space-joined words you read for this range) to refuse the
+    toggle if those words changed meanwhile; omit to skip.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
-        EditService(ws).set_words_ignored(track_id, start_word_index, end_word_index, ignored)
+        EditService(ws).set_words_ignored(
+            track_id, start_word_index, end_word_index, ignored, expected_text=expected_text
+        )
     )
 
 
