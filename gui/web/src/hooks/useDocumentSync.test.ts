@@ -375,6 +375,8 @@ describe("useDocumentSync", () => {
       });
     });
     unmount();
+    expect(socket.onmessage).toBeNull();
+    expect(socket.onclose).toBeNull();
     await act(async () => {
       const { flushInbound } = await import("../sync/inboundQueue");
       flushInbound();

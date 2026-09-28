@@ -400,4 +400,15 @@ describe("useGuestSync", () => {
       process.off("unhandledRejection", unhandled);
     }
   });
+
+  it("detaches the socket's handlers on unmount", () => {
+    const { unmount } = renderHook(() =>
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
+    );
+    const sock = FakeWebSocket.instances[0];
+    unmount();
+    expect(sock.closed).toBe(true);
+    expect(sock.onmessage).toBeNull();
+    expect(sock.onclose).toBeNull();
+  });
 });

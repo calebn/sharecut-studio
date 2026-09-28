@@ -304,7 +304,15 @@ export function useGuestSync(
       if (retry) {
         clearTimeout(retry);
       }
-      ws?.close();
+      if (ws) {
+        // A late message or close from this socket must not touch the next run's state.
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+      wsOpenRef.current = false;
       sendRef.current = null;
       setWsReady(false);
     };
