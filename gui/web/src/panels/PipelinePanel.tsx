@@ -306,7 +306,9 @@ export function PipelinePanel() {
     analyzeRequest.invalidate();
     analyzeAbort.current?.abort();
     analyzeAbort.current = null;
-    remoteAnalyzeId.current = null;
+    // ownAnalyzeId / remoteAnalyzeId are deliberately kept: they name jobs this tab already
+    // claimed (server job ids are unique), so a still-running job from the previous project
+    // is never adopted as a remote Analyze of this one. The cleanup below stops the remote wait.
     setAnalyzing(false);
     setReasons([]);
     setTrackRows([]);
