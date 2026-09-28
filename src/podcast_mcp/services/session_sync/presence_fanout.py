@@ -47,11 +47,15 @@ def schedule(
     build_events: Callable[[], list[dict[str, Any]]],
     *,
     min_interval_s: float = 0.1,
+    leading: Callable[[], list[dict[str, Any]]] | None = None,
 ) -> None:
     """Publish now, or coalesce into the trailing tick, for ``project_key``.
 
     ``build_events`` runs on both the leading and the trailing edge (its own diffing
     decides what changed since the last run) and its events are published in order.
+    ``leading`` optionally builds the leading-edge events instead of ``build_events``
+    (e.g. from rows the caller already read); the trailing edge always runs
+    ``build_events``.
     """
     with _lock:
         if project_key in _in_cooldown:
@@ -59,7 +63,7 @@ def schedule(
             return
         _in_cooldown.add(project_key)
     try:
-        _publish_all(project_key, build_events())
+        _publish_all(project_key, (leading or build_events)())
     except Exception:
         with _lock:
             _in_cooldown.discard(project_key)

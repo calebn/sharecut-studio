@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import functools
 import itertools
 import json
 import logging
@@ -412,12 +413,13 @@ class SessionSyncService:
             row = cross_process_command(store, seqs)
             if row is None:
                 return None
-            api_snap = {**flatten_for_api(snap, store.list_clients()), **attribution_fields(row)}
+            clients = store.list_clients()
+            api_snap = {**flatten_for_api(snap, clients), **attribution_fields(row)}
             event = wire_session_event(row, api_snap, roster_version=self._roster_version())
             event["server_seq"] = head
             hub.mark_published(self._project_key, seqs)
             hub.publish(self._project_key, event)
-        self._fanout_presence_after_commit()
+        self._fanout_presence_after_commit(clients)
         return event
 
     def submit(self, command: SyncCommand) -> dict[str, Any]:
@@ -493,30 +495,40 @@ class SessionSyncService:
             full_event = _applied_event(row, api_snap, roster_version=roster_version)
             wire_event = wire_session_event(row, api_snap, roster_version=roster_version)
             get_hub().publish(self._project_key, wire_event)
-        self._fanout_presence_after_commit()
+        self._fanout_presence_after_commit(clients)
         return {"ok": True, **full_event}
 
-    def _presence_events(self) -> list[dict[str, Any]]:
+    def _presence_events(
+        self, live_rows: list[dict[str, Any]] | None = None
+    ) -> list[dict[str, Any]]:
         """The roster fan-out events for the current live client rows (``presence_delta``'s
         diff against what this project key last fanned out). Reads the store directly,
         never ``snapshot()`` (no need to materialize or flatten the durable snapshot for a
-        presence-only run)."""
+        presence-only run). ``live_rows`` reuses rows this commit already read instead of
+        re-reading ``store.list_clients()``."""
+        if live_rows is not None:
+            return get_roster_tracker().events(self._project_key, live_rows)
         store = self._store_optional()
         if store is None:
             return []
         return get_roster_tracker().events(self._project_key, store.list_clients())
 
-    def _fanout_presence_after_commit(self) -> None:
+    def _fanout_presence_after_commit(self, live_rows: list[dict[str, Any]] | None = None) -> None:
         """Schedule the roster fan-out (coalesced to <=10 Hz per project key) after a
         commit that may have changed a client's roster row: a presence heartbeat/follow,
         a client join/leave, or a durable command's own-client touch.
+
+        ``live_rows``, when given, is used to build the leading-edge events instead of
+        re-reading the store (the caller's commit already read them); the trailing edge
+        always re-reads.
 
         Best effort: the commit this follows already succeeded, so a fan-out failure (a
         locked/corrupt sync.db on the presence-only read) is logged and swallowed rather
         than failing the caller.
         """
+        leading = None if live_rows is None else functools.partial(self._presence_events, live_rows)
         try:
-            schedule_presence(self._project_key, self._presence_events)
+            schedule_presence(self._project_key, self._presence_events, leading=leading)
         except Exception:
             log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
 
@@ -552,7 +564,7 @@ class SessionSyncService:
             "server_seq": snap.get("server_seq", 0),
             "server_time_ns": snap.get("server_time_ns") or time.time_ns(),
         }
-        self._fanout_presence_after_commit()
+        self._fanout_presence_after_commit(list(snap.get("clients") or []))
         return {"ok": True, **event, "snapshot": snap, "command": command.to_row()}
 
     def claim_client(self, client_id: str) -> int:
