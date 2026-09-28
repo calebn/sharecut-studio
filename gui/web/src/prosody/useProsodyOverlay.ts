@@ -141,5 +141,8 @@ export function resetProsodyOverlay(): void {
   inflight = null;
   if (timer != null) clearTimeout(timer);
   timer = null;
+  if (entry === EMPTY) return;
   entry = EMPTY;
+  // Every subscriber drops the old snapshot now, not at its next request().
+  changes.emit();
 }

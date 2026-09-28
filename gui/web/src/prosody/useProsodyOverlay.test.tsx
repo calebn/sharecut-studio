@@ -126,6 +126,19 @@ describe("useProsodyOverlay", () => {
     expect(loadProsodyOverlay).toHaveBeenCalledTimes(2);
   });
 
+  it("clears every mounted consumer when the shared entry is reset", async () => {
+    const a = renderHook(() => useProsodyOverlay(true));
+    const b = renderHook(() => useProsodyOverlay(true));
+    await settle();
+    expect(a.result.current).toEqual(PAYLOAD);
+    expect(b.result.current).toEqual(PAYLOAD);
+    act(() => {
+      resetProsodyOverlay();
+    });
+    expect(a.result.current).toBeNull();
+    expect(b.result.current).toBeNull();
+  });
+
   it("hides the aligned view after a clip edit until the refetch lands", async () => {
     const { result } = renderHook(() => useProsodyOverlayViews(true));
     await settle();
