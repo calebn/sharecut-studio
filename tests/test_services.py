@@ -278,6 +278,15 @@ def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_proj
 
 def test_transcript_service_export_subtitles(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="line", start=0.0, end=0.4),
+                TranscriptWord(text="one", start=0.5, end=1.0),
+            ],
+        )
+    ]
     ws.project.combined_transcript = CombinedTranscript(
         utterances=[
             CombinedUtterance(

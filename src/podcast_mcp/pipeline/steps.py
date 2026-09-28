@@ -1073,6 +1073,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
         if project.combined_transcript:
             from podcast_mcp.export.transcript import (
+                resolve_caption_limits,
                 utterances_to_srt,
                 write_combined_transcript_markdown,
             )
@@ -1080,7 +1081,10 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             prog.set_phase("transcript", "Writing transcript exports…")
             write_combined_transcript_markdown(project)
             srt = project.export_dir() / f"{sanitize_export_stem(project.name)}.srt"
-            srt.write_text(utterances_to_srt(project), encoding="utf-8")
+            srt.write_text(
+                utterances_to_srt(project, limits=resolve_caption_limits(export_cfg)),
+                encoding="utf-8",
+            )
             extras.append("SRT+MD")
 
         prog.set_phase("qc", "Writing export QC…")

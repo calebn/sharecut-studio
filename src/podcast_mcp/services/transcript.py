@@ -6,7 +6,7 @@ from podcast_mcp.edits.transcript_cuts import format_transcript_timestamps
 from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcribe_plan
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
-from podcast_mcp.export.transcript import write_combined_transcript_markdown
+from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.whisper_models import resolve_whisper_model
 
@@ -58,7 +58,7 @@ class TranscriptService:
             self.ws.save()
         return out
 
-    def export_subtitles(self, fmt: str = "srt") -> Path:
+    def export_subtitles(self, fmt: str = "srt", *, limits: CaptionLimits | None = None) -> Path:
         from podcast_mcp.export.names import sanitize_export_stem
         from podcast_mcp.export.transcript import utterances_to_srt, utterances_to_vtt
 
@@ -68,9 +68,9 @@ class TranscriptService:
             p.export_dir().mkdir(parents=True, exist_ok=True)
             if fmt == "vtt":
                 out = p.export_dir() / f"{sanitize_export_stem(p.name)}.vtt"
-                out.write_text(utterances_to_vtt(p), encoding="utf-8")
+                out.write_text(utterances_to_vtt(p, limits=limits), encoding="utf-8")
             else:
                 out = p.export_dir() / f"{sanitize_export_stem(p.name)}.srt"
-                out.write_text(utterances_to_srt(p), encoding="utf-8")
+                out.write_text(utterances_to_srt(p, limits=limits), encoding="utf-8")
             self.ws.save()
         return out

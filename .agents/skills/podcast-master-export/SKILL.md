@@ -95,8 +95,9 @@ Outputs in episode `export/`:
 
 - `{name}.wav` (PCM copy of mastered mix when `export.wav: true`)
 - Encoded files from `export.formats` (default: `{name}.mp3` at 128 kbps)
-- `{name}.md` combined transcript
-- `{name}.srt` subtitles from combined utterances
+- `{name}.md` combined transcript (whole utterances)
+- `{name}.srt` captions: word-timed cues split to `export.captions` limits (default ≤7s,
+  ≤42 chars/line, ≤2 lines) — see [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt)
 
 `{name}` is a portable sanitized filename stem, not the project title verbatim:
 `My Episode: Part 1/2` exports as `My_Episode_Part_1_2.wav`. Dot-path names,
@@ -131,6 +132,20 @@ podcast pipeline export-audio --project episode.project.json
 ```
 
 MCP: `export_audio_tool(project_path, formats_json?)` — optional JSON array overrides `formats` for that run.
+
+## Configurable caption cue limits
+
+```yaml
+export:
+  captions:
+    max_duration_sec: 7.0
+    max_chars_per_line: 42
+    max_lines: 2
+```
+
+`podcast transcript export-srt` / `export-vtt` take the same limits as CLI options
+(`--max-duration-sec`, `--max-chars-per-line`, `--max-lines`); unset ones fall back to
+`export.captions`. See [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt).
 
 ## Agent notes
 
