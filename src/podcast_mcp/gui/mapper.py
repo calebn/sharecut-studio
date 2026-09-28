@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import heapq
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -314,7 +313,8 @@ def _suppressed_only_rows(
     is either accurate or (if a word is unsuppressed with no row) stale, and
     this function does not try to repair it. ``combined.json`` /
     ``merge_transcripts`` output is unchanged; these rows exist only in the
-    GUI view.
+    GUI view. Rows come back in track order (each track's runs ascending);
+    the caller sorts them into the transcript by source start.
     """
     rows: list[dict[str, Any]] = []
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
@@ -496,8 +496,9 @@ def map_transcript_utterances_to_timeline(
         include_words=include_words,
     )
     if synthetic:
-        # Stable merge by source start: input rows keep their order and win ties.
-        mapped = list(heapq.merge(mapped, synthetic, key=lambda row: row["start"]))
+        # Stable sort by source start: synthetic rows are ordered only within each
+        # track, so a merge would not do. Input rows come first, so they win ties.
+        mapped = sorted([*mapped, *synthetic], key=lambda row: row["start"])
     return {**transcript, "utterances": mapped}
 
 
