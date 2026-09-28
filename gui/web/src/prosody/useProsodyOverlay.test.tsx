@@ -1,9 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mergeProjectPatch } from "../document/projectPatch";
+import {
+  mergeProjectPatch,
+  projectFromDocumentSnapshot,
+} from "../document/projectPatch";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { clipRow, minimalProject } from "../test/fixtures";
+import type { ProjectView } from "../types/project";
 
 const loadProsodyOverlay = vi.hoisted(() => vi.fn());
 vi.mock("../api/prosody", () => ({ loadProsodyOverlay }));
@@ -167,19 +171,43 @@ describe("useProsodyOverlay", () => {
     expect(result.current.aligned).toEqual(PAYLOAD);
   });
 
-  it("keeps the aligned payload across a non-clip edit merged through the real document-sync path", async () => {
-    const { result } = renderHook(() => useProsodyOverlayViews(true));
-    await settle();
-    expect(result.current.aligned).toEqual(PAYLOAD);
-    act(() => {
-      useDawStore.setState((s) => ({
-        project: mergeProjectPatch(s.project!, {
-          transcript: { utterances: [] },
+  it.each([
+    [
+      "a clips patch",
+      (p: ProjectView) =>
+        mergeProjectPatch(p, { clips: structuredClone(p.clips) }),
+    ],
+    [
+      "a full SHELL snapshot",
+      (p: ProjectView) =>
+        projectFromDocumentSnapshot(p, { project: structuredClone(p) })!,
+    ],
+  ])(
+    "keeps the aligned payload when %s re-sends structurally equal clips through the real document-sync path",
+    async (_label, merge) => {
+      useDawStore.getState().hydrate(
+        "/tmp/p.json",
+        minimalProject({
+          clips: {
+            tracks: { host: [clipRow({ track_id: "host" })] },
+            clip_count: 1,
+          },
         }),
-      }));
-    });
-    expect(result.current.aligned).toEqual(PAYLOAD);
-  });
+      );
+      const { result } = renderHook(() => useProsodyOverlayViews(true));
+      await settle();
+      expect(result.current.aligned).toEqual(PAYLOAD);
+      const clipsBefore = useDawStore.getState().project!.clips;
+      act(() => {
+        useDawStore.setState((s) => ({ project: merge(s.project!) }));
+      });
+      // reuseUnchanged keeps the clips identity, so the layer stays drawn with no gap.
+      expect(useDawStore.getState().project!.clips).toBe(clipsBefore);
+      expect(result.current.aligned).toEqual(PAYLOAD);
+      await settle();
+      expect(result.current.aligned).toEqual(PAYLOAD);
+    },
+  );
 
   it("returns a stable views object while nothing changes", async () => {
     const { result, rerender } = renderHook(() => useProsodyOverlayViews(true));
