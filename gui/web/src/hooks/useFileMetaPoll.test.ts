@@ -321,4 +321,95 @@ describe("useFileMetaPoll", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(next);
   });
+
+  it("a cancelled run's baseline does not free the next run's busy flag", async () => {
+    const first = deferred<FileMeta>();
+    const second = deferred<FileMeta>();
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const onChange = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useFileMetaPoll(enabled, fetchMeta, onChange, 100),
+      { initialProps: { enabled: true } },
+    );
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(fetchMeta).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      first.resolve({ mtime_ns: 1, size: 10, server_seq: 1 });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      second.resolve({ mtime_ns: 2, size: 10, server_seq: 2 });
+      await Promise.resolve();
+    });
+    expect(onChange).not.toHaveBeenCalled();
+
+    const next: FileMeta = { mtime_ns: 3, size: 10, server_seq: 3 };
+    fetchMeta.mockResolvedValueOnce(next);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(3);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(next);
+  });
+
+  it("a cancelled run's in-flight check does not free the next run's busy flag", async () => {
+    const staleCheck = deferred<FileMeta>();
+    const secondBaseline = deferred<FileMeta>();
+    const fetchMeta = vi
+      .fn<() => Promise<FileMeta>>()
+      .mockResolvedValueOnce({ mtime_ns: 1, size: 10, server_seq: 1 })
+      .mockReturnValueOnce(staleCheck.promise)
+      .mockReturnValueOnce(secondBaseline.promise);
+    const onChange = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useFileMetaPoll(enabled, fetchMeta, onChange, 100),
+      { initialProps: { enabled: true } },
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(2);
+
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(fetchMeta).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      staleCheck.resolve({ mtime_ns: 5, size: 10, server_seq: 5 });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await Promise.resolve();
+    });
+    expect(fetchMeta).toHaveBeenCalledTimes(3);
+    expect(onChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      secondBaseline.resolve({ mtime_ns: 2, size: 10, server_seq: 2 });
+      await Promise.resolve();
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
