@@ -44,10 +44,8 @@ describe("keymap registry", () => {
     expect(ids).toContain("history.undo");
   });
 
-  it("KEYMAP_CATEGORY_ORDER lists every category exactly once", () => {
-    expect([...KEYMAP_CATEGORY_ORDER].sort()).toEqual(
-      Object.keys(keymapByCategory()).sort(),
-    );
+  it("KEYMAP_CATEGORY_ORDER lists every category exactly once, in grouping order", () => {
+    expect(Object.keys(keymapByCategory())).toEqual([...KEYMAP_CATEGORY_ORDER]);
     expect(new Set(KEYMAP_CATEGORY_ORDER).size).toBe(
       KEYMAP_CATEGORY_ORDER.length,
     );
