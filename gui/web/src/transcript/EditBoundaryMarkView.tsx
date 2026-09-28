@@ -189,6 +189,10 @@ export function EditBoundaryMarkView({
   const startDrag = (e: ReactPointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    if (dragRef.current) {
+      // One drag at a time: ignore a second pointer (e.g. another finger).
+      return;
+    }
     const pointerId = e.pointerId;
     const el = e.currentTarget;
 
@@ -256,8 +260,7 @@ export function EditBoundaryMarkView({
       if (ev.pointerId !== pointerId) {
         return;
       }
-      removeWindowListenersRef.current?.();
-      removeWindowListenersRef.current = null;
+      removeListeners();
       try {
         if (el.hasPointerCapture(pointerId)) {
           el.releasePointerCapture(pointerId);
@@ -268,17 +271,24 @@ export function EditBoundaryMarkView({
       void endDrag(ev.clientX);
     };
 
+    // Closure-local so each drag removes only its own listeners; the ref
+    // lets the unmount effect reach the active drag's remover.
+    const removeListeners = () => {
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+      if (removeWindowListenersRef.current === removeListeners) {
+        removeWindowListenersRef.current = null;
+      }
+    };
+
     window.addEventListener("pointermove", onMove, {
       capture: true,
       passive: false,
     });
     window.addEventListener("pointerup", onUp, true);
     window.addEventListener("pointercancel", onUp, true);
-    removeWindowListenersRef.current = () => {
-      window.removeEventListener("pointermove", onMove, true);
-      window.removeEventListener("pointerup", onUp, true);
-      window.removeEventListener("pointercancel", onUp, true);
-    };
+    removeWindowListenersRef.current = removeListeners;
   };
 
   const deltaLabel =
@@ -341,6 +351,13 @@ export function EditBoundaryMarkView({
   return (
     <span className="edit-boundary-cluster">
       {ghostBefore}
+      {/*
+        aria-grabbed is kept on purpose to match the pre-extraction mark,
+        although ARIA 1.2 deprecates it. axe reports it as needs-review
+        (aria-no-deprecated-attr, incomplete), not a violation. Replace it
+        with a live-region or aria-description drag message if axe starts
+        failing on it; do not just delete it.
+      */}
       <button
         type="button"
         className={`edit-boundary-mark${dragging ? " dragging" : ""}${boundary.has_cutaway ? " has-cutaway" : ""}`}

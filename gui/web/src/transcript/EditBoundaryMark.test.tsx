@@ -358,4 +358,72 @@ describe("EditBoundaryMarkView", () => {
     );
     remove.mockRestore();
   });
+
+  const DRAG_TYPES = ["pointermove", "pointerup", "pointercancel"];
+
+  function expectDragListenersRemoved(
+    add: { mock: { calls: unknown[][] } },
+    remove: { mock: { calls: unknown[][] } },
+  ) {
+    const added = add.mock.calls.filter((c) =>
+      DRAG_TYPES.includes(c[0] as string),
+    );
+    expect(added.length).toBeGreaterThan(0);
+    for (const [type, fn] of added) {
+      expect(
+        remove.mock.calls.some((r) => r[0] === type && r[1] === fn),
+        `${String(type)} listener removed`,
+      ).toBe(true);
+    }
+  }
+
+  it("ignores a second pointer and leaks no listeners", async () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const onTrim = vi.fn();
+    const { getByRole } = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={left}
+        rightClip={null}
+        getRollBounds={getRollBounds}
+        onRoll={vi.fn()}
+        onTrim={onTrim}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerDown(mark, { pointerId: 2, clientX: 300 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 300 });
+    expect(mark).toHaveAttribute("aria-grabbed", "true");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() => expect(onTrim).toHaveBeenCalledTimes(1));
+    expectDragListenersRemoved(add, remove);
+    add.mockRestore();
+    remove.mockRestore();
+  });
+
+  it("removes every drag listener when unmounted mid-drag with two pointers down", () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const { getByRole, unmount } = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={left}
+        rightClip={null}
+        getRollBounds={getRollBounds}
+        onRoll={vi.fn()}
+        onTrim={vi.fn()}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerDown(mark, { pointerId: 2, clientX: 300 });
+    unmount();
+    expectDragListenersRemoved(add, remove);
+    add.mockRestore();
+    remove.mockRestore();
+  });
 });
