@@ -40,9 +40,12 @@ describe("Icon", () => {
     expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
   });
 
-  it.each(["check", "refresh", "seek"] as const)("renders the %s glyph", (name) => {
-    const { container } = render(<Icon name={name} />);
-    const svg = container.querySelector("svg");
-    expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
-  });
+  it.each(["check", "refresh", "seek"] as const)(
+    "renders the %s glyph",
+    (name) => {
+      const { container } = render(<Icon name={name} />);
+      const svg = container.querySelector("svg");
+      expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
+    },
+  );
 });
