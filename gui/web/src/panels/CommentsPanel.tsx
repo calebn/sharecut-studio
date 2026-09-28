@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createComment } from "../api";
 import {
+  CommentAuthorLine,
   CommentCard,
   CommentCompose,
   commentTimeLabel,
@@ -18,7 +19,7 @@ import {
   type UndoToastState,
 } from "../ui";
 import { errorMessage } from "../utils/apiError";
-import { loadCommentAuthor, saveCommentAuthor } from "../utils/commentAuthor";
+import { saveCommentAuthor, sessionDisplayName } from "../utils/commentAuthor";
 import { formatTimeShort } from "../utils/time";
 
 type Filter = "open" | "resolved" | "actions" | "all";
@@ -59,7 +60,9 @@ export function CommentsPanel({
   }));
 
   const [filter, setFilter] = useState<Filter>("open");
-  const [author, setAuthor] = useState(loadCommentAuthor);
+  const [author, setAuthor] = useState(() =>
+    sessionDisplayName(guestShare || guestMode ? "guest" : "host"),
+  );
   const [body, setBody] = useState("");
   const [actionLine, setActionLine] = useState("");
   const [trackIds, setTrackIds] = useState<string[]>([]);
@@ -194,14 +197,13 @@ export function CommentsPanel({
   return (
     <div className="comments-panel" ref={panelRef} tabIndex={-1}>
       <div className="comments-toolbar">
-        <label>
-          Author
-          <input
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            placeholder="your name"
-          />
-        </label>
+        <CommentAuthorLine
+          name={author}
+          onChange={(next) => {
+            setAuthor(next);
+            saveCommentAuthor(next);
+          }}
+        />
         <SegmentedControl className="comments-filters" label="Filter">
           {(
             [

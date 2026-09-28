@@ -1,4 +1,4 @@
-import { type Page, type Route } from "@playwright/test";
+import { expect, type Page, type Route } from "@playwright/test";
 
 export type CapturedCommentCommand = {
   command_id: string;
@@ -42,7 +42,7 @@ export async function postHostComment(page: Page, body: string): Promise<void> {
     .click();
   await page.getByRole("button", { name: "Comment mode" }).click();
   await page.getByRole("slider", { name: "Comment time anchor" }).click();
-  await page.getByLabel("Author").fill("Host");
+  await expect(page.getByText("Commenting as")).toContainText("Host");
   await page.getByPlaceholder("Feedback…").fill(body);
   await page.getByRole("button", { name: "Post comment" }).click();
 }
