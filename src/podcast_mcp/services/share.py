@@ -1112,10 +1112,13 @@ def share_audition_context_info(
 ) -> dict[str, Any]:
     """Guest-safe windowed hear context: captions + relative PNG URLs."""
     from podcast_mcp.edits.audition_context import build_audition_context
+    from podcast_mcp.services.pipeline_config import prosody_params_for
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     _, ws = _require_pending_preview_caps(token)
-    ctx = build_audition_context(ws.project, start, end, detail="summary")
+    ctx = build_audition_context(
+        ws.project, start, end, detail="summary", prosody_params=prosody_params_for(ws.path)
+    )
     out: dict[str, Any] = {
         "timeline_start": ctx.get("timeline_start"),
         "timeline_end": ctx.get("timeline_end"),

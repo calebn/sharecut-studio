@@ -988,6 +988,7 @@ class PlayService:
             DEFAULT_SKEW_WARN_SEC,
             build_audition_context,
         )
+        from podcast_mcp.services.pipeline_config import prosody_params_for
 
         return build_audition_context(
             self.project,
@@ -996,6 +997,7 @@ class PlayService:
             skew_warn_sec=(DEFAULT_SKEW_WARN_SEC if skew_warn_sec is None else skew_warn_sec),
             detail=detail,  # type: ignore[arg-type]
             include_dsp=include_dsp,
+            prosody_params=prosody_params_for(self.ws.path),
         )
 
     def play_compose(

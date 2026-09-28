@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.edits import prosody_profile as pp
+from podcast_mcp.engines.prosody import ProsodyParams
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     EpisodeProject,
@@ -301,6 +302,22 @@ def test_load_track_profile_missing(tmp_workspace: Path) -> None:
     assert lookup.hint is not None
 
 
+def test_load_track_profile_stale_after_params_change(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    pp.run_prosody_analysis(load_project(path), {})
+
+    proj2 = load_project(path)
+    lookup = pp.load_track_profile(proj2, "host", params=ProsodyParams(pitch_floor_hz=90.0))
+    assert lookup.status == "stale"
+    assert lookup.hint is not None
+    assert "settings" in lookup.hint
+
+    assert (
+        pp.load_track_profile(proj2, "host", params=ProsodyParams.from_defaults({})).status
+        == "fresh"
+    )
+
+
 def test_load_track_profile_fresh_without_parselmouth(tmp_workspace: Path, monkeypatch) -> None:
     """The reader does not need parselmouth once a profile is cached."""
     path = _project_with_host(tmp_workspace)
@@ -392,6 +409,23 @@ def test_prosody_window_maps_segments_to_timeline(tmp_workspace: Path) -> None:
     assert seg["timeline_start"] == pytest.approx(
         seg["source_start"]
     )  # identity mapping (no clips)
+
+
+def test_prosody_window_stale_after_params_change(tmp_workspace: Path) -> None:
+    path = _project_with_host(tmp_workspace)
+    pp.run_prosody_analysis(load_project(path), {})
+
+    proj2 = load_project(path)
+    st = SessionTimeline(proj2)
+    window = pp.prosody_window(
+        proj2,
+        st,
+        "host",
+        [(SourceSec(0.0), SourceSec(6.42))],
+        params=ProsodyParams(pause_min_sec=0.5),
+    )
+    assert window["status"] == "stale"
+    assert "hint" in window
 
 
 def test_prosody_window_truncates_and_caps_segments(tmp_workspace: Path) -> None:

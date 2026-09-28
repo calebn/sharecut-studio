@@ -874,6 +874,18 @@ def test_audition_context_prosody_seeded_profile_maps_to_timeline(minimal_projec
     assert ctx["prosody_notes"][0].startswith("host:")
 
 
+def test_audition_context_prosody_stale_when_params_differ(minimal_project, tmp_workspace):
+    from podcast_mcp.engines.prosody import ProsodyParams
+
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    _seed_prosody_profile(proj, tmp_workspace)
+    proj = load_project(minimal_project)
+    ctx = build_audition_context(proj, 0.0, 2.0, prosody_params=ProsodyParams(pitch_floor_hz=90.0))
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert host["prosody"]["status"] == "stale"
+    assert ctx["prosody_notes"] == []
+
+
 def test_audition_context_prosody_skip_via_include_prosody_false(minimal_project, tmp_workspace):
     proj = _single_track_project(minimal_project, tmp_workspace)
     _seed_prosody_profile(proj, tmp_workspace)

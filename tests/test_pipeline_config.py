@@ -25,6 +25,7 @@ from podcast_mcp.services.pipeline_config import (
     merge_pipeline_config,
     parse_config_assignments,
     pipeline_step_states,
+    prosody_params_for,
     reconcile_enabled_steps,
     skip_steps_from_enabled,
     suggest_pipeline_tuning,
@@ -981,6 +982,25 @@ def test_asr_options_for_reads_staged_config(tmp_path):
     try:
         config_store().put(proj, config={"transcribe": {"vad": {"enabled": False}}})
         assert asr_options_for(proj).vad_enabled is False
+    finally:
+        config_store()._by_path.pop(config_store()._key(proj), None)
+
+
+def test_prosody_params_for_unstaged_project_uses_defaults_without_staging(tmp_path):
+    proj = tmp_path / "ep3.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    assert config_store().peek(proj) is None
+    params = prosody_params_for(proj)
+    assert params.pitch_floor_hz == 75.0
+    assert config_store().peek(proj) is None
+
+
+def test_prosody_params_for_reads_staged_config(tmp_path):
+    proj = tmp_path / "ep4.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    try:
+        config_store().put(proj, config={"prosody": {"pitch_floor_hz": 90.0}})
+        assert prosody_params_for(proj).pitch_floor_hz == 90.0
     finally:
         config_store()._by_path.pop(config_store()._key(proj), None)
 
