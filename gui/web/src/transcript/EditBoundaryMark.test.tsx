@@ -1,4 +1,5 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
+import axe from "axe-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -296,6 +297,41 @@ describe("EditBoundaryMarkView", () => {
       />,
     );
     await expectNoA11yViolations(container);
+  });
+
+  it("keeps aria-grabbed as axe needs-review, not a violation, while dragging", async () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+      timeline_end: 25,
+    });
+    const { container, getByRole } = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+        getRollBounds={getRollBounds}
+        onRoll={vi.fn()}
+        onTrim={vi.fn()}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    expect(mark).toHaveAttribute("aria-grabbed", "true");
+    // docs/design-system.md (Templates/EditBoundaryMark): if an axe upgrade
+    // turns this into a violation, replace aria-grabbed with a drag message.
+    const results = await axe.run(container);
+    expect(results.violations.map((v) => v.id)).toEqual([]);
+    const allowedAttr = results.incomplete.find(
+      (r) => r.id === "aria-allowed-attr",
+    );
+    const checks =
+      allowedAttr?.nodes.flatMap((n) => n.all.map((c) => c.id)) ?? [];
+    expect(checks).toContain("aria-no-deprecated-attr");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 100 });
   });
 
   it("reads roll bounds only when a roll drag starts", () => {

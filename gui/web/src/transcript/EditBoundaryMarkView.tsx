@@ -357,7 +357,8 @@ export function EditBoundaryMarkView({
       {/*
         aria-grabbed is kept on purpose to match the pre-extraction mark,
         although ARIA 1.2 deprecates it. axe reports it as needs-review
-        (aria-no-deprecated-attr, incomplete), not a violation. Replace it
+        (rule aria-allowed-attr, check aria-no-deprecated-attr → incomplete),
+        not a violation; EditBoundaryMark.test.tsx pins that. Replace it
         with a live-region or aria-description drag message if axe starts
         failing on it; do not just delete it.
       */}
