@@ -134,6 +134,8 @@ def apply_ws_client_message(
         # reply and the client's 2 s RosterRequest retry asks again.
         if not ws_roster_request_allowed(f"host:{client_id}"):
             return None, seq
+        # Sent directly, not via the hub queue: order vs hub frames is not guaranteed;
+        # clients drop a full Presence older than their roster version (presenceFrames.ts).
         return svc.roster_event(), seq
     if mtype == "Command":
         client_seq = int(msg["client_seq"])

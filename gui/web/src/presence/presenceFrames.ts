@@ -25,7 +25,17 @@ export type PresenceCarryingFrame = {
  */
 export function applyPresenceFrame(msg: PresenceCarryingFrame): boolean {
   if (msg.type === "Presence" && Array.isArray(msg.clients)) {
-    useDawStore.getState().setSessionClients(msg.clients, msg.roster_version);
+    const store = useDawStore.getState();
+    // A RosterRequest reply skips the server's hub queue, so a newer hub roster can
+    // overtake it: never let an older full roster replace a newer one. The hello
+    // Snapshot (below) still resets the version unconditionally.
+    if (
+      typeof msg.roster_version === "number" &&
+      msg.roster_version < store.sessionRosterVersion
+    ) {
+      return false;
+    }
+    store.setSessionClients(msg.clients, msg.roster_version);
     return false;
   }
   if (msg.type === "PresenceResync") {
