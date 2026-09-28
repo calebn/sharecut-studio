@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 import operator
 import pickle
+import sys
+import threading
 
 import pytest
 
@@ -217,3 +219,53 @@ def test_workspace_open_mutate_and_undo_keep_tracked_words(minimal_project):
     HistoryService(ws).redo()
     assert ws.project.transcripts[0].words[0].suppressed is True
     assert type(ws.project.transcripts[0].words) is TranscriptWords
+
+
+def test_concurrent_edits_never_leave_a_stale_memo():
+    """Lock-free bumps + stamp-before-compute (#729): racing in-place edits and memo reads
+    may recompute extra times but never leave a memo that outlives a later edit.
+    """
+    tr = _tr()
+
+    def compute():
+        return tuple((w.text, round(w.start, 6)) for w in tr.words)
+
+    before = words_revision()
+    n_mutators, n_readers, rounds = 4, 4, 300
+    start = threading.Barrier(n_mutators + n_readers)
+    errors: list[BaseException] = []
+
+    def mutator(i: int) -> None:
+        try:
+            start.wait()
+            for _ in range(rounds):
+                tr.words[0].start += 0.001
+                tr.words.append(TranscriptWord(text=f"m{i}", start=9.0, end=9.1))
+                tr.words.pop()
+        except BaseException as exc:  # surfaced below
+            errors.append(exc)
+
+    def reader() -> None:
+        try:
+            start.wait()
+            for _ in range(rounds):
+                tr.memoize_words("k", compute)
+        except BaseException as exc:
+            errors.append(exc)
+
+    old_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        threads = [threading.Thread(target=mutator, args=(i,)) for i in range(n_mutators)]
+        threads += [threading.Thread(target=reader) for _ in range(n_readers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        sys.setswitchinterval(old_interval)
+
+    assert errors == []
+    assert words_revision() > before
+    assert tr.memoize_words("k", compute) == compute()
+    assert len(tr.words) == 2
