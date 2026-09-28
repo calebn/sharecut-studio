@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { COMMANDS } from "../commands/catalog";
 import { registerDawCommands } from "../commands/register";
 import { getKeymapOverride } from "../keymap/remaps";
 import { useDawStore } from "../state/dawStore";
@@ -55,7 +56,7 @@ describe("CommandPalette", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Actions" }));
     for (const label of [
       "Seek playhead",
-      "Audition Mix / FX / Raw",
+      COMMANDS["transport.audition"].label,
       "Follow",
       "Resolve comment",
       "Reorder track",
