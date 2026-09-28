@@ -22,6 +22,7 @@ import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { mergeOfflineSnapshot } from "../state/offlineStore";
 import { requestGuestDrainLazy } from "../state/requestDrainLazy";
+import { enqueueInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
 import { loadCommentAuthor } from "../utils/commentAuthor";
@@ -74,7 +75,6 @@ const FALLBACK_POLL_MS = 1500;
 export function useGuestSync(
   projectPath: string,
   applyAgentSession: (state: SessionState) => void,
-  _project: ProjectView | null,
   _setProject: (project: ProjectView) => void,
   setSessionClients: (clients: NonNullable<SessionState["clients"]>) => void,
   enabled = true,
@@ -158,6 +158,89 @@ export function useGuestSync(
         stopPoll();
         requestGuestDrainLazy(token);
       };
+      /**
+       * Presence, progress and Applied/Snapshot handling for both planes.
+       * Runs from the per-frame inbound queue; the clock sample and the
+       * client-id handoff above already happened at receipt.
+       */
+      const handleGuestFrame = (msg: GuestMsg) => {
+        if (closed) {
+          return;
+        }
+        if (msg.type === "Presence" && Array.isArray(msg.clients)) {
+          setClientsRef.current(msg.clients);
+          return;
+        }
+        if (msg.plane === "progress" || msg.type === "progress") {
+          const job = guestProgressToJob(
+            msg as GuestProgressEvent,
+            useDawStore.getState().activityJob,
+          );
+          useDawStore.getState().setActivityJob(job);
+          return;
+        }
+        if (msg.type !== "Applied" && msg.type !== "Snapshot") {
+          return;
+        }
+        const snap = msg.snapshot;
+        if (!snap) {
+          return;
+        }
+        if (msg.plane === "session") {
+          const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
+          if (seq > 0 && seq < sessionSeqRef.current) {
+            return;
+          }
+          if (seq > 0) {
+            sessionSeqRef.current = seq;
+          }
+          if (Array.isArray(snap.clients)) {
+            setClientsRef.current(snap.clients);
+          }
+          applyRef.current(snap as SessionState);
+          return;
+        }
+        if (msg.plane === "document") {
+          noteDocumentFile(snap as DocumentSnapshot);
+          const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
+          if (
+            !shouldApplyDocumentEvent({
+              server_seq: msg.server_seq,
+              snapshot: snap as DocumentSnapshot,
+              command: (msg as { command?: { client_id?: string } }).command,
+            })
+          ) {
+            noteDocumentSeq(eventServerSeq(msg));
+            return;
+          }
+          const cmdClientId = (msg as { command?: { client_id?: string } })
+            .command?.client_id;
+          if ((snap as DocumentSnapshot).resync) {
+            void applyDocumentSnapshotWithResync(
+              snap as DocumentSnapshot,
+              () => loadProject(projectPath),
+              { commandClientId: cmdClientId },
+            ).then((next) => {
+              if (next) {
+                void mergeOfflineSnapshot(token, { project: next });
+              } else if (seq > 0) {
+                noteDocumentSeq(seq);
+              }
+            });
+            return;
+          }
+          const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
+            commandClientId: cmdClientId,
+          });
+          if (next) {
+            void mergeOfflineSnapshot(token, { project: next });
+          } else if (seq > 0) {
+            noteDocumentSeq(seq);
+          }
+          return;
+        }
+      };
+
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string) as GuestMsg & {
@@ -177,78 +260,12 @@ export function useGuestSync(
             clientIdRef.current = msg.client_id;
             useDawStore.getState().setLocalClientId(msg.client_id);
           }
-          if (msg.type === "Presence" && Array.isArray(msg.clients)) {
-            setClientsRef.current(msg.clients);
-            return;
-          }
-          if (msg.plane === "progress" || msg.type === "progress") {
-            const job = guestProgressToJob(
-              msg as GuestProgressEvent,
-              useDawStore.getState().activityJob,
-            );
-            useDawStore.getState().setActivityJob(job);
-            return;
-          }
-          if (msg.type !== "Applied" && msg.type !== "Snapshot") {
-            return;
-          }
-          const snap = msg.snapshot;
-          if (!snap) {
-            return;
-          }
-          if (msg.plane === "session") {
-            const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
-            if (seq > 0 && seq < sessionSeqRef.current) {
-              return;
-            }
-            if (seq > 0) {
-              sessionSeqRef.current = seq;
-            }
-            if (Array.isArray(snap.clients)) {
-              setClientsRef.current(snap.clients);
-            }
-            applyRef.current(snap as SessionState);
-            return;
-          }
-          if (msg.plane === "document") {
-            noteDocumentFile(snap as DocumentSnapshot);
-            const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
-            if (
-              !shouldApplyDocumentEvent({
-                server_seq: msg.server_seq,
-                snapshot: snap as DocumentSnapshot,
-                command: (msg as { command?: { client_id?: string } }).command,
-              })
-            ) {
-              noteDocumentSeq(eventServerSeq(msg));
-              return;
-            }
-            const cmdClientId = (msg as { command?: { client_id?: string } })
-              .command?.client_id;
-            if ((snap as DocumentSnapshot).resync) {
-              void applyDocumentSnapshotWithResync(
-                snap as DocumentSnapshot,
-                () => loadProject(projectPath),
-                { commandClientId: cmdClientId },
-              ).then((next) => {
-                if (next) {
-                  void mergeOfflineSnapshot(token, { project: next });
-                } else if (seq > 0) {
-                  noteDocumentSeq(seq);
-                }
-              });
-              return;
-            }
-            const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
-              commandClientId: cmdClientId,
-            });
-            if (next) {
-              void mergeOfflineSnapshot(token, { project: next });
-            } else if (seq > 0) {
-              noteDocumentSeq(seq);
-            }
-            return;
-          }
+          enqueueInbound(() => handleGuestFrame(msg), {
+            coalesceKey:
+              msg.type === "Presence" && Array.isArray(msg.clients)
+                ? "guest:presence"
+                : undefined,
+          });
         } catch {
           // ignore malformed
         }

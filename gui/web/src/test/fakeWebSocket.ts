@@ -1,3 +1,5 @@
+import { flushInbound, resetInboundQueueForTests } from "../sync/inboundQueue";
+
 /**
  * Shared WebSocket double for hook and app tests. Stub it with
  * `vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket)`
@@ -15,6 +17,7 @@ export class FakeWebSocket {
   static reset(options: { autoOpen?: boolean } = {}): void {
     FakeWebSocket.instances = [];
     FakeWebSocket.autoOpen = options.autoOpen ?? true;
+    resetInboundQueueForTests();
   }
 
   readyState: number;
@@ -52,7 +55,14 @@ export class FakeWebSocket {
     this.onclose?.({ code });
   }
 
-  emit(msg: unknown): void {
+  /** Delivers `msg` to `onmessage` without flushing the inbound queue. */
+  deliver(msg: unknown): void {
     this.onmessage?.({ data: JSON.stringify(msg) });
+  }
+
+  /** Delivers `msg`, then flushes the per-frame inbound queue synchronously. */
+  emit(msg: unknown): void {
+    this.deliver(msg);
+    flushInbound();
   }
 }

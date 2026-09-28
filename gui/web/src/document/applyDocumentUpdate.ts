@@ -1,4 +1,5 @@
 import { useDawStore, zoomReclampPatch } from "../state/dawStore";
+import { flushInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
 import { sessionSecOf } from "../utils/zoom";
 import {
@@ -116,6 +117,9 @@ export { applyDocumentSnapshot as applyDocumentUpdate };
 export function applyDocumentResult(
   result: Record<string, unknown>,
 ): ProjectView | null {
+  // Drain any inbound WS frames queued ahead of this own-client result, so
+  // they apply in arrival order before this (usually newer) snapshot lands.
+  flushInbound();
   const snap = snapshotFromResult(result);
   if (!snap) {
     return useDawStore.getState().project;

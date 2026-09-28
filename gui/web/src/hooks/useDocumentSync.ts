@@ -15,6 +15,7 @@ import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
+import { enqueueInbound } from "../sync/inboundQueue";
 import type { ProjectView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
 import { isTerminalWsClose } from "../utils/wsClose";
@@ -54,7 +55,6 @@ type DocumentSnapshotMsg = {
  */
 export function useDocumentSync(
   projectPath: string,
-  _project: ProjectView | null,
   _setProject: (project: ProjectView) => void,
   enabled = true,
 ): void {
@@ -77,42 +77,47 @@ export function useDocumentSync(
         drain();
       };
       ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
-          if (msg.type !== "Applied" && msg.type !== "Snapshot") {
+        enqueueInbound(() => {
+          if (closed) {
             return;
           }
-          const snap = msg.snapshot;
-          if (!snap) {
-            return;
-          }
-          noteDocumentFile(snap);
-          if (
-            !shouldApplyDocumentEvent({
-              server_seq: msg.server_seq,
-              snapshot: snap,
-              command: msg.command,
-            })
-          ) {
-            noteDocumentSeq(eventServerSeq(msg));
-            return;
-          }
-          if (snap.resync) {
-            applyDocumentSnapshotWithResync(
-              snap,
-              () => loadProject(projectPath),
-              {
+          try {
+            const msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
+            if (msg.type !== "Applied" && msg.type !== "Snapshot") {
+              return;
+            }
+            const snap = msg.snapshot;
+            if (!snap) {
+              return;
+            }
+            noteDocumentFile(snap);
+            if (
+              !shouldApplyDocumentEvent({
+                server_seq: msg.server_seq,
+                snapshot: snap,
+                command: msg.command,
+              })
+            ) {
+              noteDocumentSeq(eventServerSeq(msg));
+              return;
+            }
+            if (snap.resync) {
+              applyDocumentSnapshotWithResync(
+                snap,
+                () => loadProject(projectPath),
+                {
+                  commandClientId: msg.command?.client_id,
+                },
+              ).catch(() => undefined);
+            } else {
+              applyDocumentSnapshot(snap, {
                 commandClientId: msg.command?.client_id,
-              },
-            ).catch(() => undefined);
-          } else {
-            applyDocumentSnapshot(snap, {
-              commandClientId: msg.command?.client_id,
-            });
+              });
+            }
+          } catch {
+            // ignore malformed
           }
-        } catch {
-          // ignore malformed
-        }
+        });
       };
       ws.onclose = (event) => {
         if (!closed && !isTerminalWsClose(event.code)) {

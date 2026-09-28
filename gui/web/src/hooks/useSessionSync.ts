@@ -23,6 +23,7 @@ import {
 import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
+import { enqueueInbound } from "../sync/inboundQueue";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
@@ -52,6 +53,17 @@ function stopViewerStateWait(wait: ViewerStateWait): void {
   }
   wait.timers.length = 0;
 }
+
+/** The session WS's own wire message shape, hoisted so both `onmessage` and the queued `handleSessionFrame` job can share it. */
+type SessionWireMsg = {
+  type: string;
+  code?: string;
+  plane?: string;
+  server_time_ns?: number;
+  clients?: SessionState["clients"];
+  snapshot?: SessionState & { participants?: unknown };
+  command?: { role?: string; type?: string; client_id?: string };
+};
 
 function wsUrl(projectPath: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -168,6 +180,77 @@ export function useSessionSync(
     let retry: number | null = null;
     let socket: WebSocket | null = null;
 
+    /**
+     * Everything but the record plane and the clock sample: presence,
+     * ViewerState echo bookkeeping, and Snapshot/Applied/Echo application.
+     * Runs from the per-frame inbound queue, so N frames received between
+     * paints commit as one render.
+     */
+    const handleSessionFrame = (msg: SessionWireMsg) => {
+      if (cancelled) {
+        return;
+      }
+      if (msg.type === "Presence" && Array.isArray(msg.clients)) {
+        useDawStore.getState().setSessionClients(msg.clients);
+        return;
+      }
+      if (
+        msg.type === "Error" &&
+        (msg.code === "invalid_viewer_state" ||
+          msg.code === "viewer_state_failed")
+      ) {
+        fallBackToHttp();
+        return;
+      }
+      if (
+        (msg.type === "Snapshot" ||
+          msg.type === "Applied" ||
+          msg.type === "Echo") &&
+        msg.snapshot
+      ) {
+        const snap = msg.snapshot;
+        if (
+          msg.type === "Echo" &&
+          msg.command?.type === "ViewerState" &&
+          msg.command.client_id === clientIdRef.current
+        ) {
+          const oldest = viewerStateWaitRef.current.timers.shift();
+          if (oldest !== undefined) {
+            window.clearTimeout(oldest);
+          }
+        }
+        if (Array.isArray(snap.clients)) {
+          useDawStore.getState().setSessionClients(snap.clients);
+        }
+        if (msg.type === "Snapshot" && cursorRef.current.serverSeq === 0) {
+          const { apply, next } = baselineFromSnapshot(snap, cursorRef.current);
+          if (apply) {
+            applyAgentSessionRef.current(snap);
+          }
+          cursorRef.current = next;
+          return;
+        }
+        if (
+          shouldHandleWsMessage(
+            { type: msg.type, command: msg.command, snapshot: snap },
+            cursorRef.current,
+            {
+              localPlaying: isPlayingRef.current,
+              localClientId: clientIdRef.current,
+            },
+          )
+        ) {
+          applyRemote(
+            snap,
+            msg.command?.type,
+            msg.command?.client_id ?? snap.last_client_id,
+          );
+        } else {
+          cursorRef.current = advanceCursorIfNewer(cursorRef.current, snap);
+        }
+      }
+    };
+
     const connect = () => {
       if (cancelled) {
         return;
@@ -182,15 +265,7 @@ export function useSessionSync(
       };
       socket.onmessage = (ev) => {
         try {
-          const msg = JSON.parse(ev.data as string) as {
-            type: string;
-            code?: string;
-            plane?: string;
-            server_time_ns?: number;
-            clients?: SessionState["clients"];
-            snapshot?: SessionState & { participants?: unknown };
-            command?: { role?: string; type?: string; client_id?: string };
-          };
+          const msg = JSON.parse(ev.data as string) as SessionWireMsg;
           applyServerClock(msg.server_time_ns ?? msg.snapshot?.server_time_ns);
           if (msg.plane === "record" && isRecordSignal(msg)) {
             emitRecordSignal(msg);
@@ -204,68 +279,12 @@ export function useSessionSync(
               );
             return;
           }
-          if (msg.type === "Presence" && Array.isArray(msg.clients)) {
-            useDawStore.getState().setSessionClients(msg.clients);
-            return;
-          }
-          if (
-            msg.type === "Error" &&
-            (msg.code === "invalid_viewer_state" ||
-              msg.code === "viewer_state_failed")
-          ) {
-            fallBackToHttp();
-            return;
-          }
-          if (
-            (msg.type === "Snapshot" ||
-              msg.type === "Applied" ||
-              msg.type === "Echo") &&
-            msg.snapshot
-          ) {
-            const snap = msg.snapshot;
-            if (
-              msg.type === "Echo" &&
-              msg.command?.type === "ViewerState" &&
-              msg.command.client_id === clientIdRef.current
-            ) {
-              const oldest = viewerStateWaitRef.current.timers.shift();
-              if (oldest !== undefined) {
-                window.clearTimeout(oldest);
-              }
-            }
-            if (Array.isArray(snap.clients)) {
-              useDawStore.getState().setSessionClients(snap.clients);
-            }
-            if (msg.type === "Snapshot" && cursorRef.current.serverSeq === 0) {
-              const { apply, next } = baselineFromSnapshot(
-                snap,
-                cursorRef.current,
-              );
-              if (apply) {
-                applyAgentSessionRef.current(snap);
-              }
-              cursorRef.current = next;
-              return;
-            }
-            if (
-              shouldHandleWsMessage(
-                { type: msg.type, command: msg.command, snapshot: snap },
-                cursorRef.current,
-                {
-                  localPlaying: isPlayingRef.current,
-                  localClientId: clientIdRef.current,
-                },
-              )
-            ) {
-              applyRemote(
-                snap,
-                msg.command?.type,
-                msg.command?.client_id ?? snap.last_client_id,
-              );
-            } else {
-              cursorRef.current = advanceCursorIfNewer(cursorRef.current, snap);
-            }
-          }
+          enqueueInbound(() => handleSessionFrame(msg), {
+            coalesceKey:
+              msg.type === "Presence" && Array.isArray(msg.clients)
+                ? "session:presence"
+                : undefined,
+          });
         } catch {
           // ignore malformed
         }

@@ -107,7 +107,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     isPlaying,
   });
 
-  useDocumentSync(projectPath, project, setProject, syncEnabled);
+  useDocumentSync(projectPath, setProject, syncEnabled);
   useSessionSync(
     projectPath,
     applyAgentSession,
@@ -122,7 +122,6 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   useGuestSyncAndProjectPoll(
     projectPath,
     applyAgentSession,
-    project,
     setProject,
     setSessionClients,
     { hostSyncEnabled: syncEnabled, guestSyncEnabled },

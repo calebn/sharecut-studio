@@ -8,7 +8,6 @@ import { currentServerClockOffsetMs } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
-import type { ProjectView } from "../types/project";
 import type { SessionState } from "../types/session";
 import { useGuestSync } from "./useGuestSync";
 
@@ -59,20 +58,9 @@ describe("useGuestSync", () => {
     const apply = vi.fn();
     const setProject = vi.fn();
     const setClients = vi.fn();
-    const project = {
-      meta: { name: "ep" },
-      comments: [],
-    } as unknown as ProjectView;
 
     renderHook(() =>
-      useGuestSync(
-        "share:tok123",
-        apply,
-        project,
-        setProject,
-        setClients,
-        true,
-      ),
+      useGuestSync("share:tok123", apply, setProject, setClients, true),
     );
 
     expect(FakeWebSocket.instances).toHaveLength(1);
@@ -117,14 +105,7 @@ describe("useGuestSync", () => {
   it("applies Presence clients roster", async () => {
     const setClients = vi.fn();
     renderHook(() =>
-      useGuestSync(
-        "share:tok",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        setClients,
-        true,
-      ),
+      useGuestSync("share:tok", vi.fn(), vi.fn(), setClients, true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -140,14 +121,7 @@ describe("useGuestSync", () => {
 
   it("adopts the server-assigned session client_id", async () => {
     renderHook(() =>
-      useGuestSync(
-        "share:tok123",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     expect(useDawStore.getState().localClientId).toBeNull();
     const url = FakeWebSocket.instances[0].url;
@@ -175,14 +149,7 @@ describe("useGuestSync", () => {
 
   it("applies server_time_ns clock offset", async () => {
     renderHook(() =>
-      useGuestSync(
-        "share:tok",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok", vi.fn(), vi.fn(), vi.fn(), true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -203,7 +170,7 @@ describe("useGuestSync", () => {
     useDawStore.getState().hydrate("share:tok", project);
 
     renderHook(() =>
-      useGuestSync("share:tok", apply, project, setProject, vi.fn(), true),
+      useGuestSync("share:tok", apply, setProject, vi.fn(), true),
     );
 
     await act(async () => {
@@ -224,14 +191,7 @@ describe("useGuestSync", () => {
   it("ignores older document server_seq", async () => {
     const setProject = vi.fn();
     renderHook(() =>
-      useGuestSync(
-        "share:tok",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        setProject,
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok", vi.fn(), setProject, vi.fn(), true),
     );
 
     await act(async () => {
@@ -272,7 +232,7 @@ describe("useGuestSync", () => {
         }),
     );
     renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), null, vi.fn(), vi.fn(), true),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -298,21 +258,14 @@ describe("useGuestSync", () => {
 
   it("does not connect when disabled or non-share path", () => {
     renderHook(() =>
-      useGuestSync("/local/path.json", vi.fn(), null, vi.fn(), vi.fn(), false),
+      useGuestSync("/local/path.json", vi.fn(), vi.fn(), vi.fn(), false),
     );
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
   it("stores guest progress plane events as the activity job", async () => {
     renderHook(() =>
-      useGuestSync(
-        "share:tok123",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -335,14 +288,7 @@ describe("useGuestSync", () => {
 
   it("reports whether the guest socket is open", async () => {
     const { result } = renderHook(() =>
-      useGuestSync(
-        "share:tok123",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     expect(result.current).toBe(false);
     await act(async () => {
@@ -357,21 +303,14 @@ describe("useGuestSync", () => {
 
   it("reports false when disabled or on a non-share path", () => {
     const { result } = renderHook(() =>
-      useGuestSync("/local/path.json", vi.fn(), null, vi.fn(), vi.fn(), false),
+      useGuestSync("/local/path.json", vi.fn(), vi.fn(), vi.fn(), false),
     );
     expect(result.current).toBe(false);
   });
 
   it("notes a document-plane project snapshot's file for the poll skip", async () => {
     renderHook(() =>
-      useGuestSync(
-        "share:tok123",
-        vi.fn(),
-        { meta: { name: "ep" }, comments: [] } as unknown as ProjectView,
-        vi.fn(),
-        vi.fn(),
-        true,
-      ),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
@@ -393,7 +332,7 @@ describe("useGuestSync", () => {
     vi.useFakeTimers();
     FakeWebSocket.autoOpen = false;
     renderHook(() =>
-      useGuestSync("share:tok123", vi.fn(), null, vi.fn(), vi.fn(), true),
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), vi.fn(), true),
     );
     expect(loadProjectMeta).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1500);
@@ -403,5 +342,38 @@ describe("useGuestSync", () => {
     });
     await vi.advanceTimersByTimeAsync(3000);
     expect(loadProjectMeta).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces queued guest Presence frames into the newest roster", async () => {
+    const setClients = vi.fn();
+    renderHook(() =>
+      useGuestSync("share:tok123", vi.fn(), vi.fn(), setClients, true),
+    );
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.deliver({
+        type: "Presence",
+        plane: "session",
+        clients: [{ client_id: "g1", role: "viewer", label: "Guest" }],
+      });
+      sock.deliver({
+        type: "Presence",
+        plane: "session",
+        clients: [
+          { client_id: "g1", role: "viewer", label: "Guest" },
+          { client_id: "g2", role: "viewer", label: "Guest 2" },
+        ],
+      });
+      const { pendingInboundCount, flushInbound } = await import(
+        "../sync/inboundQueue"
+      );
+      expect(pendingInboundCount()).toBe(1);
+      flushInbound();
+    });
+    expect(setClients).toHaveBeenCalledTimes(1);
+    expect(setClients).toHaveBeenCalledWith([
+      { client_id: "g1", role: "viewer", label: "Guest" },
+      { client_id: "g2", role: "viewer", label: "Guest 2" },
+    ]);
   });
 });
