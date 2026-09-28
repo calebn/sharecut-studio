@@ -55,6 +55,12 @@ type GuestMsg = {
   };
 };
 
+/**
+ * Socket-down-only fallback: until the guest socket first opens and while it
+ * is down this poll is the guest's only feed, so it stays fast. It is
+ * deliberately not on `SANITY_POLL_MS`; while the socket is live the guest
+ * runs `useProjectPoll` on the 30 s sanity cadence instead (#662).
+ */
 const FALLBACK_POLL_MS = 1500;
 
 /**
