@@ -42,7 +42,18 @@ from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import project_state_lock
-from review_platform import requires_safe_cleanup, requires_safe_failed_cleanup
+from review_platform import (
+    REVIEW_FAILED_CLEANUP_SUPPORTED,
+    REVIEW_STALE_CLEANUP_SUPPORTED,
+    requires_safe_cleanup,
+    requires_safe_failed_cleanup,
+    run_unmarked_test_as_unsupported_platform,
+)
+
+
+@pytest.fixture(autouse=True)
+def _unmarked_tests_run_as_unsupported_platform(request, monkeypatch):
+    run_unmarked_test_as_unsupported_platform(request, monkeypatch)
 
 
 @requires_safe_failed_cleanup
@@ -384,7 +395,7 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
 
 def test_safe_failed_cleanup_requires_root_relative_mkdir():
     if os.mkdir not in os.supports_dir_fd:
-        assert not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+        assert not REVIEW_FAILED_CLEANUP_SUPPORTED
 
 
 def test_review_publication_support_matches_the_ci_platform():
@@ -398,11 +409,11 @@ def test_review_publication_support_matches_the_ci_platform():
     must keep running them, or the publication paths go untested everywhere.
     """
     if sys.platform.startswith("win"):
-        assert not review_versions._SAFE_STALE_CLEANUP_SUPPORTED
-        assert not review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+        assert not REVIEW_STALE_CLEANUP_SUPPORTED
+        assert not REVIEW_FAILED_CLEANUP_SUPPORTED
     else:
-        assert review_versions._SAFE_STALE_CLEANUP_SUPPORTED
-        assert review_versions._SAFE_FAILED_CLEANUP_SUPPORTED
+        assert REVIEW_STALE_CLEANUP_SUPPORTED
+        assert REVIEW_FAILED_CLEANUP_SUPPORTED
 
 
 def _fail_publication(stage, project, project_path, monkeypatch):
