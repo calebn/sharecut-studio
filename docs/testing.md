@@ -680,9 +680,14 @@ pins; run `uv run python scripts/benchmark_forced_aligners.py verify-candidates`
 (network, metadata only — no weights) before relying on them. It exits 1 and
 lists each candidate whose revision or repo no longer resolves, whose repo is
 gated (needs an HF token / accepted terms), whose model-card license differs,
-or whose pinned files are missing; a rate limit, Hub outage, timeout or
-connection error is reported as "could not verify" (the pin may be fine —
-retry) rather than as drift. The harness resolves each
+or whose pinned files are missing; a model card that declares no license is
+not drift: it prints a `note:` line saying the pinned license was not
+verified, and the exit code stays 0 (both ONNX candidates' repo,
+`onnx-community/wav2vec2-base-960h-ONNX`, has no card license; its
+`apache-2.0` pin comes from the upstream `facebook/wav2vec2-base-960h`); a
+rate limit, Hub outage, timeout or connection error is reported as "could not
+verify" (the pin may be fine — retry) rather than as drift. The harness
+resolves each
 model with `snapshot_download(..., local_files_only=True)` and **never
 downloads**: an uncached model (a Hugging Face `LocalEntryNotFoundError`)
 raises `FileNotFoundError` naming the exact download command, which

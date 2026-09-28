@@ -177,8 +177,12 @@ def download_command(c: Candidate) -> str:
     )
 
 
-def verify_candidate(c: Candidate, api: Any) -> list[str]:
-    """Problems with one pinned candidate on the Hub (metadata only; never downloads weights)."""
+def verify_candidate(c: Candidate, api: Any, *, notes: list[str] | None = None) -> list[str]:
+    """Problems with one pinned candidate on the Hub (metadata only; never downloads weights).
+
+    Advisories that are not drift (a model card with no declared license) are appended
+    to ``notes`` when it is given, so the caller can print them without failing.
+    """
     import httpx
     from huggingface_hub.errors import (
         GatedRepoError,
@@ -208,9 +212,16 @@ def verify_candidate(c: Candidate, api: Any) -> list[str]:
         problems.append(f"{c.label}: revision resolves to {info.sha}, pinned {c.revision}")
     card_license = getattr(info.card_data, "license", None)
     # An undeclared card license (None) is not evidence the model changed: the Hub
-    # simply never recorded one for this repo. Only a *stated* license that
-    # disagrees with the pin is drift worth flagging.
-    if card_license is not None and card_license != c.license:
+    # never recorded one for this repo (e.g. onnx-community/wav2vec2-base-960h-ONNX,
+    # pinned apache-2.0 from its upstream facebook/wav2vec2-base-960h). Only a
+    # *stated* license that disagrees with the pin is drift; an undeclared one is a
+    # note, so the pin is never reported as verified without saying so.
+    if card_license is None:
+        if notes is not None:
+            notes.append(
+                f"{c.label}: model card declares no license; pinned {c.license!r} not verified"
+            )
+    elif card_license != c.license:
         problems.append(f"{c.label}: model card license {card_license!r}, pinned {c.license!r}")
     names = [s.rfilename for s in (info.siblings or [])]
     for pattern in c.allow_patterns:
@@ -732,15 +743,18 @@ def main(argv: list[str] | None = None) -> int:
         from huggingface_hub import HfApi
 
         api = HfApi()
+        notes: list[str] = []
         problems = [
             problem
             for c in load_candidates(labels=args.candidates)
-            for problem in verify_candidate(c, api)
+            for problem in verify_candidate(c, api, notes=notes)
         ]
+        for note in notes:
+            print(f"note: {note}")
         for problem in problems:
             print(problem)
         if not problems:
-            print("all candidates verified")
+            print("no drift found (see notes above)" if notes else "all candidates verified")
         return 1 if problems else 0
 
     return 1
