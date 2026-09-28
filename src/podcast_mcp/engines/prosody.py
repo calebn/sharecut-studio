@@ -264,10 +264,13 @@ def _voiced_at(pitch_xs: np.ndarray, pitch_hz: np.ndarray, query_times: np.ndarr
     return pitch_hz[chosen] > 0
 
 
-def _energy_stats(times: np.ndarray, db: np.ndarray, start: float, end: float) -> dict[str, Any]:
-    mask = (times >= start) & (times < end)
-    seg = db[mask]
-    seg_t = times[mask]
+def _frame_slice(xs: np.ndarray, start: float, end: float) -> slice:
+    """Frames with ``start <= xs < end`` for ascending ``xs``, as a slice (no full-array mask)."""
+    lo, hi = np.searchsorted(xs, [start, end], side="left")
+    return slice(int(lo), int(hi))
+
+
+def _energy_stats(seg_t: np.ndarray, seg: np.ndarray) -> dict[str, Any]:
     if seg.size == 0:
         return {
             "mean_db": 0.0,
@@ -304,11 +307,8 @@ def _energy_stats(times: np.ndarray, db: np.ndarray, start: float, end: float) -
 
 
 def _pause_runs(
-    times: np.ndarray, db: np.ndarray, start: float, end: float, *, min_sec: float, floor_db: float
+    seg_t: np.ndarray, seg: np.ndarray, *, min_sec: float, floor_db: float
 ) -> tuple[int, float]:
-    mask = (times >= start) & (times < end)
-    seg = db[mask]
-    seg_t = times[mask]
     if seg.size < 2:
         return 0, 0.0
     dt = float(np.median(np.diff(seg_t))) if seg.size > 1 else 0.0
@@ -473,8 +473,7 @@ def _boundaries(
 def _f0_stats(
     pitch: Any, xs: np.ndarray, freqs: np.ndarray, start: float, end: float
 ) -> dict[str, Any]:
-    mask = (xs >= start) & (xs < end)
-    seg = freqs[mask]
+    seg = freqs[_frame_slice(xs, start, end)]
     voiced = seg[seg > 0]
     voiced_fraction = _safe_div(voiced.size, seg.size)
     if voiced.size == 0 or praat_call is None:
@@ -561,17 +560,15 @@ def analyze_prosody(
     segments: list[dict[str, Any]] = []
     for start, end in bounds:
         seg_words = words_by_span.get((start, end), [])
-        mask = (intensity_xs >= start) & (intensity_xs < end)
-        seg_db = intensity_db[mask]
-        seg_voiced = voiced_at_intensity[mask]
-        seg_times = intensity_xs[mask]
+        window = _frame_slice(intensity_xs, start, end)
+        seg_db = intensity_db[window]
+        seg_voiced = voiced_at_intensity[window]
+        seg_times = intensity_xs[window]
         n_syllables = syllable_nuclei(seg_times, seg_db, seg_voiced)
         duration = max(0.0, end - start)
         pause_count, pause_total = _pause_runs(
-            intensity_xs,
-            intensity_db,
-            start,
-            end,
+            seg_times,
+            seg_db,
             min_sec=params.pause_min_sec,
             floor_db=max(0.0, float(np.max(seg_db)) - _SILENCE_CEILING_DB) if seg_db.size else 0.0,
         )
@@ -601,7 +598,7 @@ def analyze_prosody(
                     "articulation_rate": _finite(_safe_div(n_syllables, phonation_sec)),
                 },
                 "pauses": {"count": pause_count, "total_sec": round(pause_total, 3)},
-                "energy": _energy_stats(intensity_xs, intensity_db, start, end),
+                "energy": _energy_stats(seg_times, seg_db),
                 "voice_quality": _voice_quality(jitter=jitter, shimmer=shimmer, hnr=hnr),
                 "prominent_words": _prominent_words(
                     seg_words, pitch, intensity, top_n=params.top_prominent_words
