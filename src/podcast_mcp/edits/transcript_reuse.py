@@ -11,7 +11,7 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
-from podcast_mcp.transcript_context import load_transcript_context
+from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.word_aligner_models import WordAlignerModel, word_aligner_model
 
@@ -34,6 +34,9 @@ class TranscribePlan:
     retime: list[TranscribeJob] = field(default_factory=list)
     retime_skipped_edited: list[str] = field(default_factory=list)
     retime_skipped_no_cache: list[str] = field(default_factory=list)
+    # The context plan_retime built its ASR-cache prompt from; run_transcribe_plan reuses it so
+    # the prompt, cache key and vocabulary_revision all come from one load.
+    context: TranscriptContext | None = None
 
 
 class HasAudioIdentity(Protocol):
@@ -162,13 +165,14 @@ def plan_retime(
     ``allow_edited`` (Studio's confirmation); jobs with no ASR cache for the current model,
     language, vocabulary prompt and decode options stay reused and are reported.
 
-    Note: ``run_transcribe_plan`` reloads the transcript context to build the prompt. A
-    vocabulary save between the two loads makes that job a cache miss, and Whisper then runs
-    for it: the result is the same as Re-transcribe, and the race is accepted.
+    The context loaded here is kept on ``plan.context`` and reused by ``run_transcribe_plan``,
+    so a vocabulary save during the step cannot turn a re-time into a Whisper run. The
+    re-timed transcripts are stamped with this load's revision and show as stale in Studio.
     """
     model = word_aligner_model()
     stored = {t.key: t for t in project.transcripts}
-    prompt = load_transcript_context(project.workspace_path()).initial_prompt_text()
+    plan.context = load_transcript_context(project.workspace_path())
+    prompt = plan.context.initial_prompt_text()
     kept: list[TranscribeJob] = []
     for job in plan.reused:
         current = stored.get(job.key)
@@ -244,7 +248,7 @@ def run_transcribe_plan(
         log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
     transcripts: list[Transcript] = []
     if plan.run:
-        ctx = load_transcript_context(project.workspace_path())
+        ctx = plan.context or load_transcript_context(project.workspace_path())
         # Prompt and vocabulary_revision must come from this one load: a concurrent
         # edit mints a newer revision, so these transcripts stay stale in Studio.
         transcripts = make_engine().transcribe_all_dialogue(
