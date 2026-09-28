@@ -278,29 +278,53 @@
   pointer-events: none;
 }
 
+/* Trim strips (#677): full-height clip edges, hidden (no paint, pointer or
+   focus) until the clip is hovered, focused or selected. Under the fade
+   corner (--z-join) and the join diamond. */
 .trim-handle {
   position: absolute;
+  top: 0;
   bottom: 0;
-  width: 0.75rem;
-  height: 45%;
+  width: 0.5rem;
   padding: 0;
+  border: 0;
   cursor: ew-resize;
   pointer-events: auto;
-  z-index: 6;
+  z-index: var(--z-handle);
   background: var(--color-overlay-white-25);
-  border: 1px solid var(--color-overlay-white-55);
   appearance: none;
   box-sizing: border-box;
+  touch-action: none;
+  visibility: hidden;
 }
 
 .trim-handle.in {
   left: 0;
-  border-radius: 0 var(--radius-xs) 0 0;
+  border-right: 1px solid var(--color-overlay-white-55);
 }
 
 .trim-handle.out {
   right: 0;
-  border-radius: var(--radius-xs) 0 0;
+  border-left: 1px solid var(--color-overlay-white-55);
+}
+
+/* A zero-length fade draws no handle until the clip is hovered, focused or
+   selected (#677). */
+.fade-corner.zero {
+  visibility: hidden;
+}
+
+/* Trim strips and zero-length fade corners show on hover, keyboard focus or
+   selection only; an active drag keeps its handle. */
+.clip-block:hover .trim-handle,
+.clip-block:hover .fade-corner.zero,
+.clip-block:focus-within .trim-handle,
+.clip-block:focus-within .fade-corner.zero,
+.clip-block.selected .trim-handle,
+.clip-block.selected .fade-corner.zero,
+.clip-block.trim-dragging .trim-handle,
+.clip-block.fade-dragging .fade-corner {
+  visibility: visible;
 }
 
 .clip-block.trim-dragging,
