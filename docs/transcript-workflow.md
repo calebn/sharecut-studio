@@ -89,9 +89,11 @@ reproduction command and fixture provenance. The metric also reports a signed
 bias, `mean_start_error_ms`/`mean_end_error_ms` (prediction minus reference),
 for tuning boundary padding. `scripts/benchmark_forced_aligners.py` runs
 pinned CTC forced-aligner candidates (an ONNX wav2vec2-base and a
-WhisperX-style torch wav2vec2-large) over the same fixtures and the lab tape;
-results are pending [#641](https://github.com/calebn/sharecut-studio/issues/641)
-and integration is [#639](https://github.com/calebn/sharecut-studio/issues/639).
+WhisperX-style torch wav2vec2-large) over the same fixtures and the lab tape.
+[#641](https://github.com/calebn/sharecut-studio/issues/641) measured them and
+recommends `onnx-base`: 42.98 ms MAE and 4.8% of matched words over 150 ms on
+LibriSpeech, against native's 82.3 ms / 35.7%, at an RTF of 0.044. Integration
+is [#639](https://github.com/calebn/sharecut-studio/issues/639).
 See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
 
 **Does not fix:**
