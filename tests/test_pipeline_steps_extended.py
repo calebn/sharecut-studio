@@ -1627,7 +1627,7 @@ def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
     import copy
 
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+    from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
     from podcast_mcp.word_aligner_models import word_aligner_model
 
@@ -1648,6 +1648,7 @@ def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
         first = steps.transcribe_tracks(proj, defaults)
     assert "1 words re-timed" in first
     assert proj.transcripts[0].word_aligner == "onnx-base"
+    assert proj.transcripts[0].alignment_score_method == ALIGNMENT_SCORE_METHOD
     with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
         second = steps.transcribe_tracks(proj, defaults)
     eng_cls.assert_not_called()
@@ -1659,7 +1660,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+    from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
     from podcast_mcp.services.pipeline_config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
@@ -1668,6 +1669,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
         _first_pass(proj)
     assert proj.transcripts[0].word_aligner is None
+    assert proj.transcripts[0].alignment_score_method is None
 
     defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
     aligner = MagicMock()
@@ -1687,6 +1689,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     assert "1 reused track(s) re-timed from the ASR cache" in summary
     assert "1 words re-timed" in summary
     assert proj.transcripts[0].word_aligner == "onnx-base"
+    assert proj.transcripts[0].alignment_score_method == ALIGNMENT_SCORE_METHOD
 
     timing = json.loads(
         (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
@@ -1699,7 +1702,7 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+    from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
     from podcast_mcp.services.pipeline_config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
@@ -1724,6 +1727,7 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
         summary = steps.transcribe_tracks(proj, defaults)
     assert "1 edited track(s) not re-timed" in summary
     assert proj.transcripts[0].word_aligner is None
+    assert proj.transcripts[0].alignment_score_method is None
 
     confirmed = transcribe_run_config(
         load_defaults(), force=False, retime_words=True, overwrite_edited=True
@@ -1735,6 +1739,7 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
         summary2 = steps.transcribe_tracks(proj, confirmed)
     assert "1 edited overwritten" in summary2
     assert proj.transcripts[0].word_aligner == "onnx-base"
+    assert proj.transcripts[0].alignment_score_method == ALIGNMENT_SCORE_METHOD
 
 
 def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
@@ -1791,6 +1796,7 @@ def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
             steps.transcribe_tracks(proj, defaults)
 
     assert proj.transcripts[0].word_aligner is None
+    assert proj.transcripts[0].alignment_score_method is None
     after = [(w.text, w.start, w.end) for w in proj.transcripts[0].words]
     assert after == before
 

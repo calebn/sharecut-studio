@@ -16,6 +16,7 @@ from podcast_mcp.edits.transcript_reuse import (
     stamp_audio_identity,
 )
 from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.transcribe import TranscribeJob
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.hashing import sha256_file
@@ -228,11 +229,15 @@ def test_needs_retime_truth_table(job):
     assert needs_retime(_tr(), model)
     assert not needs_retime(Transcript(track_id="host", words=[]), model)
     assert not needs_retime(_tr(language="de"), model)
-    # Re-timed before scores existed (#195): no word has alignment_score yet.
+    # Re-timed before scores existed (#195): no score method recorded.
     assert needs_retime(_tr(word_aligner=model.id), model)
-    scored = _tr(word_aligner=model.id)
+    scored = _tr(word_aligner=model.id, alignment_score_method=ALIGNMENT_SCORE_METHOD)
     scored.words[0].alignment_score = 0.9
     assert not needs_retime(scored, model)
+    # A bumped score definition re-scores stored transcripts.
+    stale = _tr(word_aligner=model.id, alignment_score_method="mean_emitting_posterior_v0")
+    stale.words[0].alignment_score = 0.9
+    assert needs_retime(stale, model)
 
 
 def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch):
@@ -312,7 +317,7 @@ def test_plan_retime_reports_missing_asr_cache(job):
 
 def test_plan_retime_never_probes_jobs_that_do_not_need_it(job):
     model = word_aligner_model()
-    already_scored = _tr(word_aligner=model.id)
+    already_scored = _tr(word_aligner=model.id, alignment_score_method=ALIGNMENT_SCORE_METHOD)
     already_scored.words[0].alignment_score = 0.9
 
     class _RaisingEngine(_FakeEngine):

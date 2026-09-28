@@ -30,7 +30,8 @@ MIN_WINDOW_SAMPLES = 400
 DEFAULT_MAX_GAP_SEC = 1.0
 DEFAULT_MAX_WINDOW_SEC = 20.0
 DEFAULT_PAD_SEC = 0.5
-# Bump when the per-word score definition changes (part of WordAligner.cache_identity).
+# Bump when the per-word score definition changes: part of WordAligner.cache_identity and
+# stored as Transcript.alignment_score_method, so stored transcripts count as not re-timed.
 ALIGNMENT_SCORE_METHOD = "mean_emitting_posterior_v1"
 
 
