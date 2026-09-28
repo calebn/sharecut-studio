@@ -13,9 +13,11 @@ from podcast_mcp.services.fanout_hub import FanoutHub
 
 
 def _clear_presence_key(project_key: str) -> None:
+    from podcast_mcp.services.session_sync.presence_delta import get_roster_tracker
     from podcast_mcp.services.session_sync.presence_fanout import clear_key
 
     clear_key(project_key)
+    get_roster_tracker().clear_key(project_key)
 
 
 _APPLIED_SEQ_MEMORY = 1024

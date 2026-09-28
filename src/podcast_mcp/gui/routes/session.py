@@ -33,7 +33,12 @@ from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.commands import SyncCommand, retry_command_id
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import ClientSequenceConflictError
+from podcast_mcp.services.session_sync.presence_delta import (
+    ROSTER_REQUEST,
+    is_own_presence_echo,
+)
 from podcast_mcp.services.session_sync.service import SessionSyncService, read_session_state
+from podcast_mcp.services.session_sync.snapshot import wire_snapshot
 from podcast_mcp.services.session_sync.viewer import publish_viewer_snapshot
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
@@ -123,6 +128,8 @@ def apply_ws_client_message(
     mtype = msg.get("type")
     if mtype == "Record":
         return None, seq
+    if mtype == ROSTER_REQUEST:
+        return svc.roster_event(), seq
     if mtype == "Command":
         client_seq = int(msg["client_seq"])
         payload = msg.get("payload") or {}
@@ -152,7 +159,11 @@ def apply_ws_client_message(
                 "command_id": command_id,
                 "detail": str(exc),
             }, seq
-        return {**result, "type": "Echo"}, seq
+        echo = {**result, "type": "Echo"}
+        snapshot = echo.get("snapshot")
+        if isinstance(snapshot, dict):
+            echo["snapshot"] = wire_snapshot(snapshot)
+        return echo, seq
     if mtype == "Ack":
         svc.submit(
             SyncCommand(
@@ -323,6 +334,8 @@ async def session_ws(
     async def _pump_hub() -> None:
         while True:
             event = await queue.get()
+            if is_own_presence_echo(event, client_id):
+                continue
             await _send(event)
 
     async def _pump_record() -> None:

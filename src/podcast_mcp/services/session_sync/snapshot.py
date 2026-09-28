@@ -217,3 +217,19 @@ def flatten_for_api(snap: dict[str, Any], clients: list[dict[str, Any]]) -> dict
     out["clients"] = clients
     out["available"] = True
     return out
+
+
+def wire_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
+    """Compact twin of a flattened snapshot for the durable session ``Applied`` wire event
+    (hub publish / WS ``Echo``): drops the roster (``clients``) and the server-only
+    per-field attribution map (``fields``), keeping the flat, fixed-size transport view.
+
+    This removes the ``clients^2`` term from durable-session fan-out (roster fan-out is a
+    separate, per-client-delta path: ``presence_delta.py``). HTTP and MCP responses
+    (``SessionSyncService.snapshot()`` / ``submit()``'s return value) keep the full
+    snapshot, ``clients`` and ``fields`` included.
+    """
+    out = dict(snap)
+    out.pop("clients", None)
+    out.pop("fields", None)
+    return out
