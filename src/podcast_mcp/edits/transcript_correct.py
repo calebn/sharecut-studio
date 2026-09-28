@@ -76,7 +76,14 @@ def correct_word(
     rebuild_combined(project)
 
 
-def _correct_word(project: EpisodeProject, track_id: str, word_index: int, new_text: str) -> None:
+def _correct_word(
+    project: EpisodeProject,
+    track_id: str,
+    word_index: int,
+    new_text: str,
+    *,
+    keep_evidence: bool = False,
+) -> None:
     tr = project.transcript_for_track(track_id)
     if not tr:
         raise ValueError(f"no transcript for track {track_id!r}")
@@ -86,9 +93,9 @@ def _correct_word(project: EpisodeProject, track_id: str, word_index: int, new_t
         raise ValueError("correction text must not be empty")
     w = tr.words[word_index]
     update: dict[str, object] = {"text": new_text, "confidence": 1.0}
-    if new_text != w.text:
-        # The aligner scored the old text (#195); like correct_phrase's new words, the
-        # corrected word has no score and no flag until the next run re-checks its span.
+    if new_text != w.text and not keep_evidence:
+        # A person's or agent's correction invalidates the score the aligner gave the old text
+        # (#195); automated precorrect rewrites (keep_evidence) keep it, since the audio is unchanged.
         update.update(alignment_score=None, suspect_hallucination=False)
     tr.words[word_index] = w.model_copy(update=update)
 
@@ -110,6 +117,8 @@ def _correct_phrase(
     start_word_index: int,
     end_word_index: int,
     new_text: str,
+    *,
+    keep_evidence: bool = False,
 ) -> None:
     tr = project.transcript_for_track(track_id)
     if not tr:
@@ -128,12 +137,28 @@ def _correct_phrase(
         tr.words = tr.words[:start_word_index] + tr.words[end_word_index + 1 :]
         return
 
+    score: float | None = None
+    flag = False
+    if keep_evidence:
+        scores = [w.alignment_score for w in old_words if w.alignment_score is not None]
+        score = min(scores) if scores else None
+        flag = any(w.suspect_hallucination for w in old_words)
+
     step = span / len(tokens)
     replacement: list[TranscriptWord] = []
     for i, tok in enumerate(tokens):
         s = t0 + i * step
         e = t0 + (i + 1) * step if i < len(tokens) - 1 else t1
-        replacement.append(TranscriptWord(text=tok, start=s, end=e, confidence=1.0))
+        replacement.append(
+            TranscriptWord(
+                text=tok,
+                start=s,
+                end=e,
+                confidence=1.0,
+                alignment_score=score,
+                suspect_hallucination=flag,
+            )
+        )
     tr.words = tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :]
 
 
@@ -259,6 +284,7 @@ def apply_transcript_corrections(
     *,
     words: list[dict] | None = None,
     phrases: list[dict] | None = None,
+    keep_evidence: bool = False,
 ) -> int:
     """Apply word and phrase fixes on one track in a single mutation.
 
@@ -266,6 +292,11 @@ def apply_transcript_corrections(
     ``word_index`` first), then phrases (highest ``start_word_index`` first).
     Each entry: words ``{word_index, text}``; phrases
     ``{start_word_index, end_word_index, text}``.
+
+    ``keep_evidence`` (automated precorrect passes) keeps each word's ``alignment_score``
+    and ``suspect_hallucination`` when its text changes; a phrase's new words get the
+    lowest old score and the flag if any old word had it. Person/agent corrections leave
+    it False and drop the stale evidence.
     """
     count = 0
     for item in sorted(
@@ -273,7 +304,13 @@ def apply_transcript_corrections(
         key=lambda x: int(x["word_index"]),
         reverse=True,
     ):
-        _correct_word(project, track_id, int(item["word_index"]), str(item["text"]))
+        _correct_word(
+            project,
+            track_id,
+            int(item["word_index"]),
+            str(item["text"]),
+            keep_evidence=keep_evidence,
+        )
         count += 1
     for item in sorted(
         phrases or [],
@@ -286,6 +323,7 @@ def apply_transcript_corrections(
             int(item["start_word_index"]),
             int(item["end_word_index"]),
             str(item["text"]),
+            keep_evidence=keep_evidence,
         )
         count += 1
     if count:

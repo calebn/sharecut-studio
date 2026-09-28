@@ -500,6 +500,59 @@ def test_cross_track_sync_applies_winner_text() -> None:
     assert report["fixes"][0]["winner_track"] == "host"
 
 
+def test_cross_track_sync_keeps_loser_evidence() -> None:
+    p, ctx = _two_track_words()
+    p.transcripts[1].words[0].alignment_score = 0.004
+    p.transcripts[1].words[0].suspect_hallucination = True
+    pair = {
+        "track_a": "host",
+        "word_index_a": 0,
+        "text_a": "truth",
+        "start_a": 1.0,
+        "status_a": "audible",
+        "track_b": "guest",
+        "word_index_b": 0,
+        "text_b": "trooth",
+        "start_b": 1.1,
+        "status_b": "bleed",
+        "overlap_sec": 0.4,
+        "text_match": False,
+    }
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
+        return_value={"pairs": [pair]},
+    ):
+        run_cross_track_sync(p, ctx, dry_run=False)
+
+    w = p.transcripts[1].words[0]
+    assert w.text == "truth"
+    assert w.alignment_score == 0.004
+    assert w.suspect_hallucination is True
+
+
+def test_glossary_apply_keeps_evidence() -> None:
+    p = EpisodeProject.create("precorrect", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="teh",
+                    start=11.0,
+                    end=11.5,
+                    alignment_score=0.004,
+                    suspect_hallucination=True,
+                )
+            ],
+        )
+    ]
+    run_glossary_pass(p, _ctx(), dry_run=False)
+    word = p.transcripts[0].words[0]
+    assert word.text == "the"
+    assert word.alignment_score == 0.004
+    assert word.suspect_hallucination is True
+
+
 def test_cross_track_sync_defers_low_similarity_bleed() -> None:
     p, ctx = _two_track_words()
     pair = {

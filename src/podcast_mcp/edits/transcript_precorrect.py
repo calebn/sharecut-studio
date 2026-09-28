@@ -209,6 +209,7 @@ def run_glossary_pass(
                     tr.track_id,
                     words=word_fixes,
                     phrases=phrases,
+                    keep_evidence=True,
                 )
                 for item in word_fixes:
                     applied.append(
@@ -353,6 +354,7 @@ def run_cross_track_sync(
                     project,
                     loser_track,
                     words=[{"word_index": loser_idx, "text": source_text}],
+                    keep_evidence=True,
                 )
 
             if (idx + 1) % 50 == 0:
