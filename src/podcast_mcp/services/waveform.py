@@ -27,7 +27,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast
 
 from podcast_mcp.engines.waveform_media import (
     REASON_DECODE_FAILED,
@@ -124,6 +124,24 @@ _META_LOCK = Lock()
 _GC_DONE: set[str] = set()
 _GC_LOCK = Lock()
 
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+def _lru_get(cache: OrderedDict[_K, _V], key: _K) -> _V | None:
+    """Hit moves to the MRU end. The caller holds the cache's lock."""
+    hit = cache.get(key)
+    if hit is not None:
+        cache.move_to_end(key)
+    return hit
+
+
+def _lru_put(cache: OrderedDict[_K, _V], key: _K, value: _V, limit: int) -> None:
+    """Insert and evict LRU entries past *limit*. The caller holds the cache's lock."""
+    cache[key] = value
+    while len(cache) > limit:
+        cache.popitem(last=False)
+
 
 def parse_ref(ref: str) -> tuple[RefKind, str]:
     """Split ``track:<id>`` / ``source:<id>`` / ``stem:<id>``; ``ValueError`` otherwise."""
@@ -156,9 +174,7 @@ def media_index(project_path: Path) -> MediaIndex:
     """
     cache_key: _IndexKey = (str(project_path), file_revision(project_path))
     with _INDEX_LOCK:
-        hit = _INDEX.get(cache_key)
-        if hit is not None:
-            _INDEX.move_to_end(cache_key)
+        hit = _lru_get(_INDEX, cache_key)
     if hit is not None and _watch_signature(hit.watch_paths) == hit.watch_sig:
         return hit
     before = file_revision(project_path)
@@ -176,9 +192,7 @@ def media_index(project_path: Path) -> MediaIndex:
     )
     if before == after == cache_key[1]:
         with _INDEX_LOCK:
-            _INDEX[cache_key] = index
-            while len(_INDEX) > _INDEX_MAX:
-                _INDEX.popitem(last=False)
+            _lru_put(_INDEX, cache_key, index, _INDEX_MAX)
     return index
 
 
@@ -195,15 +209,12 @@ def live_key(entry: MediaEntry) -> str:
 def _meta(path: Path, key: str) -> PyramidMeta:
     cache_key = (str(path), key)
     with _META_LOCK:
-        hit = _META.get(cache_key)
-        if hit is not None:
-            _META.move_to_end(cache_key)
-            return hit
+        hit = _lru_get(_META, cache_key)
+    if hit is not None:
+        return hit
     meta = read_meta(path)
     with _META_LOCK:
-        _META[cache_key] = meta
-        while len(_META) > _META_MAX:
-            _META.popitem(last=False)
+        _lru_put(_META, cache_key, meta, _META_MAX)
     return meta
 
 
