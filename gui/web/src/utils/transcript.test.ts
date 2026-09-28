@@ -12,6 +12,7 @@ import {
   findTranscriptWordIn,
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
+  isMappedUtterance,
   isTranscriptUtteranceVisible,
   isUtteranceActive,
   isWordActive,
@@ -152,6 +153,18 @@ describe("selectUnmappedUtterances", () => {
     const mapped = u({ start: 0, end: 1, text: "ok" });
     const cut = u({ start: 2, end: 3, mappable: false, text: "cut" });
     expect(selectUnmappedUtterances([mapped, cut])).toEqual([cut]);
+  });
+});
+
+describe("isMappedUtterance", () => {
+  it("is false only for mappable === false", () => {
+    expect(isMappedUtterance(u({ start: 0, end: 1, text: "ok" }))).toBe(true);
+    expect(
+      isMappedUtterance(u({ start: 0, end: 1, mappable: true, text: "ok" })),
+    ).toBe(true);
+    expect(
+      isMappedUtterance(u({ start: 2, end: 3, mappable: false, text: "cut" })),
+    ).toBe(false);
   });
 });
 
