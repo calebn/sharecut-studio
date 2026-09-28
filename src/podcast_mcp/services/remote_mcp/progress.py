@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from podcast_mcp.services.guest_progress import scrub_guest_progress_text
+from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
 from podcast_mcp.util.progress import _mcp_progress_token, short_fail_headline
 
 _SSE_DONE = object()
@@ -182,10 +183,7 @@ async def iter_mcp_sse(token: str, body: dict[str, Any]) -> AsyncIterator[str]:
     queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=_MCP_SSE_QUEUE_MAX)
     sink = McpProgressSink(loop, queue)
     yield ": progress\n\n"
-    fut = loop.run_in_executor(
-        None,
-        lambda: handle_mcp_jsonrpc(token, body, progress_sink=sink),
-    )
+    fut = run_guest_mcp_call(lambda: handle_mcp_jsonrpc(token, body, progress_sink=sink))
     result: dict[str, Any] | None = None
     err: BaseException | None = None
 
