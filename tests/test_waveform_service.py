@@ -573,6 +573,92 @@ def test_pcm_block_stale_when_media_changes_mid_read(tmp_path, monkeypatch):
         pcm_block(project_path, "track:host", key, 0)
 
 
+def _compressed(monkeypatch, *, slots: int = 1) -> threading.BoundedSemaphore:
+    """Treat the fixture WAVs as ffmpeg media and give pcm_block *slots* decode slots."""
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
+    sem = threading.BoundedSemaphore(slots)
+    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
+    return sem
+
+
+def test_pcm_block_busy_when_every_decode_slot_is_taken(tmp_path, monkeypatch):
+    sem = _compressed(monkeypatch)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    calls: list[int] = []
+    real = svc.read_pcm_minmax
+
+    def counting(*a, **k):
+        calls.append(1)
+        return real(*a, **k)
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", counting)
+    sem.acquire()
+    with pytest.raises(svc.WaveformBusyError):
+        pcm_block(project_path, "track:host", key, 0)
+    assert calls == []
+    sem.release()
+    body = pcm_block(project_path, "track:host", key, 0)
+    assert len(body) == 256 * 4
+    assert sem.acquire(blocking=False)
+    sem.release()
+
+
+def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
+    sem = _compressed(monkeypatch)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    real = svc.read_pcm_minmax
+
+    def boom(*_a, **_k):
+        raise RuntimeError("ffmpeg failed")
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", boom)
+    with pytest.raises(svc.WaveformDecodeError):
+        pcm_block(project_path, "track:host", key, 0)
+    assert sem.acquire(blocking=False)
+    sem.release()
+
+    audio = project_path.parent / "raw" / "host.wav"
+
+    def swapping(*a, **k):
+        out = real(*a, **k)
+        st = audio.stat()
+        os.utime(audio, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+        return out
+
+    monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
+    with pytest.raises(StaleWaveformKeyError):
+        pcm_block(project_path, "track:host", key, 1)
+    assert sem.acquire(blocking=False)
+    sem.release()
+
+
+def test_pcm_block_wav_fast_path_takes_no_slot(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+    sem = threading.BoundedSemaphore(1)
+    sem.acquire()
+    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
+    body = pcm_block(project_path, "track:host", key, 0)
+    assert len(body) == 256 * 4
+
+
+def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
+    project_path = waveform_project(tmp_path)
+    key, _ = _ready(project_path)
+
+    def boom(_path):
+        raise OSError("gone")
+
+    monkeypatch.setattr(svc, "pcm_needs_decode", boom)
+    with pytest.raises(svc.WaveformDecodeError):
+        pcm_block(project_path, "track:host", key, 0)
+
+
 def test_media_index_sees_media_that_appears_later(tmp_path):
     project_path = waveform_project(tmp_path)
     assert media_index(project_path).unavailable["track:gone"] == "no-media"

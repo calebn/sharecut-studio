@@ -2,7 +2,8 @@
 
 Thin handlers over ``services/waveform``. Success bodies for tiles and PCM are
 content-addressed by the pyramid key, so they are cached as immutable; every
-error sends ``Cache-Control: no-store``. See ``docs/waveform.md`` § API.
+error sends ``Cache-Control: no-store``. A busy PCM decoder is 503 with
+``Retry-After``. See ``docs/waveform.md`` § API.
 """
 
 from __future__ import annotations
@@ -18,7 +19,9 @@ from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.services.waveform import (
+    PCM_BUSY_RETRY_AFTER_SEC,
     StaleWaveformKeyError,
+    WaveformBusyError,
     pcm_block,
     tile_bytes,
     waveform_status,
@@ -47,12 +50,19 @@ def no_store_error(exc: HTTPException) -> HTTPException:
 
 
 def waveform_error(exc: Exception) -> HTTPException:
-    """Map service errors: stale key 409, bad input 400, anything missing 404.
+    """Map service errors: busy decoder 503 with ``Retry-After``, stale key 409,
+    bad input 400, anything missing 404.
 
     The 400 detail echoes ``str(exc)`` and guests reach this through
     ``waveform_call``: raise ``ValueError`` on waveform paths only with fixed
     messages or the caller's own input, never host paths.
     """
+    if isinstance(exc, WaveformBusyError):
+        return HTTPException(
+            status_code=503,
+            detail="waveform decoder busy",
+            headers={**NO_STORE, "Retry-After": str(PCM_BUSY_RETRY_AFTER_SEC)},
+        )
     if isinstance(exc, StaleWaveformKeyError):
         return HTTPException(status_code=409, detail=str(exc), headers=NO_STORE)
     if isinstance(exc, ValueError):
@@ -94,13 +104,14 @@ def waveform_call(
     ``HTTPException`` keeps its status. Service errors go through ``waveform_error``.
     Anything else goes through *fallback*: guests pass ``_map_share_exc``, so a
     ``PermissionError`` from the share capability check stays 403.
-    Only errors that map to 5xx are logged, so a guest's routine 403 or 404 never writes a traceback.
+    Only *fallback* errors that map to 5xx are logged (a busy 503 is expected load,
+    not a fault).
     """
     try:
         return fn()
     except HTTPException as exc:
         raise no_store_error(exc) from exc
-    except (ValueError, LookupError, FileNotFoundError) as exc:
+    except (ValueError, LookupError, FileNotFoundError, WaveformBusyError) as exc:
         raise waveform_error(exc) from exc
     except Exception as exc:
         mapped = fallback(exc)
