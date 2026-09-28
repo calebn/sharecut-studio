@@ -50,17 +50,35 @@ _CORRUPT_META_WARNED: set[str] = set()
 _CORRUPT_META_WARNED_LOCK = threading.Lock()
 
 
+def _symlink_loop_as_oserror(resolve: Callable[[], _T]) -> _T:
+    """Run one ``Path.resolve()``-style call; its pre-3.13 symlink-loop ``RuntimeError`` becomes ``OSError(ELOOP)``.
+
+    CPython 3.11/3.12 raise ``RuntimeError`` on a loop (``OSError(ELOOP)`` from 3.13).
+    Wrap only the resolve, never a whole read, so unrelated ``RuntimeError``s still surface.
+    """
+    try:
+        return resolve()
+    except RuntimeError as exc:
+        raise OSError(errno.ELOOP, str(exc)) from exc
+
+
 def meta_workspace_dir(project_path: str | Path) -> Path:
     """Workspace dir for ``project_path`` (file or dir), for the parse-free meta reads.
 
-    ``Path.resolve()`` raises ``RuntimeError`` on a symlink loop before CPython 3.13
-    (``OSError(ELOOP)`` from 3.13). Re-raise it as ``OSError`` so it falls under
-    ``SYNC_META_READ_ERRORS`` without catching every ``RuntimeError``.
+    A symlink loop raises ``OSError(ELOOP)`` (see ``_symlink_loop_as_oserror``), which
+    falls under ``SYNC_META_READ_ERRORS``.
     """
-    try:
-        return resolve_project_path(project_path).parent
-    except RuntimeError as exc:
-        raise OSError(errno.ELOOP, str(exc)) from exc
+    return _symlink_loop_as_oserror(lambda: resolve_project_path(project_path)).parent
+
+
+def resolve_meta_path(path: Path) -> Path:
+    """``path.resolve()`` for the meta reads; a symlink loop raises ``OSError(ELOOP)``.
+
+    Resolve a store path once, up front, and pass the result down. The store cache key,
+    the sqlite URI and the WAL lock key then re-resolve a loop-free path, so a loop
+    under ``artifacts/`` becomes a meta read error instead of an uncaught ``RuntimeError``.
+    """
+    return _symlink_loop_as_oserror(path.resolve)
 
 
 def _is_corrupt_store_error(exc: BaseException) -> bool:
@@ -170,8 +188,9 @@ def _missing_session_meta(path: str) -> dict[str, Any]:
 
 
 def _read_session_meta(db_path: Path) -> dict[str, Any]:
-    path = str(db_path.resolve())
-    store = _existing_store_at(db_path)
+    resolved = resolve_meta_path(db_path)
+    path = str(resolved)
+    store = _existing_store_at(resolved)
     snap = store.get_snapshot() if store is not None else None
     if _is_empty_authority(snap):
         return _missing_session_meta(path)

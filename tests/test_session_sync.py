@@ -2130,6 +2130,59 @@ def test_session_meta_never_raises_on_a_real_symlink_loop(tmp_path) -> None:
     assert meta["exists"] is False and meta["server_seq"] == 0
 
 
+def _loop_artifacts(workspace) -> None:
+    (workspace / "artifacts").symlink_to(workspace / "artifacts2")
+    (workspace / "artifacts2").symlink_to(workspace / "artifacts")
+
+
+def test_meta_reads_never_raise_on_a_real_symlink_loop_under_artifacts(tmp_path) -> None:
+    from podcast_mcp.services.document_sync.service import document_server_seq
+    from podcast_mcp.services.session_sync.service import session_meta_at
+
+    project = tmp_path / "episode.project.json"
+    project.write_text("{}")
+    _loop_artifacts(tmp_path)
+    meta = session_meta(project)
+    assert meta["exists"] is False and meta["server_seq"] == 0
+    assert session_meta_at(tmp_path / "artifacts" / "session" / "sync.db")["exists"] is False
+    # 3.11/3.12 raise on resolve (-> None); 3.13+ resolve non-strictly (-> no db, 0).
+    assert document_server_seq(project) in (0, None)
+
+
+def test_meta_reads_convert_a_db_path_symlink_loop_runtime_error(tmp_path, monkeypatch) -> None:
+    """Deterministic on every Python: the pre-3.13 RuntimeError from resolving the db path."""
+    from pathlib import Path
+
+    from podcast_mcp.services.document_sync.service import document_server_seq
+
+    real_resolve = Path.resolve
+
+    def _resolve(self, strict=False):
+        if "artifacts" in self.parts:
+            raise RuntimeError(f"Symlink loop from {str(self)!r}")
+        return real_resolve(self, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", _resolve)
+    project = tmp_path / "episode.project.json"
+    meta = session_meta(project)
+    assert meta["exists"] is False and meta["server_seq"] == 0
+    assert document_server_seq(project) is None
+
+
+def test_resolve_meta_path_converts_a_symlink_loop_runtime_error(monkeypatch, tmp_path) -> None:
+    from pathlib import Path
+
+    from podcast_mcp.services.session_sync.service import resolve_meta_path
+
+    def _boom(self, strict=False):
+        raise RuntimeError("Symlink loop from '/x'")
+
+    monkeypatch.setattr(Path, "resolve", _boom)
+    with pytest.raises(OSError) as info:
+        resolve_meta_path(tmp_path / "sync.db")
+    assert info.value.errno == errno.ELOOP
+
+
 def test_best_effort_meta_returns_the_default_on_read_errors() -> None:
     from podcast_mcp.services.session_sync.service import best_effort_meta
 

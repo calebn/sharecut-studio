@@ -2256,6 +2256,21 @@ def test_project_meta_on_a_corrupt_document_db_omits_server_seq(minimal_project)
     assert "server_seq" not in project_meta(minimal_project)
 
 
+def test_meta_routes_survive_a_symlink_loop_under_artifacts(minimal_project) -> None:
+    from podcast_mcp.gui.jobs import project_meta, session_file_meta
+
+    ws = minimal_project.parent
+    artifacts = ws / "artifacts"
+    if artifacts.exists():
+        import shutil
+
+        shutil.rmtree(artifacts)
+    artifacts.symlink_to(ws / "artifacts2")
+    (ws / "artifacts2").symlink_to(artifacts)
+    assert session_file_meta(minimal_project)["exists"] is False
+    assert project_meta(minimal_project)["mtime_ns"] > 0
+
+
 def test_resolve_viewer_audio_premix(tmp_path) -> None:
     from podcast_mcp.gui.audio import resolve_viewer_audio, resolve_viewer_transport
     from podcast_mcp.services import ProjectWorkspace
