@@ -206,7 +206,10 @@ Monitor (WebRTC send/receive) and keeper (local dry WAV) are separate graphs
 fed by the same `MediaStreamTrack`. Keeper = 48 kHz, 16-bit linear PCM, **mono
 per participant**; 24-bit later. No AEC/NS/AGC/mix on the keeper. Chromium
 guests: PCM/WAV encoder (Worklet or `extendable-media-recorder`); Tauri host:
-native mic path; Safari/Firefox: documented caveat.
+native mic path; Safari/Firefox: documented caveat. Keeper capture, upload and
+landing pass the compat core flow on Chromium and Playwright WebKit; Firefox
+is not in the matrix ([testing.md § Browser acceptance
+matrix](testing.md#browser-acceptance-matrix)).
 
 ```mermaid
 flowchart LR
@@ -1116,9 +1119,9 @@ See [persistence.md](persistence.md) and
 
 | Platform | Support |
 |----------|---------|
-| Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`) |
-| Safari | WAV via Worklet only; AEC constraint caveat |
-| Firefox | Same caveat as Safari |
+| Chromium desktop | PCM/WAV keeper encoder + mix-minus mesh (`build.monitor: true`). Keeper capture → upload → landing passes the compat core flow ([testing.md § Browser acceptance matrix](testing.md#browser-acceptance-matrix)). |
+| Safari | WAV via Worklet only; AEC constraint caveat. Playwright WebKit passes the same core flow (keeper OPFS writer in a worker, upload, landing); Apple Safari, Private Browsing and native mic prompts are not automated. |
+| Firefox | Same caveat as Safari. Not in the compat matrix, so untested. |
 | Tauri host | Browser Worklet in the webview (same as Chromium). macOS and Windows install a native WebView microphone handler and use operating-system permission copy: macOS also needs `NSMicrophoneUsageDescription` + hardened-runtime `audio-input`; the handler allows **microphone only** for `http://127.0.0.1:{engine-port}` (WKWebView `requestMediaCapturePermissionForOrigin`, WebView2 `PermissionRequested`). Linux uses WebKitGTK's default prompt and points blocked users to the supported browser recording path. Full deny-by-default WebView policy is [v1](../ROADMAP.md#packaging-trust). Native cpal/coreaudio mic is [Follow-up](../ROADMAP.md#follow-up). |
 | Mobile browsers | Join + monitor; keeper best-effort, documented. Producer role fully supported (no keeper). |
 
