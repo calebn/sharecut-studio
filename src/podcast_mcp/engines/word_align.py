@@ -3,10 +3,14 @@
 Re-times Whisper's word boundaries with a local wav2vec2 CTC aligner
 (``word_aligner_models.WORD_ALIGNER_CATALOG``). Words the aligner cannot
 place keep Whisper's times — this module never invents a boundary.
+``align`` streams the 16 kHz decode once, forward-only, through
+``FFmpegEngine.stream_mono_f32`` + ``util.pcm_stream.SequentialWindowReader``
+rather than holding the whole track in memory (#730).
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import time
@@ -21,15 +25,18 @@ from podcast_mcp.engines.ctc_forced_align import (
     DEFAULT_MAX_GAP_SEC,
     DEFAULT_MAX_WINDOW_SEC,
     DEFAULT_PAD_SEC,
+    SAMPLE_RATE_WAV2VEC2,
     CtcVocab,
     LogProbBackend,
     RetimeStats,
     log_softmax,
     normalize_waveform,
-    retime_spans,
+    retime_spans_stream,
 )
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.dsp import clamp
+from podcast_mcp.util.pcm_stream import SequentialWindowReader
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerModel,
@@ -131,15 +138,23 @@ class WordAligner:
             identity["local_source"] = self._local_source
         return identity
 
-    def align(self, audio_path: Path, words: Sequence[TranscriptWord]) -> WordAlignResult:
+    def align(
+        self,
+        audio_path: Path,
+        words: Sequence[TranscriptWord],
+        *,
+        engine: FFmpegEngine | None = None,
+    ) -> WordAlignResult:
         start = time.perf_counter()
-        from podcast_mcp.engines.audio_audit import load_mono_full
-        from podcast_mcp.engines.ctc_forced_align import SAMPLE_RATE_WAV2VEC2
-
-        samples = load_mono_full(audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2)
-        spans, stats = retime_spans(
-            samples, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
+        chunks = (engine or FFmpegEngine()).stream_mono_f32(
+            audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2
         )
+        with contextlib.closing(SequentialWindowReader(chunks, SAMPLE_RATE_WAV2VEC2)) as reader:
+            spans, stats = retime_spans_stream(
+                reader, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
+            )
+            if words and reader.end_sec == 0.0:
+                raise ValueError(f"no audio decoded from {audio_path}")
         return WordAlignResult(spans, stats, time.perf_counter() - start)
 
 
