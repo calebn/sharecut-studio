@@ -42,6 +42,11 @@ def mark_history_move_stale(project: EpisodeProject, before: AudioStateBefore) -
     changes only for dialogue tracks whose render hash changed: one whose stem WAV exists
     and whose sidecar matches the restored state drops its cause journal, and any other
     changed track gets a whole-track marker.
+
+    Runs inside the undo/redo transaction without ``render_lock`` (taking it there would
+    invert the lock order) and reads stem hash sidecars. That is safe only because
+    ``publish_stem`` drops the old hash, swaps the WAV in, and only then writes the new
+    hash, so a sidecar only ever names the bytes beside it. Keep that order.
     """
     after = dialogue_render_hashes(project)
     if audio_state_fingerprint(project) != before.fingerprint:

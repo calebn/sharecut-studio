@@ -206,8 +206,10 @@ def publish_stem(
     ``project`` is the snapshot ``render`` reads; the hash is computed from the same one.
     Order: render into a unique sibling temp, drop the old hash, swap the WAV in, write
     the new hash. A hash on disk only ever names the bytes beside it, and a reader holding
-    the old file keeps reading it whole. Callers hold ``render_lock`` (worker threads of a
-    holder excepted); that is what keeps two publishes of one stem from interleaving.
+    the old file keeps reading it whole. ``engines.history_stale.mark_history_move_stale``
+    reads a sidecar without ``render_lock`` and relies on this order; do not reorder it.
+    Callers hold ``render_lock`` (worker threads of a holder excepted); that is what keeps
+    two publishes of one stem from interleaving.
     """
     render_atomic(
         stem_path(project, track_id),
