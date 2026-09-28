@@ -1,7 +1,7 @@
 """Forward-only window reads over a streamed decode.
 
-Serves start-ordered windows (prosody segments, and later forced-alignment
-windows) so analysis never holds a whole track's samples in memory.
+Serves start-ordered windows (prosody segments, CTC forced-alignment windows)
+so analysis never holds a whole track's samples in memory.
 """
 
 from __future__ import annotations
@@ -58,9 +58,22 @@ class SequentialWindowReader:
         """
         i0 = max(0, math.floor(start_sec * self.sample_rate))
         i1 = max(i0, math.ceil(end_sec * self.sample_rate))
+        first, buf_start = self._take(i0, i1, f"{start_sec:.3f}s (sample {i0})")
+        return first, buf_start / self.sample_rate
+
+    def window_samples(self, start: int, end: int) -> tuple[np.ndarray, int]:
+        """``(samples, first_index)`` for the exact ``[start, end)`` sample range, clamped to the media.
+
+        Unlike ``window()``, indices are used as given, with no floor/ceil rounding.
+        Raises ``ValueError`` under the same ordering rule as ``window()``.
+        """
+        i0 = max(0, start)
+        return self._take(i0, max(i0, end), f"sample {i0}")
+
+    def _take(self, i0: int, i1: int, where: str) -> tuple[np.ndarray, int]:
         if i0 < self._last_start:
             raise ValueError(
-                f"SequentialWindowReader: window start {start_sec:.3f}s (sample {i0}) "
+                f"SequentialWindowReader: window start {where} "
                 f"precedes the previous start sample {self._last_start}"
             )
         self._last_start = i0
@@ -78,7 +91,7 @@ class SequentialWindowReader:
             self._drop_before(i0)
         lo = min(max(0, i0 - self._buf_start), self._buf.size)
         hi = min(max(lo, i1 - self._buf_start), self._buf.size)
-        return self._buf[lo:hi], (self._buf_start + lo) / self.sample_rate
+        return self._buf[lo:hi], self._buf_start + lo
 
     def close(self) -> None:
         close = getattr(self._chunks, "close", None)
