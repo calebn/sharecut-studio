@@ -51,6 +51,34 @@ describe("OverlayLegendView", () => {
     expect(screen.queryByRole("button", { name: "+ Chapter" })).toBeNull();
   });
 
+  it("disables + Chapter and sets aria-busy while addChapterBusy", async () => {
+    const onAddChapter = vi.fn();
+    const { container, rerender } = render(
+      <OverlayLegendView
+        layers={layerVisibility()}
+        onLayerChange={vi.fn()}
+        onAddChapter={onAddChapter}
+        addChapterBusy
+      />,
+    );
+    const button = screen.getByRole("button", { name: "+ Chapter" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    await userEvent.click(button);
+    expect(onAddChapter).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+
+    rerender(
+      <OverlayLegendView
+        layers={layerVisibility()}
+        onLayerChange={vi.fn()}
+        onAddChapter={onAddChapter}
+      />,
+    );
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+    expect(button.hasAttribute("aria-busy")).toBe(false);
+  });
+
   it("renders menuitemcheckbox / menuitem rows inside a menu host", async () => {
     const { container } = render(
       <div role="menu" aria-label="View menu">

@@ -203,8 +203,10 @@ memoized `PresenceStatus`, and its stories pass the new `PresenceStatusView`
 with a fixed roster instead. `AvatarStackView` and `OverlayLegendView` take
 the roster/layers and callbacks as props; their adapters keep the store
 selectors, the presence-follow command dispatch, and the chapter-add side
-effect. Stories cover desktop, phone, menu-hosted, stale-render, guest-share,
-and loading/overflow/following states for the three templates.
+effect (its store-backed `chapterAddPending` flag reaches the view as
+`addChapterBusy`). Stories cover desktop, phone, menu-hosted, stale-render,
+guest-share, chapter-adding, and loading/overflow/following states for the
+three templates.
 
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` preview the shipped
 agent-connection and mobile gesture dialogs. The agent dialog's story supplies

@@ -114,6 +114,8 @@ export interface DawState {
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
+  /** The overlay legend's + Chapter add is in flight; outlives a View-menu remount. */
+  chapterAddPending: boolean;
   showCutAwayUtterances: boolean;
   pipelineJob: PipelineJobSnapshot | null;
   /** Most recent Studio activity (pipeline or agent) for StatusBar chrome. */
@@ -219,6 +221,7 @@ export interface DawState {
   setTranscriptInlineEditFailure: (
     failure: TranscriptInlineEditFailure | null,
   ) => void;
+  setChapterAddPending: (pending: boolean) => void;
   setTranscriptAnnotate: (on: boolean) => void;
   toggleTranscriptAnnotate: () => void;
   setShowCutAwayUtterances: (on: boolean) => void;

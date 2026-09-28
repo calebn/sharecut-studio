@@ -136,6 +136,7 @@ type UiSlice = Pick<
   | "transcriptFollowPlayhead"
   | "transcriptInlineCommitPending"
   | "transcriptInlineEditFailure"
+  | "chapterAddPending"
   | "transcriptAnnotate"
   | "showCutAwayUtterances"
   | "timelineFocused"
@@ -165,6 +166,7 @@ type UiSlice = Pick<
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineCommitPending"
   | "setTranscriptInlineEditFailure"
+  | "setChapterAddPending"
   | "setTranscriptAnnotate"
   | "toggleTranscriptAnnotate"
   | "setShowCutAwayUtterances"
@@ -273,6 +275,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptFollowPlayhead: true,
     transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
+    chapterAddPending: false,
     transcriptAnnotate: false,
     showCutAwayUtterances: false,
     timelineFocused: true,
@@ -385,6 +388,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptInlineCommitPending }),
     setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>
       set({ transcriptInlineEditFailure }),
+    setChapterAddPending: (chapterAddPending) => set({ chapterAddPending }),
     setTranscriptAnnotate: (transcriptAnnotate) => {
       set({
         transcriptAnnotate,
