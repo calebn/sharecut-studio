@@ -752,3 +752,156 @@ def test_audition_context_dsp_failure_is_unavailable(
     dumped = " ".join(h["evidence"]["reason"] for h in dsp)
     assert "RuntimeError" in dumped
     assert root not in dumped
+
+
+def _single_track_project(minimal_project, tmp_workspace):
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav"),
+        ),
+    ]
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.1, end=0.4, confidence=0.9),
+                TranscriptWord(text="world", start=0.5, end=0.9, confidence=0.9),
+            ],
+        )
+    ]
+    save_project(proj, minimal_project)
+    return load_project(minimal_project)
+
+
+def _seed_prosody_profile(proj, tmp_workspace):
+    """Write a fake cached profile directly, bypassing analyze_prosody/parselmouth."""
+    from podcast_mcp.edits.prosody_profile import (
+        ProsodyProfile,
+        profile_path,
+        profile_words,
+        words_fingerprint,
+    )
+    from podcast_mcp.engines.prosody import ProsodyParams
+    from podcast_mcp.util.atomic_json import write_json_atomic
+    from podcast_mcp.util.tracks import track_audio_path
+
+    stat = track_audio_path(proj, "host").stat()
+    segment = {
+        "start": 0.0,
+        "end": 2.0,
+        "f0": {
+            "mean_hz": 180.0,
+            "median_hz": 175.0,
+            "sd_st": 2.0,
+            "range_st": 5.0,
+            "voiced_fraction": 0.7,
+        },
+        "rate": {"syllable_count": 4, "speech_rate": 2.0, "articulation_rate": 2.5},
+        "pauses": {"count": 0, "total_sec": 0.0},
+        "energy": {
+            "mean_db": 60.0,
+            "sd_db": 5.0,
+            "slope_db_per_sec": -1.0,
+            "start_third_db": 62.0,
+            "mid_third_db": 60.0,
+            "end_third_db": 58.0,
+            "drop_db": 4.0,
+            "trend": "falling",
+        },
+        "voice_quality": {
+            "jitter_local": 0.01,
+            "shimmer_local": 0.02,
+            "hnr_db": 15.0,
+            "jitter_high": False,
+            "shimmer_high": False,
+            "hnr_low": False,
+        },
+        "prominent_words": [{"text": "hello", "start": 0.1, "end": 0.4, "score": 1.2}],
+        "boundaries": [
+            {
+                "time": 2.0,
+                "strength": 1.0,
+                "pause_sec": 0.0,
+                "lengthening": 0.0,
+                "pitch_reset": 0.0,
+                "kind": "segment_end",
+            }
+        ],
+    }
+    profile = ProsodyProfile(
+        track_id="host",
+        audio_sha256="deadbeef",
+        audio_size=stat.st_size,
+        audio_mtime_ns=stat.st_mtime_ns,
+        words_fingerprint=words_fingerprint(profile_words(proj, "host")),
+        params=ProsodyParams.from_defaults({}).key(),
+        engine={"backend": "parselmouth", "version": "0.0.0"},
+        segments=[segment],
+        computed_at=0.0,
+    )
+    path = profile_path(proj, "host", "0" * 16, "1" * 16)
+    write_json_atomic(path, profile.to_json())
+
+
+def test_audition_context_prosody_missing_hint(minimal_project, tmp_workspace):
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    ctx = build_audition_context(proj, 0.0, 2.0)
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert host["prosody"]["status"] == "missing"
+    assert "hint" in host["prosody"]
+    assert ctx["prosody_notes"] == []
+
+
+def test_audition_context_prosody_seeded_profile_maps_to_timeline(minimal_project, tmp_workspace):
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    _seed_prosody_profile(proj, tmp_workspace)
+    proj = load_project(minimal_project)
+    ctx = build_audition_context(proj, 0.0, 2.0)
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert host["prosody"]["status"] == "fresh"
+    segs = host["prosody"]["segments"]
+    assert len(segs) == 1
+    assert segs[0]["timeline_start"] == pytest.approx(0.0)
+    assert segs[0]["timeline_end"] == pytest.approx(2.0)
+    assert "F0" in segs[0]["line"]
+    assert ctx["prosody_notes"]
+    assert ctx["prosody_notes"][0].startswith("host:")
+
+
+def test_audition_context_prosody_skip_via_include_prosody_false(minimal_project, tmp_workspace):
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    _seed_prosody_profile(proj, tmp_workspace)
+    proj = load_project(minimal_project)
+    ctx = build_audition_context(proj, 0.0, 2.0, include_prosody=False)
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert "prosody" not in host
+    assert ctx["prosody_notes"] == []
+
+
+def test_audition_context_prosody_unavailable_on_error(minimal_project, tmp_workspace, monkeypatch):
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    root = str(proj.workspace_path())
+
+    def boom(*_args, **_kwargs):
+        raise OSError(f"disk error under {root}/prosody")
+
+    monkeypatch.setattr("podcast_mcp.edits.prosody_profile.prosody_window", boom)
+    ctx = build_audition_context(proj, 0.0, 2.0)
+    host = next(t for t in ctx["tracks"] if t["track_id"] == "host")
+    assert host["prosody"]["status"] == "unavailable"
+    assert "error" in host["prosody"]
+
+
+def test_audition_context_prosody_no_workspace_path_leak(minimal_project, tmp_workspace):
+    import json as json_mod
+
+    proj = _single_track_project(minimal_project, tmp_workspace)
+    _seed_prosody_profile(proj, tmp_workspace)
+    proj = load_project(minimal_project)
+    ctx = build_audition_context(proj, 0.0, 2.0)
+    dumped = json_mod.dumps(ctx)
+    assert str(tmp_workspace) not in dumped
