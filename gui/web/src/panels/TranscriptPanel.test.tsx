@@ -706,6 +706,17 @@ describe("TranscriptPanel", () => {
       await expectNoA11yViolations(container);
     });
 
+    it("a timed word chip's title says what click and double-click do", () => {
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      expect(hello.getAttribute("title") ?? "").toContain(
+        "Click to seek to 0:0",
+      );
+      expect(hello.getAttribute("title") ?? "").toContain(
+        "Double-click to fix text",
+      );
+    });
+
     it("leaves an untimed word as plain text with no inline editor", () => {
       const base = project();
       const words = base.transcript?.utterances[0]?.words;
