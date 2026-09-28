@@ -23,7 +23,7 @@ jobs:
       - name: Install package and dev deps
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,gui,relay]"
+          pip install -e ".[dev,gui,relay,prosody]"
 
       - name: Python lint / format / security / deps
         run: |

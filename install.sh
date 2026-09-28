@@ -44,15 +44,15 @@ while [ $# -gt 0 ]; do
 done
 
 if command -v uv >/dev/null 2>&1; then
-  # Contributor default: tests + GUI API + bootstrap FFmpeg + relay.
+  # Contributor default: tests + GUI API + bootstrap FFmpeg + relay + prosody.
   # Omits speaker/joinqc (large torch/CUDA downloads). For those: uv sync --all-extras
-  uv sync --extra dev --extra gui --extra bootstrap --extra relay
+  uv sync --extra dev --extra gui --extra bootstrap --extra relay --extra prosody
   PODCAST=(uv run podcast)
 else
   if [ ! -d .venv ]; then
     python3 -m venv .venv
   fi
-  .venv/bin/pip install -e ".[dev,gui,bootstrap,relay]" -q
+  .venv/bin/pip install -e ".[dev,gui,bootstrap,relay,prosody]" -q
   PODCAST=(.venv/bin/podcast)
 fi
 

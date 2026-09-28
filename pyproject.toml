@@ -79,6 +79,11 @@ relay = [
     "websockets>=14.0",
     "starlette>=0.47.0",
 ]
+prosody = [
+    # Praat in Python: F0/intensity/harmonicity contours, syllable-nucleus
+    # detection, jitter/shimmer/HNR. Plain wheel, no torch. See engines/prosody.py.
+    "praat-parselmouth>=0.4.7",
+]
 # Runtime extras only (not `dev` tooling). Install tooling via `--extra dev`.
 all = [
     "torch>=2.0.0",
@@ -95,6 +100,7 @@ all = [
     "starlette>=0.47.0",
     "librosa>=0.10.0",
     "transformers>=4.40.0",
+    "praat-parselmouth>=0.4.7",
 ]
 
 [project.scripts]
@@ -269,6 +275,7 @@ extend_exclude = [
 "static-ffmpeg" = "static_ffmpeg"
 speechbrain = "speechbrain"
 resemblyzer = "resemblyzer"
+"praat-parselmouth" = "parselmouth"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [

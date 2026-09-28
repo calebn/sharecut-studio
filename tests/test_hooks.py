@@ -80,7 +80,7 @@ def test_worktree_setup_provisions_and_uses_own_hooks(tmp_path: Path) -> None:
 
     assert _git(wt, "config", "--get", "core.hooksPath") == ".githooks"
     calls = log.read_text(encoding="utf-8").splitlines()
-    assert "uv sync --quiet --extra dev --extra gui --extra relay" in calls
+    assert "uv sync --quiet --extra dev --extra gui --extra relay --extra prosody" in calls
     assert any(c.startswith("npm ci") for c in calls)
     dev = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
         "optional-dependencies"
