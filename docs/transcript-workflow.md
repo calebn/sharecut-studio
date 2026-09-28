@@ -165,9 +165,12 @@ it reads Whisper's cached words for the track's current model, language, vocabul
 and decode options (`TranscriptionEngine.read_asr_cache`, the same lookup `transcribe_job`
 uses), then aligns them and replaces the stored transcript, going through the alignment
 cache above like any other alignment. Reused transcripts with no ASR cache for the current
-inputs only Re-transcribe can rebuild them. Hand-edited transcripts are re-timed only with
-the same `overwrite_edited` confirmation Re-transcribe uses; CLI and MCP never send that
-confirmation, so they always skip edited transcripts and report them.
+inputs are skipped and reported; only Re-transcribe can rebuild them. Hand-edited transcripts
+are re-timed only with the same `overwrite_edited` confirmation Re-transcribe uses; CLI and
+MCP never send that confirmation, so they always skip edited transcripts and report them.
+The run fails before changing any transcript when the word aligner cannot load. A track
+whose alignment fails is listed under `forced_alignment.retime.failed` in
+`transcript_timing.json`, not under `retimed`.
 
 **Silence hallucinations (#521).** Whisper invents words over silent stretches (mostly
 low-volume bleed tracks). ASR runs Silero VAD first (`transcribe.vad.enabled`, default on)

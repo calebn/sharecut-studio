@@ -348,7 +348,8 @@ class TranscriptionEngine:
             transcript = _read_cache(legacy_cache_path(project, job.cache_id, audio_sha256))
         return cache, transcript
 
-    def _load_word_aligner(self) -> WordAligner:
+    def load_word_aligner(self) -> WordAligner:
+        """Load (once per engine) the forced aligner; raises the cached load error on every later call."""
         # The load, or its failure, is kept for this engine's lifetime (one pipeline run or
         # one TranscriptService request): a corrupt snapshot is hashed once per run, not
         # once per track, and a bootstrap in a long-lived process (Studio) still takes
@@ -417,7 +418,7 @@ class TranscriptionEngine:
             )
 
         try:
-            aligner = self._load_word_aligner()
+            aligner = self.load_word_aligner()
         except Exception as exc:  # missing model / onnxruntime / corrupt snapshot
             keep_whisper("failed", str(exc))
             return
