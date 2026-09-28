@@ -11,14 +11,15 @@ against that base on every fan-out run:
   client's changed top-level keys (``changes``) plus changed ``meta`` keys
   (``changes["meta"]``; a ``None`` meta value means that key was removed).
 
-``roster_version`` is one process-wide monotonic counter (not per project key): every
-client applies the rule "equal version -> apply; older version -> drop; newer version or
-an unknown client -> request the roster" the same way for every project.
+``roster_version`` is a per-project-key monotonic counter that survives ``clear_key``:
+versions never repeat for a key within a server process, and one project's joins and
+leaves are not observable through another project's version. Every client applies the
+rule "equal version -> apply; older version -> drop; newer version or an unknown client
+-> request the roster".
 """
 
 from __future__ import annotations
 
-import itertools
 import threading
 import time
 from collections.abc import Callable
@@ -28,17 +29,9 @@ PRESENCE_DELTA = "PresenceDelta"
 ROSTER_REQUEST = "RosterRequest"
 PRESENCE_RESYNC = "PresenceResync"
 
-_ROSTER_VERSION = itertools.count(1)
-_ROSTER_VERSION_LOCK = threading.Lock()
-
 # Row keys diffed for a PresenceDelta's top-level ``changes``. ``meta`` is diffed
 # separately (``meta_changes``); ``client_id`` identifies the row, not a change.
 _ROW_KEYS = ("role", "label", "acked_server_seq", "playhead_sec", "followers")
-
-
-def _next_roster_version() -> int:
-    with _ROSTER_VERSION_LOCK:
-        return next(_ROSTER_VERSION)
 
 
 def row_changes(prev: dict[str, Any] | None, curr: dict[str, Any]) -> dict[str, Any]:
@@ -155,11 +148,12 @@ class PresenceRosterTracker:
         return read_rows(), version
 
     def clear_key(self, project_key: str) -> None:
-        """Drop tracked state for ``project_key`` (mirrors ``presence_fanout.clear_key``,
-        called from the same place: the hub's ``_key_idle``)."""
+        """Drop the tracked base for ``project_key`` (the hub's ``_key_idle``, or a failed
+        fan-out read). The key's version is kept, one int per project key this process has
+        fanned out, so a key's versions never repeat within the process and the next
+        fan-out sends a full ``Presence`` at a higher version."""
         with self._lock:
             self._bases.pop(project_key, None)
-            self._versions.pop(project_key, None)
 
     def reset(self) -> None:
         """Drop every tracked project key. Tests call this between cases."""
@@ -187,7 +181,7 @@ class PresenceRosterTracker:
         with self._lock:
             base = self._bases.get(project_key)
             if base is None or set(base) != set(curr_by_id):
-                version = _next_roster_version()
+                version = self._versions.get(project_key, 0) + 1
                 self._versions[project_key] = version
                 self._bases[project_key] = {
                     client_id: dict(row) for client_id, row in curr_by_id.items()

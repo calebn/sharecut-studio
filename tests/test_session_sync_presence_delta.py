@@ -152,10 +152,17 @@ def test_tracker_first_run_sends_one_full_presence_and_bumps_version() -> None:
     v1 = tracker.version("proj-a")
     assert v1 > 0
 
-    # A second key gets its own, independently bumped version.
+    # A second key gets its own, independently counted version (not offset by proj-a's).
     events2 = tracker.events("proj-b", [{"client_id": "c9", "last_seen_ns": 1}])
     assert events2[0]["type"] == "Presence"
-    assert tracker.version("proj-b") != v1
+    assert tracker.version("proj-b") == 1
+
+    # Bumping proj-a further does not move proj-b's version.
+    tracker.events(
+        "proj-a", [{"client_id": "c1", "last_seen_ns": 1}, {"client_id": "c2", "last_seen_ns": 1}]
+    )
+    assert tracker.version("proj-a") > v1
+    assert tracker.version("proj-b") == 1
 
 
 def test_tracker_join_and_leave_send_full_presence_and_bump_version() -> None:
@@ -220,12 +227,41 @@ def test_tracker_followers_change_reported_for_the_followed_client() -> None:
 def test_tracker_clear_key_drops_state() -> None:
     tracker = PresenceRosterTracker()
     tracker.events("proj", [{"client_id": "c1", "last_seen_ns": 1}])
-    assert tracker.version("proj") > 0
+    version_before = tracker.version("proj")
+    assert version_before > 0
     tracker.clear_key("proj")
-    assert tracker.version("proj") == 0
-    # A fresh call after clearing is treated as a first run again.
+    # The version is kept (not reset to 0): a key's versions never repeat within a process.
+    assert tracker.version("proj") == version_before
+    # A fresh call after clearing is treated as a first run again, at a higher version.
     events = tracker.events("proj", [{"client_id": "c1", "last_seen_ns": 1}])
     assert events[0]["type"] == "Presence"
+    assert events[0]["roster_version"] == version_before + 1
+
+
+def test_roster_version_is_per_project_key() -> None:
+    tracker = PresenceRosterTracker()
+    row = {"client_id": "c1", "last_seen_ns": 1}
+    tracker.events("a", [row])
+    assert tracker.version("a") == 1
+    tracker.events("b", [row])
+    assert tracker.version("b") == 1
+
+    # A join on "a" bumps only "a"'s version.
+    tracker.events("a", [row, {"client_id": "c2", "last_seen_ns": 1}])
+    assert tracker.version("a") == 2
+    assert tracker.version("b") == 1
+
+
+def test_clear_key_keeps_the_version_monotonic() -> None:
+    tracker = PresenceRosterTracker()
+    rows = [{"client_id": "c1", "last_seen_ns": 1}]
+    tracker.events("k", rows)
+    v = tracker.version("k")
+    tracker.clear_key("k")
+    assert tracker.version("k") == v
+    events = tracker.events("k", rows)
+    assert events[0]["type"] == "Presence"
+    assert tracker.version("k") == v + 1
 
 
 def test_one_cursor_move_produces_exactly_one_presence_delta(minimal_project) -> None:
