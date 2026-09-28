@@ -172,6 +172,18 @@ describe("selectLowConfidenceStops", () => {
     const e = selectLowConfidenceStops([...utts], true, true);
     expect(e).not.toBe(d);
   });
+
+  it("keeps each utterance array cached while callers alternate", () => {
+    const other = [...utts];
+    const a = selectLowConfidenceStops(utts, true, false);
+    const b = selectLowConfidenceStops(other, true, false);
+    expect(b).not.toBe(a);
+    expect(selectLowConfidenceStops(utts, true, false)).toBe(a);
+    expect(selectLowConfidenceStops(other, true, false)).toBe(b);
+    const all = selectLowConfidenceStops(utts, true, true);
+    expect(selectLowConfidenceStops(utts, true, false)).toBe(a);
+    expect(selectLowConfidenceStops(utts, true, true)).toBe(all);
+  });
 });
 
 describe("reviewCursorIndex", () => {
