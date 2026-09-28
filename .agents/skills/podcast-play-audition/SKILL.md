@@ -78,7 +78,7 @@ Do not skip this step when reviewing multitrack join quality or when the user re
 
 ## Shared DAW session (bidirectional)
 
-Agent, CLI, and DAW tabs are clients of `SessionSyncService` (typed commands → sqlite log → snapshot / WebSocket). See `docs/session-sync.md`. The only store is `artifacts/session/sync.db`; read it with `get_session_state_tool`.
+Agent, CLI, and DAW tabs are clients of `SessionSyncService` (typed commands → sqlite log → snapshot / WebSocket). See `docs/session-sync.md`. The only store is `artifacts/session/sync.db`; read it with `get_session_state_tool`. See `docs/session-sync.md` § MCP / CLI "Process boundary" for how quickly a tab sees a command from this process versus host MCP.
 
 | Tool | When |
 |------|------|
@@ -97,7 +97,7 @@ CLI: `podcast session status|seek|stop|mode|region`. Prefer real play (`dry_run=
 2. **Section / time range** (default) → `play_audio_tool` with `source="premix"` and timeline `start_sec` / `end_sec` (run `render_preview` first if premix missing, or `rerender=true`). All tracks at once.
 3. **Topic / quote request** → `play_transcript_query_tool(project_path, query="…")` when the user wants the speaker who said it; otherwise get `timeline_start`/`timeline_end` from `search_transcript_tool` and play that window on `premix`.
 4. **Multiple matches** → `search_transcript_tool` → show snippets → `play_audio_tool` on the chosen `timeline_*` window (or `play_transcript_query_tool` with `match_index` for single-speaker audition).
-5. Return the JSON `tier` field (`stem`, `segment_render`, `raw`, `premix`) so the user knows what they heard. If `render_busy` is true (only with tier `premix`), another render held the lock and the premix already on disk played: tell the user it may be the previous render and retry after that render finishes. A busy lock during a processed `--rerender` plays a `segment_render` of the current edits instead and does not set `render_busy`. After `history_goto` / undo without `--rerender`, expect `segment_render` until stems are reassembled. If the DAW is open, it will already show the same span. When the user refers to “here” / the playhead, call `get_session_state_tool` first. To play what a named person is hearing, call `get_session_presence_tool` then `seek_session_tool` / `set_session_region_tool` at their playhead.
+5. Return the JSON `tier` field (`stem`, `segment_render`, `raw`, `premix`) so the user knows what they heard. If `render_busy` is true (only with tier `premix`), another render held the lock and the premix already on disk played: tell the user it may be the previous render and retry after that render finishes. A busy lock during a processed `--rerender` plays a `segment_render` of the current edits instead and does not set `render_busy`. After `history_goto` / undo without `--rerender`, expect `segment_render` until stems are reassembled. If the DAW is open, it will already show the same span at once over host MCP (`http://127.0.0.1:8765/mcp`); from stdio MCP or the CLI, within the 30 s sanity poll or as soon as the Studio tab regains focus. When the user refers to “here” / the playhead, call `get_session_state_tool` first. To play what a named person is hearing, call `get_session_presence_tool` then `seek_session_tool` / `set_session_region_tool` at their playhead.
 
 ## Rules
 
