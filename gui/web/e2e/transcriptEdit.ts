@@ -17,13 +17,14 @@ export async function openTranscriptPanel(page: Page): Promise<Locator> {
 }
 
 /**
- * Collect the `type` of every POSTed `/api/document/command` on `page`, in
- * order. `types` fills in live; call `stop` to detach the listener.
+ * Run `body` while collecting the `type` of every POSTed
+ * `/api/document/command` on `page`, in order (`types` fills in live). The
+ * request listener is detached when `body` settles, even if it throws.
  */
-export function recordDocumentCommandTypes(page: Page): {
-  types: string[];
-  stop: () => void;
-} {
+export async function withDocumentCommandTypes<T>(
+  page: Page,
+  body: (types: readonly string[]) => Promise<T>,
+): Promise<T> {
   const types: string[] = [];
   const onRequest = (req: Request) => {
     if (req.method() !== "POST" || !req.url().includes("/api/document/command"))
@@ -32,5 +33,9 @@ export function recordDocumentCommandTypes(page: Page): {
     if (type) types.push(type);
   };
   page.on("request", onRequest);
-  return { types, stop: () => page.off("request", onRequest) };
+  try {
+    return await body(types);
+  } finally {
+    page.off("request", onRequest);
+  }
 }

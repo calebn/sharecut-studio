@@ -21,7 +21,7 @@ import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
 import {
   openTranscriptPanel,
-  recordDocumentCommandTypes,
+  withDocumentCommandTypes,
 } from "../e2e/transcriptEdit";
 import { withBrowserPages } from "../e2e/twoBrowserPages";
 import { wavPeak } from "../e2e/wavPeak";
@@ -152,8 +152,7 @@ test.describe("core flow", () => {
 
         await test.step("edit: correct a transcript word, then undo it", async () => {
           const list = await openTranscriptPanel(host);
-          const { types, stop } = recordDocumentCommandTypes(host);
-          try {
+          await withDocumentCommandTypes(host, async (types) => {
             await list
               .getByRole("button", { name: "welcome", exact: true })
               .first()
@@ -178,9 +177,7 @@ test.describe("core flow", () => {
             await expect(
               list.getByRole("button", { name: "Welcome", exact: true }),
             ).toHaveCount(0);
-          } finally {
-            stop();
-          }
+          });
           // The project is disposable; no API undo is needed here (unlike
           // transcript-inline-edit.spec.ts, which runs against the shared
           // live E2E project).
