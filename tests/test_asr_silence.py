@@ -7,6 +7,7 @@ import pytest
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
+    below_evidence_floor,
     digital_silence_fraction,
     flag_silent_words_in_file,
     flag_words_over_silence,
@@ -271,6 +272,14 @@ def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
     words2[0].alignment_score = 0.001
     assert refresh_silence_flags(words2, path, AsrOptions()) == 1
     assert words2[0].suspect_hallucination is True
+
+
+def test_below_evidence_floor_truth_table() -> None:
+    assert below_evidence_floor(0.004, 0.01)
+    assert not below_evidence_floor(0.01, 0.01)
+    assert not below_evidence_floor(None, 0.01)
+    assert not below_evidence_floor(0.0, 0.0)
+    assert not below_evidence_floor(0.0, -1.0)
 
 
 def test_evidence_flag_off_at_zero_min_score():
