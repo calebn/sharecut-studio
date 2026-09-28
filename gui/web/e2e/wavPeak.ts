@@ -17,5 +17,12 @@ export function wavPeak(bytes: Uint8Array): number {
   );
   const pcm = buffer.slice(header.dataOffset, dataEnd);
   const samples = wavPcmToFloat32(pcm, header);
-  return samples.length === 0 ? 0 : Math.max(...samples);
+  // wavPcmToFloat32 yields each frame's absolute peak, so the max is the WAV
+  // peak. A loop, not Math.max(...samples): spreading ~100k+ frames overflows
+  // the call stack.
+  let peak = 0;
+  for (const s of samples) {
+    if (s > peak) peak = s;
+  }
+  return peak;
 }
