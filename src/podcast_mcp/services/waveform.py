@@ -102,7 +102,9 @@ _PYRAMID_NAME_RE = re.compile(r"^([A-Za-z0-9_-]+)\.[0-9a-f]{20}\.wfpk$")
 _INDEX_MAX = 16
 _META_MAX = 256
 _PCM_MAX = 32  # decoded compressed blocks; each at most pcm_block_frames * 4 bytes (256 KiB)
-PCM_DECODE_MAX_CONCURRENT = 4  # the host viewer's fetchLimit, so one tab never trips it
+# Process-wide, shared by every tab and project: one tab's fetchLimit (4) never trips it
+# alone; more tabs doing compressed deep zoom get a 503 the client re-queues (latency only).
+PCM_DECODE_MAX_CONCURRENT = 4
 GC_MIN_AGE_SEC = 7 * 86_400.0
 
 log = logging.getLogger(__name__)
