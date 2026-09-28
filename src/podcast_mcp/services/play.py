@@ -169,11 +169,15 @@ def _mix_cache_extra(inputs: list[tuple[Path, float]]) -> str:
 
 
 def _cache_last_used(path: Path) -> float:
-    """Last-use time of a play-cache WAV: its ``st_atime`` lease.
+    """Last-use time of a play-cache WAV: its filesystem ``st_atime``.
 
-    ``_refresh_cache_access`` renews the lease on reuse. Eviction reads it only
-    here, so tests can pin last-use times instead of racing external readers
-    (indexers, backup/sync agents) that reset a fresh file's atime (#735).
+    ``_refresh_cache_access`` renews this lease whenever PlayService serves or
+    reuses the WAV, and eviction reads it only through this function. The seam
+    lets tests pin last-use times (#735); it does not make production LRU
+    exact. External readers (Spotlight, backup or sync agents) also bump atime,
+    so a WAV PlayService has not served can look recently used and outlive
+    files it served more recently. ``_PLAY_CACHE_MAX_FILES`` and
+    ``_PLAY_CACHE_HARD_MAX_FILES`` still bound the cache.
     Raises ``FileNotFoundError`` when the file is gone.
     """
     return path.stat().st_atime
