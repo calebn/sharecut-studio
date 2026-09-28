@@ -29,6 +29,7 @@ from podcast_mcp.services.record.service import (
     route_record_ws_message,
 )
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
+from podcast_mcp.services.remote_mcp.limits import ws_roster_request_allowed
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.commands import SyncCommand, retry_command_id
 from podcast_mcp.services.session_sync.hub import get_hub
@@ -129,6 +130,10 @@ def apply_ws_client_message(
     if mtype == "Record":
         return None, seq
     if mtype == ROSTER_REQUEST:
+        # Throttled per client (one reply/s by default): a throttled request gets no
+        # reply and the client's 2 s RosterRequest retry asks again.
+        if not ws_roster_request_allowed(f"host:{client_id}"):
+            return None, seq
         return svc.roster_event(), seq
     if mtype == "Command":
         client_seq = int(msg["client_seq"])
