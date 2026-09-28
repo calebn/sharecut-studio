@@ -324,9 +324,13 @@ def test_checked_in_candidate_reports_match_reference_fixture(
     candidates = json.loads((fixture / "candidates.json").read_text(encoding="utf-8"))
     pinned = next(c for c in candidates["candidates"] if c["label"] == label)
     for report_path in sorted(fixture.glob(f"*.{label}.json")):
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-        assert report["provenance"]["model"] == pinned["hf_repo"]
-        assert report["provenance"]["version"] == pinned["revision"]
+        provenance = json.loads(report_path.read_text(encoding="utf-8"))["provenance"]
+        assert provenance["model"] == pinned["hf_repo"]
+        assert provenance["version"] == pinned["revision"]
+        assert provenance["license"] == pinned["license"]
+        # onnx-base and onnx-base-int8 share repo + revision; only onnx_file tells them apart.
+        assert provenance["settings"]["onnx_file"] == pinned.get("onnx_file")
+        assert provenance["settings"]["threads"] == 4  # README/docs: run --threads 4
 
 
 def test_matched_word_pairs_validates_and_returns_monotone_pairs() -> None:
