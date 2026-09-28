@@ -25,9 +25,10 @@ const room = {
   producer: { token: "producer-token" },
 };
 
-function hostWithResponse(ok: boolean, body: unknown) {
+function hostWithResponse(ok: boolean, body: unknown, status = ok ? 200 : 400) {
   const post = vi.fn(async () => ({
     ok: () => ok,
+    status: () => status,
     text: async () => JSON.stringify(body),
     json: async () => body,
   }));
@@ -65,26 +66,31 @@ describe("record links", () => {
 /**
  * A host fake whose `/api/record/state` GETs return successive entries of
  * `states` (sticking on the last one), and whose `/api/record/command` POST
- * resolves with `post`.
+ * resolves with `post`. A string entry is a minimal snapshot in that state; an
+ * object entry is returned as the whole snapshot.
  */
 function hostWithRecordStates(
-  states: string[],
-  post: { ok: boolean; body?: unknown },
+  states: Array<string | HostRecordSnapshot>,
+  post: { ok: boolean; body?: unknown } = { ok: true },
 ) {
   let call = 0;
   const get = vi.fn(async () => {
-    const state = states[Math.min(call, states.length - 1)];
+    const entry = states[Math.min(call, states.length - 1)];
     call += 1;
+    const snapshot: HostRecordSnapshot =
+      typeof entry === "string"
+        ? {
+            state: entry,
+            session_id: "s",
+            take_index: 0,
+            recording_ms: 0,
+            participants: [],
+          }
+        : entry;
     return {
       ok: () => true,
-      text: async () => JSON.stringify({ state }),
-      json: async () => ({
-        state,
-        session_id: "s",
-        take_index: 0,
-        recording_ms: 0,
-        participants: [],
-      }),
+      text: async () => JSON.stringify(snapshot),
+      json: async () => snapshot,
     };
   });
   const postFn = vi.fn(async () => ({
@@ -478,23 +484,6 @@ describe("landedTrackPeakOrPending", () => {
   });
 });
 
-function hostWithSnapshot(snapshot: HostRecordSnapshot) {
-  const get = vi.fn(async () => ({
-    ok: () => true,
-    text: async () => JSON.stringify(snapshot),
-    json: async () => snapshot,
-  }));
-  return { page: { request: { get } }, get };
-}
-
-function hostWithPostStatus(status: number, body: unknown) {
-  const post = vi.fn(async () => ({
-    status: () => status,
-    text: async () => JSON.stringify(body),
-  }));
-  return { page: { request: { post } }, post };
-}
-
 describe("currentTake", () => {
   it("returns the take matching take_index", () => {
     const takes = [
@@ -530,40 +519,46 @@ describe("currentTake", () => {
 
 describe("hostRecordConnected", () => {
   it("is true when the host participant is connected", async () => {
-    const { page } = hostWithSnapshot({
-      session_id: "s",
-      take_index: 0,
-      recording_ms: 0,
-      participants: [
-        { participant_id: "p_host", display_name: "Host", connected: true },
-      ],
-    });
+    const { page } = hostWithRecordStates([
+      {
+        session_id: "s",
+        take_index: 0,
+        recording_ms: 0,
+        participants: [
+          { participant_id: "p_host", display_name: "Host", connected: true },
+        ],
+      },
+    ]);
     await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
       true,
     );
   });
 
   it("is false when the host participant is disconnected", async () => {
-    const { page } = hostWithSnapshot({
-      session_id: "s",
-      take_index: 0,
-      recording_ms: 0,
-      participants: [
-        { participant_id: "p_host", display_name: "Host", connected: false },
-      ],
-    });
+    const { page } = hostWithRecordStates([
+      {
+        session_id: "s",
+        take_index: 0,
+        recording_ms: 0,
+        participants: [
+          { participant_id: "p_host", display_name: "Host", connected: false },
+        ],
+      },
+    ]);
     await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
       false,
     );
   });
 
   it("is false when the host participant is missing", async () => {
-    const { page } = hostWithSnapshot({
-      session_id: "s",
-      take_index: 0,
-      recording_ms: 0,
-      participants: [],
-    });
+    const { page } = hostWithRecordStates([
+      {
+        session_id: "s",
+        take_index: 0,
+        recording_ms: 0,
+        participants: [],
+      },
+    ]);
     await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
       false,
     );
@@ -572,16 +567,21 @@ describe("hostRecordConnected", () => {
 
 describe("expectRemintRefused", () => {
   it("passes when the remint is refused with 409", async () => {
-    const { page } = hostWithPostStatus(409, {
-      detail: "A take is open (REC/PAUSED). Stop it before minting a new room.",
-    });
+    const { page } = hostWithResponse(
+      false,
+      {
+        detail:
+          "A take is open (REC/PAUSED). Stop it before minting a new room.",
+      },
+      409,
+    );
     await expect(
       expectRemintRefused(page as never, "/p/x.json"),
     ).resolves.toBeUndefined();
   });
 
   it("fails when the remint is not refused", async () => {
-    const { page } = hostWithPostStatus(200, { room: {} });
+    const { page } = hostWithResponse(true, { room: {} });
     await expect(
       expectRemintRefused(page as never, "/p/x.json"),
     ).rejects.toThrow();
