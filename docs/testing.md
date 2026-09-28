@@ -311,18 +311,18 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 ### Beta user stories (US-1 … US-9)
 
-The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.md`, `ux/pages/guest-journeys.md`, and `ROADMAP.md`. Each story's issue holds its Given/When/Then, steps, and run log; bugs found while working a story get their own issues; hardware-only steps are listed under "Still manual" below rather than tracked as automatable.
+The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.md`, `ux/pages/guest-journeys.md`, and `ROADMAP.md`. Each story's issue holds its Given/When/Then, steps, and run log; bugs found while working a story get their own issues. "Still manual" lists every step that has no automated check yet, including hardware-only steps (Tauri recording) and listening by ear.
 
-"Automated" means every step that needs no hardware has an automated check. "Partial" means some steps still need a manual run. Update a story's row in the same change that automates one of its steps. `tests/test_beta_story_matrix.py` guards this table.
+"Automated" means every step except Tauri recording and listening by ear has an automated check. "Partial" means some other step still needs a manual run. Cite each coverage file by its full repo-relative path. Update a story's row in the same change that automates one of its steps. `tests/test_beta_story_matrix.py` guards this table: every cited path must exist, and an "Automated" row may list only Tauri recording or listening by ear under "Still manual".
 
 | Story | Issue | Status | Automated coverage | Still manual |
 | --- | --- | --- | --- | --- |
-| US-1 | #3 | Automated | `gui/web/e2e/record-lobby.spec.ts` | Tauri recording (#193), host-drop in the browser |
+| US-1 | #3 | Partial | `gui/web/e2e/record-lobby.spec.ts` | Tauri recording (#193), host-drop in the browser |
 | US-2 | #9 | Partial | `tests/test_record_host_reconnect.py`, `gui/web/src/record/RecordPanel.test.tsx`, `gui/web/src/record/Room.test.tsx` | Tauri recording (#193), host-drop in the browser, listening by ear |
 | US-3 | #10 | Automated | `tests/test_ingest_recorder_import_e2e.py` | Tauri recording (#193) |
-| US-4 | #4 | Partial | `gui/web/e2e/transcript-inline-edit.spec.ts`, `transcript-ignore.spec.ts`, `transcript-refine-recovery.spec.ts`, `sharecut.mobile.spec.ts`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
-| US-5 | #5 | Partial | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `ImpactPanel.test.tsx`, `tests/test_tighten.py` | Listening by ear |
-| US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `applied-edit-seams.spec.ts`, `transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
+| US-4 | #4 | Partial | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
+| US-5 | #5 | Partial | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py` | Listening by ear |
+| US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `gui/web/e2e/applied-edit-seams.spec.ts`, `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
 | US-7 | #7 | Partial | `gui/web/src/review/ReviewApp.test.tsx`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Two-browser suggest/approve |
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
 | US-9 | #8 | Partial | `gui/web/src/panels/PipelinePanel.test.tsx`, `gui/web/e2e/pipeline-warning-layout.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
