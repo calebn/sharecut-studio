@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "@testing-library/react";
@@ -84,17 +84,38 @@ describe("timelineLaneStoryDecorator", () => {
   });
 
   it("loads a positive --ruler-height into the Storybook preview", () => {
-    expect(source("../../.storybook/preview.ts")).toContain(
-      'import "../src/styles/daw.css";',
+    // Play functions run under jsdom (allStories.test.tsx), which neither
+    // loads the preview CSS nor lays out, so this guards the source chain.
+    expect(source("../../.storybook/preview.ts")).toMatch(
+      /^import\s+["']\.\.\/src\/styles\/daw\.css["'];?$/m,
     );
-    expect(source("../styles/daw.css")).toContain('@import "./theme.css";');
-    expect(source("../styles/theme.css")).toContain(
-      '@import "./theme/tokens.css";',
+    expect(source("../styles/daw.css")).toMatch(
+      /@import\s+(?:url\()?["']\.\/theme\.css["']/,
     );
-    const match = source("../styles/theme/tokens.css").match(
-      /--ruler-height:\s*(\d+(?:\.\d+)?)(px|rem)\s*;/,
+    expect(source("../styles/theme.css")).toMatch(
+      /@import\s+(?:url\()?["']\.\/theme\/tokens\.css["']/,
     );
-    expect(match).not.toBeNull();
-    expect(Number(match![1])).toBeGreaterThan(0);
+    // Every declaration in any stylesheet (tokens, themes, partials, media
+    // queries) stays a positive length, so no later rule can zero it.
+    const stylesDir = join(here, "../styles");
+    const declarations = readdirSync(stylesDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".css"))
+      .flatMap((file) =>
+        [
+          ...readFileSync(join(stylesDir, file), "utf8")
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .matchAll(/--ruler-height\s*:\s*([^;}]+)/g),
+        ].map((m) => ({ file, value: (m[1] ?? "").trim() })),
+      );
+    expect(declarations.length).toBeGreaterThan(0);
+    for (const { file, value } of declarations) {
+      const length = value.match(/^(\d+(?:\.\d+)?)(px|rem)$/);
+      expect(length, `${file}: --ruler-height: ${value}`).not.toBeNull();
+      expect(
+        Number(length![1]),
+        `${file}: --ruler-height: ${value}`,
+      ).toBeGreaterThan(0);
+    }
   });
 });
