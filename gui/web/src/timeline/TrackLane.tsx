@@ -5,6 +5,7 @@ import type {
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
+import { isDrawnJoin, joinGlyph } from "../edit/joinRender";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -31,6 +32,7 @@ import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
+import { JoinBadge } from "./JoinBadge";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
@@ -170,6 +172,9 @@ export function TrackLaneView({
     [bladeMode, onSeek, selectClip],
   );
 
+  const isMoving = (id: string) =>
+    Boolean(hideClipIds?.has(id) || previewStartById[id] != null);
+
   const clearDrop = () => {
     setDropOver(false);
     setIngestDropTrackId(null);
@@ -285,12 +290,36 @@ export function TrackLaneView({
               gainDb={trackOutputGainDb(track)}
               previewTimelineStart={previewStartById[clip.id] ?? null}
               previewHidden={hideClipIds?.has(clip.id) ?? false}
-              moving={Boolean(
-                hideClipIds?.has(clip.id) || previewStartById[clip.id] != null,
-              )}
+              moving={isMoving(clip.id)}
               onMovePreview={onClipMovePreview}
               onMoveCommit={onClipMoveCommit}
               onMoveCancel={onClipMoveCancel}
+            />
+          );
+        })}
+        {/* One badge per drawn join, at the top of the seam (#690). */}
+        {clips.map((clip, i) => {
+          const prev = clips[i - 1];
+          if (
+            !prev ||
+            !isDrawnJoin(prev, clip, zoomPxPerSec) ||
+            isMoving(prev.id) ||
+            isMoving(clip.id)
+          ) {
+            return null;
+          }
+          const glyph = joinGlyph(clip);
+          const rollSec =
+            rollPreview?.rightClipId === clip.id ? rollPreview.deltaSec : 0;
+          return (
+            <JoinBadge
+              key={`join-${clip.id}`}
+              glyph={glyph}
+              blocked={
+                glyph === "crossfade" && clip.join_crossfade_blocked != null
+              }
+              seamSec={clip.timeline_start + rollSec}
+              zoomPxPerSec={zoomPxPerSec}
             />
           );
         })}
