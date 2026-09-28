@@ -1155,4 +1155,135 @@ describe("useSessionSync presence", () => {
       vi.useRealTimers();
     }
   });
+
+  it("three Presence frames plus an agent Applied commit once", async () => {
+    const listener = vi.fn();
+    const unsub = useDawStore.subscribe(listener);
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        useDawStore.getState().applyAgentSession,
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    listener.mockClear();
+    const sock = FakeWebSocket.instances[0];
+    await act(async () => {
+      sock.deliver({
+        type: "Presence",
+        clients: [{ client_id: "a", role: "viewer" }],
+      });
+      sock.deliver({
+        type: "Presence",
+        clients: [
+          { client_id: "a", role: "viewer" },
+          { client_id: "b", role: "viewer" },
+        ],
+      });
+      sock.deliver({
+        type: "Presence",
+        clients: [
+          { client_id: "a", role: "viewer" },
+          { client_id: "b", role: "viewer" },
+          { client_id: "c", role: "viewer" },
+        ],
+      });
+      sock.deliver({
+        type: "Applied",
+        command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+        snapshot: {
+          server_seq: 1,
+          last_command_id: "cmd-1",
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: 9,
+        },
+      });
+      const { flushInbound } = await import("../sync/inboundQueue");
+      flushInbound();
+    });
+    unsub();
+    expect(
+      useDawStore.getState().sessionClients.map((c) => c.client_id),
+    ).toEqual(["a", "b", "c"]);
+    expect(useDawStore.getState().playheadSec).toBe(9);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("a clock-only frame writes nothing to the store", async () => {
+    const listener = vi.fn();
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const unsub = useDawStore.subscribe(listener);
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Ping",
+        server_time_ns: (Date.now() + 100) * 1e6,
+      });
+    });
+    unsub();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("still applies the record plane immediately, ahead of any queued frame", async () => {
+    const { useRecordHostStore } = await import("../record/hostStore");
+    useRecordHostStore.getState().setSnapshot(null);
+    renderHook(() =>
+      useSessionSync(
+        "/tmp/ep.project.json",
+        vi.fn(),
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const sock = FakeWebSocket.instances[0];
+    // Delivered without a flush: the record-plane frame still applies
+    // synchronously, unlike a queued session frame.
+    await act(async () => {
+      sock.deliver({
+        type: "Snapshot",
+        plane: "record",
+        snapshot: {
+          session_id: "room1",
+          state: "recording",
+          take_index: 0,
+          recording_ms: 1000,
+          participants: [],
+          caps: { recorded: 4, producers: 2 },
+        },
+      });
+    });
+    expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
+  });
 });

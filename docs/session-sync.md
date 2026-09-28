@@ -200,6 +200,10 @@ Every GUI surface is classified once as **Look**, **Hear**, or **Do** (`presence
 1. **Transport / presence** (this doc) — playhead, region, mode, who is connected.  
 2. **Document** (typed commands) — same submit → log → echo shape, **separate** sqlite log at `artifacts/session/document.db`, dispatch via handler registry → existing `*Service` / `ProjectWorkspace.mutate`. Do not mix playhead heartbeats into document ops.
 
+### Client apply model (GUI)
+
+Every realtime WS `onmessage` handler (`useDocumentSync`, `useSessionSync`, `useGuestSync`) parses its frame, samples the server clock at receipt where one applies (`presence/clock.ts`'s `applyServerClock`, module state — not a store field), and hands the rest to `sync/inboundQueue.ts`'s `enqueueInbound(job, { coalesceKey? })` instead of writing to the DAW store directly. The queue drains once per animation frame (or once per `setTimeout(0)` while the tab is hidden), running every queued job inside one `state/writeBatch.ts` batch (`batchDawWrites`), so N frames received between paints commit as one render instead of N. A `coalesceKey` (`"session:presence"` / `"guest:presence"`) lets a newer full Presence roster replace an older, still-queued one in place; durable snapshots (Applied/Snapshot with `resync`, agent state) are never coalesced. The record plane and the clock sample bypass the queue and apply immediately — they are cheap, and record state is latency-sensitive. An own-client HTTP result (`applyDocumentResult`) flushes the queue first, so a peer frame queued ahead of it still applies in arrival order.
+
 ### Document plane API
 
 | Endpoint | Purpose |

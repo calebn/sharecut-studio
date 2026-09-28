@@ -50,17 +50,10 @@ describe("useGuestSyncAndProjectPoll", () => {
 
   it("runs one project poll per tick for a guest whether its socket is connecting, open or closed", async () => {
     renderHook(() =>
-      useGuestSyncAndProjectPoll(
-        "share:tok123",
-        vi.fn(),
-        null,
-        vi.fn(),
-        vi.fn(),
-        {
-          hostSyncEnabled: false,
-          guestSyncEnabled: true,
-        },
-      ),
+      useGuestSyncAndProjectPoll("share:tok123", vi.fn(), vi.fn(), vi.fn(), {
+        hostSyncEnabled: false,
+        guestSyncEnabled: true,
+      }),
     );
     expect(await metaCallsOver(1500)).toBe(1); // connecting: fallback poll only
 
@@ -79,7 +72,7 @@ describe("useGuestSyncAndProjectPoll", () => {
 
   it("runs useProjectPoll alone for a host", async () => {
     renderHook(() =>
-      useGuestSyncAndProjectPoll("/p.json", vi.fn(), null, vi.fn(), vi.fn(), {
+      useGuestSyncAndProjectPoll("/p.json", vi.fn(), vi.fn(), vi.fn(), {
         hostSyncEnabled: true,
         guestSyncEnabled: false,
       }),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { enqueueInbound, pendingInboundCount } from "../sync/inboundQueue";
 import { minimalProject } from "../test/fixtures";
 import { documentClientId } from "../utils/documentClient";
 import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
@@ -158,5 +159,20 @@ describe("applyDocumentResult", () => {
     expect(
       pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
     ).toBe(true);
+  });
+
+  it("flushes any queued inbound frame before applying its own result", () => {
+    resetDocumentSeqForTests();
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    const order: string[] = [];
+    enqueueInbound(() => order.push("queued-peer-frame"));
+    expect(pendingInboundCount()).toBe(1);
+    applyDocumentResult({
+      command: { client_id: documentClientId() },
+      snapshot: { server_seq: 1, comments: [] },
+    });
+    order.push("own-result-applied");
+    expect(order).toEqual(["queued-peer-frame", "own-result-applied"]);
+    expect(pendingInboundCount()).toBe(0);
   });
 });
