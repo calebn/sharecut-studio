@@ -29,6 +29,7 @@ from podcast_mcp.services.session_sync.log import (
 from podcast_mcp.services.session_sync.service import (
     best_effort_meta,
     meta_workspace_dir,
+    resolve_meta_path,
     session_dir_for_workspace,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -524,7 +525,7 @@ def document_server_seq(project_path: str | Path) -> int | None:
 
     def _read() -> int | None:
         db_path = document_db_path_for_workspace(meta_workspace_dir(project_path))
-        store = _existing_store_at(db_path)
+        store = _existing_store_at(resolve_meta_path(db_path))
         return _journal_server_seq(store) if store is not None else 0
 
     return best_effort_meta(_read, None, what="document server_seq", path=project_path)
