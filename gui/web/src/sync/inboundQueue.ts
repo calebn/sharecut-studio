@@ -98,6 +98,10 @@ export function pendingInboundCount(): number {
  * — or the scheduled callback firing while a caller already flushed
  * synchronously — is a no-op, so jobs never run twice and the loop below
  * never recurses.
+ *
+ * Jobs are not transactional: a job that throws does not stop the rest of
+ * the batch, and the store writes it made before throwing still land in the
+ * one commit, exactly as they did when each `set()` committed on its own.
  */
 export function flushInbound(): void {
   if (flushing) {
