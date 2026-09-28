@@ -382,6 +382,9 @@ def stem_fingerprint(project: EpisodeProject, track_id: str) -> StemFingerprint:
 
     Costs what this track's clips, edits, FX and transcript words cost, not a deep copy
     of the project (transcripts of other tracks, history). A mutation cannot tear it.
+    Callers may already hold ``project_state_lock`` (the stem step reads every track's
+    fingerprint and the file revision in one hold): this relies on it being an ``RLock``;
+    a non-reentrant lock would deadlock them.
     """
     with project_state_lock(project):
         return StemFingerprint(

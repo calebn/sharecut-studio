@@ -642,6 +642,7 @@ def _render_track_stems(
     out_dir.mkdir(parents=True, exist_ok=True)
     # Freshness comes from per-track fingerprints read under the state lock with no copy;
     # the project is deep-copied only when a stem must render (#358).
+    # stem_fingerprint re-enters project_state_lock (an RLock) inside this hold.
     with project_state_lock(project):
         initial_revision = project_file_revision(project)
         fingerprints = {
