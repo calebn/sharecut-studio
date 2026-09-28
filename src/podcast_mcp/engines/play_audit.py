@@ -170,6 +170,11 @@ def _clear_hash(path: Path) -> None:
     path.unlink(missing_ok=True)
 
 
+def _hash_sidecar_matches(render: Path, sidecar: Path, expected: str | None) -> bool:
+    """The render file exists and its hash sidecar names ``expected`` (a None never matches)."""
+    return expected is not None and render.is_file() and _read_hash(sidecar) == expected
+
+
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
     return track_stem_path(project, track_id)
 
@@ -364,8 +369,8 @@ def stem_is_fresh(project: EpisodeProject, track_id: str) -> bool:
 
 def stem_hash_matches(project: EpisodeProject, track_id: str, render_hash: str) -> bool:
     """The stem WAV exists and its hash sidecar names ``render_hash``."""
-    return (
-        stem_path(project, track_id).is_file() and read_stem_hash(project, track_id) == render_hash
+    return _hash_sidecar_matches(
+        stem_path(project, track_id), stem_hash_path(project, track_id), render_hash
     )
 
 
@@ -605,7 +610,6 @@ def mastered_is_fresh(project: EpisodeProject) -> bool:
     failed) is stale: export re-masters it, and publishing refuses it until then
     while ``premix.wav`` exists (with no premix, publish ships ``mastered.wav``).
     """
-    if not mastered_path(project).is_file():
-        return False
-    stored = read_mastered_hash(project)
-    return stored is not None and stored == master_source_hash(project)
+    return _hash_sidecar_matches(
+        mastered_path(project), mastered_hash_path(project), master_source_hash(project)
+    )
