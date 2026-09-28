@@ -9,6 +9,7 @@ import {
   canSetAction,
   canSuggestOrNudge,
   canSuggestStructural,
+  commentRole,
   guestHearsMixOnly,
   guestShareBannerLabel,
   hasShareCapability,
@@ -110,5 +111,14 @@ describe("shareMode", () => {
     expect(canSetAction(share, ["play", "comment", "action"])).toBe(true);
     expect(canSetAction(share, ["play", "comment"])).toBe(false);
     expect(canSetAction(share)).toBe(false);
+  });
+});
+
+describe("commentRole", () => {
+  it("names host or guest from the project path, guest mode and share flag", () => {
+    expect(commentRole("/tmp/ep.json", null)).toBe("host");
+    expect(commentRole(shareProjectKey("tok"), null)).toBe("guest");
+    expect(commentRole("/tmp/ep.json", "comment")).toBe("guest");
+    expect(commentRole("/tmp/ep.json", null, true)).toBe("guest");
   });
 });

@@ -19,6 +19,20 @@ export function shareTokenFromKey(projectPath: string): string | null {
   return projectPath.slice(SHARE_PREFIX.length);
 }
 
+/** Who this session comments as. */
+export type CommentRole = "host" | "guest";
+
+/** `guest` on a share route, share project key or guest mode; else `host`. */
+export function commentRole(
+  projectPath: string,
+  guestMode: string | null,
+  guestShare = false,
+): CommentRole {
+  return guestShare || Boolean(guestMode) || isShareProjectKey(projectPath)
+    ? "guest"
+    : "host";
+}
+
 export { reviewApiBase } from "./shareRoute";
 
 /** Mirrors ``has_capability`` (view→play, comment→reply). */

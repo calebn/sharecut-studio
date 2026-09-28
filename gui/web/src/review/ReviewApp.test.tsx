@@ -339,6 +339,46 @@ describe("ReviewApp", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("a guest with a blank name replies as Guest even when Host is saved", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input);
+        if (url.includes("/project") && (init?.method ?? "GET") === "GET") {
+          return new Response(JSON.stringify(reviewProject), { status: 200 });
+        }
+        if (url.includes("/replies") && init?.method === "POST") {
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        if (url.includes("/actions/") && init?.method === "POST") {
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    localStorage.setItem("podcast-mcp-comment-author", "Host");
+
+    render(<ReviewApp token="tok" />);
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Reply…")).toBeInTheDocument();
+    });
+
+    await user.clear(screen.getByRole("textbox", { name: "Your name" }));
+    await user.type(screen.getByPlaceholderText("Reply…"), "Sounds good");
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    await waitFor(() => {
+      const replyCall = fetchMock.mock.calls.find((call) =>
+        urlOf(call[0]).includes("/replies"),
+      );
+      expect(replyCall).toBeDefined();
+      expect(jsonRequestBody(replyCall?.[1])).toEqual({
+        body: "Sounds good",
+        author: "Guest",
+      });
+    });
+  });
+
   it("shows a polite activity chip for guest progress and keeps the terminal state", async () => {
     vi.stubGlobal(
       "fetch",

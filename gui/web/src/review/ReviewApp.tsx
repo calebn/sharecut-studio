@@ -168,7 +168,7 @@ export function ReviewApp({ token }: { token: string }) {
       },
       canComment: mcpCanComment,
       addComment: async (bodyText) => {
-        const who = resolveCommentActor(sessionDisplayName("guest"));
+        const who = sessionDisplayName("guest");
         await createComment(projectKey, {
           body: bodyText,
           author: who,
@@ -180,7 +180,7 @@ export function ReviewApp({ token }: { token: string }) {
   }, [projectReady, mcpCanComment, projectKey, refresh]);
 
   const onPost = async () => {
-    const who = resolveCommentActor(author);
+    const who = resolveCommentActor(author, "guest");
     setAuthor(who);
     saveCommentAuthor(who);
     if (!body.trim()) {
@@ -221,7 +221,7 @@ export function ReviewApp({ token }: { token: string }) {
   const modeLabel = project.guest_mode ?? "comment";
 
   const onReply = async (commentId: string, text: string) => {
-    const who = resolveCommentActor(author);
+    const who = resolveCommentActor(author, "guest");
     setAuthor(who);
     saveCommentAuthor(who);
     if (!text.trim()) {
@@ -253,7 +253,7 @@ export function ReviewApp({ token }: { token: string }) {
     if (!beginInflight()) {
       return;
     }
-    const who = resolveCommentActor(author);
+    const who = resolveCommentActor(author, "guest");
     setAuthor(who);
     saveCommentAuthor(who);
     try {

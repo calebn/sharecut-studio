@@ -221,6 +221,55 @@ describe("PendingEditInspector", () => {
     );
   });
 
+  it("a host with a blank name resolves as Host even when Guest is saved", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("podcast-mcp-comment-author", "Guest");
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        pending_edits: [sessionCut],
+        comments: [sampleComment({ edit_decision_id: "ed1" })],
+      }),
+    );
+    render(<PendingEditInspector edit={sessionCut} />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Your name" }));
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+    await waitFor(() =>
+      expect(patchComment).toHaveBeenCalledWith("/tmp/p.json", "c1", {
+        resolved: true,
+        by: "Host",
+      }),
+    );
+  });
+
+  it("a guest with a blank name asks as Guest even when Host is saved", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("podcast-mcp-comment-author", "Host");
+    const key = shareProjectKey("tok");
+    useDawStore
+      .getState()
+      .hydrate(
+        key,
+        { ...minimalProject(), pending_edits: [sessionCut] },
+        "comment",
+        ["play", "view", "comment", "reply"],
+      );
+    createComment.mockResolvedValue(sampleComment({ edit_decision_id: "ed1" }));
+    render(<PendingEditInspector edit={sessionCut} />);
+
+    await user.clear(screen.getByRole("textbox", { name: "Your name" }));
+    await user.type(
+      screen.getByPlaceholderText("Ask for more context before deciding…"),
+      "Why this cut?",
+    );
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    expect(createComment).toHaveBeenCalledWith(
+      key,
+      expect.objectContaining({ author: "Guest" }),
+    );
+  });
+
   it("hides Ask compose when a suggest guest lacks comment", () => {
     const key = shareProjectKey("tok");
     useDawStore

@@ -7,7 +7,7 @@ import {
   commentTimeLabel,
   useCommentActions,
 } from "../comments";
-import { canComment, canReply, canSetAction } from "../shareMode";
+import { canComment, canReply, canSetAction, commentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import {
@@ -60,9 +60,8 @@ export function CommentsPanel({
   }));
 
   const [filter, setFilter] = useState<Filter>("open");
-  const [author, setAuthor] = useState(() =>
-    sessionDisplayName(guestShare || guestMode ? "guest" : "host"),
-  );
+  const role = commentRole(projectPath, guestMode, guestShare);
+  const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [body, setBody] = useState("");
   const [actionLine, setActionLine] = useState("");
   const [trackIds, setTrackIds] = useState<string[]>([]);
@@ -77,7 +76,7 @@ export function CommentsPanel({
     resolve,
     reply,
     toggleAction,
-  } = useCommentActions({ author, setAuthor });
+  } = useCommentActions({ role, author, setAuthor });
 
   const busy = createBusy || actionBusy;
   const error = createError ?? actionError;

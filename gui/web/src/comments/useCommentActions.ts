@@ -6,11 +6,13 @@ import { errorMessage } from "../utils/apiError";
 import { useCallback, useState } from "react";
 import { addCommentReply, setCommentActionDone } from "../api";
 import { execute } from "../commands/execute";
+import type { CommentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
 import { resolveCommentActor, saveCommentAuthor } from "../utils/commentAuthor";
 
-export function useCommentActions(opts?: {
+export function useCommentActions(opts: {
+  role: CommentRole;
   author?: string;
   setAuthor?: (name: string) => void;
 }): {
@@ -29,15 +31,14 @@ export function useCommentActions(opts?: {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const author = opts?.author;
-  const setAuthor = opts?.setAuthor;
+  const { role, author, setAuthor } = opts;
 
   const actor = useCallback(() => {
-    const who = resolveCommentActor(author);
+    const who = resolveCommentActor(author, role);
     setAuthor?.(who);
     saveCommentAuthor(who);
     return who;
-  }, [author, setAuthor]);
+  }, [author, role, setAuthor]);
 
   const wrap = useCallback(
     async (fn: () => Promise<void>): Promise<boolean> => {

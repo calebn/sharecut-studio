@@ -79,7 +79,7 @@ To ask about a **pending cut**: `add_comment_tool(..., edit_decision_id="<id>")`
 
 Listen-first review keeps the conversation on the pending inspector (current timeline, not a modal). The first Ask creates `review.comments[]` with `edit_decision_id`; later notes are `replies[]`. Selecting that comment while the decision is still pending opens **PendingEditInspector** (not a generic comment inspector). See [daw-editing.md](daw-editing.md) § Listen-first pending preview.
 
-The Ask compose and the public review page default the author to the same session display name as the Comments tab (saved name, else Host for the host and Guest for a share guest).
+The Ask compose and the public review page default the author to the same session display name as the Comments tab (saved name, else Host for the host and Guest for a share guest). A blank name field falls back to that same display name for posts, replies, resolves and action items, so a guest never acts under a host's saved `Host` (or the reverse).
 
 ## DAW viewer
 
