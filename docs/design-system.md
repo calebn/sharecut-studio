@@ -206,6 +206,10 @@ restored words, a single-clip trim edge and a 360px row. The live
 `EditBoundaryMark` adapter supplies roll clamps read from the store when a
 drag starts (`getRollBounds` → `rollNeighborBounds`) and commits
 `RollClipJoin` / `TrimClipEdge`; story callbacks are `fn()`.
+The boundary button keeps `aria-grabbed` while dragging, as before the
+extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review
+rather than a violation. If it is ever dropped, replace it with a
+live-region or `aria-description` drag message.
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link
