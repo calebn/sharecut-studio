@@ -174,4 +174,24 @@ describe("JoinPopover", () => {
     fireEvent.pointerDown(document.body);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("sends one SetClipJoin at a time", () => {
+    vi.mocked(setClipJoin).mockImplementationOnce(() => new Promise(() => {}));
+    render(<Harness />);
+    const crossfade = screen.getByRole("button", { name: "Crossfade" });
+    const cut = screen.getByRole("button", { name: "Cut" });
+    // Both clicks land before React re-renders with busy (disabled) controls.
+    act(() => {
+      crossfade.click();
+      cut.click();
+    });
+    expect(setClipJoin).toHaveBeenCalledTimes(1);
+    expect(setClipJoin).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c0",
+      "c1",
+      "crossfade",
+      null,
+    );
+  });
 });
