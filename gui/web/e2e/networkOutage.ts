@@ -29,11 +29,17 @@ export async function installNetworkOutage(
 ): Promise<NetworkOutage> {
   let down = false;
   let blockedHttp = 0;
+  // Pairs opened since the last drop(). A socket the app or server closes on
+  // its own stays here until the next drop(): tracking that would need
+  // onClose handlers, and setting one turns off Playwright's built-in close
+  // forwarding between the page and server sides. drop() tolerates a closed
+  // route, so a stale pair only costs one no-op close().
   const live = new Set<{ page: WebSocketRoute; server: WebSocketRoute }>();
   await page.routeWebSocket(webSocket, async (ws) => {
     if (down) {
-      // Closed while CONNECTING: the page sees close without open.
-      await ws.close(OUTAGE_CLOSE);
+      // Closed while CONNECTING: the page sees close without open. Playwright
+      // does not await this handler, so never let a rejected close escape.
+      await ws.close(OUTAGE_CLOSE).catch(() => undefined);
       return;
     }
     live.add({ page: ws, server: ws.connectToServer() });
