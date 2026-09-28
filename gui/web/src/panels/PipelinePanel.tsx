@@ -279,8 +279,10 @@ export function PipelinePanel() {
   const analyzeAbort = useRef<AbortController | null>(null);
   /** The Analyze job this tab started most recently; its own promise renders its result. */
   const ownAnalyzeId = useRef<string | null>(null);
-  /** The last running Analyze started elsewhere (another tab or viewer) that this tab followed; its result renders here once. */
+  /** The running Analyze started elsewhere (another tab or viewer) that this tab follows for the current project; its result renders here once. Reset on a project switch. */
   const remoteAnalyzeId = useRef<string | null>(null);
+  /** Project path each followed remote Analyze job id was claimed under: another project's pane never adopts it, and switching back to its project follows it again. */
+  const remoteAnalyzeProject = useRef(new Map<string, string>());
   /** Stops following that remote Analyze job's stream (project switch / unmount / a newer remote job). */
   const remoteAnalyzeAbort = useRef<AbortController | null>(null);
   const stepCheckboxes = useRef(new Map<string, HTMLInputElement>());
@@ -306,9 +308,11 @@ export function PipelinePanel() {
     analyzeRequest.invalidate();
     analyzeAbort.current?.abort();
     analyzeAbort.current = null;
-    // ownAnalyzeId / remoteAnalyzeId are deliberately kept: they name jobs this tab already
-    // claimed (server job ids are unique), so a still-running job from the previous project
-    // is never adopted as a remote Analyze of this one. The cleanup below stops the remote wait.
+    // ownAnalyzeId is kept: the switch cancels that job, so its later frames are never adopted
+    // as a remote Analyze. remoteAnalyzeId resets so that switching back to a remote job's project
+    // while it still runs follows it again. remoteAnalyzeProject keeps it out of other projects'
+    // panes. The cleanup below stops the remote wait.
+    remoteAnalyzeId.current = null;
     setAnalyzing(false);
     setReasons([]);
     setTrackRows([]);
@@ -373,7 +377,8 @@ export function PipelinePanel() {
       !isAnalyzeJob(j) ||
       isTerminalJobStatus(j.status) ||
       j.id === ownAnalyzeId.current ||
-      j.id === remoteAnalyzeId.current
+      j.id === remoteAnalyzeId.current ||
+      (remoteAnalyzeProject.current.get(j.id) ?? projectPath) !== projectPath
     ) {
       return;
     }
@@ -381,6 +386,7 @@ export function PipelinePanel() {
     // activityJob: a concurrent agent job can take over the Activity primary before
     // Analyze finishes, so its terminal snapshot may never reach activityJob.
     remoteAnalyzeId.current = j.id;
+    remoteAnalyzeProject.current.set(j.id, projectPath);
     remoteAnalyzeAbort.current?.abort();
     const abort = new AbortController();
     remoteAnalyzeAbort.current = abort;
@@ -399,7 +405,7 @@ export function PipelinePanel() {
           remoteAnalyzeAbort.current = null;
         }
       });
-  }, [activityJob]);
+  }, [activityJob, projectPath]);
 
   const stepsUnique = useMemo(() => (cfg ? uniqueSteps(cfg.steps) : []), [cfg]);
 
