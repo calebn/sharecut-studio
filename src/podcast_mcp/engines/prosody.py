@@ -331,22 +331,28 @@ def _pause_runs(
     return count, _finite(total)
 
 
+def _measured(value: float | None) -> float | None:
+    """A finite Praat measurement, or None when unmeasured (None, NaN or inf)."""
+    if value is None:
+        return None
+    v = float(value)
+    return v if math.isfinite(v) else None
+
+
 def _voice_quality(
     *,
     jitter: float | None,
     shimmer: float | None,
     hnr: float | None,
 ) -> dict[str, Any]:
-    jitter_v = _finite(jitter) if jitter is not None else 0.0
-    shimmer_v = _finite(shimmer) if shimmer is not None else 0.0
-    hnr_v = _finite(hnr) if hnr is not None else 0.0
+    jitter_m, shimmer_m, hnr_m = _measured(jitter), _measured(shimmer), _measured(hnr)
     return {
-        "jitter_local": jitter_v,
-        "shimmer_local": shimmer_v,
-        "hnr_db": hnr_v,
-        "jitter_high": jitter is not None and jitter_v > _JITTER_NORMAL_MAX,
-        "shimmer_high": shimmer is not None and shimmer_v > _SHIMMER_NORMAL_MAX,
-        "hnr_low": hnr is not None and hnr_v < _HNR_NORMAL_MIN_DB,
+        "jitter_local": jitter_m if jitter_m is not None else 0.0,
+        "shimmer_local": shimmer_m if shimmer_m is not None else 0.0,
+        "hnr_db": hnr_m if hnr_m is not None else 0.0,
+        "jitter_high": jitter_m is not None and jitter_m > _JITTER_NORMAL_MAX,
+        "shimmer_high": shimmer_m is not None and shimmer_m > _SHIMMER_NORMAL_MAX,
+        "hnr_low": hnr_m is not None and hnr_m < _HNR_NORMAL_MIN_DB,
     }
 
 
@@ -591,9 +597,7 @@ def analyze_prosody(
                 },
                 "pauses": {"count": pause_count, "total_sec": round(pause_total, 3)},
                 "energy": _energy_stats(intensity_xs, intensity_db, start, end),
-                "voice_quality": _voice_quality(
-                    jitter=jitter, shimmer=shimmer, hnr=hnr if hnr else None
-                ),
+                "voice_quality": _voice_quality(jitter=jitter, shimmer=shimmer, hnr=hnr),
                 "prominent_words": _prominent_words(
                     seg_words, pitch, intensity, top_n=params.top_prominent_words
                 ),
