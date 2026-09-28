@@ -14,9 +14,10 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import ffmpeg_source, resolve_ffmpeg
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.whisper_models import (
+    WhisperPinMismatchError,
     resolve_whisper_model,
     validate_whisper_model,
-    whisper_model_is_cached,
+    whisper_model_problem,
 )
 from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError, word_aligner_problem
 
@@ -110,8 +111,13 @@ def run_doctor_checks(
             report.checks.append(DoctorCheck("warn", str(exc), err=True))
 
     preferred = resolve_whisper_model()
-    if whisper_model_is_cached(preferred):
+    whisper_problem = whisper_model_problem(preferred)
+    if whisper_problem is None:
         report.checks.append(DoctorCheck("ok", f"whisper model {preferred} cached"))
+    elif isinstance(whisper_problem, WhisperPinMismatchError):
+        report.checks.append(
+            DoctorCheck("fail", f"whisper model {preferred}: {whisper_problem}", err=True)
+        )
     else:
         report.checks.append(
             DoctorCheck(

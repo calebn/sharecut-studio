@@ -171,7 +171,7 @@ def bootstrap(
         except ValueError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(2) from exc
-        ok = _bootstrap_whisper_component(model) and ok
+        ok = _bootstrap_whisper_component(model, force=upgrade) and ok
     if "rnnoise" in wanted:
         ok = _bootstrap_rnnoise_component(force=upgrade) and ok
     if "silero-vad" in wanted:
@@ -203,9 +203,9 @@ def _bootstrap_ffmpeg_component(*, force: bool) -> bool:
     return True
 
 
-def _bootstrap_whisper_component(model_size: str) -> bool:
+def _bootstrap_whisper_component(model_size: str, *, force: bool) -> bool:
     try:
-        result = bootstrap_whisper_model(model_size)
+        result = bootstrap_whisper_model(model_size, force=force)
     except ImportError as exc:
         typer.echo(f"[fail] whisper: {exc}", err=True)
         return False

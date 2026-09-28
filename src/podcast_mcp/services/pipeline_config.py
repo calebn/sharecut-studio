@@ -252,7 +252,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     ``word-aligner`` is opt-in (``opt_in: true``): readiness for
     ``transcribe.forced_alignment.enabled``.
     """
-    from podcast_mcp.whisper_models import resolve_whisper_model, whisper_model_is_cached
+    from podcast_mcp.whisper_models import (
+        WhisperPinMismatchError,
+        resolve_whisper_model,
+        whisper_model_problem,
+    )
 
     out: dict[str, Any] = {}
     try:
@@ -278,23 +282,27 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         import faster_whisper  # noqa: F401
 
         model = resolve_whisper_model(requested=whisper_model)
-        cached = whisper_model_is_cached(model)
-        out["whisper"] = {
-            "ok": cached,
-            "model": model,
-            **(
-                {}
-                if cached
-                else {
-                    "hint": (
-                        f"Whisper model {model!r} is not downloaded — "
-                        "pick Download in the Pipeline tab or run "
-                        f"podcast bootstrap --component whisper --whisper-model {model}"
-                    ),
-                    "bootstrap": "podcast bootstrap --component whisper",
-                }
-            ),
-        }
+        problem = whisper_model_problem(model)
+        if problem is None:
+            out["whisper"] = {"ok": True, "model": model}
+        elif isinstance(problem, WhisperPinMismatchError):
+            out["whisper"] = {
+                "ok": False,
+                "model": model,
+                "hint": str(problem),
+                "bootstrap": "podcast bootstrap --component whisper --upgrade",
+            }
+        else:
+            out["whisper"] = {
+                "ok": False,
+                "model": model,
+                "hint": (
+                    f"Whisper model {model!r} is not downloaded — "
+                    "pick Download in the Pipeline tab or run "
+                    f"podcast bootstrap --component whisper --whisper-model {model}"
+                ),
+                "bootstrap": "podcast bootstrap --component whisper",
+            }
     except Exception as exc:
         out["whisper"] = {
             "ok": False,

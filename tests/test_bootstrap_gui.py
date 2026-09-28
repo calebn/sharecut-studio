@@ -23,8 +23,14 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
     monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: False)
     monkeypatch.setattr(boot, "_whisper_ready", lambda _m=None: False)
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: False)
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    monkeypatch.setattr(
+        boot,
+        "word_aligner_problem",
+        lambda *a, **k: WordAlignerMissingError("onnx-base"),
+    )
 
     status = boot.component_status()
     assert status["ready"] is False
@@ -50,7 +56,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: True)
+    monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
     component = boot.word_aligner_component()
     assert component["ok"] is True
     assert "hint" not in component
@@ -63,7 +69,7 @@ def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
     def raise_runtime_error(*a, **k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", raise_runtime_error)
+    monkeypatch.setattr(boot, "word_aligner_problem", raise_runtime_error)
     component = boot.word_aligner_component()
     assert component["ok"] is False
     assert component["hint"] == "boom"
@@ -71,8 +77,11 @@ def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
 
 def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    monkeypatch.setattr(
+        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+    )
     calls: dict[str, object] = {}
 
     def fake_bootstrap_word_aligner(*, force=False):
@@ -88,7 +97,7 @@ def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
 def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: True)
+    monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
 
     def fail_if_called(*, force=False):
         raise AssertionError("bootstrap_word_aligner should not run when cached")
@@ -105,8 +114,11 @@ def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
 
 def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
-    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    monkeypatch.setattr(
+        boot, "word_aligner_problem", lambda *a, **k: WordAlignerMissingError("onnx-base")
+    )
 
     def raise_error(*, force=False):
         raise RuntimeError("network down")
@@ -120,7 +132,7 @@ def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
 
     monkeypatch.setattr(boot, "_run_ffmpeg", lambda *, force=False: {"ok": True})
-    monkeypatch.setattr(boot, "_run_whisper", lambda model: {"ok": True})
+    monkeypatch.setattr(boot, "_run_whisper", lambda model, *, force=False: {"ok": True})
 
     def fail_if_called(*, force=False):
         raise AssertionError("word aligner must not be a first-run default")
@@ -191,12 +203,11 @@ def test_whisper_ready_requires_matching_model(tmp_path: Path, monkeypatch) -> N
 
 
 def test_whisper_ready_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
+    from model_pin_helpers import plant_pinned_whisper
     from podcast_mcp.services import bootstrap as boot
 
     cache = tmp_path / "whisper"
-    blob = cache / "models--Systran--faster-whisper-large-v3-turbo" / "blobs"
-    blob.mkdir(parents=True)
-    (blob / "model.bin").write_bytes(b"x")
+    plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
     monkeypatch.setattr("podcast_mcp.config.whisper_cache_dir", lambda: cache)
 
     assert boot._whisper_ready("large-v3-turbo") is True
@@ -454,10 +465,11 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
 def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
     from podcast_mcp.services import bootstrap as boot
 
-    seen: dict[str, str] = {}
+    seen: dict[str, object] = {}
 
-    def fake_bootstrap(model_size: str):
+    def fake_bootstrap(model_size: str, *, force: bool = False):
         seen["model"] = model_size
+        seen["force"] = force
         return {"ok": True, "model": model_size, "cache": "/tmp", "persist_error": None}
 
     monkeypatch.setattr(boot, "bootstrap_whisper_model", fake_bootstrap)
@@ -467,7 +479,11 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
     out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
     assert out["ok"] is True
     assert seen["model"] == "small.en"
+    assert seen["force"] is False
     assert out["results"]["whisper"]["model"] == "small.en"
+
+    out = boot.run_bootstrap(["whisper"], whisper_model="small.en", force=True)
+    assert seen["force"] is True
 
 
 def test_gui_bootstrap_run_records_requested_whisper_model(monkeypatch) -> None:
