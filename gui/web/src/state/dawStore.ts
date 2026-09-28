@@ -19,7 +19,10 @@ const dawWrites = createWriteBatch<DawStore>();
  */
 export const batchDawWrites = dawWrites.batch;
 
-/** One atomic Zustand store composed from focused state/action slices. */
+/**
+ * One atomic Zustand store composed from focused state/action slices.
+ * `dawWrites.middleware` must stay its only middleware (see `writeBatch.ts`).
+ */
 export const useDawStore = create<DawStore>()(
   dawWrites.middleware((...args) => ({
     ...createProjectSlice(...args),
