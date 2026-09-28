@@ -11,11 +11,14 @@ export const WORD_ALIGNER_COMPONENT = "word-aligner";
 export function WordAlignerStatus({
   status,
   disabled,
+  retiming,
   onDownloaded,
   onRetime,
 }: {
   status: PipelineComponentStatus | undefined;
   disabled: boolean;
+  /** True while a Re-time words request is starting (busy label + aria-busy, like the download). */
+  retiming: boolean;
   onDownloaded: () => void;
   onRetime: () => void;
 }) {
@@ -49,8 +52,12 @@ export function WordAlignerStatus({
       <InlineError message={error} />
       <div className="cluster">
         {ok ? (
-          <Button disabled={disabled} onClick={onRetime}>
-            Re-time words
+          <Button
+            disabled={disabled}
+            aria-busy={retiming || undefined}
+            onClick={onRetime}
+          >
+            {retiming ? "Re-timing…" : "Re-time words"}
           </Button>
         ) : (
           <Button

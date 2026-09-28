@@ -1117,6 +1117,7 @@ export function PipelinePanel() {
                             <WordAlignerStatus
                               status={cfg.components[WORD_ALIGNER_COMPONENT]}
                               disabled={running || starting || retiming}
+                              retiming={retiming}
                               onDownloaded={() =>
                                 void refreshConfig().catch((e: unknown) =>
                                   setError(errorMessage(e)),

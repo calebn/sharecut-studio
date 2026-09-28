@@ -486,6 +486,8 @@ describe("PipelinePanel", () => {
 
     expect(loadTranscriptVocabulary.mock.calls.length).toBe(callsBefore + 1);
     expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(btn).toHaveTextContent("Re-timing…");
 
     await act(async () => {
       resolveVocab({

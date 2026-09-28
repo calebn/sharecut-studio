@@ -19,6 +19,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -52,6 +53,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={onDownloaded}
         onRetime={vi.fn()}
       />,
@@ -75,6 +77,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -100,6 +103,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -124,6 +128,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={onRetime}
       />,
@@ -140,6 +145,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={true}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -152,6 +158,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
         disabled={true}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -166,6 +173,7 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: false, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
@@ -178,10 +186,30 @@ describe("WordAlignerStatus", () => {
       <WordAlignerStatus
         status={{ ok: true, opt_in: true, size: "~360 MB" }}
         disabled={false}
+        retiming={false}
         onDownloaded={vi.fn()}
         onRetime={vi.fn()}
       />,
     );
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows Re-timing… with aria-busy while retiming", async () => {
+    const { container } = render(
+      <WordAlignerStatus
+        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        disabled={true}
+        retiming={true}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: "Re-timing…" });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.queryByRole("button", { name: "Re-time words" }),
+    ).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 });
