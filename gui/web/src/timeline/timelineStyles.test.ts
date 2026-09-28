@@ -109,6 +109,22 @@ describe("timeline styles", () => {
     }
   });
 
+  it("draws join badges at the top of the seam, click-through, above the clips", () => {
+    const css = partial("timeline.css");
+    const badge = rule(css, ".join-badge");
+    expect(badge).toMatch(/top:\s*0/);
+    expect(badge).toMatch(/width:\s*1rem/);
+    expect(badge).toMatch(/z-index:\s*var\(--z-join\)/);
+    expect(badge).toMatch(/pointer-events:\s*none/);
+    expect(rule(css, ".join-badge--blocked")).toMatch(
+      /border-color:\s*var\(--warning\)/,
+    );
+    // Declared after `.lane-inner > *` (pointer-events: auto) so it wins at equal specificity.
+    expect(css.indexOf(".join-badge {")).toBeGreaterThan(
+      css.indexOf(".lane-inner > * {"),
+    );
+  });
+
   it("matches a grouped selector in any order or spacing", () => {
     expect(rule(".a,\n.b { x: 1 }", ".b, .a")).toBe(" x: 1 ");
     expect(rule("/* .a */\n.a, .b { x: 1 }", ".a,\n.b")).toBe(" x: 1 ");

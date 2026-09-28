@@ -49,7 +49,7 @@
   overflow: visible;
   font-size: var(--font-size-micro);
   padding: var(--space-1) var(--space-3);
-  /* Under the applied-edit layer (4); join diamond / trim handles sit above clip-hit. */
+  /* Under the applied-edit layer (4); join diamond / trim handles sit above clip-hit; the lane's join badges (--z-join) sit above the clip. */
   z-index: 3;
 }
 
@@ -386,6 +386,43 @@ button.join-diamond {
 
 .join-diamond::before {
   content: none;
+}
+
+/* One badge per drawn join, at the top of the seam (#690): | cut, ╲╱ fade,
+   ✕ crossfade. TrackLane draws it above the resting clips. It is display-only
+   and click-through (the fade corners and trim strips under it keep their
+   input) until the join popover (#691) makes it a button. Declared after
+   `.lane-inner > *` so its pointer-events wins. */
+.join-badge {
+  position: absolute;
+  top: 0;
+  width: 1rem;
+  height: 1rem;
+  translate: -50% 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  z-index: var(--z-join);
+  pointer-events: none;
+}
+
+/* A crossfade render cannot blend (join_crossfade_blocked). */
+.join-badge--blocked {
+  border-color: var(--warning);
+}
+
+.join-badge-glyph {
+  width: 0.625rem;
+  height: 0.625rem;
+  fill: none;
+  stroke: var(--color-text-on-overlay);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .pending-overlay {
