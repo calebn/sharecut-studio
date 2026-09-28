@@ -17,7 +17,11 @@ describe("OverlayLegend", () => {
   beforeEach(() => {
     addChapterMock.mockClear();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    useDawStore.setState({ statusAnnouncement: "", selection: null });
+    useDawStore.setState({
+      statusAnnouncement: "",
+      selection: null,
+      chapterAddPending: false,
+    });
   });
 
   it("adds a chapter at the playhead time current when clicked, not when rendered", async () => {
@@ -37,7 +41,7 @@ describe("OverlayLegend", () => {
     );
   });
 
-  it("ignores repeat clicks while an add is in flight", async () => {
+  it("disables + Chapter and ignores repeat clicks while an add is in flight", async () => {
     let resolveAdd: () => void = () => {};
     addChapterMock.mockImplementationOnce(
       () =>
@@ -52,13 +56,48 @@ describe("OverlayLegend", () => {
     );
     const button = screen.getByRole("button", { name: "+ Chapter" });
     await userEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button.getAttribute("aria-busy")).toBe("true");
     await userEvent.click(button);
     expect(addChapterMock).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolveAdd();
     });
+    expect(button).not.toBeDisabled();
+    expect(button.hasAttribute("aria-busy")).toBe(false);
     await userEvent.click(button);
     expect(addChapterMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the in-flight guard across a remount (View menu close/reopen)", async () => {
+    let resolveAdd: () => void = () => {};
+    addChapterMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveAdd = resolve;
+        }),
+    );
+    const legend = () => (
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <div role="menu" aria-label="View menu">
+          <OverlayLegend menu />
+        </div>
+      </DawProvider>
+    );
+    const first = render(legend());
+    await userEvent.click(screen.getByRole("menuitem", { name: "+ Chapter" }));
+    first.unmount();
+    render(legend());
+    const reopened = screen.getByRole("menuitem", { name: "+ Chapter" });
+    expect(reopened).toBeDisabled();
+    await userEvent.click(reopened);
+    expect(addChapterMock).toHaveBeenCalledTimes(1);
+    expect(useDawStore.getState().chapterAddPending).toBe(true);
+    await act(async () => {
+      resolveAdd();
+    });
+    expect(useDawStore.getState().chapterAddPending).toBe(false);
+    expect(reopened).not.toBeDisabled();
   });
 
   it("announces a failed add and does not select a chapter", async () => {

@@ -95,6 +95,16 @@ export const ReadOnlyShare: Story = {
   },
 };
 
+export const ChapterAdding: Story = {
+  args: { addChapterBusy: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "+ Chapter" });
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAttribute("aria-busy", "true");
+  },
+};
+
 export const ViewMenu: Story = {
   parameters: { legendHost: "menu" },
   args: { menu: true },

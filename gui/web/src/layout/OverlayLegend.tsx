@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { addChapter } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -7,24 +6,34 @@ import { errorMessage } from "../utils/apiError";
 import { OverlayLegendView } from "./OverlayLegendView";
 
 export function OverlayLegend({ menu = false }: { menu?: boolean }) {
-  const { layers, setLayerVisible, projectPath, setSelection, announceStatus } =
-    useDaw((s) => ({
-      layers: s.layers,
-      setLayerVisible: s.setLayerVisible,
-      projectPath: s.projectPath,
-      setSelection: s.setSelection,
-      announceStatus: s.announceStatus,
-    }));
+  const {
+    layers,
+    setLayerVisible,
+    projectPath,
+    setSelection,
+    announceStatus,
+    chapterAddPending,
+    setChapterAddPending,
+  } = useDaw((s) => ({
+    layers: s.layers,
+    setLayerVisible: s.setLayerVisible,
+    projectPath: s.projectPath,
+    setSelection: s.setSelection,
+    announceStatus: s.announceStatus,
+    chapterAddPending: s.chapterAddPending,
+    setChapterAddPending: s.setChapterAddPending,
+  }));
   const hostEditable = !isShareProjectKey(projectPath);
-  // A repeat click while the add is in flight would add a second chapter with
-  // the same playhead-derived title.
-  const addingChapter = useRef(false);
 
   const addChapterAtPlayhead = async () => {
-    if (addingChapter.current) {
+    // A repeat click while the add is in flight would add a second chapter
+    // with the same playhead-derived title. The flag lives in the DAW store,
+    // not a ref, so the View menu unmounting and remounting this legend keeps
+    // it, and the view can disable + Chapter while it is set.
+    if (useDawStore.getState().chapterAddPending) {
       return;
     }
-    addingChapter.current = true;
+    setChapterAddPending(true);
     const playheadSec = useDawStore.getState().playheadSec;
     const title = `Chapter ${playheadSec.toFixed(1)}s`;
     try {
@@ -37,7 +46,7 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
     } catch (err) {
       announceStatus(`Add chapter failed: ${errorMessage(err)}`);
     } finally {
-      addingChapter.current = false;
+      setChapterAddPending(false);
     }
   };
 
@@ -46,6 +55,7 @@ export function OverlayLegend({ menu = false }: { menu?: boolean }) {
       menu={menu}
       layers={layers}
       onLayerChange={setLayerVisible}
+      addChapterBusy={chapterAddPending}
       onAddChapter={
         hostEditable
           ? () => {

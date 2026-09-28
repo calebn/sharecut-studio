@@ -47,11 +47,14 @@ export function OverlayLegendView({
   layers,
   onLayerChange,
   onAddChapter,
+  addChapterBusy = false,
 }: {
   menu?: boolean;
   layers: LayerVisibility;
   onLayerChange: (key: keyof LayerVisibility, visible: boolean) => void;
   onAddChapter?: () => void;
+  /** An add is in flight: + Chapter is disabled and marked aria-busy until it settles. */
+  addChapterBusy?: boolean;
 }) {
   return (
     <div
@@ -81,6 +84,8 @@ export function OverlayLegendView({
           className="transcript-follow-btn"
           title="Add chapter marker at playhead"
           onClick={onAddChapter}
+          disabled={addChapterBusy}
+          aria-busy={addChapterBusy || undefined}
         >
           + Chapter
         </Button>

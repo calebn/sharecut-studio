@@ -648,3 +648,18 @@ describe("dawStore transcript inline edit", () => {
     expect(useDawStore.getState().transcriptInlineEditFailure).toEqual(failure);
   });
 });
+
+describe("dawStore chapter add pending", () => {
+  afterEach(() => useDawStore.setState({ chapterAddPending: false }));
+
+  it("starts with no add in flight", () => {
+    expect(useDawStore.getInitialState().chapterAddPending).toBe(false);
+  });
+
+  it("reflects setChapterAddPending in getState()", () => {
+    useDawStore.getState().setChapterAddPending(true);
+    expect(useDawStore.getState().chapterAddPending).toBe(true);
+    useDawStore.getState().setChapterAddPending(false);
+    expect(useDawStore.getState().chapterAddPending).toBe(false);
+  });
+});
