@@ -87,6 +87,13 @@ def test_source_to_timeline_after_cuts(compressed_project):
     assert st.source_to_timeline("host", SourceSec(250.0)) == pytest.approx(200.0)
 
 
+def test_sources_to_timeline_matches_point_mapping(compressed_project):
+    st = SessionTimeline(compressed_project)
+    secs = [SourceSec(30.0), SourceSec(75.0), SourceSec(100.0), SourceSec(210.0), SourceSec(250.0)]
+    assert st.sources_to_timeline("host", secs) == [st.source_to_timeline("host", s) for s in secs]
+    assert st.sources_to_timeline("host", secs)[1] is None
+
+
 def test_batch_source_mapping_rebuilds_after_in_place_clip_edit(compressed_project):
     st = SessionTimeline(compressed_project)
     spans = [(SourceSec(100.0), SourceSec(101.0))] * 3

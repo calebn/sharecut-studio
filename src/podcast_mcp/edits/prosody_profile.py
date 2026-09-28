@@ -24,12 +24,12 @@ import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from podcast_mcp.edits.timeline_span import map_source_span_fields
+from podcast_mcp.edits.timeline_span import timeline_span_dicts
 from podcast_mcp.edits.transcript_reuse import audio_identity
 from podcast_mcp.engines.prosody import (
     ProsodyParams,
@@ -44,7 +44,7 @@ from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
-from podcast_mcp.util.timebase import SourceSec
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 from podcast_mcp.util.workspace_paths import resolve_cache_file
 
@@ -501,27 +501,30 @@ def _word_index_by_timing(project: EpisodeProject, track_id: str) -> dict[tuple[
     return out
 
 
-def _overlay_segment(
-    st: SessionTimeline, track_id: str, seg: dict[str, Any]
-) -> dict[str, Any] | None:
-    """One segment's timeline spans, energy-third steps and trend; None when fully cut."""
+def _segment_source_spans(seg: dict[str, Any]) -> list[tuple[SourceSec, SourceSec]]:
+    """The segment's source span, then its three energy thirds."""
     start, end = float(seg["start"]), float(seg["end"])
-    mappable, spans, _tl0, _tl1 = map_source_span_fields(st, track_id, start, end)
-    if not mappable:
+    step = (end - start) / 3.0
+    return [(SourceSec(start), SourceSec(end))] + [
+        (SourceSec(start + i * step), SourceSec(start + (i + 1) * step)) for i in range(3)
+    ]
+
+
+def _overlay_segment(
+    seg: dict[str, Any], mapped: Sequence[list[tuple[TimelineSec, TimelineSec]]]
+) -> dict[str, Any] | None:
+    """One segment's row from its four mapped spans (whole, then thirds); None when fully cut."""
+    if not mapped[0]:
         return None
     energy = seg.get("energy") or {}
-    step = (end - start) / 3.0
-    thirds = []
-    for i, key in enumerate(_ENERGY_THIRD_KEYS):
-        _m, third_spans, _a, _b = map_source_span_fields(
-            st, track_id, start + i * step, start + (i + 1) * step
-        )
-        thirds.append({"db": float(energy.get(key, 0.0)), "spans": third_spans})
     return {
-        "source_start": start,
-        "source_end": end,
-        "spans": spans,
-        "energy_thirds": thirds,
+        "source_start": float(seg["start"]),
+        "source_end": float(seg["end"]),
+        "spans": timeline_span_dicts(mapped[0]),
+        "energy_thirds": [
+            {"db": float(energy.get(key, 0.0)), "spans": timeline_span_dicts(spans)}
+            for key, spans in zip(_ENERGY_THIRD_KEYS, mapped[1:], strict=True)
+        ],
         "trend": str(energy.get("trend", "flat")),
         "drop_db": float(energy.get("drop_db", 0.0)),
         "line": _segment_line(seg),
@@ -550,35 +553,44 @@ def _overlay_track(
         return _empty_overlay_track(track_id, lookup.status, lookup.hint)
     word_index = _word_index_by_timing(project, track_id)
     out = _empty_overlay_track(track_id, lookup.status, lookup.hint)
+    segments = lookup.profile.segments
+    mapped = st.map_source_spans(
+        track_id, [span for seg in segments for span in _segment_source_spans(seg)]
+    )
+    boundaries = [b for seg in segments for b in seg.get("boundaries") or []]
+    words = [w for seg in segments for w in seg.get("prominent_words") or []]
+    points = st.sources_to_timeline(
+        track_id,
+        [SourceSec(float(b["time"])) for b in boundaries]
+        + [SourceSec(float(w["start"])) for w in words],
+    )
+    boundary_tl, word_tl = points[: len(boundaries)], points[len(boundaries) :]
     dbs: list[float] = []
-    for seg in lookup.profile.segments:
-        row = _overlay_segment(st, track_id, seg)
+    for i, seg in enumerate(segments):
+        row = _overlay_segment(seg, mapped[4 * i : 4 * i + 4])
         if row is not None:
             out["segments"].append(row)
             # 0.0 is the engine's "unmeasured" fallback, not a level; keep it out of the range.
             dbs.extend(t["db"] for t in row["energy_thirds"] if t["db"] > 0.0)
-        for b in seg.get("boundaries") or []:
-            tl = st.source_to_timeline(track_id, SourceSec(float(b["time"])))
-            if tl is None:
-                continue
-            out["boundaries"].append(
-                {
-                    "timeline_sec": float(tl),
-                    "strength": float(b.get("strength", 0.0)),
-                    "kind": str(b.get("kind", "word_gap")),
-                    "pause_sec": float(b.get("pause_sec", 0.0)),
-                }
-            )
-        for w in seg.get("prominent_words") or []:
-            tl = st.source_to_timeline(track_id, SourceSec(float(w["start"])))
-            out["prominent_words"].append(
-                {
-                    "text": str(w.get("text", "")),
-                    "score": float(w.get("score", 0.0)),
-                    "word_index": word_index.get(_timing_key(w["start"], w["end"])),
-                    "timeline_sec": float(tl) if tl is not None else None,
-                }
-            )
+    out["boundaries"] = [
+        {
+            "timeline_sec": float(tl),
+            "strength": float(b.get("strength", 0.0)),
+            "kind": str(b.get("kind", "word_gap")),
+            "pause_sec": float(b.get("pause_sec", 0.0)),
+        }
+        for b, tl in zip(boundaries, boundary_tl, strict=True)
+        if tl is not None
+    ]
+    out["prominent_words"] = [
+        {
+            "text": str(w.get("text", "")),
+            "score": float(w.get("score", 0.0)),
+            "word_index": word_index.get(_timing_key(w["start"], w["end"])),
+            "timeline_sec": float(tl) if tl is not None else None,
+        }
+        for w, tl in zip(words, word_tl, strict=True)
+    ]
     if dbs:
         out["energy_db"] = {"min": min(dbs), "max": max(dbs)}
     return out

@@ -397,6 +397,17 @@ class SessionTimeline:
         best = self._source_point(self._index(track_id), float(sec))
         return TimelineSec(best) if best is not None else None
 
+    def sources_to_timeline(
+        self, track_id: str, secs: Sequence[SourceSec]
+    ) -> list[TimelineSec | None]:
+        """Batch :meth:`source_to_timeline` against one fresh clip index."""
+        idx = self._index(track_id)
+        out: list[TimelineSec | None] = []
+        for sec in secs:
+            best = self._source_point(idx, float(sec))
+            out.append(TimelineSec(best) if best is not None else None)
+        return out
+
     @staticmethod
     def _source_point(idx: _TrackIndex | None, sec: float) -> float | None:
         """Earliest timeline position of source ``sec`` (a clip's ``source_end`` counts)."""
