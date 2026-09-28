@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /** Record-share room as returned by `POST /api/shares/record`. */
 export type RecordRoom = {
@@ -194,4 +194,106 @@ export async function readSavedProject(
   projectPath: string,
 ): Promise<SavedRecordProject> {
   return JSON.parse(await readFile(projectPath, "utf8")) as SavedRecordProject;
+}
+
+/**
+ * Poll `/api/record/state` for `expectedState`; if it is not already there,
+ * issue the transport command and poll until the host reports it. Tolerates
+ * a POST rejected by a race that already landed the state.
+ */
+export async function ensureHostRecordCommand(
+  host: Page,
+  projectPath: string,
+  commandType: string,
+  expectedState: string,
+): Promise<void> {
+  if ((await hostRecordState(host, projectPath)) === expectedState) {
+    return;
+  }
+  const started = await host.request.post("/api/record/command", {
+    data: { path: projectPath, command_type: commandType, payload: {} },
+  });
+  if (!started.ok()) {
+    if ((await hostRecordState(host, projectPath)) === expectedState) {
+      return;
+    }
+    expect(started.ok(), await started.text()).toBeTruthy();
+  }
+  await expect
+    .poll(async () => hostRecordState(host, projectPath))
+    .toBe(expectedState);
+}
+
+/**
+ * Click a host transport button and confirm it POSTed `/api/record/command`,
+ * unless the state was already reached (a race with the previous click).
+ */
+export async function clickHostTransport(
+  host: Page,
+  button: Locator,
+  projectPath: string,
+  commandType: string,
+  expectedState: string,
+): Promise<void> {
+  const uiPost = host
+    .waitForRequest(
+      (req) =>
+        req.method() === "POST" && req.url().includes("/api/record/command"),
+      { timeout: 5_000 },
+    )
+    .catch(() => null);
+  await button.click();
+  if ((await hostRecordState(host, projectPath)) === expectedState) {
+    return;
+  }
+  const fired = await uiPost;
+  expect(
+    fired,
+    "host transport button did not POST /api/record/command",
+  ).toBeTruthy();
+  await ensureHostRecordCommand(host, projectPath, commandType, expectedState);
+}
+
+/** Open the host's Record room dialog from the app menu and wait for it. */
+export async function openHostRecordRoom(host: Page): Promise<Locator> {
+  await host.getByRole("button", { name: "Menu" }).click();
+  await host.getByRole("menuitem", { name: "Record room…" }).click();
+  const roomDlg = host.getByRole("dialog", { name: "Record room" });
+  await expect(roomDlg).toBeVisible();
+  return roomDlg;
+}
+
+/**
+ * Wait for `name` to auto-land, or click Land if it becomes enabled first
+ * (tolerating auto-land disabling it between the check and the click).
+ */
+export async function landParticipant(
+  roomDlg: Locator,
+  name: string,
+): Promise<void> {
+  const uploadList = roomDlg.getByRole("list", { name: "Upload status" });
+  const landed = uploadList.getByText(`${name}: landed.`);
+  const landButton = roomDlg.getByRole("button", {
+    name: "Land",
+    exact: true,
+  });
+  await expect
+    .poll(
+      async () => {
+        if (await landed.isVisible()) return "landed";
+        if ((await landButton.count()) > 0 && (await landButton.isEnabled())) {
+          return "land";
+        }
+        return "waiting";
+      },
+      { timeout: 60_000 },
+    )
+    .not.toBe("waiting");
+  if (!(await landed.isVisible())) {
+    await landButton.click({ timeout: 5_000 }).catch(async (error: unknown) => {
+      // Auto-land may disable Land between the check and the click.
+      if (!(await landed.isVisible())) throw error;
+    });
+  }
+  await expect(landed).toBeVisible({ timeout: 60_000 });
 }
