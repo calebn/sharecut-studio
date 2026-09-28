@@ -23,6 +23,7 @@ SR = 8000
 def reset_waveform_caches() -> None:
     svc._INDEX.clear()
     svc._META.clear()
+    svc._PCM.clear()
     svc._GC_DONE.clear()
 
 
