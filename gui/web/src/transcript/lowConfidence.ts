@@ -1,5 +1,6 @@
 import type { TranscriptReviewCursor } from "../state/types";
 import type { CombinedUtterance, TranscriptWordView } from "../types/project";
+import { memoByRef } from "../utils/memoByRef";
 import {
   isTranscriptUtteranceVisible,
   wordSeekSec,
@@ -98,31 +99,27 @@ export function stepLowConfidence(
   return n - 1;
 }
 
-let cachedStops: {
-  utterances: readonly CombinedUtterance[];
-  showAll: boolean;
-  stops: LowConfidenceStop[];
-} | null = null;
+// Visibility only matters as `annotate && showCutAway` (isTranscriptUtteranceVisible),
+// so one cache per effective visibility, each keyed by the utterance array.
+const listedStops = memoByRef((utterances: readonly CombinedUtterance[]) =>
+  lowConfidenceStops(utterances, false, false),
+);
+const allStops = memoByRef((utterances: readonly CombinedUtterance[]) =>
+  lowConfidenceStops(utterances, true, true),
+);
 
 /**
- * `lowConfidenceStops`, memoized on the utterance array's identity and the
- * visibility it implies, so the transcript toolbar and each Next/Previous
- * step share one O(words) scan per project change.
+ * `lowConfidenceStops`, memoized per utterance array (`memoByRef`, a WeakMap)
+ * and effective visibility, so the transcript toolbar and each Next/Previous
+ * step share one O(words) scan per project change, and callers on different
+ * arrays never evict each other.
  */
 export function selectLowConfidenceStops(
   utterances: readonly CombinedUtterance[],
   annotate: boolean,
   showCutAway: boolean,
 ): LowConfidenceStop[] {
-  const showAll = annotate && showCutAway;
-  if (
-    cachedStops &&
-    cachedStops.utterances === utterances &&
-    cachedStops.showAll === showAll
-  ) {
-    return cachedStops.stops;
-  }
-  const stops = lowConfidenceStops(utterances, annotate, showCutAway);
-  cachedStops = { utterances, showAll, stops };
-  return stops;
+  return annotate && showCutAway
+    ? allStops(utterances)
+    : listedStops(utterances);
 }
