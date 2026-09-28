@@ -174,6 +174,8 @@ export interface DawState {
   helpDialogOpen: boolean;
   /** The drawn join whose popover is open (its right clip's id), or null. One at a time (timeline/JoinBadge.tsx). */
   openJoinId: string | null;
+  /** A join popover's SetClipJoin is in flight: no join popover dismisses, opens or switches until it settles (timeline/JoinPopover.tsx). */
+  joinMutationInFlight: boolean;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */
   highlightStaleRender: boolean;
   /** Refresh-mix / render_preview in flight. */
@@ -306,6 +308,7 @@ export interface DawState {
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;
+  setJoinMutationInFlight: (on: boolean) => void;
   setHighlightStaleRender: (on: boolean) => void;
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean) => void;

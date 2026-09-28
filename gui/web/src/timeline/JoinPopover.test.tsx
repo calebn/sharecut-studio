@@ -41,7 +41,6 @@ function Harness({
   const anchorRef = useRef<HTMLButtonElement>(
     null,
   ) as RefObject<HTMLButtonElement | null>;
-  const inFlightRef = useRef(false);
   return (
     <div>
       <button ref={anchorRef} type="button">
@@ -55,7 +54,6 @@ function Harness({
         trackFadeMaxMs={40}
         anchorRef={anchorRef}
         onClose={onClose}
-        inFlightRef={inFlightRef}
       />
     </div>
   );
@@ -72,6 +70,7 @@ describe("JoinPopover", () => {
       playUntilSec: null,
       isPlaying: false,
       openJoinId: null,
+      joinMutationInFlight: false,
     });
   });
 
@@ -167,9 +166,11 @@ describe("JoinPopover", () => {
     fireEvent.pointerDown(document.body);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).not.toHaveBeenCalled();
+    expect(useDawStore.getState().joinMutationInFlight).toBe(true);
     await act(async () => {
       reject(new Error("nope"));
     });
+    expect(useDawStore.getState().joinMutationInFlight).toBe(false);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     fireEvent.pointerDown(document.body);
     expect(onClose).toHaveBeenCalledTimes(1);

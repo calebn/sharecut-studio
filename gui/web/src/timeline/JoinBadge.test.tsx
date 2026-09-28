@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
@@ -148,7 +148,7 @@ describe("JoinBadge (live)", () => {
     useDawStore
       .getState()
       .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
-    useDawStore.setState({ openJoinId: null });
+    useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
   });
 
   it("opens and closes the join popover, and closes on Escape with focus restored", async () => {
@@ -263,5 +263,50 @@ describe("JoinBadge (live)", () => {
     await user.click(screen.getByRole("button", { name: "Crossfade" }));
     await user.click(badge);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("another badge does not open while SetClipJoin is in flight, so the first popover shows its failure", async () => {
+    let reject: (e: Error) => void = () => {};
+    vi.mocked(setClipJoin).mockImplementationOnce(
+      () =>
+        new Promise((_, r) => {
+          reject = r;
+        }),
+    );
+    const user = userEvent.setup();
+    render(
+      <>
+        <JoinBadge
+          left={left}
+          right={right}
+          seamSec={5}
+          zoomPxPerSec={50}
+          trackFadeMaxMs={null}
+        />
+        <JoinBadge
+          left={left2}
+          right={right2}
+          seamSec={5}
+          zoomPxPerSec={50}
+          trackFadeMaxMs={null}
+        />
+      </>,
+    );
+    const [a, b] = screen.getAllByRole("button", {
+      name: "Fade join at 0:05.0",
+    });
+    await user.click(a);
+    await user.click(screen.getByRole("button", { name: "Crossfade" }));
+    b.focus();
+    await user.keyboard("{Enter}");
+    expect(a).toHaveAttribute("aria-expanded", "true");
+    expect(b).toHaveAttribute("aria-expanded", "false");
+    await act(async () => {
+      reject(new Error("nope"));
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(b);
+    expect(a).toHaveAttribute("aria-expanded", "false");
+    expect(b).toHaveAttribute("aria-expanded", "true");
   });
 });

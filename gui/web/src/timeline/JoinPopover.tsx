@@ -4,6 +4,7 @@ import { setClipJoin } from "../api";
 import { JOIN_AUDITION_PAD_SEC, joinGlyph } from "../edit/joinRender";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { canApplyPass12 } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import {
@@ -22,8 +23,6 @@ export interface JoinPopoverProps {
   trackFadeMaxMs: number | null;
   anchorRef: RefObject<HTMLElement | null>;
   onClose: () => void;
-  /** True while a SetClipJoin is in flight; owned by the badge so its toggle honours it too. */
-  inFlightRef: RefObject<boolean>;
 }
 
 /** Live adapter: portals `JoinPopoverView` to `<body>`, fixed at its badge. */
@@ -35,7 +34,6 @@ export function JoinPopover({
   trackFadeMaxMs,
   anchorRef,
   onClose,
-  inFlightRef,
 }: JoinPopoverProps) {
   const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
     projectPath: s.projectPath,
@@ -46,12 +44,13 @@ export function JoinPopover({
   const { busy, error, run } = useProjectMutation();
   const panelRef = useRef<HTMLDivElement>(null);
   // Dismissing mid-request would unmount the popover and drop a failure
-  // silently, so Escape, Close and an outside click wait for SetClipJoin to settle.
+  // silently, so Escape, Close, an outside click and opening another join
+  // badge (JoinBadge.tsx) all wait for SetClipJoin to settle.
   const dismiss = useCallback(() => {
-    if (!inFlightRef.current) {
+    if (!useDawStore.getState().joinMutationInFlight) {
       onClose();
     }
-  }, [inFlightRef, onClose]);
+  }, [onClose]);
   // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus returns to this popover's badge.
   useDialogModal({
     open: true,
@@ -101,12 +100,13 @@ export function JoinPopover({
 
   // One SetClipJoin at a time: a second one would clear the first's busy/error early.
   const mutate = (fn: () => Promise<unknown>) => {
-    if (inFlightRef.current) {
+    const store = useDawStore.getState();
+    if (store.joinMutationInFlight) {
       return;
     }
-    inFlightRef.current = true;
+    store.setJoinMutationInFlight(true);
     void run(fn).finally(() => {
-      inFlightRef.current = false;
+      useDawStore.getState().setJoinMutationInFlight(false);
     });
   };
 
