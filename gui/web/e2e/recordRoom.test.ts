@@ -5,7 +5,11 @@ import { encodePcmWav } from "../src/audio/wavHeader";
 import {
   clickHostTransport,
   createRecordRoom,
+  currentTake,
   ensureHostRecordCommand,
+  expectRemintRefused,
+  type HostRecordSnapshot,
+  hostRecordConnected,
   LandingPendingError,
   landedTrackPeak,
   landedTrackPeakOrPending,
@@ -471,5 +475,115 @@ describe("landedTrackPeakOrPending", () => {
     await expect(landedTrackPeakOrPending(projectPath, "Ava")).rejects.toThrow(
       /not under raw\//,
     );
+  });
+});
+
+function hostWithSnapshot(snapshot: HostRecordSnapshot) {
+  const get = vi.fn(async () => ({
+    ok: () => true,
+    text: async () => JSON.stringify(snapshot),
+    json: async () => snapshot,
+  }));
+  return { page: { request: { get } }, get };
+}
+
+function hostWithPostStatus(status: number, body: unknown) {
+  const post = vi.fn(async () => ({
+    status: () => status,
+    text: async () => JSON.stringify(body),
+  }));
+  return { page: { request: { post } }, post };
+}
+
+describe("currentTake", () => {
+  it("returns the take matching take_index", () => {
+    const takes = [
+      { take_index: 0, pauses: [] },
+      {
+        take_index: 1,
+        pauses: [{ seq: 1, pause_wall_ms: 0, resume_wall_ms: null }],
+      },
+    ];
+    const snapshot = {
+      session_id: "s",
+      take_index: 1,
+      recording_ms: 0,
+      participants: [],
+      takes,
+    } satisfies HostRecordSnapshot;
+    expect(currentTake(snapshot)).toEqual(takes[1]);
+  });
+
+  it("throws when the snapshot has no matching take", () => {
+    const snapshot = {
+      session_id: "s",
+      take_index: 2,
+      recording_ms: 0,
+      participants: [],
+      takes: [],
+    } satisfies HostRecordSnapshot;
+    expect(() => currentTake(snapshot)).toThrow(
+      /no open take in record snapshot/,
+    );
+  });
+});
+
+describe("hostRecordConnected", () => {
+  it("is true when the host participant is connected", async () => {
+    const { page } = hostWithSnapshot({
+      session_id: "s",
+      take_index: 0,
+      recording_ms: 0,
+      participants: [
+        { participant_id: "p_host", display_name: "Host", connected: true },
+      ],
+    });
+    await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
+      true,
+    );
+  });
+
+  it("is false when the host participant is disconnected", async () => {
+    const { page } = hostWithSnapshot({
+      session_id: "s",
+      take_index: 0,
+      recording_ms: 0,
+      participants: [
+        { participant_id: "p_host", display_name: "Host", connected: false },
+      ],
+    });
+    await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
+      false,
+    );
+  });
+
+  it("is false when the host participant is missing", async () => {
+    const { page } = hostWithSnapshot({
+      session_id: "s",
+      take_index: 0,
+      recording_ms: 0,
+      participants: [],
+    });
+    await expect(hostRecordConnected(page as never, "/p/x.json")).resolves.toBe(
+      false,
+    );
+  });
+});
+
+describe("expectRemintRefused", () => {
+  it("passes when the remint is refused with 409", async () => {
+    const { page } = hostWithPostStatus(409, {
+      detail: "A take is open (REC/PAUSED). Stop it before minting a new room.",
+    });
+    await expect(
+      expectRemintRefused(page as never, "/p/x.json"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails when the remint is not refused", async () => {
+    const { page } = hostWithPostStatus(200, { room: {} });
+    await expect(
+      expectRemintRefused(page as never, "/p/x.json"),
+    ).rejects.toThrow();
   });
 });

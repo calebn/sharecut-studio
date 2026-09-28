@@ -49,19 +49,50 @@ export async function openRecordLink(page: Page, token: string): Promise<void> {
   await page.goto(recordLinkPath(token));
 }
 
+export type HostRecordTakePause = {
+  seq: number;
+  pause_wall_ms: number;
+  resume_wall_ms: number | null;
+  pause_reason?: string | null;
+};
+
+export type HostRecordTake = {
+  take_index: number;
+  pauses: HostRecordTakePause[];
+};
+
 export type HostRecordSnapshot = {
   state?: string;
   session_id: string;
   take_index: number;
   recording_ms: number;
-  participants: Array<{ participant_id: string; display_name: string }>;
+  participants: Array<{
+    participant_id: string;
+    display_name: string;
+    connected?: boolean;
+  }>;
   comments?: Array<{
     id: string;
     body: string;
     author: string;
     recording_ms: number;
   }>;
+  pause_reason?: string | null;
+  host_offline_since_wall_ms?: number | null;
+  host_offline_gap_ms?: number | null;
+  takes?: HostRecordTake[];
 };
+
+/** The take at `snapshot.take_index`; throws when the snapshot has none. */
+export function currentTake(snapshot: HostRecordSnapshot): HostRecordTake {
+  const take = snapshot.takes?.find(
+    (t) => t.take_index === snapshot.take_index,
+  );
+  if (!take) {
+    throw new Error("no open take in record snapshot");
+  }
+  return take;
+}
 
 export async function hostRecordSnapshot(
   host: Page,
@@ -397,4 +428,39 @@ export async function landParticipant(
     });
   }
   await expect(landed).toBeVisible({ timeout: 60_000 });
+}
+
+/**
+ * Whether the host's own socket (participant `p_host`) is currently reported
+ * connected by `/api/record/state`. A closed host `/api/session/ws` submits a
+ * `Leave` for the host participant (`services/record/service.py`
+ * `disconnect`), so this flips false while the host's socket is down and true
+ * again once it reconnects and the host `Join` lands.
+ */
+export async function hostRecordConnected(
+  host: Page,
+  projectPath: string,
+): Promise<boolean> {
+  const { participants } = await hostRecordSnapshot(host, projectPath);
+  return (
+    participants.find((p) => p.participant_id === HOST_PARTICIPANT_ID)
+      ?.connected === true
+  );
+}
+
+/**
+ * Assert that reminting a record room for `projectPath` is refused with 409
+ * while a take is open (REC/PAUSED), per `TAKE_OPEN_REMINT_MSG`
+ * (`services/record/state.py`).
+ */
+export async function expectRemintRefused(
+  host: Page,
+  projectPath: string,
+): Promise<void> {
+  const res = await host.request.post("/api/shares/record", {
+    data: { path: projectPath },
+  });
+  expect(res.status()).toBe(409);
+  const text = await res.text();
+  expect(text).toContain("Stop it before minting a new room");
 }
