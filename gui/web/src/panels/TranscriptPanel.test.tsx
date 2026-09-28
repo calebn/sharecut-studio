@@ -811,7 +811,32 @@ describe("TranscriptPanel", () => {
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
     });
 
-    it("clears a late Suppress failure once a retry flips the flag, not before", () => {
+    it("clears a late Ignore failure once a retry flips the flag, not before", () => {
+      useDawStore.setState({
+        transcriptInlineEditFailure: {
+          projectPath: "/tmp/ep",
+          trackId: "host",
+          wordIndex: 0,
+          originalText: "hello",
+          flag: { name: "ignored", was: false },
+          message: "Could not update “hello”: boom",
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      act(() => useDawStore.setState({ project: project() }));
+      expect(container.querySelector(".inline-error")).not.toBeNull();
+      const retried = project();
+      const words = retried.transcript?.utterances[0]?.words;
+      if (!words) throw new Error("fixture words missing");
+      words[0] = { ...words[0], ignored: true };
+      act(() => useDawStore.setState({ project: retried }));
+      expect(container.querySelector(".inline-error")).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
+    });
+
+    // The ProjectView mapper drops a suppressed word from the utterances, so a
+    // successful Suppress retry clears the banner because the word is gone.
+    it("clears a late Suppress failure once a retry drops the word from the view", () => {
       useDawStore.setState({
         transcriptInlineEditFailure: {
           projectPath: "/tmp/ep",
@@ -828,7 +853,7 @@ describe("TranscriptPanel", () => {
       const retried = project();
       const words = retried.transcript?.utterances[0]?.words;
       if (!words) throw new Error("fixture words missing");
-      words[0] = { ...words[0], suppressed: true };
+      words.splice(0, 1);
       act(() => useDawStore.setState({ project: retried }));
       expect(container.querySelector(".inline-error")).toBeNull();
       expect(useDawStore.getState().transcriptInlineEditFailure).toBeNull();
