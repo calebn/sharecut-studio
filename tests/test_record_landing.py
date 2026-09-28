@@ -30,6 +30,7 @@ from podcast_mcp.services.record.landing import (
     release_session_land_lock,
     remove_session_land_lock_file,
     rollback_retry_after_ns,
+    room_land_lock,
     wav_pcm_info,
 )
 from podcast_mcp.services.record.landing_math import (
@@ -892,6 +893,19 @@ def test_land_times_out_on_held_cross_process_land_lock(
         other.release()
     clips = RecordLandingService(ws).land(align=lambda _p: None)["clips"]
     assert [clip["participant_id"] for clip in clips] == [guest]
+
+
+def test_room_land_lock_does_not_translate_body_timeout(tmp_path: Path) -> None:
+    """Only a timeout on entry becomes 'land in progress'; one from the body propagates."""
+    from filelock import Timeout as FileLockTimeout
+
+    from podcast_mcp.util.file_locks import shared_file_lock
+
+    with pytest.raises(FileLockTimeout):
+        with room_land_lock(tmp_path, "sess-body-timeout"):
+            raise FileLockTimeout("inner")
+    lock = shared_file_lock(record_land_lock_path(tmp_path, "sess-body-timeout"))
+    assert not lock.is_locked
 
 
 def test_discard_waits_for_cross_process_land_lock(
