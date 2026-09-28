@@ -873,50 +873,8 @@ def run_pipeline_pass(
     return summary
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    plan_cmd = sub.add_parser("plan")
-    plan_cmd.add_argument("--target", required=True, choices=TARGETS)
-    plan_cmd.add_argument("--lab", type=Path)
-    plan_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
-    plan_cmd.add_argument("--clip-sec", type=float, default=60.0)
-
-    run_cmd = sub.add_parser("run")
-    run_cmd.add_argument("--target", required=True, choices=TARGETS)
-    run_cmd.add_argument("--lab", type=Path)
-    run_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
-    run_cmd.add_argument("--clip-sec", type=float, default=60.0)
-    run_cmd.add_argument("--runs-dir", type=Path)
-    run_cmd.add_argument("--candidate", action="append", dest="candidates")
-    run_cmd.add_argument("--model-dir", action="append", dest="model_dirs", default=[])
-    run_cmd.add_argument("--native-model", default="base")
-    run_cmd.add_argument("--threads", type=int, default=4)
-
-    pipeline_cmd = sub.add_parser("pipeline")
-    pipeline_cmd.add_argument("--target", required=True, choices=PIPELINE_TARGETS)
-    pipeline_cmd.add_argument("--lab", type=Path)
-    pipeline_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
-    pipeline_cmd.add_argument("--clip-sec", type=float, default=60.0)
-    pipeline_cmd.add_argument("--runs-dir", type=Path)
-    pipeline_cmd.add_argument("--native-model", default="base")
-    pipeline_cmd.add_argument("--threads", type=int)
-
-    agree_cmd = sub.add_parser("agree")
-    agree_cmd.add_argument("--reference", type=Path, required=True)
-    agree_cmd.add_argument("--prediction", action="append", dest="predictions", required=True)
-    agree_cmd.add_argument("--top", type=int, default=20)
-    agree_cmd.add_argument("--output", type=Path, required=True)
-
-    dl_cmd = sub.add_parser("download-commands")
-    dl_cmd.add_argument("--candidate", action="append", dest="candidates")
-
-    verify_cmd = sub.add_parser("verify-candidates")
-    verify_cmd.add_argument("--candidate", action="append", dest="candidates")
-
-    args = parser.parse_args(argv)
-
+def _run_command(args: argparse.Namespace) -> int:
+    """Dispatch one parsed subcommand; ``main`` turns refusals into an exit code."""
     if args.command == "plan":
         items = resolve_target(
             args.target, lab=args.lab, lab_glob=args.lab_glob, clip_sec=args.clip_sec
@@ -995,6 +953,58 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if problems else 0
 
     return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    plan_cmd = sub.add_parser("plan")
+    plan_cmd.add_argument("--target", required=True, choices=TARGETS)
+    plan_cmd.add_argument("--lab", type=Path)
+    plan_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
+    plan_cmd.add_argument("--clip-sec", type=float, default=60.0)
+
+    run_cmd = sub.add_parser("run")
+    run_cmd.add_argument("--target", required=True, choices=TARGETS)
+    run_cmd.add_argument("--lab", type=Path)
+    run_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
+    run_cmd.add_argument("--clip-sec", type=float, default=60.0)
+    run_cmd.add_argument("--runs-dir", type=Path)
+    run_cmd.add_argument("--candidate", action="append", dest="candidates")
+    run_cmd.add_argument("--model-dir", action="append", dest="model_dirs", default=[])
+    run_cmd.add_argument("--native-model", default="base")
+    run_cmd.add_argument("--threads", type=int, default=4)
+
+    pipeline_cmd = sub.add_parser("pipeline")
+    pipeline_cmd.add_argument("--target", required=True, choices=PIPELINE_TARGETS)
+    pipeline_cmd.add_argument("--lab", type=Path)
+    pipeline_cmd.add_argument("--lab-glob", default=DEFAULT_LAB_GLOB)
+    pipeline_cmd.add_argument("--clip-sec", type=float, default=60.0)
+    pipeline_cmd.add_argument("--runs-dir", type=Path)
+    pipeline_cmd.add_argument("--native-model", default="base")
+    pipeline_cmd.add_argument("--threads", type=int)
+
+    agree_cmd = sub.add_parser("agree")
+    agree_cmd.add_argument("--reference", type=Path, required=True)
+    agree_cmd.add_argument("--prediction", action="append", dest="predictions", required=True)
+    agree_cmd.add_argument("--top", type=int, default=20)
+    agree_cmd.add_argument("--output", type=Path, required=True)
+
+    dl_cmd = sub.add_parser("download-commands")
+    dl_cmd.add_argument("--candidate", action="append", dest="candidates")
+
+    verify_cmd = sub.add_parser("verify-candidates")
+    verify_cmd.add_argument("--candidate", action="append", dest="candidates")
+
+    args = parser.parse_args(argv)
+    try:
+        return _run_command(args)
+    except (ValueError, TimeoutError) as exc:
+        # Operator-facing refusals (cache mismatch, runs-dir checks, a held
+        # <id>.native.lock) print one line instead of a traceback.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

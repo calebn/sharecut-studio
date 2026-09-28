@@ -784,6 +784,19 @@ def test_main_pipeline_dispatches_to_run_pipeline_pass(monkeypatch, tmp_path) ->
     assert len(calls[0]["items"]) == 3
 
 
+@pytest.mark.parametrize("error", [ValueError("native words mismatch"), TimeoutError("lock held")])
+def test_main_reports_refusals_without_a_traceback(monkeypatch, tmp_path, capsys, error) -> None:
+    """#715: a cache/lock refusal prints one error line and exits 2."""
+
+    def refuse(items, **kwargs):
+        raise error
+
+    monkeypatch.setattr(bfa, "run_pipeline_pass", refuse)
+    code = bfa.main(["pipeline", "--target", "librispeech", "--runs-dir", str(tmp_path / "runs")])
+    assert code == 2
+    assert capsys.readouterr().err == f"error: {error}\n"
+
+
 def test_prepare_items_reuses_cached_native_words(tmp_path) -> None:
     """#715: a second pass into the same runs dir reuses <id>.native.json instead of re-running Whisper."""
     prediction = json.loads((SYNTH / "tones.prediction.json").read_text(encoding="utf-8"))
