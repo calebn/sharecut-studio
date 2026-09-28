@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
     ProgressReporter,
+    raise_if_cancel_requested,
     resolve_progress_task,
 )
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
@@ -932,8 +934,12 @@ def analyze_cleanup(
     track_id: str | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Full cleanup analysis report for one or all dialogue tracks."""
+    """Full cleanup analysis report for one or all dialogue tracks.
+
+    ``cancel_check`` is polled before each track; true raises ``CancelledProgress``.
+    """
 
     pol = policy or AnalysisPolicy.from_defaults()
     tracks = [track_id] if track_id else dialogue_track_ids(project)
@@ -948,6 +954,7 @@ def analyze_cleanup(
         progress=progress,
     ) as task:
         for tid in tracks:
+            raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
             track = project.track_by_id(tid)
             if not track or track.role != TrackRole.DIALOGUE:
                 task.advance(1, total=len(tracks), message=f"track {tid}")

@@ -214,7 +214,7 @@ def test_suggest_preserves_working_set_knobs() -> None:
     base = merge_pipeline_config({"balance": {"dialogue_lufs": -18.0}})
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         return {"tracks": []}
 
     real = audio_audit.analyze_cleanup
@@ -353,7 +353,7 @@ def test_analyze_working_set_apply_keeps_edit_made_during_scan(tmp_path, monkeyp
     store = pc.config_store()
     store.put(proj, reset=True)
 
-    def fake_suggest(_project, *, base_config):
+    def fake_suggest(_project, *, base_config, cancel_check=None):
         # A GUI/MCP config edit lands while Analyze is scanning.
         store.put(
             proj,
@@ -398,7 +398,7 @@ def test_suggest_pipeline_tuning_heuristic_branches() -> None:
     )
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         return {
             "tracks": [
                 {
@@ -477,7 +477,7 @@ def test_suggest_pipeline_tuning_seeds_gate_when_base_effects_omit_it(monkeypatc
     assert "gate" not in base["effects"]
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         return {
             "tracks": [
                 {
@@ -524,7 +524,7 @@ def test_suggest_pipeline_tuning_shifts_gate_once_for_multiple_tracks(monkeypatc
     project = EpisodeProject.create(name="t", workspace_dir="/tmp")
     track_ids = ["host", "guest1", "guest2"]
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         return {
             "tracks": [
                 {"track_id": tid, "health": {}, "gate_analysis": {"risk": "high", "issues": []}}
@@ -627,7 +627,7 @@ def test_suggest_flags_equal_duration_dialogue(monkeypatch) -> None:
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
     )
 
     def build(second: float) -> EpisodeProject:
@@ -661,7 +661,7 @@ def test_suggest_reports_track_evidence_without_reasons(monkeypatch) -> None:
     from podcast_mcp.engines import audio_audit
     from podcast_mcp.models import EpisodeProject
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         return {
             "tracks": [
                 {
@@ -694,7 +694,7 @@ def test_suggest_flags_digital_silence_and_vad(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
     )
 
     host_wav = tmp_path / "host.wav"
@@ -768,7 +768,7 @@ def test_suggest_reports_undecodable_dialogue_track(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
     )
 
     host_wav = tmp_path / "host.wav"
@@ -806,7 +806,7 @@ def test_suggest_reports_health_then_silence_progress(monkeypatch, tmp_path) -> 
         resolve_progress_task,
     )
 
-    def fake_analyze(project, *, policy=None, progress=None):
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
         task = current_progress_task()
         assert task is not None
         assert task.task_id == "analyze_health"
@@ -883,7 +883,7 @@ def test_suggest_progress_standalone_without_parent(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(
         audio_audit,
         "analyze_cleanup",
-        lambda project, *, policy=None, progress=None: {"tracks": []},
+        lambda project, *, policy=None, progress=None, cancel_check=None: {"tracks": []},
     )
     project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
 
@@ -1093,3 +1093,114 @@ def test_tighten_gate_agrees_when_enabled_key_missing():
     for step_id in ("analyze_fillers_pauses", "tighten_from_transcript"):
         assert rows[step_id]["enabled"] is False
         assert rows[step_id]["noop_reason"] == "tighten.enabled=false"
+
+
+def test_dialogue_silence_scan_cancels_between_tracks(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
+    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.util.progress import CancelledProgress
+
+    host_wav = tmp_path / "host.wav"
+    guest_wav = tmp_path / "guest.wav"
+    third_wav = tmp_path / "third.wav"
+    for wav in (host_wav, guest_wav, third_wav):
+        wav.write_bytes(b"\x00")
+
+    project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+    for tid, path in (("host", host_wav), ("guest", guest_wav), ("third", third_wav)):
+        project.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=str(path), duration_sec=10.0),
+            )
+        )
+
+    calls: list[str] = []
+
+    def fake_digital_silence_fraction(path, *, peak_dbfs):
+        calls.append(path)
+        return 0.1
+
+    monkeypatch.setattr(
+        "podcast_mcp.engines.asr_silence.digital_silence_fraction",
+        fake_digital_silence_fraction,
+    )
+
+    with pytest.raises(CancelledProgress, match="Analyze cancelled"):
+        pc._dialogue_silence_fractions(
+            project, peak_dbfs=-60.0, cancel_check=lambda: len(calls) >= 1
+        )
+    assert len(calls) == 1
+
+
+def test_analyze_cleanup_cancels_before_track_work(monkeypatch) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject, Track, TrackRole
+    from podcast_mcp.util.progress import CancelledProgress
+
+    project = EpisodeProject.create(name="t", workspace_dir="/tmp")
+    project.tracks.append(Track(id="host", label="host", role=TrackRole.DIALOGUE))
+
+    calls: list[str] = []
+
+    monkeypatch.setattr(audio_audit, "build_track_rms_caches", lambda project: {})
+    monkeypatch.setattr(
+        audio_audit,
+        "analyze_gate_overreach",
+        lambda *args, **kwargs: calls.append("gate"),
+    )
+
+    with pytest.raises(CancelledProgress):
+        audio_audit.analyze_cleanup(project, cancel_check=lambda: True)
+    assert calls == []
+
+
+def test_analyze_working_set_cancel_skips_apply(tmp_path, monkeypatch) -> None:
+    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.util.progress import CancelledProgress
+
+    proj = tmp_path / "ep-cancel.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = pc.config_store()
+    store.put(proj, reset=True)
+    before = store.get(proj).config["transcribe"]["vad"]["enabled"]
+
+    def fake_suggest(_project, *, base_config, cancel_check=None):
+        patches = {"transcribe": {"vad": {"enabled": True}}}
+        return {
+            "proposed_config": pc.merge_pipeline_config(patches, base=base_config),
+            "patches": patches,
+            "reasons": [],
+            "report_summary": {"track_count": 0, "reason_count": 0, "tracks": []},
+        }
+
+    monkeypatch.setattr(pc, "suggest_pipeline_tuning", fake_suggest)
+    with pytest.raises(CancelledProgress):
+        pc.analyze_working_set(proj, object(), apply=True, cancel_check=lambda: True)
+    assert store.get(proj).config["transcribe"]["vad"]["enabled"] == before
+    store.put(proj, reset=True)
+
+
+def test_suggest_pipeline_tuning_forwards_cancel_check(monkeypatch, tmp_path) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+
+    recorded: dict[str, object] = {}
+
+    def sentinel() -> bool:
+        return False
+
+    def fake_analyze(project, *, policy=None, progress=None, cancel_check=None):
+        recorded["cancel_check"] = cancel_check
+        return {"tracks": []}
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", fake_analyze)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.asr_silence.digital_silence_fraction",
+        lambda path, *, peak_dbfs: 0.1,
+    )
+    project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
+    suggest_pipeline_tuning(project, cancel_check=sentinel)
+    assert recorded["cancel_check"] is sentinel
