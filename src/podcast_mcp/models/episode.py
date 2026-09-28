@@ -234,7 +234,8 @@ class Transcript(BaseModel):
         return words if isinstance(words, TranscriptWords) else TranscriptWords(words)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name == "words" and not isinstance(value, TranscriptWords):
+        if name == "words":
+            # Always a fresh list: two transcripts never share one list or memo.
             value = TranscriptWords(value)
         super().__setattr__(name, value)
         if name == "words":
