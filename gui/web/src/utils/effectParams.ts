@@ -1,10 +1,22 @@
-/** Readable names (and units) for ffmpeg option keys the FX presets use. */
-const KNOWN: Record<string, { label: string; unit?: string }> = {
+/** Readable names (and units) for ffmpeg option keys the built-in FX presets use (effects/presets.py); effectParams.test.ts checks every builtin. */
+type ParamLabel = { label: string; unit?: string };
+
+const KNOWN: Record<string, ParamLabel> = {
   f: { label: "frequency", unit: "Hz" },
   frequency: { label: "frequency", unit: "Hz" },
   g: { label: "gain", unit: "dB" },
   w: { label: "width" },
   t: { label: "width type" },
+  nr: { label: "noise reduction", unit: "dB" },
+  nf: { label: "noise floor", unit: "dB" },
+};
+
+/**
+ * Per-effect overrides where a shared key means something else. `deesser`'s
+ * `frequency` is ffmpeg's normalized 0–1 `f`, not Hz (engines/ffmpeg.py).
+ */
+const BY_EFFECT: Record<string, Record<string, ParamLabel>> = {
+  deesser: { frequency: { label: "frequency (0–1)" } },
 };
 
 const SUFFIX_UNITS: [RegExp, string][] = [
@@ -12,9 +24,14 @@ const SUFFIX_UNITS: [RegExp, string][] = [
   [/_hz$/i, "Hz"],
   [/_ms$/i, "ms"],
   [/_sec$/i, "s"],
+  [/_lufs$/i, "LUFS"],
 ];
 
-function labelFor(key: string): { label: string; unit?: string } {
+function labelFor(key: string, effect?: string): ParamLabel {
+  const override = effect ? BY_EFFECT[effect]?.[key] : undefined;
+  if (override) {
+    return override;
+  }
   const known = KNOWN[key];
   if (known) {
     return known;
@@ -46,21 +63,26 @@ function formatValue(value: unknown): { text: string; isNumber: boolean } {
   return { text: JSON.stringify(value), isNumber: false };
 }
 
-/** One param as "label value unit", e.g. `threshold_db: -18` → "threshold -18 dB". */
-export function formatEffectParam(key: string, value: unknown): string {
-  const { label, unit } = labelFor(key);
+/** One param as "label value unit", e.g. `threshold_db: -18` → "threshold -18 dB". Pass the effect name so per-effect units apply. */
+export function formatEffectParam(
+  key: string,
+  value: unknown,
+  effect?: string,
+): string {
+  const { label, unit } = labelFor(key, effect);
   const { text, isNumber } = formatValue(value);
   return isNumber && unit ? `${label} ${text} ${unit}` : `${label} ${text}`;
 }
 
-/** Every param joined with " · "; "" when there are none. */
+/** Every param joined with " · "; "" when there are none. Pass the effect name so per-effect units apply. */
 export function formatEffectParams(
   params: Record<string, unknown> | null | undefined,
+  effect?: string,
 ): string {
   if (!params) {
     return "";
   }
   return Object.entries(params)
-    .map(([key, value]) => formatEffectParam(key, value))
+    .map(([key, value]) => formatEffectParam(key, value, effect))
     .join(" · ");
 }
