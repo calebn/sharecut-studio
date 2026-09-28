@@ -12,9 +12,10 @@ never imports services) and are re-exported here. This module adds:
 - ``tile_bytes`` — raw data-tile bins, with no project parse;
 - ``pcm_block`` — host-only int16 min/max PCM windows for deep zoom;
   compressed blocks are served from a small LRU before the media is probed, and
-  a miss takes one of ``PCM_DECODE_MAX_CONCURRENT`` process-wide decode slots
-  (``WaveformBusyError`` when none is free), shared by concurrent requests for
-  the same block;
+  a miss holds a per-block ``KeyedLocks`` lock, so concurrent requests for one
+  block share one probe and one decode, and compressed media then takes one of
+  ``PCM_DECODE_MAX_CONCURRENT`` process-wide decode slots (``WaveformBusyError``
+  when none is free);
 - ``gc_pyramids`` — once per process per project, drop orphaned pyramids.
 
 See ``docs/waveform.md``.
@@ -28,10 +29,9 @@ import re
 import time
 import wave
 from collections import OrderedDict
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Event, Lock
+from threading import Lock
 from typing import Any, Literal, TypeVar, cast
 
 from podcast_mcp.engines.waveform_media import (
@@ -64,6 +64,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
+from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from podcast_mcp.util.timeline_zoom import (
@@ -150,7 +151,9 @@ _PCM_GATE_KEY = "host"  # the gate is keyed; the decode budget is one process-wi
 _PcmKey = tuple[str, str, int]  # (media path, pyramid key, block)
 _PCM: OrderedDict[_PcmKey, bytes] = OrderedDict()
 _PCM_LOCK = Lock()
-_PCM_INFLIGHT: dict[_PcmKey, Event] = {}  # blocks being decoded; guarded by _PCM_LOCK
+# One lock per block being read, dropped once idle: concurrent requests for a block wait
+# on it, then find the first one's decode in the LRU instead of probing or decoding again.
+_PCM_LOCKS: KeyedLocks[_PcmKey, Lock] = KeyedLocks(Lock)
 
 _K = TypeVar("_K")
 _V = TypeVar("_V")
@@ -385,40 +388,37 @@ def _read_pcm_bytes(
     return pairs.astype("<i2").tobytes()
 
 
-def _decode_pcm_block(cache_key: _PcmKey, read: Callable[[], bytes]) -> bytes:
-    """A compressed block from the LRU, from a concurrent decode of it, or from *read*.
+def _read_pcm_block_locked(
+    entry: MediaEntry, key: str, meta: PyramidMeta, start: int, frames: int, cache_key: _PcmKey
+) -> bytes:
+    """One block read while holding *cache_key*'s ``_PCM_LOCKS`` lock.
 
-    The first caller for *cache_key* takes a decode slot without waiting
-    (``WaveformBusyError`` when none is free) and runs *read*; later callers wait
-    for that decode instead of taking a slot, then look again (a failed decode
-    stores nothing, so one of them decodes next). *read* ends within the ffmpeg
-    watchdog, so the wait is bounded.
+    The LRU is checked again first: a request that waited on another's decode of
+    the block returns its bytes without probing the media. Otherwise the media is
+    probed once; WAVs read on the fast path (no slot, not cached), and other media
+    take a decode slot without waiting (``WaveformBusyError`` when none is free),
+    decode, and store the block.
     """
-    done: Event | None = None
-    while True:
-        with _PCM_LOCK:
-            hit = _lru_get(_PCM, cache_key)
-            if hit is not None:
-                return hit
-            pending = _PCM_INFLIGHT.get(cache_key)
-            if pending is None:
-                decision = _PCM_DECODES.try_enter(_PCM_GATE_KEY)
-                if not decision.allowed:
-                    raise WaveformBusyError(decision)
-                done = _PCM_INFLIGHT[cache_key] = Event()
-                break
-        pending.wait()
-    assert done is not None
+    with _PCM_LOCK:
+        hit = _lru_get(_PCM, cache_key)
+    if hit is not None:
+        return hit
     try:
-        body = read()
-        with _PCM_LOCK:
-            _lru_put(_PCM, cache_key, body, _PCM_MAX)
-        return body
+        source = probe_pcm_source(entry.abs_path)
+    except OSError as exc:
+        raise WaveformDecodeError("waveform media could not be decoded") from exc
+    if not source.needs_decode:
+        return _read_pcm_bytes(entry, key, meta, start, frames, source)
+    decision = _PCM_DECODES.try_enter(_PCM_GATE_KEY)
+    if not decision.allowed:
+        raise WaveformBusyError(decision)
+    try:
+        body = _read_pcm_bytes(entry, key, meta, start, frames, source)
     finally:
         _PCM_DECODES.exit(_PCM_GATE_KEY)
-        with _PCM_LOCK:
-            del _PCM_INFLIGHT[cache_key]
-        done.set()
+    with _PCM_LOCK:
+        _lru_put(_PCM, cache_key, body, _PCM_MAX)
+    return body
 
 
 def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
@@ -430,11 +430,13 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     bytes that passed the after-read key check are stored. The LRU trusts the key
     (size + ``mtime_ns``): same-size media replaced within one mtime tick keeps
     serving old samples until evicted, as tiles and the browser cache already do.
-    On a miss, media off the WAV fast path goes through ``_decode_pcm_block``: one
-    of ``PCM_DECODE_MAX_CONCURRENT`` process-wide slots, taken without waiting
-    (``WaveformBusyError`` when none is free) and shared by concurrent requests for
-    the same block. A decode runs to the end (at most the ffmpeg watchdog) even when
-    its client has gone away and holds its slot until then; its block is still cached.
+    On a miss the request holds the block's ``_PCM_LOCKS`` lock for
+    ``_read_pcm_block_locked``, so concurrent requests for one block share one probe
+    and one decode; media off the WAV fast path takes one of
+    ``PCM_DECODE_MAX_CONCURRENT`` process-wide slots without waiting
+    (``WaveformBusyError`` when none is free). A decode runs to the end (at most the
+    ffmpeg watchdog) even when its client has gone away and holds its slot until
+    then; its block is still cached.
     """
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
@@ -454,14 +456,12 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     if hit is not None:  # only compressed blocks are stored, and the key was checked live above
         return hit
     try:
-        source = probe_pcm_source(entry.abs_path)
-    except OSError as exc:
-        raise WaveformDecodeError("waveform media could not be decoded") from exc
-    if not source.needs_decode:
-        return _read_pcm_bytes(entry, key, meta, start, frames, source)
-    return _decode_pcm_block(
-        cache_key, lambda: _read_pcm_bytes(entry, key, meta, start, frames, source)
-    )
+        with _PCM_LOCKS.get(cache_key):
+            return _read_pcm_block_locked(entry, key, meta, start, frames, cache_key)
+    finally:
+        # The block is cached now (or the read failed and the next waiter reads it), so the
+        # lock has done its job; a waiter already holding it re-checks the LRU.
+        _PCM_LOCKS.discard_idle(cache_key)
 
 
 def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
