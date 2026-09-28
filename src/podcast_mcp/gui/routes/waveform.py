@@ -19,7 +19,6 @@ from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.services.waveform import (
-    PCM_BUSY_RETRY_AFTER_SEC,
     StaleWaveformKeyError,
     WaveformBusyError,
     pcm_block,
@@ -61,7 +60,7 @@ def waveform_error(exc: Exception) -> HTTPException:
         return HTTPException(
             status_code=503,
             detail="waveform decoder busy",
-            headers={**NO_STORE, "Retry-After": str(PCM_BUSY_RETRY_AFTER_SEC)},
+            headers={**NO_STORE, "Retry-After": exc.retry_after},
         )
     if isinstance(exc, StaleWaveformKeyError):
         return HTTPException(status_code=409, detail=str(exc), headers=NO_STORE)

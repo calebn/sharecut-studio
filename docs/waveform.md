@@ -271,8 +271,9 @@ file through `source_id` gets its own `source:` ref, whose key matches the
 - **`pcm_block(project_path, ref, key, block)`:** one host deep-zoom block.
   Media off the WAV fast path (`pcm_needs_decode`) takes one of
   `PCM_DECODE_MAX_CONCURRENT` (4, the host viewer's fetch limit) decode slots
-  without waiting; when all are taken it raises `WaveformBusyError` instead of
-  starting another ffmpeg. WAVs take no slot. Decoded compressed blocks are
+  (a `ConcurrencyGate` from `util/rate_limit`) without waiting; when all are
+  taken it raises `WaveformBusyError` instead of starting another ffmpeg. WAVs
+  take no slot. Decoded compressed blocks are
   kept in an LRU of 32 blocks (at most 8 MiB) keyed by media path, key and
   block, so refs of one file share entries and a repeated cold block is
   served without a slot or an ffmpeg spawn. Only bytes that passed the

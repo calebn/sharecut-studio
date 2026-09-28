@@ -36,6 +36,7 @@ from podcast_mcp.services.waveform import (
     tile_bytes,
     waveform_status,
 )
+from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from waveform_helpers import SR, reset_waveform_caches, waveform_project, write_wav
 
 
@@ -573,17 +574,25 @@ def test_pcm_block_stale_when_media_changes_mid_read(tmp_path, monkeypatch):
         pcm_block(project_path, "track:host", key, 0)
 
 
-def _compressed(monkeypatch, *, slots: int = 1) -> threading.BoundedSemaphore:
+def _compressed(monkeypatch, *, slots: int = 1) -> ConcurrencyGate:
     """Treat the fixture WAVs as ffmpeg media and give pcm_block *slots* decode slots."""
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
     monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
-    sem = threading.BoundedSemaphore(slots)
-    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
-    return sem
+    gate = ConcurrencyGate(limit=slots, bucket_name="pcm_decode")
+    monkeypatch.setattr(svc, "_PCM_DECODES", gate)
+    return gate
+
+
+def test_waveform_busy_error_carries_the_gate_retry_after():
+    err = svc.WaveformBusyError(
+        RateLimitDecision(allowed=False, bucket="pcm_decode", retry_after_sec=2.5)
+    )
+    assert err.retry_after == "3"
+    assert str(err) == "waveform decoder busy"
 
 
 def test_pcm_block_busy_when_every_decode_slot_is_taken(tmp_path, monkeypatch):
-    sem = _compressed(monkeypatch)
+    gate = _compressed(monkeypatch)
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
     calls: list[int] = []
@@ -594,19 +603,19 @@ def test_pcm_block_busy_when_every_decode_slot_is_taken(tmp_path, monkeypatch):
         return real(*a, **k)
 
     monkeypatch.setattr(svc, "read_pcm_minmax", counting)
-    sem.acquire()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     with pytest.raises(svc.WaveformBusyError):
         pcm_block(project_path, "track:host", key, 0)
     assert calls == []
-    sem.release()
+    gate.exit(svc._PCM_GATE_KEY)
     body = pcm_block(project_path, "track:host", key, 0)
     assert len(body) == 256 * 4
-    assert sem.acquire(blocking=False)
-    sem.release()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
+    gate.exit(svc._PCM_GATE_KEY)
 
 
 def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
-    sem = _compressed(monkeypatch)
+    gate = _compressed(monkeypatch)
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
     real = svc.read_pcm_minmax
@@ -617,8 +626,8 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", boom)
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 0)
-    assert sem.acquire(blocking=False)
-    sem.release()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
+    gate.exit(svc._PCM_GATE_KEY)
 
     audio = project_path.parent / "raw" / "host.wav"
 
@@ -631,17 +640,17 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 1)
-    assert sem.acquire(blocking=False)
-    sem.release()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
+    gate.exit(svc._PCM_GATE_KEY)
 
 
 def test_pcm_block_wav_fast_path_takes_no_slot(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 256)
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
-    sem = threading.BoundedSemaphore(1)
-    sem.acquire()
-    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
+    gate = ConcurrencyGate(limit=1, bucket_name="pcm_decode")
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
+    monkeypatch.setattr(svc, "_PCM_DECODES", gate)
     body = pcm_block(project_path, "track:host", key, 0)
     assert len(body) == 256 * 4
 
@@ -660,7 +669,7 @@ def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
 
 
 def test_pcm_block_caches_compressed_blocks(tmp_path, monkeypatch):
-    _compressed(monkeypatch)
+    gate = _compressed(monkeypatch)
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path, "track:host")
     key_s, _ = _ready(project_path, "source:s_host")  # same underlying file
@@ -681,12 +690,10 @@ def test_pcm_block_caches_compressed_blocks(tmp_path, monkeypatch):
     assert len(calls) == 2
 
     # a cached block never needs a slot
-    sem = svc._PCM_DECODES
-    assert isinstance(sem, threading.BoundedSemaphore)
-    sem.acquire()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     cached = pcm_block(project_path, "track:host", key, 0)
     assert cached == a
-    sem.release()
+    gate.exit(svc._PCM_GATE_KEY)
 
 
 def test_pcm_block_cache_is_bounded(tmp_path, monkeypatch):

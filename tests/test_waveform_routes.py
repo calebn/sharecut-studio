@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 
 import numpy as np
 import pytest
@@ -16,6 +15,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services import waveform as svc
+from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from waveform_helpers import reset_waveform_caches, waveform_project
 
 IMMUTABLE = "private, max-age=31536000, immutable"
@@ -140,18 +140,18 @@ def test_pcm_route_decode_failure_is_404_no_store(tmp_path, monkeypatch):
 def test_pcm_route_busy_decoder_is_503_retry_after_no_store(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "pcm_block_frames", lambda: 512)
     monkeypatch.setattr(svc, "pcm_needs_decode", lambda _p: True)
-    sem = threading.BoundedSemaphore(1)
-    monkeypatch.setattr(svc, "_PCM_DECODES", sem)
+    gate = ConcurrencyGate(limit=1, bucket_name="pcm_decode")
+    monkeypatch.setattr(svc, "_PCM_DECODES", gate)
     project_path = waveform_project(tmp_path)
     client = TestClient(create_app())
     key = _ready_key(client, project_path)
     params = {"path": str(project_path), "ref": "track:host", "block": 0}
-    sem.acquire()
+    assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     res = client.get(f"/api/waveform/pcm/{key}", params=params)
     assert res.status_code == 503
     assert res.headers["retry-after"] == "1"
     assert res.headers["cache-control"] == "no-store"
-    sem.release()
+    gate.exit(svc._PCM_GATE_KEY)
     ok = client.get(f"/api/waveform/pcm/{key}", params=params)
     assert ok.status_code == 200
     assert ok.headers["cache-control"] == IMMUTABLE
@@ -163,7 +163,9 @@ def test_waveform_call_maps_busy_to_503_without_logging(caplog):
     from podcast_mcp.gui.routes.waveform import waveform_call
 
     def busy():
-        raise svc.WaveformBusyError("busy")
+        raise svc.WaveformBusyError(
+            RateLimitDecision(allowed=False, bucket="pcm_decode", retry_after_sec=1.0)
+        )
 
     with (
         caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
