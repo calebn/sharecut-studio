@@ -113,6 +113,8 @@ re-export.
 
 Reconcile updates **transcript metadata only** by default. For acoustic follow-up once transcript bleed is clean, see [podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md).
 
+**User decisions survive reconcile (#768).** `set_word_suppressed_tool` and an applied `apply_bleed_suppression_tool` / `suppress-bleed` set the word's `audibility_locked: true` alongside `suppressed`. A locked word is skipped by every reconcile pass — acoustic and text-match — the same way an `ignored` word already is, so re-running reconcile (a re-render, pipeline pass 2, or a manual dry-run-then-apply) can't flip it back. Nothing clears the lock automatically; toggle `suppressed` again on the same word if the decision changes.
+
 ---
 
 ## Acoustic follow-up: mute when not talking

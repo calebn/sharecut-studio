@@ -320,7 +320,8 @@ def suppress_bleed_words(
 ) -> dict[str, Any]:
     """
     Suppress bleed-tagged words on the wrong track (metadata only).
-    Dry-run returns candidates; apply sets suppressed=True and rebuilds combined.
+    Dry-run returns candidates; apply sets suppressed=True, locks the word against
+    later reconcile passes (#768), and rebuilds combined.
     """
     pol = policy or AnalysisPolicy.from_defaults()
     reporter = resolve_progress(progress)
@@ -377,7 +378,7 @@ def suppress_bleed_words(
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
             if (tr.track_id, i) in targets and not w.suppressed:
-                tr.words[i] = w.model_copy(update={"suppressed": True})
+                tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
                 count += 1
     rebuild_combined(project)
     mark_reconciliation_fresh(project)

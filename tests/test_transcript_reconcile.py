@@ -184,6 +184,33 @@ def test_reconcile_word_never_auto_suppresses_ignored_word() -> None:
     assert transcript.words[0].ignored is True
 
 
+def test_reconcile_word_never_auto_flips_locked_word() -> None:
+    """A word a person/agent explicitly unsuppressed stays that way (#768)."""
+    transcript = Transcript(
+        track_id="host",
+        words=[
+            TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.9, audibility_locked=True)
+        ],
+    )
+    result = ReconciliationResult()
+    _reconcile_word(
+        transcript,
+        0,
+        {"audibility_status": "bleed", "dominant_track": "guest", "reason": "dominant"},
+        result,
+        update_status=True,
+        apply_suppression=True,
+        start_sec=0.0,
+        end_sec=2.0,
+    )
+    assert result.to_dict()["status_updates"] == 0
+    assert result.suppress == []
+    assert result.reattribute == []
+    assert transcript.words[0].suppressed is False
+    assert transcript.words[0].audibility_status is None
+    assert transcript.words[0].audibility_locked is True
+
+
 def test_analysis_policy_bleed_defaults():
     pol = AnalysisPolicy.from_defaults()
     assert pol.bleed_dominance_db == 6.0
@@ -215,6 +242,47 @@ def test_run_reconciliation_applies_by_default(tmp_path: Path):
     assert host is not None
     assert host.words[1].suppressed is True
     assert result["applied"] is True
+
+
+def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
+    """A word a person/agent unsuppressed via the service outlives a later reconcile (#768)."""
+    project = _two_track_project(tmp_path)
+    host = project.transcript_for_track("host")
+    assert host is not None
+    host.words.append(TranscriptWord(text="unlocked", start=2.0, end=2.5, confidence=0.9))
+    project_path = tmp_path / "episode.project.json"
+    save_project(project, project_path)
+    workspace = ProjectWorkspace.open(project_path)
+
+    # First reconcile would classify word 1 ("bleed") as bleed; the user disagrees
+    # and explicitly keeps it audible.
+    EditService(workspace).set_word_suppressed("host", 1, False)
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].audibility_locked is True
+    assert host.words[1].suppressed is False
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        if track_id == "host" and t_start >= 1.0:
+            return -40.0
+        if track_id == "guest" and t_start >= 1.0:
+            return -30.0
+        return -30.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        run_reconciliation(workspace.project, dry_run=None)
+
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    # Locked word: the user's decision is unchanged.
+    assert host.words[1].suppressed is False
+    assert host.words[1].audibility_status is None
+    # Unlocked word at the same acoustic conditions: still reconciled normally.
+    assert host.words[2].suppressed is True
+    assert host.words[2].audibility_status == "bleed"
 
 
 @pytest.mark.refine_gate

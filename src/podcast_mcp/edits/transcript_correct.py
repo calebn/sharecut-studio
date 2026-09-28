@@ -168,14 +168,20 @@ def set_word_suppressed(
     word_index: int,
     suppressed: bool,
 ) -> dict:
-    """Toggle suppressed on one per-track word and rebuild combined transcript."""
+    """Toggle suppressed on one per-track word and rebuild combined transcript.
+
+    A direct call locks the word (#768): later reconcile passes leave it alone
+    instead of recomputing audibility over the decision.
+    """
     tr = project.transcript_for_track(track_id)
     if not tr:
         raise ValueError(f"no transcript for track {track_id!r}")
     if word_index < 0 or word_index >= len(tr.words):
         raise ValueError(f"word_index out of range: {word_index}")
     w = tr.words[word_index]
-    tr.words[word_index] = w.model_copy(update={"suppressed": bool(suppressed)})
+    tr.words[word_index] = w.model_copy(
+        update={"suppressed": bool(suppressed), "audibility_locked": True}
+    )
     rebuild_combined(project)
     return {
         "track_id": track_id,

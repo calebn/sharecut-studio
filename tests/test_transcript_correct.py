@@ -110,6 +110,7 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
     out = set_word_suppressed(p, "host", 1, True)
     assert out["suppressed"] is True
     assert p.transcripts[0].words[1].suppressed is True
+    assert p.transcripts[0].words[1].audibility_locked is True
     assert p.combined_transcript is not None
     combined_text = " ".join(u.text for u in p.combined_transcript.utterances)
     assert "world" not in combined_text
@@ -117,6 +118,7 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
     out2 = set_word_suppressed(p, "host", 1, False)
     assert out2["suppressed"] is False
     assert p.transcripts[0].words[1].suppressed is False
+    assert p.transcripts[0].words[1].audibility_locked is True
     combined_text2 = " ".join(u.text for u in p.combined_transcript.utterances)
     assert "world" in combined_text2
 

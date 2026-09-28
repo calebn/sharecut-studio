@@ -100,6 +100,7 @@ def test_suppress_bleed_does_not_touch_inaudible(tmp_path: Path):
     assert host is not None
     assert host.words[1].suppressed is True
     assert host.words[1].audibility_status == "bleed"
+    assert host.words[1].audibility_locked is True
     assert host.words[2].suppressed is False
     assert result["suppressed_count"] == 1
 
