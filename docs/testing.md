@@ -528,6 +528,67 @@ panel's upload list has no producer row. It closes the room dialog with
 its Close button once enabled; close stays disabled while the host keeper upload
 settles.
 
+### Browser acceptance matrix
+
+Per-engine results for every check in the
+[§ Browser compatibility matrix](#browser-compatibility-matrix) run, from #703
+(Chromium, PR #739) and #704 (WebKit, PR #747). Both PRs' `frontend-e2e` runs
+passed every row below. The Chromium column is Playwright's bundled Chromium,
+standing in for Chrome (branded Chrome runs only locally, with
+`E2E_BRANDED_CHROME=1`). The WebKit column is Playwright WebKit, standing in
+for Safari; it is not Apple's Safari. No compat project runs Firefox, so no
+Firefox result is claimed.
+
+"Pass" means the required `frontend-e2e` job runs the check on that engine
+with `retries: 0` and no skip, so a green `main` is a measured pass. "Not run"
+means no compat project runs it. Core-flow rows are the `test.step`s of its one
+test; other rows are whole tests.
+
+| Check | Spec | Area | Chromium (Chrome) | WebKit (Safari) | Firefox |
+| --- | --- | --- | --- | --- | --- |
+| record: keeper capture, upload and landing | `gui/web/e2e-compat/core-flow.spec.ts` | getUserMedia | Pass | Pass | Not run |
+| transcribe: the episode transcript hydrates | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
+| tighten: the panel opens on its empty state | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
+| edit: correct a transcript word, then undo it | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
+| share: a viewer plays the per-track MP3 proxies | `gui/web/e2e-compat/core-flow.spec.ts` | Audio playback | Pass | Pass | Not run |
+| export: bounce the mix to a non-silent WAV | `gui/web/e2e-compat/core-flow.spec.ts` | Core flow | Pass | Pass | Not run |
+| advances playback across browser engines | `gui/web/e2e-compat/browser-matrix.spec.ts` | Audio playback | Pass | Pass | Not run |
+| persists an offline comment across reload and replays its command | `gui/web/e2e-compat/browser-matrix.spec.ts` | IndexedDB | Pass | Pass | Not run |
+| applies document updates after the socket reconnects | `gui/web/e2e-compat/browser-matrix.spec.ts` | WebSocket | Pass | Pass | Not run |
+| rasterizes waveform tiles on every engine | `gui/web/e2e-compat/browser-matrix.spec.ts` | Waveform | Pass | Pass | Not run |
+| keeps the listening shell usable on a touch phone | `gui/web/e2e-compat/browser-matrix.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| takes a recording guest from microphone consent to a live level | `gui/web/e2e-compat/browser-matrix.spec.ts` | getUserMedia | Pass | Pass | Not run |
+| keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
+
+Measured locally on macOS: the core-flow landed track peaked at about 0.9999
+on Chromium (#739) and 0.636 on WebKit (#747), and the bounced WAV at about
+0.892 on both. The walk took about 12.5–13.3 s on Chromium and 15.5–18 s on
+WebKit.
+
+Not covered, so still manual:
+
+- Apple Safari, including Private Browsing.
+- Native microphone permission prompts and hardware capture. Chromium records
+  from its fake capture device and WebKit from its "Mock audio device 1".
+- Firefox. It has no compat project; the Firefox pending-inspector layout is a
+  [Follow-up](../ROADMAP.md#follow-up).
+- Mobile browsers on physical devices (#301). The phone row uses an emulated
+  `iPhone 13` profile.
+- Live ASR and filler detection, which run server-side (`make e2e-slow`,
+  `tests/test_tighten.py`).
+
+`tests/test_browser_acceptance_matrix.py` guards this table (shared parsing in
+`tests/markdown_table.py`). It derives the rows from
+`gui/web/e2e-compat/*.spec.ts` and each engine cell from
+`playwright.compat.config.ts`: a project for that engine that does not
+`testIgnore` the spec means "Pass". It also fails if a compat spec uses
+`test.skip`, `fixme`, `fail` or `only`, if the compat config's `retries` is not
+0, if the `frontend-e2e` job stops running `npm run test:e2e:compat` or stops
+installing an engine with a Pass cell, or if one of #30's areas (Audio
+playback, getUserMedia, WebSocket, IndexedDB, CSS / layout) loses its last row
+passing on both Chromium and WebKit. A new spec or step, a `testIgnore` or a
+Firefox project fails the guard until this table is updated.
+
 ### Browser compatibility matrix
 
 After the full fast Playwright suite in bundled Chromium, `frontend-e2e` runs
@@ -539,15 +600,16 @@ command identity until the queue drains, and an update from a second page
 appearing through the reconnected document WebSocket. It also
 covers the phone listening shell under an `iPhone 13` touch profile (coarse
 pointer, viewport-derived x/y bounds), and the recording guest's
-microphone-consent-to-level path.
+microphone-consent-to-level path. Per-engine results: [§ Browser acceptance
+matrix](#browser-acceptance-matrix).
 
 `e2e-compat/core-flow.spec.ts` walks the core flow in one test on a disposable
 `aligned_dialogue` copy, with one `test.step` per stage, and runs on both the
 `chromium` and `webkit` projects (#704). Chromium's fake capture device
 (`--use-fake-device-for-media-stream`) feeds the real `getUserMedia`, and the
 guest keeper goes through the AudioWorklet and OPFS writer, uploads, and lands
-with a non-silent peak (`landedTrackPeak`; about 0.636 on WebKit against a
-higher Chromium peak — see the PR that turned WebKit on). WebKit needs its own
+with a non-silent peak (`landedTrackPeak`; measured peaks per engine are in
+[§ Browser acceptance matrix](#browser-acceptance-matrix)). WebKit needs its own
 harness handling for the host and guest pages, both recorders:
 `newContext({ permissions: ["microphone"] })` (`RECORDER_CONTEXT`) so real
 `getUserMedia` resolves to WebKit's built-in "Mock audio device 1" instead of
