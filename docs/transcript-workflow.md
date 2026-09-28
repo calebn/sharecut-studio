@@ -110,7 +110,7 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 |------|---------|
 | `{workspace}/show_glossary.yaml` | Show title, recurring terms, replacements |
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
-| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes |
+| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
 | `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
 

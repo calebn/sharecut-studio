@@ -122,6 +122,27 @@ def test_enabled_retimes_words_but_asr_cache_keeps_whisper_times(minimal_project
     assert engine.forced_alignment_jobs[0]["unaligned_words"] == 0
 
 
+def test_align_sec_recorded_on_fresh_run_only(minimal_project, tmp_path):
+    """#715: a fresh alignment records align_sec; a cache hit or a failure does not."""
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
+    engine._word_aligner = stub
+
+    with patcher:
+        engine.transcribe_job(proj, job, language="en", use_cache=True)
+        assert engine.forced_alignment_jobs[-1]["status"] == "aligned"
+        assert engine.forced_alignment_jobs[-1]["align_sec"] == 0.01
+
+        engine.transcribe_job(proj, job, language="en", use_cache=True)
+        assert engine.forced_alignment_jobs[-1]["status"] == "cached"
+        assert "align_sec" not in engine.forced_alignment_jobs[-1]
+
+        engine._word_aligner = RaisingAligner([], n_aligned=0, n_unaligned=0)
+        engine.transcribe_job(proj, job, language="en", use_cache=False)
+        assert engine.forced_alignment_jobs[-1]["status"] == "failed"
+        assert "align_sec" not in engine.forced_alignment_jobs[-1]
+
+
 def test_second_run_reuses_alignment_cache_and_use_cache_false_realigns(minimal_project, tmp_path):
     proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
     stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
