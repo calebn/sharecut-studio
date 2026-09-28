@@ -48,3 +48,7 @@ export {
   useDialogModal,
 } from "./useDialogModal";
 export { useOutsidePointerDown } from "./useOutsidePointerDown";
+export {
+  type ResizeObserverTarget,
+  useResizeObserver,
+} from "./useResizeObserver";
