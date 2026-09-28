@@ -63,7 +63,7 @@ export function EditingToolRailView({
           <Button
             disabled={busy}
             onClick={onCutAtPlayhead}
-            title="Split selected tracks at playhead"
+            title="Cut selected tracks at playhead"
           >
             Cut at playhead
           </Button>

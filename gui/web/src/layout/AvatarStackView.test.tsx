@@ -31,7 +31,9 @@ describe("AvatarStackView", () => {
         onFollow={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();
+    const followAda = screen.getByRole("button", { name: "Follow Ada" });
+    expect(followAda).toBeTruthy();
+    expect(followAda).toHaveAttribute("title", "Follow Ada");
     expect(screen.getByRole("button", { name: "+1 more" })).toBeTruthy();
     expect(screen.getByLabelText("2 following you")).toBeTruthy();
     await expectNoA11yViolations(container);

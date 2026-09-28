@@ -1,16 +1,9 @@
 import { runPointerCommand } from "../commands/pointer";
-import { formatShortcutKeys, keymapCommandById } from "../keymap/registry";
+import { ariaKeyShortcutsFor, titleWithShortcut } from "../keymap/registry";
 import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { commentModeTitle } from "./commentModeTitle";
 import { ToolModeToggleView } from "./ToolModeToggleView";
-
-function toolTitle(commandId: string, fallback: string): string {
-  const cmd = keymapCommandById(commandId);
-  if (!cmd) {
-    return fallback;
-  }
-  return `${cmd.label} (${formatShortcutKeys(cmd)})`;
-}
 
 /** Select / Blade (and Comment when not compact) tool cluster. */
 export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
@@ -42,8 +35,12 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
       structuralToolsAllowed={allowed}
       toolMode={toolMode}
       commentMode={commentMode}
-      selectTitle={toolTitle("tool.select", "Select tool")}
-      bladeTitle={toolTitle("tool.blade", "Blade tool")}
+      selectTitle={titleWithShortcut("Select tool", "tool.select")}
+      selectAriaKeyShortcuts={ariaKeyShortcutsFor("tool.select")}
+      bladeTitle={titleWithShortcut("Blade tool", "tool.blade")}
+      bladeAriaKeyShortcuts={ariaKeyShortcutsFor("tool.blade")}
+      commentTitle={commentModeTitle}
+      commentAriaKeyShortcuts={ariaKeyShortcutsFor("review.toggleCommentMode")}
       onSelect={() => runPointerCommand("tool.select")}
       onBlade={() => runPointerCommand("tool.blade")}
       onToggleComment={() => runPointerCommand("review.toggleCommentMode")}
