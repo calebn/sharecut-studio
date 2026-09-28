@@ -33,7 +33,8 @@ export function eventServerSeq(msg: {
   return Number(msg.snapshot?.server_seq ?? msg.server_seq ?? 0);
 }
 
-/** Skip stale seq and own-HTTP; still apply peer / ExternalMutate at the current seq.
+/** Skip stale seq and own-HTTP; still apply peers at the current seq. ExternalMutate
+(MCP / landing / REST comments) arrives at the newer seq its journal row assigns (#661).
 
 Hub overflow `resync` always applies, including own-client seq.
 */

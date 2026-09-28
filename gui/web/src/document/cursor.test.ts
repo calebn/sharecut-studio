@@ -74,6 +74,24 @@ describe("document cursor", () => {
     expect(shouldApplyPollSnapshot(6, 5)).toBe(true);
     expect(shouldApplyPollSnapshot(5, 6)).toBe(false);
   });
+
+  it("applies an ExternalMutate at a newer seq and then skips the poll GET (#661)", () => {
+    resetDocumentSeqForTests();
+    noteDocumentSeq(3);
+    expect(
+      shouldApplyDocumentEvent({
+        server_seq: 4,
+        snapshot: { server_seq: 4 },
+        command: { client_id: "server:external" },
+      }),
+    ).toBe(true);
+    noteDocumentSeq(4);
+    noteDocumentFile({ project: {}, file: { mtime_ns: 200, size: 7 } });
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 7, server_seq: 4 }),
+    ).toBe(true);
+    expect(currentDocumentSeq()).toBe(4);
+  });
 });
 
 describe("document file signature", () => {
