@@ -3,8 +3,8 @@
 import re
 from pathlib import Path
 
-DOCS_DIR = Path(__file__).parents[1] / "docs"
 REPO_ROOT = Path(__file__).parents[1]
+DOCS_DIR = REPO_ROOT / "docs"
 
 STORY_ISSUES = {
     "US-1": 3,
@@ -20,11 +20,17 @@ STORY_ISSUES = {
 
 STATUSES = {"Automated", "Partial"}
 
-_PATH_RE = re.compile(r"`((?:gui|tests)/[^`\s]+\.(?:py|ts|tsx))`")
+# Steps an "Automated" row may still list under "Still manual": they need
+# hardware (Tauri desktop recording) or a human ear, so no check can replace them.
+HARDWARE_OR_BY_EAR_STEPS = {"tauri recording", "listening by ear"}
+
+_CODE_SPAN_RE = re.compile(r"`([^`]+)`")
+_PATH_RE = re.compile(r"(?:gui|tests|src|scripts)/[^`\s]+\.(?:py|ts|tsx|js|mjs)")
+_ISSUE_REF_RE = re.compile(r"\s*\(#\d+\)")
 
 
 def _matrix_rows() -> list[list[str]]:
-    document = (DOCS_DIR / "testing.md").read_text()
+    document = (DOCS_DIR / "testing.md").read_text(encoding="utf-8")
     lines = document.splitlines()
 
     start = None
@@ -48,6 +54,11 @@ def _matrix_rows() -> list[list[str]]:
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         rows.append(cells)
     return rows
+
+
+def _manual_steps(cell: str) -> list[str]:
+    """Normalize a Still manual cell: split on commas, drop `(#N)` refs, lowercase."""
+    return [_ISSUE_REF_RE.sub("", step).strip().lower() for step in cell.split(",") if step.strip()]
 
 
 def test_every_story_is_listed_exactly_once() -> None:
@@ -74,21 +85,57 @@ def test_issue_and_status_cells_are_valid() -> None:
         assert status in STATUSES, f"{story}: bad status {status!r}"
 
 
-def test_coverage_cells_cite_at_least_one_existing_path() -> None:
-    rows = _matrix_rows()
+def test_automated_rows_list_only_hardware_or_by_ear_steps() -> None:
+    for story, _issue, status, _coverage, manual in _matrix_rows():
+        if status != "Automated":
+            continue
+        extra = [step for step in _manual_steps(manual) if step not in HARDWARE_OR_BY_EAR_STEPS]
+        assert not extra, (
+            f"{story}: marked Automated but Still manual lists non-hardware steps {extra}; "
+            "automate them or mark the row Partial"
+        )
 
-    for story, _issue, _status, coverage, _manual in rows:
-        paths = _PATH_RE.findall(coverage)
-        assert paths, f"{story}: no cited paths in coverage cell {coverage!r}"
-        for path in paths:
-            assert (REPO_ROOT / path).is_file(), f"{story}: missing path {path}"
+
+def test_coverage_cells_cite_only_existing_repo_paths() -> None:
+    for story, _issue, _status, coverage, _manual in _matrix_rows():
+        citations = _CODE_SPAN_RE.findall(coverage)
+        assert citations, f"{story}: coverage cell cites no backticked paths: {coverage!r}"
+        for citation in citations:
+            assert _PATH_RE.fullmatch(citation), (
+                f"{story}: {citation!r} is not a full repo-relative path; cite it from a "
+                "gui/, tests/, src/ or scripts/ root with a .py, .ts, .tsx, .js or .mjs "
+                "extension (widen _PATH_RE if a new root or extension is legitimate)"
+            )
+            assert (REPO_ROOT / citation).is_file(), f"{story}: missing path {citation}"
 
 
-def test_path_regex_matches_only_repo_relative_paths() -> None:
-    assert _PATH_RE.findall("`tests/test_history.py`") == ["tests/test_history.py"]
-    assert _PATH_RE.findall("`gui/web/src/record/Room.test.tsx`") == [
-        "gui/web/src/record/Room.test.tsx"
+def test_path_regex_accepts_only_full_repo_relative_paths() -> None:
+    for path in (
+        "tests/test_history.py",
+        "gui/web/src/record/Room.test.tsx",
+        "gui/web/e2e/record-lobby.spec.ts",
+        "src/podcast_mcp/services/share.py",
+        "scripts/check_ux_pack_sync.py",
+        "gui/web/e2e-compat/viewer.spec.mjs",
+        "gui/web/src/legacy.test.js",
+    ):
+        assert _PATH_RE.fullmatch(path), path
+    for path in (
+        "/tmp/tests/test_history.py",
+        "transcript-ignore.spec.ts",
+        "ImpactPanel.test.tsx",
+        "docs/testing.md",
+        "tests/test_history.txt",
+        "tests/has space.py",
+    ):
+        assert _PATH_RE.fullmatch(path) is None, path
+    assert _CODE_SPAN_RE.findall("plain text with no backticks tests/test_history.py") == []
+
+
+def test_manual_steps_normalizes_issue_refs_and_case() -> None:
+    assert _manual_steps("Tauri recording (#193), host-drop in the browser, listening by ear") == [
+        "tauri recording",
+        "host-drop in the browser",
+        "listening by ear",
     ]
-    assert _PATH_RE.findall("`/tmp/tests/test_history.py`") == []
-    assert _PATH_RE.findall("`tests/test_history.js`") == []
-    assert _PATH_RE.findall("plain text with no backticks tests/test_history.py") == []
+    assert _manual_steps("Listening by ear") == ["listening by ear"]
