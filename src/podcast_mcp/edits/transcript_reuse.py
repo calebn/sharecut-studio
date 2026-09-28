@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
@@ -32,8 +32,22 @@ class TranscribePlan:
     overwrite_edited: list[str] = field(default_factory=list)
 
 
-def _audio_identity(job: TranscribeJob, current: Transcript | None) -> tuple[str, tuple[int, int]]:
-    """Hash ``job.audio`` unless its size and mtime match what ``current`` recorded."""
+class HasAudioIdentity(Protocol):
+    """Anything that records the audio hash/size/mtime an ASR-style cache reused."""
+
+    audio_sha256: str | None
+    audio_size: int | None
+    audio_mtime_ns: int | None
+
+
+def audio_identity(
+    job: TranscribeJob, current: HasAudioIdentity | None
+) -> tuple[str, tuple[int, int]]:
+    """Hash ``job.audio`` unless its size and mtime match what ``current`` recorded.
+
+    Shared by transcript reuse and prosody profile reuse (both cache a per-track
+    analysis keyed on the same track's primary media).
+    """
     st = job.audio.stat()
     stats = (st.st_size, st.st_mtime_ns)
     if (
@@ -97,7 +111,7 @@ def plan_transcription(
     refused_changed: list[str] = []
     for job in jobs:
         current = existing.get(job.key)
-        sha, stats = _audio_identity(job, current)
+        sha, stats = audio_identity(job, current)
         plan.audio_hashes[job.key] = sha
         plan.audio_stats[job.key] = stats
         if current is None or (current.audio_sha256 is None and not current.words):

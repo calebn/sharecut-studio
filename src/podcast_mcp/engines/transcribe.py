@@ -52,7 +52,7 @@ TRANSCRIBE_CANCELLED = "Transcription cancelled"
 _T = TypeVar("_T")
 
 
-def _cache_id_part(raw: str) -> str:
+def cache_id_part(raw: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]+", raw):
         return raw
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -135,7 +135,7 @@ def _cache_file(project: EpisodeProject, cache_id: str, name: str) -> Path:
 
 def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str) -> Path:
     """Pre-model/prompt cache name ``{id}_{audio16}.json`` (read-only fallback)."""
-    return _cache_file(project, cache_id, f"{_cache_id_part(cache_id)}_{audio_sha256[:16]}.json")
+    return _cache_file(project, cache_id, f"{cache_id_part(cache_id)}_{audio_sha256[:16]}.json")
 
 
 def _read_json_cache(path: Path, what: str, parse: Callable[[Any], _T]) -> _T | None:
@@ -202,7 +202,7 @@ def cached_audio_keys(project: EpisodeProject, cache_id: str) -> set[str]:
     tdir = project.transcripts_dir()
     if not tdir.is_dir():
         return set()
-    pattern = re.compile(re.escape(_cache_id_part(cache_id)) + _CACHE_AUDIO_KEY)
+    pattern = re.compile(re.escape(cache_id_part(cache_id)) + _CACHE_AUDIO_KEY)
     keys: set[str] = set()
     for path in tdir.iterdir():
         match = pattern.fullmatch(path.name)
@@ -319,7 +319,7 @@ class TranscriptionEngine:
             sort_keys=True,
         )
         inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
-        name = f"{_cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
+        name = f"{cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
 
     def _load_word_aligner(self) -> WordAligner:
