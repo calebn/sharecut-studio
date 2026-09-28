@@ -361,8 +361,9 @@ export function TranscriptPanel() {
   }, [inlineEdit, canCorrect, allUtterances]);
 
   // A late failure is moot once its word's text changes by any path (inspector
-  // Apply, a later inline fix, a remote edit), the word is gone, or another
-  // project is open. Accepted gap: a later fix that leaves the word with the
+  // Apply, a later inline fix, a remote edit), a failed Suppress / Ignore's flag
+  // changes (a retry succeeded), the word is gone, or another project is open
+  // (isDetachedWordFailureMoot). Accepted gap: a later fix that leaves the word with the
   // text it had when the failed fix was submitted (an undo back to it, or a
   // casing / whitespace change the mapper normalizes away) keeps the failure
   // up; Dismiss or opening another inline edit clears it.

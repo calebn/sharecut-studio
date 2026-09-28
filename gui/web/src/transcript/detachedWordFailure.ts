@@ -31,6 +31,9 @@ export function detachedWordFailure({
     trackId,
     wordIndex,
     originalText: word.text,
+    ...(action === "fix"
+      ? {}
+      : { flag: { name: action, was: Boolean(word[action]) } }),
     message: `Could not ${verb} “${word.text}”: ${errorMessage(failure)}`,
   };
 }
@@ -49,15 +52,19 @@ export function reportDetachedWordFailure(
 
 /**
  * True once a late failure no longer applies: another project is open, the
- * word is gone, or its text changed by any path (inspector Apply, a later
- * inline fix, a remote edit).
+ * word is gone, its text changed by any path (inspector Apply, a later
+ * inline fix, a remote edit), or, for a failed Suppress / Ignore, that flag
+ * changed (a retry succeeded).
  */
 export function isDetachedWordFailureMoot(
   failure: TranscriptInlineEditFailure,
   projectPath: string,
   word: Pick<TranscriptWordView, "text" | "suppressed" | "ignored"> | null,
 ): boolean {
+  if (failure.projectPath !== projectPath || !word) return true;
+  if (word.text !== failure.originalText) return true;
   return (
-    failure.projectPath !== projectPath || word?.text !== failure.originalText
+    failure.flag != null &&
+    Boolean(word[failure.flag.name]) !== failure.flag.was
   );
 }
