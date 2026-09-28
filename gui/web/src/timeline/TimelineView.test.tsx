@@ -336,20 +336,17 @@ describe("TimelineView fixed playhead (#385)", () => {
     useDawStore.setState({ userZoomed: false, fitToWindow: fit });
     const { container } = mountFixed(<div className="track-headers" />);
     expect(fit).toHaveBeenCalledTimes(1);
-    const ro = FakeResizeObserver.all.find((o) =>
-      o.targets.includes(
-        container.querySelector(".timeline-scroll") as Element,
-      ),
+    const ro = FakeResizeObserver.of(
+      container.querySelector(".timeline-scroll") as Element,
     );
-    expect(ro).toBeTruthy();
     const header = container.querySelector(".track-headers") as Element;
-    expect(ro?.targets).toContain(header);
+    expect(ro.targets).toContain(header);
 
-    act(() => resize(ro as FakeResizeObserver, 400, 700)); // height only
-    act(() => resize(ro as FakeResizeObserver, 400, 700, header)); // header entry, same width
+    act(() => resize(ro, 400, 700)); // height only
+    act(() => resize(ro, 400, 700, header)); // header entry, same width
     expect(fit).toHaveBeenCalledTimes(1);
 
-    act(() => resize(ro as FakeResizeObserver, 500, 700));
+    act(() => resize(ro, 500, 700));
     expect(fit).toHaveBeenCalledTimes(2);
     expect(fit).toHaveBeenLastCalledWith(500);
   });
@@ -576,16 +573,9 @@ describe("TimelineView lane fit", () => {
 
       // A header-only resize (a density switch) reaches the edge too.
       const header = container.querySelector(".track-headers") as Element;
-      const ro = FakeResizeObserver.all.find((o) => o.targets.includes(header));
+      const ro = FakeResizeObserver.of(header);
       headerPx = 140;
-      act(() =>
-        resize(
-          ro as FakeResizeObserver,
-          stubbedSize.width,
-          stubbedSize.height,
-          header,
-        ),
-      );
+      act(() => resize(ro, stubbedSize.width, stubbedSize.height, header));
       expect(edge("--timeline-header-offset")).toBe("140px");
     } finally {
       for (const spy of spies) {
@@ -621,9 +611,7 @@ describe("TimelineView lane fit", () => {
       </DawProvider>,
     );
     const scroller = container.querySelector(".timeline-scroll") as Element;
-    const ro = FakeResizeObserver.all.find((o) =>
-      o.targets.includes(scroller),
-    ) as FakeResizeObserver;
+    const ro = FakeResizeObserver.of(scroller);
     onRender.mockClear();
 
     // A pixel of splitter drag: same whole-px lane height, no re-render.
@@ -644,9 +632,7 @@ describe("TimelineView lane fit", () => {
     );
     expect(laneHeightVar(container)).toBe("144px");
     const scroller = container.querySelector(".timeline-scroll") as Element;
-    const ro = FakeResizeObserver.all.find((o) =>
-      o.targets.includes(scroller),
-    ) as FakeResizeObserver;
+    const ro = FakeResizeObserver.of(scroller);
     act(() => resize(ro, 800, chrome + 2 * 300));
     expect(laneHeightVar(container)).toBe("144px");
 

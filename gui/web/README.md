@@ -208,7 +208,7 @@ it("is axe-clean", async () => {
 
 Full-page (Playwright): call `expectPageAxeClean(page)` from `e2e/axe.ts` after the dense DAW shell is visible. Reading surfaces (Home without `?project=`, static marketing HTML) use `expectReadingSurfaceAxeClean` so color-contrast and region stay on. Do not copy-paste `AxeBuilder` setup.
 
-Resize tests: `stubResizeObserver()` from `src/test/resizeObserver.ts` installs the shared `FakeResizeObserver` (records `targets`, reports on `fire()`, or at once on `observe()` with `{ reportOnObserve: true }`); do not declare a local ResizeObserver class.
+Resize tests: `stubResizeObserver()` from `src/test/resizeObserver.ts` installs the shared `FakeResizeObserver` (records `targets`, reports on `fire()`, or at once on `observe()` with `{ reportOnObserve: true }`); `FakeResizeObserver.of(el)` returns the observer watching `el` or throws; do not declare a local ResizeObserver class.
 
 Store helpers for inspector/footer tests: `src/test/fixtures.ts` + `useDawStore.getState().hydrate(...)`. For typed recording models in new tests and stories, prefer `recordParticipant({ ... })` and `recordSnapshot({ ... })` from that file, overriding fields relevant to each scenario. Raw transport payloads can stay explicit.
 
