@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.pcm_stream import no_audio_decoded_message
 from podcast_mcp.util.process import run
 
 log = logging.getLogger(__name__)
@@ -253,7 +254,7 @@ def load_mono_window(
     r = run(cmd, capture_output=True, check=True)
     samples = np.frombuffer(r.stdout, dtype=np.float32)
     if samples.size == 0:
-        raise AudioWindowUnavailableError(f"no audio decoded from {path}")
+        raise AudioWindowUnavailableError(no_audio_decoded_message(path))
     return samples
 
 

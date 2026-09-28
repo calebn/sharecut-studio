@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from podcast_mcp.util.pcm_stream import SequentialWindowReader
+from podcast_mcp.util.pcm_stream import (
+    NoAudioDecodedError,
+    SequentialWindowReader,
+    no_audio_decoded_message,
+)
 
 
 def _chunks(samples: np.ndarray, size: int) -> list[np.ndarray]:
@@ -154,3 +158,10 @@ def test_close_closes_generator():
 
     list_reader = SequentialWindowReader([np.zeros(10, dtype=np.float32)], sample_rate=10)
     list_reader.close()  # no-op, does not raise
+
+
+def test_no_audio_decoded_error_is_a_value_error_with_the_shared_message(tmp_path):
+    path = tmp_path / "clip.wav"
+    err = NoAudioDecodedError(path)
+    assert isinstance(err, ValueError)
+    assert str(err) == f"no audio decoded from {path}" == no_audio_decoded_message(path)

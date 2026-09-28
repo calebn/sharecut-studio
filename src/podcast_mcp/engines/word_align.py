@@ -36,7 +36,7 @@ from podcast_mcp.engines.ctc_forced_align import (
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.util.dsp import clamp
-from podcast_mcp.util.pcm_stream import SequentialWindowReader
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WordAlignerModel,
@@ -154,7 +154,7 @@ class WordAligner:
                 reader, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
             )
             if words and reader.end_sec == 0.0:
-                raise ValueError(f"no audio decoded from {audio_path}")
+                raise NoAudioDecodedError(audio_path)
         return WordAlignResult(spans, stats, time.perf_counter() - start)
 
 

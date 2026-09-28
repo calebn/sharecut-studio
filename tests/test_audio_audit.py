@@ -37,6 +37,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 
 
 def test_analysis_policy_from_defaults():
@@ -667,7 +668,7 @@ def test_load_mono_full_empty_raises(tmp_path: Path):
     empty.write_bytes(b"not audio")
     with patch("podcast_mcp.engines.audio_audit.run") as run:
         run.return_value = MagicMock(stdout=b"", returncode=0)
-        with pytest.raises(ValueError, match="no audio decoded"):
+        with pytest.raises(NoAudioDecodedError, match="no audio decoded"):
             load_mono_full(empty)
 
 
