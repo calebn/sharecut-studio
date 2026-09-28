@@ -528,7 +528,7 @@ The ceiling was chosen under every engine's layout limit. Blink and WebKit store
   handle click-vs-drag of 3 px net for fade, trim, roll, pending-cut and social-clip handles, a 5 px travel
   before a clip-body move starts, and a 0.5 px roll commit; move no-op 0.5 px or 0.1 ms, whichever is
   smaller; ruler comment span 4 px), so edits work at any zoom. Domain minimums (0.05 s spans,
-  integer-ms fades) are unchanged.
+  `MIN_EDGE_SPAN_SEC` in `edit/clipEdgePreview.ts`; integer-ms fades) are unchanged.
 - **Bounded DOM.** The ruler, the Levels envelope and the waveform tiles
   mount only what meets the viewport: the ruler and envelope in 2048 px
   chunks (`utils/timelineViewport.ts` `viewportChunkRange`, a selector that

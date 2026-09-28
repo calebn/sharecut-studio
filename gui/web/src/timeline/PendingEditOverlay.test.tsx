@@ -2,9 +2,11 @@ import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit } from "../api";
 import { useDawStore } from "../state/dawStore";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { PendingEditOverlay } from "./PendingEditOverlay";
+import { PendingEditOverlayView } from "./PendingEditOverlayView";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -104,5 +106,97 @@ describe("PendingEditOverlay handles", () => {
     expect(args[2]).toBeCloseTo(0);
     expect(args[3]).toBeCloseTo(5);
     expect(args[4]).toBe(true);
+  });
+});
+
+describe("PendingEditOverlayView", () => {
+  it("renders from props and passes axe", async () => {
+    const onSelect = vi.fn();
+    const onCommitSpan = vi.fn();
+    const { container } = render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        selectedId="cut_1"
+        onSelect={onSelect}
+        onCommitSpan={onCommitSpan}
+      />,
+    );
+    expect(container.querySelector(".pending-overlay.selected")).not.toBeNull();
+    expect(container.querySelector(".pending-overlay.remove")).not.toBeNull();
+    const button = container.querySelector(
+      'button[aria-label="Pending remove edit"]',
+    ) as HTMLElement;
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+    await expectNoA11yViolations(container);
+  });
+
+  it("commits an end-handle drag as mapped source seconds", () => {
+    const onSelect = vi.fn();
+    const onCommitSpan = vi.fn();
+    const { container } = render(
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        selectedId={null}
+        onSelect={onSelect}
+        onCommitSpan={onCommitSpan}
+      />,
+    );
+    const end = container.querySelector(".pending-handle.end") as HTMLElement;
+    fireEvent.pointerDown(end, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerMove(end, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerUp(end, { clientX: 130, pointerId: 1 });
+    expect(onCommitSpan).toHaveBeenCalledWith("cut_1", 0, 5);
+    expect(updatePendingEdit).not.toHaveBeenCalled();
+  });
+
+  it("survives a handle without pointer capture", () => {
+    const original = (HTMLElement.prototype as { setPointerCapture?: unknown })
+      .setPointerCapture;
+    delete (HTMLElement.prototype as { setPointerCapture?: unknown })
+      .setPointerCapture;
+    try {
+      const onSelect = vi.fn();
+      const onCommitSpan = vi.fn();
+      const { container } = render(
+        <PendingEditOverlayView
+          edits={[edit]}
+          trackId="host"
+          zoomPxPerSec={10}
+          selectedId={null}
+          onSelect={onSelect}
+          onCommitSpan={onCommitSpan}
+        />,
+      );
+      const end = container.querySelector(".pending-handle.end") as HTMLElement;
+      expect(() =>
+        fireEvent.pointerDown(end, { clientX: 100, pointerId: 1 }),
+      ).not.toThrow();
+      expect(onSelect).toHaveBeenCalledWith("cut_1");
+    } finally {
+      (
+        HTMLElement.prototype as { setPointerCapture?: unknown }
+      ).setPointerCapture = original;
+    }
+  });
+
+  it("skips split handles", () => {
+    const split = { ...edit, type: "split" };
+    const onSelect = vi.fn();
+    const onCommitSpan = vi.fn();
+    const { container } = render(
+      <PendingEditOverlayView
+        edits={[split]}
+        trackId="host"
+        zoomPxPerSec={10}
+        selectedId={null}
+        onSelect={onSelect}
+        onCommitSpan={onCommitSpan}
+      />,
+    );
+    expect(container.querySelector(".pending-handle")).toBeNull();
   });
 });

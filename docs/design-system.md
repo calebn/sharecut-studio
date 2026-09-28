@@ -30,7 +30,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -129,6 +129,28 @@ decorative and hidden from the accessibility tree; the live stale-status
 controls communicate render state. Both overlay stories share the production
 lane shell through `timelineLaneStoryDecorator` so desktop and phone widths
 stay aligned while retaining each surface's accessible landmark name.
+`Templates/PendingEditOverlay` renders the production `PendingEditOverlayView`
+in the shared lane shell: remove, mute and split suggestions, a selected
+edit, an end-handle drag, a filtered lane and a 360px lane. The live
+`PendingEditOverlay` adapter supplies the `UpdatePendingEdit` commit (snap
+on); the story passes `fn()` callbacks and never mounts the DAW store.
+`Templates/MarkerLane` renders the production `MarkerLaneView` with
+fictional chapters, a social clip, pin and span comments, and a clipping
+flag, plus selected, read-only, empty and 360px variants. The live
+`MarkerLane` adapter decides whether markers drag (host projects only) and
+commits `UpdateChapter` / `UpdateSocialClip`; story callbacks are `fn()`
+and `timelineMarkerStoryDecorator` (beside `timelineLaneStoryDecorator`) sets
+the marker-row CSS vars that `TimelineView` sets live.
+`Templates/ClipBlock` renders the production `ClipBlockView` in the shared
+lane shell: an editable clip with SVG fade ramps and top-corner fade
+handles, mute and clipping regions, a
+selected crossfade join, a trim-out preview with its ghost and snap tick,
+a fade readout, a read-only clip and a 360px clip with its track name. The
+live `ClipBlock` (memo over `ClipBlockLive`) owns the drag gestures, snap
+ticks (drawn only with the Snap points layer on while trimming or in blade
+mode), metric hold and commits, and passes `clipBlockGeometry` plus
+post-fader `WaveformLayer` slots; the catalog omits the store-bound waveform
+and passes fixed geometry.
 
 `Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
 `Templates/CommentPlaybackBubble` (#615) render the shipped live-timeline
@@ -178,6 +200,12 @@ props for mapped, active/selected, suppressed/low-confidence, cut-away, and
 360px long-turn examples. Story callbacks use local state only. Applied edit
 boundaries may appear in the live row, but there is no pending-edit row state
 to preview yet.
+`Templates/EditBoundaryMark` renders the production `EditBoundaryMarkView`
+inline in a transcript row: a roll join, a live roll drag previewing
+restored words, a single-clip trim edge and a 360px row. The live
+`EditBoundaryMark` adapter supplies roll clamps read from the store when a
+drag starts (`getRollBounds` → `rollNeighborBounds`) and commits
+`RollClipJoin` / `TrimClipEdge`; story callbacks are `fn()`.
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link
@@ -266,9 +294,6 @@ gets a refactor issue, not a story. These remaining store-bound surfaces are
 tracked as grouped follow-up issues, one per cluster, each component its own
 checkbox so it can ship as its own PR:
 
-- **F** ([#614](https://github.com/calebn/sharecut-studio/issues/614)) —
-  timeline editing surfaces: `ClipBlock`, `MarkerLane`,
-  `PendingEditOverlay`, `EditBoundaryMark`
 - **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
   fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
   desktop, blocked by the remaining `TransportBar` pieces
@@ -279,8 +304,10 @@ no separate refactor issue. A component leaves this list only once its
 production view is extracted into a props-only `XView` rendered by the live
 adapter, the way `TrackHeaderView`, `TimeRulerView`, `TranscriptTurnView`,
 `FollowBannerView`, `GuestAttentionBannerView`, `ShareDialogView`,
-`BounceDialogView`, `ToolModeToggleView`, `EditingToolRailView` and
-`CommandPaletteView` already were.
+`BounceDialogView`, `ToolModeToggleView`, `EditingToolRailView`,
+`CommandPaletteView`, `ClipBlockView`, `MarkerLaneView`,
+`PendingEditOverlayView`, `EditBoundaryMarkView`, `InspectorSeekFooterView`
+and `BottomTabsSplitterView` already were.
 
 `Atoms/SurfaceLadder` renders the five ladder rungs, fields, the selected chip,
 stage, transport, accent, and danger from the live tokens — iterate on the
@@ -426,6 +453,11 @@ unchanged for callers and continue to read DAW state and dispatch through
   (`primitives.css`) is the raw-value tier stories ultimately resolve to.
 
 ## Changelog
+
+- 2026-09-27 — Closed #614: added `Templates/ClipBlock`,
+  `Templates/MarkerLane`, `Templates/PendingEditOverlay` and
+  `Templates/EditBoundaryMark` over props-only production views rendered by
+  their live adapters; removed follow-up F from the Catalog boundary list.
 
 - 2026-09-27 — Closed #615: extracted `EnvelopeOverlayView`,
   `PresenceOverlayView` and `CommentPlaybackBubbleView` as props-only

@@ -56,9 +56,9 @@ vi.mock("./ClipBlock", async (importOriginal) => {
   const { memo } = await import("react");
   return {
     ...mod,
-    ClipBlock: memo((p: Parameters<typeof mod.ClipBlockView>[0]) => {
+    ClipBlock: memo((p: Parameters<typeof mod.ClipBlockLive>[0]) => {
       renders.clips.push(p.clip.id);
-      return <mod.ClipBlockView {...p} />;
+      return <mod.ClipBlockLive {...p} />;
     }),
   };
 });

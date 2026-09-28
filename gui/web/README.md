@@ -50,6 +50,21 @@ an edit; the live Impact panel owns selection.
 regions, including overlapping causes, minimum-width spans, right-edge clipping,
 and filtered or empty 360px lanes. These bands are decorative; the live stale
 status controls explain the render state.
+`Templates/PendingEditOverlay` previews the production `PendingEditOverlayView`
+with fictional remove, mute and split suggestions, a selected edit, an
+end-handle drag, and filtered and 360px lanes. The live adapter commits
+`UpdatePendingEdit`.
+`Templates/MarkerLane` previews the production `MarkerLaneView` with
+fictional chapters, a social clip, comments and a clipping flag, plus
+selected, read-only, empty and 360px variants. The live adapter commits
+`UpdateChapter` / `UpdateSocialClip` on host projects only.
+`Templates/ClipBlock` previews the production `ClipBlockView` in the shared
+lane shell: an editable clip with fade ramps, corner fade handles and
+regions, a selected crossfade
+join, a trim preview with its ghost, a fade readout, a read-only clip and a
+360px clip with its track name. The live `ClipBlock` (memo over
+`ClipBlockLive`) owns the gestures and commits; the catalog omits the
+store-bound waveform.
 `Templates/EnvelopeOverlay`, `Templates/PresenceOverlay`, and
 `Templates/CommentPlaybackBubble` preview the shipped live-timeline overlays
 as props-only views (`EnvelopeOverlayView`, `PresenceOverlayView`,
@@ -86,6 +101,10 @@ used by the live `StatusBar`, `AvatarStack` and `OverlayLegend` adapters,
 including the `PresenceStatusView` presence slot, desktop/phone/menu-hosted
 variants, and stale-render, loading and overflow states built from the same
 fixtures as the app.
+`Templates/EditBoundaryMark` previews the production `EditBoundaryMarkView`
+inline in a transcript row, with a roll join, a live roll drag, a
+single-clip trim edge and a 360px row. The live adapter commits
+`RollClipJoin` / `TrimClipEdge`.
 `Templates/HostMcpDialog` and `Templates/GesturesSheet` show the shipped
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
