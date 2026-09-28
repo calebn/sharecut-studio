@@ -28,6 +28,11 @@ describe("TrackMuteSoloButtonsView", () => {
       "aria-pressed",
       "true",
     );
+    for (const name of ["Mute Mira", "Solo Mira"]) {
+      const glyph = screen.getByRole("button", { name }).textContent ?? "";
+      expect(glyph).not.toBe("");
+      expect(name.startsWith(glyph)).toBe(true);
+    }
     await expectNoA11yViolations(container);
   });
 });
