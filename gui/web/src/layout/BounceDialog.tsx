@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { followExportJob, startBounceJob } from "../api";
-import { seedStudioJob } from "../state/seedStudioJob";
+import { startBounceJob } from "../api";
+import { runAnnouncedJob } from "../state/runAnnouncedJob";
 import { useDaw } from "../state/useDaw";
 import { errorMessage } from "../utils/apiError";
 import { BounceDialogView, type BounceSourceMode } from "./BounceDialogView";
@@ -17,7 +17,6 @@ export function BounceDialog() {
     selectedTrackIds,
     soloTracks,
     sessionRegion,
-    announceJobResult,
   } = useDaw((s) => ({
     bounceDialogOpen: s.bounceDialogOpen,
     setBounceDialogOpen: s.setBounceDialogOpen,
@@ -26,7 +25,6 @@ export function BounceDialog() {
     selectedTrackIds: s.selectedTrackIds,
     soloTracks: s.soloTracks,
     sessionRegion: s.sessionRegion,
-    announceJobResult: s.announceJobResult,
   }));
   const [source, setSource] = useState<BounceSourceMode>("entire");
   const [includeMp3, setIncludeMp3] = useState(false);
@@ -76,19 +74,20 @@ export function BounceDialog() {
     setBusy(true);
     setError(null);
     try {
-      const job = await startBounceJob(projectPath, {
-        track_ids: trackIds,
-        start_s: useRegion && region ? region.start_sec : null,
-        end_s: useRegion && region ? region.end_sec : null,
-        formats,
-      });
-      seedStudioJob(job);
-      const paths = await followExportJob(job.id, "Bounce failed", {
-        signal: ac.signal,
-      });
-      announceJobResult(
-        job.id,
-        `Bounced ${paths.length} file(s) to export/bounces/`,
+      await runAnnouncedJob(
+        () =>
+          startBounceJob(projectPath, {
+            track_ids: trackIds,
+            start_s: useRegion && region ? region.start_sec : null,
+            end_s: useRegion && region ? region.end_sec : null,
+            formats,
+          }),
+        {
+          failLabel: "Bounce failed",
+          resultCopy: (paths) =>
+            `Bounced ${paths.length} file(s) to export/bounces/`,
+          signal: ac.signal,
+        },
       );
       setBounceDialogOpen(false);
     } catch (err) {

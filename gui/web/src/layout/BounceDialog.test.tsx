@@ -44,6 +44,7 @@ describe("BounceDialog", () => {
       selectedTrackIds: [],
       soloTracks: {},
       sessionRegion: null,
+      pendingJobResults: {},
     });
     vi.mocked(startBounceJob).mockReset();
     vi.mocked(followExportJob).mockReset();
@@ -106,6 +107,7 @@ describe("BounceDialog", () => {
     await waitFor(() => {
       expect(captured?.aborted).toBe(true);
     });
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
   });
 
   it("records the bounce result under its job id instead of announcing it directly", async () => {
@@ -122,11 +124,10 @@ describe("BounceDialog", () => {
     await waitFor(() => {
       expect(useDawStore.getState().bounceDialogOpen).toBe(false);
     });
-    // StatusBar owns announcing this once the "b1" chip goes terminal
-    // (#704); BounceDialog itself must not race it via announceStatus.
-    expect(useDawStore.getState().jobResultAnnouncement).toEqual({
-      jobId: "b1",
-      message: "Bounced 2 file(s) to export/bounces/",
+    // useJobStatusAnnouncement owns speaking this once the "b1" chip goes
+    // terminal (#704); BounceDialog itself must not race it via announceStatus.
+    expect(useDawStore.getState().pendingJobResults).toEqual({
+      b1: "Bounced 2 file(s) to export/bounces/",
     });
   });
 });
