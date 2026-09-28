@@ -292,6 +292,18 @@ def test_component_status_shape() -> None:
     assert "ok" in status["ffmpeg"]
     assert "whisper" in status
     assert "rnnoise" in status
+    assert "word-aligner" in status
+    assert status["word-aligner"]["opt_in"] is True
+
+
+def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline_config import component_status
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    status = component_status()
+    assert "not downloaded" in status["word-aligner"]["hint"]
+    assert status["word-aligner"]["bootstrap"] == "podcast bootstrap --component word-aligner"
 
 
 def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch) -> None:
@@ -948,6 +960,21 @@ def test_transcribe_overwrite_param_and_run_only_helper() -> None:
     confirmed = transcribe_run_config(None, force=True, overwrite_edited=True)
     assert confirmed["transcribe"]["overwrite_edited"] is True
     assert load_defaults()["transcribe"]["overwrite"] is False
+
+
+def test_transcribe_run_config_retime_words() -> None:
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+
+    retimed = transcribe_run_config(None, force=False, retime_words=True)
+    assert retimed["transcribe"]["retime_words"] is True
+    assert retimed["transcribe"]["forced_alignment"]["enabled"] is True
+    assert retimed["transcribe"]["overwrite_edited"] is False
+    assert retimed["transcribe"]["overwrite"] is False
+
+    confirmed = transcribe_run_config(None, force=False, retime_words=True, overwrite_edited=True)
+    assert confirmed["transcribe"]["overwrite_edited"] is True
+
+    assert transcribe_run_config({"a": 1}, force=False) == {"a": 1}
 
 
 def test_balance_depends_on_compress() -> None:

@@ -60,16 +60,25 @@ def transcribe_run_config(
     *,
     force: bool,
     overwrite_edited: bool = False,
+    retime_words: bool = False,
 ) -> dict[str, Any] | None:
-    """Run-only config for one pipeline run (never persisted); ``config`` unchanged unless ``force``.
+    """Run-only config for one pipeline run (never persisted); ``config`` unchanged unless
+    ``force`` or ``retime_words``.
 
-    ``force`` re-runs ASR over existing transcripts. ``overwrite_edited`` also replaces
-    hand-edited ones in Batch mode: only for an explicit user confirmation (Studio Re-transcribe).
+    ``force`` re-runs ASR over existing transcripts. ``retime_words`` re-times stored
+    transcripts from the ASR cache (forced alignment on for that run; no Whisper).
+    ``overwrite_edited`` is the confirmation for either ``force`` or ``retime_words``: only for
+    an explicit user confirmation (Studio Re-transcribe / Re-time words).
     """
-    if not force:
+    if not force and not retime_words:
         return config
-    override = {"transcribe": {"overwrite": True, "overwrite_edited": overwrite_edited}}
-    return deep_merge(merge_pipeline_config(config), override)
+    transcribe: dict[str, Any] = {"overwrite_edited": overwrite_edited}
+    if force:
+        transcribe["overwrite"] = True
+    if retime_words:
+        transcribe["retime_words"] = True
+        transcribe["forced_alignment"] = {"enabled": True}
+    return deep_merge(merge_pipeline_config(config), {"transcribe": transcribe})
 
 
 FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
@@ -234,6 +243,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     ``whisper.ok`` requires both the faster-whisper import **and** on-disk
     weights for ``whisper_model`` (working-set / resolved preference).
+    ``word-aligner`` is opt-in (``opt_in: true``): readiness for
+    ``transcribe.forced_alignment.enabled``.
     """
     from podcast_mcp.whisper_models import resolve_whisper_model, whisper_model_is_cached
 
@@ -295,6 +306,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "hint": str(exc),
             "bootstrap": "podcast bootstrap --component rnnoise",
         }
+
+    from podcast_mcp.services.bootstrap import word_aligner_component
+
+    # Opt-in: the Pipeline tab lists it as missing only while forced alignment is on.
+    out["word-aligner"] = word_aligner_component()
     return out
 
 

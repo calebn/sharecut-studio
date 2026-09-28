@@ -28,11 +28,23 @@ from podcast_mcp.whisper_models import (
     resolve_whisper_model,
     whisper_model_is_cached,
 )
+from podcast_mcp.word_aligner_models import (
+    DEFAULT_WORD_ALIGNER,
+    bootstrap_word_aligner,
+    word_aligner_is_cached,
+    word_aligner_model,
+)
 
 # Consumer first-run defaults: never pull torch / NISQA.
 DEFAULT_FIRST_RUN_COMPONENTS: tuple[str, ...] = ("ffmpeg", "whisper")
 OPTIONAL_COMPONENTS: tuple[str, ...] = ("rnnoise",)
-ALL_GUI_COMPONENTS: tuple[str, ...] = DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS
+# Opt-in (like the CLI's nisqa / word-aligner): downloaded only when a request names it;
+# never a first-run default. Studio offers it next to the Pipeline field that uses it.
+OPT_IN_COMPONENTS: tuple[str, ...] = ("word-aligner",)
+ALL_GUI_COMPONENTS: tuple[str, ...] = (
+    DEFAULT_FIRST_RUN_COMPONENTS + OPTIONAL_COMPONENTS + OPT_IN_COMPONENTS
+)
+WORD_ALIGNER_BOOTSTRAP = "podcast bootstrap --component word-aligner"
 
 
 def _ffmpeg_ready() -> bool:
@@ -50,6 +62,33 @@ def _whisper_ready(model_size: str = DEFAULT_WHISPER_MODEL) -> bool:
 
 def _rnnoise_ready() -> bool:
     return rnnoise_model_path().is_file()
+
+
+def word_aligner_component() -> dict[str, Any]:
+    """Opt-in forced-aligner readiness (no download) for bootstrap status and Pipeline badges."""
+    model = word_aligner_model(DEFAULT_WORD_ALIGNER)
+    base: dict[str, Any] = {
+        "model": model.id,
+        "label": model.label,
+        "size": model.size,
+        "required_for_first_run": False,
+        "opt_in": True,
+    }
+    try:
+        ok = word_aligner_is_cached(model.id)
+    except Exception as exc:  # huggingface_hub / filesystem surprises: report, never raise
+        return {**base, "ok": False, "hint": str(exc), "bootstrap": WORD_ALIGNER_BOOTSTRAP}
+    if ok:
+        return {**base, "ok": True}
+    return {
+        **base,
+        "ok": False,
+        "hint": (
+            f"{model.label} ({model.size}) is not downloaded; Precise word boundaries keeps "
+            "Whisper's times until it is. Download it next to that field in the Pipeline tab"
+        ),
+        "bootstrap": WORD_ALIGNER_BOOTSTRAP,
+    }
 
 
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
@@ -82,6 +121,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "required_for_first_run": False,
             "note": "bundled with faster-whisper; no download",
         },
+        "word-aligner": word_aligner_component(),
     }
     ready = all(
         components[name]["ok"] for name in DEFAULT_FIRST_RUN_COMPONENTS if name in components
@@ -94,6 +134,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         "components": components,
         "default_components": list(DEFAULT_FIRST_RUN_COMPONENTS),
         "optional_components": list(OPTIONAL_COMPONENTS),
+        "opt_in_components": list(OPT_IN_COMPONENTS),
     }
 
 
@@ -106,7 +147,8 @@ def run_bootstrap(
 ) -> dict[str, Any]:
     """Download selected components; report ProgressReporter events.
 
-    Torch / NISQA / speaker extras are intentionally unsupported here.
+    Torch / NISQA / speaker extras are intentionally unsupported here. The opt-in word
+    aligner downloads only when ``components`` names it.
     """
     model = resolve_whisper_model(requested=whisper_model)
     wanted = list(components) if components else list(DEFAULT_FIRST_RUN_COMPONENTS)
@@ -134,6 +176,8 @@ def run_bootstrap(
                 results[name] = _run_whisper(model)
             elif name == "rnnoise":
                 results[name] = _run_rnnoise(force=force)
+            elif name == "word-aligner":
+                results[name] = _run_word_aligner(force=force)
             task.advance(1, message=f"Done {name}", total=total)
         task.message("Bootstrap complete")
 
@@ -170,3 +214,12 @@ def _run_rnnoise(*, force: bool) -> dict[str, Any]:
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "path": str(path)}
+
+
+def _run_word_aligner(*, force: bool) -> dict[str, Any]:
+    if not force and word_aligner_is_cached():
+        return {"ok": True, "skipped": True, "reason": "cached", "model": DEFAULT_WORD_ALIGNER}
+    try:
+        return bootstrap_word_aligner(force=force)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
