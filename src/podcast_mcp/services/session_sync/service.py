@@ -519,6 +519,13 @@ class SessionSyncService:
             return []
         return get_roster_tracker().events(self._project_key, store.list_clients())
 
+    def _on_presence_fanout_failure(self) -> None:
+        """Log a failed presence fan-out (call from inside an ``except`` block) and drop
+        the key's tracked base, so the next successful run resends a full ``Presence`` at a
+        bumped version instead of deltas."""
+        log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
+        get_roster_tracker().clear_key(self._project_key)
+
     def _safe_presence_events(
         self, live_rows: list[dict[str, Any]] | None = None
     ) -> list[dict[str, Any]]:
@@ -530,8 +537,7 @@ class SessionSyncService:
         try:
             return self._presence_events(live_rows)
         except Exception:
-            log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
-            get_roster_tracker().clear_key(self._project_key)
+            self._on_presence_fanout_failure()
             return []
 
     def _fanout_presence_after_commit(self, live_rows: list[dict[str, Any]] | None = None) -> None:
@@ -554,8 +560,7 @@ class SessionSyncService:
         try:
             schedule_presence(self._project_key, self._safe_presence_events, leading=leading)
         except Exception:
-            log.warning("presence fan-out failed for %s", self._project_key, exc_info=True)
-            get_roster_tracker().clear_key(self._project_key)
+            self._on_presence_fanout_failure()
 
     def roster_event(self) -> dict[str, Any]:
         """A full-roster ``Presence`` for a client's ``RosterRequest`` reply: the tracker's
