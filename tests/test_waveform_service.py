@@ -633,7 +633,7 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", boom)
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 0)
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 0)
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     gate.exit(svc._PCM_GATE_KEY)
 
@@ -648,7 +648,7 @@ def test_pcm_block_releases_the_slot_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "read_pcm_minmax", swapping)
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 1)
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 1)
     assert gate.try_enter(svc._PCM_GATE_KEY).allowed
     gate.exit(svc._PCM_GATE_KEY)
 
@@ -682,10 +682,24 @@ def _run_pcm(results: dict[str, object], name: str, project_path: Path, key: str
         results[name] = exc
 
 
+def _pcm_block_locked(project_path: Path, key: str, block: int) -> bool:
+    """Whether the per-block lock registry still holds ``track:host`` *block*."""
+    entry = svc.media_index(project_path).refs["track:host"]
+    return (str(entry.abs_path), key, block) in svc._PCM_LOCKS
+
+
 def test_pcm_block_coalesces_concurrent_decodes_of_one_block(tmp_path, monkeypatch):
     _compressed(monkeypatch)  # one slot: the follower would be busy without coalescing
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
+    probes: list[Path] = []
+    fake_probe = svc.probe_pcm_source
+
+    def counting_probe(p):
+        probes.append(p)
+        return fake_probe(p)
+
+    monkeypatch.setattr(svc, "probe_pcm_source", counting_probe)
     real = svc.read_pcm_minmax
     started, release = threading.Event(), threading.Event()
     calls: list[int] = []
@@ -711,13 +725,22 @@ def test_pcm_block_coalesces_concurrent_decodes_of_one_block(tmp_path, monkeypat
     assert isinstance(results["leader"], bytes)
     assert results["follower"] == results["leader"]
     assert len(calls) == 1
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 0)
+    assert len(probes) == 1  # the follower waits before probing, then reads the leader's block
 
 
 def test_pcm_block_follower_decodes_after_a_failed_leader(tmp_path, monkeypatch):
     _compressed(monkeypatch)
     project_path = waveform_project(tmp_path)
     key, _ = _ready(project_path)
+    probes: list[Path] = []
+    fake_probe = svc.probe_pcm_source
+
+    def counting_probe(p):
+        probes.append(p)
+        return fake_probe(p)
+
+    monkeypatch.setattr(svc, "probe_pcm_source", counting_probe)
     real = svc.read_pcm_minmax
     started, release = threading.Event(), threading.Event()
     calls: list[int] = []
@@ -745,7 +768,8 @@ def test_pcm_block_follower_decodes_after_a_failed_leader(tmp_path, monkeypatch)
     assert isinstance(results["leader"], svc.WaveformDecodeError)
     assert isinstance(results["follower"], bytes)
     assert len(calls) == 2
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 0)
+    assert len(probes) == 2  # the follower probes only once it becomes the reader
 
 
 def test_pcm_block_unopenable_media_is_decode_error(tmp_path, monkeypatch):
@@ -848,7 +872,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     with pytest.raises(svc.WaveformDecodeError):
         pcm_block(project_path, "track:host", key, 2)
     assert svc._PCM == {}
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 2)
 
     audio = project_path.parent / "raw" / "host.wav"
 
@@ -862,7 +886,7 @@ def test_pcm_block_does_not_cache_wav_or_failed_reads(tmp_path, monkeypatch):
     with pytest.raises(StaleWaveformKeyError):
         pcm_block(project_path, "track:host", key, 3)
     assert svc._PCM == {}
-    assert svc._PCM_INFLIGHT == {}
+    assert not _pcm_block_locked(project_path, key, 3)
 
 
 def test_media_index_sees_media_that_appears_later(tmp_path):

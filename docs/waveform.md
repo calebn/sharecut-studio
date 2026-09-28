@@ -274,15 +274,19 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   Decoded compressed blocks are kept in an LRU of 32 blocks (at most 8 MiB)
   keyed by media path, key and block, so refs of one file share entries. The
   LRU is checked before the media is probed, so a hit opens no file and takes
-  no slot. On a miss, `probe_pcm_source` picks the read path once. Media off the
-  WAV fast path takes one of `PCM_DECODE_MAX_CONCURRENT` (4) decode slots (a
-  `ConcurrencyGate` from `util/rate_limit`) without waiting. When all are taken
-  it raises `WaveformBusyError` instead of starting another ffmpeg. The slots
-  are process-wide, shared by every tab and project. One tab's fetch limit (4)
-  never trips them alone, but two tabs or projects doing compressed deep zoom
-  can. The client then re-queues the 503 after `Retry-After`, which costs
-  latency, not correctness. Concurrent requests for one block share a decode:
-  later callers wait for it instead of taking a slot, and try again if it
+  no slot. On a miss the request takes that block's lock (`util/keyed_lock`
+  `KeyedLocks`, dropped once idle), checks the LRU again, and only then runs
+  `probe_pcm_source` once to pick the read path, so a request that waited on
+  another's decode of the block reads the cached result without opening the
+  media. Media off the WAV fast path takes one of `PCM_DECODE_MAX_CONCURRENT`
+  (4) decode slots (a `ConcurrencyGate` from `util/rate_limit`) without
+  waiting. When all are taken it raises `WaveformBusyError` instead of
+  starting another ffmpeg. The slots are process-wide, shared by every tab and
+  project. One tab's fetch limit (4) never trips them alone, but two tabs or
+  projects doing compressed deep zoom can. The client then re-queues the 503
+  after `Retry-After`, which costs latency, not correctness. Concurrent
+  requests for one block share a decode: later callers wait on the block's
+  lock instead of taking a slot, and the next one reads the block if it
   failed. A decode runs to the end (at most the 30 s ffmpeg watchdog) even when
   its client has gone away, for example after leaving the project, and holds
   its slot until then. Its block is still cached for a return visit. WAVs take
