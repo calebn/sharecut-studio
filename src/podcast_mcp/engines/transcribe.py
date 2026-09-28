@@ -160,19 +160,31 @@ def _read_cache(path: Path) -> Transcript | None:
     return _read_json_cache(path, "transcript cache", Transcript.model_validate)
 
 
-def _parse_align_spans(data: Any) -> list[tuple[float, float] | None]:
-    return [None if s is None else (float(s[0]), float(s[1])) for s in data["spans"]]
+def _parse_align_cache(data: Any) -> tuple[list[tuple[float, float] | None], list[float | None]]:
+    spans = [None if s is None else (float(s[0]), float(s[1])) for s in data["spans"]]
+    scores = [None if s is None else float(s) for s in data["scores"]]
+    return spans, scores
 
 
-def _read_align_cache(path: Path, count: int) -> list[tuple[float, float] | None] | None:
-    """Cached aligned spans, or None (miss) when absent, unreadable or not matching ``count``."""
-    spans = _read_json_cache(path, "word-alignment cache", _parse_align_spans)
-    if spans is None:
+def _read_align_cache(
+    path: Path, count: int
+) -> tuple[list[tuple[float, float] | None], list[float | None]] | None:
+    """Cached aligned spans + scores, or None (miss) when absent, unreadable or not matching ``count``."""
+    parsed = _read_json_cache(path, "word-alignment cache", _parse_align_cache)
+    if parsed is None:
         return None
-    if len(spans) != count or any(s is not None and not 0 <= s[0] < s[1] for s in spans):
+    spans, scores = parsed
+    valid = (
+        len(spans) == count
+        and len(scores) == count
+        and all(s is not None or sc is None for s, sc in zip(spans, scores, strict=True))
+        and all(s is None or 0 <= s[0] < s[1] for s in spans)
+        and all(sc is None or 0.0 <= sc <= 1.0 for sc in scores)
+    )
+    if not valid:
         log.warning("ignoring mismatched word-alignment cache %s", path.name)
         return None
-    return spans
+    return spans, scores
 
 
 def _write_align_cache(
@@ -186,6 +198,7 @@ def _write_align_cache(
                 {
                     "aligner": aligner.cache_identity(),
                     "spans": [None if s is None else list(s) for s in result.spans],
+                    "scores": list(result.scores) if result.scores else [None] * len(result.spans),
                     "stats": result.stats.as_dict(),
                     "runtime_sec": round(result.runtime_sec, 3),
                 },
@@ -440,10 +453,10 @@ class TranscriptionEngine:
         path = self.word_align_cache_path(
             project, job.cache_id, asr_cache, aligner, transcript.words
         )
-        spans = _read_align_cache(path, len(transcript.words)) if use_cache else None
+        cached = _read_align_cache(path, len(transcript.words)) if use_cache else None
         status = "cached"
         align_sec: float | None = None
-        if spans is None:
+        if cached is None:
             status = "aligned"
             raise_if_cancel_requested(current_cancel_check(), TRANSCRIBE_CANCELLED)
             try:
@@ -453,9 +466,12 @@ class TranscriptionEngine:
                 keep_whisper("failed", str(exc))
                 return
             spans = result.spans
+            scores: list[float | None] = list(result.scores) or [None] * len(spans)
             align_sec = round(result.runtime_sec, 3)
             _write_align_cache(path, asr_cache, aligner, result)
-        retimed = apply_word_spans(transcript.words, spans)
+        else:
+            spans, scores = cached
+        retimed = apply_word_spans(transcript.words, spans, scores)
         if not retimed:
             keep_whisper("failed", "no words aligned")
             return
@@ -466,6 +482,9 @@ class TranscriptionEngine:
         )
         if align_sec is not None:
             entry["align_sec"] = align_sec
+        min_score = self.options.forced_alignment_min_word_score
+        if min_score > 0:
+            entry["no_evidence_words"] = sum(1 for s in scores if s is not None and s < min_score)
         transcript.word_aligner = aligner.model.id
 
     def transcribe_file(
@@ -562,10 +581,12 @@ class TranscriptionEngine:
         transcript.audio_sha256 = sha
         # Whisper's own times until _align_words re-times them (the ASR cache never holds a marker).
         transcript.word_aligner = None
-        # Cached words carry no silence flags: they are recomputed below from the current
-        # transcribe.silence_filter settings (not a cache input) on every read.
+        # Cached words carry no silence flags or alignment scores: they are recomputed
+        # below from the current transcribe.silence_filter settings (not a cache input)
+        # on every read, and _align_words re-derives the scores.
         for word in transcript.words:
             word.suspect_hallucination = False
+            word.alignment_score = None
         if fresh:
             # Whisper's own times (transcribe_file already flagged them with this
             # max_word_sec); alignment has its own cache, so the flag never re-runs Whisper.
@@ -584,7 +605,11 @@ class TranscriptionEngine:
                 transcript.words, sha, self.options
             )
         if n:
-            log.info("%s: %d word(s) over silence flagged suspect_hallucination", job.label, n)
+            log.info(
+                "%s: %d word(s) flagged suspect_hallucination (silence or no aligner evidence)",
+                job.label,
+                n,
+            )
         return transcript
 
     def transcribe_track(

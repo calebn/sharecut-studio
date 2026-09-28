@@ -1141,10 +1141,10 @@ describe("TranscriptPanel", () => {
     expect(flagged[0]?.textContent).toContain("there");
     expect(flagged[0]).toHaveAttribute(
       "title",
-      expect.stringContaining("Possible transcription over silence"),
+      expect.stringContaining("Possible transcription with no matching speech"),
     );
     expect(flagged[0]).toHaveAccessibleName(
-      "there · Possible transcription over silence",
+      "there · Possible transcription with no matching speech",
     );
   });
 

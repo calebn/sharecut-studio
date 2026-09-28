@@ -10,14 +10,25 @@ tests/test_word_align_real.py``.
 
 from __future__ import annotations
 
+import json
+import wave
 from pathlib import Path
 
+import numpy as np
 import pytest
 
+from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.word_align import WordAligner
+from podcast_mcp.models.episode import TranscriptWord
 from podcast_mcp.word_aligner_models import word_aligner_is_cached
 from script_loader import load_script
 
 pytestmark = pytest.mark.e2e_real
+
+WORD_BOUNDARY_DIR = Path(__file__).parent / "fixtures" / "word_boundary"
+PROBE_SILENCE_SEC = 1.5
+PROBE_NOISE_SEC = 1.5
+PROBE_NOISE_DBFS = -50.0
 
 # tests/test_word_boundary_metrics.py::test_checked_in_shipped_pass_report_matches_pipeline_fixture
 # pins the same value from the checked-in tests/fixtures/word_boundary/*.onnx-base-pipeline.json
@@ -43,3 +54,86 @@ def test_pipeline_pass_reproduces_checked_in_mae_below_native(tmp_path: Path) ->
     assert scored["reference_words"] == 48
     assert scored["boundary_mae_ms"] == pytest.approx(CHECKED_IN_LIBRISPEECH_MAE_MS, abs=1.0)
     assert scored["boundary_mae_ms"] < NATIVE_LIBRISPEECH_MAE_MS
+
+
+def _read_wav_float32(path: Path) -> tuple[np.ndarray, int]:
+    with wave.open(str(path), "rb") as handle:
+        rate = handle.getframerate()
+        assert handle.getsampwidth() == 2 and handle.getnchannels() == 1
+        pcm = handle.readframes(handle.getnframes())
+    samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+    return samples, rate
+
+
+def _write_wav_float32(path: Path, samples: np.ndarray, rate: int) -> None:
+    pcm16 = np.clip(np.round(samples * 32768.0), -32768, 32767).astype("<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(pcm16.tobytes())
+
+
+def _native_words(fixture_id: str) -> list[TranscriptWord]:
+    data = json.loads((WORD_BOUNDARY_DIR / f"{fixture_id}.native-base.json").read_text())
+    return [TranscriptWord(text=w["text"], start=w["start"], end=w["end"]) for w in data["words"]]
+
+
+@pytest.mark.skipif(
+    not word_aligner_is_cached(),
+    reason="onnx-base word aligner not cached; run `podcast bootstrap --component word-aligner`",
+)
+def test_evidence_floor_separates_real_words_from_silence_and_noise_probes(
+    tmp_path: Path,
+) -> None:
+    """#195: the shipped ``min_word_score`` floor separates real speech from two probes.
+
+    Measured numbers go in docs/testing.md "Aligner evidence floor (#195)".
+    """
+    aligner = WordAligner.load(threads=4)
+    floor = AsrOptions().forced_alignment_min_word_score
+
+    # Real words: every LibriSpeech clip's native-base words, force-aligned.
+    real_scores: list[float] = []
+    for native_json in sorted(WORD_BOUNDARY_DIR.glob("*.native-base.json")):
+        fixture_id = native_json.name.removesuffix(".native-base.json")
+        words = _native_words(fixture_id)
+        result = aligner.align(WORD_BOUNDARY_DIR / f"{fixture_id}.wav", words)
+        real_scores.extend(s for s in result.scores if s is not None)
+    assert real_scores
+
+    # Probes: a real clip, then digital silence, then seeded low-level noise.
+    clip_id = "1988-147956-0023"
+    samples, rate = _read_wav_float32(WORD_BOUNDARY_DIR / f"{clip_id}.wav")
+    duration = samples.size / rate
+
+    silence = np.zeros(round(PROBE_SILENCE_SEC * rate), dtype=np.float32)
+    rng = np.random.default_rng(0)
+    noise_amplitude = 10 ** (PROBE_NOISE_DBFS / 20)
+    noise = rng.standard_normal(round(PROBE_NOISE_SEC * rate)).astype(np.float32) * noise_amplitude
+
+    probe_path = tmp_path / "probe.wav"
+    _write_wav_float32(probe_path, np.concatenate([samples, silence, noise]), rate)
+
+    probe_words = _native_words(clip_id)
+    d = duration
+    probe_words.append(TranscriptWord(text="hello", start=d + 0.4, end=d + 0.9))
+    probe_words.append(TranscriptWord(text="world", start=d + 1.9, end=d + 2.4))
+
+    probe_result = aligner.align(probe_path, probe_words)
+    silence_score = probe_result.scores[-2]
+    noise_score = probe_result.scores[-1]
+
+    ordered = sorted(real_scores)
+    real_min = ordered[0]
+    real_p5 = ordered[max(0, round(0.05 * (len(ordered) - 1)))]
+    real_median = ordered[len(ordered) // 2]
+    print(
+        f"real words: n={len(ordered)} min={real_min:.4f} p5={real_p5:.4f} median={real_median:.4f}"
+    )
+    print(f"silence probe score={silence_score}")
+    print(f"noise probe score={noise_score}")
+
+    assert real_min >= 10 * floor
+    assert silence_score is not None and silence_score < floor
+    assert noise_score is not None and noise_score < floor

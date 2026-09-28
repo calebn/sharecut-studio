@@ -11,6 +11,10 @@ memory stays small on long tracks.
 Analyze (``suggest_pipeline_tuning``) reuses the same envelope to flag a dialogue
 source that is mostly digital silence, a sign of a gated stem worth VAD. The
 resulting fraction is cached in-process per file version.
+
+``refresh_silence_flags`` also ORs in the forced aligner's evidence signal (#195):
+an aligned word whose ``alignment_score`` is below `transcribe.forced_alignment.
+min_word_score` is flagged too. It is still flag-only and never retimed.
 """
 
 from __future__ import annotations
@@ -48,6 +52,10 @@ def silence_filter_fingerprint(
         digest.update(
             f"{word.start.hex()}:{word.end.hex()}:{int(word.suspect_hallucination)};".encode()
         )
+    # Aligner evidence (#195) counts only once a word carries a score, so fingerprints
+    # stored before it stay valid and unchanged reused transcripts are not re-decoded.
+    if any(w.alignment_score is not None for w in words):
+        digest.update(f"ctc:{float(options.forced_alignment_min_word_score).hex()}:".encode())
     return digest.hexdigest()
 
 
@@ -75,6 +83,24 @@ def flag_words_over_silence(
         if lo >= hi:
             continue  # span outside the decoded audio: no evidence either way
         if float(np.max(peaks[lo:hi])) < floor:
+            w.suspect_hallucination = True
+            flagged += 1
+    return flagged
+
+
+def flag_words_without_acoustic_evidence(
+    words: Sequence[TranscriptWord], *, min_score: float
+) -> int:
+    """Set ``suspect_hallucination`` on aligned words scoring below ``min_score``; never clears.
+
+    ``alignment_score`` is None for words the forced aligner did not place (no evidence either
+    way). ``min_score <= 0`` turns the signal off. Returns how many words it flagged.
+    """
+    if min_score <= 0:
+        return 0
+    flagged = 0
+    for w in words:
+        if w.alignment_score is not None and w.alignment_score < min_score:
             w.suspect_hallucination = True
             flagged += 1
     return flagged
@@ -164,13 +190,19 @@ def flag_silent_words_in_file(
 def refresh_silence_flags(
     words: Sequence[TranscriptWord], path: Path, options: AsrOptions
 ) -> int | None:
-    """Recompute ``suspect_hallucination`` on ``words`` from ``options``' silence filter.
+    """Recompute ``suspect_hallucination`` on ``words`` from both signals in ``options``.
 
-    Every flag is cleared first. Returns the flagged count (0 when the filter is off), or
-    ``None`` when ``path`` cannot be decoded (flags stay cleared, a warning is logged).
+    Every flag is cleared first; the silence filter (when on) sets its flags, then aligned
+    words without acoustic evidence are OR-ed in. Returns the flagged count, or ``None`` when
+    ``path`` cannot be decoded (silence flags stay cleared, the evidence flags still apply,
+    a warning is logged).
     """
     for w in words:
         w.suspect_hallucination = False
-    if not options.silence_filter_enabled:
-        return 0
-    return flag_silent_words_in_file(words, path, peak_dbfs=options.silence_peak_dbfs)
+    silent: int | None = 0
+    if options.silence_filter_enabled:
+        silent = flag_silent_words_in_file(words, path, peak_dbfs=options.silence_peak_dbfs)
+    flag_words_without_acoustic_evidence(words, min_score=options.forced_alignment_min_word_score)
+    if silent is None:
+        return None
+    return sum(1 for w in words if w.suspect_hallucination)

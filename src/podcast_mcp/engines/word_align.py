@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.engines.ctc_forced_align import (
+    ALIGNMENT_SCORE_METHOD,
     DEFAULT_MAX_GAP_SEC,
     DEFAULT_MAX_WINDOW_SEC,
     DEFAULT_PAD_SEC,
@@ -31,7 +32,7 @@ from podcast_mcp.engines.ctc_forced_align import (
     RetimeStats,
     log_softmax,
     normalize_waveform,
-    retime_spans_stream,
+    place_spans_stream,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models.episode import TranscriptWord
@@ -76,6 +77,8 @@ class WordAlignResult:
     spans: list[tuple[float, float] | None]
     stats: RetimeStats
     runtime_sec: float
+    # One per word, None when not placed; empty = no scores (test stubs).
+    scores: tuple[float | None, ...] = ()
 
 
 class WordAligner:
@@ -135,6 +138,7 @@ class WordAligner:
             "max_gap_sec": DEFAULT_MAX_GAP_SEC,
             "max_window_sec": DEFAULT_MAX_WINDOW_SEC,
             "pad_sec": DEFAULT_PAD_SEC,
+            "score": ALIGNMENT_SCORE_METHOD,
         }
         if self._local_source is not None:
             identity["local_source"] = self._local_source
@@ -154,7 +158,7 @@ class WordAligner:
             engine = self._default_engine
         chunks = engine.stream_mono_f32(audio_path, sample_rate=SAMPLE_RATE_WAV2VEC2)
         with contextlib.closing(SequentialWindowReader(chunks, SAMPLE_RATE_WAV2VEC2)) as reader:
-            spans, stats = retime_spans_stream(
+            placed, stats = place_spans_stream(
                 reader, [(w.text, w.start, w.end) for w in words], self._backend, self._vocab
             )
             # Only a decode with no samples at all, and only once a window read drained
@@ -164,11 +168,15 @@ class WordAligner:
             # under MIN_WINDOW_SAMPLES and those words keep Whisper's times.
             if words and reader.end_sec == 0.0:
                 raise NoAudioDecodedError(audio_path)
-        return WordAlignResult(spans, stats, time.perf_counter() - start)
+        spans = [None if p is None else (p.start, p.end) for p in placed]
+        scores = tuple(None if p is None else p.score for p in placed)
+        return WordAlignResult(spans, stats, time.perf_counter() - start, scores)
 
 
 def apply_word_spans(
-    words: list[TranscriptWord], spans: Sequence[tuple[float, float] | None]
+    words: list[TranscriptWord],
+    spans: Sequence[tuple[float, float] | None],
+    scores: Sequence[float | None] = (),
 ) -> int:
     """Re-time non-None spans onto ``words`` in place; return the count re-timed.
 
@@ -182,14 +190,21 @@ def apply_word_spans(
     neighbours, so ``words`` stays in time order for consumers that read gaps
     pairwise. A kept word the clamp collapses to zero length is flagged
     ``deferred`` for refine / audition.
+
+    A placed word takes its evidence score from ``scores`` (empty = no scores,
+    e.g. test stubs); every unplaced word's ``alignment_score`` is cleared.
     """
     if len(words) != len(spans):
         raise ValueError(f"words/spans length mismatch: {len(words)} != {len(spans)}")
+    if scores and len(scores) != len(words):
+        raise ValueError(f"words/scores length mismatch: {len(words)} != {len(scores)}")
     retimed = 0
-    for word, span in zip(words, spans, strict=True):
+    for i, (word, span) in enumerate(zip(words, spans, strict=True)):
         if span is None:
+            word.alignment_score = None
             continue
         word.start, word.end = span
+        word.alignment_score = scores[i] if scores else None
         if word.audibility_status == "deferred":
             word.audibility_status = None
         retimed += 1

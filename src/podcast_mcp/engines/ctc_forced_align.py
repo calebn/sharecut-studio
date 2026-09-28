@@ -4,7 +4,9 @@ Shared by the opt-in pipeline pass (``engines/word_align.py``, #714) and
 ``scripts/benchmark_forced_aligners.py``. ``retime_spans_stream`` (#730) reads
 windows through a forward-only ``SequentialWindowReader`` so a caller never
 needs the whole decode resident at once; ``retime_spans`` wraps it for
-callers that already hold a full in-memory array.
+callers that already hold a full in-memory array. ``place_words`` /
+``place_spans_stream`` additionally return each word's mean emitting-frame
+posterior, which the pipeline uses as a hallucination signal (#195).
 """
 
 from __future__ import annotations
@@ -28,6 +30,8 @@ MIN_WINDOW_SAMPLES = 400
 DEFAULT_MAX_GAP_SEC = 1.0
 DEFAULT_MAX_WINDOW_SEC = 20.0
 DEFAULT_PAD_SEC = 0.5
+# Bump when the per-word score definition changes (part of WordAligner.cache_identity).
+ALIGNMENT_SCORE_METHOD = "mean_emitting_posterior_v1"
 
 
 class LogProbBackend(Protocol):
@@ -125,14 +129,23 @@ def ctc_viterbi(log_probs: np.ndarray, targets: Sequence[int], blank_id: int) ->
     return path
 
 
-def align_words(
+@dataclass(frozen=True)
+class PlacedWord:
+    """A force-aligned word: its span and the mean posterior of the frames that emit it (0..1)."""
+
+    start: float
+    end: float
+    score: float
+
+
+def place_words(
     log_probs: np.ndarray,
     words: Sequence[str],
     vocab: CtcVocab,
     *,
     frame_sec: float = FRAME_SEC_WAV2VEC2,
     offset_sec: float = 0.0,
-) -> list[tuple[float, float] | None]:
+) -> list[PlacedWord | None]:
     targets: list[int] = []
     owner: list[int] = []
     encodings: dict[int, list[int]] = {}
@@ -151,12 +164,13 @@ def align_words(
             owner.append(index)
 
     path = ctc_viterbi(log_probs, targets, vocab.blank_id)
-    results: list[tuple[float, float] | None] = [None] * len(words)
+    results: list[PlacedWord | None] = [None] * len(words)
     if path is None:
         return results
 
     first_frame: dict[int, int] = {}
     last_frame: dict[int, int] = {}
+    evidence: dict[int, list[float]] = {}
     for frame, state in enumerate(path):
         if state < 0:
             continue
@@ -166,14 +180,32 @@ def align_words(
         if word_index not in first_frame:
             first_frame[word_index] = frame
         last_frame[word_index] = frame
+        evidence.setdefault(word_index, []).append(float(np.exp(log_probs[frame, targets[state]])))
 
     for word_index, first in first_frame.items():
         last = last_frame[word_index]
-        results[word_index] = (
+        scores = evidence[word_index]
+        results[word_index] = PlacedWord(
             round(offset_sec + first * frame_sec, 4),
             round(offset_sec + (last + 1) * frame_sec, 4),
+            round(sum(scores) / len(scores), 4),
         )
     return results
+
+
+def align_words(
+    log_probs: np.ndarray,
+    words: Sequence[str],
+    vocab: CtcVocab,
+    *,
+    frame_sec: float = FRAME_SEC_WAV2VEC2,
+    offset_sec: float = 0.0,
+) -> list[tuple[float, float] | None]:
+    """Spans only; see :func:`place_words` for the per-word evidence score."""
+    return [
+        None if p is None else (p.start, p.end)
+        for p in place_words(log_probs, words, vocab, frame_sec=frame_sec, offset_sec=offset_sec)
+    ]
 
 
 @dataclass(frozen=True)
@@ -288,13 +320,13 @@ def retime_spans(
         return retime_spans_stream(reader, words, backend, vocab)
 
 
-def retime_spans_stream(
+def place_spans_stream(
     reader: SequentialWindowReader,
     words: Sequence[tuple[str, float, float]],
     backend: LogProbBackend,
     vocab: CtcVocab,
-) -> tuple[list[tuple[float, float] | None], RetimeStats]:
-    """``retime_spans``, but pulling windows from a forward-only ``SequentialWindowReader``.
+) -> tuple[list[PlacedWord | None], RetimeStats]:
+    """``retime_spans_stream``, but returning each placed word's evidence score too.
 
     Windows are planned without an ``audio_sec`` bound; the reader clamps
     each window's samples at EOF, so the result is identical to a whole-file
@@ -305,7 +337,7 @@ def retime_spans_stream(
     sample_rate = reader.sample_rate
     order = sorted(range(len(words)), key=lambda i: words[i][1])
     windows = plan_windows([(words[i][1], words[i][2]) for i in order])
-    spans: list[tuple[float, float] | None] = [None] * len(words)
+    placed: list[PlacedWord | None] = [None] * len(words)
     failed = 0
     for win in windows:
         indices = [order[j] for j in win.word_indices]
@@ -316,16 +348,32 @@ def retime_spans_stream(
             failed += 1
             continue
         lp = backend.log_probs(chunk)
-        placed = align_words(lp, [words[i][0] for i in indices], vocab, offset_sec=win.start_sec)
-        if all(span is None for span in placed):
+        window_placed = place_words(
+            lp, [words[i][0] for i in indices], vocab, offset_sec=win.start_sec
+        )
+        if all(p is None for p in window_placed):
             failed += 1
-        for index, span in zip(indices, placed, strict=True):
-            if span is not None:
-                spans[index] = span
-    aligned = sum(span is not None for span in spans)
-    return spans, RetimeStats(
+        for index, p in zip(indices, window_placed, strict=True):
+            if p is not None:
+                placed[index] = p
+    aligned = sum(p is not None for p in placed)
+    return placed, RetimeStats(
         windows=len(windows),
         failed_windows=failed,
         aligned_words=aligned,
         unaligned_words=len(words) - aligned,
     )
+
+
+def retime_spans_stream(
+    reader: SequentialWindowReader,
+    words: Sequence[tuple[str, float, float]],
+    backend: LogProbBackend,
+    vocab: CtcVocab,
+) -> tuple[list[tuple[float, float] | None], RetimeStats]:
+    """``retime_spans``, but pulling windows from a forward-only ``SequentialWindowReader``.
+
+    Spans only; see :func:`place_spans_stream` for the per-word evidence score.
+    """
+    placed, stats = place_spans_stream(reader, words, backend, vocab)
+    return [None if p is None else (p.start, p.end) for p in placed], stats

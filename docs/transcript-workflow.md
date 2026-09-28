@@ -128,7 +128,7 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 |------|---------|
 | `{workspace}/show_glossary.yaml` | Show title, recurring terms, replacements |
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
-| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`) |
+| `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`; `no_evidence_words` counts words below `min_word_score` when the floor is on, #195) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
 | `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
 
@@ -153,10 +153,12 @@ truncated. This changes future ASR output, not existing transcript words.
 
 With `transcribe.forced_alignment.enabled`, alignment results get their own
 cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
-keyed by the aligner identity (repo, revision, file, window settings, plus the
-directory, size and mtime of a `PODCAST_MCP_WORD_ALIGNER_MODEL` override) and
+keyed by the aligner identity (repo, revision, file, window settings, the score method,
+plus the directory, size and mtime of a `PODCAST_MCP_WORD_ALIGNER_MODEL` override) and
 a hash of Whisper's words. A forced run (`--force`) skips it. `transcribe.forced_alignment`
-is not an ASR cache input, so toggling the flag never re-runs Whisper. The cache write is
+is not an ASR cache input, so toggling the flag never re-runs Whisper. The sidecar also
+stores per-word `scores` alongside the aligned spans, and the aligner identity includes
+the score method, so older sidecars miss once. The cache write is
 best-effort: a failed write logs a warning and keeps the aligned spans. Writing a new
 alignment cache deletes older ones for the same ASR cache.
 
@@ -187,10 +189,21 @@ cache files store unflagged words; the flags are recomputed from the current
 a cache input. `transcribe_tracks` re-flags a reused transcript when its audio identity, silence filter settings, word spans or flag state differ from its stored `silence_filter_fingerprint` (only a peak envelope is decoded; Whisper does not re-run). This also rechecks a same-span phrase correction that clears a flag. The fingerprint is stored after reflagging, so unchanged runs reuse the stored flags without decoding the audio. Legacy transcripts without a fingerprint are checked once. A new `peak_dbfs` or turning the filter off applies on the next pipeline run without Re-transcribe. When a track cannot be decoded its flags stay cleared, a warning is logged,
 and the step summary adds "silence filter skipped on N track(s)".
 
+**Aligner evidence (#195).** With `transcribe.forced_alignment.enabled`, each word the aligner
+places gets `alignment_score`, the mean posterior of the frames it used. A score below
+`transcribe.forced_alignment.min_word_score` (default 0.01, 0 = off) also sets
+`suspect_hallucination`. It is flag-only, reviewed the same way, and catches hallucinations over
+room noise or bleed that the -60 dBFS peak test cannot; words the aligner could not place have no
+score and are judged by the silence filter alone. `transcript_timing.json` →
+`forced_alignment.jobs[].no_evidence_words` counts them, and the step summary adds "N aligned
+word(s) with no acoustic evidence". A changed floor re-flags reused transcripts without decoding
+Whisper; transcripts re-timed before scores existed show as "not re-timed" until Re-time words
+runs.
+
 The flag is informational and nothing filters on it. Reconcile, merge, tighten and exports
 treat a flagged word like any other (reconcile's inaudible pass often suppresses it anyway).
 Review flagged words with `transcript_refine_brief_tool` (`suspect_hallucination_open_words`,
-`suspect_hallucination_sample`, limited to the first ten records) or Studio's Annotate view (dotted underline, tooltip and screen reader status on unsuppressed flagged words), and suppress real
+`suspect_hallucination_sample`, limited to the first ten records) or Studio's Annotate view (dotted underline, tooltip "Possible transcription with no matching speech" and screen reader status on unsuppressed flagged words), and suppress real
 hallucinations with `set_word_suppressed_tool`. If a track still loops, set
 `transcribe.decode.condition_on_previous_text: false`.
 

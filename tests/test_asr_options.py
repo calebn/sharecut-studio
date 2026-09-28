@@ -22,6 +22,19 @@ def test_forced_alignment_flag_reads_yaml_and_is_not_a_decode_key():
     assert AsrOptions(forced_alignment_enabled=True).decode_key() == AsrOptions().decode_key()
 
 
+def test_forced_alignment_min_word_score_reads_yaml_bounded_and_is_not_a_decode_key():
+    def _score(value):
+        return AsrOptions.from_defaults(
+            {"transcribe": {"forced_alignment": {"min_word_score": value}}}
+        ).forced_alignment_min_word_score
+
+    assert _score(0.2) == pytest.approx(0.2)
+    assert _score(5) == pytest.approx(1.0)
+    assert _score(-1) == pytest.approx(0.0)
+    assert _score("x") == pytest.approx(0.01)
+    assert AsrOptions(forced_alignment_min_word_score=0.5).decode_key() == AsrOptions().decode_key()
+
+
 def test_from_defaults_overrides_and_bounds():
     opts = AsrOptions.from_defaults(
         {

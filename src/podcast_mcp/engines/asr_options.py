@@ -52,6 +52,8 @@ class AsrOptions:
     # Not part of decode_key(): alignment has its own cache beside the ASR cache,
     # so toggling it never re-runs Whisper.
     forced_alignment_enabled: bool = False
+    # Flag-only threshold on TranscriptWord.alignment_score; not a decode_key input.
+    forced_alignment_min_word_score: float = 0.01
 
     @classmethod
     def from_defaults(cls, defaults: Mapping[str, Any] | None = None) -> AsrOptions:
@@ -101,6 +103,9 @@ class AsrOptions:
                 sil.get("peak_dbfs"), base.silence_peak_dbfs, -120.0, 0.0
             ),
             forced_alignment_enabled=bool(fa.get("enabled", base.forced_alignment_enabled)),
+            forced_alignment_min_word_score=bounded_float(
+                fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0
+            ),
         )
 
     @classmethod

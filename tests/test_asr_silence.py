@@ -10,8 +10,10 @@ from podcast_mcp.engines.asr_silence import (
     digital_silence_fraction,
     flag_silent_words_in_file,
     flag_words_over_silence,
+    flag_words_without_acoustic_evidence,
     peak_envelope,
     refresh_silence_flags,
+    silence_filter_fingerprint,
     silent_fraction,
 )
 from podcast_mcp.models import TranscriptWord
@@ -244,3 +246,69 @@ def test_refresh_silence_flags_off_clears_and_on_reflags(monkeypatch, tmp_path):
     assert words[0].suspect_hallucination is False
     assert refresh_silence_flags(words, path, AsrOptions()) == 1
     assert words[0].suspect_hallucination is True
+
+
+def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
+    from podcast_mcp.engines import asr_silence
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+    tone = _w(1.2, 1.5)
+    tone.alignment_score = 0.001
+    clear = _w(1.6, 1.9)
+    clear.alignment_score = 0.9
+    silent = _w(0.2, 0.5)
+    silent.alignment_score = None
+    words = [tone, clear, silent]
+    path = tmp_path / "a.wav"
+
+    n = refresh_silence_flags(words, path, AsrOptions())
+
+    assert [w.suspect_hallucination for w in words] == [True, False, True]
+    assert n == 2
+
+    # A word that is silent *and* scored low stays True.
+    words2 = [_w(0.2, 0.5)]
+    words2[0].alignment_score = 0.001
+    assert refresh_silence_flags(words2, path, AsrOptions()) == 1
+    assert words2[0].suspect_hallucination is True
+
+
+def test_evidence_flag_off_at_zero_min_score():
+    words = [_w(0.0, 0.1)]
+    words[0].alignment_score = 0.0001
+    assert flag_words_without_acoustic_evidence(words, min_score=0.0) == 0
+    assert words[0].suspect_hallucination is False
+
+
+def test_evidence_flag_applies_when_silence_filter_off_or_decode_fails(monkeypatch, tmp_path):
+    from podcast_mcp.engines import asr_silence
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+    scored = _w(1.2, 1.5)
+    scored.alignment_score = 0.001
+    path = tmp_path / "a.wav"
+
+    result = refresh_silence_flags([scored], path, AsrOptions(silence_filter_enabled=False))
+    assert result == 1
+    assert scored.suspect_hallucination is True
+
+    monkeypatch.setattr(asr_silence, "flag_silent_words_in_file", lambda *a, **k: None)
+    scored2 = _w(1.2, 1.5)
+    scored2.alignment_score = 0.001
+    result2 = refresh_silence_flags([scored2], path, AsrOptions())
+    assert result2 is None
+    assert scored2.suspect_hallucination is True
+
+
+def test_fingerprint_unchanged_without_scores_and_tracks_min_score_with_scores():
+    words = [_w(0.0, 0.5)]
+    low = AsrOptions(forced_alignment_min_word_score=0.01)
+    high = AsrOptions(forced_alignment_min_word_score=0.5)
+    assert silence_filter_fingerprint(words, "sha", low) == silence_filter_fingerprint(
+        words, "sha", high
+    )
+
+    words[0].alignment_score = 0.9
+    assert silence_filter_fingerprint(words, "sha", low) != silence_filter_fingerprint(
+        words, "sha", high
+    )

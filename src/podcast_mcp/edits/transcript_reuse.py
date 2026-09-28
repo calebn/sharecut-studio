@@ -142,11 +142,14 @@ def plan_transcription(
 
 
 def needs_retime(transcript: Transcript, model: WordAlignerModel) -> bool:
-    """Words ``model`` could re-time that it has not (none, unsupported language or re-timed never count)."""
+    """Words ``model`` could re-time that it has not, or re-timed before scores existed (#195)."""
     return (
         bool(transcript.words)
         and model.supports_language(transcript.language)
-        and transcript.word_aligner != model.id
+        and (
+            transcript.word_aligner != model.id
+            or all(w.alignment_score is None for w in transcript.words)
+        )
     )
 
 

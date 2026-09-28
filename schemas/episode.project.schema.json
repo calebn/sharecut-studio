@@ -251,6 +251,12 @@
         "confidence": { "type": ["number", "null"] },
         "suppressed": { "type": "boolean", "default": false },
         "suspect_hallucination": { "type": "boolean", "default": false },
+        "alignment_score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mean CTC posterior of the frames the forced aligner used for this word (transcribe.forced_alignment); null = Whisper's own times."
+        },
         "ignored": { "type": "boolean", "default": false },
         "audibility_status": { "type": ["string", "null"] },
         "dominant_track": { "type": ["string", "null"] }
