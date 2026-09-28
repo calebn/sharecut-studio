@@ -115,7 +115,7 @@ class WordAligner:
         return cls(model, backend, vocab, local_source=local_source)
 
     def supports_language(self, language: str | None) -> bool:
-        return (language or "en") in self.model.languages
+        return self.model.supports_language(language)
 
     def cache_identity(self) -> dict[str, Any]:
         identity: dict[str, Any] = {

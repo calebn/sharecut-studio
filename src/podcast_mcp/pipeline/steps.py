@@ -107,7 +107,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         collect_anomalous_asr_duration_flags,
         dialogue_transcribe_jobs,
     )
-    from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER
+    from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER, word_aligner_model
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)
@@ -191,10 +191,15 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     if options.forced_alignment_enabled:
         summary += f", {sum(j.get('aligned_words', 0) for j in align_jobs)} words re-timed"
         reused_keys = {j.key for j in plan.reused}
+        # Only transcripts the aligner could place: no words or an unsupported language never re-time.
+        aligner_model = word_aligner_model()
         not_retimed = sum(
             1
             for t in project.transcripts
-            if t.key in reused_keys and t.word_aligner != DEFAULT_WORD_ALIGNER
+            if t.key in reused_keys
+            and t.words
+            and aligner_model.supports_language(t.language)
+            and t.word_aligner != aligner_model.id
         )
         if not_retimed:
             summary += f", {not_retimed} reused track(s) not re-timed (Re-transcribe to re-time)"

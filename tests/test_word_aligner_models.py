@@ -159,3 +159,11 @@ def test_is_cached_does_not_hash_an_override_dir(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr("podcast_mcp.word_aligner_models.sha256_file", no_hash)
     assert word_aligner_is_cached() is True
+
+
+def test_model_supports_only_catalog_languages() -> None:
+    model = word_aligner_model()
+
+    assert model.supports_language("en")
+    assert model.supports_language(None)
+    assert not model.supports_language("de")
