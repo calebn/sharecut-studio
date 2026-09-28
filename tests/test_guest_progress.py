@@ -41,6 +41,7 @@ from podcast_mcp.util.progress import (
     register_guest_progress_sink,
     set_guest_progress_context,
 )
+from sync_helpers import drain
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -50,13 +51,6 @@ def _seed_premix(minimal_project, sample_wav):
     (art / "premix.wav").write_bytes(sample_wav.read_bytes())
     save_project(proj, minimal_project)
     return ProjectWorkspace.open(minimal_project)
-
-
-def _drain(q: asyncio.Queue) -> list[dict]:
-    items: list[dict] = []
-    while not q.empty():
-        items.append(q.get_nowait())
-    return items
 
 
 def test_guest_coalesce_matches_source_cadence():
@@ -76,7 +70,7 @@ async def test_throttled_task_final_value_reaches_guest_ws_before_end(monkeypatc
             for _ in range(20):
                 p.advance(1, message="working")
         await asyncio.sleep(0.05)
-        events = _drain(q)
+        events = drain(q)
         kinds = [e.get("kind") for e in events]
         assert kinds[-1] == "end"
         updates = [e for e in events if e.get("kind") == "update"]
@@ -231,7 +225,7 @@ async def test_guest_reporter_fail_cancel_and_heartbeat_when_visible():
         reporter.heartbeat("t", message="still working")
         reporter.fail("t", message="boom", phase="mix")
         await asyncio.sleep(0.05)
-        kinds = [item["kind"] for item in _drain(q)]
+        kinds = [item["kind"] for item in drain(q)]
         assert "update" in kinds
         assert "heartbeat" in kinds
         assert "fail" in kinds
@@ -240,7 +234,7 @@ async def test_guest_reporter_fail_cancel_and_heartbeat_when_visible():
             reporter2.update("u", 1, message="go")
             reporter2.cancel("u", message="stop")
             await asyncio.sleep(0.05)
-            kinds2 = [item["kind"] for item in _drain(q)]
+            kinds2 = [item["kind"] for item in drain(q)]
             assert "cancel" in kinds2
         finally:
             reporter2.close()
@@ -440,7 +434,7 @@ async def test_guest_hub_drops_oldest_on_full_queue():
         hub.publish("tok", {"plane": "progress", "kind": "update"})
         await asyncio.sleep(0.05)
         assert q.full()
-        items = _drain(q)
+        items = drain(q)
         assert any(item.get("kind") == "update" for item in items)
     finally:
         hub.unsubscribe("tok", q)
@@ -467,17 +461,17 @@ async def test_guest_reporter_lazy_start_and_coalesce_and_message():
     try:
         reporter.start("t", "Slow work", total=4)
         await asyncio.sleep(1.1)
-        events = _drain(q)
+        events = drain(q)
         assert any(e.get("kind") == "start" for e in events)
         reporter.message("t", "phase two")
         await asyncio.sleep(0.3)
-        msg_events = _drain(q)
+        msg_events = drain(q)
         assert any(e.get("kind") == "message" for e in msg_events)
         reporter.update("t", 1, total=4, message="a")
         await asyncio.sleep(0.3)
         reporter.update("t", 2, total=4, message="b")
         await asyncio.sleep(0.3)
-        later = _drain(q)
+        later = drain(q)
         kinds = [e.get("kind") for e in later]
         assert kinds.count("update") <= 2
         reporter._on_lazy(reporter._generation)
@@ -677,7 +671,7 @@ async def test_guest_hub_keeps_terminal_on_overflow():
             q.put_nowait({"kind": "update", "task_id": "t", "i": i, "status": "running"})
         hub.publish("tok", {"kind": "end", "task_id": "t", "status": "ok", "plane": "progress"})
         await asyncio.sleep(0.05)
-        items = _drain(q)
+        items = drain(q)
         assert any(item.get("kind") == "end" for item in items)
     finally:
         hub.unsubscribe("tok", q)
@@ -691,7 +685,7 @@ async def test_guest_hub_replays_last_running_on_subscribe():
     hub.publish("tok", {"kind": "update", "task_id": "t", "status": "running", "message": "late"})
     q = hub.subscribe("tok", loop)
     try:
-        items = _drain(q)
+        items = drain(q)
         assert items
         assert items[0]["message"] == "late"
     finally:
@@ -710,11 +704,11 @@ async def test_guest_reporter_ignores_timer_after_terminal():
         stale_gen = reporter._generation
         reporter.fail("t", message="boom")
         await asyncio.sleep(0.05)
-        _drain(q)
+        drain(q)
         reporter._flush_pending(stale_gen)
         reporter._on_lazy(stale_gen)
         await asyncio.sleep(0.05)
-        leftover = _drain(q)
+        leftover = drain(q)
         assert leftover == []
     finally:
         reporter.close()
@@ -732,7 +726,7 @@ async def test_guest_reporter_heartbeat_mixin_emits():
         reporter.update("t", 1, message="go")
         time.sleep(1.3)
         await asyncio.sleep(0.05)
-        kinds = [item["kind"] for item in _drain(q)]
+        kinds = [item["kind"] for item in drain(q)]
         assert "heartbeat" in kinds
     finally:
         reporter.close()
@@ -754,7 +748,7 @@ async def test_guest_reporter_fail_strips_traceback():
             phase="mix",
         )
         await asyncio.sleep(0.05)
-        fail = next(item for item in _drain(q) if item.get("kind") == "fail")
+        fail = next(item for item in drain(q) if item.get("kind") == "fail")
         assert fail["status"] == "error"
         assert fail["message"] == "mix"
     finally:

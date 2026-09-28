@@ -1,12 +1,14 @@
-"""Foreign-process journal write helpers shared by the sync test modules (#695).
+"""Shared helpers for the sync test modules (#695): foreign-process journal writes and
+hub queue draining.
 
-Each helper opens a *fresh* ``SyncStore`` (its own sqlite connection) on an existing
+Each write helper opens a *fresh* ``SyncStore`` (its own sqlite connection) on an existing
 project's journal and appends one row, then closes it, mimicking a write from another
 process: the in-process hub never learns about it directly.
 """
 
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
 from podcast_mcp.models import EpisodeProject
@@ -49,6 +51,20 @@ def _foreign_session_write(
         return row
     finally:
         store.close()
+
+
+def drain(q: asyncio.Queue, event_type: str | None = None) -> list[dict]:
+    """Pop everything currently queued on a hub queue; with ``event_type``, keep only
+    events whose ``type`` matches (e.g. ``"Applied"``).
+    """
+    out: list[dict] = []
+    while True:
+        try:
+            event = q.get_nowait()
+        except asyncio.QueueEmpty:
+            return out
+        if event_type is None or event.get("type") == event_type:
+            out.append(event)
 
 
 def _foreign_document_write(project: EpisodeProject) -> dict:
