@@ -207,7 +207,10 @@ def verify_candidate(c: Candidate, api: Any) -> list[str]:
     if info.sha != c.revision:
         problems.append(f"{c.label}: revision resolves to {info.sha}, pinned {c.revision}")
     card_license = getattr(info.card_data, "license", None)
-    if card_license != c.license:
+    # An undeclared card license (None) is not evidence the model changed: the Hub
+    # simply never recorded one for this repo. Only a *stated* license that
+    # disagrees with the pin is drift worth flagging.
+    if card_license is not None and card_license != c.license:
         problems.append(f"{c.label}: model card license {card_license!r}, pinned {c.license!r}")
     names = [s.rfilename for s in (info.siblings or [])]
     for pattern in c.allow_patterns:
