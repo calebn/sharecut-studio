@@ -61,6 +61,7 @@ describe("InlineWordEditor", () => {
         "host",
         0,
         "Hello",
+        "hello",
       );
     });
     await waitFor(() => expect(onClose).toHaveBeenCalledWith(true));

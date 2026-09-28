@@ -474,6 +474,7 @@ describe("TranscriptPanel", () => {
           "host",
           0,
           "Hello",
+          "hello",
         );
       });
       await vi.waitFor(() => {

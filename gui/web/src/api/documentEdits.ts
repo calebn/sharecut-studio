@@ -196,11 +196,13 @@ export async function correctTranscriptWord(
   trackId: string,
   wordIndex: number,
   text: string,
+  expectedText?: string | null,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "CorrectTranscriptWord", {
     track_id: trackId,
     word_index: wordIndex,
     text,
+    ...(expectedText == null ? {} : { expected_text: expectedText }),
   });
 }
 
@@ -210,12 +212,14 @@ export async function correctTranscriptPhrase(
   startWordIndex: number,
   endWordIndex: number,
   text: string,
+  expectedText?: string | null,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "CorrectTranscriptPhrase", {
     track_id: trackId,
     start_word_index: startWordIndex,
     end_word_index: endWordIndex,
     text,
+    ...(expectedText == null ? {} : { expected_text: expectedText }),
   });
 }
 

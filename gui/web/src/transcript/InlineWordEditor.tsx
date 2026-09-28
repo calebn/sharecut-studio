@@ -62,6 +62,7 @@ export function InlineWordEditor({
           wordIndex,
           wordIndex,
           text,
+          initialText,
         );
       } catch (e) {
         failure = e;

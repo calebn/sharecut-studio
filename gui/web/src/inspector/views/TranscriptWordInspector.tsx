@@ -29,7 +29,11 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
-import { findTranscriptWord, wordSeekSec } from "../../utils/transcript";
+import {
+  findTranscriptWord,
+  transcriptSpanText,
+  wordSeekSec,
+} from "../../utils/transcript";
 import { ModifierInspector } from "../ModifierInspector";
 
 export function TranscriptWordInspector({
@@ -111,8 +115,21 @@ export function TranscriptWordInspector({
       setError(problem);
       return;
     }
+    const expectedText = transcriptSpanText(
+      project,
+      trackId,
+      wordIndex,
+      endIndex,
+    );
     await runForWord("fix", () =>
-      submitWordCorrection(projectPath, trackId, wordIndex, endIndex, text),
+      submitWordCorrection(
+        projectPath,
+        trackId,
+        wordIndex,
+        endIndex,
+        text,
+        expectedText,
+      ),
     );
   };
 
