@@ -16,7 +16,9 @@ from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.parallel import run_parallel
-from podcast_mcp.util.progress import CancelledProgress, resolve_progress_task
+from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
+
+BOUNCE_CANCELLED = "Bounce cancelled"
 
 
 @dataclass(frozen=True)
@@ -122,11 +124,7 @@ class BounceService:
         req = req or BounceRequest()
         tracks = self.validate(req)
 
-        def raise_if_cancelled() -> None:
-            if cancel_check is not None and cancel_check():
-                raise CancelledProgress("Bounce cancelled")
-
-        raise_if_cancelled()
+        raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
         project = self.ws.project
 
         out_dir = project.export_dir() / "bounces"
@@ -167,12 +165,12 @@ class BounceService:
                 )
                 if not mix_inputs:
                     raise ValueError("no bounceable tracks (missing media or empty selection)")
-                raise_if_cancelled()
+                raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
 
                 prog.set_phase("mix", "Mixing bounce…")
                 eng.mix_tracks(mix_inputs, mixed, peak_ceiling_db=mix_peak_ceiling_db(defaults))
                 prog.advance(1, message="Mix ready")
-                raise_if_cancelled()
+                raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
                 source = mixed
                 start = float(req.start_s) if req.start_s is not None else 0.0
                 mixed_dur = float(eng.probe(mixed).duration_sec)
@@ -190,7 +188,7 @@ class BounceService:
                     eng.extract_segment(mixed, trimmed, start, end)
                     source = trimmed
                 prog.advance(1, message="Range ready")
-                raise_if_cancelled()
+                raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
 
                 prog.set_phase("encode", f"Writing {', '.join(formats)}…")
                 written = write_audio_formats(

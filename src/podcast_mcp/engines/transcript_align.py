@@ -175,6 +175,7 @@ def interval_duration(intervals: list[tuple[float, float]]) -> float:
 
 
 def raise_if_cancelled(cancel_check: Callable[[], bool] | None) -> None:
+    """Alignment's cancel contract raises ``RuntimeError`` (conversation_align callers and tests match on it); pipeline-slot jobs use ``util.progress.raise_if_cancel_requested``."""
     if cancel_check is not None and cancel_check():
         raise RuntimeError("Pipeline cancelled")
 

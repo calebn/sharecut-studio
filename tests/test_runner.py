@@ -132,6 +132,20 @@ def test_runner_raises_when_cancelled_before_step(minimal_project):
         runner.run(proj, only_step="clean_audio", cancel_check=lambda: True)
 
 
+def test_runner_cancel_emits_one_cancel_event(minimal_project):
+    from podcast_mcp.util.progress import CancelledProgress, RecordingProgress
+
+    proj = load_project(minimal_project)
+    rec = RecordingProgress()
+    with pytest.raises(CancelledProgress, match="Pipeline cancelled"):
+        PipelineRunner(defaults={}).run(
+            proj, only_step="clean_audio", cancel_check=lambda: True, progress=rec
+        )
+    cancels = [e for e in rec.events if e.kind == "cancel"]
+    assert [e.message for e in cancels] == ["Pipeline cancelled"]
+    assert "fail" not in {e.kind for e in rec.events}
+
+
 @pytest.mark.refine_gate
 def test_runner_refreshes_stale_unattended_waiver_after_success(minimal_project, monkeypatch):
     from podcast_mcp.pipeline import runner as runner_mod
