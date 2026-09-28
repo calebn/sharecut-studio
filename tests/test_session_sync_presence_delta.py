@@ -391,6 +391,32 @@ def test_roster_request_through_apply_ws_client_message(minimal_project) -> None
     assert echo["roster_version"] == svc.snapshot()["roster_version"]
 
 
+def test_host_roster_request_is_throttled_per_client(minimal_project) -> None:
+    from podcast_mcp.gui.routes.session import apply_ws_client_message
+
+    proj = load_project(minimal_project)
+    svc = SessionSyncService(proj)
+    _presence(svc, "c1", seq=1)
+    _presence(svc, "c2", seq=1)
+
+    echo1, _ = apply_ws_client_message(
+        svc, {"type": "RosterRequest"}, client_id="c1", role="viewer", label="A", seq=5
+    )
+    assert echo1 is not None
+    assert echo1["type"] == "Presence"
+
+    echo2, seq2 = apply_ws_client_message(
+        svc, {"type": "RosterRequest"}, client_id="c1", role="viewer", label="A", seq=5
+    )
+    assert (echo2, seq2) == (None, 5)
+
+    echo3, _ = apply_ws_client_message(
+        svc, {"type": "RosterRequest"}, client_id="c2", role="viewer", label="B", seq=5
+    )
+    assert echo3 is not None
+    assert echo3["type"] == "Presence"
+
+
 def test_roster_request_over_the_host_ws(minimal_project) -> None:
     pytest = __import__("pytest")
     pytest.importorskip("fastapi")
