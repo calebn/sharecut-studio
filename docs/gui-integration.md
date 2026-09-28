@@ -285,7 +285,7 @@ Click an avatar (desktop) or **Menu / More → People** (tablet/phone) to follow
 | Phone | Tab → Listen/Text/More mapping; playhead at the Ferrite center needle. Zoom/scroll is **not** copied. | Same as desktop when capable | Host-only tabs stay More-hub-unavailable; banner names the tab |
 | Guest share | Transcript / Comments tabs only | Mix only | Banner: “· in Pipeline (host-only)”, “· auditioning FX”; “· Listening in Mix” when Mix is forced |
 
-Guests stay on Mix at the store (`setAuditionMode`), TransportBar, `transport.audition`, Follow (`planFollowUi` always applies Mix), and session snapshots (force Mix; never copy host mute/solo). Track inspector **Play FX around start** goes through `transport.audition` and is disabled for guests.
+Guests stay on Mix at the store (`setAuditionMode`), TransportBar, `transport.audition`, Follow (`planFollowUi` always applies Mix), and session snapshots (force Mix; never copy host mute/solo). Track inspector **Preview effects at track start** goes through `transport.audition` and is disabled for guests.
 
 A banner and colored timeline border show who you are following. Strong local navigation unfollows: scroll, zoom, seek (including phone Listen scrub / ±15s), play/stop, tab / phone-mode switch, or **Escape**. Mute, solo, audition, and selection do **not** unfollow. Phone unfollow is also the banner **Stop following** control (44pt). Guests stay on Mix; capable hosts mirror the leader’s audition. Hit targets use `min-block-size: var(--touch-min)` (`2.75rem`) under `@container app` (banner, More hub) and `@container transport` (Menu rows) at `inline-size < 68.75rem` — not `@media` viewport queries. Rubric and prior art: [session-sync.md](session-sync.md) § Follow scope.
 

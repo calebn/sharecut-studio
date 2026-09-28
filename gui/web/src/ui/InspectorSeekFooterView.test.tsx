@@ -122,24 +122,34 @@ describe("InspectorSeekFooterView", () => {
     ).toBeNull();
   });
 
-  it("switches action variant between quiet links and full buttons", () => {
+  it("renders seek and play as buttons with icons", () => {
     const props: InspectorSeekFooterViewProps = {
       onSeek: vi.fn(),
       onPlay: vi.fn(),
     };
-    const { rerender } = render(<InspectorSeekFooterView {...props} />);
-    for (const name of ["Seek", "Play around"]) {
-      const button = screen.getByRole("button", { name });
-      expect(button).toHaveClass("linkish");
-      expect(button).not.toHaveClass("modifier-action");
-    }
-    rerender(<InspectorSeekFooterView {...props} actionVariant="default" />);
+    render(<InspectorSeekFooterView {...props} />);
     for (const name of ["Seek", "Play around"]) {
       const button = screen.getByRole("button", { name });
       expect(button).not.toHaveClass("linkish");
       expect(button).toHaveClass("modifier-action");
-      expect(button).not.toHaveClass("primary");
-      expect(button).not.toHaveClass("danger");
+      expect(
+        button.querySelector("svg.ui-icon[aria-hidden='true']"),
+      ).not.toBeNull();
     }
+  });
+
+  it("disables Play with a tooltip reason but leaves Seek enabled", () => {
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        playDisabled
+        playDisabledReason="Guests listen in Mix"
+      />,
+    );
+    const play = screen.getByRole("button", { name: "Play around" });
+    expect(play).toBeDisabled();
+    expect(play).toHaveAttribute("title", "Guests listen in Mix");
+    expect(screen.getByRole("button", { name: "Seek" })).not.toBeDisabled();
   });
 });

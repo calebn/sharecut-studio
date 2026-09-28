@@ -204,7 +204,6 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           padSec={JOIN_AUDITION_PAD_SEC}
           seekLabel="Seek join"
           playLabel="Play across join"
-          actionVariant="default"
         />
       }
     >

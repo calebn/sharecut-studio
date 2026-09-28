@@ -57,7 +57,6 @@ export const JoinButtons: Story = {
   args: {
     seekLabel: "Seek join",
     playLabel: "Play across join",
-    actionVariant: "default",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
