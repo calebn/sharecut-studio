@@ -37,7 +37,8 @@ def pipeline_run(
     Existing transcripts are reused; ``force_transcribe=true`` re-runs ASR for this run
     only (not persisted). ``retime_words=true`` re-times stored transcripts with the forced
     aligner from their ASR cache for this run only (no Whisper; hand-edited transcripts are
-    skipped); not with ``force_transcribe``. Replacing edited transcripts is refused when
+    skipped); check ``transcript_timing.json`` → ``forced_alignment.retime`` for skipped and
+    failed tracks; not with ``force_transcribe``. Replacing edited transcripts is refused when
     ``unattended``; run attended, or the user confirms with Studio Re-transcribe.
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
