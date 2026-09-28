@@ -59,6 +59,33 @@ def test_assigning_another_transcripts_words_copies_the_list():
     assert Transcript(track_id="c", words=a.words).words is not a.words
 
 
+@pytest.mark.parametrize(
+    "augment",
+    [
+        pytest.param(lambda tr, w: operator.iadd(tr.words, [w]), id="iadd"),
+        pytest.param(lambda tr, w: operator.imul(tr.words, 2), id="imul"),
+    ],
+)
+def test_augmented_words_assignment_keeps_the_list_and_bumps_once(augment):
+    tr = _tr()
+    words = tr.words
+    w = TranscriptWord(text="c", start=1.0, end=1.1)
+    before = words_revision()
+    tr.words = augment(tr, w)  # what `tr.words += [w]` / `tr.words *= 2` expands to
+    assert tr.words is words
+    assert words_revision() == before + 1
+
+
+def test_augmented_assignment_syntax_bumps_once():
+    tr = _tr()
+    words = tr.words
+    before = words_revision()
+    tr.words += [TranscriptWord(text="c", start=1.0, end=1.1)]
+    assert tr.words is words
+    assert len(tr.words) == 3
+    assert words_revision() == before + 1
+
+
 _MUTATORS = [
     pytest.param(lambda words, w: words.__setitem__(0, w), id="setitem"),
     pytest.param(lambda words, w: operator.setitem(words, slice(0, 1), [w]), id="setitem_slice"),
