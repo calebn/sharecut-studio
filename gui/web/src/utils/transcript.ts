@@ -62,12 +62,14 @@ function* trackWordsInRange(
 
 /**
  * Record `text` for `index` once: the one duplicate-index rule shared by
- * `transcriptWordRange` and `transcriptSpanText` (#650). Returns false when
- * a second loaded listing of the index disagrees with the first; the first
- * listing is kept.
+ * `transcriptWordRange` and `collectWordTexts` (#650). Returns false when a
+ * second loaded listing of the index disagrees with the first; the first
+ * listing is kept in `texts` either way — a caller that wants a disagreement
+ * to read as unverifiable (`collectWordTexts`) overwrites it with `null`
+ * itself.
  */
 function addIndexedText(
-  texts: Map<number, string>,
+  texts: Map<number, string | null>,
   index: number,
   text: string,
 ): boolean {
@@ -132,14 +134,25 @@ export function transcriptWordRange(
   return texts ? { start, end, text: joinIndexedTexts(texts) } : { start, end };
 }
 
+/** Snapshot of loaded word text by `word_index` on one track (#650). A disagreeing duplicate listing maps to `null`; a `word_index` not in the snapshot is simply absent. */
+export type TrackWordTexts = ReadonlyMap<number, string | null>;
+
+/** True when `startWordIndex..endWordIndex` is a valid ascending integer word-index range. */
+function isWordSpan(startWordIndex: number, endWordIndex: number): boolean {
+  return (
+    Number.isInteger(startWordIndex) &&
+    Number.isInteger(endWordIndex) &&
+    endWordIndex >= startWordIndex
+  );
+}
+
 /**
- * Space-joined text of an inclusive word-index range on a track, or null unless
- * every index in the range is in this snapshot (#650 stale-correction guard).
+ * Text for every loaded `word_index` on `trackId` within `[lo, hi]` (#650).
  * A word listed under two utterances (one straddling an utterance boundary)
- * counts once: the mapper emits both listings from the same per-track word
- * view, so their text is identical. If two loaded listings still disagree, the
- * span is unverifiable and this returns null (no guard; the inspector says so)
- * rather than guessing which listing is current.
+ * maps once: the mapper emits both listings from the same per-track word
+ * view, so their text is identical. If two loaded listings still disagree,
+ * the index is unverifiable and maps to `null` rather than guessing which
+ * listing is current.
  *
  * That branch is defensive. The only way listings come from different
  * snapshots is the SHELL overlay (`overlayTranscriptWords` in
@@ -150,34 +163,78 @@ export function transcriptWordRange(
  * listings agreeing or the words incomplete; the disagreement tests in
  * `utils/transcript.test.ts` use hand-built fixtures.
  */
+function collectWordTexts(
+  project: ProjectView | null,
+  trackId: string,
+  lo: number,
+  hi: number,
+): Map<number, string | null> {
+  const texts = new Map<number, string | null>();
+  for (const { index, word } of trackWordsInRange(project, trackId, lo, hi)) {
+    if (!addIndexedText(texts, index, word.text)) {
+      texts.set(index, null);
+    }
+  }
+  return texts;
+}
+
+/** Every loaded word on `trackId`, keyed by `word_index` (#650). Covers the full range loaded in `project`, not one span. */
+export function trackWordTexts(
+  project: ProjectView | null,
+  trackId: string,
+): TrackWordTexts {
+  return collectWordTexts(
+    project,
+    trackId,
+    Number.NEGATIVE_INFINITY,
+    Number.POSITIVE_INFINITY,
+  );
+}
+
+/**
+ * Space-joined text of an inclusive word-index range read from a
+ * `TrackWordTexts` snapshot, or null unless every index in the range is
+ * present and unambiguous (#650 stale-correction guard). O(span) — callers on
+ * a hot path (e.g. every keystroke) should build `texts` once and reuse it.
+ */
+export function spanTextFromIndex(
+  texts: TrackWordTexts,
+  startWordIndex: number,
+  endWordIndex: number,
+): string | null {
+  if (!isWordSpan(startWordIndex, endWordIndex)) {
+    return null;
+  }
+  const parts: string[] = [];
+  for (let index = startWordIndex; index <= endWordIndex; index++) {
+    const text = texts.get(index);
+    if (text == null) {
+      return null;
+    }
+    parts.push(text);
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Space-joined text of an inclusive word-index range on a track, or null unless
+ * every index in the range is in this snapshot (#650 stale-correction guard).
+ * See `collectWordTexts` for the duplicate-index rule.
+ */
 export function transcriptSpanText(
   project: ProjectView | null,
   trackId: string,
   startWordIndex: number,
   endWordIndex: number,
 ): string | null {
-  if (
-    !Number.isInteger(startWordIndex) ||
-    !Number.isInteger(endWordIndex) ||
-    endWordIndex < startWordIndex
-  ) {
+  if (!isWordSpan(startWordIndex, endWordIndex)) {
     return null;
   }
-  const byIndex = new Map<number, string>();
-  for (const { index, word } of trackWordsInRange(
-    project,
-    trackId,
+  return spanTextFromIndex(
+    collectWordTexts(project, trackId, startWordIndex, endWordIndex),
     startWordIndex,
     endWordIndex,
-  )) {
-    if (!addIndexedText(byIndex, index, word.text)) {
-      return null;
-    }
-  }
-  if (byIndex.size !== endWordIndex - startWordIndex + 1) {
-    return null;
-  }
-  return joinIndexedTexts(byIndex);
+  );
 }
 
 /** Timeline intervals for a mapped utterance; empty when cut away / unmapped. */
