@@ -1483,3 +1483,24 @@ def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav,
     }
     assert "3 words re-timed" in summary
     assert "forced alignment kept Whisper timestamps on 1 track(s)" in summary
+    assert "not re-timed" not in summary
+
+
+def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
+    minimal_project, sample_wav, tmp_workspace
+):
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        steps.transcribe_tracks(proj, load_defaults())
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        summary = steps.transcribe_tracks(proj, defaults)
+    eng_cls.assert_not_called()
+    assert "0 transcribed, 1 reused" in summary
+    assert "0 words re-timed" in summary
+    assert "1 reused track(s) not re-timed (Re-transcribe to re-time)" in summary
