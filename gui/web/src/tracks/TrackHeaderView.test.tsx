@@ -56,6 +56,8 @@ describe("TrackHeaderView", () => {
     expect(screen.getByRole("img", { name: "Stem up to date" })).toBeTruthy();
     const out = screen.getByText("Out 0.0 dB");
     expect(out).toHaveAttribute("title");
+    // layout.css keys the compact grid area and narrow-pane hide rule on it.
+    expect(out).toHaveClass("track-out-gain");
     expect(container.querySelector(".gain-strip")).toBeNull();
     expect(screen.getByText("dialogue")).toBeTruthy();
     await userEvent.click(open);
