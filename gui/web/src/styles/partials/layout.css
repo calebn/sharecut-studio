@@ -314,6 +314,19 @@
   gap: var(--space-3);
 }
 
+.transcript-review-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.transcript-review-count {
+  color: var(--text-dim);
+  font-size: var(--font-size-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .transcript-mode-hint {
   flex: 0 0 auto;
   margin: 0 0 var(--space-3);

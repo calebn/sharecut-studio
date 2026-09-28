@@ -10,6 +10,8 @@ export type TranscriptTurnWord = {
   unmapped?: boolean;
   selected?: boolean;
   lowConfidence?: boolean;
+  /** Current stop of the low-confidence walkthrough (#634). */
+  reviewCurrent?: boolean;
   suspectHallucination?: boolean;
   title?: string;
   ariaLabel?: string;
@@ -102,6 +104,7 @@ export function TranscriptTurnView({
               item.word.suppressed ? "suppressed" : "",
               item.word.ignored ? "ignored" : "",
               item.lowConfidence ? "low-confidence" : "",
+              item.reviewCurrent ? "review-current" : "",
               item.suspectHallucination ? "suspect-hallucination" : "",
               item.selected ? "selected" : "",
             ]
@@ -126,6 +129,7 @@ export function TranscriptTurnView({
                       data-word-index={item.word.word_index}
                       {...item.anchorProps}
                       title={item.title}
+                      aria-current={item.reviewCurrent ? "true" : undefined}
                       aria-label={
                         item.suspectHallucination
                           ? [item.word.text, item.ariaLabel, SILENCE_WARNING]
@@ -142,6 +146,7 @@ export function TranscriptTurnView({
                       ref={item.activeRef as Ref<HTMLSpanElement>}
                       className={chipClass}
                       title={item.title}
+                      aria-current={item.reviewCurrent ? "true" : undefined}
                       {...item.anchorProps}
                     >
                       {item.word.text}

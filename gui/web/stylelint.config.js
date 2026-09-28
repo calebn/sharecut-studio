@@ -95,6 +95,7 @@ export default {
           outline: [
             "none",
             "solid",
+            "dashed",
             "transparent",
             "currentColor",
             "/^0$/",

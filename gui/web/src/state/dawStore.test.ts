@@ -214,6 +214,7 @@ describe("dawStore listen-first transport", () => {
       followDegraded: { tab: "pipeline" },
       transcriptScrollRequest: "transcript:turn:0",
       transcriptViewAnchor: "transcript:turn:3",
+      transcriptReviewCursor: { trackId: "t", wordIndex: 1, position: 0 },
     });
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     const s = useDawStore.getState();
@@ -223,12 +224,26 @@ describe("dawStore listen-first transport", () => {
     expect(s.followDegraded).toEqual({});
     expect(s.transcriptScrollRequest).toBeNull();
     expect(s.transcriptViewAnchor).toBeNull();
+    expect(s.transcriptReviewCursor).toBeNull();
   });
 
   it("keeps local client id when hydrating the same project path", () => {
     useDawStore.setState({ localClientId: "guest-tok-viewer-ab" });
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
     expect(useDawStore.getState().localClientId).toBe("guest-tok-viewer-ab");
+  });
+
+  it("keeps the review cursor when hydrating the same project path", () => {
+    useDawStore.setState({
+      projectPath: "/tmp/ep.project.json",
+      transcriptReviewCursor: { trackId: "t", wordIndex: 1, position: 0 },
+    });
+    useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
+    expect(useDawStore.getState().transcriptReviewCursor).toEqual({
+      trackId: "t",
+      wordIndex: 1,
+      position: 0,
+    });
   });
 
   it("hydrate resets per-project transport status (#78)", () => {

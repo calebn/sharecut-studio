@@ -46,6 +46,7 @@ import type {
   ShellBreakpoint,
   ToolMode,
   TranscriptInlineEditFailure,
+  TranscriptReviewCursor,
 } from "./types";
 
 function clipTrackId(
@@ -136,6 +137,7 @@ type UiSlice = Pick<
   | "transcriptFollowPlayhead"
   | "transcriptInlineCommitPending"
   | "transcriptInlineEditFailure"
+  | "transcriptReviewCursor"
   | "chapterAddPending"
   | "transcriptAnnotate"
   | "showCutAwayUtterances"
@@ -166,6 +168,7 @@ type UiSlice = Pick<
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineCommitPending"
   | "setTranscriptInlineEditFailure"
+  | "setTranscriptReviewCursor"
   | "setChapterAddPending"
   | "setTranscriptAnnotate"
   | "toggleTranscriptAnnotate"
@@ -275,6 +278,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptFollowPlayhead: true,
     transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
+    transcriptReviewCursor: null as TranscriptReviewCursor | null,
     chapterAddPending: false,
     transcriptAnnotate: false,
     showCutAwayUtterances: false,
@@ -388,6 +392,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptInlineCommitPending }),
     setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>
       set({ transcriptInlineEditFailure }),
+    setTranscriptReviewCursor: (transcriptReviewCursor) =>
+      set({ transcriptReviewCursor }),
     setChapterAddPending: (chapterAddPending) => set({ chapterAddPending }),
     setTranscriptAnnotate: (transcriptAnnotate) => {
       set({

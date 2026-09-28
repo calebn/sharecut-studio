@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**100** capabilities · **84** Sharecut Studio commands · **51** keyed · **164** MCP tools · **16** skills on rows (+ **18** hub skills).
+**102** capabilities · **86** Sharecut Studio commands · **51** keyed · **164** MCP tools · **17** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -103,6 +103,8 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Correct transcript | `transcript.correctIntent` | — (toolbar toggle; no industry-standard key) | `transcript.correct`, `mobileShell.gesture.doubleTapWord`, `transcript.inlineEdit` | — | — | — | — | anchor · look |
 | Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | `transcript.select` | — | — | — | — | anchor · look |
 | Ignore / restore transcript words | `transcript.ignoreWords` | — (no industry-standard key (#649)) | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore` | — | — | — | — | anchor · look |
+| Next low-confidence word | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
+| Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | — | — | — | — | time · none |
 | Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |

@@ -171,4 +171,56 @@ describe("TranscriptTurnView", () => {
       container.querySelectorAll(".utterance-restore-anchor"),
     ).toHaveLength(1);
   });
+
+  it("marks the current low-confidence walkthrough stop (#634)", () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                { ...props.segments[0].words[0], reviewCurrent: true },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const current = container.querySelector(".utterance-word.review-current");
+    expect(current).not.toBeNull();
+    expect(current).toHaveAttribute("aria-current", "true");
+    expect(current?.tagName).toBe("BUTTON");
+    const others = container.querySelectorAll(
+      ".utterance-word:not(.review-current)",
+    );
+    for (const el of others) {
+      expect(el).not.toHaveAttribute("aria-current");
+    }
+  });
+
+  it("marks a non-interactive current stop too", () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                props.segments[0].words[0],
+                { ...props.segments[0].words[1], reviewCurrent: true },
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const current = container.querySelector(".utterance-word.review-current");
+    expect(current).not.toBeNull();
+    expect(current).toHaveAttribute("aria-current", "true");
+    expect(current?.tagName).toBe("SPAN");
+  });
 });

@@ -67,6 +67,7 @@ export const createProjectSlice: StateCreator<
       serverClockOffsetMs: samePath ? get().serverClockOffsetMs : 0,
       followDegraded: samePath ? get().followDegraded : {},
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
+      transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
       transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,
       playbackRate: samePath ? get().playbackRate : 1,
       ingestBusy: false,

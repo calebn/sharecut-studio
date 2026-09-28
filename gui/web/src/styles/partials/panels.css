@@ -465,6 +465,12 @@
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
 }
 
+/* Current low-confidence walkthrough stop (#634). */
+.utterance-word.review-current {
+  outline: var(--focus-ring-width) dashed var(--color-warning-underline);
+  outline-offset: 1px;
+}
+
 .utterance-word.selected {
   outline: 1px solid var(--accent);
   outline-offset: 1px;
