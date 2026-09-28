@@ -216,7 +216,11 @@ Standalone Canvas stories open their dialogs for visual review. Autodocs
 examples start with launchers so the previews remain independently inspectable
 and closable. They cover an open episode, the no-episode warning, the
 gesture sheet's callback handoff to keyboard shortcuts, and a 360px phone
-viewport without app or network context.
+viewport without app or network context. Dialog stories share
+`src/test/DialogLauncher.tsx` (launcher button plus open state) and
+`openDialogByLauncher` / `useArgState` from `src/test/storyDialog.ts`, so play
+functions open a dialog the same way and Controls keep driving state the
+preview owns.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
@@ -406,7 +410,8 @@ that store or simulate command execution.
 
 - 2026-09-27 — Added `Templates/ShareDialog` and `Templates/BounceDialog`
   with the props-only `ShareDialogView` and `BounceDialogView` rendered by
-  their live adapters, closing #608.
+  their live adapters, closing #608. Dialog stories now share
+  `DialogLauncher` and `openDialogByLauncher`.
 
 - 2026-09-27 — Closed #172: added the fixed-`nowSec` pipeline stall preview,
   the `LoadingScreen` / `ErrorScreen` / `CloseButton` cover-screen stories,
