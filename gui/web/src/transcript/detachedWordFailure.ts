@@ -1,10 +1,17 @@
 import { useDawStore } from "../state/dawStore";
 import type { TranscriptInlineEditFailure } from "../state/types";
-import type { TranscriptWordView } from "../types/project";
+import type {
+  TranscriptWordBooleanFlag,
+  TranscriptWordView,
+} from "../types/project";
 import { errorMessage } from "../utils/apiError";
 
-/** What failed on the word: a text fix, or a Suppress / Ignore toggle. */
-export type DetachedWordAction = "fix" | "suppressed" | "ignored";
+/**
+ * What failed on the word: a text fix, or a Suppress / Ignore toggle. The
+ * toggle names are boolean-only word fields (TranscriptWordBooleanFlag), since
+ * `flag.was` and the moot check read them through `Boolean()`.
+ */
+export type DetachedWordAction = "fix" | TranscriptWordBooleanFlag;
 
 export interface DetachedWordFailureInput {
   projectPath: string;
