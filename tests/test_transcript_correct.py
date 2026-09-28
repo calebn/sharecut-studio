@@ -251,6 +251,59 @@ def test_apply_transcript_corrections_rebuilds_combined_once(monkeypatch) -> Non
     assert [word.text for word in p.transcripts[0].words] == ["first", "second"]
 
 
+def test_apply_corrections_keep_evidence_carries_phrase_evidence() -> None:
+    p = EpisodeProject.create("keep-evidence", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="a", start=0.0, end=0.5, alignment_score=0.9),
+                TranscriptWord(
+                    text="b",
+                    start=0.5,
+                    end=1.0,
+                    alignment_score=0.004,
+                    suspect_hallucination=True,
+                ),
+                TranscriptWord(text="c", start=1.0, end=1.5),
+            ],
+        )
+    ]
+    apply_transcript_corrections(
+        p,
+        "host",
+        phrases=[{"start_word_index": 0, "end_word_index": 1, "text": "x y"}],
+        keep_evidence=True,
+    )
+    words = p.transcripts[0].words
+    assert [w.text for w in words[:2]] == ["x", "y"]
+    for w in words[:2]:
+        assert w.alignment_score == 0.004
+        assert w.suspect_hallucination is True
+    assert words[2].text == "c"
+    assert words[2].alignment_score is None
+    assert words[2].suspect_hallucination is False
+
+    apply_transcript_corrections(
+        p,
+        "host",
+        words=[{"word_index": 0, "text": "z"}],
+        keep_evidence=True,
+    )
+    assert p.transcripts[0].words[0].text == "z"
+    assert p.transcripts[0].words[0].alignment_score == 0.004
+    assert p.transcripts[0].words[0].suspect_hallucination is True
+
+    apply_transcript_corrections(
+        p,
+        "host",
+        words=[{"word_index": 0, "text": "zz"}],
+    )
+    assert p.transcripts[0].words[0].text == "zz"
+    assert p.transcripts[0].words[0].alignment_score is None
+    assert p.transcripts[0].words[0].suspect_hallucination is False
+
+
 @pytest.mark.parametrize(
     "text",
     [

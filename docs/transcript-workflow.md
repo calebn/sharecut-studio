@@ -195,10 +195,14 @@ places gets `alignment_score`, the mean posterior of the frames it used. A score
 room noise or bleed that the -60 dBFS peak test cannot; words the aligner could not place have no
 score and are judged by the silence filter alone. `transcript_timing.json` →
 `forced_alignment.jobs[].no_evidence_words` counts them, and the step summary adds "N aligned
-word(s) with no acoustic evidence". A text correction drops the word's stale score: `correct_word`
-clears `alignment_score` and the flag when the text changes, and `correct_phrase` writes new
-unscored words, so the evidence flag does not come back on a corrected word (the silence filter
-still re-checks its span on the next run). A changed floor re-flags reused transcripts without
+word(s) with no acoustic evidence". A person's or agent's text correction drops the word's stale
+score: `correct_word` clears `alignment_score` and the flag when the text changes, and
+`correct_phrase` writes new unscored words, so the evidence flag does not come back on a corrected
+word (the silence filter still re-checks its span on the next run, because the flag-state term of
+the fingerprint changes). Automated `precorrect_transcript` rewrites (glossary and cross-track
+sync) keep the evidence, since the audio under the word is unchanged: a word rewrite keeps its
+score and flag, and a phrase rewrite gives each new word the lowest old score and the flag if any
+old word had it. A changed floor re-flags reused transcripts without
 decoding Whisper; turning `forced_alignment.enabled` off does not remove scores already stored on
 reused transcripts, so they keep flagging until `min_word_score` is 0 or the track is
 re-transcribed; transcripts re-timed before scores existed, or scored under an older
