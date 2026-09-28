@@ -88,16 +88,21 @@ export function hostReconnectPauseCopy(offlineGapMs: number): string {
   return `Paused: the host was offline for ${seconds}s. Resume when everyone is ready.`;
 }
 
+/** The take whose `take_index` matches `snapshot.take_index`, if any (no fallback). */
+export function findCurrentTake<T extends { take_index: number }>(snapshot: {
+  take_index: number;
+  takes?: readonly T[];
+}): T | undefined {
+  return snapshot.takes?.find((row) => row.take_index === snapshot.take_index);
+}
+
 export function hostReconnectPauseCopyFromSnapshot(
   snapshot: RecordSnapshot,
 ): string | null {
   if (snapshot.state !== "paused" || snapshot.host_offline_gap_ms == null) {
     return null;
   }
-  const take = snapshot.takes?.find(
-    (row) => row.take_index === snapshot.take_index,
-  );
-  const last = take?.pauses.at(-1);
+  const last = findCurrentTake(snapshot)?.pauses.at(-1);
   if (last != null && last.resume_wall_ms != null) {
     return null;
   }
@@ -112,10 +117,7 @@ export function hostKeeperResetKey(snapshot: RecordSnapshot | null): number {
   if (snapshot?.pause_reason !== "host_reconnect") {
     return 0;
   }
-  const take = snapshot.takes?.find(
-    (row) => row.take_index === snapshot.take_index,
-  );
-  const open = take?.pauses.find(
+  const open = findCurrentTake(snapshot)?.pauses.find(
     (row) =>
       row.pause_reason === "host_reconnect" && row.resume_wall_ms == null,
   );

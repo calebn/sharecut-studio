@@ -6,6 +6,7 @@ import {
   type Page,
   type Request,
 } from "@playwright/test";
+import { findCurrentTake } from "../src/record/types";
 import { isPathInside } from "./pathInside";
 import { wavPeak } from "./wavPeak";
 
@@ -83,11 +84,16 @@ export type HostRecordSnapshot = {
   takes?: HostRecordTake[];
 };
 
-/** The take at `snapshot.take_index`; throws when the snapshot has none. */
+/**
+ * The take at `snapshot.take_index` (`findCurrentTake` in
+ * `src/record/types.ts`); throws when none matches. Stricter than the server's
+ * `_current_take` (`services/record/state.py`), which falls back to the last
+ * take around a take transition: a spec asserting on a take's pauses should
+ * fail loudly on a mismatch rather than read another take. Poll the snapshot
+ * until it settles before calling this across a take transition.
+ */
 export function currentTake(snapshot: HostRecordSnapshot): HostRecordTake {
-  const take = snapshot.takes?.find(
-    (t) => t.take_index === snapshot.take_index,
-  );
+  const take = findCurrentTake(snapshot);
   if (!take) {
     throw new Error("no open take in record snapshot");
   }
