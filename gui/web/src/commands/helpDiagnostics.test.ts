@@ -28,4 +28,18 @@ describe("help.diagnosticsBundle", () => {
     expect(result.status).toBe("disabled");
     expect(useDawStore.getState().helpDialogOpen).toBe(false);
   });
+
+  it("reports the handler's own host-only reason on a bypassed (button) call", async () => {
+    useDawStore.setState({ projectPath: "share:fantastic-acoustic-whale" });
+    const result = await execute(
+      "help.diagnosticsBundle",
+      {},
+      { skipWhen: true },
+    );
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Export diagnostics is host-only",
+    });
+    expect(useDawStore.getState().helpDialogOpen).toBe(false);
+  });
 });

@@ -118,30 +118,41 @@ export function CommandPaletteView({
             <section key={category} className="command-palette-section">
               <h3>{category}</h3>
               <ul>
-                {rows.map((row) => (
-                  <li key={`${row.id}:${row.shortcut}`}>
-                    <button
-                      type="button"
-                      className="ui-control command-palette-run"
-                      onClick={() => onRun(row.id)}
-                    >
-                      <span>{row.label}</span>
-                      <kbd>{row.shortcut}</kbd>
-                    </button>
-                    {showRemap ? (
-                      <label className="command-palette-remap">
-                        Remap
-                        <input
-                          aria-label={`Remap ${row.label}`}
-                          placeholder={row.defaultKey}
-                          onBlur={(e) => {
-                            onRemap(row.id, e.target.value.trim());
-                          }}
-                        />
-                      </label>
-                    ) : null}
-                  </li>
-                ))}
+                {rows.map((row) => {
+                  const noteId = row.note
+                    ? `command-palette-note-${row.id}`
+                    : undefined;
+                  return (
+                    <li key={`${row.id}:${row.shortcut}`}>
+                      <button
+                        type="button"
+                        className="ui-control command-palette-run"
+                        aria-describedby={noteId}
+                        onClick={() => onRun(row.id)}
+                      >
+                        <span>{row.label}</span>
+                        <kbd>{row.shortcut}</kbd>
+                      </button>
+                      {row.note ? (
+                        <p id={noteId} className="command-palette-note">
+                          {row.note}
+                        </p>
+                      ) : null}
+                      {showRemap ? (
+                        <label className="command-palette-remap">
+                          Remap
+                          <input
+                            aria-label={`Remap ${row.label}`}
+                            placeholder={row.defaultKey}
+                            onBlur={(e) => {
+                              onRemap(row.id, e.target.value.trim());
+                            }}
+                          />
+                        </label>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))

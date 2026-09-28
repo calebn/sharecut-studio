@@ -81,7 +81,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Decrease track height | `view.trackHeightDecrease` | `Alt+-` | `transport.menu` | — | — | — | — | none · none |
 | Undo | `history.undo` | `Mod+Z` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | `history.redo` | `Mod+Shift+Z` | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Command cheatsheet | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |
+| Keyboard shortcuts | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |
 | Refresh mix | `render.refreshMix` | `Mod+B` | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | `export.bounce` | `Mod+Shift+B` | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | `share.manage` | — (dialog from Menu) | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
@@ -93,8 +93,8 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Record panel | `record.openPanel` | — (chords in a later PR) | `RecordPanel` | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes | none · none |
 | Record marker | `record.marker` | `M` | `LiveComments` | — | — | `podcast-record-session` | yes | none · none |
 | Connect agent… | `mcp.connect` | — (dialog from Menu) | `transport.menu`, `HostMcpDialog` | — | — | — | yes | none · none |
-| Help… | `help.diagnosticsBundle` | — (dialog from Home / Menu) | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
-| Export deliverables | `export.deliverables` | `Mod+Shift+E` | `transport.menu` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| Export diagnostics… | `help.diagnosticsBundle` | — (dialog from Home / Menu) | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Export deliverables… | `export.deliverables` | `Mod+Shift+E` | `transport.menu` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project | `project.new` | `Mod+N` | `transport.menu` | — | — | — | yes | none · none |
 | Open project | `project.open` | `Mod+O` | `transport.menu` | — | — | — | yes | none · none |
 | New track | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |

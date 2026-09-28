@@ -57,6 +57,13 @@ export type KeymapCommand = {
   /** Keyboard when-clause: must match command catalog when for that id. */
   when: ContextPredicateId;
   notes?: string;
+  /**
+   * Documents a shared key with another command's shortcut (different
+   * modifier or when-clause keeps them from firing together). Surfaced as a
+   * per-row note in the command palette and appended to the cheatsheet's
+   * Notes column — the keys are not re-bound.
+   */
+  collision?: string;
 };
 
 /** Browsers may keep Mod+1–9 for tab switching before the page sees it. */
@@ -88,6 +95,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["K"],
     bareKey: true,
     when: "always",
+    collision: "K alone stops playback; Mod+K is Blade cut",
   },
   {
     id: "tool.select",
@@ -106,6 +114,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     when: "timelineAndStructural",
     notes: "When timeline is focused",
+    collision:
+      "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
   },
   {
     id: "review.exitCommentMode",
@@ -134,6 +144,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: true,
     when: "always",
     notes: "Mod+Shift+C",
+    collision: "C alone selects the Blade tool when the timeline is focused",
   },
   {
     id: "layout.default",
@@ -388,6 +399,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: false,
     when: "canSuggestStructural",
     notes: "Mod+K: cut at playhead",
+    collision: "Mod+K cuts; K alone stops playback",
   },
   {
     id: "track.selectAll",
@@ -419,6 +431,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     bareKey: true,
     noRepeat: true,
     when: "hasProject",
+    collision:
+      "M mutes the targeted track; while the record panel is open, M drops a marker instead",
   },
   {
     id: "record.marker",
@@ -429,6 +443,8 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     when: "recordPanelOpen",
     notes:
       "M: live marker while the record panel is open; with the panel closed, M still mutes the targeted track",
+    collision:
+      "M drops a marker only while the record panel is open; otherwise M mutes the targeted track",
   },
   {
     id: "track.soloToggle",
@@ -509,7 +525,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "ui.toggleCommandPalette",
     category: "ui",
-    label: "Command cheatsheet",
+    label: "Keyboard shortcuts",
     keys: ["?"],
     bareKey: true,
     when: "always",
@@ -540,7 +556,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "export.deliverables",
     category: "ui",
-    label: "Export deliverables",
+    label: "Export deliverables…",
     keys: ["E"],
     bareKey: false,
     requireMod: true,

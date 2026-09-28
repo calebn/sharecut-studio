@@ -34,7 +34,7 @@ export function _resetExportDeliverablesInFlightForTests(): void {
   exportDeliverablesInFlight = false;
 }
 /** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
-function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
+export function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
   const gate = evaluateWhen("hostProjectLoaded", ctx);
   return gate.ok ? null : { status: "disabled", reason: gate.reason };
 }
@@ -172,7 +172,10 @@ export function registerHostCommands(): void {
   registerCommand("help.diagnosticsBundle", () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {
-      return { status: "disabled", reason: "Help is host-only" };
+      return {
+        status: "disabled",
+        reason: "Export diagnostics is host-only",
+      };
     }
     s.setHelpDialogOpen(true);
     return { status: "ok" };

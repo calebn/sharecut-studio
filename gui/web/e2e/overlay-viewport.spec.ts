@@ -64,7 +64,7 @@ const DIALOG_CASES: DialogCase[] = [
   },
   {
     name: "Help",
-    menuItem: "Help…",
+    menuItem: "Export diagnostics…",
     targetName: "Create diagnostics bundle",
   },
   {
