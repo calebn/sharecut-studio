@@ -884,6 +884,33 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
+  it("after a 409 whose refresh left the store unchanged, keeps the host's message instead of promising a retry (#746)", async () => {
+    vi.mocked(correctTranscriptWord).mockRejectedValueOnce(
+      new ApiError("stale: re-read the transcript", null, 409),
+    );
+    render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
+    fireEvent.change(screen.getByLabelText("Corrected text"), {
+      target: { value: "Hello" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    });
+    expect(
+      screen.getByText("stale: re-read the transcript"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Apply again to retry/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => {
+      expect(correctTranscriptWord).toHaveBeenLastCalledWith(
+        "/tmp/ep",
+        "host",
+        0,
+        "Hello",
+        "hello",
+      );
+    });
+  });
+
   it("a non-409 failure keeps the baseline (#746)", async () => {
     vi.mocked(correctTranscriptWord).mockRejectedValueOnce(
       new ApiError("boom", null, 500),

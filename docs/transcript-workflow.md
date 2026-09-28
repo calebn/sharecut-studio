@@ -250,8 +250,9 @@ with them, so the next Apply does not conflict. An Undo of an Apply that went ou
 span text (the hint was showing) returns the inspector to sending none, with the hint under
 Apply, rather than a stale baseline. After a 409, Studio loads the host's
 current transcript words (the `detail` phase) before reporting the refusal; the inspector
-keeps the typed draft, re-captures the span text from them, and says Apply again retries
-against the current text.
+keeps the typed draft, re-captures the span text from them, and, when that text differs from
+the refused text, says Apply again retries against the current text. If the load failed and
+no live update has arrived yet, it keeps the host's re-read wording instead.
 `podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
 `verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
 MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
