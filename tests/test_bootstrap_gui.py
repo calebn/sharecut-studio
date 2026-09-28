@@ -24,6 +24,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: False)
     monkeypatch.setattr(boot, "_whisper_ready", lambda _m=None: False)
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: False)
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
 
     status = boot.component_status()
     assert status["ready"] is False
@@ -34,6 +35,126 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     assert "ffmpeg" in status["default_components"]
     assert status["whisper_model"] == "large-v3-turbo"
     assert any(item["id"] == "large-v3-turbo" for item in status["whisper_models"])
+
+    aligner = status["components"]["word-aligner"]
+    assert aligner["ok"] is False
+    assert aligner["opt_in"] is True
+    assert aligner["required_for_first_run"] is False
+    assert aligner["model"] == "onnx-base"
+    assert aligner["bootstrap"] == "podcast bootstrap --component word-aligner"
+    assert status["opt_in_components"] == ["word-aligner"]
+    assert "word-aligner" not in status["default_components"]
+    assert "word-aligner" not in status["optional_components"]
+
+
+def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: True)
+    component = boot.word_aligner_component()
+    assert component["ok"] is True
+    assert "hint" not in component
+    assert "bootstrap" not in component
+
+
+def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    def raise_runtime_error(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", raise_runtime_error)
+    component = boot.word_aligner_component()
+    assert component["ok"] is False
+    assert component["hint"] == "boom"
+
+
+def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+    calls: dict[str, object] = {}
+
+    def fake_bootstrap_word_aligner(*, force=False):
+        calls["force"] = force
+        return {"ok": True, "model": "onnx-base", "path": "/x"}
+
+    monkeypatch.setattr(boot, "bootstrap_word_aligner", fake_bootstrap_word_aligner)
+    out = boot.run_bootstrap(["word-aligner"])
+    assert out["results"]["word-aligner"]["ok"] is True
+    assert calls["force"] is False
+
+
+def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: True)
+
+    def fail_if_called(*, force=False):
+        raise AssertionError("bootstrap_word_aligner should not run when cached")
+
+    monkeypatch.setattr(boot, "bootstrap_word_aligner", fail_if_called)
+    out = boot.run_bootstrap(["word-aligner"])
+    assert out["results"]["word-aligner"] == {
+        "ok": True,
+        "skipped": True,
+        "reason": "cached",
+        "model": "onnx-base",
+    }
+
+
+def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    monkeypatch.setattr(boot, "word_aligner_is_cached", lambda *a, **k: False)
+
+    def raise_error(*, force=False):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(boot, "bootstrap_word_aligner", raise_error)
+    out = boot.run_bootstrap(["word-aligner"])
+    assert out["results"]["word-aligner"] == {"ok": False, "error": "network down"}
+
+
+def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
+    from podcast_mcp.services import bootstrap as boot
+
+    monkeypatch.setattr(boot, "_run_ffmpeg", lambda *, force=False: {"ok": True})
+    monkeypatch.setattr(boot, "_run_whisper", lambda model: {"ok": True})
+
+    def fail_if_called(*, force=False):
+        raise AssertionError("word aligner must not be a first-run default")
+
+    monkeypatch.setattr(boot, "bootstrap_word_aligner", fail_if_called)
+    out = boot.run_bootstrap(None)
+    assert "word-aligner" not in out["results"]
+
+
+def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
+    from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
+    from podcast_mcp.gui.server import create_app
+
+    def fake_run(components=None, *, whisper_model=None, force=False, progress=None):
+        if progress is not None:
+            progress.start("bootstrap", "Bootstrap assets", total=1)
+            progress.end("bootstrap", message="Bootstrap complete")
+        return {
+            "ok": True,
+            "results": {"word-aligner": {"ok": True}},
+            "ready": True,
+            "whisper_model": whisper_model,
+            "components": {},
+            "default_components": ["ffmpeg", "whisper"],
+            "optional_components": ["rnnoise"],
+        }
+
+    monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", fake_run)
+    shared_bootstrap_job_manager(reset=True)
+    client = TestClient(create_app())
+
+    started = client.post("/api/bootstrap/run", json={"components": ["word-aligner"]})
+    assert started.status_code == 200
+    assert started.json()["job"]["components"] == ["word-aligner"]
 
 
 def test_run_bootstrap_rejects_torch_extras() -> None:

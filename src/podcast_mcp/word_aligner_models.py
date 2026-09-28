@@ -98,6 +98,22 @@ def verify_word_aligner_onnx(model_dir: Path, model: WordAlignerModel) -> None:
         )
 
 
+# (resolved onnx path, size, mtime_ns, pinned sha256) of snapshots that already matched their pin
+# in this process, so a status poll (Pipeline config, bootstrap status) hashes ~360 MB once.
+# Only successes are remembered; WordAligner.load and bootstrap still verify every time.
+_VERIFIED_ONNX: set[tuple[str, int, int, str]] = set()
+
+
+def _verify_word_aligner_onnx_once(model_dir: Path, model: WordAlignerModel) -> None:
+    onnx = (model_dir / model.onnx_file).resolve()
+    st = onnx.stat()
+    key = (str(onnx), st.st_size, st.st_mtime_ns, model.onnx_sha256)
+    if key in _VERIFIED_ONNX:
+        return
+    verify_word_aligner_onnx(model_dir, model)
+    _VERIFIED_ONNX.add(key)
+
+
 def word_aligner_override_dir() -> Path | None:
     """The ``PODCAST_MCP_WORD_ALIGNER_MODEL`` directory, or None when unset."""
     override = os.environ.get(WORD_ALIGNER_ENV)
@@ -146,8 +162,8 @@ def word_aligner_is_cached(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
     try:
         path = resolve_word_aligner_dir(model_id)
         if word_aligner_override_dir() is None:
-            verify_word_aligner_onnx(path, word_aligner_model(model_id))
-    except WordAlignerMissingError:
+            _verify_word_aligner_onnx_once(path, word_aligner_model(model_id))
+    except (WordAlignerMissingError, OSError):
         return False
     return True
 
