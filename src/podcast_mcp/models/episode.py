@@ -160,6 +160,16 @@ class TranscriptWord(BaseModel):
     # later reconcile pass can't undo the decision (#768).
     audibility_locked: bool = False
 
+    def resolve_auto_suppression(self, would_suppress: bool) -> bool:
+        """Value an automatic suppression writer should use for `suppressed`.
+
+        Every heuristic pass (reconcile, speaker attribution, low-audibility scan)
+        must route its `suppressed` decision through this instead of writing the
+        field directly, so `audibility_locked` (a person or agent's explicit
+        decision, #768/#781) can never be silently overwritten by a new writer.
+        """
+        return self.suppressed if self.audibility_locked else would_suppress
+
     def __setattr__(self, name: str, value: Any) -> None:
         # In-place edits (refresh_silence_flags, word_align) must invalidate words memos (#729);
         # re-setting an equal value (the per-pass suspect_hallucination = False resets) does not.

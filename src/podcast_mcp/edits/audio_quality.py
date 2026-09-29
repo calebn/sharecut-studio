@@ -237,9 +237,16 @@ def suppress_low_audibility_words(
 ) -> dict[str, Any]:
     """
     Set suppressed=True on low-audibility words (or explicit track_id/word_index list).
+
+    An explicit ``word_keys`` list is a caller decision, not a heuristic: it locks
+    the word (``audibility_locked``) so later reconcile/heuristic passes leave it
+    alone (#781). The heuristic path (no ``word_keys``) routes through
+    ``TranscriptWord.resolve_auto_suppression`` so it can't override a word a
+    person or agent already locked unsuppressed.
     Rebuilds combined transcript so exports/search omit suppressed words.
     """
     pol = policy or AnalysisPolicy.from_defaults()
+    explicit = word_keys is not None
     if word_keys is not None:
         targets = {(str(item["track_id"]), int(item["word_index"])) for item in word_keys}
     else:
@@ -249,7 +256,12 @@ def suppress_low_audibility_words(
     count = 0
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) in targets:
+            if (tr.track_id, i) not in targets:
+                continue
+            if explicit:
+                tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                count += 1
+            elif w.resolve_auto_suppression(True) != w.suppressed:
                 tr.words[i] = w.model_copy(update={"suppressed": True})
                 count += 1
     rebuild_combined(project)

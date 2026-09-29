@@ -303,6 +303,45 @@ def test_run_speaker_attribution_dry_run(tmp_path, sample_wav) -> None:
     assert report["windows_scored"] == 1
 
 
+def test_run_speaker_attribution_apply_respects_lock(tmp_path, sample_wav) -> None:
+    """#781: auto_suppress must not flip a word locked unsuppressed."""
+    proj = _two_track_project(tmp_path, sample_wav)
+    word = proj.transcript_for_track("host").words[0]
+    proj.transcript_for_track("host").words[0] = word.model_copy(
+        update={"suppressed": False, "audibility_locked": True}
+    )
+    ctx = TranscriptContext(speaker_id=CtxSpeakerIdConfig(min_margin=0.1, auto_suppress=True))
+    with (
+        patch(
+            "podcast_mcp.engines.speaker_id.enroll_track",
+            side_effect=lambda p, tid, cfg, eng, **kw: _profiles().get(tid),
+        ),
+        patch(
+            "podcast_mcp.engines.speaker_id.load_all_profiles",
+            return_value=_profiles(),
+        ),
+        patch(
+            "podcast_mcp.engines.speaker_id.score_window",
+            return_value=WindowScore(
+                track_id="host",
+                start_sec=1.0,
+                end_sec=1.5,
+                scores={"host": 0.1, "guest": 0.9},
+                best_track_id="guest",
+                best_identity="guest",
+                margin=0.8,
+            ),
+        ),
+        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+    ):
+        report = run_speaker_attribution(proj, ctx, dry_run=False, backend=MockSpeakerBackend())
+    assert report["attributions_would_change"] == 1
+    word = proj.transcript_for_track("host").words[0]
+    assert word.suppressed is False
+    assert word.audibility_locked is True
+    assert word.speaker_match_track == "guest"
+
+
 def test_extend_intervals_merges_owner_gap(tmp_path, sample_wav) -> None:
     proj = _two_track_project(tmp_path, sample_wav)
     cfg = SpeakerIdConfig(min_margin=0.1, max_speaker_gap_sec=0.5)
@@ -788,6 +827,36 @@ def test_label_window_bleed_apply(tmp_path, sample_wav) -> None:
     assert word.suppressed is True
 
 
+def test_label_window_bleed_apply_respects_lock(tmp_path, sample_wav) -> None:
+    """#781: auto_suppress must not flip a word a person/agent locked unsuppressed."""
+    from podcast_mcp.engines.speaker_id import label_window
+
+    proj = _two_track_project(tmp_path, sample_wav)
+    word = proj.transcript_for_track("host").words[0]
+    proj.transcript_for_track("host").words[0] = word.model_copy(
+        update={"suppressed": False, "audibility_locked": True}
+    )
+    cfg = SpeakerIdConfig(min_margin=0.1, auto_suppress=True)
+    bleed = WindowScore(
+        track_id="host",
+        start_sec=1.0,
+        end_sec=1.5,
+        scores={"host": 0.1, "guest": 0.9},
+        best_track_id="guest",
+        best_identity="guest",
+        margin=0.8,
+    )
+    with (
+        patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
+        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+    ):
+        label_window(proj, "host", 1.0, 1.5, cfg, MockSpeakerBackend(), dry_run=False)
+    word = proj.transcript_for_track("host").words[0]
+    assert word.suppressed is False
+    assert word.audibility_locked is True
+    assert word.speaker_match_track == "guest"
+
+
 def test_score_window_loads_dialogue_profiles_when_cache_empty(tmp_path, sample_wav) -> None:
     proj = _two_track_project(tmp_path, sample_wav)
     cfg = SpeakerIdConfig()
@@ -1192,3 +1261,38 @@ def test_home_speaker_gate_snapshots_stem_once(tmp_path, sample_wav) -> None:
         label_track_home_speaker(project, cfg, MockSpeakerBackend(), track_ids=["host"])
     open_snapshot.assert_called_once()
     bounded_decode.assert_not_called()
+
+
+def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
+    """#781: the home-speaker gate must not flip a word locked unsuppressed."""
+    from podcast_mcp.engines.speaker_id import label_track_home_speaker
+
+    project = _two_track_project(tmp_path, sample_wav)
+    word = project.transcript_for_track("host").words[0]
+    project.transcript_for_track("host").words[0] = word.model_copy(
+        update={"suppressed": False, "audibility_locked": True}
+    )
+    cfg = SpeakerIdConfig(gate_window_sec=0.5, gate_hop_sec=0.5)
+    bleed = WindowScore(
+        track_id="host",
+        start_sec=1.0,
+        end_sec=1.5,
+        scores={"host": 0.1, "guest": 0.9},
+        best_track_id="guest",
+        best_identity="guest",
+        margin=0.8,
+    )
+    with (
+        patch("podcast_mcp.engines.speaker_id.load_all_profiles", return_value=_profiles()),
+        patch("podcast_mcp.engines.speaker_id._speech_regions", return_value=[(1.0, 1.5)]),
+        patch("podcast_mcp.engines.speaker_id.score_window", return_value=bleed),
+        patch("podcast_mcp.engines.speaker_id._classify_role", return_value=("bleed", "guest")),
+        patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
+    ):
+        label_track_home_speaker(
+            project, cfg, MockSpeakerBackend(), track_ids=["host"], dry_run=False
+        )
+    word = project.transcript_for_track("host").words[0]
+    assert word.suppressed is False
+    assert word.audibility_locked is True
+    assert word.speaker_match_track == "guest"
