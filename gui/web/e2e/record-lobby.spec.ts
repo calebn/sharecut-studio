@@ -295,6 +295,7 @@ test.describe("record lobby", () => {
             }),
           ).toHaveCount(0);
           await producer.getByLabel("Display name").fill("Pat");
+          await expect(producer.getByLabel("Display name")).toHaveValue("Pat");
           await producer.getByRole("button", { name: "Join" }).click();
           await expect(producer.getByText("Waiting for host")).toBeVisible();
           await expect(
