@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+import tempfile
 from collections import Counter
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from podcast_mcp.engines.asr_timing import (
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
+from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.dsp import rms_db
@@ -89,33 +91,6 @@ class AnalysisPolicy:
             bleed_text_match_min_dominance_db=(float(min_dom) if min_dom is not None else None),
             bleed_ratio_warn_threshold=float(heur.get("bleed_ratio_warn_threshold", 0.2)),
         )
-
-
-def load_mono_full(
-    path: Path,
-    *,
-    sample_rate: int = _RMS_SAMPLE_RATE,
-    ffmpeg: str | None = None,
-) -> np.ndarray:
-    cmd = [
-        ffmpeg or resolve_ffmpeg(),
-        "-v",
-        "error",
-        "-i",
-        str(path),
-        "-ac",
-        "1",
-        "-ar",
-        str(sample_rate),
-        "-f",
-        "f32le",
-        "pipe:1",
-    ]
-    r = run(cmd, capture_output=True, check=True)
-    samples = np.frombuffer(r.stdout, dtype=np.float32)
-    if samples.size == 0:
-        raise NoAudioDecodedError(path)
-    return samples
 
 
 def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float | int | None]:
@@ -317,7 +292,11 @@ class TrackRmsCacheSet:
         )
 
 
-def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
+def build_track_rms_caches(
+    project: EpisodeProject,
+    *,
+    before_transcript_gate: bool = False,
+) -> TrackRmsCacheSet:
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
     caches: dict[str, TrackRmsCache] = {}
@@ -325,6 +304,10 @@ def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
     for tid in dialogue_track_ids(project):
+        track = project.track_by_id(tid)
+        if before_transcript_gate and track is not None and track.transcript_gate:
+            caches[tid] = _pre_transcript_gate_cache(project, tid)
+            continue
         proc = _processed_track_path(project, tid)
         if proc is not None:
             caches[tid] = TrackRmsCache.from_timeline_stem(proc)
@@ -347,7 +330,7 @@ def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
     remaining_users = Counter(path for _, paths in raw_tracks.values() for path in set(paths))
     for tid, (spans, paths) in raw_tracks.items():
         try:
-            samples = _raw_samples_on_timeline(spans, paths, sources=sources)
+            samples = raw_samples_on_timeline(spans, paths, sources=sources)
         except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
             continue
         finally:
@@ -360,41 +343,19 @@ def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
     return TrackRmsCacheSet(caches=caches)
 
 
-def _raw_samples_on_timeline(
-    spans: list[TimelineClipSpan],
-    paths: list[Path],
-    *,
-    sources: dict[Path, np.ndarray],
-) -> np.ndarray:
-    sample_rate = _RMS_SAMPLE_RATE
-    for path in paths:
-        if path not in sources:
-            sources[path] = load_mono_full(path, sample_rate=sample_rate)
-    if not spans:
-        return sources[paths[0]]
-    if len(spans) == 1:
-        span = spans[0]
-        source = sources[paths[0]]
-        if (
-            span.timeline_start == 0
-            and span.source_start == 0
-            and span.timeline_end == span.source_end
-            and round(float(span.source_end) * sample_rate) == source.size
-        ):
-            return source
+def _pre_transcript_gate_cache(project: EpisodeProject, track_id: str) -> TrackRmsCache:
+    from podcast_mcp.engines.timeline_render import render_track_from_timeline
+    from podcast_mcp.util.project_state import snapshot_project
 
-    timeline_end = max(span.timeline_end for span in spans)
-    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=np.float32)
-    for span, path in zip(spans, paths, strict=True):
-        source = sources[path]
-        target_start = round(float(span.timeline_start) * sample_rate)
-        target_end = round(float(span.timeline_end) * sample_rate)
-        source_start = round(float(span.source_start) * sample_rate)
-        count = target_end - target_start
-        if target_start < 0 or source_start < 0 or source_start + count > source.size:
-            raise ValueError(f"clip {span.clip.id} source samples are unavailable")
-        placed[target_start:target_end] += source[source_start : source_start + count]
-    return placed
+    snapshot = snapshot_project(project)
+    track = snapshot.track_by_id(track_id)
+    if track is None:
+        raise ValueError(f"track {track_id!r} is unavailable")
+    track.transcript_gate = False
+    with tempfile.TemporaryDirectory(prefix="podcast-ungated-evidence-") as directory:
+        path = Path(directory) / "evidence.wav"
+        render_track_from_timeline(snapshot, track, path, load_defaults())
+        return TrackRmsCache.from_timeline_stem(path)
 
 
 def measure_window_rms_db(
@@ -693,6 +654,9 @@ def list_flagged_words(
 
 
 def _track_has_gate(project: EpisodeProject, track_id: str) -> bool:
+    track = project.track_by_id(track_id)
+    if track is not None and track.transcript_gate:
+        return True
     chain = next((c for c in project.processing_chains if c.track_id == track_id), None)
     if not chain:
         return False
@@ -794,6 +758,9 @@ def analyze_gate_overreach(
 ) -> dict[str, Any]:
     """Detect likely gate clipping on syllable onsets/offsets."""
     pol = policy or AnalysisPolicy.from_defaults()
+    track = project.track_by_id(track_id)
+    if track is not None and track.transcript_gate:
+        return _transcript_gate_overreach(project, track_id, pol, progress=progress)
     if not _track_has_gate(project, track_id):
         return {
             "track_id": track_id,
@@ -925,6 +892,113 @@ def analyze_gate_overreach(
         "issues": issues[:30],
         "advice": advice,
     }
+
+
+def _transcript_gate_overreach(
+    project: EpisodeProject,
+    track_id: str,
+    policy: AnalysisPolicy,
+    *,
+    progress: ProgressReporter | None,
+) -> dict[str, Any]:
+    from podcast_mcp.engines.ungated_audio import raw_timeline_samples
+
+    transcript = project.transcript_for_track(track_id)
+    processed = _processed_track_path(project, track_id)
+    result: dict[str, Any] = {
+        "track_id": track_id,
+        "gate_present": True,
+        "gate_type": "transcript",
+        "risk": "unknown",
+        "issue_count": 0,
+        "issues": [],
+        "analyzed_words": 0,
+        "advice": "Ungated and processed audio evidence is required to assess this transcript gate.",
+    }
+    if transcript is None or not transcript.words or processed is None:
+        return result
+    try:
+        raw = TrackRmsCache(samples=raw_timeline_samples(project, track_id))
+        final = TrackRmsCache.from_timeline_stem(processed)
+    except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
+        return result
+    timeline = SessionTimeline(project)
+    issues: list[dict[str, Any]] = []
+    words = [(index, word) for index, word in enumerate(transcript.words) if not word.suppressed]
+    with resolve_progress_task(
+        "gate-overreach",
+        f"Comparing transcript gate on {track_id}",
+        total=len(words) or None,
+        prefer_parent=False,
+        progress=progress,
+    ) as task:
+        for index, (word_index, word) in enumerate(words):
+            span = _word_timeline_span(timeline, track_id, word.start, word.end)
+            if span is None:
+                continue
+            start, end = span
+            width = end - start
+            body_start, body_end = (
+                (start, end) if width < 0.08 else (start + width * 0.35, start + width * 0.65)
+            )
+            raw_body = raw.rms_db(body_start, body_end)
+            final_body = final.rms_db(body_start, body_end)
+            if raw_body is None or final_body is None or raw_body < -60:
+                continue
+            result["analyzed_words"] += 1
+            if final_body < -80 and raw_body - final_body >= policy.gate_onset_drop_db:
+                issues.append(
+                    {
+                        "word_index": word_index,
+                        "text": word.text,
+                        "start": word.start,
+                        "end": word.end,
+                        "kind": "processed_word_loss",
+                        "raw_body_rms_db": round(raw_body, 2),
+                        "processed_body_rms_db": round(final_body, 2),
+                    }
+                )
+            body_gain = final_body - raw_body
+            for kind, lo, hi in (
+                ("processed_onset_chop", max(0, start - 0.04), min(end, start + 0.03)),
+                ("processed_offset_chop", max(start, end - 0.03), end + 0.04),
+            ):
+                raw_edge = raw.rms_db(lo, hi)
+                final_edge = final.rms_db(lo, hi)
+                if raw_edge is None or final_edge is None or raw_edge < -60:
+                    continue
+                loss = body_gain - (final_edge - raw_edge)
+                if loss >= policy.gate_onset_drop_db:
+                    issues.append(
+                        {
+                            "word_index": word_index,
+                            "text": word.text,
+                            "start": word.start,
+                            "end": word.end,
+                            "kind": kind,
+                            "added_loss_db": round(loss, 2),
+                            "raw_edge_rms_db": round(raw_edge, 2),
+                            "processed_edge_rms_db": round(final_edge, 2),
+                        }
+                    )
+            task.advance_to(index + 1, total=len(words))
+    result.update(
+        issue_count=len(issues),
+        issues=issues[:30],
+        risk="high"
+        if len(issues) >= 5
+        else "moderate"
+        if issues
+        else "none"
+        if result["analyzed_words"]
+        else "unknown",
+        advice="Review added onset/tail loss against ungated audio; preserve speech before accepting this gate."
+        if issues
+        else "No added onset/tail loss found in the compared words."
+        if result["analyzed_words"]
+        else result["advice"],
+    )
+    return result
 
 
 def fade_ms_for_level_jump(jump_db: float, policy: AnalysisPolicy | None = None) -> int:

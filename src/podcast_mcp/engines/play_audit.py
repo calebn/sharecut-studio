@@ -90,6 +90,10 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         "chain": chain.model_dump() if chain else None,
         "envelope": envelope_audio_payload(env),
     }
+    if track is not None and track.transcript_gate:
+        from podcast_mcp.engines.bleed_gate import bleed_gate_payload
+
+        payload["bleed_gate"] = bleed_gate_payload(project, track_id)
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
@@ -169,6 +173,10 @@ def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
         "chain": chain.model_dump() if chain else None,
         "suppressed": suppressed,
     }
+    if track is not None and track.transcript_gate:
+        from podcast_mcp.engines.bleed_gate import bleed_gate_payload
+
+        payload["bleed_gate"] = bleed_gate_payload(project, track_id)
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 

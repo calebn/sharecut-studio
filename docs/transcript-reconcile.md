@@ -151,24 +151,38 @@ Reconcile updates **transcript metadata only** by default. For acoustic follow-u
 
 ---
 
-## Acoustic follow-up: mute when not talking
+## Acoustic follow-up: preserve speech while reducing verified bleed
 
 After `text_match_count == 0` and combined transcript is clean:
 
 1. Ensure stems are **fresh and not longer than the session timeline** (`assemble_timeline` / `render_dialogue_stems`). `stem_is_fresh` rejects source-length stems (wrong clock).
-2. `podcast edit apply-bleed-mute --dry-run` — preview gate intervals per stem (skips stale/overlong stems).
-3. `podcast edit apply-bleed-mute` — gate `artifacts/tracks/*.wav` to non-suppressed word spans.
+2. `podcast edit apply-bleed-mute --dry-run` — inspect `attenuation_count` and `gate_reasons` per stem (skips stale/overlong stems). The compatibility field `interval_count` counts retained transcript spans, not justified attenuation.
+3. `podcast edit apply-bleed-mute` — attenuate independently verified foreign-only copies in `artifacts/tracks/*.wav`. A suppressed word alone does not authorize acoustic removal.
 4. Audition with `play --compare`; re-run mix/premix after gating.
 
 MCP: `apply_transcript_gate_tool`. Transcript word flags are unchanged; this sets
-`timeline.tracks[].transcript_gate` (history-snapshotted) and rewrites stem WAVs
-in the requested window. Undo restores the flag; `play processed:*` re-applies the
-gate via segment/stem render when the flag is set.
-For PCM16 stems, windowed gating streams one second of WAV frames at a time,
-indexes word intervals once and checks only intervals overlapping each chunk,
-preserves all channels, and copies frames outside the window unchanged.
-Unsupported WAV formats raise an error. Rewriting a stem in place first writes a temporary WAV and
-replaces the original after the gate succeeds.
+`timeline.tracks[].transcript_gate` and `transcript_gate_scope` (both history-snapshotted).
+Scoped selections store source identity and source ranges, so they follow selected audio
+after timeline edits and survive reopening. A null scope means the whole lane; an empty
+scope selects nothing. Apply rebuilds from ungated selected media before atomically
+publishing a stem, so repeated applies do not multiply fade envelopes. Undo restores
+both fields; processed playback and rerendering derive the same absolute envelope.
+
+The gate defaults to unity gain. Retained owner words protect connected raw activity;
+unresolved audio, other suppression statuses, unavailable evidence, and unsupported
+evidence formats remain audible. Automatic hard attenuation requires a suppressed
+`bleed` word with a different dominant track, a matching raw peer copy that beats a
+time-shifted null, and an absolute residual below three PCM16 quantization steps.
+Coarse evidence runs at 8 kHz; bounded 48 kHz raw window reads veto owner activity
+outside that evidence band. Supported evidence is mono PCM16 WAV at up to 48 kHz.
+Real room coloration or network delays can make every candidate abstain; this is
+reported in `gate_reasons`, and applying the flag does not prove bleed was reduced.
+
+For PCM16 output, gating streams one second of WAV frames at a time and preserves
+all channels. Transitions lie inside justified attenuation regions; segment playback
+does not invent fades at the requested window edges. Rewriting a stem in place first
+writes a temporary WAV and replaces the original after the gate succeeds. Source
+proxies abstain when a lane selects media other than its primary raw source.
 
 ---
 

@@ -37,8 +37,6 @@ from podcast_mcp.engines.timeline_render import render_track_segment
 from podcast_mcp.engines.timemap import TimelineMapError, timeline_range_to_source
 from podcast_mcp.engines.transcript_gated_play import (
     dialogue_tracks_for_play,
-    render_gated_mix,
-    render_gated_track,
     transcript_gate_fingerprint,
     word_intervals,
 )
@@ -751,6 +749,40 @@ class PlayService:
             )
         return result
 
+    def _follow_transcript_audio(
+        self,
+        track_id: str,
+        start: float,
+        end: float,
+        *,
+        rerender: bool,
+    ) -> tuple[Path, str, float, float]:
+        track = self.project.track_by_id(track_id)
+        if track is None:
+            raise ValueError(f"track {track_id!r} not found")
+        if track.transcript_gate:
+            return self._processed_audio(track_id, start, end, rerender=rerender)
+        render_project = snapshot_project(self.project)
+        render_track = render_project.track_by_id(track_id)
+        assert render_track is not None
+        render_track.transcript_gate = True
+        render_track.transcript_gate_scope = None
+        fingerprint = track_render_hash(render_project, track_id)
+        cache = self._segment_cache_path(track_id, start, end, fingerprint)
+        if not cache.is_file() or rerender:
+            render_atomic(
+                cache,
+                lambda temporary: render_track_segment(
+                    render_project,
+                    track_id,
+                    start,
+                    end,
+                    temporary,
+                    self._defaults,
+                ),
+            )
+        return cache, "segment_render", start, end
+
     def _play_follow_transcript_track(
         self,
         track_id: str,
@@ -761,11 +793,10 @@ class PlayService:
         dry_run: bool,
         player: str | None,
     ) -> PlayResult:
-        segment, tier, _, _ = self._processed_audio(track_id, start, end, rerender=rerender)
+        segment, tier, _, _ = self._follow_transcript_audio(track_id, start, end, rerender=rerender)
         # Same level rule as the gated mix and play_compose: output gain minus what the tier baked.
         gain_db = _compose_gain_db(self.project.track_by_id(track_id), tier)
         intervals = word_intervals(self.project, track_id, start, end)
-        rel_intervals = [(s - start, e - start) for s, e in intervals]
         fp = transcript_gate_fingerprint(self.project, [track_id], start, end)
         out = self._cache_path(
             f"follow_{track_id}_{fp}", start, end, segment, extra=f"gain={gain_db}"
@@ -773,14 +804,7 @@ class PlayService:
         if not out.is_file():
             render_atomic(
                 out,
-                lambda tmp: render_gated_track(
-                    segment,
-                    rel_intervals,
-                    tmp,
-                    timeline_start=0.0,
-                    timeline_end=end - start,
-                    gain_db=gain_db,
-                ),
+                lambda tmp: FFmpegEngine().apply_gain(segment, tmp, gain_db),
             )
         self._mark_play_cache_used(out)
         cmd = None if dry_run else self._player_command(player, out)
@@ -819,7 +843,7 @@ class PlayService:
         segments: list[tuple[str, Path]] = []
         gains_db: dict[str, float] = {}
         for tid in track_ids:
-            seg, tier, _, _ = self._processed_audio(tid, start, end, rerender=rerender)
+            seg, tier, _, _ = self._follow_transcript_audio(tid, start, end, rerender=rerender)
             segments.append((tid, seg))
             # Segment renders bake the staging gain; stems don't, and neither bakes the fader.
             gains_db[tid] = _compose_gain_db(self.project.track_by_id(tid), tier)
@@ -840,13 +864,10 @@ class PlayService:
         if not out.is_file():
             render_atomic(
                 out,
-                lambda tmp: render_gated_mix(
-                    segments,
-                    intervals_by_track,
+                lambda tmp: FFmpegEngine().mix_tracks(
+                    [(segment, gains_db[tid]) for tid, segment in segments],
                     tmp,
-                    timeline_start=0.0,
-                    timeline_end=end - start,
-                    gains_db=gains_db,
+                    peak_ceiling_db=mix_peak_ceiling_db(self._defaults),
                 ),
             )
         self._mark_play_cache_used(out)

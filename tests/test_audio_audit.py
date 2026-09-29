@@ -696,7 +696,7 @@ def test_load_mono_full_decodes(sample_wav: Path):
 def test_load_mono_full_empty_raises(tmp_path: Path):
     empty = tmp_path / "empty.wav"
     empty.write_bytes(b"not audio")
-    with patch("podcast_mcp.engines.audio_audit.run") as run:
+    with patch("podcast_mcp.engines.ungated_audio.run") as run:
         run.return_value = MagicMock(stdout=b"", returncode=0)
         with pytest.raises(NoAudioDecodedError, match="no audio decoded"):
             load_mono_full(empty)

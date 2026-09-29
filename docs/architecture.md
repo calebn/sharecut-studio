@@ -2,6 +2,16 @@
 
 ## Layers
 
+Transcript bleed gating plans bounded foreign attenuation in
+`engines/bleed_gate.py` from ungated selected media, mapped by
+`engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
+verified attenuation spans, and abstention reasons. The PCM gate in
+`engines/transcript_gated_play.py` uses absolute transition positions so segment
+requests add no word-edge fades. `edits/transcript_bleed_mute.py` persists the
+track's source selection and publishes a fresh source render through the existing
+render lock and history mutation path. ASR coverage is not an exhaustive audio
+whitelist. Owner phrases and unresolved activity retain full gain.
+
 ```text
 Adapters     CLI (Typer)    MCP (MCPServer)  GUI (FastAPI viewer)
                     \             |             /

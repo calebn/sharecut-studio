@@ -6,6 +6,13 @@ sqlite file**, read this doc and extend an existing store. Update this file and
 
 ## Inventory
 
+Transcript bleed gating stores its enabled flag and optional
+`timeline.tracks[].transcript_gate_scope` in the existing episode project and
+history snapshots. Each selection names `start_s`, `end_s`, and optional
+`source_id` in source-media seconds. Null scope means the whole lane. Scoped
+applies union their source selections so repeats converge to the same state.
+Derived acoustic plans use raw selected sources and are not a new durable store.
+
 ```mermaid
 flowchart TB
   subgraph host [Host_laptop]

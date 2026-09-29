@@ -1,0 +1,438 @@
+"""Conservative acoustic bleed candidates, independent of already gated output."""
+
+from __future__ import annotations
+
+import math
+import wave
+from contextlib import suppress
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from podcast_mcp.engines.align import xcorr_lag_window
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_source_to_timeline_shift,
+    clip_timeline_overlap_to_source,
+)
+from podcast_mcp.engines.ungated_audio import raw_timeline_samples, raw_timeline_window
+from podcast_mcp.models import EpisodeProject, TranscriptGateScope
+from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db, linear_rms
+from podcast_mcp.util.intervals import intersect_intervals, merge_intervals
+from podcast_mcp.util.process import CalledProcessError
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.tracks import track_audio_path
+
+BLEED_GATE_REV = 1
+EVIDENCE_RATE = 8000
+VERIFICATION_RATE = 48_000
+GATE_FADE_SEC = 0.012
+_FRAME_SEC = 0.08
+_MAX_LAG_SEC = 0.025
+_MIN_COPY_CORRELATION = 0.98
+_PCM_UNCERTAINTY = 3 / 32768
+
+
+@dataclass(frozen=True)
+class BleedGatePlan:
+    attenuation_spans: tuple[tuple[float, float], ...] = ()
+    protected_spans: tuple[tuple[float, float], ...] = ()
+    reasons: tuple[str, ...] = ()
+    fade_sec: float = GATE_FADE_SEC
+
+    def gains_for_frames(self, first_frame: int, count: int, rate: int) -> np.ndarray:
+        """Gain on the absolute clock, with transitions inside justified attenuation."""
+        gains = np.ones(count, dtype=np.float32)
+        positions = np.arange(first_frame, first_frame + count)
+        for start, end in self.attenuation_spans:
+            lo, hi = math.ceil(start * rate), math.ceil(end * rate)
+            width = min(round(self.fade_sec * rate), (hi - lo) // 2)
+            selected = (positions >= lo) & (positions < hi)
+            values = np.zeros(count, dtype=np.float32)
+            if width:
+                values = np.maximum(
+                    np.clip((lo + width - positions) / width, 0, 1),
+                    np.clip((positions - (hi - width - 1)) / width, 0, 1),
+                ).astype(np.float32)
+            gains[selected] = np.minimum(gains[selected], values[selected])
+        return gains
+
+
+def gate_scope_for_window(
+    project: EpisodeProject, track_id: str, start: float, end: float
+) -> list[TranscriptGateScope]:
+
+    scopes: list[TranscriptGateScope] = []
+    clips = SessionTimeline(project).lane_clip_spans(track_id)
+    for span in clips:
+        mapped = clip_timeline_overlap_to_source(span.clip, start, end)
+        if mapped is not None:
+            scopes.append(
+                TranscriptGateScope(
+                    start_s=float(mapped[0]), end_s=float(mapped[1]), source_id=span.clip.source_id
+                )
+            )
+    if not clips and end > start:
+        scopes.append(TranscriptGateScope(start_s=start, end_s=end))
+    return merge_gate_scopes(scopes)
+
+
+def merge_gate_scopes(scopes: list[TranscriptGateScope]) -> list[TranscriptGateScope]:
+    """Canonical source selections make repeated and overlapping applies idempotent."""
+    sources = sorted({scope.source_id for scope in scopes}, key=lambda source: source or "")
+    return [
+        TranscriptGateScope(start_s=start, end_s=end, source_id=source)
+        for source in sources
+        for start, end in merge_intervals(
+            (scope.start_s, scope.end_s) for scope in scopes if scope.source_id == source
+        )
+    ]
+
+
+def _scope_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float, float]]:
+    track = project.track_by_id(track_id)
+    if track is None or track.transcript_gate_scope is None:
+        return [(0, math.inf)]
+    clips = SessionTimeline(project).lane_clip_spans(track_id)
+    if not clips:
+        return [
+            (scope.start_s, scope.end_s)
+            for scope in track.transcript_gate_scope
+            if not scope.source_id
+        ]
+    intervals: list[tuple[float, float]] = []
+    for scope in track.transcript_gate_scope:
+        for span in clips:
+            if span.clip.source_id != scope.source_id:
+                continue
+            start, end = (
+                max(scope.start_s, float(span.source_start)),
+                min(scope.end_s, float(span.source_end)),
+            )
+            if end > start:
+                shift = clip_source_to_timeline_shift(span.clip)
+                intervals.append((start + shift, end + shift))
+    return merge_intervals(intervals)
+
+
+def _subtract(
+    spans: list[tuple[float, float]], protected: list[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    for lo, hi in merge_intervals(protected):
+        remaining: list[tuple[float, float]] = []
+        for start, end in spans:
+            if hi <= start or lo >= end:
+                remaining.append((start, end))
+            else:
+                if lo > start:
+                    remaining.append((start, lo))
+                if hi < end:
+                    remaining.append((hi, end))
+        spans = remaining
+    return spans
+
+
+def _owner_protection(
+    samples: np.ndarray, seeds: list[tuple[float, float]]
+) -> list[tuple[float, float]]:
+    frame, hop = round(0.02 * EVIDENCE_RATE), round(0.01 * EVIDENCE_RATE)
+    if not seeds or samples.size < frame:
+        return seeds
+    levels = frame_rms_db(samples, frame, hop)
+    floor = max(-80.0, float(np.percentile(levels, 10)) + 6)
+    active = bridge_short_dips(levels > floor, 15)
+    runs = [(lo * 0.01, hi * 0.01 + 0.01) for lo, hi in bool_runs(active)]
+    expanded = list(seeds)
+    for start, end in runs:
+        if any(start < hi and end > lo for lo, hi in seeds):
+            expanded.append((start, end))
+    return merge_intervals(expanded)
+
+
+def _verified_copy_frames(
+    own: np.ndarray, peer: np.ndarray, start: float, end: float
+) -> tuple[list[tuple[float, float]], int]:
+    lo, hi = (
+        max(0, round(start * EVIDENCE_RATE)),
+        min(own.size, peer.size, round(end * EVIDENCE_RATE)),
+    )
+    frame = round(_FRAME_SEC * EVIDENCE_RATE)
+    if hi - lo < frame:
+        return [], 0
+    own_window = own[lo:hi].astype(np.float64)
+    peer_window = peer[lo:hi].astype(np.float64)
+    corr, center = xcorr_lag_window(own_window, peer_window, round(_MAX_LAG_SEC * EVIDENCE_RATE))
+    lag = int(np.argmax(np.abs(corr))) - center
+    spans: list[tuple[float, float]] = []
+    for first in range(lo, hi, frame):
+        last = min(first + frame, hi)
+        peer_first, peer_last = first - lag, last - lag
+        if last - first < frame // 2 or peer_first < 0 or peer_last > peer.size:
+            continue
+        x = peer[peer_first:peer_last].astype(np.float64)
+        y = own[first:last].astype(np.float64)
+        x -= x.mean()
+        y -= y.mean()
+        xx, yy = float(x @ x), float(y @ y)
+        if xx <= 1e-10 or yy <= 1e-10:
+            continue
+        xy = float(x @ y)
+        correlation = abs(xy) / math.sqrt(xx * yy)
+        scale = xy / xx
+        residual = linear_rms(y - scale * x)
+        null_correlation = 0.0
+        for offset in (-round(0.32 * EVIDENCE_RATE), round(0.32 * EVIDENCE_RATE)):
+            null_first, null_last = peer_first + offset, peer_last + offset
+            if null_first < 0 or null_last > peer.size:
+                continue
+            null = peer[null_first:null_last].astype(np.float64)
+            null -= null.mean()
+            energy = float(null @ null)
+            if energy > 1e-10:
+                null_correlation = max(
+                    null_correlation, abs(float(null @ y)) / math.sqrt(energy * yy)
+                )
+        if (
+            correlation >= _MIN_COPY_CORRELATION
+            and correlation - null_correlation >= 0.15
+            and abs(scale) <= 0.5
+            and residual <= _PCM_UNCERTAINTY
+        ):
+            spans.append((first / EVIDENCE_RATE, last / EVIDENCE_RATE))
+    return merge_intervals(spans), lag
+
+
+def _supported_sources(project: EpisodeProject, track_id: str) -> bool:
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
+    track = project.track_by_id(track_id)
+    if track is None:
+        return False
+    spans = SessionTimeline(project).lane_clip_spans(track_id)
+    paths = (
+        [resolve_clip_audio_path(project, track, span.clip) for span in spans]
+        if spans
+        else [track_audio_path(project, track_id)]
+    )
+    for path in paths:
+        with wave.open(str(path), "rb") as source:
+            if (
+                source.getnchannels() != 1
+                or source.getsampwidth() != 2
+                or source.getframerate() > VERIFICATION_RATE
+            ):
+                return False
+    return True
+
+
+def _full_band_copy(
+    project: EpisodeProject, track_id: str, peer_id: str, start: float, end: float, lag: int
+) -> bool:
+    peer_start = start - lag / EVIDENCE_RATE
+    peer_end = end - lag / EVIDENCE_RATE
+    if peer_start < 0:
+        return False
+    own = raw_timeline_window(project, track_id, start, end, sample_rate=VERIFICATION_RATE).astype(
+        np.float64
+    )
+    peer = raw_timeline_window(
+        project, peer_id, peer_start, peer_end, sample_rate=VERIFICATION_RATE
+    ).astype(np.float64)
+    if peer.size != own.size:
+        return False
+    peer -= peer.mean()
+    own -= own.mean()
+    energy = float(peer @ peer)
+    if energy <= 1e-10:
+        return False
+    scale = float(own @ peer) / energy
+    return linear_rms(own - peer * scale) <= _PCM_UNCERTAINTY
+
+
+def build_bleed_gate_plan(
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    source_clock: bool = False,
+    ignore_scope: bool = False,
+) -> BleedGatePlan:
+    """Plan only independently verified foreign copies; all unresolved audio stays open."""
+    transcript = project.transcript_for_track(track_id)
+    if transcript is None:
+        return BleedGatePlan(reasons=("missing_transcript",))
+    timeline = SessionTimeline(project)
+    if source_clock:
+        from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
+        track = project.track_by_id(track_id)
+        try:
+            primary = track_audio_path(project, track_id).resolve()
+            if track is None or any(
+                resolve_clip_audio_path(project, track, span.clip).resolve() != primary
+                for span in timeline.lane_clip_spans(track_id)
+            ):
+                return BleedGatePlan(reasons=("unsupported_source_proxy_layout",))
+        except (OSError, ValueError):
+            return BleedGatePlan(reasons=("unavailable_owner_source",))
+    candidates = [
+        word
+        for word in transcript.words
+        if word.suppressed
+        and word.audibility_status == "bleed"
+        and word.dominant_track
+        and word.end > word.start
+        and not word.ignored
+        and not word.audibility_locked
+    ]
+    if not candidates:
+        return BleedGatePlan(reasons=("no_confirmed_bleed_words",))
+    sources: dict[Path, np.ndarray] = {}
+    try:
+        if not _supported_sources(project, track_id):
+            return BleedGatePlan(reasons=("unsupported_owner_evidence_format",))
+        own = raw_timeline_samples(project, track_id, sources=sources, sample_rate=EVIDENCE_RATE)
+    except (OSError, ValueError, wave.Error, CalledProcessError):
+        return BleedGatePlan(reasons=("unavailable_owner_source",))
+    seeds = [
+        (float(start), float(end))
+        for word in transcript.words
+        if not word.suppressed
+        for start, end in timeline.map_source_span(
+            track_id, SourceSec(word.start), SourceSec(word.end)
+        )
+    ]
+    protected = _owner_protection(own, seeds)
+    peers: dict[str, np.ndarray] = {}
+    attenuation: list[tuple[float, float]] = []
+    reasons: set[str] = set()
+    for word in candidates:
+        peer_id = word.dominant_track
+        if peer_id is None or peer_id == track_id:
+            continue
+        try:
+            if peer_id not in peers:
+                if not _supported_sources(project, peer_id):
+                    reasons.add("unsupported_peer_evidence_format")
+                    continue
+                peers[peer_id] = raw_timeline_samples(
+                    project, peer_id, sources=sources, sample_rate=EVIDENCE_RATE
+                )
+        except (OSError, ValueError, wave.Error, CalledProcessError):
+            reasons.add("unavailable_peer_source")
+            continue
+        for start, end in timeline.map_source_span(
+            track_id, SourceSec(word.start), SourceSec(word.end)
+        ):
+            verified, lag = _verified_copy_frames(own, peers[peer_id], float(start), float(end))
+            try:
+                verified = [
+                    (lo, hi)
+                    for lo, hi in verified
+                    if _full_band_copy(project, track_id, peer_id, lo, hi, lag)
+                ]
+            except (OSError, ValueError, CalledProcessError):
+                reasons.add("unavailable_full_band_evidence")
+                continue
+            if not verified:
+                reasons.add("uncertain_foreign_ownership")
+            attenuation.extend(verified)
+    attenuation = _subtract(merge_intervals(attenuation), protected)
+    if not ignore_scope:
+        attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
+    attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
+    if source_clock:
+        attenuation = merge_intervals(
+            (float(start), float(end))
+            for lo, hi in attenuation
+            for start, end in timeline.map_timeline_span(track_id, TimelineSec(lo), TimelineSec(hi))
+        )
+        protected = merge_intervals(
+            (float(start), float(end))
+            for lo, hi in protected
+            for start, end in timeline.map_timeline_span(track_id, TimelineSec(lo), TimelineSec(hi))
+        )
+    return BleedGatePlan(tuple(attenuation), tuple(protected), tuple(sorted(reasons)))
+
+
+def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]:
+    """Gate-driving metadata and media revisions without decoding acoustic evidence."""
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
+    track = project.track_by_id(track_id)
+    if track is None:
+        return {}
+    transcript = project.transcript_for_track(track_id)
+    relevant = {track_id}
+    if transcript:
+        relevant.update(word.dominant_track for word in transcript.words if word.dominant_track)
+    inputs: list[dict[str, Any]] = []
+    for tid in sorted(relevant):
+        lane = project.track_by_id(tid)
+        if lane is None:
+            continue
+        clips = SessionTimeline(project).lane_clip_spans(tid)
+        paths: list[Path] = []
+        with suppress(OSError, ValueError):
+            paths = (
+                [resolve_clip_audio_path(project, lane, span.clip) for span in clips]
+                if clips
+                else [track_audio_path(project, tid)]
+            )
+        media: list[dict[str, Any]] = []
+        for path in sorted(set(paths)):
+            try:
+                stat = path.stat()
+                media.append(
+                    {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+                )
+            except OSError:
+                media.append({"path": str(path), "unavailable": True})
+        words = project.transcript_for_track(tid)
+        inputs.append(
+            {
+                "track_id": tid,
+                "media": media,
+                "clips": [span.clip.model_dump(mode="json") for span in clips],
+                "words": [
+                    {
+                        "start": word.start,
+                        "end": word.end,
+                        "suppressed": word.suppressed,
+                        "status": word.audibility_status,
+                        "dominant_track": word.dominant_track,
+                        "locked": word.audibility_locked,
+                        "ignored": word.ignored,
+                    }
+                    for word in words.words
+                ]
+                if words
+                else [],
+            }
+        )
+    return {
+        "revision": BLEED_GATE_REV,
+        "fade_sec": GATE_FADE_SEC,
+        "policy": {
+            "evidence_rate": EVIDENCE_RATE,
+            "verification_rate": VERIFICATION_RATE,
+            "frame_sec": _FRAME_SEC,
+            "max_lag_sec": _MAX_LAG_SEC,
+            "min_copy_correlation": _MIN_COPY_CORRELATION,
+            "max_residual": _PCM_UNCERTAINTY,
+            "null_shift_sec": 0.32,
+            "min_null_margin": 0.15,
+            "max_copy_gain": 0.5,
+            "owner_frame_sec": 0.02,
+            "owner_hop_sec": 0.01,
+            "owner_floor_db": -80.0,
+            "owner_floor_percentile": 10,
+            "owner_floor_margin_db": 6,
+            "owner_bridge_frames": 15,
+        },
+        "scope": [scope.model_dump(mode="json") for scope in track.transcript_gate_scope]
+        if track.transcript_gate_scope is not None
+        else None,
+        "inputs": inputs,
+    }

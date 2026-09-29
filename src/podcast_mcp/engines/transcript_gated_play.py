@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -175,9 +176,13 @@ def _gate_pcm_chunk(
     first_frame: int,
     sample_rate: int,
     channels: int,
+    plan: BleedGatePlan | None = None,
 ) -> bytes:
     """Gate one PCM16 chunk using fade positions on the whole stem clock."""
     samples = np.frombuffer(raw, dtype="<i2").reshape(-1, channels)
+    if plan is not None:
+        env = plan.gains_for_frames(first_frame, samples.shape[0], sample_rate)
+        return (samples.astype(np.float32) * env[:, np.newaxis]).astype("<i2").tobytes()
     env = np.zeros(samples.shape[0], dtype=np.float32)
     last_frame = first_frame + samples.shape[0]
     fade = int(GATE_FADE_SEC * sample_rate)
@@ -318,6 +323,7 @@ def gate_stem_window(
     duration_sec: float,
     win_start: float,
     win_end: float,
+    plan: BleedGatePlan | None = None,
 ) -> Path:
     """Gate only ``[win_start, win_end)``; audio outside the window is unchanged."""
     if stem_path.resolve() == output_path.resolve():
@@ -333,6 +339,7 @@ def gate_stem_window(
                 duration_sec=duration_sec,
                 win_start=win_start,
                 win_end=win_end,
+                plan=plan,
             )
             temporary_path.replace(output_path)
         finally:
@@ -397,6 +404,7 @@ def gate_stem_window(
                         first_frame=chunk_first,
                         sample_rate=rate,
                         channels=channels,
+                        plan=plan,
                     )
                     raw = (
                         raw[: left * bytes_per_frame] + gated_chunk + raw[right * bytes_per_frame :]
@@ -439,18 +447,46 @@ def apply_track_transcript_gate(
     timeline_start: float,
     timeline_end: float,
 ) -> Path:
-    """Apply project word-interval gate to a rendered WAV when track.transcript_gate."""
+    """Attenuate verified foreign copies in a rendered WAV when the gate is enabled."""
     track = project.track_by_id(track_id)
     if not track or not track.transcript_gate:
         return wav_path
     if timeline_end <= timeline_start:
         return wav_path
-    intervals = word_intervals(project, track_id, timeline_start, timeline_end)
-    return gate_rendered_wav(
+    plan = build_bleed_gate_plan(project, track_id)
+    return apply_bleed_gate_plan(
         wav_path,
-        intervals,
+        plan,
         timeline_start=timeline_start,
         timeline_end=timeline_end,
+    )
+
+
+def apply_bleed_gate_plan(
+    wav_path: Path,
+    plan: BleedGatePlan,
+    *,
+    timeline_start: float,
+    timeline_end: float,
+) -> Path:
+    """Apply a single absolute plan without adding transitions at audition boundaries."""
+    duration = max(0.0, timeline_end - timeline_start)
+    if not plan.attenuation_spans or duration <= 0:
+        return wav_path
+    local = BleedGatePlan(
+        attenuation_spans=tuple(
+            (start - timeline_start, end - timeline_start) for start, end in plan.attenuation_spans
+        ),
+        fade_sec=plan.fade_sec,
+    )
+    return gate_stem_window(
+        wav_path,
+        list(local.attenuation_spans),
+        wav_path,
+        duration_sec=duration,
+        win_start=0.0,
+        win_end=duration,
+        plan=local,
     )
 
 
