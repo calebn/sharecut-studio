@@ -126,14 +126,25 @@ The spectral and optional neural scorers keep their native score formats;
 adapters implement `JoinDetector.detect()` and return weighted `DetectorHit`
 values to the fusion step. This keeps detector policy in one place while the
 published report format stays stable.
+An existing join is scored on the audio the render abuts: a timeline join that
+sits on a clip splice (`clips_ops.splice_joins`: the right clip does not resume
+where the left clip's source stopped) reads the source before the left clip's
+`source_end` and after the right clip's `source_start` (`SplicePoints`); any
+other instant reads both sides of that one point. Before #775 the sweep mapped
+the join to the resume point alone and scored raw source continuity there, which
+passed a cut that resumed inside a phrase. Each sweep row also carries `speech`
+(`edits/join_speech.py` crossings at that join: clipped onset or tail, voice
+edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`) and the report a
+`speech_cross_count`; the audition context raises the same crossings as
+`speech_crosses_cut` (see [audio-engineering.md](audio-engineering.md#agent-audition-context-v2)).
 The project join sweep reuses each track's decoded waveform, natural-join
 calibration, and high-rate source reader across its joins. PCM WAV checks seek
 bounded windows through one open reader. Other containers use FFmpeg to seek
-independent 0.1-second source windows in batches of at most 16 joins; temporary
-PCM output is discarded after each batch, so a long source is never decoded
-wholesale for click checks. If a batch fails, each affected join is retried
-with the individual short-window decoder. Individual join scoring reads only a
-short window around its join.
+independent short source windows, two per join (one per splice side), in
+batches of at most 16 joins; temporary PCM output is discarded after each
+batch, so a long source is never decoded wholesale for click checks. If a batch
+fails, each affected join is retried with the individual short-window decoder.
+Individual join scoring reads only a short window around its join.
 MFCC scoring shares an immutable mel filterbank for equal sample rates and FFT sizes.
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
@@ -150,7 +161,8 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 
 - `preview_inaudible_cut_tool` — dry-run: shifted boundaries, mode, confidence.
 - `suggest_handoff_cut_tool` — retain ~1s on each keep, snap to quiet, for narrative handoffs (timeline clock); prefer with `use_inaudible_opt=false`.
-- `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep non-abutting clip boundaries (default timebase `timeline`).
+- `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep every splice (default timebase `timeline`); sweep rows carry `speech` (voiced speech cut through at the join) and the report `speech_cross_count`.
+- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk`; `trim_clip_edge_tool` moves the flagged clip edge to its `suggested_source_sec`.
 - `join_label_tool` — record explicit pass/fail A/B labels into `artifacts/join_labels.jsonl`.
 - `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (Sharecut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
 - Cut tools accept optional `use_inaudible_opt=false` to skip optimization for one call.
