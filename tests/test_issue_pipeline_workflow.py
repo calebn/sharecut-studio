@@ -157,6 +157,7 @@ def test_review_lenses_fan_out_from_the_script() -> None:
         "concurrency",
         "performance",
         "patterns",
+        "docs",
     ]
     skill_sections = [
         "1. Bugbot",
@@ -170,10 +171,14 @@ def test_review_lenses_fan_out_from_the_script() -> None:
     ]
     for section in skill_sections:
         assert f"section: '{section}" in script, section
+    assert (
+        "section: '9. Docs accuracy', origin: 'docs/contributing.md § Automated issue pipeline'"
+        in script
+    )
     assert "lenses=supplied" in script
     # Lenses are read-only and share one cwd (no worktree) so their prompts cache together.
     assert "phase: 'Review', model: M.worker, schema: S_LENS" in script
-    assert len(re.findall(r"prompt: ['\"]", script)) == 8
+    assert len(re.findall(r"prompt: ['\"]", script)) == 9
 
 
 def test_lenses_share_one_review_packet_prefix() -> None:
@@ -189,13 +194,36 @@ def test_lenses_share_one_review_packet_prefix() -> None:
 def test_context_hungry_lenses_have_required_reading() -> None:
     script = _script()
     lenses = script[script.index("const LENSES = [") : script.index("// Round 2+ only")]
-    for key in ("wiring", "reuse", "security", "concurrency", "patterns"):
+    for key in ("wiring", "reuse", "security", "concurrency", "patterns", "docs"):
         block = lenses[lenses.index(f"key: '{key}'") :]
         block = block[: block.index("},")]
         assert "context: 'Required reading" in block, key
     assert "The packet is a starting point, not the boundary" in script
     packet_script = (ROOT / "scripts" / "review_packet.py").read_text(encoding="utf-8")
     assert "Twin paths (CLI / MCP / GUI adapters)" in packet_script
+
+
+def test_docs_lens_runs_only_on_changed_docs() -> None:
+    script = _script()
+    assert _js_string_list("FOLLOWUP_LENSES") == ["bugbot", "risk", "reuse", "docs"]
+    assert (
+        "const docsChanged = !packet || !Number.isInteger(packet.docs) || packet.docs > 0" in script
+    )
+    assert ".filter((l) => l.key !== 'docs' || docsChanged)" in script
+    assert 'It prints "<path> <chars> docs=<N>"' in script
+    assert "${lens.origin || 'pr-multi-review § Launch'}" in script
+    packet_script = (ROOT / "scripts" / "review_packet.py").read_text(encoding="utf-8")
+    assert "Changed docs (docs-accuracy lens)" in packet_script
+    assert "docs={len(changed_docs(args.range))}" in packet_script
+    assert "docs-accuracy lens" in CONTRIBUTING.read_text(encoding="utf-8")
+
+
+def test_implementer_rereads_changed_docs_before_opening_the_pr() -> None:
+    script = _script()
+    implement = script[script.index("Implement ${REPO} issue") :]
+    assert implement.index(
+        "reread every doc you changed next to the code it describes"
+    ) < implement.index("gh pr create")
 
 
 def test_packet_is_built_by_script_not_retyped() -> None:

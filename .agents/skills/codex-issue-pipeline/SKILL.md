@@ -105,7 +105,8 @@ open-PR guard. Clear `pipeline:stalled` as the stage label moves.
 Resume at the gate only when the latest stall marker says `resume=gate`
 **and** posted review/feedback evidence covers the current head. If evidence
 is incomplete or the head changed, resume at review and cover all eight
-concerns before any merge. A `resume=review` marker always restarts review.
+concerns (plus docs accuracy when docs changed) before any merge.
+A `resume=review` marker always restarts review.
 Technical stalls are bounded: report a repeated failure and the next safe
 action; do not loop indefinitely.
 
@@ -131,10 +132,12 @@ action; do not loop indefinitely.
    product-defining choice has no conservative default.
 2. Move to `pipeline:implementing`. Implement through the domain, service,
    and adapter layers described in `docs/architecture.md`. Add tests and
-   update docs in the same change. Run focused tests with `--no-cov` and the
-   applicable static checks from `AGENTS.md` locally. GitHub Actions runs the
-   required full suite and coverage gate on the PR's latest head; run a local
-   full suite only for extensive changes or a specific diagnostic need.
+   update docs in the same change. Before opening the PR, reread each doc
+   you changed next to the code it describes and cut any claim the code
+   does not support. Run focused tests with `--no-cov` and the applicable
+   static checks from `AGENTS.md` locally. GitHub Actions runs the required
+   full suite and coverage gate on the PR's latest head; run a local full
+   suite only for extensive changes or a specific diagnostic need.
 3. Commit focused, conventional changes on the branch and open a PR to `main`
    when the run authorizes shipping. Use `Fixes #N` on the final PR for the
    issue and `Related #M` for issues touched but not closed. If the issue
@@ -169,6 +172,13 @@ action; do not loop indefinitely.
    concurrency trace task/thread lifetimes; for patterns follow at least two
    call hops. A lens may report no finding with a reason. Browser or live QA
    is required when the changed user-facing path can be exercised.
+
+   When the review range changes a Markdown doc (`scripts/review_packet.py`
+   prints `docs=<N>` with N > 0 and lists them under "Changed docs
+   (docs-accuracy lens)"), also run the docs-accuracy lens: read only the
+   changed docs next to the code they describe, and flag every added or
+   edited claim the code does not support (overstated always/never, wrong
+   defaults or limits, missing paths or symbols).
 
    Preserve every generated review comment, regardless of severity or whether
    it seems worth fixing. Combine comments only when multiple lenses report
@@ -205,8 +215,9 @@ action; do not loop indefinitely.
    follow-up issues for deferred work and add `Related #M` without changing
    the `Fixes #N` or `Part of #N` line. A won't-do item holds the PR for owner
    sign-off. Repeat review on the changed surface and affected adjacent code;
-   keep the same eight-concern coverage. Stop after two review/feedback rounds
-   unless a concrete defect needs another pass.
+   keep the same eight-concern coverage, plus docs accuracy when docs
+   changed. Stop after two review/feedback rounds unless a concrete defect
+   needs another pass.
 7. Move the issue and PR to `pipeline:merging`. Check mergeability before
    waiting for CI: GitHub may not start checks on a conflicting PR. If it is
    `DIRTY`, rebase onto fresh `main`, resolve both intents, push with
@@ -221,7 +232,7 @@ action; do not loop indefinitely.
 Read `pr-multi-review` and `feedback` skills when using their detailed review
 or response procedure. Their autonomous modes belong to the Claude workflow;
 this skill follows the user's current authorization and Codex's available
-tools. The eight reviewer lenses above are part of this skill's review stage,
+tools. The reviewer lenses above are part of this skill's review stage,
 not an optional cost setting. Posting verification is separate from the
 reviewer who combines and posts comments.
 
@@ -276,7 +287,7 @@ delegate bounded reasoning and batched read-only tasks as follows:
 | Work | Model / effort | Return to coordinator |
 | --- | --- | --- |
 | Issue-text triage, batched claim/PR/CI inventory, independent review-post and reply verification | Luna / low | Facts with source URLs, exact IDs and head SHA, or a specific failure; no inferred gate verdict |
-| Routine issue plan, implementation, CI fix, feedback implementation, eight review lenses | Sol / medium | A concrete plan, changed files and focused checks, or a lens report with every finding and evidence |
+| Routine issue plan, implementation, CI fix, feedback implementation, review lenses | Sol / medium | A concrete plan, changed files and focused checks, or a lens report with every finding and evidence |
 | Multi-subsystem plan, difficult security/concurrency, consequential design choice, hard review synthesis | Sol / high | A bounded plan or decision with supporting code and tradeoffs |
 | Unresolved Sol/high plan, unusually broad architecture or conflicting evidence | Astra / high | A bounded plan or decision that resolves the remaining uncertainty |
 
@@ -285,7 +296,7 @@ when overriding the model; a full-history fork inherits the coordinator's
 model. Give each child the repo path, issue/PR number, current head SHA,
 stage scope, shared packet or relevant file paths, required output, and its
 read/write boundary. Review lenses are separate read-only tasks; schedule
-them within the available concurrency slots and collect all eight reports.
+them within the available concurrency slots and collect every lens report.
 Do not run simultaneous writers in a shared checkout. The coordinator owns
 the claim lifecycle, combining and posting all review comments, feedback
 classification, the deterministic gate, and any authorized merge. A cheaper
