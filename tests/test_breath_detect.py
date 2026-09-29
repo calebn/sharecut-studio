@@ -804,6 +804,132 @@ def test_fricative_onset_of_the_next_kept_word_is_not_a_breath():
     assert spans == [BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.37), side="after")]
 
 
+# #820 gave the heuristic path a gap ceiling and kept-word adjacency; #828 found the
+# Silero path built its predicate without the band that carries both rules
+# (`breath_detect.py`, `_find_breath_in_window_silero` called `_breath_run_predicate`
+# with no `levels`/`band`). These three mirror the heuristic fry/decay/onset fixtures
+# above, but drive `_find_breath_in_window_silero` directly with a fake VAD dip so the
+# probability curve (unrelated to level in real Silero) marks the run while the level
+# array and keep-out spans -- built from the same fixture helpers -- exercise the
+# shared predicate. 32 ms Silero windows (512 samples @ 16kHz); all segments are laid
+# out on that boundary.
+_SILERO_WINDOW = 512
+_SILERO_FRAME_SEC = _SILERO_WINDOW / 16000
+
+
+def _silero_band() -> LevelBand:
+    band = breath_level_band(_FLOOR_RMS, _SPEECH_RMS)
+    assert band is not None
+    return band
+
+
+def test_silero_vocal_fry_between_breath_and_cut_is_not_a_breath():
+    band = _silero_band()
+    breath = _shaped_noise(_SILERO_WINDOW * 3, 0.026)
+    fry = _vocal_fry(_SILERO_WINDOW * 6, _dbfs(-17.0))
+    vad = _fake_silero_vad([0.3] * 3 + [0.9] * 6)
+    hit = _find_breath_in_window_silero(
+        np.concatenate([breath, fry]),
+        4.7,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="end",
+        band=band,
+    )
+    assert hit is None
+
+    quiet_gap = _shaped_noise(_SILERO_WINDOW * 6, _FLOOR_RMS)
+    vad = _fake_silero_vad([0.3] * 3 + [0.9] * 6)
+    hit = _find_breath_in_window_silero(
+        np.concatenate([breath, quiet_gap]),
+        4.7,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="end",
+        band=band,
+    )
+    assert (hit.start, hit.end) == pytest.approx((4.7, 4.7 + 3 * _SILERO_FRAME_SEC))
+
+
+def test_silero_kept_word_decay_tail_is_not_a_breath():
+    band = _silero_band()
+    word = _harmonic_tone(_SILERO_WINDOW * 6, _SPEECH_RMS)
+    decay = _shaped_noise(_SILERO_WINDOW * 3, _dbfs(-35.0))
+    trail = _shaped_noise(_SILERO_WINDOW, _FLOOR_RMS)
+    window_start = 4.4
+    keep_out = [(window_start, window_start + 6 * _SILERO_FRAME_SEC)]
+
+    vad = _fake_silero_vad([0.9] * 6 + [0.3] * 3 + [0.9])
+    hit = _find_breath_in_window_silero(
+        np.concatenate([word, decay, trail]),
+        window_start,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="end",
+        keep_out=keep_out,
+        band=band,
+    )
+    assert hit is None
+
+    floor_gap = _shaped_noise(_SILERO_WINDOW, _FLOOR_RMS)
+    vad = _fake_silero_vad([0.9] * 6 + [0.9] + [0.3] * 3 + [0.9])
+    hit = _find_breath_in_window_silero(
+        np.concatenate([word, floor_gap, decay, trail]),
+        window_start,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="end",
+        keep_out=keep_out,
+        band=band,
+    )
+    assert (hit.start, hit.end) == pytest.approx(
+        (window_start + 7 * _SILERO_FRAME_SEC, window_start + 10 * _SILERO_FRAME_SEC)
+    )
+
+
+def test_silero_fricative_onset_of_the_next_kept_word_is_not_a_breath():
+    band = _silero_band()
+    lead_gap = _shaped_noise(_SILERO_WINDOW, _FLOOR_RMS)
+    onset = _bandpass_noise(_SILERO_WINDOW * 3, _dbfs(-30.0), 2000.0, 3500.0)
+    word = _harmonic_tone(_SILERO_WINDOW * 6, _SPEECH_RMS)
+    window_start = 5.23
+    keep_out = [(window_start + 4 * _SILERO_FRAME_SEC, window_start + 10 * _SILERO_FRAME_SEC)]
+
+    vad = _fake_silero_vad([0.9] + [0.3] * 3 + [0.9] * 6)
+    hit = _find_breath_in_window_silero(
+        np.concatenate([lead_gap, onset, word]),
+        window_start,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="start",
+        keep_out=keep_out,
+        band=band,
+    )
+    assert hit is None
+
+    floor_gap = _shaped_noise(_SILERO_WINDOW, _FLOOR_RMS)
+    keep_out = [(window_start + 5 * _SILERO_FRAME_SEC, window_start + 11 * _SILERO_FRAME_SEC)]
+    vad = _fake_silero_vad([0.9] + [0.3] * 3 + [0.9] + [0.9] * 6)
+    hit = _find_breath_in_window_silero(
+        np.concatenate([lead_gap, onset, floor_gap, word]),
+        window_start,
+        min_duration_sec=0.05,
+        max_duration_sec=0.15,
+        vad=vad,
+        cut_edge="start",
+        keep_out=keep_out,
+        band=band,
+    )
+    assert (hit.start, hit.end) == pytest.approx(
+        (window_start + 1 * _SILERO_FRAME_SEC, window_start + 4 * _SILERO_FRAME_SEC)
+    )
+
+
 def test_voicing_is_assessed_only_where_the_level_could_be_speech():
     from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
 
