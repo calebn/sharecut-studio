@@ -199,6 +199,51 @@ def test_clip_paths_shortens_only_path_lists() -> None:
     assert review_packet.clip_paths(title) == title
 
 
+def test_clip_paths_clips_every_path_list_docs_sync_prints() -> None:
+    # clip_paths copies format_report's line prefixes and ", " separator (the scripts can't
+    # import each other). This fails if they drift, instead of wide PRs silently unclipping.
+    docs_sync = load_script("docs_sync", register=True)
+    extra = 5
+    code = [f"src/podcast_mcp/util/w{i:02}.py" for i in range(review_packet.PATHS_PER_LINE + extra)]
+    docs = [f"docs/util/d{i:02}.md" for i in range(review_packet.PATHS_PER_LINE + extra)]
+    util = {"include": ["src/podcast_mcp/util/"]}
+    contract = docs_sync.parse_contract(
+        {
+            "api_version": 1,
+            "rules": [
+                {
+                    "id": "gate-violated",
+                    "when": "V",
+                    "update": "`docs/mix.md`",
+                    "docs": ["docs/mix.md"],
+                    "gate": util,
+                },
+                {
+                    "id": "gate-satisfied",
+                    "when": "S",
+                    "update": "`docs/util/`",
+                    "docs": ["docs/util/"],
+                    "gate": util,
+                },
+                {
+                    "id": "advisory-only",
+                    "when": "A",
+                    "update": "`docs/mix.md`",
+                    "docs": ["docs/mix.md"],
+                    "advisory": util,
+                },
+            ],
+        }
+    )
+    report = docs_sync.evaluate(contract, docs_sync.Change(label="a...b", files=(*code, *docs)))
+    assert {f.outcome for f in report.findings} == {"violated", "satisfied", "advisory"}
+    lines = docs_sync.format_report(report).splitlines()
+    path_lines = [line for line in lines if code[0] in line or docs[0] in line]
+    assert len(path_lines) == 3  # triggered by, satisfied, advisory
+    for line in path_lines:
+        assert review_packet.clip_paths(line).endswith(f" (+{extra} more)"), line
+
+
 def test_diff_stat_is_capped_with_a_pointer(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(review_packet, "STAT_CAP", 50)
     packet = review_packet.build("HEAD", "base..HEAD")
