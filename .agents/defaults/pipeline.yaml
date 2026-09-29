@@ -143,11 +143,6 @@ tighten:
   # Both splice sides below this RMS (dBFS) are inaudible: room tone against gated
   # digital silence reads "inaudible splice" (pass) instead of a level jump.
   inaudible_floor_db: -60.0
-  # A splice whose two sides both sit this far below another mixed stem speaking at
-  # the join (side_sec before it through mask_lookahead_sec after it) is masked in the
-  # mix and passes as "masked splice".
-  mask_margin_db: 20.0
-  mask_lookahead_sec: 0.15
   # When another dialogue stem is speaking in the cut window, do not
   # cross-track ripple (avoids mid-word chops when ASR missed a word).
   speech_energy_guard:
