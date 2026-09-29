@@ -650,6 +650,136 @@ def test_collect_candidates_without_project_uses_turn_floor():
     assert ":solo" not in cands[0].reason
 
 
+def test_bounded_repeat_start_skips_a_suppressed_neighbor():
+    """The floor is the preceding *surviving* word, not just ``words[i - 1]`` (PR #792 review).
+
+    A suppressed word can sit between two kept words with a span that
+    overlaps the kept one before it (already-cut material). Reading
+    ``words[i - 1]`` directly, ignoring suppression, can float the floor
+    inside audio that still plays.
+    """
+    from podcast_mcp.edits.fillers import _bounded_repeat_start
+
+    words = [
+        TranscriptWord(text="well", start=1.0, end=1.5),
+        TranscriptWord(text="mm", start=1.1, end=1.2, suppressed=True),
+        TranscriptWord(text="that", start=1.5, end=1.7),
+        TranscriptWord(text="that", start=1.72, end=1.9),
+    ]
+    # words[2 - 1] (the suppressed "mm") ends at 1.2, inside "well"'s kept
+    # span (1.0-1.5); the correct floor is the end of "well" itself, 1.5.
+    assert _bounded_repeat_start(words, 2) == pytest.approx(1.5)
+
+
+def test_marked_partial_restart_is_bounded_by_flanking_silence():
+    """The explicit-marker restart path's bound is unpinned without this (PR #792 review)."""
+    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+
+    words = [
+        TranscriptWord(text="well", start=0.0, end=0.3),
+        TranscriptWord(text="stor-", start=0.5, end=0.7),
+        TranscriptWord(text="store", start=0.85, end=1.05),
+    ]
+    candidates = _collect_repetition_candidates(words, "host", {"filler_words": []})
+    assert [c.reason for c in candidates] == ["restart:partial:stor"]
+    assert candidates[0].min_start == pytest.approx(0.3)
+    assert candidates[0].max_end == pytest.approx(0.85)
+
+
+def test_split_partial_restart_is_bounded_by_flanking_silence():
+    """The split-repair restart path's bound is unpinned without this (PR #792 review)."""
+    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+
+    words = [
+        TranscriptWord(text="well", start=0.0, end=0.2),
+        TranscriptWord(text="I", start=0.5, end=0.6),
+        TranscriptWord(text="w-", start=0.62, end=0.7),
+        TranscriptWord(text="I", start=0.72, end=0.82),
+        TranscriptWord(text="went", start=0.95, end=1.13),
+    ]
+    candidates = _collect_repetition_candidates(words, "host", {"filler_words": []})
+    assert [c.reason for c in candidates] == ["restart:partial:w"]
+    assert candidates[0].min_start == pytest.approx(0.2)
+    assert candidates[0].max_end == pytest.approx(0.95)
+
+
+def test_restart_phrase_is_bounded_by_flanking_silence():
+    """The phrase-restart path's bound is unpinned without this (PR #792 review)."""
+    from podcast_mcp.edits.fillers import _collect_repetition_candidates
+
+    words = [
+        TranscriptWord(text="well", start=0.0, end=0.2),
+        TranscriptWord(text="I", start=0.5, end=0.6),
+        TranscriptWord(text="went", start=0.62, end=0.8),
+        TranscriptWord(text="I", start=0.95, end=1.05),
+        TranscriptWord(text="went", start=1.07, end=1.25),
+    ]
+    candidates = _collect_repetition_candidates(words, "host", {"filler_words": []})
+    assert [c.reason for c in candidates] == ["restart:phrase:i went"]
+    assert candidates[0].min_start == pytest.approx(0.2)
+    assert candidates[0].max_end == pytest.approx(0.95)
+
+
+def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
+    """A repeat/restart cut that ends up mostly outside its target word is junk (PR #792 review).
+
+    Widening a repeat/restart cut's bounds to the flanking silence (#783)
+    gives waveform snapping room to slide well away from the reparandum. A
+    cut with less than half its overlap on the reparandum's own span removes
+    neither copy and leaves both audible; reject it instead of proposing a
+    no-op edit. The lab-verified case is aligned times slivering
+    ``repetition:word:i`` at 215.81 without touching either "I".
+    """
+    from podcast_mcp.edits.cut_quality import CutRisk
+    from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+
+    words = [
+        TranscriptWord(text="I", start=0.5, end=0.53),
+        TranscriptWord(text="I", start=0.6, end=0.65),
+    ]
+    project = _project_with_transcript(words)
+    cand = _CutCandidate(
+        track_id="host",
+        start=0.5,
+        end=0.53,
+        reason="repetition:word:i",
+        cut_kind="repeat",
+        min_start=0.2,
+        max_end=0.6,
+    )
+
+    def fake_opt(*args, **kwargs):
+        # Slides past the targeted "I" entirely, into the flanking silence.
+        return (
+            OptimizedCutRange(
+                start=0.54,
+                end=0.57,
+                mode="vocal_transcript_guided",
+                shifted_start_ms=0.0,
+                shifted_end_ms=0.0,
+                confidence=0.9,
+                details={},
+            ),
+            CutRisk(score=0.0, reasons=[]),
+        )
+
+    with (
+        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=fake_opt),
+        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            return_value=("session", None),
+        ),
+    ):
+        result = _analyze_candidate(
+            project,
+            cand,
+            {"tighten": {"filler_words": [], "leave_in_if_risky": True}},
+        )
+    assert result is None
+
+
 def test_repetition_candidates_are_bounded_and_review_required():
     from podcast_mcp.edits.fillers import _collect_candidates
 

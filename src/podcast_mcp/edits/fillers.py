@@ -357,13 +357,36 @@ def _bounded_repeat_start(words: list[TranscriptWord], reparandum_start_i: int) 
     reparandum's own start there. Aligned times leave a real gap between
     words; clamping the floor to the reparandum's own start (the old
     behavior) stranded that gap as unremoved air on the left. The preceding
-    word is never part of the cut, so its end is always a safe floor. Falls
-    back to the reparandum's own start when it is the first word in the
-    track, since there is no neighbor to bound against.
+    *surviving* word is never part of the cut, so its end is always a safe
+    floor -- a suppressed word can sit between two kept words with a span
+    that overlaps the kept one before it (already-cut material), so skip
+    suppressed entries via ``_prev_nonsuppressed`` rather than reading
+    ``words[i - 1]`` directly (#792 review). Falls back to the reparandum's
+    own start when there is no preceding surviving word.
     """
-    if reparandum_start_i > 0:
-        return words[reparandum_start_i - 1].end
+    prev_i = _prev_nonsuppressed(words, reparandum_start_i)
+    if prev_i is not None:
+        return words[prev_i].end
     return words[reparandum_start_i].start
+
+
+_MIN_REPARANDUM_OVERLAP_FRACTION = 0.5
+
+
+def _cut_covers_reparandum(candidate: _CutCandidate, start: float, end: float) -> bool:
+    """True when the final cut still removes most of the word(s) it targeted.
+
+    Widening a repeat/restart cut's bounds to the flanking silence (#783)
+    gives waveform snapping and breath extension room to slide the cut well
+    away from the reparandum, inside those bounds. A cut that ends up barely
+    touching the reparandum removes neither copy and leaves both audible --
+    reject it rather than propose a no-op edit (PR #792 review).
+    """
+    span = candidate.end - candidate.start
+    if span <= 0:
+        return True
+    overlap = min(end, candidate.end) - max(start, candidate.start)
+    return overlap >= _MIN_REPARANDUM_OVERLAP_FRACTION * span
 
 
 def _collect_repetition_candidates(
@@ -1217,6 +1240,10 @@ def _analyze_candidate(
     if paced_span is None:
         return None
     cut_start, cut_end = paced_span
+    if candidate.cut_kind in ("repeat", "restart") and not _cut_covers_reparandum(
+        candidate, cut_start, cut_end
+    ):
+        return None
     if candidate.strictly_bounded and (cut_start, cut_end) != (opt.start, opt.end):
         # Risk was measured on the optimized span; re-assess the span we cut.
         risk = assess_cut_risk(
