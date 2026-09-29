@@ -273,3 +273,32 @@ def test_source_proxy_does_not_gate_primary_using_other_selected_media(tmp_path:
     plan = build_bleed_gate_plan(project, "host", source_clock=True)
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("unsupported_source_proxy_layout",)
+
+
+def test_scoped_preview_and_apply_count_only_effective_attenuation(tmp_path):
+    project = _episode(tmp_path)
+    project.track_by_id("host").transcript_gate = False
+    write_stem_hash(project, "host")
+    preview = apply_transcript_bleed_mute(
+        project, track_id="host", start_sec=0, end_sec=1, dry_run=True
+    )
+    assert preview["candidates"][0]["attenuation_count"] == 0
+    with render_lock(project):
+        actual = apply_transcript_bleed_mute(
+            project, track_id="host", start_sec=0, end_sec=1, dry_run=False
+        )
+    assert actual["applied"][0]["attenuation_count"] == 0
+
+
+def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path):
+    project = _episode(tmp_path)
+    raw = _read_pcm(tmp_path / "raw" / "host.wav")
+    whole, segment = tmp_path / "full.wav", tmp_path / "fade-window.wav"
+    _write_pcm(whole, raw / 32767)
+    start, end = 2.005, 2.018
+    _write_pcm(segment, raw[round(start * RATE) : round(end * RATE)] / 32767)
+    apply_track_transcript_gate(project, "host", whole, timeline_start=0, timeline_end=4)
+    apply_track_transcript_gate(project, "host", segment, timeline_start=start, timeline_end=end)
+    np.testing.assert_allclose(
+        _read_pcm(segment), _read_pcm(whole)[round(start * RATE) : round(end * RATE)], atol=1
+    )

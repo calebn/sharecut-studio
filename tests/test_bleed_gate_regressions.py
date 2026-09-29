@@ -10,6 +10,7 @@ from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.play import PlayRequest, PlayService
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -129,3 +130,47 @@ def test_reconcile_refuses_gated_fallback_when_ungated_evidence_fails(tmp_path, 
     with pytest.raises(ValueError, match="ungated evidence unavailable"):
         reconcile_transcript(project, dry_run=False)
     assert project.transcripts[0].words[0].model_dump() == before
+
+
+def test_refresh_persists_fresh_reconciliation_with_transcript_gate(tmp_path):
+    project = audio_project(tmp_path)
+    ws = ProjectWorkspace(tmp_path / "episode.project.json", project)
+    ws.save()
+    PipelineService(ws).render_preview()
+    PipelineService(ws).render_preview()
+    reloaded = ProjectWorkspace.open(ws.path).project
+    assert reloaded.reconciliation_stale is False
+    assert stem_is_fresh(reloaded, "host")
+
+
+def test_gate_overreach_detects_a_completely_silenced_retained_word(tmp_path):
+    project = audio_project(tmp_path)
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(stem), "wb") as stream:
+        stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
+    report = analyze_gate_overreach(project, "host")
+    assert report["risk"] != "none"
+    assert any(issue["kind"] == "processed_word_loss" for issue in report["issues"])
+
+
+def test_refresh_reconciles_current_ungated_peer_not_its_stale_stem(tmp_path):
+    project = audio_project(tmp_path)
+    project.tracks.append(
+        Track(id="guest", label="Guest", media=MediaAsset(path="raw/host.wav", duration_sec=3))
+    )
+    project.clips.append(
+        Clip(id="guest-clip", track_id="guest", source_start=0, source_end=3, timeline_start=0)
+    )
+    project.transcripts.append(
+        Transcript(track_id="guest", words=[TranscriptWord(text="guest", start=1, end=2)])
+    )
+    stem = project.artifacts_dir() / "tracks" / "guest.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(stem), "wb") as stream:
+        stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
+    rerender_preview(project)
+    guest = project.transcript_for_track("guest").words[0]
+    assert guest.audibility_status != "inaudible"
