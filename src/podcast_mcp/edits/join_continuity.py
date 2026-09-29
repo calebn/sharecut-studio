@@ -33,8 +33,8 @@ from podcast_mcp.edits.audio_cache import (
 )
 from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
-from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
+from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject

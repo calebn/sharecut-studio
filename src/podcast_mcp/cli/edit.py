@@ -449,6 +449,20 @@ def edit_set_clip_join_cmd(
     typer.echo(json.dumps(EditService(ws).set_clip_join(left, right, mode, length_ms), indent=2))
 
 
+@edit_app.command("trim-clip")
+def edit_trim_clip_cmd(
+    project: Path = typer.Option(..., "--project"),
+    clip: str = typer.Option(..., "--clip", help="Clip id"),
+    edge: str = typer.Option(..., "--edge", help="in | out"),
+    source_sec: float = typer.Option(
+        ..., "--source-sec", help="New edge position in source-media seconds"
+    ),
+) -> None:
+    """Move one clip edge (later clips ripple); `play context` suggests the value."""
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EditService(ws).trim_clip_edge(clip, edge, source_sec), indent=2))
+
+
 @edit_app.command("add-chapter")
 def edit_add_chapter_cmd(
     project: Path = typer.Option(..., "--project"),

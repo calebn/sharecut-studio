@@ -2349,7 +2349,11 @@
         "command": "edit.trimClipEdge",
         "gui": [
           "timeline.clip.trimHandle"
-        ]
+        ],
+        "mcp": [
+          "trim_clip_edge_tool"
+        ],
+        "cli": "podcast edit trim-clip"
       },
       "omit": {
         "keyboard_reason": "pointer trim handle; no industry-standard key"

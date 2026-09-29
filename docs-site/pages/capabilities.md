@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**101** capabilities · **85** Sharecut Studio commands · **51** keyed · **164** MCP tools · **17** skills on rows (+ **18** hub skills).
+**101** capabilities · **85** Sharecut Studio commands · **51** keyed · **165** MCP tools · **17** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -106,7 +106,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Next low-confidence word | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
-| Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | — | — | — | — | time · none |
+| Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Add chapter at playhead | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `transport.menu`, `mobileShell.more` | — | — | — | yes | none · none |
 | Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |

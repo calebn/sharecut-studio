@@ -39,6 +39,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "crossfade_joins_tool": "na",
     "set_join_mode_tool": "na",
     "set_clip_join_tool": "na",
+    "trim_clip_edge_tool": "source",
     "set_effect_bypass_tool": "na",
     "set_word_suppressed_tool": "source",
     "set_words_ignored_tool": "source",

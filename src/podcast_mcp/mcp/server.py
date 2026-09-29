@@ -195,6 +195,7 @@ from podcast_mcp.mcp.tools.timeline import (  # noqa: E402, F401
     shorten_gaps_tool,
     split_clip_tool,
     strip_silence_tool,
+    trim_clip_edge_tool,
     verify_transcript_tool,
 )
 from podcast_mcp.mcp.tools.transcript import (  # noqa: E402, F401

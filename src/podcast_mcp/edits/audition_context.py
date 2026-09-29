@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from podcast_mcp.edits.comments import list_comments
+from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window
 from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
 from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.render_status import render_status_report
@@ -146,6 +147,17 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "skill": None,
         "tools": ["audio_diagnostics_tool"],
         "meaning": "Windowed astats/hum could not run for this span; do not treat the window as clean.",
+    },
+    "speech_crosses_cut": {
+        "severity": "warn",
+        "confidence": "measured",
+        "autonomy": "needs_approval",
+        "skill": "podcast-inaudible-cuts",
+        "tools": ["trim_clip_edge_tool", "suggest_handoff_cut_tool", "play_audio_tool"],
+        "meaning": (
+            "Voiced speech runs through a clip edge at this join: the cut removed the start "
+            "(clipped onset) or the end (clipped tail) of a phrase."
+        ),
     },
 }
 
@@ -387,6 +399,8 @@ def build_audition_context(
         else []
     )
     hypotheses.extend(_visual_hypotheses(window, dsp))
+    if include_dsp:
+        hypotheses.extend(_speech_cut_hypotheses(project, track_ids, timeline_start, timeline_end))
 
     visuals: list[dict[str, Any]] | None = None
     if detail == "visual":
@@ -613,6 +627,62 @@ def _visual_hypotheses(
                     },
                 )
             )
+    return out
+
+
+JOIN_LISTEN_PAD_SEC = 1.0
+
+
+def _speech_cut_meaning(c: SpeechCrossing) -> str:
+    onset = c.direction == "clipped_onset"
+    edge = "starts" if onset else "ends"
+    where = (
+        f"voice from source {c.voice_edge_source_sec:.2f}s, clip in-point {c.cut_source_sec:.2f}s"
+        if onset
+        else f"voice to source {c.voice_edge_source_sec:.2f}s, clip out-point {c.cut_source_sec:.2f}s"
+    )
+    head = (
+        f"{c.track_id}: clip {edge} {c.removed_ms:.0f} ms "
+        f"{'into' if onset else 'before the end of'} voiced speech ({where})"
+    )
+    if c.asr_disagrees:
+        words = []
+        if c.asr_prev_word is not None and c.asr_prev_end_sec is not None:
+            words.append(f"'{c.asr_prev_word}' ends {c.asr_prev_end_sec:.2f}s")
+        if c.asr_next_word is not None and c.asr_next_start_sec is not None:
+            words.append(f"'{c.asr_next_word}' starts {c.asr_next_start_sec:.2f}s")
+        lag = f", {c.asr_lag_ms:.0f} ms off the voice edge" if c.asr_lag_ms is not None else ""
+        asr = f"; the transcript puts the cut between words ({'; '.join(words) or 'no word nearby'}{lag}): word times disagree with the audio here"
+    else:
+        asr = "; a transcript word covers the cut"
+    fix = (
+        f"trim the in-point back to {c.suggested_source_sec:.2f}s"
+        if onset
+        else f"extend the out-point to {c.suggested_source_sec:.2f}s"
+    )
+    return f"speech_crosses_cut: {head}{asr}. {fix}, or move the cut to a handoff silence."
+
+
+def _speech_cut_hypotheses(
+    project: EpisodeProject,
+    track_ids: list[str],
+    timeline_start: float,
+    timeline_end: float,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for c in speech_crossings_in_window(project, track_ids, timeline_start, timeline_end):
+        out.append(
+            _hypothesis(
+                "speech_crosses_cut",
+                tracks=[c.track_id],
+                window=_clock_window(
+                    max(0.0, c.join_timeline_sec - JOIN_LISTEN_PAD_SEC),
+                    c.join_timeline_sec + JOIN_LISTEN_PAD_SEC,
+                ),
+                evidence=c.to_dict(),
+                meaning=_speech_cut_meaning(c),
+            )
+        )
     return out
 
 
