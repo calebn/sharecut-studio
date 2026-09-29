@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from filelock import Timeout
 
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import project_busy_from_timeout, require_host, resolve_project
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.media_store import (
     gui_media_chunk_max_bytes,
@@ -47,6 +48,8 @@ async def upload_media(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Timeout as exc:
+        raise project_busy_from_timeout(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"invalid audio: {exc}") from exc
     return result

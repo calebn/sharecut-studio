@@ -500,6 +500,28 @@ def test_host_media_upload_maps_probe_errors(minimal_project, monkeypatch):
     assert "invalid audio" in res.json()["detail"]
 
 
+def test_host_media_upload_maps_lock_timeout_to_project_busy(minimal_project, monkeypatch):
+    client = TestClient(create_app(served_project=None))
+
+    def boom(*_args, **_kwargs):
+        from filelock import Timeout
+
+        raise Timeout("/artifacts/episode.project.json.lock")
+
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.media.write_upload_chunk",
+        boom,
+    )
+    res = client.post(
+        f"/api/media/upload?path={minimal_project}&filename=a.wav",
+        content=b"x",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert res.status_code == 503
+    assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "/artifacts" not in res.json()["detail"]
+
+
 def test_guest_media_upload_413_and_400(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setenv("PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES", "16")
     client, _view, edit_tok = _guest_share_client(
@@ -540,3 +562,29 @@ def test_guest_media_upload_maps_probe_errors(
     )
     assert res.status_code == 400
     assert "invalid audio" in res.json()["detail"]
+
+
+def test_guest_media_upload_maps_lock_timeout_to_project_busy(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    client, _view, edit_tok = _guest_share_client(
+        minimal_project, sample_wav, tmp_workspace, monkeypatch
+    )
+
+    def boom(*_args, **_kwargs):
+        from filelock import Timeout
+
+        raise Timeout("/artifacts/episode.project.json.lock")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.media_store.write_upload_chunk",
+        boom,
+    )
+    res = client.post(
+        f"/api/review/{edit_tok}/daw/media/upload?filename=a.wav",
+        content=b"x",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert res.status_code == 503
+    assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "/artifacts" not in res.json()["detail"]

@@ -1208,6 +1208,18 @@ def test_map_share_exc_branches():
     assert _map_share_exc(ValueError("bad")).status_code == 400
     assert _map_share_exc(RuntimeError("boom")).status_code == 500
 
+    from filelock import Timeout
+
+    from podcast_mcp.util.project_state import RenderBusyError
+
+    busy = _map_share_exc(Timeout("/artifacts/episode.project.json.lock"))
+    assert busy.status_code == 503
+    assert busy.headers == {"X-Sharecut-Error-Code": "project_busy"}
+    assert "/artifacts" not in busy.detail
+    render = _map_share_exc(RenderBusyError("/artifacts/render.lock"))
+    assert render.status_code == 503
+    assert "another render of this project is in progress" in render.detail
+
 
 def test_guest_daw_ws_authz_denied(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
