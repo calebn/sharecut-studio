@@ -15,9 +15,10 @@ from typing import Any, TypeVar
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
+from filelock import Timeout
 from starlette.background import BackgroundTask
 
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import project_busy_from_timeout, require_host, resolve_project
 from podcast_mcp.services.waveform import (
     StaleWaveformKeyError,
     WaveformBusyError,
@@ -104,7 +105,8 @@ def waveform_call(
     Anything else goes through *fallback*: guests pass ``_map_share_exc``, so a
     ``PermissionError`` from the share capability check stays 403.
     Only *fallback* errors that map to 5xx are logged (a busy 503 is expected load,
-    not a fault).
+    not a fault). A lock timeout (``filelock.Timeout``) is 503 ``project_busy`` (#488),
+    also not logged.
     """
     try:
         return fn()
@@ -112,6 +114,8 @@ def waveform_call(
         raise no_store_error(exc) from exc
     except (ValueError, LookupError, FileNotFoundError, WaveformBusyError) as exc:
         raise waveform_error(exc) from exc
+    except Timeout as exc:
+        raise no_store_error(project_busy_from_timeout(exc)) from exc
     except Exception as exc:
         mapped = fallback(exc)
         if mapped.status_code >= 500:

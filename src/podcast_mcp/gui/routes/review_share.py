@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from filelock import Timeout
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
@@ -22,6 +23,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.background import release_background
+from podcast_mcp.gui.routes.deps import project_busy_from_timeout
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GuestWsGuard,
@@ -170,6 +172,8 @@ def _map_share_exc(exc: Exception) -> HTTPException:
         return HTTPException(status_code=404, detail="not found")
     if isinstance(exc, ValueError):
         return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, Timeout):
+        return project_busy_from_timeout(exc)
     return HTTPException(status_code=500, detail="internal error")
 
 
@@ -576,6 +580,8 @@ async def post_daw_media_upload(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Timeout as exc:
+        raise project_busy_from_timeout(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"invalid audio: {exc}") from exc
 

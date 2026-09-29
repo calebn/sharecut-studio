@@ -202,6 +202,27 @@ def test_waveform_call_maps_unknown_errors_to_500_no_store(caplog):
     assert any(r.levelno == logging.ERROR for r in caplog.records)
 
 
+def test_waveform_call_maps_lock_timeout_to_project_busy_without_logging(caplog):
+    from fastapi import HTTPException
+    from filelock import Timeout
+
+    from podcast_mcp.gui.routes.waveform import waveform_call
+
+    def locked():
+        raise Timeout("/artifacts/episode.project.json.lock")
+
+    with (
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
+        pytest.raises(HTTPException) as info,
+    ):
+        waveform_call(locked)
+    assert info.value.status_code == 503
+    assert info.value.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert info.value.headers["Cache-Control"] == "no-store"
+    assert "/artifacts" not in info.value.detail
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
 def test_waveform_call_does_not_log_mapped_client_errors(caplog):
     from fastapi import HTTPException
 
