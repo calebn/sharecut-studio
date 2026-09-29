@@ -126,6 +126,15 @@ function projectWithSuppressedWord() {
   return p;
 }
 
+/** `project()` with word 1 suppressed and locked (#768/#781): a person or
+ * agent set `suppressed` directly, not a heuristic pass. */
+function projectWithLockedWord() {
+  const p = project();
+  p.transcript!.utterances[0].words![1].suppressed = true;
+  p.transcript!.utterances[0].words![1].audibility_locked = true;
+  return p;
+}
+
 describe("TranscriptWordInspector", () => {
   beforeEach(() => {
     vi.mocked(correctTranscriptWord).mockClear();
@@ -152,6 +161,33 @@ describe("TranscriptWordInspector", () => {
     expect(
       screen.queryByText(/audio and word timing stay as recorded/),
     ).toBeNull();
+  });
+
+  it("shows the lock state and its explanation next to Suppressed for a locked word (#813)", () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent(
+      "yes (locked)",
+    );
+    expect(
+      screen.getByText(
+        /Suppression locked: set directly, not by a heuristic pass\. Reconcile and auto-suppress leave it alone\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the lock explanation for a word that is not locked", () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("no");
+    expect(screen.queryByText(/Suppression locked/)).not.toBeInTheDocument();
+  });
+
+  it("the locked word inspector state is axe-clean (#813)", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    const { container } = render(
+      <TranscriptWordInspector trackId="host" wordIndex={1} />,
+    );
+    await expectNoA11yViolations(container);
   });
 
   it("Apply with end index = start calls correctTranscriptWord", async () => {
