@@ -7,15 +7,17 @@ import secrets
 from pathlib import Path
 
 from fastapi import HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
+from filelock import Timeout
+from starlette.responses import Response
 
 from podcast_mcp.services.session_sync.authz import (
     authorize_client,
     authorize_host,
     is_loopback_host,
 )
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
-
-PROJECT_BUSY_CODE = "project_busy"
 
 
 def project_busy_error(detail: str) -> HTTPException:
@@ -25,6 +27,20 @@ def project_busy_error(detail: str) -> HTTPException:
         detail=detail,
         headers={"X-Sharecut-Error-Code": PROJECT_BUSY_CODE},
     )
+
+
+async def project_busy_exception_handler(request: Request, exc: Exception) -> Response:
+    """App-wide fallback: any ``filelock.Timeout`` a route doesn't map itself becomes 503 (#488).
+
+    Installed once on the FastAPI app (``app.add_exception_handler(Timeout, ...)``), so
+    routes that do not need their own busy-lock contract (unlike ``document.py``, which
+    maps ``Timeout`` alongside a sqlite-busy check for its own 409/503 responses) still
+    report ``project_busy`` instead of a raw 500. Starlette only ever calls a handler
+    registered on a given exception class with an instance of it; the assert documents
+    that and narrows the type for ``busy_message``.
+    """
+    assert isinstance(exc, Timeout)
+    return await http_exception_handler(request, project_busy_error(busy_message(exc)))
 
 
 def peer_host(request: Request) -> str | None:
