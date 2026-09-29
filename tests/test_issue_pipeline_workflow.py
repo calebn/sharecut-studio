@@ -207,8 +207,11 @@ def test_docs_lens_runs_only_on_changed_docs() -> None:
     script = _script()
     assert _js_string_list("FOLLOWUP_LENSES") == ["bugbot", "risk", "reuse", "docs"]
     assert (
-        "const docsChanged = !packet || !Number.isInteger(packet.docs) || packet.docs > 0" in script
+        r"const docsChanged = !packet || !(packet.docs === 0 && /\sdocs=0$/.test((packet.printed || '').trim()))"
+        in script
     )
+    assert "printed: { type: 'string'" in script
+    assert "plus the whole printed line verbatim (as printed)" in script
     assert ".filter((l) => l.key !== 'docs' || docsChanged)" in script
     assert 'It prints "<path> <chars> docs=<N>"' in script
     assert "${lens.origin || 'pr-multi-review § Launch'}" in script
