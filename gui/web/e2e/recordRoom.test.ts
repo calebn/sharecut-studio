@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { encodePcmWav } from "../src/audio/wavHeader";
+import { hostWithResponse } from "./hostRequestFakes";
 import {
   clickHostTransport,
   createRecordRoom,
@@ -24,16 +25,6 @@ const room = {
   guest: { token: "guest-token" },
   producer: { token: "producer-token" },
 };
-
-function hostWithResponse(ok: boolean, body: unknown, status = ok ? 200 : 400) {
-  const post = vi.fn(async () => ({
-    ok: () => ok,
-    status: () => status,
-    text: async () => JSON.stringify(body),
-    json: async () => body,
-  }));
-  return { page: { request: { post } }, post };
-}
 
 describe("createRecordRoom", () => {
   it("posts the project path and returns the room", async () => {

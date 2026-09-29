@@ -1,14 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { hostWithResponse } from "./hostRequestFakes";
 import { createReviewShare, openGuestShare } from "./shareNavigation";
-
-function hostWithResponse(ok: boolean, body: unknown) {
-  const post = vi.fn(async () => ({
-    ok: () => ok,
-    text: async () => JSON.stringify(body),
-    json: async () => body,
-  }));
-  return { page: { request: { post } }, post };
-}
 
 describe("createReviewShare", () => {
   it("posts the project path and default viewer role, returning the token", async () => {
