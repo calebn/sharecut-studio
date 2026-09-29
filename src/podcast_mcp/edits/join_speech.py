@@ -315,17 +315,18 @@ def find_speech_crossings(
     out: list[SpeechCrossing] = []
     for prev, cur in joins:
         join_t = float(cur.timeline_start)
-        for clip, cut_sec, side in (
+        edges: list[tuple[Clip, float, Side]] = [
             (prev, float(prev.source_end), "tail"),
             (cur, float(cur.source_start), "onset"),
-        ):
+        ]
+        for clip, cut_sec, side in edges:
             hit = _crossing(
                 reader,
                 track_id=track_id,
                 clip=clip,
                 join_t=join_t,
                 cut_sec=cut_sec,
-                side=side,  # type: ignore[arg-type]
+                side=side,
                 words=words,
                 cfg=cfg,
             )
