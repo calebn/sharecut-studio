@@ -498,6 +498,36 @@ def test_pinned_snapshot_load_rejects_sha256_mismatch(tmp_path, monkeypatch) -> 
         WordAligner.load()
 
 
+def test_override_dir_with_a_broken_onnx_names_the_dir_and_the_env_var(
+    tmp_path, monkeypatch
+) -> None:
+    """#780: a present snapshot that cannot load is a clear domain error, not a raw traceback."""
+    pytest.importorskip("onnxruntime")
+    snap = _snapshot(tmp_path / "broken")
+    (snap / "onnx" / "model.onnx").write_bytes(b"not an onnx model")
+    monkeypatch.setenv("PODCAST_MCP_WORD_ALIGNER_MODEL", str(snap))
+
+    with pytest.raises(WordAlignerMissingError) as excinfo:
+        WordAligner.load()
+    message = str(excinfo.value)
+    assert f"failed to load from {snap}" in message
+    assert "fix the files or unset PODCAST_MCP_WORD_ALIGNER_MODEL" in message
+    assert "podcast bootstrap" not in message
+
+
+def test_pinned_snapshot_with_a_broken_vocab_names_the_upgrade(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
+    snap = pin_word_aligner_to_fake_snapshot(tmp_path / "pinned", monkeypatch)
+    monkeypatch.setattr("podcast_mcp.engines.word_align.resolve_word_aligner_dir", lambda _id: snap)
+    fake, _sessions = _fake_onnxruntime()
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake)
+
+    with pytest.raises(WordAlignerMissingError) as excinfo:
+        WordAligner.load()
+    assert "JSONDecodeError" in str(excinfo.value)
+    assert "podcast bootstrap --component word-aligner --upgrade" in str(excinfo.value)
+
+
 def test_pinned_snapshot_load_rejects_a_tampered_vocab_json(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("PODCAST_MCP_WORD_ALIGNER_MODEL", raising=False)
     snap = pin_word_aligner_to_fake_snapshot(tmp_path / "pinned", monkeypatch)

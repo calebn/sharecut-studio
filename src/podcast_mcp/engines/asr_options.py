@@ -21,7 +21,9 @@ from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
     WORD_ALIGNER_BOOTSTRAP,
     WordAlignerMissingError,
+    WordAlignerPinMismatchError,
     word_aligner_installed,
+    word_aligner_problem,
 )
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
@@ -72,13 +74,23 @@ class ForcedAlignment:
         return f"unavailable: {missing}"
 
     def require(self) -> None:
-        """Raise ``WordAlignerMissingError`` (with the download command) when ``blocked``."""
-        if self.blocked:
+        """An explicit ``true`` needs a verified model: raise the download or ``--upgrade`` hint.
+
+        Only the explicit flag pays for the pin hash (seconds on the 360 MB ONNX); the default
+        keeps the presence check and lets a corrupt snapshot fail at load, reported per job.
+        """
+        if self.requested is not True:
+            return
+        problem = word_aligner_problem(self.model)
+        if problem is None:
+            return
+        if not self.installed or not isinstance(problem, WordAlignerPinMismatchError):
             raise WordAlignerMissingError(
                 self.model,
                 "transcribe.forced_alignment.enabled is true; unset it to follow the "
                 "installed model or set it to false for Whisper's times",
             )
+        raise problem
 
     def report(self) -> dict[str, Any]:
         """The ``forced_alignment`` block of ``artifacts/transcript_timing.json`` and the config payload."""
@@ -122,8 +134,13 @@ class AsrOptions:
     # Not part of decode_key(): alignment has its own cache beside the ASR cache,
     # so toggling it never re-runs Whisper. The default follows the installed model.
     forced_alignment: ForcedAlignment = field(default_factory=lambda: ForcedAlignment.resolve(None))
-    # Flag-only threshold on TranscriptWord.alignment_score; not a decode_key input.
+    # Flag-only threshold on TranscriptWord.alignment_score; not a decode_key input. A low
+    # score flags a word only when its own track carries no speech over the aligned span
+    # (below the noise floor + speech margin) or another dialogue track is louder there by
+    # the bleed margin (#780).
     forced_alignment_min_word_score: float = 0.01
+    forced_alignment_speech_margin_db: float = 12.0
+    forced_alignment_bleed_margin_db: float = 3.0
 
     @property
     def forced_alignment_enabled(self) -> bool:
@@ -179,6 +196,18 @@ class AsrOptions:
             forced_alignment=ForcedAlignment.resolve(fa.get("enabled")),
             forced_alignment_min_word_score=bounded_float(
                 fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0
+            ),
+            forced_alignment_speech_margin_db=bounded_float(
+                fa.get("evidence_speech_margin_db"),
+                base.forced_alignment_speech_margin_db,
+                0.0,
+                60.0,
+            ),
+            forced_alignment_bleed_margin_db=bounded_float(
+                fa.get("evidence_bleed_margin_db"),
+                base.forced_alignment_bleed_margin_db,
+                0.0,
+                60.0,
             ),
         )
 
