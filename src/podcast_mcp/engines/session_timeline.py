@@ -136,6 +136,25 @@ def _candidates_timeline(idx: _TrackIndex, lo: float, hi: float) -> tuple[_Span,
     return idx.by_timeline[start:stop]
 
 
+def _gap_neighbor_drifts(idx: _TrackIndex, tl_sec: float) -> list[float]:
+    """Drift of the reference clip(s) flanking a timeline point with none covering it.
+
+    ``tl_sec`` falls in a reference gap: a track-local punch hole, or before its
+    first / past its last clip. With clips on both sides of the gap, both are
+    returned so the caller can prefer whichever reads closer to zero (a shared
+    cut landing mid-hole shouldn't be mistaken for drift). With a clip on only
+    one side, that's the only reference data available.
+    """
+    prior = bisect_right(idx.timeline_starts, tl_sec) - 1
+    out: list[float] = []
+    if prior >= 0:
+        out.append(-clip_source_to_timeline_shift(idx.by_timeline[prior]))
+    nxt = prior + 1
+    if 0 <= nxt < len(idx.by_timeline):
+        out.append(-clip_source_to_timeline_shift(idx.by_timeline[nxt]))
+    return out
+
+
 def _merge_intervals(
     intervals: list[tuple[float, float]], merge_gap: float
 ) -> list[tuple[float, float]]:
@@ -617,10 +636,11 @@ class SessionTimeline:
         cut snapping is not. Ripple cuts shift every track alike and cancel out.
 
         A piece whose midpoint falls where the reference track itself has no clip
-        (its own track-local punch hole, or simply past its last clip) carries no
-        alignment information: comparing against it would score against whichever
-        clip happens to be nearest, on either side of an unrelated cut. Such pieces
-        are skipped rather than scored.
+        (its own track-local punch hole, or before its first / past its last clip)
+        is scored against whichever flanking reference clip reads closer to zero
+        (:func:`_gap_neighbor_drifts`), so a shared cut that lands mid-hole isn't
+        mistaken for drift while a clip that's genuinely offset on both sides of
+        the hole still is.
         """
         start, end = float(clip.timeline_start), float(clip.timeline_end)
         own = -clip_source_to_timeline_shift(clip)
@@ -639,9 +659,15 @@ class SessionTimeline:
         for a, b in pieces:
             mid = TimelineSec((a + b) / 2.0)
             ref_src = self.timeline_to_source(reference_track_id, mid)
-            if ref_src is None:
+            if ref_src is not None:
+                candidates = [float(ref_src) - float(mid)]
+            elif ref_idx is not None:
+                candidates = _gap_neighbor_drifts(ref_idx, float(mid))
+            else:
+                candidates = []
+            if not candidates:
                 continue
-            rel = own - (float(ref_src) - float(mid))
+            rel = min((own - d for d in candidates), key=abs)
             if abs(rel) > abs(worst):
                 worst = rel
         return worst
