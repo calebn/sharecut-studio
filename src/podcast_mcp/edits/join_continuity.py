@@ -526,24 +526,37 @@ def _worst_placement(
     cfg: JoinContinuityConfig,
     *,
     inaudible: bool = True,
+    fail_at: float | None = None,
 ) -> _Placement:
     """Score the splice at ``(left_i, right_i)`` and at every edge placement within
-    ``cfg.edge_tolerance_ms``; the riskiest placement decides (fail-closed), so a
-    few-millisecond edge move cannot flip the verdict on its own (#822). Ties keep
-    the placement as proposed, which is scored first."""
+    ``cfg.edge_tolerance_ms``; the riskiest placement decides (fail-closed), which
+    roughly halves the verdict flips a few-millisecond edge move causes (#822). Ties
+    keep the placement as proposed, which is scored first.
+
+    Inaudibility is decided at the proposed edges only: a splice both of whose sides
+    sit below the floor there passes, whatever the detectors read 3 ms away (the floor
+    is a hard threshold, so taking the worst placement across it would turn a clean
+    quiet-air cut into a fail). With ``fail_at`` the scan stops at the first placement
+    at or above it: the verdict is already fail, so the remaining placements cannot
+    change it.
+    """
     side = max(8, int(cfg.side_sec * sr))
+    left, right = _sides(samples, left_i, right_i, side)
+    quiet = _inaudible_splice(left, right, cfg) if inaudible else None
+    if quiet is not None:
+        return _Placement(0.0, [quiet], True, 0, 0)
     shifts = _edge_shifts(cfg, sr)
-    placements: list[_Placement] = []
+    worst: _Placement | None = None
     for dl in shifts:
         for dr in shifts:
             left, right = _sides(samples, left_i + dl, right_i + dr, side)
-            quiet = _inaudible_splice(left, right, cfg) if inaudible else None
-            if quiet is not None:
-                risk, hits = 0.0, [quiet]
-            else:
-                risk, hits = score_splice_samples(left, right, sample_rate=sr, config=cfg)
-            placements.append(_Placement(risk, hits, quiet is not None, dl, dr))
-    return max(placements, key=lambda p: p.risk)
+            risk, hits = score_splice_samples(left, right, sample_rate=sr, config=cfg)
+            if worst is None or risk > worst.risk:
+                worst = _Placement(risk, hits, False, dl, dr)
+            if fail_at is not None and risk >= fail_at:
+                return worst
+    assert worst is not None
+    return worst
 
 
 def _resolve_source_samples(
@@ -987,7 +1000,9 @@ def assess_proposed_cut(
     else:
         src0, src1 = float(cut_start), float(cut_end)
     i0, i1 = _splice_indices((src0, src1), cfg.sample_rate)
-    worst = _worst_placement(samples, cfg.sample_rate, i0, i1, cfg)
+    # No hit is added after this point, so a placement at the fail line settles the
+    # verdict; the existing-join path adds hits afterwards and keeps the full scan.
+    worst = _worst_placement(samples, cfg.sample_rate, i0, i1, cfg, fail_at=cfg.review_below)
     return _finalize(
         track_id=track_id,
         mode="proposed_cut",
