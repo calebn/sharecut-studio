@@ -449,9 +449,13 @@ def test_replay_units_and_summarize(check_repo: Path) -> None:
     assert results[0][1].findings[0].outcome == "violated"
     assert results[1][1].findings[0].outcome == "satisfied"
 
+    assert results[1][1].change.churn["ux/pages/brief.md"] == 1
+
     stats = ds.summarize(report for _label, report in results)
     assert stats == {
-        "ux-pack": ds.RuleStats(fired=2, satisfied=1, waived=0, violated=1, advisory=0)
+        "ux-pack": ds.RuleStats(
+            gate=True, fired=2, satisfied=1, trivial=1, waived=0, violated=1, advisory=0
+        )
     }
 
 
@@ -465,10 +469,114 @@ def test_replay_cli_writes_tsv(check_repo: Path, capsys: pytest.CaptureFixture[s
     units_file.write_text('{"label": "#1", "range": "base..pr1"}\n', encoding="utf-8")
     assert ds.main(["replay", "--units", str(units_file)]) == 0
     out = capsys.readouterr().out
-    assert "label\trule\toutcome\ttriggered_by\tsatisfied_by" in out
-    assert "#1\tux-pack\tviolated\tdocs/ui-philosophy.md\t" in out
-    assert "rule\tfired\tsatisfied\twaived\tviolated\tadvisory" in out
-    assert "ux-pack\t1\t0\t0\t1\t0" in out
+    assert "label\trule\toutcome\ttriggered_by\tsatisfied_by\tdoc_lines" in out
+    assert "#1\tux-pack\tviolated\tdocs/ui-philosophy.md\t\t" in out
+    assert (
+        "rule\tkind\tfired\tsatisfied\ttrivial\twaived\tviolated\tadvisory\twaive_rate\tflags"
+        in out
+    )
+    assert "ux-pack\tgate\t1\t0\t0\t0\t1\t0\t0%\t" in out
+
+
+def test_rule_stats_flags_a_gate_waived_more_than_one_in_ten() -> None:
+    not_flagged = ds.RuleStats(
+        gate=True, fired=10, satisfied=9, trivial=0, waived=1, violated=0, advisory=0
+    )
+    assert not_flagged.demotion_flags() == ()
+
+    flagged = ds.RuleStats(
+        gate=True, fired=9, satisfied=8, trivial=0, waived=1, violated=0, advisory=0
+    )
+    assert flagged.demotion_flags() == ("waived 1/9 > 10%",)
+
+    not_a_gate = ds.RuleStats(
+        gate=False, fired=9, satisfied=8, trivial=0, waived=1, violated=0, advisory=0
+    )
+    assert not_a_gate.demotion_flags() == ()
+
+    zero_fired = ds.RuleStats(
+        gate=True, fired=0, satisfied=0, trivial=0, waived=0, violated=0, advisory=0
+    )
+    assert zero_fired.waive_rate == 0.0
+
+
+def test_rule_stats_flags_mostly_trivial_satisfying_edits() -> None:
+    mostly_trivial = ds.RuleStats(
+        gate=True, fired=4, satisfied=4, trivial=3, waived=0, violated=0, advisory=0
+    )
+    assert mostly_trivial.demotion_flags() == ("trivial 3/4 satisfying edits (<= 2 lines)",)
+
+    not_mostly_trivial = ds.RuleStats(
+        gate=True, fired=4, satisfied=4, trivial=2, waived=0, violated=0, advisory=0
+    )
+    assert not_mostly_trivial.demotion_flags() == ()
+
+
+def test_summarize_counts_trivial_only_with_known_churn() -> None:
+    rule = make_rule("r", docs=("docs/r.md",), gate=("src/r.py",))
+    contract = ds.Contract(ignore=(), rules=(rule,))
+
+    trivial = ds.summarize(
+        [
+            ds.evaluate(
+                contract,
+                ds.Change(
+                    label="a",
+                    files=("src/r.py", "docs/r.md"),
+                    churn={"docs/r.md": 2},
+                ),
+            )
+        ]
+    )
+    assert trivial["r"].trivial == 1
+
+    not_trivial = ds.summarize(
+        [
+            ds.evaluate(
+                contract,
+                ds.Change(
+                    label="a",
+                    files=("src/r.py", "docs/r.md"),
+                    churn={"docs/r.md": 3},
+                ),
+            )
+        ]
+    )
+    assert not_trivial["r"].trivial == 0
+
+    unknown_churn = ds.summarize(
+        [
+            ds.evaluate(
+                contract,
+                ds.Change(label="a", files=("src/r.py", "docs/r.md")),
+            )
+        ]
+    )
+    assert unknown_churn["r"].trivial == 0
+
+
+def test_numstat_counts_text_and_skips_binary(check_repo: Path) -> None:
+    _write(check_repo, "docs/a.md", "one\ntwo\n")
+    (check_repo / "bin.dat").write_bytes(b"\x00\x01\x02")
+    _git(check_repo, "add", "docs/a.md", "bin.dat")
+    _git(check_repo, "commit", "-qm", "add docs and binary")
+    head = _git(check_repo, "rev-parse", "HEAD").strip()
+    assert ds._numstat("base", head) == {"docs/a.md": 2}
+
+
+def test_replay_cli_flags_a_waived_gate(
+    check_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _git(check_repo, "checkout", "-qb", "pr1", "base")
+    _write(check_repo, "docs/ui-philosophy.md", "changed\n")
+    _git(check_repo, "add", "docs/ui-philosophy.md")
+    _git(check_repo, "commit", "-qm", "pr1\n\nDocs-Sync-Waive: ux-pack relay-only fix")
+
+    units_file = check_repo / "units.jsonl"
+    units_file.write_text('{"label": "#1", "range": "base..pr1"}\n', encoding="utf-8")
+    assert ds.main(["replay", "--units", str(units_file)]) == 0
+    out = capsys.readouterr().out
+    assert "ux-pack\tgate\t1\t0\t0\t1\t0\t0\t100%\twaived 1/1 > 10%" in out
 
 
 # ---------------------------------------------------------------- render_table / splice_table
