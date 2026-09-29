@@ -1176,6 +1176,60 @@ def test_document_correct_and_suppress_transcript(minimal_project):
     assert HistoryService(ws5).status()["can_undo"]
 
 
+def test_document_set_transcript_word_automatic(minimal_project):
+    """SetTranscriptWordAutomatic clears the lock only; undo restores it (#824)."""
+    _seed_host_words(minimal_project, ["hello", "world"])
+    svc = DocumentSyncService.open(minimal_project)
+
+    suppressed = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={"track_id": "host", "word_index": 0, "suppressed": True},
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        )
+    )
+    assert suppressed["ok"]
+    ws = ProjectWorkspace.open(minimal_project)
+    assert ws.project.transcripts[0].words[0].audibility_locked is True
+
+    with pytest.raises(DocumentConflictError, match="changed since you read it"):
+        svc.submit(
+            DocumentCommand(
+                type="SetTranscriptWordAutomatic",
+                payload={"track_id": "host", "word_index": 0, "expected_text": "nope"},
+                client_id="c1",
+                role="viewer",
+                client_seq=2,
+            )
+        )
+    ws = ProjectWorkspace.open(minimal_project)
+    assert ws.project.transcripts[0].words[0].audibility_locked is True
+
+    automatic = svc.submit(
+        DocumentCommand(
+            type="SetTranscriptWordAutomatic",
+            payload={"track_id": "host", "word_index": 0, "expected_text": "hello"},
+            client_id="c1",
+            role="viewer",
+            client_seq=3,
+        )
+    )
+    assert automatic["ok"]
+    ws = ProjectWorkspace.open(minimal_project)
+    word = ws.project.transcripts[0].words[0]
+    assert word.audibility_locked is False
+    # The unlock itself never touches suppressed; only a later reconcile does.
+    assert word.suppressed is True
+
+    HistoryService(ws).undo()
+    reloaded = ProjectWorkspace.open(minimal_project)
+    restored = reloaded.project.transcripts[0].words[0]
+    assert restored.audibility_locked is True
+    assert restored.suppressed is True
+
+
 def test_document_suppress_edge_word_stays_in_detail_patch_and_unsuppresses(minimal_project):
     """A suppressed utterance-edge word keeps its chip in the DETAIL transcript patch,
     and unsuppressing it brings the word back into the combined utterance text (#752)."""

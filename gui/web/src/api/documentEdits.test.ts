@@ -35,6 +35,7 @@ import {
   clearSupersededCorrectionConflicts,
   correctTranscriptPhrase,
   correctTranscriptWord,
+  setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "./documentEdits";
@@ -161,6 +162,40 @@ describe("setTranscriptWordSuppressed", () => {
       "/tmp/ep",
       "SetTranscriptWordSuppressed",
       { track_id: "host", word_index: 3, suppressed: true },
+      undefined,
+    );
+  });
+});
+
+describe("setTranscriptWordAutomatic", () => {
+  it("sends expected_text when provided", async () => {
+    await setTranscriptWordAutomatic("/tmp/ep", "host", 3, "hello");
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordAutomatic",
+      {
+        track_id: "host",
+        word_index: 3,
+        expected_text: "hello",
+      },
+      undefined,
+    );
+  });
+
+  it("omits expected_text when the argument is omitted or null", async () => {
+    await setTranscriptWordAutomatic("/tmp/ep", "host", 3);
+    expect(submitQueuedDocumentCommand).toHaveBeenCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordAutomatic",
+      { track_id: "host", word_index: 3 },
+      undefined,
+    );
+
+    await setTranscriptWordAutomatic("/tmp/ep", "host", 3, null);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetTranscriptWordAutomatic",
+      { track_id: "host", word_index: 3 },
       undefined,
     );
   });

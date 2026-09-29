@@ -49,6 +49,8 @@ Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). S
 
 `set_word_suppressed_tool`, an applied `apply_bleed_suppression_tool` / `suppress-bleed` with an explicit word list, and `apply_low_audibility_suppression_tool` with an explicit word list mark the word `audibility_locked: true` alongside `suppressed` — naming the words is a decision, not a heuristic pick, so only the explicit-list form locks. Every reconcile pass — acoustic and text-match, pass 1 and pass 2 — skips a locked word entirely, the same way it already skips `ignored` words, so a later re-render or manual reconcile can't flip a person's or agent's explicit call back. Speaker attribution (`run_speaker_attribution`, the home-speaker gate) is an automatic writer too: it routes its `suppressed` decision through `TranscriptWord.resolve_auto_suppression`, so it can't flip a locked word either. See [docs/episode-format-v2.md](../../docs/episode-format-v2.md) for the field.
 
+To undo a wrong lock, call `set_word_automatic_tool` (or `podcast transcript suppress-word --automatic`, or Studio's "Return to automatic" button) — it clears `audibility_locked` only, leaving `suppressed` unchanged until you run reconcile again (#824). It does not itself pick a value; run `reconcile_transcript_tool` right after to get the word's computed target.
+
 ## Automatic sync (default)
 
 Reconciliation runs **without a separate tool call** when:

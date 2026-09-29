@@ -1048,6 +1048,75 @@ def test_map_transcript_rows_list_edge_suppressed_indices() -> None:
     assert all("edge_suppressed_word_indices" not in u for u in mapped["utterances"])
 
 
+def test_map_transcript_rows_list_locked_word_indices() -> None:
+    p = _minimal()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.3, confidence=0.9),
+                TranscriptWord(
+                    text="world",
+                    start=0.5,
+                    end=0.8,
+                    suppressed=True,
+                    audibility_locked=True,
+                    confidence=0.9,
+                ),
+            ],
+        )
+    ]
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    for include_words in (True, False):
+        mapped = map_transcript_utterances_to_timeline(p, combined, include_words=include_words)
+        assert mapped is not None
+        assert mapped["utterances"][0]["locked_word_indices"] == [1]
+
+    p.transcripts[0].words[1] = (
+        p.transcripts[0].words[1].model_copy(update={"audibility_locked": False})
+    )
+    combined = TranscriptionEngine().merge_transcripts(p).model_dump()
+    mapped = map_transcript_utterances_to_timeline(p, combined, include_words=False)
+    assert mapped is not None
+    assert "locked_word_indices" not in mapped["utterances"][0]
+
+
+def test_map_transcript_suppressed_only_row_lists_locked_indices() -> None:
+    p = _minimal()
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=10.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    )
+    p.transcripts = [
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(
+                    text="um",
+                    start=0.0,
+                    end=0.2,
+                    suppressed=True,
+                    audibility_locked=True,
+                    confidence=0.4,
+                ),
+                TranscriptWord(text="uh", start=0.3, end=0.5, suppressed=True, confidence=0.4),
+            ],
+        ),
+    ]
+    combined = {"utterances": []}
+    mapped = map_transcript_utterances_to_timeline(p, combined)
+    assert mapped is not None
+    row = mapped["utterances"][0]
+    assert row["locked_word_indices"] == [0]
+
+
 def test_map_transcript_ignored_zero_length_word_in_ignored_indices() -> None:
     """A zero-length ignored word inside the window is found through the raw-word index (#633)."""
     p = _minimal()

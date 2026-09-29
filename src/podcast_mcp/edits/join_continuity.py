@@ -19,7 +19,7 @@ import tempfile
 import wave
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -52,6 +52,7 @@ abuts at a join. Equal values describe one continuous point (a proposed or sourc
 join with no clip boundary)."""
 
 _DEFAULT_SIDE_SEC = 0.045
+_DEFAULT_EDGE_TOLERANCE_MS = 3.0
 _CALIBRATE_N = 24
 _CALIBRATE_MARGIN = 1.15
 # Digital-silence level for splice-side measurements (matches 20*log10(1e-20)).
@@ -70,6 +71,7 @@ _LOG = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class JoinContinuityConfig:
     side_sec: float = _DEFAULT_SIDE_SEC
+    edge_tolerance_ms: float = _DEFAULT_EDGE_TOLERANCE_MS
     sample_rate: int = WAVEFORM_SAMPLE_RATE
     pass_below: float = 0.28
     review_below: float = 0.48
@@ -96,12 +98,17 @@ class JoinContinuityConfig:
     # Both splice sides below this RMS (dBFS) cannot be heard: room tone against
     # gated digital silence passes as "inaudible splice" instead of scoring a level jump.
     inaudible_floor_db: float = -60.0
+    # Spectral-shape detectors compare level-normalised spectra, which read as a
+    # mismatch between any two windows of quiet air. Their weight ramps from 0 at
+    # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
+    spectral_audibility_db: float = 30.0
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
         cfg = (defaults or load_defaults()).get("join_continuity") or {}
         return cls(
             side_sec=float(cfg.get("side_sec", _DEFAULT_SIDE_SEC)),
+            edge_tolerance_ms=float(cfg.get("edge_tolerance_ms", _DEFAULT_EDGE_TOLERANCE_MS)),
             sample_rate=int(cfg.get("sample_rate", WAVEFORM_SAMPLE_RATE)),
             pass_below=float(cfg.get("pass_below", 0.28)),
             review_below=float(cfg.get("review_below", 0.48)),
@@ -126,6 +133,7 @@ class JoinContinuityConfig:
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
             inaudible_floor_db=float(cfg.get("inaudible_floor_db", -60.0)),
+            spectral_audibility_db=float(cfg.get("spectral_audibility_db", 30.0)),
         )
 
 
@@ -382,9 +390,35 @@ def score_splice_samples(
         )
     )
 
+    audibility = _spectral_audibility(left, right, config)
+    if audibility < 1.0:
+        hits = [
+            replace(h, weight=h.weight * audibility) if h.name in _SHAPE_DETECTORS else h
+            for h in hits
+        ]
     wsum = sum(h.weight for h in hits) or 1.0
     risk = sum(h.score * h.weight for h in hits) / wsum
     return float(risk), hits
+
+
+_SHAPE_DETECTORS = frozenset(
+    {
+        "spectral_flux",
+        "mfcc_join_cost",
+        "lsf_mahalanobis",
+        "mca_join_cost",
+        "weighted_spectral_join",
+        "f0_jump",
+        "bicoherence_proxy",
+    }
+)
+
+
+def _spectral_audibility(left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig) -> float:
+    if cfg.spectral_audibility_db <= 0:
+        return 1.0
+    loud = max(rms_db(left, floor_db=_SILENT_DB), rms_db(right, floor_db=_SILENT_DB))
+    return _clamp01((loud - cfg.inaudible_floor_db) / cfg.spectral_audibility_db)
 
 
 def _inaudible_splice(
@@ -456,14 +490,12 @@ def _natural_baseline_p95(
     samples: np.ndarray,
     sr: int,
     config: JoinContinuityConfig,
-    *,
-    rng: np.random.Generator | None = None,
 ) -> float | None:
     side = max(8, int(config.side_sec * sr))
     need = side * 2 + 8
     if samples.size < need * 4:
         return None
-    gen = rng or np.random.default_rng(0)
+    gen = np.random.default_rng(0)
     lo = side + 1
     hi = samples.size - side - 1
     if hi <= lo:  # pragma: no cover
@@ -471,13 +503,70 @@ def _natural_baseline_p95(
     risks: list[float] = []
     for _ in range(config.calibrate_n):
         mid = int(gen.integers(lo, hi))
-        left = samples[mid - side : mid]
-        right = samples[mid : mid + side]
-        r, _ = score_splice_samples(left, right, sample_rate=sr, config=config)
-        risks.append(r)
+        risks.append(_worst_placement(samples, sr, mid, mid, config, inaudible=False).risk)
     if len(risks) < 5:  # pragma: no cover
         return None
     return float(np.percentile(risks, 95))
+
+
+@dataclass(frozen=True)
+class _Placement:
+    """The detector result for one placement of a splice's two edges."""
+
+    risk: float
+    hits: list[DetectorHit]
+    inaudible: bool
+    left_shift: int
+    right_shift: int
+
+    def reasons(self, cfg: JoinContinuityConfig, sr: int) -> list[str]:
+        out: list[str] = []
+        if self.inaudible:
+            out.append(f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS")
+        if self.left_shift or self.right_shift:
+            out.append(
+                f"worst edge placement {self.left_shift * 1000.0 / sr:+.0f}/"
+                f"{self.right_shift * 1000.0 / sr:+.0f} ms within +-{cfg.edge_tolerance_ms:g} ms"
+            )
+        return out
+
+
+def _edge_shifts(cfg: JoinContinuityConfig, sr: int) -> tuple[int, ...]:
+    tol = round(cfg.edge_tolerance_ms * sr / 1000.0)
+    return (0, -tol, tol) if tol > 0 else (0,)
+
+
+def _sides(
+    samples: np.ndarray, left_i: int, right_i: int, side: int
+) -> tuple[np.ndarray, np.ndarray]:
+    left_i, right_i = max(0, left_i), max(0, right_i)
+    return samples[max(0, left_i - side) : left_i], samples[right_i : right_i + side]
+
+
+def _worst_placement(
+    samples: np.ndarray,
+    sr: int,
+    left_i: int,
+    right_i: int,
+    cfg: JoinContinuityConfig,
+    *,
+    inaudible: bool = True,
+) -> _Placement:
+    side = max(8, int(cfg.side_sec * sr))
+    left, right = _sides(samples, left_i, right_i, side)
+    quiet = _inaudible_splice(left, right, cfg) if inaudible else None
+    if quiet is not None:
+        return _Placement(0.0, [quiet], True, 0, 0)
+    shifts = _edge_shifts(cfg, sr)
+    worst: _Placement | None = None
+    for dl in shifts:
+        for dr in shifts:
+            left, right = _sides(samples, left_i + dl, right_i + dr, side)
+            risk, hits = score_splice_samples(left, right, sample_rate=sr, config=cfg)
+            if worst is None or risk > worst.risk:
+                worst = _Placement(risk, hits, False, dl, dr)
+    assert worst is not None
+    return worst
 
 
 def _resolve_source_samples(
@@ -498,15 +587,8 @@ def _resolve_source_samples(
     return TrackRmsCache.from_timeline_stem(path, sample_rate=sr).samples
 
 
-def _load_sides(
-    samples: np.ndarray, sr: int, points: SplicePoints, side_sec: float
-) -> tuple[np.ndarray, np.ndarray]:
-    side = max(8, int(side_sec * sr))
-    left_i = int(max(0.0, points[0]) * sr)
-    right_i = int(max(0.0, points[1]) * sr)
-    left = samples[max(0, left_i - side) : left_i]
-    right = samples[right_i : min(samples.size, right_i + side)]
-    return left, right
+def _splice_indices(points: SplicePoints, sr: int) -> tuple[int, int]:
+    return int(max(0.0, points[0]) * sr), int(max(0.0, points[1]) * sr)
 
 
 def _splice_points(
@@ -844,24 +926,25 @@ def _assess_existing_join(
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
-    left, right = _load_sides(samples, cfg.sample_rate, points, cfg.side_sec)
-    quiet = _inaudible_splice(left, right, cfg)
-    if quiet is not None:
+    left_i, right_i = _splice_indices(points, cfg.sample_rate)
+    worst = _worst_placement(samples, cfg.sample_rate, left_i, right_i, cfg)
+    reasons = worst.reasons(cfg, cfg.sample_rate)
+    risk, hits = worst.risk, worst.hits
+    if worst.inaudible:
         return _finalize(
             track_id=track_id,
             mode="existing_join",
             join_sec=float(join_sec),
             timebase=timebase,
-            risk=0.0,
-            hits=[quiet],
+            risk=risk,
+            hits=hits,
             samples=samples,
             cfg=cfg,
-            extra_reasons=[f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"],
+            extra_reasons=reasons,
             artifacts_dir=project.artifacts_dir(),
             natural_p95=natural_p95,
             baseline_ready=baseline_ready,
         )
-    risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
     spike = (
         click_score(points)
         if click_score is not None
@@ -892,6 +975,7 @@ def _assess_existing_join(
         hits=hits,
         samples=samples,
         cfg=cfg,
+        extra_reasons=reasons,
         neural=neural_info,
         artifacts_dir=project.artifacts_dir(),
         natural_p95=natural_p95,
@@ -925,28 +1009,21 @@ def assess_proposed_cut(
         src0, src1 = float(mapped0), float(mapped1)
     else:
         src0, src1 = float(cut_start), float(cut_end)
-    side = max(8, int(cfg.side_sec * cfg.sample_rate))
-    i0 = int(max(0.0, src0) * cfg.sample_rate)
-    i1 = int(max(0.0, src1) * cfg.sample_rate)
-    left = samples[max(0, i0 - side) : i0]
-    right = samples[i1 : min(samples.size, i1 + side)]
-    quiet = _inaudible_splice(left, right, cfg)
-    if quiet is not None:
-        risk, hits = 0.0, [quiet]
-        extra = [f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"]
-    else:
-        risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
-        extra = []
+    i0, i1 = _splice_indices((src0, src1), cfg.sample_rate)
+    worst = _worst_placement(samples, cfg.sample_rate, i0, i1, cfg)
     return _finalize(
         track_id=track_id,
         mode="proposed_cut",
         join_sec=float(cut_start),
         timebase=timebase,
-        risk=risk,
-        hits=hits,
+        risk=worst.risk,
+        hits=worst.hits,
         samples=samples,
         cfg=cfg,
-        extra_reasons=[f"cut {cut_start:.3f}->{cut_end:.3f} ({timebase})", *extra],
+        extra_reasons=[
+            f"cut {cut_start:.3f}->{cut_end:.3f} ({timebase})",
+            *worst.reasons(cfg, cfg.sample_rate),
+        ],
         artifacts_dir=project.artifacts_dir(),
     )
 

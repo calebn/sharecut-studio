@@ -12,9 +12,9 @@ describe("detachedWordFailure", () => {
     useDawStore.setState({ transcriptInlineEditFailure: null });
   });
 
-  it("keeps Suppress / Ignore on boolean-only word fields", () => {
+  it("keeps suppression, ignore, and unlock on boolean-only word fields", () => {
     expectTypeOf<TranscriptWordBooleanFlag>().toEqualTypeOf<
-      "suppressed" | "ignored"
+      "suppressed" | "ignored" | "audibility_locked"
     >();
   });
 
@@ -65,6 +65,32 @@ describe("detachedWordFailure", () => {
       failure: new Error("boom"),
     });
     expect(result.flag).toEqual({ name: "ignored", was: true });
+  });
+
+  it("clears an unlock failure only when the lock changes", () => {
+    const failure = detachedWordFailure({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 0,
+      word: { text: "hello", suppressed: true, audibility_locked: true },
+      action: "audibility_locked",
+      failure: new Error("boom"),
+    });
+    expect(failure.flag).toEqual({ name: "audibility_locked", was: true });
+    expect(
+      isDetachedWordFailureMoot(failure, "/tmp/ep", {
+        text: "hello",
+        suppressed: false,
+        audibility_locked: true,
+      }),
+    ).toBe(false);
+    expect(
+      isDetachedWordFailureMoot(failure, "/tmp/ep", {
+        text: "hello",
+        suppressed: true,
+        audibility_locked: false,
+      }),
+    ).toBe(true);
   });
 
   it("has no flag for a failed text fix", () => {

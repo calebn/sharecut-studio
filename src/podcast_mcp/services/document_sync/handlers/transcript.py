@@ -49,6 +49,14 @@ def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> d
     )
 
 
+def set_transcript_word_automatic(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EditService(ws).set_word_automatic(
+        track_id=str(p["track_id"]),
+        word_index=int(p["word_index"]),
+        expected_text=_expected_text(p),
+    )
+
+
 def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EditService(ws).set_words_ignored(
         track_id=str(p["track_id"]),
@@ -63,5 +71,6 @@ HANDLERS: dict[str, Handler] = {
     "CorrectTranscriptWord": correct_transcript_word,
     "CorrectTranscriptPhrase": correct_transcript_phrase,
     "SetTranscriptWordSuppressed": set_transcript_word_suppressed,
+    "SetTranscriptWordAutomatic": set_transcript_word_automatic,
     "SetTranscriptWordsIgnored": set_transcript_words_ignored,
 }

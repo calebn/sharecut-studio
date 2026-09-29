@@ -190,6 +190,23 @@ class CutWordIndex:
         i = (self.first_audible if audible else self.first_live)[pos]
         return self.original_starts[i] if i < len(self.original_starts) else None
 
+    def kept_word_overlaps(
+        self, lo: float, hi: float, *, exclude_start: float, exclude_end: float
+    ) -> bool:
+        """True when a retained word not inside the excluded span overlaps ``[lo, hi]``.
+
+        Words are looked up by the boundaries they place inside ``[lo, hi]``; the record
+        just before ``lo`` covers a word that started earlier and runs across it.
+        """
+        first = max(0, bisect_left(self.retained, (lo, -math.inf, -math.inf)) - 1)
+        last = bisect_right(self.retained, (hi, math.inf, math.inf))
+        for _boundary, start, end in self.retained[first:last]:
+            if start >= exclude_start - 1e-6 and end <= exclude_end + 1e-6:
+                continue
+            if start < hi and end > lo:
+                return True
+        return False
+
     def retained_view(self, exclude_start: float, exclude_end: float) -> _RetainedBoundaryView:
         return _RetainedBoundaryView(self.retained, exclude_start, exclude_end)
 

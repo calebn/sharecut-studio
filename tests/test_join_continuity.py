@@ -24,6 +24,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.util.dsp import linear_rms
 
 
 def _cfg(**kwargs) -> JoinContinuityConfig:
@@ -622,3 +623,177 @@ def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
     project = load_project(minimal_project)
     with pytest.raises(ValueError, match="cut_end"):
         assess_proposed_cut(project, "host", 1.0, 0.5, config=_cfg())
+
+
+def _write_tone_with_click(raw: Path, *, click_at_sec: float) -> None:
+    """2 s of a 220 Hz tone at 16 kHz with one 0.9 FS impulse at ``click_at_sec``."""
+    sr = 16000
+    t = np.arange(2 * sr) / sr
+    samples = (0.1 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
+    samples[int(click_at_sec * sr)] += 0.9
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes((samples * 32767).astype("<i2").tobytes())
+
+
+def test_verdict_holds_when_an_edge_moves_within_the_tolerance(minimal_project: Path) -> None:
+    project = load_project(minimal_project)
+    _write_tone_with_click(project.workspace_path() / "raw" / "host.wav", click_at_sec=1.004)
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project = load_project(save_project(project, minimal_project))
+    point = _cfg(edge_tolerance_ms=0.0, force_review_multi_hot=True)
+    tolerant = _cfg(edge_tolerance_ms=3.0, force_review_multi_hot=True)
+
+    at_edge = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=point)
+    moved = assess_proposed_cut(project, "host", 0.5, 1.003, timebase="source", config=point)
+    assert (at_edge.verdict, moved.verdict) == ("review", "fail")
+    assert at_edge.risk < 0.48 < moved.risk
+
+    stable = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=tolerant)
+    stable_moved = assess_proposed_cut(
+        project, "host", 0.5, 1.003, timebase="source", config=tolerant
+    )
+    assert (stable.verdict, stable_moved.verdict) == ("fail", "fail")
+    assert "worst edge placement +0/+3 ms within +-3 ms" in stable.reasons
+    assert stable.risk > 0.48
+    assert next(h for h in stable.detectors if h.name == "click").score == 1.0
+
+
+def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity
+    from podcast_mcp.edits.join_detectors import DetectorHit
+
+    scores = iter((0.2, 0.51, 0.55, 0.6, 0.7, 0.75, 0.73, 0.85, 0.9))
+
+    def score(*args, **kwargs):
+        risk = next(scores)
+        return risk, [DetectorHit("probe", risk, 1.0, {"score": risk})]
+
+    monkeypatch.setattr(
+        join_continuity, "_resolve_source_samples", lambda *args, **kwargs: np.ones(32000)
+    )
+    monkeypatch.setattr(join_continuity, "score_splice_samples", score)
+    project = load_project(minimal_project)
+
+    report = assess_proposed_cut(
+        project,
+        "host",
+        0.5,
+        1.0,
+        timebase="source",
+        config=_cfg(edge_tolerance_ms=3.0),
+    )
+
+    assert report.verdict == "fail"
+    assert report.risk == pytest.approx(0.9)
+    assert report.detectors[0].detail["score"] == pytest.approx(0.9)
+
+
+def test_join_verdicts_and_risks_are_the_same_on_every_run(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    project = _tiny_project(minimal_project, sample_wav)
+    cfg = _cfg(calibrate=True)
+    first = assess_project_joins(project, track_id="host", config=cfg)
+    second = assess_project_joins(project, track_id="host", config=cfg)
+    assert first == second
+    (row,) = first["joins"]
+    assert row["calibrated"] is True
+    assert row["natural_p95"] is not None
+    single = assess_existing_join(project, "host", 0.5, config=cfg)
+    assert row["natural_p95"] == round(single.natural_p95, 4)
+    assert row["risk"] == round(single.risk, 4)
+
+
+def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path) -> None:
+    project = load_project(minimal_project)
+    sr = 16000
+    side = int(0.045 * sr)
+    i0 = int(1.0 * sr)
+    rng = np.random.default_rng(7)
+    samples = np.zeros(2 * sr, dtype=np.float32)
+    # Room tone at -62 dBFS before the cut, with 3 ms of -50 dBFS air just outside the
+    # 45 ms left window, so the window at L-3 ms reads about -59 dBFS.
+    samples[i0 - side : i0] = rng.normal(0, 10 ** (-62 / 20), side)
+    samples[i0 - side - 48 : i0 - side] = rng.normal(0, 10 ** (-50 / 20), 48)
+    with wave.open(str(project.workspace_path() / "raw" / "host.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes((samples * 32767).astype("<i2").tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project = load_project(save_project(project, minimal_project))
+    cfg = _cfg(edge_tolerance_ms=3.0)
+
+    rep = assess_proposed_cut(project, "host", 1.0, 1.5, timebase="source", config=cfg)
+    assert rep.verdict == "pass"
+    assert rep.risk == 0.0
+    assert [h.name for h in rep.detectors] == ["inaudible_splice"]
+    assert -63.0 < rep.detectors[0].detail["left_db"] < -60.0
+    assert rep.reasons == [
+        "cut 1.000->1.500 (source)",
+        "inaudible splice: both sides below -60 dBFS",
+    ]
+
+    moved = assess_proposed_cut(project, "host", 0.997, 1.5, timebase="source", config=cfg)
+    assert moved.verdict == "fail"
+    level = next(h for h in moved.detectors if h.name == "level_jump")
+    assert -60.0 < level.detail["pre_db"] < -58.0
+    assert level.detail["post_db"] < -100.0
+
+
+def by_name(hits: list, name: str):
+    return next(h for h in hits if h.name == name)
+
+
+def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
+    sr = 16000
+    n = int(0.045 * sr)
+    rng = np.random.default_rng(11)
+    white = rng.normal(0, 1.0, n)
+    dark = np.convolve(rng.normal(0, 1.0, n + 8), np.ones(9) / 9.0, mode="valid")
+
+    def sides(level_db: float) -> tuple[np.ndarray, np.ndarray]:
+        gain = 10 ** (level_db / 20)
+        return dark / linear_rms(dark) * gain, white / linear_rms(white) * gain
+
+    full = _cfg(spectral_audibility_db=0.0)
+    ramped = _cfg(spectral_audibility_db=30.0)
+
+    quiet_full, hits_full = score_splice_samples(*sides(-50.0), sample_rate=sr, config=full)
+    quiet_ramped, hits_ramped = score_splice_samples(*sides(-50.0), sample_rate=sr, config=ramped)
+    assert by_name(hits_full, "spectral_flux").score > 0.9
+    assert by_name(hits_full, "spectral_flux").weight == 1.1
+    assert by_name(hits_full, "mfcc_join_cost").weight == 1.25
+    # -50 dBFS is a third of the way up the 30 dB ramp above the -60 dBFS floor.
+    assert by_name(hits_ramped, "spectral_flux").weight == pytest.approx(1.1 / 3, abs=0.01)
+    assert by_name(hits_ramped, "mfcc_join_cost").weight == pytest.approx(1.25 / 3, abs=0.01)
+    assert by_name(hits_ramped, "level_jump").weight == 0.85
+    assert by_name(hits_full, "level_jump").weight == 0.85
+    assert 0.28 <= quiet_full < 0.48
+    assert quiet_ramped < 0.28
+
+    loud_full, _ = score_splice_samples(*sides(-25.0), sample_rate=sr, config=full)
+    loud_ramped, hits_loud = score_splice_samples(*sides(-25.0), sample_rate=sr, config=ramped)
+    assert loud_ramped == loud_full
+    assert by_name(hits_loud, "mfcc_join_cost").weight == 1.25

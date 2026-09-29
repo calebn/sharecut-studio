@@ -1853,6 +1853,7 @@
           "correct_transcript_tool",
           "correct_transcript_phrase_tool",
           "set_word_suppressed_tool",
+          "set_word_automatic_tool",
           "set_words_ignored_tool",
           "apply_transcript_cleanup_tool",
           "low_confidence_words_tool",
