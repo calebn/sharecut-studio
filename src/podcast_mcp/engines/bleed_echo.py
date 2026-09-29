@@ -25,6 +25,7 @@ period multiples, so the one-lag cluster is what a real acoustic path adds.
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from dataclasses import asdict, dataclass
 from functools import lru_cache
@@ -66,9 +67,11 @@ class EchoConfig:
     null_shifts_sec: tuple[float, ...] = (-31.7, -23.3, -13.1, -7.3, 7.3, 13.1, 23.3, 31.7)
     null_max_frames: int = 400
     null_min_dominated: int = 10
-    # The observed rate of lag-consistent copies (per dominated frame) must be at
-    # least this multiple of the pooled null rate.
-    null_margin: float = 2.0
+    # The observed count of lag-consistent copies must be improbable under the pooled
+    # null rate (one-sided binomial tail at most ``null_p_max``) and at least
+    # ``null_margin`` times the null rate, so a long span cannot flag a small excess.
+    null_p_max: float = 0.001
+    null_margin: float = 1.5
     # Timeline seconds analysed, centred on the audition window.
     analysis_span_sec: float = 600.0
     max_examples: int = 3
@@ -100,13 +103,30 @@ class EchoPairProfile:
     def consistent_rate(self) -> float:
         return self.consistent_frames / self.dominated_frames if self.dominated_frames else 0.0
 
+    @property
+    def null_ratio(self) -> float | None:
+        if not self.null_consistent_rate:
+            return None
+        return self.consistent_rate / self.null_consistent_rate
+
+    @property
+    def p_value(self) -> float | None:
+        """One-sided binomial tail: consistent frames this many or more under the null rate."""
+        if self.null_consistent_rate is None or not self.dominated_frames:
+            return None
+        return binomial_tail(
+            self.consistent_frames, self.dominated_frames, self.null_consistent_rate
+        )
+
     def echo_risk(self, config: EchoConfig) -> bool:
-        if self.null_consistent_rate is None:
+        p, ratio = self.p_value, self.null_ratio
+        if p is None or ratio is None:
             return False
         return (
             self.copy_frames >= config.min_copy_frames
             and self.consistent_frames >= config.min_consistent_frames
-            and self.consistent_rate >= config.null_margin * self.null_consistent_rate
+            and p <= config.null_p_max
+            and ratio >= config.null_margin
         )
 
     def to_dict(self, config: EchoConfig) -> dict[str, Any]:
@@ -116,6 +136,8 @@ class EchoPairProfile:
         d["span_end"] = round(self.span_end, 2)
         d["copy_rate"] = round(self.copy_rate, 3)
         d["consistent_rate"] = round(self.consistent_rate, 3)
+        d["null_ratio"] = None if self.null_ratio is None else round(self.null_ratio, 2)
+        d["p_value"] = None if self.p_value is None else float(f"{self.p_value:.3g}")
         for key in ("lag_ms", "level_db", "null_copy_rate", "null_consistent_rate"):
             if d[key] is not None:
                 d[key] = round(d[key], 3 if key.startswith("null") else 2)
@@ -124,9 +146,32 @@ class EchoPairProfile:
             "min_copy_frames": config.min_copy_frames,
             "min_consistent_frames": config.min_consistent_frames,
             "lag_tolerance_ms": config.lag_tolerance_ms,
+            "null_p_max": config.null_p_max,
             "null_margin": config.null_margin,
         }
         return d
+
+
+def binomial_tail(k: int, n: int, p: float) -> float:
+    """P(X >= k) for X ~ Binomial(n, p), summed exactly in log space."""
+    if k <= 0:
+        return 1.0
+    if k > n or p <= 0.0:
+        return 0.0
+    if p >= 1.0:
+        return 1.0
+    log_p, log_q = math.log(p), math.log1p(-p)
+    total = 0.0
+    for j in range(k, n + 1):
+        log_term = (
+            math.lgamma(n + 1)
+            - math.lgamma(j + 1)
+            - math.lgamma(n - j + 1)
+            + j * log_p
+            + (n - j) * log_q
+        )
+        total += math.exp(log_term)
+    return min(1.0, total)
 
 
 def _copy_rows(
