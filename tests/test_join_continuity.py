@@ -24,6 +24,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.util.dsp import linear_rms
 
 
 def _cfg(**kwargs) -> JoinContinuityConfig:
@@ -738,3 +739,45 @@ def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path
     level = next(h for h in moved.detectors if h.name == "level_jump")
     assert -60.0 < level.detail["pre_db"] < -58.0
     assert level.detail["post_db"] < -100.0
+
+
+def by_name(hits: list, name: str):
+    return next(h for h in hits if h.name == name)
+
+
+def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
+    """Two windows of room tone with different spectral shapes read as a full MFCC /
+    LSF / MCA mismatch, since those costs compare level-normalised spectra. Nobody
+    hears the shape of air at -50 dBFS, so the shape detectors' weight ramps down
+    from 30 dB above the inaudible floor; the same shapes at -25 dBFS keep full weight
+    and the level and floor detectors are untouched either way (PR #826 review)."""
+    sr = 16000
+    n = int(0.045 * sr)
+    rng = np.random.default_rng(11)
+    white = rng.normal(0, 1.0, n)
+    dark = np.convolve(rng.normal(0, 1.0, n + 8), np.ones(9) / 9.0, mode="valid")
+
+    def sides(level_db: float) -> tuple[np.ndarray, np.ndarray]:
+        gain = 10 ** (level_db / 20)
+        return dark / linear_rms(dark) * gain, white / linear_rms(white) * gain
+
+    full = _cfg(spectral_audibility_db=0.0)
+    ramped = _cfg(spectral_audibility_db=30.0)
+
+    quiet_full, hits_full = score_splice_samples(*sides(-50.0), sample_rate=sr, config=full)
+    quiet_ramped, hits_ramped = score_splice_samples(*sides(-50.0), sample_rate=sr, config=ramped)
+    assert by_name(hits_full, "spectral_flux").score > 0.9
+    assert by_name(hits_full, "spectral_flux").weight == 1.1
+    assert by_name(hits_full, "mfcc_join_cost").weight == 1.25
+    # -50 dBFS is a third of the way up the 30 dB ramp above the -60 dBFS floor.
+    assert by_name(hits_ramped, "spectral_flux").weight == pytest.approx(1.1 / 3, abs=0.01)
+    assert by_name(hits_ramped, "mfcc_join_cost").weight == pytest.approx(1.25 / 3, abs=0.01)
+    assert by_name(hits_ramped, "level_jump").weight == 0.85
+    assert by_name(hits_full, "level_jump").weight == 0.85
+    assert 0.28 <= quiet_full < 0.48
+    assert quiet_ramped < 0.28
+
+    loud_full, _ = score_splice_samples(*sides(-25.0), sample_rate=sr, config=full)
+    loud_ramped, hits_loud = score_splice_samples(*sides(-25.0), sample_rate=sr, config=ramped)
+    assert loud_ramped == loud_full
+    assert by_name(hits_loud, "mfcc_join_cost").weight == 1.25

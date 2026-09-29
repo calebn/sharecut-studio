@@ -402,6 +402,11 @@ join_continuity:
   # A verdict must hold for edges placed anywhere within this many ms: each edge is
   # scored at -tol, 0 and +tol and the riskiest placement decides. 0 scores one point.
   edge_tolerance_ms: 3.0
+  # The spectral-shape detectors (flux, MFCC/LSF/MCA, F0, bicoherence) compare
+  # level-normalised spectra, which read as a mismatch between any two windows of
+  # quiet air. Their weight ramps from 0 at inaudible_floor_db to full this many dB
+  # above it, judged on the splice's louder side. 0 keeps full weight everywhere.
+  spectral_audibility_db: 30.0
   sample_rate: 16000
   pass_below: 0.28
   review_below: 0.48
