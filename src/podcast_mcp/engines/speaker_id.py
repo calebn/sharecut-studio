@@ -736,7 +736,7 @@ def label_window(
                     update={
                         "speaker_match_track": ws.best_track_id,
                         "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": cfg.auto_suppress or w.suppressed,
+                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
                     }
                 )
             changed += 1
@@ -978,7 +978,7 @@ def label_track_home_speaker(
                             "speaker_match_score": round(
                                 ws.scores.get(ws.best_identity or "", 0), 4
                             ),
-                            "suppressed": True,
+                            "suppressed": w.resolve_auto_suppression(True),
                         }
                     )
                     track_done += 1
@@ -1089,7 +1089,7 @@ def run_speaker_attribution(
                     update={
                         "speaker_match_track": ws.best_track_id,
                         "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": cfg.auto_suppress or w.suppressed,
+                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
                     }
                 )
                 changed += 1

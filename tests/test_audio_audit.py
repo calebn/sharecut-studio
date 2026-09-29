@@ -314,8 +314,36 @@ def test_suppress_low_audibility_mutates_and_rebuilds(tmp_path: Path):
     )
     assert result["suppressed_count"] == 1
     assert project.transcripts[0].words[0].suppressed is True
+    assert project.transcripts[0].words[0].audibility_locked is True
     merged = TranscriptionEngine().merge_transcripts(project)
     assert "quiet" not in merged.utterances[0].text if merged.utterances else True
+
+
+def test_suppress_low_audibility_heuristic_respects_lock(tmp_path: Path):
+    """#781: a bulk (no word_keys) apply must not override a locked-unsuppressed word."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="quiet", start=0.0, end=0.2, suppressed=False, audibility_locked=True
+                ),
+                TranscriptWord(text="loud", start=0.3, end=0.5),
+            ],
+        )
+    ]
+    with patch(
+        "podcast_mcp.edits.audio_quality.list_low_audibility_words",
+        return_value=[{"track_id": "host", "word_index": 0}],
+    ):
+        result = suppress_low_audibility_words(project, track_id="host")
+    assert result["suppressed_count"] == 0
+    assert project.transcripts[0].words[0].suppressed is False
+    assert project.transcripts[0].words[0].audibility_locked is True
 
 
 def test_zero_duration_words_classified_inaudible(tmp_path: Path):

@@ -16,6 +16,7 @@ from podcast_mcp.models import (
     SpeakerIngestAlignment,
     Track,
     TrackRole,
+    TranscriptWord,
     load_project,
     save_project,
 )
@@ -80,6 +81,21 @@ def test_load_legacy_envelope_ids_stay_stable_until_saved(minimal_project):
     save_project(first, minimal_project)
     stored = json.loads(minimal_project.read_text(encoding="utf-8"))
     assert [point["id"] for point in stored["mix"]["automation_envelopes"][0]["points"]] == ids
+
+
+def test_transcript_word_resolve_auto_suppression_honors_lock() -> None:
+    """#781: automatic writers must not flip a locked word's suppressed state."""
+    locked_unsuppressed = TranscriptWord(text="hi", start=0.0, end=0.2, audibility_locked=True)
+    assert locked_unsuppressed.resolve_auto_suppression(True) is False
+
+    locked_suppressed = TranscriptWord(
+        text="hi", start=0.0, end=0.2, suppressed=True, audibility_locked=True
+    )
+    assert locked_suppressed.resolve_auto_suppression(False) is True
+
+    unlocked = TranscriptWord(text="hi", start=0.0, end=0.2)
+    assert unlocked.resolve_auto_suppression(True) is True
+    assert unlocked.resolve_auto_suppression(False) is False
 
 
 def test_clip_timeline_end_property():
