@@ -62,9 +62,11 @@ def install_busy_errors(server: Any) -> None:
         name: str,
         arguments: dict[str, Any],
         context: Any = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         try:
-            return await original_call_tool(name, arguments, context)
+            return await original_call_tool(name, arguments, context, *args, **kwargs)
         except UnexpectedToolError as exc:
             cause = lock_timeout_cause(exc)
             if cause is None:

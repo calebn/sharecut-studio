@@ -797,6 +797,23 @@ def test_install_busy_errors_is_idempotent():
 
 
 @pytest.mark.asyncio
+async def test_install_busy_errors_forwards_extra_call_tool_args():
+    from podcast_mcp.mcp.busy_errors import install_busy_errors
+
+    seen = []
+
+    class FakeServer:
+        async def call_tool(self, name, arguments, context=None, *args, **kwargs):
+            seen.append((name, arguments, context, args, kwargs))
+            return "ok"
+
+    server = FakeServer()
+    install_busy_errors(server)
+    assert await server.call_tool("t", {"a": 1}, None, "extra", flag=True) == "ok"
+    assert seen == [("t", {"a": 1}, None, ("extra",), {"flag": True})]
+
+
+@pytest.mark.asyncio
 async def test_history_undo_mcp_tool_call_returns_structured_busy_error(minimal_project):
     pytest.importorskip("mcp.client")
     from mcp.client import Client
