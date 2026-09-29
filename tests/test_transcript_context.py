@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from podcast_mcp.transcript_context import (
+    DEFAULT_PROMPT_PRIMER,
     TranscriptContext,
     context_from_dict,
     load_transcript_context,
@@ -235,7 +236,19 @@ def test_vocabulary_save_rejects_stale_base_revision(minimal_project: Path) -> N
 def test_full_prompt_text_matches_untruncated_initial_prompt() -> None:
     ctx = TranscriptContext(show_title=" Show ", terms=["A", "A", " B "], guest_names=["C"])
     assert ctx.full_prompt_text() == "Show, A, B, C"
-    assert ctx.initial_prompt_text() == ctx.full_prompt_text()
+    assert ctx.initial_prompt_text() == f"{DEFAULT_PROMPT_PRIMER} Show, A, B, C"
+
+
+def test_initial_prompt_primed_even_without_vocabulary() -> None:
+    """#769: an empty vocabulary must not send Whisper no prompt at all.
+
+    A bare comma-joined vocabulary list, or no prompt, can decode its first
+    window unpunctuated; with condition_on_previous_text on that style then
+    persists for the whole track. A punctuated primer is always sent.
+    """
+    ctx = TranscriptContext()
+    assert ctx.full_prompt_text() == ""
+    assert ctx.initial_prompt_text() == DEFAULT_PROMPT_PRIMER
 
 
 def test_vocabulary_saves_long_lists_when_prompting_disabled(minimal_project: Path) -> None:

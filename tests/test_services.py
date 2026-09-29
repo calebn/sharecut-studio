@@ -345,7 +345,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
 
 
 def test_transcript_service_applies_saved_vocabulary(minimal_project):
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)
@@ -359,13 +359,13 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
         TranscriptService(ws).transcribe()
         assert (
             eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
-            == "Kaczynski"
+            == f"{DEFAULT_PROMPT_PRIMER} Kaczynski"
         )
     assert ws.project.transcripts[0].vocabulary_revision == "revision-one"
 
 
 def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_project):
-    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
 
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)
@@ -379,7 +379,7 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
         TranscriptService(ws).transcribe("host")
         assert (
             eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
-            == "Kaczynski"
+            == f"{DEFAULT_PROMPT_PRIMER} Kaczynski"
         )
     host = [t for t in ws.project.transcripts if t.track_id == "host"]
     assert [t.vocabulary_revision for t in host] == ["revision-one"]

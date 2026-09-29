@@ -290,6 +290,61 @@ def collect_anomalous_asr_duration_flags(
     return flags
 
 
+PUNCTUATION_RATE_OUTLIER_REASON = "punctuation_rate_outlier"
+
+# A track below this floor never trips the check: with everyone's rate this low
+# (e.g. a language Whisper doesn't punctuate, or very short, filler-only tracks)
+# there is no reliable peer baseline to compare against.
+_PUNCTUATION_OUTLIER_MIN_PEER_RATE = 0.05
+# Flag a track whose own rate is this fraction of its peers' average or less.
+_PUNCTUATION_OUTLIER_RATIO = 0.25
+_PUNCTUATION_OUTLIER_MIN_WORDS = 20
+
+
+def _end_punctuated(word: TranscriptWord) -> bool:
+    return word.text.rstrip()[-1:] in ".!?"
+
+
+def track_punctuation_rate(words: list[TranscriptWord]) -> float | None:
+    """Fraction of ``words`` ending in ``.``/``!``/``?``; None below the minimum sample size."""
+    if len(words) < _PUNCTUATION_OUTLIER_MIN_WORDS:
+        return None
+    return sum(1 for w in words if _end_punctuated(w)) / len(words)
+
+
+def collect_punctuation_outlier_flags(project: EpisodeProject) -> list[dict[str, Any]]:
+    """Flag a dialogue track whose punctuation rate is far below its peers'.
+
+    ``condition_on_previous_text`` can lock a track into an unpunctuated, uncased
+    style for its whole length once its first decode window comes out that way
+    (#769); this catches the result without redecoding anything. Needs at least
+    two tracks with a large enough sample to have a peer baseline.
+    """
+    rates = {
+        tr.track_id: rate
+        for tr in project.transcripts
+        if (rate := track_punctuation_rate(tr.words)) is not None
+    }
+    if len(rates) < 2:
+        return []
+    flags: list[dict[str, Any]] = []
+    for track_id, rate in rates.items():
+        peers = [r for tid, r in rates.items() if tid != track_id]
+        peer_average = sum(peers) / len(peers)
+        if peer_average < _PUNCTUATION_OUTLIER_MIN_PEER_RATE:
+            continue
+        if rate <= peer_average * _PUNCTUATION_OUTLIER_RATIO:
+            flags.append(
+                {
+                    "track_id": track_id,
+                    "punctuation_rate": round(rate, 4),
+                    "peer_average_rate": round(peer_average, 4),
+                    "reason": PUNCTUATION_RATE_OUTLIER_REASON,
+                }
+            )
+    return flags
+
+
 class TranscriptionEngine:
     def __init__(
         self,

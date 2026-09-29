@@ -144,14 +144,43 @@ asks for re-transcription when any transcript differs from the revision in
 `transcript_context.yaml`: single-track runs update only that track, a concurrent
 edit stays stale, and a project without transcripts never asks. ASR caches
 include model, language, prompt, and the VAD / decode options (`transcribe.vad`,
-`transcribe.decode`). ASR also reads an older
+`transcribe.decode`). The prompt
+has a 400-character limit by default (shared with the punctuation primer below),
+and Studio rejects terms that would be truncated. This changes future ASR
+output, not existing transcript words.
+
+**Punctuation priming (#769).** A project with no show title, terms or guest
+names used to send Whisper no prompt at all. For some tracks (rambling,
+filler-heavy speech Whisper finds ambiguous) that let its first decode window
+come out with no sentence punctuation or capitals; with
+`condition_on_previous_text` on, that style then carried through the entire
+track, because every later window conditions on the previous one's own
+unpunctuated output rather than resetting each time. Lab evidence: one Zoom
+track's first window decoded with 0 capitals and 0 end-punctuated words with no
+prompt, at every temperature and VAD setting tried; any short, properly
+punctuated prompt fixed it end to end (29/2995 capitalized, 1/2995 punctuated
+before, comparable to its peers after — see the PR for exact figures). So
+`TranscriptContext.initial_prompt_text()` (`transcript_context.py`) now always
+sends a fixed punctuation-priming sentence (`DEFAULT_PROMPT_PRIMER`, currently
+"Podcast episode transcript."), followed by any Terms/Guest names/show title,
+whenever `transcribe.initial_prompt` is not turned off. This is a real change
+to future ASR output for every project, not only ones with a saved vocabulary;
+re-transcribe (or a changed-audio run) is needed to apply it to existing
+transcripts. Because a prompt is now sent by default, the legacy
+`transcripts/{track}_{audio}.json` cache (below) is only read when
+`transcribe.initial_prompt: false` is set explicitly. `transcribe_tracks` also
+flags a dialogue track whose punctuation rate lands far below its peers'
+average (`collect_punctuation_outlier_flags`,
+`artifacts/transcript_timing.json` → `punctuation_flags`, step summary "low
+punctuation rate on `<track>`"), catching a case the primer does not fully fix
+without needing a redecode to notice.
+
+ASR also reads an older
 `transcripts/{track}_{audio}.json` cache (which does not encode model, prompt or
 decode options) when the new-name cache misses, caches are in use (not forced), no
 prompt is set, **and** the decode options equal faster-whisper's own defaults (VAD off,
-its default temperatures); with the shipped defaults that legacy file is ignored;
-it never migrates or rewrites that file. The prompt
-has a 400-character limit by default, and Studio rejects terms that would be
-truncated. This changes future ASR output, not existing transcript words.
+its default temperatures); with the shipped defaults (VAD on) or the default prompt
+(above) that legacy file is ignored; it never migrates or rewrites that file.
 
 With `transcribe.forced_alignment.enabled`, alignment results get their own
 cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
