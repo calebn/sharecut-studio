@@ -35,14 +35,18 @@ from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.edits.join_speech import find_speech_crossings
-from podcast_mcp.engines.align import read_open_wav_mono_window
+from podcast_mcp.engines.align import load_mono_window, read_open_wav_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
 from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
 from podcast_mcp.util.process import DEVNULL, run
 from podcast_mcp.util.timebase import TimelineSec
-from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+from podcast_mcp.util.tracks import (
+    dialogue_track_ids,
+    mixed_dialogue_track_ids,
+    track_audio_path,
+)
 
 Verdict = Literal["pass", "review", "fail"]
 
@@ -96,6 +100,11 @@ class JoinContinuityConfig:
     # Both splice sides below this RMS (dBFS) cannot be heard: room tone against
     # gated digital silence passes as "inaudible splice" instead of scoring a level jump.
     inaudible_floor_db: float = -60.0
+    # A splice both of whose sides sit this far below another mixed stem that is
+    # speaking at the join (within side_sec before it or mask_lookahead_sec after it)
+    # is masked in the mix and passes as "masked splice".
+    mask_margin_db: float = 20.0
+    mask_lookahead_sec: float = 0.15
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -126,6 +135,8 @@ class JoinContinuityConfig:
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
             inaudible_floor_db=float(cfg.get("inaudible_floor_db", -60.0)),
+            mask_margin_db=float(cfg.get("mask_margin_db", 20.0)),
+            mask_lookahead_sec=float(cfg.get("mask_lookahead_sec", 0.15)),
         )
 
 
@@ -403,6 +414,83 @@ def _inaudible_splice(
             "left_db": round(max(left_db, -200.0), 1),
             "right_db": round(max(right_db, -200.0), 1),
             "floor_db": cfg.inaudible_floor_db,
+        },
+    )
+
+
+def _peer_level_db(
+    project: EpisodeProject,
+    peer_id: str,
+    timeline: SessionTimeline,
+    start_sec: float,
+    end_sec: float,
+    sample_rate: int,
+) -> float | None:
+    """RMS of ``peer_id``'s raw source over a timeline span, or ``None`` when unreadable."""
+    spans = timeline.map_timeline_span(peer_id, TimelineSec(start_sec), TimelineSec(end_sec))
+    if not spans:
+        return None
+    try:
+        path = track_audio_path(project, peer_id)
+        parts = [
+            load_mono_window(
+                path, start_sec=float(a), duration_sec=float(b) - float(a), sample_rate=sample_rate
+            )
+            for a, b in spans
+            if float(b) > float(a)
+        ]
+    except Exception:
+        return None
+    if not parts:
+        return None
+    return rms_db(np.concatenate(parts), floor_db=_SILENT_DB)
+
+
+def _masked_splice(
+    project: EpisodeProject,
+    track_id: str,
+    join_sec: float,
+    left: np.ndarray,
+    right: np.ndarray,
+    cfg: JoinContinuityConfig,
+    timeline: SessionTimeline,
+) -> DetectorHit | None:
+    """The one hit for a splice another mixed stem covers by ``mask_margin_db``.
+
+    Peers are the tracks the mix plays (a saved mute takes a track out). Each peer's
+    level is read from its raw source over ``side_sec`` before the join instant through
+    ``mask_lookahead_sec`` after it, so a voice that starts within the pad after the
+    splice still counts.
+    """
+    left_db = rms_db(left, floor_db=_SILENT_DB)
+    right_db = rms_db(right, floor_db=_SILENT_DB)
+    louder_side = max(left_db, right_db)
+    best: tuple[str, float] | None = None
+    for peer in mixed_dialogue_track_ids(project):
+        if peer == track_id:
+            continue
+        level = _peer_level_db(
+            project,
+            peer,
+            timeline,
+            join_sec - cfg.side_sec,
+            join_sec + cfg.mask_lookahead_sec,
+            cfg.sample_rate,
+        )
+        if level is not None and (best is None or level > best[1]):
+            best = (peer, level)
+    if best is None or best[1] < louder_side + cfg.mask_margin_db:
+        return None
+    return DetectorHit(
+        "masked_splice",
+        0.0,
+        1.0,
+        {
+            "left_db": round(max(left_db, -200.0), 1),
+            "right_db": round(max(right_db, -200.0), 1),
+            "masker_track_id": best[0],
+            "masker_db": round(best[1], 1),
+            "margin_db": cfg.mask_margin_db,
         },
     )
 
@@ -845,8 +933,29 @@ def _assess_existing_join(
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left, right = _load_sides(samples, cfg.sample_rate, points, cfg.side_sec)
-    quiet = _inaudible_splice(left, right, cfg)
+    silent = _inaudible_splice(left, right, cfg)
+    masked = None
+    if silent is None and timebase == "timeline":
+        masked = _masked_splice(
+            project,
+            track_id,
+            float(join_sec),
+            left,
+            right,
+            cfg,
+            timeline or SessionTimeline(project),
+        )
+    quiet = silent or masked
     if quiet is not None:
+        reason = (
+            f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"
+            if silent is not None
+            else (
+                f"masked splice: {quiet.detail['masker_track_id']} is "
+                f"{quiet.detail['masker_db'] - max(quiet.detail['left_db'], quiet.detail['right_db']):.0f} dB "
+                f"above both sides at the join"
+            )
+        )
         return _finalize(
             track_id=track_id,
             mode="existing_join",
@@ -856,7 +965,7 @@ def _assess_existing_join(
             hits=[quiet],
             samples=samples,
             cfg=cfg,
-            extra_reasons=[f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"],
+            extra_reasons=[reason],
             artifacts_dir=project.artifacts_dir(),
             natural_p95=natural_p95,
             baseline_ready=baseline_ready,

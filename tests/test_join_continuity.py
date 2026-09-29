@@ -315,6 +315,65 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
     assert sweep["pass_count"] == 1 and sweep["fail_count"] == 0
 
 
+def test_masked_splice_passes_when_a_louder_stem_covers_the_join(minimal_project: Path) -> None:
+    """Host room tone at -55 dBFS drops to digital silence at the splice; the guest's voice
+    at -20 dBFS starts at the join, so the drop is masked in the mix. With the guest
+    muted (out of the mix) the same splice scores its level jump."""
+    project = load_project(minimal_project)
+    sr = 16000
+    raw = project.workspace_path() / "raw"
+    rng = np.random.default_rng(5)
+    host = np.concatenate(
+        [rng.normal(0, 10 ** (-55 / 20), sr).astype(np.float32), np.zeros(sr, dtype=np.float32)]
+    )
+    t = np.arange(2 * sr) / sr
+    guest = np.where(t >= 0.5, 0.1 * np.sqrt(2) * np.sin(2 * np.pi * 220.0 * t), 0.0).astype(
+        np.float32
+    )
+    for name, samples in (("host", host), ("guest", guest)):
+        pcm = (samples * 32767).astype("<i2")
+        with wave.open(str(raw / f"{name}.wav"), "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(sr)
+            handle.writeframes(pcm.tobytes())
+    project.tracks = [
+        Track(
+            id=tid,
+            label=tid,
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=2.0),
+        )
+        for tid in ("host", "guest")
+    ]
+    project.clips = [
+        Clip(id="h1", track_id="host", source_start=0.0, source_end=0.5, timeline_start=0.0),
+        Clip(id="h2", track_id="host", source_start=1.5, source_end=2.0, timeline_start=0.5),
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=2.0, timeline_start=0.0),
+    ]
+    save_project(project, minimal_project)
+    project = load_project(minimal_project)
+
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    assert rep.verdict == "pass"
+    assert rep.risk == 0.0
+    assert [h.name for h in rep.detectors] == ["masked_splice"]
+    detail = rep.detectors[0].detail
+    assert detail["masker_track_id"] == "guest"
+    assert detail["left_db"] == pytest.approx(-55.0, abs=1.5)
+    assert detail["right_db"] == -200.0
+    assert detail["masker_db"] == pytest.approx(-21.1, abs=1.0)
+    assert detail["margin_db"] == 20.0
+    assert any(r.startswith("masked splice: guest is 3") for r in rep.reasons)
+
+    project.tracks[1].muted = True
+    unmasked = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    assert unmasked.verdict in ("review", "fail")
+    assert next(h for h in unmasked.detectors if h.name == "level_jump").score == 1.0
+
+
 def test_project_join_sweep_shares_decode_and_baseline(
     minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
