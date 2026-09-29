@@ -3,14 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from podcast_mcp.edits.bleed_text_match import (
+    EchoTwinPath,
     _audibility_score,
     _pick_text_match_winner,
     _word_confidence,
+    echo_twin_path,
+    echo_twin_paths,
     overlap_text_match_losers,
 )
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,
@@ -314,3 +320,174 @@ def test_reconcile_applies_text_match_suppression(tmp_path: Path) -> None:
         u.text for u in project.combined_transcript.utterances if u.track_id == "guest"
     )
     assert "world" not in guest_text
+
+
+def _echo_profile(source: str, bleed: str, *, lag_ms: float = 3.0) -> EchoPairProfile:
+    """A bleed_echo verdict as reconcile receives it: ``bleed`` carries ``source``."""
+    return EchoPairProfile(
+        source_track_id=source,
+        bleed_track_id=bleed,
+        span_start=0.0,
+        span_end=20.0,
+        dominated_frames=200,
+        copy_frames=80,
+        consistent_frames=60,
+        lag_ms=lag_ms,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+
+
+def _words(*specs: tuple[str, float, float]) -> list[TranscriptWord]:
+    return [TranscriptWord(text=t, start=s, end=s + d, confidence=c) for t, s, d, c in specs]
+
+
+def _echo_project(
+    tmp_path: Path, *, host: list[TranscriptWord], guest: list[TranscriptWord]
+) -> EpisodeProject:
+    project = _two_track_project(tmp_path)
+    project.transcripts = [
+        Transcript(track_id="host", words=host),
+        Transcript(track_id="guest", words=guest),
+    ]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    return project
+
+
+# Six guest words and the host mic's Whisper copies 130-160 ms *earlier*, as on a Zoom
+# host track that picks up a network-delayed participant (#774), plus one stray twin.
+_GUEST_SIX = [
+    ("one", 1.0, 0.3, 0.9),
+    ("two", 2.0, 0.3, 0.9),
+    ("three", 3.0, 0.3, 0.9),
+    ("four", 4.0, 0.3, 0.9),
+    ("five", 5.0, 0.3, 0.9),
+    ("six", 6.0, 0.3, 0.9),
+]
+_HOST_COPIES = [
+    ("one", 0.86, 0.3, 1.0),
+    ("two", 1.87, 0.3, 1.0),
+    ("three", 2.85, 0.3, 1.0),
+    ("four", 3.86, 0.3, 1.0),
+    ("five", 4.84, 0.3, 1.0),
+    ("six", 5.86, 0.3, 1.0),
+]
+
+
+def test_echo_twin_path_takes_its_lag_from_the_twins_or_the_acoustic_measurement(
+    tmp_path: Path,
+) -> None:
+    project = _echo_project(
+        tmp_path,
+        host=_words(*_HOST_COPIES, ("one", 1.3, 0.3, 1.0)),
+        guest=_words(*_GUEST_SIX),
+    )
+    path = echo_twin_path(project, _echo_profile("guest", "host"))
+    assert path.source_track_id == "guest"
+    assert path.bleed_track_id == "host"
+    assert path.lag_sec == pytest.approx(-0.14)
+    assert path.tolerance_sec == 0.15
+    assert path.twins == 6
+    assert path.is_twin(1.0, 0.86) is True
+    assert path.is_twin(1.0, 1.3) is False
+
+    few = _echo_project(tmp_path, host=_words(*_HOST_COPIES[:2]), guest=_words(*_GUEST_SIX))
+    assert echo_twin_path(few, _echo_profile("guest", "host", lag_ms=3.0)) == EchoTwinPath(
+        "guest", "host", 0.003, 0.15, 0
+    )
+
+
+def test_echo_twin_paths_skip_a_pair_flagged_in_both_directions(tmp_path: Path) -> None:
+    project = _echo_project(tmp_path, host=_words(*_HOST_COPIES), guest=_words(*_GUEST_SIX))
+    one_way = echo_twin_paths(project, [_echo_profile("guest", "host")])
+    assert [(p.source_track_id, p.bleed_track_id) for p in one_way] == [("guest", "host")]
+    both = echo_twin_paths(
+        project, [_echo_profile("guest", "host"), _echo_profile("host", "guest")]
+    )
+    assert both == []
+
+
+def test_echo_pair_copy_loses_to_the_source_whatever_its_loudness(tmp_path: Path) -> None:
+    """On the lab tape Zoom's gain brought caleb's copy of audra's "that's" 1 dB above her
+    own mic, and the loudness rule kept the copy. With a measured path the copy loses."""
+    project = _echo_project(tmp_path, host=_words(*_HOST_COPIES), guest=_words(*_GUEST_SIX))
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+
+    def host_louder(project, track_id, t_start, t_end, **kwargs):
+        return -24.0 if track_id == "host" else -25.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=host_louder,
+    ):
+        by_loudness = overlap_text_match_losers(project, policy=pol)
+        by_path = overlap_text_match_losers(
+            project, policy=pol, echo_pairs=[_echo_profile("guest", "host")]
+        )
+
+    assert [(e["track_id"], e["word_index"]) for e in by_loudness] == [
+        ("guest", i) for i in range(6)
+    ]
+    assert by_path == [
+        {
+            "track_id": "host",
+            "word_index": i,
+            "text": text,
+            "start": start,
+            "end": pytest.approx(start + 0.3),
+            "audibility_status": "bleed",
+            "dominant_track": "guest",
+            "reason": "echo_twin",
+        }
+        for i, (text, start, _dur, _conf) in enumerate(_HOST_COPIES)
+    ]
+
+
+def test_echo_pair_identical_words_at_another_spacing_are_two_people(tmp_path: Path) -> None:
+    """Three people saying "Bye." together: the copies land at the path's lag, a second
+    speaker's own word does not, so it stays even though it overlaps and is quieter."""
+    project = _echo_project(
+        tmp_path,
+        host=_words(*_HOST_COPIES, ("bye", 8.3, 0.4, 1.0), ("okay", 9.0, 0.3, 1.0)),
+        guest=_words(*_GUEST_SIX, ("bye", 8.0, 0.4, 0.9), ("okay", 9.4, 0.3, 0.9)),
+    )
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+
+    def guest_louder(project, track_id, t_start, t_end, **kwargs):
+        return -30.0 if track_id == "host" else -26.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=guest_louder,
+    ):
+        losers = overlap_text_match_losers(
+            project, policy=pol, echo_pairs=[_echo_profile("guest", "host")]
+        )
+
+    assert [(e["track_id"], e["word_index"], e["reason"]) for e in losers] == [
+        ("host", i, "echo_twin") for i in range(6)
+    ]
+
+
+def test_echo_pair_copy_that_does_not_overlap_still_loses(tmp_path: Path) -> None:
+    """A short word's copy 150 ms early no longer overlaps the source word, which is how
+    duplicates survived the overlap rule on the lab tape."""
+    project = _echo_project(
+        tmp_path,
+        host=_words(*_HOST_COPIES, ("the", 7.85, 0.1, 1.0)),
+        guest=_words(*_GUEST_SIX, ("the", 8.0, 0.1, 0.9)),
+    )
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_equal_rms,
+    ):
+        losers = overlap_text_match_losers(
+            project, policy=pol, echo_pairs=[_echo_profile("guest", "host")]
+        )
+    assert [(e["track_id"], e["word_index"]) for e in losers] == [("host", i) for i in range(7)]
+    assert losers[6]["text"] == "the"
+    assert losers[6]["start"] == 7.85

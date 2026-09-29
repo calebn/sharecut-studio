@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
@@ -940,3 +942,129 @@ def test_overlap_report_matches_pairwise_for_unsorted_and_long_words(tmp_path: P
     ):
         rows = overlap_duplicate_report(project)["pairs"]
     assert [(row["word_index_a"], row["word_index_b"]) for row in rows] == expected
+
+
+_STEM_RATE = 8000
+
+
+def _voice(seconds: float, *, seed: int) -> np.ndarray:
+    """Continuous wideband speech-like noise with syllable-rate bursts."""
+    rng = np.random.default_rng(seed)
+    n = int(seconds * _STEM_RATE)
+    noise = np.convolve(rng.normal(0, 1.0, n), np.ones(2) / 2.0, mode="same")
+    t = np.arange(n) / _STEM_RATE
+    out = noise * (0.5 + 0.5 * np.sin(2 * np.pi * 4.0 * t + rng.uniform(0, 2 * np.pi)))
+    return (0.2 * out / np.max(np.abs(out))).astype(np.float32)
+
+
+def _zoom_host_stem(guest: np.ndarray) -> np.ndarray:
+    """The guest's voice on the host mic: 3 ms late, 18 dB down for the first half of the
+    tape and 1 dB *up* for the second, as Zoom's gain does when the host is silent."""
+    copy = np.zeros_like(guest)
+    copy[24:] = guest[:-24]
+    half = guest.size // 2
+    copy[:half] *= 10 ** (-18 / 20)
+    copy[half:] *= 10 ** (1 / 20)
+    return copy
+
+
+def _write_stem(path: Path, samples: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(_STEM_RATE)
+        handle.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+
+
+def _echo_stem_project(tmp_path: Path) -> EpisodeProject:
+    guest = _voice(20.0, seed=3)
+    stems = {"guest": guest, "host": _zoom_host_stem(guest)}
+    project = EpisodeProject.create("echo", str(tmp_path))
+    project.ensure_dirs()
+    for tid, samples in stems.items():
+        _write_stem(tmp_path / "raw" / f"{tid}.wav", samples)
+        _write_stem(project.artifacts_dir() / "tracks" / f"{tid}.wav", samples)
+        project.timeline.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=20.0),
+            )
+        )
+        project.timeline.clips.append(
+            Clip(id=f"c_{tid}", track_id=tid, source_start=0.0, source_end=20.0, timeline_start=0.0)
+        )
+    guest_words = [
+        ("one", 11.0),
+        ("two", 12.0),
+        ("three", 13.0),
+        ("four", 14.0),
+        ("five", 15.0),
+        ("six", 16.0),
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text=t, start=s, end=s + 0.3, confidence=0.9) for t, s in guest_words
+            ]
+            + [TranscriptWord(text="bye", start=18.0, end=18.4, confidence=0.9)],
+        ),
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=t, start=s - 0.14, end=s + 0.16, confidence=1.0)
+                for t, s in guest_words
+            ]
+            + [TranscriptWord(text="bye", start=18.3, end=18.7, confidence=1.0)],
+        ),
+    ]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    return project
+
+
+def test_reconcile_picks_the_source_mic_on_a_measured_bleed_pair(tmp_path: Path) -> None:
+    """End to end on synthetic stems, no mocks: the host mic carries the guest 3 ms late, at
+    -18 dB early on (which is what flags the pair) and 1 dB louder later (Zoom's gain).
+    Whisper put the host copies 140 ms before the guest words. Every copy loses to the
+    guest word, the two "bye"s 300 ms apart both stay, and a second pass changes nothing."""
+    project = _echo_stem_project(tmp_path)
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+
+    host = project.transcript_for_track("host")
+    guest = project.transcript_for_track("guest")
+    assert host is not None and guest is not None
+    assert [(w.text, w.suppressed, w.audibility_status, w.dominant_track) for w in host.words] == [
+        ("one", True, "bleed", "guest"),
+        ("two", True, "bleed", "guest"),
+        ("three", True, "bleed", "guest"),
+        ("four", True, "bleed", "guest"),
+        ("five", True, "bleed", "guest"),
+        ("six", True, "bleed", "guest"),
+        ("bye", False, "audible", None),
+    ]
+    assert [(w.text, w.suppressed, w.audibility_status) for w in guest.words] == [
+        ("one", False, "audible"),
+        ("two", False, "audible"),
+        ("three", False, "audible"),
+        ("four", False, "audible"),
+        ("five", False, "audible"),
+        ("six", False, "audible"),
+        ("bye", False, "audible"),
+    ]
+    assert [(e["track_id"], e["text"], e["reason"]) for e in result.suppress] == [
+        ("host", t, "echo_twin") for t in ("one", "two", "three", "four", "five", "six")
+    ]
+    assert result.unsuppress == []
+
+    again = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+    assert (again.suppress, again.unsuppress, again.reattribute, again.status_updates) == (
+        [],
+        [],
+        [],
+        0,
+    )

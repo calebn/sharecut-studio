@@ -278,3 +278,19 @@ def test_audition_context_marks_the_echo_check_skipped_on_stale_stems(
     ctx = build_audition_context(project, 0.0, 2.0, include_prosody=False)
     assert "echo_check_needs_fresh_stems" in ctx["limits"]
     assert not [h for h in ctx["hypotheses"] if h["code"] == "echo_risk"]
+
+
+def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
+    """Reconcile's whole-track measurement: the mic that carries a delayed copy is the
+    bleed side of one directed pair, and independent voices produce no pair (#774)."""
+    from podcast_mcp.engines.bleed_echo import echo_risk_pairs
+
+    host = _speech_like(20.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
+    remote = _speech_like(20.0, seed=5)
+    flagged = echo_risk_pairs({"host": host, "guest": guest, "remote": remote}, sample_rate=RATE)
+    assert [(p.source_track_id, p.bleed_track_id) for p in flagged] == [("host", "guest")]
+    assert flagged[0].lag_ms == pytest.approx(3.0, abs=0.25)
+    assert flagged[0].span_start == 0.0
+    assert flagged[0].span_end == pytest.approx(20.0, abs=0.01)
+    assert echo_risk_pairs({"host": host, "remote": remote}, sample_rate=RATE) == []
