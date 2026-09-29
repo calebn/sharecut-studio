@@ -4629,6 +4629,132 @@
       "title": "SetTrackMutePayload",
       "type": "object"
     },
+    "SetTranscriptWordAutomaticCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetTranscriptWordAutomaticPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetTranscriptWordAutomatic",
+          "default": "SetTranscriptWordAutomatic",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SetTranscriptWordAutomaticCommand",
+      "type": "object"
+    },
+    "SetTranscriptWordAutomaticPayload": {
+      "properties": {
+        "expected_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
+          "title": "Expected Text"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        },
+        "word_index": {
+          "title": "Word Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "track_id",
+        "word_index"
+      ],
+      "title": "SetTranscriptWordAutomaticPayload",
+      "type": "object"
+    },
     "SetTranscriptWordSuppressedCommand": {
       "properties": {
         "causation_id": {
@@ -5987,6 +6113,7 @@
       "SetTrackMedia": "#/$defs/SetTrackMediaCommand",
       "SetTrackMeta": "#/$defs/SetTrackMetaCommand",
       "SetTrackMute": "#/$defs/SetTrackMuteCommand",
+      "SetTranscriptWordAutomatic": "#/$defs/SetTranscriptWordAutomaticCommand",
       "SetTranscriptWordSuppressed": "#/$defs/SetTranscriptWordSuppressedCommand",
       "SetTranscriptWordsIgnored": "#/$defs/SetTranscriptWordsIgnoredCommand",
       "SplitAtTime": "#/$defs/SplitAtTimeCommand",
@@ -6069,6 +6196,9 @@
     },
     {
       "$ref": "#/$defs/SetTranscriptWordSuppressedCommand"
+    },
+    {
+      "$ref": "#/$defs/SetTranscriptWordAutomaticCommand"
     },
     {
       "$ref": "#/$defs/SetTranscriptWordsIgnoredCommand"

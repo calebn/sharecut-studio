@@ -418,6 +418,138 @@ describe("projectFromDocumentSnapshot", () => {
     expect(next?.meta.hydration?.transcript_words).toBe(true);
   });
 
+  it("refuses the word overlay when the shell locked words differ (#824 Undo after Return to automatic)", () => {
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            words: [
+              {
+                text: "hello",
+                start: 0,
+                end: 0.4,
+                timeline_start: 0,
+                word_index: 0,
+              },
+              {
+                text: "world",
+                start: 0.4,
+                end: 0.8,
+                timeline_start: 0.4,
+                word_index: 1,
+                suppressed: true,
+                audibility_locked: false,
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            locked_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeUndefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(false);
+  });
+
+  it("keeps the word overlay when the shell locked words match", () => {
+    const words = [
+      {
+        text: "hello",
+        start: 0,
+        end: 0.4,
+        timeline_start: 0,
+        word_index: 0,
+      },
+      {
+        text: "world",
+        start: 0.4,
+        end: 0.8,
+        timeline_start: 0.4,
+        word_index: 1,
+        suppressed: true,
+        audibility_locked: true,
+      },
+    ];
+    const prev = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: true, history_groups: true },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            words,
+            locked_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const shell = minimalProject({
+      meta: {
+        name: "Test",
+        workspace_dir: "/tmp",
+        hydration: { transcript_words: false, history_groups: false },
+      },
+      transcript: {
+        utterances: [
+          {
+            track_id: "host",
+            speaker: "Host",
+            start: 0,
+            end: 0.8,
+            text: "hello world",
+            timeline_start: 0,
+            timeline_end: 0.8,
+            locked_word_indices: [1],
+          },
+        ],
+      },
+    });
+    const next = projectFromDocumentSnapshot(prev, { project: shell });
+    expect(next?.transcript?.utterances[0]?.words).toBeDefined();
+    expect(next?.meta.hydration?.transcript_words).toBe(true);
+  });
+
   it("refuses the word overlay when a row's edge-suppressed attachment changes", () => {
     const utterance = {
       track_id: "host",

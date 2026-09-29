@@ -131,6 +131,10 @@ def _frame_rms(samples: np.ndarray, frame: int, frame_size: int) -> float:
     return float(np.sqrt(np.mean(chunk**2)))
 
 
+def _frame_levels(samples: np.ndarray, frame_size: int, count: int) -> np.ndarray:
+    return np.asarray([_frame_rms(samples, f, frame_size) for f in range(count)])
+
+
 def _is_unvoiced(samples: np.ndarray, sample_rate: int, *, min_rms: float = 0.0) -> bool:
     """No speech-pitch probe at or above the gate, over probes whose level reaches ``min_rms``."""
     probes = voicing_probes(
@@ -299,9 +303,7 @@ def _find_breath_in_window(
     if samples.size < frame_size * 3:
         return None
 
-    levels = np.asarray(
-        [_frame_rms(samples, f, frame_size) for f in range(samples.size // frame_size)]
-    )
+    levels = _frame_levels(samples, frame_size, samples.size // frame_size)
     if not levels.size:
         return None
 
@@ -341,14 +343,8 @@ def _find_breath_in_window_silero(
     cut_edge: str | None = None,
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
+    band: LevelBand | None = None,
 ) -> BreathSpan | None:
-    """Locate a breath as a dip in Silero VAD speech-probability.
-
-    Breaths are voiced-adjacent noise: typically low-but-nonzero speech
-    probability, distinguishable from true silence (near 0) and full speech
-    (near 1). The probability band below is a starting point, not a tuned
-    constant -- see docs/audio-engineering.md for how to tune it by ear.
-    """
     from podcast_mcp.engines.vad_silero import SileroVAD, get_shared_vad
 
     if vad is None:
@@ -369,13 +365,22 @@ def _find_breath_in_window_silero(
         & ~blocked
         & _search_frames(search_sec, window_start, frame_duration, probs.size)
     )
+    levels = _frame_levels(samples, window, probs.size)
     return _first_breath_span(
         active,
         window_start,
         frame_duration,
         min_duration_sec,
         max_duration_sec,
-        _breath_run_predicate(samples, SileroVAD.SAMPLE_RATE, window, cut_edge, blocked=blocked),
+        _breath_run_predicate(
+            samples,
+            SileroVAD.SAMPLE_RATE,
+            window,
+            cut_edge,
+            blocked=blocked,
+            levels=levels,
+            band=band if cut_edge is not None else None,
+        ),
     )
 
 
@@ -406,10 +411,22 @@ def classify_breath_samples(
     transcript words), and the hit may not continue a kept word on its far side
     without the level first falling to the band floor. The level band comes from
     the caller's ``speech_reference_rms`` and ``noise_floor_rms`` (see
-    :func:`level_profile`); without a speech reference nothing can be classified.
-    A caller with no floor measurement bounds the band by the speech level alone.
-    Silero is only used at its required 16 kHz rate with its model available.
+    :func:`level_profile`); adjacent-cut classification abstains when no valid
+    band can be formed. A caller with no floor measurement bounds the band by
+    the speech level alone. Silero candidate-run classification can proceed
+    without a level reference because it has no adjacent cut to protect.
+    Both backends share this one band and predicate construction (below), so a
+    Silero hit is rejected by the same gap-ceiling and kept-word-adjacency rules
+    as a heuristic one. Silero is only used at its required 16 kHz rate with its
+    model available.
     """
+    band = None
+    if speech_reference_rms is not None and np.isfinite(speech_reference_rms):
+        band = breath_level_band(noise_floor_rms or 0.0, speech_reference_rms)
+
+    if cut_edge is not None and band is None:
+        return None
+
     if vad_backend == "silero" and sample_rate == 16000:
         from podcast_mcp.engines.vad_silero import get_shared_vad
 
@@ -426,13 +443,11 @@ def classify_breath_samples(
                     cut_edge=cut_edge,
                     keep_out=keep_out,
                     search_sec=search_sec,
+                    band=band,
                 )
         except Exception:
             log.debug("Silero breath inference failed; using RMS heuristic", exc_info=True)
 
-    if speech_reference_rms is None or not np.isfinite(speech_reference_rms):
-        return None
-    band = breath_level_band(noise_floor_rms or 0.0, speech_reference_rms)
     if band is None:
         return None
     if candidate_run:

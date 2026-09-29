@@ -71,7 +71,7 @@ podcast pipeline run --project episode.project.json --unattended              # 
 
 The reconciliation engine applies status, suppression, and reattribution together for each word, from one target per word (acoustic verdict, overridden by the identical-text loser verdict on a mic pair with a measured bleed path, #774), and reports only the fields that differ from the stored word. A repeat run on an unchanged project reports zero changes (#782). A track or time-window scope leaves out-of-scope words untouched but still judges in-scope words against out-of-scope partners by their computed target, so a scoped pass reaches the same target as a full pass (#805); dry runs report proposed changes without applying suppression.
 
-**Does not:** Revert a word's `suppressed` once a person or agent set it directly (`audibility_locked: true`, #768). `set_word_suppressed_tool`, `apply_bleed_suppression_tool` / `suppress-bleed` called with an explicit word list, and `apply_low_audibility_suppression_tool` called with an explicit `words_json` list all lock the word the same way `ignored` already does; reconcile — including pass 2 after `assemble_timeline` and the text-match overlap pass — skips a locked word entirely instead of recomputing its audibility over the decision. A heuristic `suppress-bleed` or low-audibility apply (no explicit list) does not lock, since it is just reconcile's own verdict recomputed (#781). Speaker attribution's automatic suppression (`run_speaker_attribution`, the home-speaker gate) also leaves a locked word's `suppressed` value alone. See [episode-format-v2.md](episode-format-v2.md) for the field.
+**Does not:** Revert a word's `suppressed` once a person or agent set it directly (`audibility_locked: true`, #768). `set_word_suppressed_tool`, `apply_bleed_suppression_tool` / `suppress-bleed` called with an explicit word list, and `apply_low_audibility_suppression_tool` called with an explicit `words_json` list all lock the word the same way `ignored` already does; reconcile — including pass 2 after `assemble_timeline` and the text-match overlap pass — skips a locked word entirely instead of recomputing its audibility over the decision. A heuristic `suppress-bleed` or low-audibility apply (no explicit list) does not lock, since it is just reconcile's own verdict recomputed (#781). Speaker attribution's automatic suppression (`run_speaker_attribution`, the home-speaker gate) also leaves a locked word's `suppressed` value alone. `set_word_automatic_tool` / `podcast transcript suppress-word --automatic` / the `SetTranscriptWordAutomatic` document command / Studio's "Return to automatic" button clear the lock without changing `suppressed`, so the **next** reconcile pass recomputes the word (#824). See [episode-format-v2.md](episode-format-v2.md) for the field.
 
 Word times stay in **source-media seconds** at every layer — reconcile, precorrect, and refine never rewrite them onto the edited clock. Audibility RMS and follow-transcript gating map word source spans to timeline seconds through `SessionTimeline` when they read rendered stems (see [episode-format-v2.md § Timebase invariant](episode-format-v2.md#timebase-invariant)).
 
@@ -295,14 +295,14 @@ already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe
 CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; forcing skips
 the ASR disk cache (both cache names) and re-runs Whisper. Changed
 media re-transcribes automatically. Transcripts edited through `correct_word`,
-`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript` or transcript
+`correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript` or transcript
 cleanup are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before
 any ASR, both when overwrite was requested and when its audio changed (its word
 times are stale); the error names each track and reason. Run attended to replace
 them with a warning, or use Studio Re-transcribe, which names the edited tracks and asks before replacing them.
 
 **What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
-`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
+`correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
 which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-word`,
 `cleanup-batch`) and Studio document commands all
 use, and only when the words actually changed. Automated passes stay unmarked on

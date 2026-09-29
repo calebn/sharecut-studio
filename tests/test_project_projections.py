@@ -385,6 +385,7 @@ def test_projection_for_command() -> None:
     assert projection_for_command("CorrectTranscriptWord") is ViewProjection.DETAIL
     assert projection_for_command("CorrectTranscriptPhrase") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordSuppressed") is ViewProjection.DETAIL
+    assert projection_for_command("SetTranscriptWordAutomatic") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordsIgnored") is ViewProjection.TRANSCRIPT_AUDIO
     from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS
     from podcast_mcp.services.document_sync.projections import TRANSCRIPT_WORD_COMMANDS

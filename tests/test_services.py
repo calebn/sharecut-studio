@@ -760,6 +760,54 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
     assert ws.project.transcripts[0].words[0].suppressed is True
 
 
+def test_edit_service_set_word_automatic_clears_lock_only(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    svc.set_word_suppressed("host", 0, True)
+    assert ws.project.transcripts[0].words[0].audibility_locked is True
+
+    out = svc.set_word_automatic("host", 0)
+    assert out["audibility_locked"] is False
+    # suppressed is untouched by the unlock; only a later reconcile changes it.
+    assert out["suppressed"] is True
+    word = ws.project.transcripts[0].words[0]
+    assert word.audibility_locked is False
+    assert word.suppressed is True
+
+
+def test_edit_service_set_word_automatic_undo_restores_lock(minimal_project):
+    """Undo puts the word back to locked, mirroring any other mutate() edit (#824)."""
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    svc.set_word_suppressed("host", 0, True)
+    svc.set_word_automatic("host", 0)
+    assert ws.project.transcripts[0].words[0].audibility_locked is False
+
+    HistoryService(ws).undo()
+    reloaded = ProjectWorkspace.open(minimal_project)
+    restored = reloaded.project.transcripts[0].words[0]
+    assert restored.audibility_locked is True
+    assert restored.suppressed is True
+
+
+def test_edit_service_set_word_automatic_stale_expected_text_raises(minimal_project):
+    from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = EditService(ws)
+    svc.set_word_suppressed("host", 0, True)
+
+    with pytest.raises(TranscriptTextChangedError, match="changed since you read it"):
+        svc.set_word_automatic("host", 0, expected_text="nope")
+    assert ws.project.transcripts[0].words[0].audibility_locked is True
+
+    out = svc.set_word_automatic("host", 0, expected_text="teh")
+    assert out["audibility_locked"] is False
+
+
 def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_project):
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 

@@ -1,5 +1,6 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
+  setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "../../api";
@@ -18,6 +19,7 @@ import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CORRECT_CONFLICT_NOTE,
   TRANSCRIPT_CORRECT_TIMING_NOTE,
+  TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP,
   TRANSCRIPT_SPAN_UNVERIFIED_NOTE,
   TRANSCRIPT_SUPPRESS_TIP,
   TRANSCRIPT_UNSUPPRESS_TIP,
@@ -90,6 +92,7 @@ export function TranscriptWordInspector({
   const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
   const mountedRef = useMountedRef();
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Seed the draft once, when the word first loads: on mount, or on
   // hydration if the words were not loaded yet. Never on a text change, so a
@@ -162,7 +165,12 @@ export function TranscriptWordInspector({
     action: DetachedWordAction,
     fn: () => Promise<unknown>,
   ): Promise<{ failed: boolean; failure: unknown }> => {
-    const before = { text: word?.text ?? "", suppressed, ignored };
+    const before = {
+      text: word?.text ?? "",
+      suppressed,
+      ignored,
+      audibility_locked: locked,
+    };
     let failure: unknown;
     let failed = false;
     await run(async () => {
@@ -267,6 +275,15 @@ export function TranscriptWordInspector({
     );
   };
 
+  const returnToAutomatic = async () => {
+    const { failed } = await runForWord("audibility_locked", () =>
+      setTranscriptWordAutomatic(projectPath, trackId, wordIndex, wordSpanText),
+    );
+    if (!failed) {
+      headingRef.current?.focus();
+    }
+  };
+
   const toggleIgnored = async () => {
     await runForWord("ignored", () =>
       setTranscriptWordsIgnored(
@@ -310,6 +327,7 @@ export function TranscriptWordInspector({
 
   return (
     <ModifierInspector
+      ref={headingRef}
       badge="Word"
       title={word.text}
       subtitle={`${trackId} · index ${wordIndex}`}
@@ -403,7 +421,18 @@ export function TranscriptWordInspector({
         ) : null}
       </DefinitionList>
       {locked ? (
-        <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+        <>
+          <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+          {editable ? (
+            <Button
+              disabled={busy}
+              onClick={() => void returnToAutomatic()}
+              title={TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP}
+            >
+              Return to automatic
+            </Button>
+          ) : null}
+        </>
       ) : null}
       {editable ? (
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
