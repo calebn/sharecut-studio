@@ -1221,13 +1221,12 @@ def _check_voiced_speech(
 ) -> _VoicedSpeechCheck:
     """Move each cut edge out of kept voice; flag speech the cut would swallow.
 
-    An edge inside a voiced run is nudged to the run's edge: past the run (plus a
-    little air) when the run belongs to a word that stays, so the word keeps its
-    tail or onset; to the run's own edge when it is the cut word's voice that the
-    transcript timed short. Word times are the only view the candidate had, and
-    on the lab tape aligned and Whisper ends both sit 120-270 ms inside the voice.
-    A kept-word nudge the candidate's bounds or coverage rule refuse leaves the
-    edge where it is and marks the cut for review.
+    An edge inside a voiced run that belongs to a word that stays is nudged past
+    the run (plus a little air), so the word keeps its tail or onset. Word times
+    are the only view the candidate had, and on the lab tape aligned and Whisper
+    ends both sit 120-270 ms inside the voice. An edge inside voice that no kept
+    word owns, or a nudge the candidate's bounds or coverage rule refuse, leaves
+    the edge where it is and marks the cut for review.
 
     ``peer_caches`` are the other dialogue tracks a session ripple removes the
     same window from. Everything on a peer stays, so a peer run at an edge is
@@ -1254,28 +1253,34 @@ def _check_voiced_speech(
             hi = math.inf
         return word_index.kept_word_overlaps(lo, hi, exclude_start=span_lo, exclude_end=span_hi)
 
-    # Only a refused kept-word shrink is a defect worth a reviewer's ear; a cut word
-    # whose own voice runs past its transcript time keeps the status quo edge.
+    # A cut only ever shrinks here. Voice past an edge with no transcript word in it
+    # is either the cut word timed short or a word the transcript dropped (#818's
+    # premise), and the audio cannot tell which, so widening onto it is never
+    # automatic: the edge stays and the cut is reviewed.
     stuck = False
     for runs, own in ((own_runs, True), *((runs, False) for runs in peer_runs)):
         run = run_straddling(runs, cut_start)
         if run is not None:
-            kept = not own or kept_word_in(run[0], cut_start)
-            target = run[1] + _VOICE_EDGE_PAD_SEC if kept else run[0]
-            nudged = _accept_nudge(candidate, (cut_start, cut_end), target, cut_end)
-            if nudged is not None:
-                cut_start = nudged[0]
-            elif kept:
+            nudged = None
+            if not own or kept_word_in(run[0], cut_start):
+                nudged = _accept_nudge(
+                    candidate, (cut_start, cut_end), run[1] + _VOICE_EDGE_PAD_SEC, cut_end
+                )
+            if nudged is None:
                 stuck = True
+            else:
+                cut_start = nudged[0]
         run = run_straddling(runs, cut_end)
         if run is not None:
-            kept = not own or kept_word_in(cut_end, run[1])
-            target = run[0] - _VOICE_EDGE_PAD_SEC if kept else run[1]
-            nudged = _accept_nudge(candidate, (cut_start, cut_end), cut_start, target)
-            if nudged is not None:
-                cut_end = nudged[1]
-            elif kept:
+            nudged = None
+            if not own or kept_word_in(cut_end, run[1]):
+                nudged = _accept_nudge(
+                    candidate, (cut_start, cut_end), cut_start, run[0] - _VOICE_EDGE_PAD_SEC
+                )
+            if nudged is None:
                 stuck = True
+            else:
+                cut_end = nudged[1]
     deleted = [*peer_runs, *([own_runs] if candidate.cut_kind == "pause" else [])]
     if any(
         voiced_sec_inside(runs, cut_start, cut_end) >= _INTERIOR_SPEECH_MIN_SEC for runs in deleted
