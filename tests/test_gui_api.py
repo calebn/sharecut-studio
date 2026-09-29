@@ -2823,6 +2823,36 @@ def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> 
     assert too_many.status_code == 422
 
 
+def test_api_transcript_vocabulary_busy_lock_is_project_busy_503(
+    minimal_project, monkeypatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from filelock import Timeout
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services import TranscriptPrecorrectService
+    from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
+
+    def busy(self, **kwargs):
+        raise Timeout("/secret/ws/artifacts/transcript_context.yaml.lock")
+
+    monkeypatch.setattr(TranscriptPrecorrectService, "set_vocabulary", busy)
+    response = TestClient(create_app()).put(
+        "/api/transcript/vocabulary",
+        json={
+            "path": str(minimal_project),
+            "terms": ["Kaczynski"],
+            "guest_names": [],
+            "base_revision": None,
+        },
+    )
+    assert response.status_code == 503
+    assert response.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert response.json() == {"detail": TRANSCRIPT_CONTEXT_BUSY_MESSAGE}
+    assert "/artifacts" not in response.text
+
+
 def test_api_transcript_vocabulary_rejects_unauthorized_remote(
     minimal_project, monkeypatch
 ) -> None:
