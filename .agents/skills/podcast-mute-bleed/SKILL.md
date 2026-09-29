@@ -9,13 +9,13 @@ description: >-
 
 # Mute bleed (transcript-gated stems)
 
-**Prerequisite:** [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md) — `overlap_duplicates_tool` → `text_match_count == 0` in scope and combined transcript is clean.
+**Prerequisite:** [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md) — `overlap_duplicates_tool` → `text_match_count == 0` in scope and combined transcript is clean. On a pair `echo_risk` names, identical words whose onsets do not fit the measured lag are two people talking and stay after reconcile (#774); they do not block this skill.
 
 This skill applies **waveform** gating derived from reconciled transcript metadata. It does not change word text or suppression flags.
 
 ## When to use
 
-- `audition_context_tool` / `podcast play context` reports **`echo_risk`**: one mic carries another speaker's voice at one consistent lag far more often than the same pair time-shifted (evidence names `source_track_id`, `bleed_track_id`, `lag_ms`, `level_db`, `consistent_rate` against `null_consistent_rate`, `examples`). Suppressing the bleed words in the transcript does not remove that doubled voice from the mix; this skill does. **Confirm before gating**: listen with the `suggested_listen` compose entry at the strongest example, or check the per-pair evidence (a real same-room path is several times its null; a remote participant has none). Only then gate the `bleed_track_id` stem. Never gate a track on the code alone.
+- `audition_context_tool` / `podcast play context` reports **`echo_risk`**: one mic carries another speaker's voice at one consistent lag far more often than the same pair time-shifted (evidence names `source_track_id`, `bleed_track_id`, `lag_ms`, `level_db`, `consistent_rate` against `null_consistent_rate`, `examples`). Suppressing the bleed words in the transcript does not remove that doubled voice from the mix; this skill does. Reconcile already used the same measurement to keep the source mic's words and drop the bleed mic's copies on that pair (`reason: echo_twin`), so the gate below mutes audio the transcript no longer claims. The transcript-side lag can differ from `lag_ms`: on the lab's Zoom host track the copy lands ~150 ms *before* the co-host's own network-delayed track. **Confirm before gating**: listen with the `suggested_listen` compose entry at the strongest example, or check the per-pair evidence (a real same-room path is several times its null; a remote participant has none). Only then gate the `bleed_track_id` stem. Never gate a track on the code alone.
 - Transcript search/NL edits are clean but `play --compare` still shows bleed on the wrong mic.
 - Pass-1 or post-FX stems exist under `artifacts/tracks/`.
 - Reconcile has run and `suppressed` words mark bleed on the off-mic track.

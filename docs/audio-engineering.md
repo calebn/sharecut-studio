@@ -366,7 +366,13 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   same-room pair from the remote one. Act on it by listening to the compose entry
   or reading the per-pair evidence, then gate the bleed mic to its own words
   ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)) or fix mic
-  placement for the next session; never gate a track on the code alone.
+  placement for the next session; never gate a track on the code alone. Reconcile
+  runs the same statistic on its own RMS caches (`echo_risk_pairs`) to pick the
+  source mic on a flagged pair ([transcript-reconcile.md](transcript-reconcile.md#bleed-pairs-the-source-wins-by-lag-not-by-loudness-774)).
+  `lag_ms` is the acoustic path inside ±40 ms; where the bleed mic's ASR copy lands
+  relative to the source's own words is a separate, transcript-side lag, −150 ms on
+  the lab tape because the co-host's stream reaches the recording host over the
+  network after her voice reached his mic.
 - **`clip_skew`** — `clip_skew.pairs[]` has always carried `source_delta_sec` (the
   two tracks' source clocks at the window mid); that alone is not desync, because
   tracks aligned with different offsets differ by design and a track-local punch
