@@ -139,7 +139,7 @@ def test_text_match_min_dominance_skips_close_rms(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=close_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
     assert losers == []
 
 
@@ -150,7 +150,7 @@ def test_text_match_overlap_names_loser_without_writing(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
 
     assert losers == [
         {
@@ -183,12 +183,15 @@ def test_text_match_loser_follows_the_callers_suppression_verdict(tmp_path: Path
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        stored = overlap_text_match_losers(project, policy=pol)
+        stored = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
         by_verdict = overlap_text_match_losers(
-            project, policy=pol, is_suppressed=lambda tid, i: False
+            project, policy=pol, is_suppressed=lambda tid, i: False, echo_pairs=_ROOM_PAIR
         )
         host_gone = overlap_text_match_losers(
-            project, policy=pol, is_suppressed=lambda tid, i: tid == "host"
+            project,
+            policy=pol,
+            is_suppressed=lambda tid, i: tid == "host",
+            echo_pairs=_ROOM_PAIR,
         )
 
     assert stored == []
@@ -210,7 +213,7 @@ def test_text_match_skips_locked_loser(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
 
     assert losers == []
 
@@ -226,7 +229,7 @@ def test_text_match_guest_wins_when_louder(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=guest_louder,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
 
     assert [(e["track_id"], e["word_index"], e["dominant_track"]) for e in losers] == [
         ("host", 1, "guest")
@@ -246,7 +249,7 @@ def test_text_match_min_overlap_skips_short_overlap(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
     assert losers == []
 
 
@@ -270,7 +273,7 @@ def test_text_match_min_dominance_ignored_when_rms_missing(tmp_path: Path) -> No
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=no_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
     assert len(losers) == 1
 
 
@@ -285,7 +288,7 @@ def test_text_match_skips_anomalous_word_duration(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
     assert losers == []
 
 
@@ -296,7 +299,7 @@ def test_text_match_disabled_skips_suppression(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol)
+        losers = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
     assert losers == []
     report = overlap_duplicate_report(project)
     assert report["text_match_count"] == 1
@@ -304,9 +307,15 @@ def test_text_match_disabled_skips_suppression(tmp_path: Path) -> None:
 
 def test_reconcile_applies_text_match_suppression(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=_equal_rms,
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            side_effect=_equal_rms,
+        ),
+        patch(
+            "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
+            new=lambda caches: _ROOM_PAIR,
+        ),
     ):
         run_reconciliation(project, dry_run=False)
 
@@ -339,6 +348,10 @@ def _echo_profile(source: str, bleed: str, *, lag_ms: float = 3.0) -> EchoPairPr
         null_copy_rate=0.05,
         null_consistent_rate=0.02,
     )
+
+
+# A room pair with bleed both ways: no single source, so the loudness rule applies.
+_ROOM_PAIR = [_echo_profile("host", "guest"), _echo_profile("guest", "host")]
 
 
 def _words(*specs: tuple[str, float, float]) -> list[TranscriptWord]:
@@ -423,7 +436,7 @@ def test_echo_pair_copy_loses_to_the_source_whatever_its_loudness(tmp_path: Path
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=host_louder,
     ):
-        by_loudness = overlap_text_match_losers(project, policy=pol)
+        by_loudness = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
         by_path = overlap_text_match_losers(
             project, policy=pol, echo_pairs=[_echo_profile("guest", "host")]
         )
@@ -469,6 +482,57 @@ def test_echo_pair_identical_words_at_another_spacing_are_two_people(tmp_path: P
 
     assert [(e["track_id"], e["word_index"], e["reason"]) for e in losers] == [
         ("host", i, "echo_twin") for i in range(6)
+    ]
+
+
+def test_identical_words_on_a_pair_with_no_bleed_path_both_stay(tmp_path: Path) -> None:
+    """Two mics with no measured path saying the same word at the same time are two
+    people, not a duplicate: the lab's remote participant and the co-host both said
+    "Bye." and the loudness rule dropped one of them (#774)."""
+    project = _echo_project(
+        tmp_path,
+        host=_words(("bye", 8.0, 0.4, 1.0)),
+        guest=_words(("bye", 8.0, 0.4, 0.9)),
+    )
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_equal_rms,
+    ):
+        no_path = overlap_text_match_losers(project, policy=pol)
+        room = overlap_text_match_losers(project, policy=pol, echo_pairs=_ROOM_PAIR)
+        other_pair = overlap_text_match_losers(
+            project, policy=pol, echo_pairs=[_echo_profile("guest", "remote")]
+        )
+    assert no_path == []
+    assert other_pair == []
+    assert [(e["track_id"], e["word_index"], e["reason"]) for e in room] == [
+        ("guest", 0, "text_match_overlap")
+    ]
+
+
+def test_echo_pair_copy_of_a_suppressed_source_word_is_kept(tmp_path: Path) -> None:
+    """When the acoustic verdict already drops the source word (audra's "to" under lana on
+    the aligned run), its copy on the bleed mic is the only place the word survives, so
+    the twin rule leaves it alone."""
+    project = _echo_project(
+        tmp_path,
+        host=_words(*_HOST_COPIES, ("seven", 6.86, 0.3, 1.0)),
+        guest=_words(*_GUEST_SIX, ("seven", 7.0, 0.3, 0.9)),
+    )
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_equal_rms,
+    ):
+        losers = overlap_text_match_losers(
+            project,
+            policy=pol,
+            echo_pairs=[_echo_profile("guest", "host")],
+            is_suppressed=lambda tid, i: tid == "guest" and i == 6,
+        )
+    assert [(e["track_id"], e["word_index"], e["text"]) for e in losers] == [
+        ("host", i, text) for i, (text, _s, _d, _c) in enumerate(_HOST_COPIES)
     ]
 
 

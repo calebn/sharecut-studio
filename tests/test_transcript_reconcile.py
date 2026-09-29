@@ -20,6 +20,7 @@ from podcast_mcp.engines.audio_audit import (
     compute_word_audibility_map,
     list_flagged_words,
 )
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
     mark_reconciliation_fresh,
@@ -48,6 +49,32 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline.runner import STEP_NAMES
 from podcast_mcp.services import EditService, PipelineService, ProjectWorkspace
+
+
+def _room_path(source: str, bleed: str) -> EchoPairProfile:
+    return EchoPairProfile(
+        source_track_id=source,
+        bleed_track_id=bleed,
+        span_start=0.0,
+        span_end=10.0,
+        dominated_frames=100,
+        copy_frames=40,
+        consistent_frames=30,
+        lag_ms=3.0,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+
+
+# The identical-text loudness rule applies only where bleed is measured; these tests
+# pin that rule, so they run on a room pair with bleed both ways (#774).
+_ROOM_PAIR_MEASURED = patch(
+    "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
+    new=lambda caches: [_room_path("host", "guest"), _room_path("guest", "host")],
+)
 
 
 def _two_track_project(tmp_path: Path) -> EpisodeProject:
@@ -389,6 +416,30 @@ def test_reconcile_transcript_skips_text_match_when_disabled(tmp_path: Path):
     assert not any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
 
+def test_reconcile_keeps_identical_words_on_a_pair_with_no_bleed_path(tmp_path: Path):
+    """No measured path, same word at the same time on both mics: both stay (#774)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+
+    assert _word_state(project) == {
+        ("host", 0): (False, "audible", None),
+        ("host", 1): (False, "audible", None),
+        ("guest", 0): (False, "audible", None),
+        ("guest", 1): (False, "audible", None),
+    }
+    assert result.suppress == []
+
+
+@_ROOM_PAIR_MEASURED
 def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
     project = _two_track_project(tmp_path)
     guest = project.transcript_for_track("guest")
@@ -409,6 +460,7 @@ def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
     assert any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_false(
     tmp_path: Path,
 ):
@@ -435,6 +487,7 @@ def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_f
     assert guest.words[1].dominant_track == "host"
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_flag_mode_tags_text_match_loser_without_suppressing(tmp_path: Path):
     """flag mode (update_status without apply_suppression) must tag a text-match loser's
     audibility_status/dominant_track as bleed/the winner's track without suppressing it
@@ -516,6 +569,7 @@ def _word_state(
     }
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_second_pass_on_unchanged_project_is_a_no_op(tmp_path: Path):
     """Reconcile converges: the acoustic verdict and the text-match verdict agree on one
     target per word, so a repeat run on unchanged audio and text changes nothing (#782)."""
@@ -572,6 +626,7 @@ def _diff_keys(entries: list[dict]) -> set[tuple[str, int]]:
     return {(e["track_id"], e["word_index"]) for e in entries}
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_path: Path):
     """A dry-run preview must report the same per-word target an apply writes, including
     the text-match override, both on a fresh project and a converged one (#791).
@@ -656,6 +711,7 @@ _SIGN_OFF_CHAIN_CONVERGED = {
 }
 
 
+@_ROOM_PAIR_MEASURED
 def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path):
     """A track- or window-scoped pass reads out-of-scope words by their computed target,
     not their stored flags, so it reaches the full pass's target for the words it writes.
@@ -698,6 +754,7 @@ def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path
     assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
 
 
+@_ROOM_PAIR_MEASURED
 def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
     """A host-scoped pass leaves guest words untouched but writes host words at the target
     a full pass would reach, even when host:0's winner (guest:0) is already stored
@@ -729,6 +786,7 @@ def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
     assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
 
 
+@_ROOM_PAIR_MEASURED
 def test_window_pass_leaves_text_match_losers_outside_the_window_alone(tmp_path: Path):
     """A start_sec/end_sec pass writes the in-window text-match loser at its target and
     never suppresses or re-tags the losers just outside the window on either side; the

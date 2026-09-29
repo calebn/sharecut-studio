@@ -171,17 +171,23 @@ def overlap_text_match_losers(
     loser, so with reconcile's acoustic verdict a stored-suppressed word it is about to
     unsuppress can still lose here.
 
-    ``echo_pairs`` are the mic pairs with a measured bleed path (``echo_risk_pairs``).
-    On such a pair loudness says nothing about who spoke, so its identical-text pairs
+    ``echo_pairs`` are the mic pairs with a measured bleed path (``echo_risk_pairs``),
+    and only those pairs can hold a duplicate: identical words on a pair with no path
+    are two people saying the same thing, and both stay (#774). On a pair whose path
+    runs one way, loudness says nothing about who spoke, so its identical-text pairs
     are judged by :class:`EchoTwinPath` instead: the bleed mic's word loses when it
     starts at the path's lag from the source mic's word, and identical words at any
-    other spacing are two people talking (#774).
+    other spacing are two people talking. A pair flagged both ways has no single
+    source and keeps the loudness rule.
     """
     if not policy.bleed_text_match_enabled:
         return []
 
     from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
 
+    echo_pairs = list(echo_pairs)
+    if not echo_pairs:
+        return []
     report = overlap_duplicate_report(
         project,
         policy=policy,
@@ -194,12 +200,14 @@ def overlap_text_match_losers(
     losers: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
     paths = echo_twin_paths(project, echo_pairs)
-    echo_tracks = {frozenset((p.source_track_id, p.bleed_track_id)) for p in paths}
+    one_way = {frozenset((p.source_track_id, p.bleed_track_id)) for p in paths}
+    flagged = {frozenset((p.source_track_id, p.bleed_track_id)) for p in echo_pairs}
 
     for pair in report.get("pairs", []):
         if not pair.get("text_match"):
             continue
-        if frozenset((pair["track_a"], pair["track_b"])) in echo_tracks:
+        tracks = frozenset((pair["track_a"], pair["track_b"]))
+        if tracks not in flagged or tracks in one_way:
             continue
         if float(pair.get("overlap_sec", 0)) < min_overlap:
             continue
@@ -279,24 +287,31 @@ def _echo_twin_losers(
 
     The pair need not overlap in time: on a network-delayed source track the copy
     starts before the source word. Stretched ASR tokens on either side are not
-    reliable duplicates and are left alone, as in the overlap rule.
+    reliable duplicates and are left alone, as in the overlap rule. A source word
+    the caller's verdict already suppresses anchors nothing: its copy is then the
+    only place the utterance survives in the transcript.
     """
     src = project.transcript_for_track(path.source_track_id)
     bld = project.transcript_for_track(path.bleed_track_id)
     if not src or not bld:
         return []
     max_dur = policy.max_word_audibility_sec
+
+    def suppressed(track_id: str, i: int, w: TranscriptWord) -> bool:
+        return w.suppressed if is_suppressed is None else is_suppressed(track_id, i)
+
     by_token: dict[str, list[float]] = defaultdict(list)
-    for w in src.words:
-        if (tok := normalize_token(w.text)) and not word_duration_is_anomalous(
-            w.end - w.start, max_dur
+    for i, w in enumerate(src.words):
+        if (
+            (tok := normalize_token(w.text))
+            and not word_duration_is_anomalous(w.end - w.start, max_dur)
+            and not suppressed(path.source_track_id, i, w)
         ):
             by_token[tok].append(w.start)
     losers: list[dict[str, Any]] = []
     for i, w in enumerate(bld.words):
         key = (path.bleed_track_id, i)
-        suppressed = w.suppressed if is_suppressed is None else is_suppressed(*key)
-        if suppressed or w.audibility_locked or key in seen:
+        if suppressed(*key, w) or w.audibility_locked or key in seen:
             continue
         if word_duration_is_anomalous(w.end - w.start, max_dur):
             continue
