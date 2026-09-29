@@ -334,8 +334,8 @@ def test_run_that_fits_whole_stays_one_cue_despite_internal_comma():
     """A run that fits the limits whole is not split at an internal comma (#770 follow-up:
     the splitter must only prefer a punctuation break when the remainder doesn't fit).
 
-    ``min_duration_sec=0`` isolates this from the minimum on-screen time pass (#790),
-    which is covered separately below.
+    ``min_duration_sec=0.5`` (below the cue's actual 0.9s) isolates this from the
+    minimum on-screen time pass (#790), which is covered separately below.
     """
     words = [
         TranscriptWord(text="Yeah,", start=0.0, end=0.3),
@@ -344,7 +344,7 @@ def test_run_that_fits_whole_stays_one_cue_despite_internal_comma():
     project = EpisodeProject.create("fits-whole", "/tmp/ws")
     project.transcripts = [Transcript(track_id="host", words=words)]
 
-    srt = utterances_to_srt(project, limits=CaptionLimits(min_duration_sec=0))
+    srt = utterances_to_srt(project, limits=CaptionLimits(min_duration_sec=0.5))
     assert srt == "1\n00:00:00,000 --> 00:00:00,900\nYeah, totally.\n"
 
 
@@ -355,8 +355,9 @@ def test_sentence_break_beats_earlier_phrase_break():
     (#790): the break only fires once it leaves at least two words behind it, so
     "Anyway," merges forward into "let's keep" instead of standing alone.
 
-    ``min_duration_sec=0`` isolates this from the minimum on-screen time pass (#790),
-    covered separately below.
+    ``min_duration_sec=0.5`` (below every cue's actual duration here, the shortest
+    being 0.63s) isolates this from the minimum on-screen time pass (#790), covered
+    separately below.
     """
     tokens = ["Well,", "that's", "true.", "Anyway,", "let's", "keep", "going", "more."]
     project = EpisodeProject.create("sentence-vs-phrase", "/tmp/ws")
@@ -365,7 +366,7 @@ def test_sentence_break_beats_earlier_phrase_break():
     srt = utterances_to_srt(
         project,
         limits=CaptionLimits(
-            max_duration_sec=100.0, max_chars_per_line=20, max_lines=1, min_duration_sec=0
+            max_duration_sec=100.0, max_chars_per_line=20, max_lines=1, min_duration_sec=0.5
         ),
     )
     assert srt == (
@@ -387,8 +388,9 @@ def test_overlapping_speakers_give_start_ordered_cues():
     """Cues are ordered by start across tracks, even when a run splits into several
     cues that straddle another track's shorter, overlapping run (#770 follow-up).
 
-    ``min_duration_sec=0`` isolates this from the minimum on-screen time pass (#790),
-    which would otherwise merge/extend these deliberately short cues.
+    ``min_duration_sec=0.05`` (below every cue's actual duration here, the shortest
+    being 0.1s) isolates this from the minimum on-screen time pass (#790), which
+    would otherwise merge/extend these deliberately short cues.
     """
     host_words = [
         TranscriptWord(text="ana", start=0.0, end=0.3),
@@ -406,7 +408,7 @@ def test_overlapping_speakers_give_start_ordered_cues():
     srt = utterances_to_srt(
         project,
         limits=CaptionLimits(
-            max_duration_sec=0.5, max_chars_per_line=42, max_lines=2, min_duration_sec=0
+            max_duration_sec=0.5, max_chars_per_line=42, max_lines=2, min_duration_sec=0.05
         ),
     )
     assert srt == (
@@ -457,6 +459,79 @@ def test_short_cue_holds_to_minimum_duration_capped_at_next_same_track_cue():
     assert srt == (
         "1\n00:00:00,000 --> 00:00:00,960\nHi.\n\n2\n00:00:00,960 --> 00:00:01,960\nthere.\n"
     )
+
+
+def test_merge_skips_a_gap_another_track_speaks_in():
+    """A same-track merge is skipped when another track has a word inside the gap
+    being bridged, even though that other cue's own start is outside the gap (#816):
+    a same-track merge must never cover a moment a different speaker is on screen for.
+    Both now-unmerged host cues, plus the guest cue, get held instead: each capped at
+    whichever track's next cue starts first, so the three end up back to back with no
+    overlap.
+    """
+    host_words = [
+        TranscriptWord(text="Hi.", start=0.0, end=0.3),
+        TranscriptWord(text="there.", start=1.2, end=1.5),
+    ]
+    # "Wait." sits inside the [0.3, 1.2) gap the host cues would otherwise merge across.
+    guest_words = [TranscriptWord(text="Wait.", start=0.6, end=0.9)]
+    project = EpisodeProject.create("merge-guard", "/tmp/ws")
+    project.transcripts = [
+        Transcript(track_id="host", words=host_words),
+        Transcript(track_id="guest", words=guest_words),
+    ]
+
+    srt = utterances_to_srt(project)
+    assert srt == (
+        "1\n00:00:00,000 --> 00:00:00,600\nHi.\n"
+        "\n"
+        "2\n00:00:00,600 --> 00:00:01,199\nWait.\n"
+        "\n"
+        "3\n00:00:01,199 --> 00:00:02,200\nthere.\n"
+    )
+
+
+def test_hold_caps_at_next_cue_on_any_track():
+    """A hold is capped at the next cue on ANY track that starts after this cue's own
+    natural end, not just the next cue on the same track (#816): a lone short host cue
+    does not grow far enough to swallow the guest cue that starts soon after it."""
+    host_words = [TranscriptWord(text="Hi.", start=0.0, end=0.2)]
+    guest_words = [TranscriptWord(text="Bye.", start=0.5, end=0.8)]
+    project = EpisodeProject.create("hold-any-track", "/tmp/ws")
+    project.transcripts = [
+        Transcript(track_id="host", words=host_words),
+        Transcript(track_id="guest", words=guest_words),
+    ]
+
+    srt = utterances_to_srt(project)
+    assert srt == (
+        "1\n00:00:00,000 --> 00:00:00,500\nHi.\n\n2\n00:00:00,500 --> 00:00:01,500\nBye.\n"
+    )
+
+
+def test_caption_limits_rejects_non_positive_min_duration_sec():
+    with pytest.raises(ValueError, match="min_duration_sec"):
+        CaptionLimits(min_duration_sec=0.0)
+    with pytest.raises(ValueError, match="min_duration_sec"):
+        resolve_caption_limits({"captions": {"min_duration_sec": -1.0}})
+
+
+def test_caption_limits_rejects_min_duration_sec_above_max_duration_sec():
+    """A yaml ``min_duration_sec`` above ``max_duration_sec`` would hold cues past the
+    duration cap it's also supposed to respect (#816)."""
+    with pytest.raises(ValueError, match="min_duration_sec"):
+        CaptionLimits(max_duration_sec=7.0, min_duration_sec=9.0)
+    with pytest.raises(ValueError, match="min_duration_sec"):
+        resolve_caption_limits({"captions": {"max_duration_sec": 7.0, "min_duration_sec": 9.0}})
+
+
+def test_caption_limits_rejects_negative_merge_max_gap_sec():
+    with pytest.raises(ValueError, match="merge_max_gap_sec"):
+        CaptionLimits(merge_max_gap_sec=-0.1)
+    with pytest.raises(ValueError, match="merge_max_gap_sec"):
+        resolve_caption_limits({"captions": {"merge_max_gap_sec": -0.1}})
+    # 0 disables merging in practice but is itself a valid boundary value.
+    CaptionLimits(merge_max_gap_sec=0.0)
 
 
 def _srt_start_seconds(block: str) -> float:
