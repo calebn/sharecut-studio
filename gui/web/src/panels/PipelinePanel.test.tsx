@@ -471,6 +471,40 @@ describe("PipelinePanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("lets a person turn off a saved blocked alignment request", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    putPipelineConfig.mockResolvedValue(alignerConfig(false, false));
+    const { container } = render(<PipelinePanel />);
+    await user.click(
+      await screen.findByRole("button", { name: "Transcribe tracks" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+
+    const toggle = await screen.findByLabelText(/Precise word boundaries/i);
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAccessibleDescription(
+      /blocked: transcribe\.forced_alignment\.enabled is true.*can be turned off here/i,
+    );
+    await expectNoA11yViolations(container);
+
+    toggle.focus();
+    await user.keyboard(" ");
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    const body = putPipelineConfig.mock.calls[0][1] as {
+      config: { transcribe: { forced_alignment: { enabled: unknown } } };
+    };
+    expect(body.config.transcribe.forced_alignment.enabled).toBe(false);
+
+    await waitFor(() => {
+      expect(
+        screen.getByLabelText(/Precise word boundaries/i),
+      ).not.toBeChecked();
+      expect(screen.getByLabelText(/Precise word boundaries/i)).toBeDisabled();
+    });
+  });
+
   it("shows Precise word boundaries on by default once the aligner is downloaded", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(null, true));
