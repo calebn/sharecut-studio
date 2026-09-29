@@ -256,6 +256,31 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
     assert engine.call_args.kwargs == {}
 
 
+def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_the_model(
+    minimal_project,
+):
+    """#780: `podcast transcribe` with forced alignment explicitly on and no model fails first."""
+    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    store = config_store()
+    store.put(ws.path, config={"transcribe": {"forced_alignment": {"enabled": True}}})
+    try:
+        svc = TranscriptService(ws)
+        with (
+            patch(
+                "podcast_mcp.services.transcript.run_transcribe_plan",
+                side_effect=AssertionError("ASR must not start"),
+            ),
+            pytest.raises(WordAlignerMissingError) as excinfo,
+        ):
+            svc.transcribe()
+        assert "podcast bootstrap --component word-aligner" in str(excinfo.value)
+    finally:
+        store.put(ws.path, reset=True)
+
+
 def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_project):
     from podcast_mcp.services.pipeline_config import config_store
 

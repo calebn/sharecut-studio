@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from model_pin_helpers import plant_pinned_word_aligner
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import (
@@ -595,7 +596,18 @@ def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp
     assert data["flag_count"] == 1
     assert data["flags"][0]["reason"] == "anomalous_word_duration"
     assert data["flags"][0]["end"] == 10.0
-    assert data["forced_alignment"] == {"enabled": False, "model": None, "jobs": []}
+    assert data["forced_alignment"] == {
+        "enabled": False,
+        "model": None,
+        "requested": None,
+        "installed": False,
+        "blocked": False,
+        "reason": (
+            "unavailable: word aligner 'onnx-base' is not downloaded "
+            "(podcast bootstrap --component word-aligner)"
+        ),
+        "jobs": [],
+    }
     assert data["punctuation_flags"] == []
 
 
@@ -1429,6 +1441,12 @@ def test_transcribe_tracks_summary_counts_suspect_hallucinations(
     assert "1 suspect hallucinations" in summary
 
 
+@pytest.fixture
+def aligner_installed(monkeypatch, tmp_path):
+    """A complete fake onnx-base snapshot, so forced alignment resolves on (#780)."""
+    return plant_pinned_word_aligner(monkeypatch, tmp_path)
+
+
 def _first_pass(proj):
     from podcast_mcp.engines import TranscriptionEngine as Engine
 
@@ -1570,7 +1588,9 @@ def test_transcribe_tracks_summary_reports_silence_filter_skip(
     assert "silence filter skipped on 1 track(s)" in summary
 
 
-def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav, tmp_workspace):
+def test_transcribe_tracks_reports_forced_alignment(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
+):
     import copy
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -1606,6 +1626,10 @@ def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav,
     assert data["forced_alignment"] == {
         "enabled": True,
         "model": "onnx-base",
+        "requested": True,
+        "installed": True,
+        "blocked": False,
+        "reason": "on: transcribe.forced_alignment.enabled is true",
         "jobs": align_jobs,
     }
     assert "3 words re-timed" in summary
@@ -1614,7 +1638,9 @@ def test_transcribe_tracks_reports_forced_alignment(minimal_project, sample_wav,
     assert "acoustic evidence" not in summary
 
 
-def test_transcribe_tracks_reports_no_evidence_words(minimal_project, sample_wav, tmp_workspace):
+def test_transcribe_tracks_reports_no_evidence_words(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
+):
     import copy
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -1650,7 +1676,7 @@ def test_transcribe_tracks_reports_no_evidence_words(minimal_project, sample_wav
 
 
 def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     import copy
 
@@ -1677,7 +1703,7 @@ def test_transcribe_tracks_flag_on_reports_reused_tracks_not_retimed(
     ],
 )
 def test_transcribe_tracks_flag_on_skips_reused_tracks_the_aligner_cannot_place(
-    minimal_project, sample_wav, tmp_workspace, asr
+    minimal_project, sample_wav, tmp_workspace, asr, aligner_installed
 ):
     import copy
 
@@ -1698,7 +1724,7 @@ def test_transcribe_tracks_flag_on_skips_reused_tracks_the_aligner_cannot_place(
 
 
 def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     import copy
 
@@ -1733,7 +1759,7 @@ def test_transcribe_tracks_flag_on_twice_does_not_report_retimed_reuse(
 
 
 def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_whisper(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
@@ -1775,7 +1801,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
 
 
 def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     """#769: a project transcribed before the priming default still re-times, not re-runs ASR.
 
@@ -1825,7 +1851,7 @@ def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
 
 
 def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
@@ -1869,7 +1895,7 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
 
 
 def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
-    minimal_project, sample_wav, tmp_workspace
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.services.pipeline_config import transcribe_run_config
@@ -1927,8 +1953,143 @@ def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
     assert after == before
 
 
-def test_transcribe_tracks_retime_words_reports_alignment_failure_as_not_retimed(
+def _stub_aligner(spans=((0.1, 0.4),)):
+    from podcast_mcp.engines.ctc_forced_align import RetimeStats
+    from podcast_mcp.engines.word_align import WordAlignResult
+    from podcast_mcp.word_aligner_models import word_aligner_model
+
+    aligner = MagicMock()
+    aligner.model = word_aligner_model()
+    aligner.supports_language.return_value = True
+    aligner.cache_identity.return_value = {"model": "stub"}
+    aligner.align.return_value = WordAlignResult(
+        list(spans), RetimeStats(1, 0, len(spans), 0), 0.01, tuple(0.9 for _ in spans)
+    )
+    return aligner
+
+
+def test_transcribe_tracks_aligns_by_default_when_the_word_aligner_is_installed(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
+):
+    """#780: no config change; the installed model turns forced alignment on."""
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    assert load_defaults()["transcribe"]["forced_alignment"]["enabled"] is None
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=_stub_aligner()),
+    ):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+
+    assert proj.transcripts[0].word_aligner == "onnx-base"
+    assert [(w.start, w.end) for w in proj.transcripts[0].words] == [(0.1, 0.4)]
+    assert "1 words re-timed" in summary
+    assert "forced alignment unavailable" not in summary
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"]["enabled"] is True
+    assert timing["forced_alignment"]["requested"] is None
+    assert timing["forced_alignment"]["installed"] is True
+    assert timing["forced_alignment"]["reason"] == (
+        "on by default: word aligner 'onnx-base' is installed"
+    )
+    assert timing["forced_alignment"]["jobs"][0]["status"] == "aligned"
+
+
+def test_transcribe_tracks_reports_alignment_unavailable_without_the_word_aligner(
     minimal_project, sample_wav, tmp_workspace
+):
+    """#780: the default without the model is unavailable, not failed; Whisper's times stay."""
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch(
+            "podcast_mcp.engines.word_align.WordAligner.load",
+            side_effect=AssertionError("the aligner must not load when it is not installed"),
+        ),
+    ):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+
+    assert proj.transcripts[0].word_aligner is None
+    assert [(w.start, w.end) for w in proj.transcripts[0].words] == [(0.0, 0.5)]
+    assert (
+        "forced alignment unavailable: word aligner 'onnx-base' is not downloaded "
+        "(podcast bootstrap --component word-aligner)"
+    ) in summary
+    assert "failed" not in summary
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"]["enabled"] is False
+    assert timing["forced_alignment"]["installed"] is False
+    assert timing["forced_alignment"]["blocked"] is False
+    assert timing["forced_alignment"]["jobs"] == []
+
+
+def test_transcribe_tracks_explicit_false_keeps_whisper_times_with_the_model_installed(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
+):
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = False
+    with (
+        patch.object(Engine, "transcribe_file", return_value=_asr_result()),
+        patch(
+            "podcast_mcp.engines.word_align.WordAligner.load",
+            side_effect=AssertionError("explicit false must not load the aligner"),
+        ),
+    ):
+        summary = steps.transcribe_tracks(proj, defaults)
+
+    assert proj.transcripts[0].word_aligner is None
+    assert "forced alignment off: transcribe.forced_alignment.enabled is false" in summary
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"] == {
+        "enabled": False,
+        "model": None,
+        "requested": False,
+        "installed": True,
+        "blocked": False,
+        "reason": "off: transcribe.forced_alignment.enabled is false",
+        "jobs": [],
+    }
+
+
+def test_transcribe_tracks_explicit_true_without_the_word_aligner_fails_before_asr(
+    minimal_project, sample_wav, tmp_workspace
+):
+    """#780: explicitly on without the model never falls back to Whisper's times silently."""
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        pytest.raises(WordAlignerMissingError) as excinfo,
+    ):
+        steps.transcribe_tracks(proj, defaults)
+
+    assert "podcast bootstrap --component word-aligner" in str(excinfo.value)
+    assert proj.transcripts == []
+    assert not (proj.artifacts_dir() / "transcript_timing.json").exists()
+
+
+def test_transcribe_tracks_retime_words_reports_alignment_failure_as_not_retimed(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.services.pipeline_config import transcribe_run_config

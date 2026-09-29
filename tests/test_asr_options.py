@@ -4,22 +4,84 @@ import inspect
 
 import pytest
 
+from model_pin_helpers import plant_pinned_word_aligner
 from podcast_mcp.config import load_defaults
-from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
+from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
 
 def test_yaml_defaults_equal_dataclass_defaults():
     assert AsrOptions.from_defaults(load_defaults()) == AsrOptions()
 
 
-def test_forced_alignment_flag_reads_yaml_and_is_not_a_decode_key():
-    assert (
-        AsrOptions.from_defaults(
-            {"transcribe": {"forced_alignment": {"enabled": True}}}
-        ).forced_alignment_enabled
-        is True
+def _requested(value):
+    return AsrOptions.from_defaults({"transcribe": {"forced_alignment": {"enabled": value}}})
+
+
+def test_forced_alignment_follows_the_installed_model_by_default(monkeypatch, tmp_path):
+    hidden = _requested(None).forced_alignment
+    assert hidden == ForcedAlignment(requested=None, installed=False)
+    assert hidden.enabled is False
+    assert hidden.blocked is False
+    assert hidden.reason == (
+        "unavailable: word aligner 'onnx-base' is not downloaded "
+        "(podcast bootstrap --component word-aligner)"
     )
-    assert AsrOptions(forced_alignment_enabled=True).decode_key() == AsrOptions().decode_key()
+    assert AsrOptions().forced_alignment_enabled is False
+
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    installed = AsrOptions.from_defaults(load_defaults()).forced_alignment
+    assert installed == ForcedAlignment(requested=None, installed=True)
+    assert installed.enabled is True
+    assert installed.reason == "on by default: word aligner 'onnx-base' is installed"
+    assert AsrOptions().forced_alignment_enabled is True
+
+
+def test_forced_alignment_explicit_false_wins_over_the_installed_model(monkeypatch, tmp_path):
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    off = _requested(False).forced_alignment
+    assert off.enabled is False
+    assert off.blocked is False
+    assert off.reason == "off: transcribe.forced_alignment.enabled is false"
+    off.require()
+
+
+def test_forced_alignment_explicit_true_without_the_model_is_blocked():
+    blocked = _requested(True).forced_alignment
+    assert blocked.enabled is False
+    assert blocked.blocked is True
+    assert blocked.reason == (
+        "blocked: transcribe.forced_alignment.enabled is true but word aligner 'onnx-base' "
+        "is not downloaded (podcast bootstrap --component word-aligner)"
+    )
+    with pytest.raises(WordAlignerMissingError) as excinfo:
+        blocked.require()
+    assert "podcast bootstrap --component word-aligner" in str(excinfo.value)
+    assert "transcribe.forced_alignment.enabled is true" in str(excinfo.value)
+
+
+def test_forced_alignment_explicit_true_with_the_model(monkeypatch, tmp_path):
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    on = _requested(True).forced_alignment
+    assert on.enabled is True
+    assert on.reason == "on: transcribe.forced_alignment.enabled is true"
+    assert on.report() == {
+        "enabled": True,
+        "model": "onnx-base",
+        "requested": True,
+        "installed": True,
+        "blocked": False,
+        "reason": "on: transcribe.forced_alignment.enabled is true",
+    }
+    assert _requested(None).forced_alignment.report()["requested"] is None
+    assert _requested(False).forced_alignment.report()["model"] is None
+
+
+def test_forced_alignment_is_not_a_decode_key(monkeypatch, tmp_path):
+    hidden_key = AsrOptions().decode_key()
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    assert _requested(True).decode_key() == hidden_key
+    assert _requested(False).decode_key() == hidden_key
 
 
 def test_forced_alignment_min_word_score_reads_yaml_bounded_and_is_not_a_decode_key():

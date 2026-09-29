@@ -111,11 +111,15 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         dialogue_transcribe_jobs,
         forced_alignment_succeeded,
     )
-    from podcast_mcp.word_aligner_models import DEFAULT_WORD_ALIGNER, word_aligner_model
+    from podcast_mcp.word_aligner_models import word_aligner_model
 
     cfg = defaults.get("transcribe", {})
     pol = AnalysisPolicy.from_defaults(defaults)
     overwrite = bool(cfg.get("overwrite", False))
+    options = AsrOptions.from_defaults(defaults)
+    # Explicitly on without the model: fail before any transcript changes (WordAlignerMissingError
+    # with the download command); an unset flag resolved to off is reported, not raised.
+    options.forced_alignment.require()
     jobs = dialogue_transcribe_jobs(project)
     plan = plan_transcription(
         project,
@@ -124,7 +128,6 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         unattended=is_unattended(defaults=defaults),
         allow_edited=bool(cfg.get("overwrite_edited", False)),
     )
-    options = AsrOptions.from_defaults(defaults)
     engines: list[TranscriptionEngine] = []
 
     def make_engine() -> TranscriptionEngine:
@@ -180,11 +183,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         if options.forced_alignment_enabled
         else []
     )
-    forced_alignment: dict[str, Any] = {
-        "enabled": options.forced_alignment_enabled,
-        "model": DEFAULT_WORD_ALIGNER if options.forced_alignment_enabled else None,
-        "jobs": align_jobs,
-    }
+    forced_alignment: dict[str, Any] = {**options.forced_alignment.report(), "jobs": align_jobs}
     retime_ok = {j["label"] for j in align_jobs if forced_alignment_succeeded(j)}
     retimed = [j.label for j in plan.retime if j.label in retime_ok]
     retime_failed = [j.label for j in plan.retime if j.label not in retime_ok]
@@ -266,6 +265,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         kept = sum(1 for j in align_jobs if not forced_alignment_succeeded(j))
         if kept:
             summary += f", forced alignment kept Whisper timestamps on {kept} track(s)"
+    else:
+        summary += f", forced alignment {options.forced_alignment.reason}"
     return summary
 
 

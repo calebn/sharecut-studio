@@ -242,16 +242,23 @@ transcribe:
   silence_filter:
     enabled: true
     peak_dbfs: -60.0
-  # Opt-in forced alignment (#714): re-time Whisper's words with a local wav2vec2
-  # CTC aligner (English; download first: `podcast bootstrap --component
-  # word-aligner`). Off = Whisper's own word timestamps and nothing downloaded.
-  # Words it cannot place, and every word when the model is missing, keep
-  # Whisper's times (reported in artifacts/transcript_timing.json).
+  # Forced alignment (#714, #780): re-time Whisper's words with a local wav2vec2
+  # CTC aligner (English). Whisper's own word times are not reliable enough for
+  # cut decisions, so `enabled` is a tri-state that follows the installed model:
+  #   null  (default) on when the word aligner is downloaded (`podcast bootstrap
+  #         --component word-aligner`), off when it is not; the run reports
+  #         which in artifacts/transcript_timing.json `forced_alignment.reason`
+  #         and the step summary ("forced alignment unavailable: ...").
+  #   false always Whisper's times, even with the model installed.
+  #   true  require the aligner: a run fails before touching any transcript when
+  #         the model is missing, with the download command. It never falls
+  #         back to Whisper's times silently.
+  # Words the aligner cannot place keep Whisper's times (reported per job).
   # Stored transcripts: run-only retime_words (Studio Re-time words, CLI
   # --retime-words, MCP retime_words) re-times them from the ASR cache without
   # Whisper. Not a yaml key: run-only, like overwrite_edited.
   forced_alignment:
-    enabled: false
+    enabled: null
     # Aligned words whose mean character posterior is below this get
     # suspect_hallucination (flag only, never deleted; #195). Stored scores keep
     # flagging when enabled is turned off; 0 = off.
