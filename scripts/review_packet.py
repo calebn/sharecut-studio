@@ -24,6 +24,9 @@ PER_SYMBOL_HITS = 20
 PER_MODULE_HITS = 15
 PER_DOC_REFS = 20
 DOCS_CAP = 8_000
+DOCS_SYNC_CAP = 6_000
+STAT_CAP = 6_000
+PATHS_PER_LINE = 10  # docs-sync triggered-by / satisfied / advisory path lists
 # AGENTS.md-style shorthand: `services/share.py` means src/podcast_mcp/services/share.py.
 # Copy of docs_sync._PACKAGE_PREFIX (this script can't import it); a test pins them equal.
 PACKAGE_PREFIX = "src/podcast_mcp/"
@@ -51,6 +54,8 @@ _SYMBOL_RES = (
 
 _BACKTICK_RE = re.compile(r"`([^`\s]+)`")
 _MD_LINK_RE = re.compile(r"\]\(([^)\s#]+)")
+# docs_sync.format_report lines whose ", "-joined path list grows with the PR's file count.
+_PATH_LIST_RE = re.compile(r"^\s*(?:triggered by:|satisfied|advisory)\s")
 
 
 def git(*args: str) -> str:
@@ -208,6 +213,17 @@ def docs_accuracy(ref: str, rng: str) -> list[str]:
     )
 
 
+def clip_paths(line: str) -> str:
+    """Shorten a docs-sync ``triggered by:``, ``satisfied`` or ``advisory`` line to its first
+    PATHS_PER_LINE paths plus ``(+M more)``. Those lists grow with the PR's file count."""
+    if not _PATH_LIST_RE.match(line):
+        return line
+    items = line.split(", ")
+    if len(items) <= PATHS_PER_LINE:
+        return line
+    return ", ".join(items[:PATHS_PER_LINE]) + f" (+{len(items) - PATHS_PER_LINE} more)"
+
+
 def docs_sync_findings(ref: str, rng: str) -> list[str]:
     """Docs-sync report for the PR, from the checker and contract at ``ref``.
 
@@ -217,6 +233,8 @@ def docs_sync_findings(ref: str, rng: str) -> list[str]:
     the checker at ``ref`` is piped into ``python3 -`` the same way. A ref that predates
     the checker (no scripts/docs_sync.py at that commit) reports unavailable rather than
     failing the packet. The exit code is ignored: this section is advisory in the packet.
+    Path lists are clipped (clip_paths) and the section stops within DOCS_SYNC_CAP chars,
+    so a wide PR or a crashing checker's traceback cannot crowd out the diff.
     """
     try:
         checker = git("show", f"{ref}:scripts/docs_sync.py")
@@ -229,7 +247,15 @@ def docs_sync_findings(ref: str, rng: str) -> list[str]:
         text=True,
         check=False,
     )
-    return (result.stdout or result.stderr).splitlines()
+    lines = (result.stdout or result.stderr).splitlines()
+    return take_within(
+        (clip_paths(line) for line in lines),
+        DOCS_SYNC_CAP,
+        lambda kept: cut_notice(
+            f"+{len(lines) - kept} more docs-sync lines not listed",
+            f"python3 scripts/docs_sync.py check --range {rng}",
+        ),
+    )
 
 
 def section(title: str, lines: list[str], empty: str = "(none)") -> str:
@@ -260,6 +286,7 @@ def cap_packet(parts: list[str], limit: int) -> str:
 
 def build(ref: str, rng: str) -> str:
     files = changed_files(rng)
+    stat = git("diff", "--stat", rng).splitlines()
     diff = git("diff", "-U30", rng)
     omitted = ""
     if len(diff) > DIFF_CAP:
@@ -287,8 +314,19 @@ def build(ref: str, rng: str) -> str:
             twins.append(f"### {f}\n" + "\n".join(marked))
 
     parts = [
-        section("Diff stat", git("diff", "--stat", rng).splitlines()),
-        # Small and bounded, so they sit ahead of the diff and survive the MAX_CHARS cut.
+        # Each capped (STAT_CAP, DOCS_SYNC_CAP, DOCS_CAP); with DIFF_CAP they fit under
+        # MAX_CHARS, so they sit ahead of the diff and the cut only reaches later sections.
+        section(
+            "Diff stat",
+            take_within(
+                stat,
+                STAT_CAP,
+                lambda kept: cut_notice(
+                    f"+{len(stat) - kept} more diff-stat lines not listed",
+                    f"git diff --stat {rng}",
+                ),
+            ),
+        ),
         section(
             "Docs-sync rules (contracts/docs-sync.json)",
             docs_sync_findings(ref, rng),

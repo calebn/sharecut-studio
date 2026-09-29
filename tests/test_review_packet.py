@@ -105,7 +105,7 @@ def test_packet_has_every_section_with_real_data(
     ):
         assert title in packet, title
     assert "## Applicable repo rules (AGENTS.md rows)" not in packet
-    # The small docs sections precede the diff so the MAX_CHARS cut never drops them.
+    # The capped docs sections precede the diff, so the MAX_CHARS cut never reaches them.
     assert packet.index("## Docs-sync rules") < packet.index("## Changed docs")
     assert packet.index("## Changed docs") < packet.index("## Diff (with 30 lines of context)")
     assert "+def normalize_gain(x):" in packet
@@ -157,6 +157,69 @@ def test_take_within_keeps_whole_items_and_stops_lazily() -> None:
         raise AssertionError("computed an item after the first misfit")
 
     assert review_packet.take_within(lazy(), 5, notice) == ["aaaa", "[kept 1]"]
+
+
+def test_packet_caps_leave_room_for_the_diff() -> None:
+    # The capped sections ahead of the diff plus the capped diff must fit under the cut,
+    # with room for headers and notices, or the MAX_CHARS cut could reach the diff.
+    rp = review_packet
+    assert rp.STAT_CAP + rp.DOCS_SYNC_CAP + rp.DOCS_CAP + rp.DIFF_CAP + 1_000 <= rp.MAX_CHARS
+
+
+def test_clip_paths_shortens_only_path_lists() -> None:
+    paths = [f"src/f{i}.py" for i in range(25)]
+    assert review_packet.clip_paths("            triggered by: " + ", ".join(paths)) == (
+        "            triggered by: " + ", ".join(paths[:10]) + " (+15 more)"
+    )
+    assert review_packet.clip_paths("  satisfied r  " + ", ".join(paths)).endswith(" (+15 more)")
+    assert review_packet.clip_paths("  advisory  r  " + ", ".join(paths)).endswith(" (+15 more)")
+    short = "            triggered by: " + ", ".join(paths[:10])
+    assert review_packet.clip_paths(short) == short
+    title = "  VIOLATED  r  " + ", ".join(paths)
+    assert review_packet.clip_paths(title) == title
+
+
+def test_diff_stat_is_capped_with_a_pointer(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(review_packet, "STAT_CAP", 50)
+    packet = review_packet.build("HEAD", "base..HEAD")
+    assert (
+        "more diff-stat lines not listed; run `git diff --stat base..HEAD` for the rest]" in packet
+    )
+
+
+def test_wide_pr_docs_sync_section_is_bounded(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    contract = json.loads(_MIX_DOCS_CONTRACT)
+    contract["rules"].append(
+        {
+            "id": "util-docs",
+            "when": "Utilities",
+            "update": "`docs/util.md`",
+            "docs": ["docs/util.md"],
+            "gate": {"include": ["src/podcast_mcp/util/"]},
+        }
+    )
+    _write(repo, "contracts/docs-sync.json", json.dumps(contract))
+    for i in range(60):
+        _write(repo, f"src/podcast_mcp/util/wide_{i:02}.py", "VALUE = 1\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "wide")
+    findings = review_packet.docs_sync_findings("HEAD", "base..HEAD")
+    assert "  VIOLATED  util-docs  Utilities" in findings
+    assert any(
+        line.lstrip().startswith("triggered by: src/podcast_mcp/util/")
+        and line.endswith(" (+50 more)")
+        for line in findings
+    )
+    monkeypatch.setattr(review_packet, "DOCS_SYNC_CAP", 100)
+    capped = review_packet.docs_sync_findings("HEAD", "base..HEAD")
+    assert len("\n".join(capped[:-1])) < 100
+    assert capped[-1].endswith(
+        "more docs-sync lines not listed; run "
+        "`python3 scripts/docs_sync.py check --range base..HEAD` for the rest]"
+    )
+    packet = review_packet.build("HEAD", "base..HEAD")
+    assert "## Diff (with 30 lines of context)" in packet
+    assert "cut: Diff" not in packet
 
 
 def test_doc_heavy_packet_keeps_docs_sync_and_names_the_cut(
