@@ -38,6 +38,8 @@ PROJECT_BUSY_MESSAGE = "Project is busy in another process; try again"
 #: Fallback for a raw ``filelock.Timeout`` that is not one of ours (e.g. the transcript-context
 #: lock, #396/#401): its default ``str()`` includes the lock path, which adapters must not leak.
 LOCK_BUSY_MESSAGE = "This project is busy; try again"
+#: Fixed text for a busy transcript-context lock (#396/#401), shared by the CLI and GUI.
+TRANSCRIPT_CONTEXT_BUSY_MESSAGE = "Transcript context is busy; try again"
 
 log = logging.getLogger(__name__)
 _P = ParamSpec("_P")

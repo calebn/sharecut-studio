@@ -13,6 +13,7 @@ from podcast_mcp.services import (
     TranscriptRefineService,
     VocabularyConflictError,
 )
+from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 router = APIRouter()
 
@@ -47,9 +48,7 @@ def transcript_vocabulary_put(
     except VocabularyConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Timeout as exc:
-        raise HTTPException(
-            status_code=503, detail="Transcript context is busy; try again"
-        ) from exc
+        raise HTTPException(status_code=503, detail=TRANSCRIPT_CONTEXT_BUSY_MESSAGE) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
