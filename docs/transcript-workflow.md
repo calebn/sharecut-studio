@@ -470,15 +470,21 @@ partway through a longer run on another interleaves correctly instead of trailin
 markdown transcript (`combined_transcript_markdown`) is unaffected: it stays whole
 utterances.
 
-**Minimum on-screen time (#790).** A cue under `min_duration_sec` first tries to merge
-into its nearest same-track neighbour (smaller gap first) when the gap between them is at
-most `merge_max_gap_sec` and the merged cue still fits every other limit; this can pull in
-a neighbour from a different utterance run, not just a different split of the same run.
-Any cue still under `min_duration_sec` after that is held to that duration by extending
-its end, capped at the start of the next cue on the *same* track (never past it, and never
-capped by another track's overlapping cue). Neither pass can violate `max_duration_sec`,
-`max_chars_per_line`, or `max_lines`; the hold-to-minimum pass does not re-check
-`max_duration_sec` since it only affects display time, not text.
+**Minimum on-screen time (#790, cross-track guards #816).** A cue under
+`min_duration_sec` first tries to merge into its nearest same-track neighbour (smaller
+gap first) when the gap between them is at most `merge_max_gap_sec`, the merged cue still
+fits every other limit, and no other track has a *word* timed inside the gap being
+bridged — checked at word granularity, not cue granularity, since another track's cue can
+start before the gap and still have a later word land inside it (an interjection
+mid-utterance). A qualifying merge can pull in a neighbour from a different utterance
+run, not just a different split of the same run. Any cue still under `min_duration_sec`
+after that is held to that duration by extending its end, capped at the start of the next
+cue on the *same* track and at the start of the next cue on *any other* track that begins
+at or after this cue's own (pre-hold) end — a track already mid-utterance when this cue
+starts isn't a "next" cue to cap against, but one that starts once this cue is naturally
+done is. Neither pass can violate `max_duration_sec`, `max_chars_per_line`, or
+`max_lines`; the hold-to-minimum pass does not re-check `max_duration_sec` since it only
+affects display time, not text.
 
 Defaults (common caption guidance — about 2 lines of about 42 characters, at most 7s):
 
@@ -496,8 +502,11 @@ Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml
 (same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
 `min_duration_sec` / `merge_max_gap_sec` are yaml-only (no CLI flags). `--max-lines` must
 be at least 1 and `--max-duration-sec` must be greater than 0 — the CLI rejects a bad flag
-value with a usage error (exit 2); a bad `export.captions` yaml value fails the same way at
-load, but as a domain error (exit 1), since it isn't a CLI flag.
+value with a usage error (exit 2). `export.captions` yaml values are checked the same way
+at load, but as a domain error (exit 1), since they aren't CLI flags: `min_duration_sec`
+must be greater than 0 and at most `max_duration_sec` (a longer minimum than the duration
+cap would hold cues past the cap it's supposed to respect), and `merge_max_gap_sec` must
+be at least 0.
 
 ## Troubleshooting
 

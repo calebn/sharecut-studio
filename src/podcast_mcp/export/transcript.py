@@ -43,6 +43,19 @@ class CaptionLimits:
             raise ValueError(
                 f"export.captions.max_duration_sec must be > 0, got {self.max_duration_sec}"
             )
+        if self.min_duration_sec <= 0:
+            raise ValueError(
+                f"export.captions.min_duration_sec must be > 0, got {self.min_duration_sec}"
+            )
+        if self.min_duration_sec > self.max_duration_sec:
+            raise ValueError(
+                "export.captions.min_duration_sec must be <= max_duration_sec, got "
+                f"{self.min_duration_sec} > {self.max_duration_sec}"
+            )
+        if self.merge_max_gap_sec < 0:
+            raise ValueError(
+                f"export.captions.merge_max_gap_sec must be >= 0, got {self.merge_max_gap_sec}"
+            )
 
 
 def resolve_caption_limits(export_cfg: Mapping[str, Any]) -> CaptionLimits:
@@ -258,10 +271,27 @@ def _by_track(cues: list[_Cue]) -> list[list[_Cue]]:
     return list(groups.values())
 
 
-def _merge_short_cues(track_cues: list[_Cue], limits: CaptionLimits) -> list[_Cue]:
+def _gap_has_other_track_word(
+    other_words: list[tuple[str, float, float]], track_id: str, gap_start: float, gap_end: float
+) -> bool:
+    """Whether a word on a different track overlaps ``[gap_start, gap_end)``.
+
+    Checked at word granularity, not cue granularity: another track's cue can start
+    before ``gap_start`` and still have a word land inside the gap (an interjection
+    mid-utterance), which a cue-start-only check would miss (#816).
+    """
+    return any(
+        tid != track_id and start < gap_end and end > gap_start for tid, start, end in other_words
+    )
+
+
+def _merge_short_cues(
+    track_cues: list[_Cue], limits: CaptionLimits, other_words: list[tuple[str, float, float]]
+) -> list[_Cue]:
     """Merge a cue under ``min_duration_sec`` into its nearest same-track neighbour
-    (smaller gap first) when the gap is at most ``merge_max_gap_sec`` and the merged
-    cue still fits the limits. Repeats until no more merges apply."""
+    (smaller gap first) when the gap is at most ``merge_max_gap_sec``, no other track
+    has a word inside the gap being bridged (#816), and the merged cue still fits the
+    limits. Repeats until no more merges apply."""
     cues = list(track_cues)
     changed = True
     while changed:
@@ -277,6 +307,10 @@ def _merge_short_cues(track_cues: list[_Cue], limits: CaptionLimits) -> list[_Cu
             for gap, lo, hi in sorted(neighbours, key=lambda n: n[0]):
                 if gap > limits.merge_max_gap_sec:
                     continue
+                if _gap_has_other_track_word(
+                    other_words, cue.track_id, cues[lo].end, cues[hi].start
+                ):
+                    continue
                 merged_words = list(cues[lo].words) + list(cues[hi].words)
                 if not _cue_fits(merged_words, limits):
                     continue
@@ -288,14 +322,22 @@ def _merge_short_cues(track_cues: list[_Cue], limits: CaptionLimits) -> list[_Cu
     return cues
 
 
-def _extend_short_cues(track_cues: list[_Cue], limits: CaptionLimits) -> list[_Cue]:
+def _extend_short_cues(
+    track_cues: list[_Cue], limits: CaptionLimits, other_starts: list[tuple[str, float]]
+) -> list[_Cue]:
     """Hold any cue still under ``min_duration_sec`` to that duration, never past the
-    start of the next cue on the same track."""
+    start of the next cue on the same track, nor past the start of the next cue on any
+    other track that begins at or after this cue's own (pre-hold) end (#816): a track
+    already mid-utterance when this cue starts isn't a "next" cue to cap against, but
+    one that starts once this cue is naturally done is."""
     cues = list(track_cues)
     for i, cue in enumerate(cues):
         if cue.end - cue.start >= limits.min_duration_sec:
             continue
         cap = cues[i + 1].start if i + 1 < len(cues) else float("inf")
+        other_next = [s for tid, s in other_starts if tid != cue.track_id and s >= cue.end]
+        if other_next:
+            cap = min(cap, min(other_next))
         new_end = min(cue.start + limits.min_duration_sec, cap)
         if new_end > cue.end:
             cues[i] = replace(cue, end=new_end)
@@ -304,9 +346,18 @@ def _extend_short_cues(track_cues: list[_Cue], limits: CaptionLimits) -> list[_C
 
 def _apply_min_duration(cues: list[_Cue], limits: CaptionLimits) -> list[_Cue]:
     """Minimum on-screen time (#790): merge sub-minimum cues into a same-track
-    neighbour where that still fits, then hold any cue still under the minimum."""
-    merged = [cue for group in _by_track(cues) for cue in _merge_short_cues(group, limits)]
-    return [cue for group in _by_track(merged) for cue in _extend_short_cues(group, limits)]
+    neighbour where that still fits without covering another track's word (#816),
+    then hold any cue still under the minimum, capped by any track's next cue."""
+    other_words = [(cue.track_id, w.start, w.end) for cue in cues for w in cue.words]
+    merged = [
+        cue for group in _by_track(cues) for cue in _merge_short_cues(group, limits, other_words)
+    ]
+    other_starts = [(cue.track_id, cue.start) for cue in merged]
+    return [
+        cue
+        for group in _by_track(merged)
+        for cue in _extend_short_cues(group, limits, other_starts)
+    ]
 
 
 def _timeline_cues(project: EpisodeProject, limits: CaptionLimits) -> list[_Cue]:
