@@ -194,7 +194,8 @@ def test_changed_docs_name_the_code_their_added_lines_reference(repo: Path) -> N
         repo,
         "docs/mix.md",
         "Normalize with `services/mix.py` (`normalize_gain`); see "
-        "[CLI](../src/podcast_mcp/cli/mix.py), [site](https://x.dev/a.md) and "
+        "[CLI](../src/podcast_mcp/cli/mix.py), [site](https://x.dev/a.md), "
+        "[mail](mailto:a@b.dev) and "
         "`docs/missing.md`.\n",
     )
     _git(repo, "add", "docs/mix.md")
@@ -205,6 +206,10 @@ def test_changed_docs_name_the_code_their_added_lines_reference(repo: Path) -> N
         "### docs/mix.md\npaths named in added lines: "
         "src/podcast_mcp/services/mix.py, src/podcast_mcp/cli/mix.py" in packet
     )
+    # Neither the https:// nor the mailto: link yields a ref.
+    assert review_packet.doc_references(
+        "base..HEAD", "docs/mix.md", review_packet.tracked_paths("HEAD")
+    ) == ["src/podcast_mcp/services/mix.py", "src/podcast_mcp/cli/mix.py"]
 
 
 def test_deleted_docs_are_not_listed(repo: Path) -> None:
