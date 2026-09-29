@@ -313,8 +313,31 @@ def test_align_error_keeps_whisper_times_and_writes_no_alignment_cache(minimal_p
     assert cached_audio_keys(proj, job.cache_id) == {sha[:16]}
 
 
+def _host_track_with_tone_then_silence(proj, wav):
+    """The project's host track is `wav`: a 440 Hz tone for 0.5 s, then digital silence."""
+    from podcast_mcp.models import MediaAsset, Track, TrackRole
+
+    n = 16000
+    t = np.arange(n // 2) / 16000
+    tone = np.round(0.3 * 32767 * np.sin(2 * np.pi * 440 * t)).astype("<i2")
+    with wave.open(str(wav), "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(16000)
+        f.writeframes(tone.tobytes() + np.zeros(n - n // 2, dtype="<i2").tobytes())
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=str(wav)),
+        )
+    ]
+
+
 def test_no_evidence_word_is_flagged_and_counted(minimal_project, tmp_path):
     proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    _host_track_with_tone_then_silence(proj, job.audio)
     stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0, scores=(0.8, 0.002))
     engine._word_aligner = stub
 
@@ -324,6 +347,20 @@ def test_no_evidence_word_is_flagged_and_counted(minimal_project, tmp_path):
     assert tr.words[0].suspect_hallucination is False
     assert tr.words[1].suspect_hallucination is True
     assert engine.forced_alignment_jobs[0]["no_evidence_words"] == 1
+
+
+def test_low_score_on_spoken_audio_is_not_counted_as_no_evidence(minimal_project, tmp_path):
+    """#780: "hi" scores 0.002 but sits in the tone, so it is neither flagged nor counted."""
+    proj, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    _host_track_with_tone_then_silence(proj, job.audio)
+    stub = StubAligner([(0.1, 0.3), (0.35, 0.45)], n_aligned=2, n_unaligned=0, scores=(0.002, 0.9))
+    engine._word_aligner = stub
+
+    with patcher:
+        tr = engine.transcribe_job(proj, job, language="en")
+
+    assert [w.suspect_hallucination for w in tr.words] == [False, False]
+    assert engine.forced_alignment_jobs[0]["no_evidence_words"] == 0
 
 
 def test_min_word_score_zero_never_flags_or_counts(minimal_project, tmp_path):

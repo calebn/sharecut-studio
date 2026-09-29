@@ -275,9 +275,18 @@ a cache input. `transcribe_tracks` re-flags a reused transcript when its audio i
 **Aligner evidence (#195).** With `transcribe.forced_alignment.enabled`, each word the aligner
 places gets `alignment_score`, the mean posterior of the frames it used. A score below
 `transcribe.forced_alignment.min_word_score` (default 0.01, 0 = off) also sets
-`suspect_hallucination`. It is flag-only, reviewed the same way, and catches hallucinations over
-room noise or bleed that the -60 dBFS peak test cannot; words the aligner could not place have no
-score and are judged by the silence filter alone. `transcript_timing.json` →
+`suspect_hallucination`, but only when the audio agrees (#780): the word's own track is
+quieter than its noise floor plus `evidence_speech_margin_db` (12) over the aligned span, or
+another dialogue track is `evidence_bleed_margin_db` (3) louder over the same session-clock
+span (`engines/asr_silence.SpeechLevels`, the same track RMS and gain rule reconcile's
+audibility uses, decoded once per run; a track that cannot be decoded, a span cut from the
+timeline, or an extra-source transcript counts as evidence). The score alone never flags: it
+is a mean over emitting frames and is low by construction on one-to-four-frame words such as
+"um", "uh" and "to" (on the lab tape the ungated flag marked 97 of the speaker's own words per
+episode; the gate keeps the 64 bleed and 3 silent flags and none of those). It is flag-only,
+reviewed the same way, and catches hallucinations over room noise or bleed that the -60 dBFS
+peak test cannot; words the aligner could not place have no score and are judged by the
+silence filter alone. `transcript_timing.json` →
 `forced_alignment.jobs[].no_evidence_words` counts them, and the step summary adds "N aligned
 word(s) with no acoustic evidence". A person's or agent's text correction drops the word's stale
 score: `correct_word` clears `alignment_score` and the flag when the text changes, and
