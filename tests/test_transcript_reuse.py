@@ -227,6 +227,44 @@ def test_run_transcribe_plan_forwards_stamps_and_merges(job, tmp_path, caplog):
     assert "overwrites edited transcript for track host" in caplog.text
 
 
+def test_run_transcribe_plan_warns_when_primer_truncates_saved_vocabulary(job, tmp_path, caplog):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    p = _project(workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    # 380 chars of vocabulary fit under the old (unprimed) 400-char budget but not
+    # alongside the new punctuation primer (#769).
+    TranscriptContext(terms=["a" * 380]).save(p.workspace_path())
+    plan = plan_transcription(p, [job], overwrite=True, unattended=False)
+    engine = MagicMock()
+    engine.transcribe_all_dialogue.return_value = []
+
+    with caplog.at_level("WARNING"):
+        run_transcribe_plan(p, plan, lambda: engine, use_cache=False, language="en")
+
+    assert "drops saved vocabulary" in caplog.text
+
+
+def test_run_transcribe_plan_does_not_warn_when_vocabulary_fits(job, tmp_path, caplog):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    p = _project(workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    TranscriptContext(terms=["Kaczynski"]).save(p.workspace_path())
+    plan = plan_transcription(p, [job], overwrite=True, unattended=False)
+    engine = MagicMock()
+    engine.transcribe_all_dialogue.return_value = []
+
+    with caplog.at_level("WARNING"):
+        run_transcribe_plan(p, plan, lambda: engine, use_cache=False, language="en")
+
+    assert "drops saved vocabulary" not in caplog.text
+
+
 def test_needs_retime_truth_table(job):
     model = word_aligner_model()
     assert needs_retime(_tr(), model)

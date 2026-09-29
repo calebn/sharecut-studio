@@ -298,15 +298,29 @@ PUNCTUATION_RATE_OUTLIER_REASON = "punctuation_rate_outlier"
 _PUNCTUATION_OUTLIER_MIN_PEER_RATE = 0.05
 # Flag a track whose own rate is this fraction of its peers' average or less.
 _PUNCTUATION_OUTLIER_RATIO = 0.25
-_PUNCTUATION_OUTLIER_MIN_WORDS = 20
+# Below this many words, per-track punctuation rate is too noisy to trust: simulating a
+# healthy 0.12-true-rate track against 0.17 peers false-flagged 5-11% of the time at
+# 20-50 words and 0.5% at 100.
+_PUNCTUATION_OUTLIER_MIN_WORDS = 100
+
+# ASCII, then CJK/full-width IDEOGRAPHIC FULL STOP, FULLWIDTH EXCLAMATION MARK and
+# FULLWIDTH QUESTION MARK (written by codepoint, not literally, so they can't be
+# mistaken for their ASCII lookalikes when read in a diff).
+_TERMINAL_MARKS = frozenset(".!?" + "".join(chr(cp) for cp in (0x3002, 0xFF01, 0xFF1F)))
+# A word ending in a closing quote or bracket around real terminal punctuation
+# ('."', ."]) must not read as unpunctuated: RIGHT SINGLE QUOTATION MARK, RIGHT DOUBLE
+# QUOTATION MARK, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK, RIGHT-POINTING DOUBLE
+# ANGLE QUOTATION MARK.
+_TRAILING_CLOSERS = "\"')]}" + "".join(chr(cp) for cp in (0x2019, 0x201D, 0x203A, 0x00BB))
 
 
 def _end_punctuated(word: TranscriptWord) -> bool:
-    return word.text.rstrip()[-1:] in ".!?"
+    text = word.text.rstrip().rstrip(_TRAILING_CLOSERS)
+    return text[-1:] in _TERMINAL_MARKS
 
 
 def track_punctuation_rate(words: list[TranscriptWord]) -> float | None:
-    """Fraction of ``words`` ending in ``.``/``!``/``?``; None below the minimum sample size."""
+    """Fraction of ``words`` ending in terminal punctuation; None below the minimum sample."""
     if len(words) < _PUNCTUATION_OUTLIER_MIN_WORDS:
         return None
     return sum(1 for w in words if _end_punctuated(w)) / len(words)

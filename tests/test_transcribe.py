@@ -344,41 +344,65 @@ def test_flag_anomalous_asr_durations_leaves_existing_status() -> None:
 def test_word_duration_is_anomalous_threshold() -> None:
     assert word_duration_is_anomalous(2.1, 2.0)
     assert not word_duration_is_anomalous(2.0, 2.0)
+    assert not word_duration_is_anomalous(9.0, max_sec=0)
 
 
-def _words(n: int, punctuated: int) -> list[TranscriptWord]:
-    """``n`` words, the first ``punctuated`` ending in a period."""
+def _words(n: int, punctuated: int, *, text: str = "word", mark: str = ".") -> list[TranscriptWord]:
+    """``n`` words, the first ``punctuated`` ending in ``mark``."""
     return [
-        TranscriptWord(text=("word." if i < punctuated else "word"), start=float(i), end=i + 0.4)
+        TranscriptWord(
+            text=(f"{text}{mark}" if i < punctuated else text), start=float(i), end=i + 0.4
+        )
         for i in range(n)
     ]
 
 
 def test_track_punctuation_rate_below_min_words_is_none() -> None:
-    assert track_punctuation_rate(_words(19, 19)) is None
+    assert track_punctuation_rate(_words(99, 99)) is None
 
 
 def test_track_punctuation_rate_computes_fraction() -> None:
-    assert track_punctuation_rate(_words(20, 5)) == 0.25
+    assert track_punctuation_rate(_words(100, 25)) == 0.25
+
+
+def test_track_punctuation_rate_strips_trailing_quotes_and_brackets() -> None:
+    # Closing quote/bracket codepoints, not literal characters, so a diff can't confuse
+    # them with an ASCII lookalike: RIGHT SINGLE/DOUBLE QUOTATION MARK plus the ASCII set.
+    closers = "\"')]}" + "".join(chr(cp) for cp in (0x2019, 0x201D))
+    quoted = _words(100, 0)
+    for i, mark in enumerate(closers):
+        quoted[i] = TranscriptWord(text=f"word.{mark}", start=float(i), end=i + 0.4)
+    assert track_punctuation_rate(quoted) == pytest.approx(len(closers) / 100)
+
+
+def test_track_punctuation_rate_counts_cjk_terminal_marks() -> None:
+    # IDEOGRAPHIC FULL STOP, FULLWIDTH EXCLAMATION MARK, FULLWIDTH QUESTION MARK, by
+    # codepoint rather than literally.
+    marks = "".join(chr(cp) for cp in (0x3002, 0xFF01, 0xFF1F))
+    text = chr(0x4F60) + chr(0x597D)  # 你好 ("hello")
+    words = _words(100, 0, text=text)
+    for i, mark in enumerate(marks):
+        words[i] = TranscriptWord(text=f"{text}{mark}", start=float(i), end=i + 0.4)
+    assert track_punctuation_rate(words) == pytest.approx(len(marks) / 100)
 
 
 def test_collect_punctuation_outlier_flags_flags_track_far_below_peers(minimal_project) -> None:
     proj = load_project(minimal_project)
     proj.transcripts = [
-        Transcript(track_id="caleb", words=_words(30, 1)),
-        Transcript(track_id="audra", words=_words(30, 15)),
-        Transcript(track_id="lana", words=_words(30, 18)),
+        Transcript(track_id="caleb", words=_words(100, 1)),
+        Transcript(track_id="audra", words=_words(100, 15)),
+        Transcript(track_id="lana", words=_words(100, 18)),
     ]
     flags = collect_punctuation_outlier_flags(proj)
     assert len(flags) == 1
     assert flags[0]["track_id"] == "caleb"
     assert flags[0]["reason"] == "punctuation_rate_outlier"
-    assert flags[0]["punctuation_rate"] == pytest.approx(1 / 30, abs=1e-4)
+    assert flags[0]["punctuation_rate"] == pytest.approx(0.01)
 
 
 def test_collect_punctuation_outlier_flags_needs_two_tracks(minimal_project) -> None:
     proj = load_project(minimal_project)
-    proj.transcripts = [Transcript(track_id="caleb", words=_words(30, 1))]
+    proj.transcripts = [Transcript(track_id="caleb", words=_words(100, 1))]
     assert collect_punctuation_outlier_flags(proj) == []
 
 
@@ -386,11 +410,10 @@ def test_collect_punctuation_outlier_flags_skips_uniformly_low_peers(minimal_pro
     """No peer with a real punctuation rate to compare against: nothing to flag."""
     proj = load_project(minimal_project)
     proj.transcripts = [
-        Transcript(track_id="caleb", words=_words(30, 0)),
-        Transcript(track_id="audra", words=_words(30, 1)),
+        Transcript(track_id="caleb", words=_words(100, 0)),
+        Transcript(track_id="audra", words=_words(100, 1)),
     ]
     assert collect_punctuation_outlier_flags(proj) == []
-    assert not word_duration_is_anomalous(9.0, max_sec=0)
 
 
 def test_transcribe_file_flags_stretched_words(sample_wav) -> None:

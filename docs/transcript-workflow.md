@@ -136,8 +136,12 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 
 The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
 `transcript_context.yaml`. These values join the show title in Whisper's
-initial prompt for both the Python and whisper.cpp backends. Saving a change
-marks the vocabulary as needing transcription;
+initial prompt (`TranscriptContext.initial_prompt_text()`, read by the
+faster-whisper engine that `transcribe_tracks` actually calls; the
+`whisper.cpp` engine (`engines/whisper_cpp.py`) accepts the same kind of
+prompt but has no caller in the transcribe pipeline today — tests and
+`scripts/benchmark_transcribe_backends.py` are the only callers, and neither
+passes one). Saving a change marks the vocabulary as needing transcription;
 **Re-transcribe** runs the pipeline from `transcribe_tracks` through downstream
 steps. Each transcript stores the vocabulary revision it was produced with. Studio
 asks for re-transcription when any transcript differs from the revision in
@@ -170,10 +174,35 @@ transcripts. Because a prompt is now sent by default, the legacy
 `transcripts/{track}_{audio}.json` cache (below) is only read when
 `transcribe.initial_prompt: false` is set explicitly. `transcribe_tracks` also
 flags a dialogue track whose punctuation rate lands far below its peers'
-average (`collect_punctuation_outlier_flags`,
-`artifacts/transcript_timing.json` → `punctuation_flags`, step summary "low
-punctuation rate on `<track>`"), catching a case the primer does not fully fix
-without needing a redecode to notice.
+average (`collect_punctuation_outlier_flags`, needs at least two dialogue
+tracks with 100+ words each so a short clip or a two-word peer can't trip it;
+punctuation counts a trailing CJK/full-width mark (`。！？`) the same as
+`.`/`!`/`?`, after stripping a closing quote or bracket first, so `word."` or
+`你好。` both count; `artifacts/transcript_timing.json` → `punctuation_flags`,
+step summary "low punctuation rate on `<track>`"), catching a case the primer
+does not fully fix without needing a redecode to notice.
+
+The primer is never cut mid-word to fit `transcribe.initial_prompt_max_chars`:
+below the primer's own length (currently 28 characters), the prompt falls
+back to vocabulary alone (still comma-truncated to fit), never a partial
+primer sentence; above it, vocabulary is truncated (or dropped entirely if
+none fits) to leave the primer whole. A vocabulary already saved close to the
+400-character default can now lose its last term to the added primer even
+though it fit before #769; `run_transcribe_plan` logs a warning
+(`TranscriptContext.initial_prompt_vocabulary_truncated()`) the next time that
+project transcribes, rather than failing silently — shorten the saved terms
+or guest names, or raise `transcribe.initial_prompt_max_chars`, to clear it.
+
+**Re-time words on a pre-#769 project.** `podcast_mcp/edits/transcript_reuse.py`'s
+`plan_retime` looks up a reused track's ASR cache under the *current* primed
+prompt first; a track whose transcript predates this change has its cache keyed
+by the older, unprimed prompt (`full_prompt_text() or None`) instead, so that
+lookup misses. `plan_retime` retries with that fallback prompt before giving up,
+and records which jobs needed it (`TranscribePlan.retime_fallback`) so
+`run_transcribe_plan` sends them that same fallback prompt on the real run —
+not the current primed one, which would miss again and re-run Whisper instead
+of just re-aligning the cached words. Re-time only reuses cached words, so which
+prompt produced them does not matter as long as the audio and model still match.
 
 ASR also reads an older
 `transcripts/{track}_{audio}.json` cache (which does not encode model, prompt or

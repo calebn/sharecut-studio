@@ -35,6 +35,11 @@ class TranscribePlan:
     retime: list[TranscribeJob] = field(default_factory=list)
     retime_skipped_edited: list[str] = field(default_factory=list)
     retime_skipped_no_cache: list[str] = field(default_factory=list)
+    # Members of `retime` whose ASR cache was found under the pre-primer prompt (#769):
+    # a project transcribed before the priming default still keys its cache by
+    # `context.full_prompt_text()` alone. run_transcribe_plan sends these that prompt
+    # instead of the current primed one, so the cache hits again instead of re-running Whisper.
+    retime_fallback: list[TranscribeJob] = field(default_factory=list)
     # The context plan_retime built its ASR-cache prompt from; run_transcribe_plan reuses it so
     # the prompt, cache key and vocabulary_revision all come from one load.
     context: TranscriptContext | None = None
@@ -172,6 +177,13 @@ def plan_retime(
     ``allow_edited`` (Studio's confirmation); jobs with no ASR cache for the current model,
     language, vocabulary prompt and decode options stay reused and are reported.
 
+    Tries the current (primed) prompt first, then the pre-primer vocabulary-only prompt
+    (``full_prompt_text() or None``): a project transcribed before #769 still keys its cache
+    by the older prompt, and re-time only reuses cached words, so which prompt produced them
+    does not matter as long as the audio and model match. A job whose cache only hits under
+    the fallback is recorded on ``plan.retime_fallback`` so ``run_transcribe_plan`` sends it
+    that same prompt, not the current one (which would miss again and re-run Whisper).
+
     The context loaded here is kept on ``plan.context`` and reused by ``run_transcribe_plan``,
     so a vocabulary save during the step cannot turn a re-time into a Whisper run. The
     re-timed transcripts are stamped with this load's revision and show as stale in Studio.
@@ -179,7 +191,8 @@ def plan_retime(
     model = word_aligner_model()
     stored = {t.key: t for t in project.transcripts}
     plan.context = load_transcript_context(project.workspace_path())
-    prompt = plan.context.initial_prompt_text()
+    primed_prompt = plan.context.initial_prompt_text()
+    fallback_prompt = plan.context.full_prompt_text() or None
     kept: list[TranscribeJob] = []
     for job in plan.reused:
         current = stored.get(job.key)
@@ -194,9 +207,19 @@ def plan_retime(
             project,
             job,
             language=language,
-            initial_prompt=prompt,
+            initial_prompt=primed_prompt,
             audio_sha256=plan.audio_hashes[job.key],
         )
+        used_fallback = False
+        if cached is None and fallback_prompt != primed_prompt:
+            _, cached = engine.read_asr_cache(
+                project,
+                job,
+                language=language,
+                initial_prompt=fallback_prompt,
+                audio_sha256=plan.audio_hashes[job.key],
+            )
+            used_fallback = cached is not None
         if cached is None:
             plan.retime_skipped_no_cache.append(job.label)
             kept.append(job)
@@ -205,6 +228,8 @@ def plan_retime(
             plan.overwrite_edited.append(job.track_id)
         plan.retime.append(job)
         plan.run.append(job)
+        if used_fallback:
+            plan.retime_fallback.append(job)
     plan.reused = kept
 
 
@@ -250,22 +275,46 @@ def run_transcribe_plan(
     prompt came from, merges by ``(track, source)`` key, then records audio identity on
     every planned transcript (reused ones too). ``make_engine`` is called only when ASR
     runs; ``asr_options`` (``language``, ``max_word_sec``) go to ``transcribe_all_dialogue``.
+
+    ``plan.retime_fallback`` jobs (#769) get the pre-primer prompt ``plan_retime`` found
+    their cache under, in a separate call, so their cache hits again instead of Whisper
+    re-running; everything else gets the current primed prompt.
     """
     for track_id in plan.overwrite_edited:
         log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
     transcripts: list[Transcript] = []
     if plan.run:
         ctx = plan.context or load_transcript_context(project.workspace_path())
+        engine = make_engine()
+        fallback_keys = {job.key for job in plan.retime_fallback}
+        primed_jobs = [job for job in plan.run if job.key not in fallback_keys]
+        fallback_jobs = [job for job in plan.run if job.key in fallback_keys]
         # Prompt and vocabulary_revision must come from this one load: a concurrent
         # edit mints a newer revision, so these transcripts stay stale in Studio.
-        transcripts = make_engine().transcribe_all_dialogue(
-            project,
-            initial_prompt=ctx.initial_prompt_text(),
-            jobs=plan.run,
-            audio_hashes=plan.audio_hashes,
-            use_cache=use_cache,
-            **asr_options,
-        )
+        if primed_jobs:
+            if ctx.initial_prompt_vocabulary_truncated():
+                log.warning(
+                    "Whisper prompt for this run drops saved vocabulary to fit "
+                    "transcribe.initial_prompt_max_chars alongside the punctuation primer "
+                    "(#769); shorten the saved terms/guest names or raise the limit"
+                )
+            transcripts += engine.transcribe_all_dialogue(
+                project,
+                initial_prompt=ctx.initial_prompt_text(),
+                jobs=primed_jobs,
+                audio_hashes=plan.audio_hashes,
+                use_cache=use_cache,
+                **asr_options,
+            )
+        if fallback_jobs:
+            transcripts += engine.transcribe_all_dialogue(
+                project,
+                initial_prompt=ctx.full_prompt_text() or None,
+                jobs=fallback_jobs,
+                audio_hashes=plan.audio_hashes,
+                use_cache=use_cache,
+                **asr_options,
+            )
         for t in transcripts:
             t.vocabulary_revision = ctx.vocabulary_revision
         # A correction saved to one of these transcripts during ASR is not lost: the
