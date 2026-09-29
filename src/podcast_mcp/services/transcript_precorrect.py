@@ -184,15 +184,20 @@ def _ensure_prompt_covers_vocabulary(ctx: TranscriptContext) -> None:
     """Raise ValueError when the Whisper prompt would truncate saved vocabulary.
 
     Skipped when prompting is disabled: terms and names still feed the refine
-    glossary even though no prompt is sent.
+    glossary even though no prompt is sent. Compares against what the prompt
+    actually sends (``initial_prompt_vocabulary_truncated``), not the untruncated
+    primer-plus-vocabulary length: a limit below the primer's own length (27
+    characters) always drops the vocabulary and sends the primer alone, which is
+    not a rejectable overflow when the vocabulary itself is empty (#804).
     """
     if not ctx.initial_prompt_enabled():
         return
+    if not ctx.initial_prompt_vocabulary_truncated():
+        return
     used = len(ctx.primed_prompt_text())
     limit = ctx.initial_prompt_limit()
-    if used > limit:
-        raise ValueError(
-            f"Vocabulary needs {used} Whisper prompt characters but the prompt limit is "
-            f"{limit}; remove terms or guest names, or raise "
-            "transcribe.initial_prompt_max_chars"
-        )
+    raise ValueError(
+        f"Vocabulary needs {used} Whisper prompt characters but the prompt limit is "
+        f"{limit}; remove terms or guest names, or raise "
+        "transcribe.initial_prompt_max_chars"
+    )

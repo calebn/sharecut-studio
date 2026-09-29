@@ -37,8 +37,9 @@ class TranscribePlan:
     retime_skipped_no_cache: list[str] = field(default_factory=list)
     # Members of `retime` whose ASR cache was found under the pre-primer prompt (#769):
     # a project transcribed before the priming default still keys its cache by
-    # `context.full_prompt_text()` alone. run_transcribe_plan sends these that prompt
-    # instead of the current primed one, so the cache hits again instead of re-running Whisper.
+    # `context.full_prompt_text()` alone. run_transcribe_plan tries these under that
+    # prompt again (the cache found here may be gone by run time, #804), falling back
+    # to the current primed one on a miss so a real decode is never sent unprimed.
     retime_fallback: list[TranscribeJob] = field(default_factory=list)
     # The context plan_retime built its ASR-cache prompt from; run_transcribe_plan reuses it so
     # the prompt, cache key and vocabulary_revision all come from one load.
@@ -277,8 +278,11 @@ def run_transcribe_plan(
     runs; ``asr_options`` (``language``, ``max_word_sec``) go to ``transcribe_all_dialogue``.
 
     ``plan.retime_fallback`` jobs (#769) get the pre-primer prompt ``plan_retime`` found
-    their cache under, in a separate call, so their cache hits again instead of Whisper
-    re-running; everything else gets the current primed prompt.
+    their cache under, so their cache hits again instead of Whisper re-running; everything
+    else gets the current primed prompt. The cache found at plan time can be gone by now
+    (evicted, cleaned up, a concurrent run), so each fallback job's cache is re-checked
+    here before deciding: a miss falls through to the primed prompt so a real decode
+    never runs unprimed, which would recreate #769 for that track (#804).
     """
     for track_id in plan.overwrite_edited:
         log.warning("re-transcribing overwrites edited transcript for track %s", track_id)
@@ -286,9 +290,23 @@ def run_transcribe_plan(
     if plan.run:
         ctx = plan.context or load_transcript_context(project.workspace_path())
         engine = make_engine()
+        fallback_prompt = ctx.full_prompt_text() or None
         fallback_keys = {job.key for job in plan.retime_fallback}
-        primed_jobs = [job for job in plan.run if job.key not in fallback_keys]
-        fallback_jobs = [job for job in plan.run if job.key in fallback_keys]
+        primed_jobs: list[TranscribeJob] = []
+        fallback_jobs: list[TranscribeJob] = []
+        for job in plan.run:
+            if job.key in fallback_keys:
+                _, cached = engine.read_asr_cache(
+                    project,
+                    job,
+                    language=asr_options.get("language"),
+                    initial_prompt=fallback_prompt,
+                    audio_sha256=plan.audio_hashes[job.key],
+                )
+                if cached is not None:
+                    fallback_jobs.append(job)
+                    continue
+            primed_jobs.append(job)
         # Prompt and vocabulary_revision must come from this one load: a concurrent
         # edit mints a newer revision, so these transcripts stay stale in Studio.
         if primed_jobs:
@@ -309,7 +327,7 @@ def run_transcribe_plan(
         if fallback_jobs:
             transcripts += engine.transcribe_all_dialogue(
                 project,
-                initial_prompt=ctx.full_prompt_text() or None,
+                initial_prompt=fallback_prompt,
                 jobs=fallback_jobs,
                 audio_hashes=plan.audio_hashes,
                 use_cache=use_cache,
