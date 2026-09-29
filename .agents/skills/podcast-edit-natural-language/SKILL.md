@@ -35,6 +35,8 @@ All cut commands are globally optimized for inaudibility by default (`docs/inaud
 
 Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_tone_replace`, `filler_pad_mode`) also applies to NL removes — see `docs/filler-cut-quality.md`. After approve, decisions with `replace_gap_sec` insert a paced pad at the join (default **silence**; `room_tone` samples stem air). When another mic is speaking in the window, `speech_energy_guard` converts the cut to a **track-local punch** instead of cross-track ripple.
 
+When a Tighten proposal ends inside an accepted breath's quiet onset, the retained-breath check refines that onset before deciding whether the final cut end crosses the breath. See [filler cut quality](../../docs/filler-cut-quality.md#policy).
+
 ## Workflow
 
 1. Ensure project path and dialogue tracks exist.

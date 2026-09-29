@@ -51,7 +51,7 @@ Quiet air after a cut end is absorbed up to the next word (leaving ~0.4s breath)
 
 Sharecut Studio shows the same optimizer on the wave: quiet wash from visible tiles plus snap ticks from `preview_inaudible_cut` / windowed islands (`GET /api/waveform-snap`). Blade and trim magnet to those ticks. See [docs/inaudible-cuts.md](../../../docs/inaudible-cuts.md) § DAW snap overlay.
 
-Tighten proposals also preserve a complete detected breath crossing the final cut end after pacing and candidate clamps. Approved crossing runs include a quiet onset traced to the measured room-tone floor within the search window and maximum duration, with speech protections rechecked. They shrink the end to the breath onset, drop an empty cut, and reassess risk before pad, join, and fade calculations. The breath detector keeps its speech-protection gates and can abstain on ambiguous audio. See [filler cut quality](../../../docs/filler-cut-quality.md).
+Tighten proposals refine each accepted breath run to its quiet onset before testing whether it crosses the final cut end. A cut inside that onset or exactly at the detected body start can retreat to the onset. The detector continues to later runs when an earlier refined run does not cross the boundary. It keeps the existing speech-protection gates, drops an empty cut, and reassesses risk before pad, join, and fade calculations. The detector can abstain on ambiguous audio. See [filler cut quality](../../../docs/filler-cut-quality.md).
 
 ## Narrative handoffs
 

@@ -282,22 +282,30 @@ def _first_breath_span(
     *,
     search_frames: np.ndarray,
     crossing_sec: float | None = None,
+    crossing_refiner: Callable[[BreathSpan], BreathSpan | None] | None = None,
 ) -> BreathSpan | None:
-    """First active run of breath length that ``accept(start_frame, end_frame)`` passes."""
+    """First accepted run, refined before testing a requested crossing boundary."""
     for start, end in bool_runs(active):
         if not search_frames[start:end].any():
             continue
         start_sec = window_start + start * frame_duration
         end_sec = window_start + end * frame_duration
-        if crossing_sec is not None and not start_sec < crossing_sec < end_sec:
-            continue
         duration = (end - start) * frame_duration
         if min_duration_sec <= duration <= max_duration_sec and accept(start, end):
-            return BreathSpan(
+            hit = BreathSpan(
                 start=start_sec,
                 end=end_sec,
                 side="detected",
             )
+            if crossing_sec is None:
+                return hit
+            if crossing_refiner is None:
+                if start_sec < crossing_sec < end_sec:
+                    return hit
+                continue
+            refined = crossing_refiner(hit)
+            if refined is not None and refined.start < crossing_sec < refined.end:
+                return refined
     return None
 
 
@@ -313,6 +321,7 @@ def _find_breath_in_window(
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
     crossing_sec: float | None = None,
+    crossing_refiner: Callable[[BreathSpan], BreathSpan | None] | None = None,
 ) -> BreathSpan | None:
     """First complete in-band run overlapping ``search_sec`` that passes the predicate.
 
@@ -352,6 +361,7 @@ def _find_breath_in_window(
         ),
         search_frames=_search_frames(search_sec, window_start, frame_duration, levels.size),
         crossing_sec=crossing_sec,
+        crossing_refiner=crossing_refiner,
     )
 
 
@@ -367,6 +377,7 @@ def _find_breath_in_window_silero(
     search_sec: tuple[float, float] | None = None,
     band: LevelBand | None = None,
     crossing_sec: float | None = None,
+    crossing_refiner: Callable[[BreathSpan], BreathSpan | None] | None = None,
 ) -> BreathSpan | None:
     from podcast_mcp.engines.vad_silero import SileroVAD, get_shared_vad
 
@@ -406,6 +417,7 @@ def _find_breath_in_window_silero(
         ),
         search_frames=_search_frames(search_sec, window_start, frame_duration, probs.size),
         crossing_sec=crossing_sec,
+        crossing_refiner=crossing_refiner,
     )
 
 
@@ -483,10 +495,10 @@ def classify_breath_samples(
 
     Callers choose the window: a hit outside that window cannot classify it, and
     ``search_sec`` selects complete runs overlapping that interval while the rest
-    of the window still informs the checks. ``crossing_sec`` selects a run crossing
-    that source second and locates the cut inside the window. An approved crossing
-    run can be traced back to room tone to include a quiet onset, within the search
-    window and maximum duration, with speech protections checked again.
+    of the window still informs the checks. ``crossing_sec`` locates the cut inside
+    the window. Each accepted run is traced back to room tone to include a quiet
+    onset, within the search window and maximum duration, before the refined span is
+    tested against that boundary.
     ``cut_edge`` names the window edge that touches the cut
     being extended (``"end"`` before it, ``"start"`` after it); a hit then also
     needs unvoiced audio below the band ceiling all the way to that edge, neither
@@ -510,7 +522,7 @@ def classify_breath_samples(
     if cut_edge is not None and band is None:
         return None
 
-    def finish(hit: BreathSpan | None) -> BreathSpan | None:
+    def refine_crossing(hit: BreathSpan) -> BreathSpan | None:
         if crossing_sec is None:
             return hit
         return _refine_crossing_onset(
@@ -544,8 +556,9 @@ def classify_breath_samples(
                     search_sec=search_sec,
                     band=band,
                     crossing_sec=crossing_sec,
+                    crossing_refiner=refine_crossing if crossing_sec is not None else None,
                 )
-                return finish(hit)
+                return hit
         except Exception:
             log.debug("Silero breath inference failed; using RMS heuristic", exc_info=True)
 
@@ -573,8 +586,9 @@ def classify_breath_samples(
         keep_out=keep_out,
         search_sec=search_sec,
         crossing_sec=crossing_sec,
+        crossing_refiner=refine_crossing if crossing_sec is not None else None,
     )
-    return finish(hit)
+    return hit
 
 
 def detect_adjacent_breath(
@@ -596,7 +610,7 @@ def detect_adjacent_breath(
     a run that continues one without the level falling to the band floor is that
     word's tail or onset; words the cut itself removes at least half of are not kept.
     ``crossing_end_only`` reads across the final cut end and returns only a complete
-    breath crossing it, so a caller can retreat to the breath's onset.
+    refined breath span crossing it, so a caller can retreat to the breath's onset.
     """
     cfg = _breath_cfg(defaults)
     if not cfg["enabled"]:
