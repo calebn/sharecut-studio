@@ -5,11 +5,13 @@ generated here (plain git commands, no model) and written to a file the lenses r
 rather than being retyped by an agent. See docs/contributing.md § Automated issue pipeline.
 
 Usage: python3 scripts/review_packet.py --ref origin/<branch> --range <git-range> --out <file>
+  # prints "<file> <chars> docs=<N>"
 """
 
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import subprocess
 import sys
@@ -20,6 +22,9 @@ MAX_CHARS = 60_000
 DIFF_CAP = 35_000
 PER_SYMBOL_HITS = 20
 PER_MODULE_HITS = 15
+PER_DOC_REFS = 20
+# AGENTS.md-style shorthand: `services/share.py` means src/podcast_mcp/services/share.py.
+PACKAGE_PREFIX = "src/podcast_mcp/"
 DOMAIN_DIRS = (
     "src/podcast_mcp/services/",
     "src/podcast_mcp/edits/",
@@ -41,6 +46,9 @@ _SYMBOL_RES = (
     re.compile(r"^\+\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)"),
     re.compile(r"^\+\s*export\s+(?:const|let|class|type|interface|enum)\s+([A-Za-z_$][\w$]*)"),
 )
+
+_BACKTICK_RE = re.compile(r"`([^`\s]+)`")
+_MD_LINK_RE = re.compile(r"\]\(([^)\s#]+)")
 
 
 def git(*args: str) -> str:
@@ -112,6 +120,61 @@ def related_tests(ref: str, files: Iterable[str]) -> list[str]:
     return list(hits)
 
 
+def changed_docs(rng: str) -> list[str]:
+    """Markdown docs the range adds or modifies. A deleted doc makes no claims to check."""
+    out = git("diff", "--name-only", "--diff-filter=d", rng, "--", "*.md")
+    return [line for line in out.splitlines() if line]
+
+
+def tracked_paths(ref: str) -> frozenset[str]:
+    """Every file at ``ref`` plus each of its parent directories (no trailing slash)."""
+    paths: set[str] = set()
+    for line in git("ls-tree", "-r", "--name-only", ref).splitlines():
+        if not line:
+            continue
+        parts = line.split("/")
+        paths.update("/".join(parts[:i]) for i in range(1, len(parts) + 1))
+    return frozenset(paths)
+
+
+def doc_references(rng: str, doc: str, tracked: frozenset[str]) -> list[str]:
+    """Tracked paths that the doc's added lines name: backticked tokens (root-relative or
+    shorthand under src/podcast_mcp/) and relative Markdown links, in first-seen order.
+
+    review_packet.py runs from a git object and cannot import scripts/docs_sync.py, so
+    this does not reuse docs_sync._resolve_prose_path. It is a smaller cousin of it that
+    only has to point the docs lens at code."""
+    refs: dict[str, None] = {}
+    for line in git("diff", "-U0", rng, "--", doc).splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        tokens = _BACKTICK_RE.findall(line)
+        for target in _MD_LINK_RE.findall(line):
+            if "://" in target or target.startswith("mailto:"):
+                continue
+            tokens.append(posixpath.normpath(posixpath.join(posixpath.dirname(doc), target)))
+        for token in tokens:
+            token = token.rstrip("/")
+            for candidate in (token, PACKAGE_PREFIX + token):
+                if not candidate.startswith("..") and candidate in tracked:
+                    refs.setdefault(candidate)
+                    break
+    return list(refs)[:PER_DOC_REFS]
+
+
+def docs_accuracy(ref: str, rng: str) -> list[str]:
+    """The docs-accuracy lens's starting point: each changed doc and the code it names."""
+    docs = changed_docs(rng)
+    if not docs:
+        return []
+    tracked = tracked_paths(ref)
+    lines: list[str] = []
+    for doc in docs:
+        refs = doc_references(rng, doc, tracked)
+        lines.append(f"### {doc}\npaths named in added lines: {', '.join(refs) or '(none)'}")
+    return lines
+
+
 def docs_sync_findings(ref: str, rng: str) -> list[str]:
     """Docs-sync report for the PR, from the checker and contract at ``ref``.
 
@@ -177,6 +240,11 @@ def build(ref: str, rng: str) -> str:
             section("Twin paths (CLI / MCP / GUI adapters)", twins),
             section("Related tests", related_tests(ref, files)),
             section(
+                "Changed docs (docs-accuracy lens)",
+                docs_accuracy(ref, rng),
+                empty="(no docs changed)",
+            ),
+            section(
                 "Docs-sync rules (contracts/docs-sync.json)",
                 docs_sync_findings(ref, rng),
                 empty="(no rule fired)",
@@ -197,7 +265,8 @@ def main(argv: list[str] | None = None) -> int:
     packet = build(args.ref, args.range)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(packet, encoding="utf-8")
-    print(f"{args.out} {len(packet)}")
+    # docs=<N> lets the issue pipeline skip the docs-accuracy lens when no doc changed.
+    print(f"{args.out} {len(packet)} docs={len(changed_docs(args.range))}")
     return 0
 
 
