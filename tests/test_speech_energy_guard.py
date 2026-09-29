@@ -514,3 +514,66 @@ def test_assess_blocks_when_cut_rms_unknown_but_guest_hot() -> None:
         )
     assert g.blocked
     assert g.blocking_track_ids == ("guest",)
+
+
+def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
+    """A track-local hole inside the gap splits it into two mapped spans;
+    peer speech in only the smaller span must still block (#793)."""
+    p = _two_track()
+    p.clips = [
+        Clip(
+            id="h1",
+            track_id="host",
+            source_start=0.0,
+            source_end=3.0,
+            timeline_start=0.0,
+        ),
+        # host-local punch hole 3.0-3.5: no clip covers it, no ripple.
+        Clip(
+            id="h2",
+            track_id="host",
+            source_start=3.5,
+            source_end=10.0,
+            timeline_start=3.5,
+        ),
+        Clip(
+            id="g1",
+            track_id="guest",
+            source_start=0.0,
+            source_end=10.0,
+            timeline_start=0.0,
+        ),
+    ]
+
+    # Proposed gap 2.8-3.6 straddles the hole: mapped spans are (2.8, 3.0)
+    # (len 0.2, the largest) and (3.5, 3.6) (len 0.1, the smaller). Guest
+    # speaks only in the smaller span.
+    def fake_rms(project, track_id, t0, t1, caches=None):
+        if track_id == "guest":
+            return -20.0 if t0 >= 3.5 else -60.0
+        return -55.0
+
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.measure_timeline_rms_db",
+        side_effect=fake_rms,
+    ):
+        g = assess_cross_track_speech(
+            p,
+            "host",
+            2.8,
+            3.6,
+            defaults={
+                "tighten": {
+                    "speech_energy_guard": {
+                        "enabled": True,
+                        "on_conflict": "track_local",
+                        "min_other_rms_db": -42.0,
+                        "dominance_db": 3.0,
+                    }
+                },
+                "analysis": {"heuristics": {}},
+            },
+        )
+    assert g.blocked
+    assert g.blocking_track_ids == ("guest",)
+    assert g.action == "track_local"

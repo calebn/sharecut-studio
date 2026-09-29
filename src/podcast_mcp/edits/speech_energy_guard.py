@@ -82,29 +82,39 @@ def assess_cross_track_speech(
     spans = SessionTimeline(project).map_source_span(
         cut_track_id, SourceSec(src_start), SourceSec(src_end)
     )
-    if not spans:
+    # A track-local hole inside the gap splits it into several mapped spans;
+    # peer speech in any span at or above min_overlap can block, not just the
+    # largest one (#793).
+    checked_spans = [(s, e) for s, e in spans if e - s >= min_overlap]
+    if not checked_spans:
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
 
-    tl_start, tl_end = max(spans, key=lambda s: s[1] - s[0])
-    if tl_end - tl_start < min_overlap:
-        return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
+    span_cut_rms = [
+        measure_timeline_rms_db(project, cut_track_id, s, e, caches=caches)
+        for s, e in checked_spans
+    ]
+    cut_rms = max((r for r in span_cut_rms if r is not None), default=None)
 
-    cut_rms = measure_timeline_rms_db(project, cut_track_id, tl_start, tl_end, caches=caches)
     other_rms: dict[str, float] = {}
     blocking: list[str] = []
     for tid in dialogue_track_ids(project):
         if tid == cut_track_id:
             continue
-        rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
-        if rms is None:
-            continue
-        other_rms[tid] = rms
-        if rms < min_other:
-            continue
-        # Cut track owns the moment (other is quieter bleed) → allow session ripple.
-        if cut_rms is not None and cut_rms - rms >= dominance:
-            continue
-        blocking.append(tid)
+        blocks = False
+        for (tl_start, tl_end), span_cut in zip(checked_spans, span_cut_rms, strict=True):
+            rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
+            if rms is None:
+                continue
+            if tid not in other_rms or rms > other_rms[tid]:
+                other_rms[tid] = rms
+            if rms < min_other:
+                continue
+            # Cut track owns the moment (other is quieter bleed) → allow session ripple.
+            if span_cut is not None and span_cut - rms >= dominance:
+                continue
+            blocks = True
+        if blocks:
+            blocking.append(tid)
 
     if not blocking:
         return SpeechEnergyGuardResult(
