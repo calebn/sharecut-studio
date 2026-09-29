@@ -561,11 +561,16 @@ The packet is a starting point, not the boundary: complete your required reading
   )
 }
 
+// The docs lens is skipped only when the returned count and the verbatim printed line both
+// say docs=0: a cheap model copies both, so one misread cannot drop the lens. No packet runs it.
+// Pure: tests/test_issue_pipeline_workflow.py runs it under node.
+function docsLensRuns(packet) {
+  return !packet || !(packet.docs === 0 && /\sdocs=0$/.test((packet.printed || '').trim()))
+}
+
 async function review(issue, pr, branch, round, since) {
   const packet = await reviewPacket(issue, pr, branch, round, since)
-  // The docs lens is skipped only when the returned count and the verbatim printed line both
-  // say docs=0: a cheap model copies both, so one misread cannot drop the lens. No packet runs it.
-  const docsChanged = !packet || !(packet.docs === 0 && /\sdocs=0$/.test((packet.printed || '').trim()))
+  const docsChanged = docsLensRuns(packet)
   const lenses = (round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES)
     .filter((l) => l.key !== 'docs' || docsChanged)
   if (!packet) log(`${tag(issue)} review r${round}: packet unavailable; lenses gather context themselves`)
