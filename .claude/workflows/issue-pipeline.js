@@ -544,7 +544,7 @@ It prints "<path> <chars> docs=<N>". Return exactly that path, char count and N 
 
 // Lenses (and the Opus parent) read the packet file themselves; without one they explore.
 const packetRead = (packet) => packet
-  ? `REVIEW PACKET: first run \`cat ${packet.path}\` (${packet.chars} chars, identical for every lens): diff with context, callers, importers, twin CLI/MCP/GUI paths, related tests, applicable AGENTS.md rows.`
+  ? `REVIEW PACKET: first run \`cat ${packet.path}\` (${packet.chars} chars, identical for every lens): diff stat, docs-sync findings, changed docs, diff with context, callers, importers, twin CLI/MCP/GUI paths, related tests.`
   : 'REVIEW PACKET: unavailable this round; gather the diff (`git diff origin/main...origin/<branch>`) and context yourself.'
 
 function lensReview(issue, pr, branch, round, packet, lens) {

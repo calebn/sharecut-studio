@@ -23,7 +23,9 @@ DIFF_CAP = 35_000
 PER_SYMBOL_HITS = 20
 PER_MODULE_HITS = 15
 PER_DOC_REFS = 20
+DOCS_CAP = 8_000
 # AGENTS.md-style shorthand: `services/share.py` means src/podcast_mcp/services/share.py.
+# Copy of docs_sync._PACKAGE_PREFIX (this script can't import it); a test pins them equal.
 PACKAGE_PREFIX = "src/podcast_mcp/"
 DOMAIN_DIRS = (
     "src/podcast_mcp/services/",
@@ -163,15 +165,26 @@ def doc_references(rng: str, doc: str, tracked: frozenset[str]) -> list[str]:
 
 
 def docs_accuracy(ref: str, rng: str) -> list[str]:
-    """The docs-accuracy lens's starting point: each changed doc and the code it names."""
+    """The docs-accuracy lens's starting point: each changed doc and the code it names.
+    Blocks stop once they pass DOCS_CAP chars, so a doc-heavy PR cannot crowd out the diff.
+    """
     docs = changed_docs(rng)
     if not docs:
         return []
     tracked = tracked_paths(ref)
     lines: list[str] = []
-    for doc in docs:
+    size = 0
+    for i, doc in enumerate(docs):
+        if size > DOCS_CAP:
+            lines.append(
+                f"(+{len(docs) - i} more changed docs not listed; run "
+                f"`git diff --name-only --diff-filter=d {rng} -- '*.md'`)"
+            )
+            break
         refs = doc_references(rng, doc, tracked)
-        lines.append(f"### {doc}\npaths named in added lines: {', '.join(refs) or '(none)'}")
+        block = f"### {doc}\npaths named in added lines: {', '.join(refs) or '(none)'}"
+        lines.append(block)
+        size += len(block) + 1
     return lines
 
 
@@ -203,6 +216,21 @@ def section(title: str, lines: list[str], empty: str = "(none)") -> str:
     return f"## {title}\n" + ("\n".join(lines) if lines else empty) + "\n"
 
 
+def cap_packet(parts: list[str], limit: int) -> str:
+    """Join the packet's sections and cut at ``limit`` chars. The notice names every
+    section the cut shortened or dropped, so a lens knows what it is missing."""
+    packet = "".join(parts)
+    if len(packet) <= limit:
+        return packet
+    cut: list[str] = []
+    end = 0
+    for part in parts:
+        end += len(part)
+        if end > limit:
+            cut.append(part.split("\n", 1)[0].removeprefix("## "))
+    return packet[:limit] + f"\n[packet truncated at {limit} chars; cut: {'; '.join(cut)}]\n"
+
+
 def build(ref: str, rng: str) -> str:
     files = changed_files(rng)
     diff = git("diff", "-U30", rng)
@@ -231,29 +259,26 @@ def build(ref: str, rng: str) -> str:
         if marked:
             twins.append(f"### {f}\n" + "\n".join(marked))
 
-    packet = "".join(
-        [
-            section("Diff stat", git("diff", "--stat", rng).splitlines()),
-            f"## Diff (with 30 lines of context)\n{diff}{omitted}\n",
-            section("Callers and references", callers),
-            section("Importers of changed modules (second hop)", second_hop),
-            section("Twin paths (CLI / MCP / GUI adapters)", twins),
-            section("Related tests", related_tests(ref, files)),
-            section(
-                "Changed docs (docs-accuracy lens)",
-                docs_accuracy(ref, rng),
-                empty="(no docs changed)",
-            ),
-            section(
-                "Docs-sync rules (contracts/docs-sync.json)",
-                docs_sync_findings(ref, rng),
-                empty="(no rule fired)",
-            ),
-        ]
-    )
-    if len(packet) > MAX_CHARS:
-        packet = packet[:MAX_CHARS] + f"\n[packet truncated at {MAX_CHARS} chars]\n"
-    return packet
+    parts = [
+        section("Diff stat", git("diff", "--stat", rng).splitlines()),
+        # Small and bounded, so they sit ahead of the diff and survive the MAX_CHARS cut.
+        section(
+            "Docs-sync rules (contracts/docs-sync.json)",
+            docs_sync_findings(ref, rng),
+            empty="(no rule fired)",
+        ),
+        section(
+            "Changed docs (docs-accuracy lens)",
+            docs_accuracy(ref, rng),
+            empty="(no docs changed)",
+        ),
+        f"## Diff (with 30 lines of context)\n{diff}{omitted}\n",
+        section("Callers and references", callers),
+        section("Importers of changed modules (second hop)", second_hop),
+        section("Twin paths (CLI / MCP / GUI adapters)", twins),
+        section("Related tests", related_tests(ref, files)),
+    ]
+    return cap_packet(parts, MAX_CHARS)
 
 
 def main(argv: list[str] | None = None) -> int:
