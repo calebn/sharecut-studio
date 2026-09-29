@@ -571,6 +571,9 @@ def format_report(report: Report) -> str:
       waived    ux-pack  f3a2d74: relay-only fix
       advisory  python-deps  pyproject.toml
       PROBLEM   abc1234: Docs-Sync-Waive names unknown rule 'ux-pak'
+
+    review_packet.clip_paths shortens the triggered by / satisfied / advisory path lists
+    by splitting on ", ", so keep that separator.
     """
     counts = {outcome: 0 for outcome in _OUTCOME_ORDER}
     for finding in report.findings:
