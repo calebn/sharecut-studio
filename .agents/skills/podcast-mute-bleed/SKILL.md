@@ -15,6 +15,7 @@ This skill applies **waveform** gating derived from reconciled transcript metada
 
 ## When to use
 
+- `audition_context_tool` / `podcast play context` reports **`echo_risk`**: one mic carries another speaker's voice at one consistent lag (evidence names `source_track_id`, `bleed_track_id`, `lag_ms`, `level_db`, `examples`). Suppressing the bleed words in the transcript does not remove that doubled voice from the mix; this skill does. Listen first with the `suggested_listen` compose entry at the strongest example, then gate the `bleed_track_id` stem.
 - Transcript search/NL edits are clean but `play --compare` still shows bleed on the wrong mic.
 - Pass-1 or post-FX stems exist under `artifacts/tracks/`.
 - Reconcile has run and `suppressed` words mark bleed on the off-mic track.

@@ -16,7 +16,7 @@ Cuts are optimized by default. Read **`docs/inaudible-cuts.md`** for behavior, c
 ## When to use
 
 - Any cut, tighten, ripple delete, or shorten-gaps workflow (not `strip_silence` — islands stay as-is; its `use_inaudible_opt` flag is ignored)
-- User hears clicks or harsh joins after edits
+- User hears clicks or harsh joins after edits, or a word that starts or ends chopped (`speech_crosses_cut` from `play context` / a `speech` row from `join-sweep`)
 - Need exact boundaries for debugging (opt out per call)
 - Clean up a transition / leave a beat / punchline→pivot — use Narrative handoffs below (not default absorb alone)
 
@@ -24,7 +24,9 @@ Cuts are optimized by default. Read **`docs/inaudible-cuts.md`** for behavior, c
 
 - `preview_inaudible_cut_tool` — dry-run boundary shift, mode, confidence
 - `suggest_handoff_cut_tool` — silence-island OUT/IN for narrative handoffs (timeline clock); returns `use_inaudible_opt: false`
-- `join_quality_tool` / `join_qa_sweep_tool` — perceptual splice risk (pass/review/fail); not a human-ear guarantee
+- `join_quality_tool` / `join_qa_sweep_tool` — perceptual splice risk (pass/review/fail) scored on the two clip edges the render abuts; each sweep row carries `speech` (voiced speech cut through at the join: `clipped_onset` / `clipped_tail`, `removed_ms`, `suggested_source_sec`); not a human-ear guarantee
+- `audition_context_tool` — `speech_crosses_cut` for every splice in a window (the same measurement, with the transcript words either side and `asr_disagrees`), plus `echo_risk`; see **podcast-play-audition** § Ears
+- `trim_clip_edge_tool` — move the flagged clip edge to its `suggested_source_sec` (in-point back to restore a clipped onset, out-point forward for a clipped tail); later clips ripple
 - `join_label_tool` — record explicit A/B pass/fail labels for the join ranker
 - Cut tools: optional `use_inaudible_opt=false` to skip optimization once
 
@@ -63,7 +65,7 @@ Checklist:
 1. `search_transcript` for keep-left punchline end and keep-right pivot start (use **timeline** clocks for ripple).
 2. `suggest_handoff_cut_tool` (or CLI `podcast edit suggest-handoff-cut`).
 3. Ripple `[cut_start, cut_end]` with `use_inaudible_opt=false` so local snap does not pull onto speech / um blobs.
-4. `render_preview` → play ~10–15s around the join (and `play context`) before resolving review comments.
+4. `render_preview` → `play context` on the join (required: it flags `speech_crosses_cut` when a clip edge sits in voiced speech, which word times cannot show) → play ~10–15s around the join before resolving review comments.
 5. Prefer keeping **existing room tone**; do not “fix” with `insert_gap` of pure silence unless the user asks. When `filler_pad_mode: room_tone`, pads prefer a recorded `track.room_tone` bed from the lobby capture, then stolen stem air, then skip.
 
 See [docs/inaudible-cuts.md](../../docs/inaudible-cuts.md).

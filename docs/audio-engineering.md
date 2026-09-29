@@ -297,6 +297,47 @@ the span (same numbers as `audio_diagnostics_tool` with a window) and emits
 attach PNGs. Windowed extract uses a fresh timeline stem or `SessionTimeline`
 source mapping — never timeline seconds on raw/stale files.
 
+Two checks make the context an agent's ears at edit boundaries (#775):
+
+- **`speech_crosses_cut`** — for every splice whose join instant lies in the window
+  (`clips_ops.splice_joins`, on every dialogue track), `edits/join_speech.py` reads
+  the raw source around each clip edge (1.0 s of removed audio, 0.4 s kept) at 16 kHz,
+  frames it (20 ms / 10 ms hop), calls a frame speech when it sits within 25 dB of the
+  window's loud frames (95th percentile) and above -50 dBFS, bridges 30 ms dips, and
+  requires the run through the edge to be periodic (`util.dsp.autocorr_peak` over
+  70–350 Hz, like the acoustic-gap detector) so a cut breath is not flagged. A clip
+  that starts inside such a run for at least 100 ms is a **clipped onset**; a clip
+  that ends inside one is a **clipped tail**; runs shorter than 40 ms on the removed
+  side are ignored, and a run that dies within 100 ms inside the clip is a remnant,
+  not a phrase. Evidence: `voice_edge_source_sec`, `removed_ms`,
+  `suggested_source_sec` (60 ms of air before the voice edge), kept/removed levels,
+  the transcript words either side of the cut and `asr_disagrees` (no word covers
+  the cut although the voice does). This is why the check works from audio energy
+  and not word times: Whisper placed the lab's `Um,` 490 ms after the voice onset,
+  the forced aligner 850 ms after it. Fix: `trim_clip_edge_tool` at
+  `suggested_source_sec`, or `suggest_handoff_cut_tool` to move the cut to a silence.
+- **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
+  mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
+  the listener hears, one clock for every track). In 50 ms frames where speaker A is
+  above -40 dBFS, mic B is open (above -60 dBFS) and at least 6 dB quieter, the
+  normalised cross-correlation peak over ±40 ms marks B as carrying a copy of A when
+  it reaches 0.25; the copies' lags are clustered in half-millisecond bins and a
+  pair is `echo_risk` when at least 20 copy frames exist, at least 12 of them share
+  one lag within ±1.5 ms and those are at least 12 % of the copies. Evidence carries
+  the pair, `lag_ms` (positive = B lags A), `level_db` (B relative to A), the frame
+  counts, the thresholds, the analysed span and the strongest `examples` (timeline
+  seconds); `suggested_listen` composes the pair at the first example. A stale or
+  missing stem skips the pair and adds `echo_check_needs_fresh_stems` to `limits`
+  (`stale_render` already says to render first). Profiles are cached in-process by
+  stem `file_revision`. One summed correlation function over all co-open frames was
+  measured and rejected: on the lab tape it did not separate the same-room pair from
+  the remote one. Fix: gate the bleed mic to its own words
+  ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)), or mic
+  placement for the next session.
+
+`clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
+(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
+
 The owner golden-ear harness requests this context without track DSP so its
 captions and timing cannot be mistaken for measurements of a proposed cut. It
 measures the two rendered A/B WAVs directly instead, with owner-only waveform
@@ -307,8 +348,9 @@ PNGs and per-side errors in `key.json`; see [filler-cut-quality.md](filler-cut-q
 `FFmpegEngine.annotate_time_marks` (`drawbox`; `drawtext` only when the ffmpeg
 build includes it). Read the PNG paths; do not treat spectrograms as ASR.
 
-The payload stays a briefing, not a kitchen sink: no LUFS, join scores, or bleed
-maps in the same JSON (call those tools). No extra MOS. No stacked mix PNG (the
+The payload stays a briefing, not a kitchen sink: no LUFS, join scores, or per-word
+bleed maps in the same JSON (call those tools; the two boundary checks above are the
+exception because they are what a blind editor cannot infer from captions). No extra MOS. No stacked mix PNG (the
 engine already has `render_stacked_showwavespic` for alignment audit). No
 hypothetical FX graph without mutating the project. Share guests do not get
 host `audition_context_tool` / `play_compose_tool` — see

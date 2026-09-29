@@ -115,7 +115,7 @@ re-export.
 5. `reconcile_transcript_tool` with `dry_run=true` to preview suppressions, then apply.
 6. Hand off to [transcript-precorrect.md](transcript-precorrect.md) for glossary and cross-track sync.
 
-Reconcile updates **transcript metadata only** by default. For acoustic follow-up once transcript bleed is clean, see [podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md).
+Reconcile updates **transcript metadata only** by default. For acoustic follow-up once transcript bleed is clean, see [podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md). Suppressing bleed words never removes the doubled voice from the mix: `audition_context_tool` measures that doubling on the fresh stems and reports it as `echo_risk` (pair, lag, level; [audio-engineering.md](audio-engineering.md#agent-audition-context-v2)), which points at the same skill.
 
 **User decisions survive reconcile (#768).** `set_word_suppressed_tool` and an applied `apply_bleed_suppression_tool` / `suppress-bleed` set the word's `audibility_locked: true` alongside `suppressed`. A locked word is skipped by every reconcile pass — acoustic and text-match — the same way an `ignored` word already is, so re-running reconcile (a re-render, pipeline pass 2, or a manual dry-run-then-apply) can't flip it back. Nothing clears the lock automatically; toggle `suppressed` again on the same word if the decision changes.
 

@@ -24,7 +24,7 @@ Use **podcast-mcp** tools (stdio MCP). Raw files in `raw/` are never modified; o
 4. Timeline (search → time → tool): `ripple_delete_tool`, `move_segment_tool` (range shuffle on **all dialogue tracks**), `move_clips_tool` (reposition specific clips in time or onto another track — same as GUI body drag), `insert_gap_tool`, `split_clip_tool`, `duplicate_segment_tool`, `strip_silence_tool`, `shorten_gaps_tool`, `fade_joins_tool`, `crossfade_joins_tool`, `list_clips_tool`.
 5. Cleanup analysis: `analyze_cleanup_tool`, `recommend_fades_tool`, `gate_overreach_tool`, `low_audibility_words_tool` (see **podcast-audio-cleanup**).
 6. Review: `list_edit_decisions_tool`, `edit_impact_report_tool`, `approve_edits_tool`, `reject_edits_tool`, `update_pending_edit_tool` (nudge + snap), `revert_applied_edit_tool` (restore one applied cut with source clocks).
-7. Audio: `audition_context_tool` (captions + skew/freshness) then `render_preview`, `render_final`; audition with `play_transcript_query_tool` or `play_audio_tool`. For a pending session remove, `play_pending_preview_tool` (Suggested skip / Current / A/B) before approve (see `podcast-play-audition`).
+7. Audio: `render_preview`, then **`audition_context_tool` on every applied join** (a ±3 s window around each `timeline_start` of a spliced clip, or `join_qa_sweep_tool` for all of them) before `render_final`. It is your ears: fix every `speech_crosses_cut` (`trim_clip_edge_tool` at its `suggested_source_sec`, or re-cut to a handoff silence) and hand every `echo_risk` to **podcast-mute-bleed** before export. Then audition with `play_transcript_query_tool` or `play_audio_tool`. For a pending session remove, `play_pending_preview_tool` (Suggested skip / Current / A/B) before approve (see `podcast-play-audition`).
 8. Safety: `history_undo` with `rerender=true` if needed.
 
 When the user names a collaborator’s selection (“cut the clip Alice has selected”), call `get_session_presence_tool` and use that client’s `selection` id.
@@ -55,8 +55,8 @@ Filler / hesitation pacing (`tighten.min_gap_after_filler_sec`, `filler_room_ton
      word gap); they are always review-only — play each before approving.
 6. `edit_impact_report_tool` (markdown=true) — show seconds removed and pending review.
 7. `play_pending_preview_tool` (Suggested) so the user hears the skip before deciding; then `approve_edits_tool` with JSON array of ids — applies cuts to the clip timeline (not just flags).
-8. `render_preview` — then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).
-9. `render_final` or `pipeline_run(from_step=assemble_timeline)` when approved.
+8. `render_preview` — then `audition_context_tool` on each applied join (step 7 of the harness list; no `speech_crosses_cut` / `echo_risk` left unaddressed), then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).
+9. `render_final` or `pipeline_run(from_step=assemble_timeline)` when approved and every join has passed the context check.
 
 ## Content cut before tighten (long raw sessions)
 
@@ -101,6 +101,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 
 - Do not remove >15% of duration without explicit user approval.
 - NL cuts use `review_required=true` by default; use `approve_edits_tool` before final export.
+- Every applied join gets an `audition_context_tool` check (or one `join_qa_sweep_tool`) before export; a `speech_crosses_cut` or `echo_risk` you did not act on is a defect you shipped blind.
 - Never hand-edit `episode.project.json`; use MCP tools only.
 - After `history_undo`, use `rerender=true` or `render_preview` to refresh premix.
 
