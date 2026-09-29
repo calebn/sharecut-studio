@@ -13,6 +13,7 @@ from podcast_mcp.util.dsp import (
     frame_rms_db,
     frame_rms_db_stream,
     rms_db,
+    voicing_probes,
 )
 
 
@@ -76,3 +77,19 @@ def test_db_to_amplitude() -> None:
     assert db_to_amplitude(-20.0) == pytest.approx(0.1)
     assert db_to_amplitude(6.0) == pytest.approx(1.9953, rel=1e-4)
     assert db_to_amplitude(-6.0) * db_to_amplitude(6.0) == pytest.approx(1.0)
+
+
+def test_voicing_probes_score_periodic_frames_high_and_noise_low() -> None:
+    sr = 16_000
+    t = np.arange(sr // 10) / sr
+    kwargs = {"probe_sec": 0.04, "hop_sec": 0.01, "fmin": 70, "fmax": 400}
+
+    tone = voicing_probes(np.sin(2 * np.pi * 200 * t), sr, **kwargs)
+    assert tone.shape == (7,)
+    assert tone.min() > 0.8
+    noise = voicing_probes(np.random.default_rng(1).normal(0.0, 1.0, t.size), sr, **kwargs)
+    assert noise.max() < 0.3
+    # Silent frames score 0; input shorter than one probe is scored as a single frame.
+    assert voicing_probes(np.zeros(640), sr, **kwargs).tolist() == [0.0]
+    assert voicing_probes(np.sin(2 * np.pi * 200 * t[:320]), sr, **kwargs).shape == (1,)
+    assert voicing_probes(np.zeros(0), sr, **kwargs).size == 0

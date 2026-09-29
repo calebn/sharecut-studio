@@ -435,3 +435,86 @@ def test_detect_adjacent_breath_falls_back_to_heuristic_for_non_16k_sample_rate(
 
     mock_silero.assert_not_called()
     assert mock_heuristic.called
+
+
+def _host_project():
+    from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+
+    project = EpisodeProject.create("breath", "/tmp/ws")
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="/tmp/ws/raw/host.wav", duration_sec=30.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=30.0, timeline_start=0.0)
+    ]
+    return project
+
+
+def _harmonic_tone(n: int, rms: float, hz: float = 140.0) -> np.ndarray:
+    t = np.arange(n) / 16000
+    x = sum(np.sin(2 * np.pi * hz * k * t) / k for k in (1, 2, 3))
+    return (rms * x / np.sqrt(np.mean(x**2))).astype(np.float32)
+
+
+def _shaped_noise(n: int, rms: float) -> np.ndarray:
+    x = np.random.default_rng(798).normal(0.0, 1.0, n + 7)
+    x = np.convolve(x, np.ones(8) / 8, mode="valid")
+    return (rms * x / np.sqrt(np.mean(x**2))).astype(np.float32)
+
+
+def _after_window_with(blob: np.ndarray):
+    """load_mono_window stand-in: quiet air with ``blob`` 25 ms into the after-cut window."""
+
+    def fake_window(path, start_sec, duration_sec, sample_rate=16000):
+        samples = np.full(int(duration_sec * sample_rate), 0.001, dtype=np.float32)
+        if start_sec >= 5.2:
+            samples[400 : 400 + blob.size] = blob
+        return samples
+
+    return fake_window
+
+
+def test_voiced_tone_after_cut_is_not_a_breath():
+    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
+
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_after_window_with(_harmonic_tone(3200, 0.035)),
+    ):
+        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+
+
+def test_shaped_noise_after_cut_is_a_breath():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_after_window_with(_shaped_noise(3200, 0.035)),
+    ):
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+
+    assert spans == [BreathSpan(start=pytest.approx(5.22), end=pytest.approx(5.33), side="after")]
+
+
+def test_find_breath_in_window_skips_voiced_run_for_later_unvoiced_run():
+    samples = np.full(8000, 0.001, dtype=np.float32)
+    samples[800:2400] = _harmonic_tone(1600, 0.035)
+    samples[3200:4800] = _shaped_noise(1600, 0.035)
+
+    hit = _find_breath_in_window(
+        samples,
+        2.0,
+        sample_rate=16000,
+        noise_floor=0.002,
+        speech_rms=0.2,
+        min_duration_sec=0.08,
+        max_duration_sec=0.45,
+    )
+
+    assert hit is not None
+    assert (hit.start, hit.end) == pytest.approx((2.2, 2.3))
