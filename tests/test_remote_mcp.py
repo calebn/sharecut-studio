@@ -581,6 +581,26 @@ def test_protocol_surfaces_tool_exceptions(minimal_project, sample_wav, tmp_work
     assert "boom" in err["error"]["message"]
 
 
+def test_protocol_maps_busy_lock_timeout_to_project_busy(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from filelock import Timeout
+
+    from podcast_mcp.services.remote_mcp import tools as rt
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="busy")
+
+    def _busy():
+        raise Timeout("/some/secret/lock/path")
+
+    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_get_project": _busy})
+    err = _call(share["token"], "guest_get_project", {})
+    assert err["error"]["code"] == -32000
+    assert err["error"]["data"] == {"error_code": "project_busy"}
+    assert "/secret" not in err["error"]["message"]
+
+
 def test_search_transcript_requires_view_cap(monkeypatch):
     from podcast_mcp.services.remote_mcp import tools as rt
 

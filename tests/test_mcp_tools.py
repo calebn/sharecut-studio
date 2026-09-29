@@ -763,3 +763,90 @@ def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
         pipe.return_value.render_final.side_effect = ProjectMergeConflict(["tracks[host].gain_db"])
         with pytest.raises(ProjectMergeConflict, match="re-run it"):
             mcp_server.render_final(str(minimal_project))
+
+
+def test_lock_timeout_cause_walks_the_chain():
+    from filelock import Timeout
+
+    from podcast_mcp.mcp.busy_errors import lock_timeout_cause
+
+    inner = Timeout("/artifacts/episode.project.json.lock")
+    middle = RuntimeError("wrapped")
+    middle.__cause__ = inner
+    outer = RuntimeError("outer")
+    outer.__cause__ = middle
+
+    assert lock_timeout_cause(outer) is inner
+    assert lock_timeout_cause(inner) is inner
+    assert lock_timeout_cause(RuntimeError("no cause")) is None
+
+
+def test_install_busy_errors_is_idempotent():
+    from podcast_mcp.mcp.busy_errors import install_busy_errors
+
+    class FakeServer:
+        def __init__(self) -> None:
+            self.call_tool = "original"
+
+    server = FakeServer()
+    install_busy_errors(server)
+    wrapped = server.call_tool
+    assert wrapped != "original"
+    install_busy_errors(server)
+    assert server.call_tool is wrapped
+
+
+@pytest.mark.asyncio
+async def test_history_undo_mcp_tool_call_returns_structured_busy_error(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    from podcast_mcp.util.project_state import ProjectBusyError
+
+    def _busy(self, **kwargs):
+        raise ProjectBusyError("/artifacts/episode.project.json.lock")
+
+    with patch("podcast_mcp.services.HistoryService.undo", _busy):
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
+    assert result.is_error is True
+    assert result.structured_content["ok"] is False
+    assert result.structured_content["error_code"] == "project_busy"
+    assert "/artifacts" not in result.structured_content["error"]
+
+
+@pytest.mark.asyncio
+async def test_render_preview_mcp_tool_call_returns_structured_busy_error(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    from podcast_mcp.util.project_state import RenderBusyError
+
+    def _busy(self, **kwargs):
+        raise RenderBusyError("/artifacts/render.lock")
+
+    with patch("podcast_mcp.services.PipelineService.render_preview", _busy):
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool(
+                "render_preview", {"project_path": str(minimal_project)}
+            )
+    assert result.is_error is True
+    assert result.structured_content["error_code"] == "project_busy"
+    assert "another render of this project is in progress" in result.structured_content["error"]
+
+
+@pytest.mark.asyncio
+async def test_plain_runtime_error_stays_generic(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    def _boom(self, **kwargs):
+        raise RuntimeError("boom")
+
+    with patch("podcast_mcp.services.HistoryService.undo", _boom):
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
+    assert result.is_error is True
+    assert result.structured_content is None or "project_busy" not in json.dumps(
+        result.structured_content
+    )
