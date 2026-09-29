@@ -1395,6 +1395,29 @@ def test_analyze_cleanup_bleed_ratio_none_without_transcript(tmp_path: Path):
     assert report["tracks"][0]["bleed_ratio"] is None
 
 
+def test_analyze_cleanup_off_mode_skips_audibility_map(tmp_path: Path):
+    """``transcript_mode: off`` must not pay for an acoustic pass it never reports:
+    characterization pin, true on trunk and on this branch alike."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="x", start=0.0, end=0.4)])
+    ]
+    pol = AnalysisPolicy(transcript_mode="off")
+
+    with patch(
+        "podcast_mcp.engines.audio_audit.compute_word_audibility_map"
+    ) as mock_audibility_map:
+        report = analyze_cleanup(project, policy=pol)
+
+    mock_audibility_map.assert_not_called()
+    row = report["tracks"][0]
+    assert row["flagged_count"] == 0
+    assert "suppression_recommendations" not in row
+
+
 def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
     """A word the acoustic map alone calls audible, but that loses an identical-text
     overlap to another track, still gets a suppression recommendation (#806): the
