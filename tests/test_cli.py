@@ -390,6 +390,22 @@ def test_undo_reports_busy_lock_via_root_group(minimal_project, monkeypatch, exc
     assert "/artifacts" not in result.stderr
 
 
+def test_history_goto_reports_busy_lock_via_root_group(minimal_project, monkeypatch) -> None:
+    """A lock timeout from a nested sub-Typer command still reaches the root ``BusyErrorGroup`` (#488)."""
+
+    def _raise(self, *args, **kwargs):
+        raise ProjectBusyError("/artifacts/episode.project.json.lock")
+
+    monkeypatch.setattr(HistoryService, "goto", _raise)
+    result = runner.invoke(
+        app, ["history", "goto", "--project", str(minimal_project), "--index", "0"]
+    )
+    assert result.exit_code == 1
+    assert result.stderr.startswith("Error: ")
+    assert "Project is busy in another process" in result.stderr
+    assert "/artifacts" not in result.stderr
+
+
 def test_render_preview_reports_render_busy_error(minimal_project, monkeypatch) -> None:
     def _raise(self, **kwargs):
         raise RenderBusyError("/artifacts/render.lock")
