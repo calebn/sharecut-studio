@@ -597,6 +597,47 @@ def test_clip_relative_drift_still_flags_real_drift_past_reference_hole(tmp_path
     assert SessionTimeline(p).clip_relative_drift(guest[0], "host") == pytest.approx(5.0)
 
 
+def test_clip_relative_drift_flags_drift_entirely_inside_pure_hole(tmp_path) -> None:
+    """A guest clip that sits wholly inside a *pure* reference hole (no shared cut).
+
+    Both reference clips flanking the hole share the same (zero) offset, so
+    either flank agrees: a guest clip drifted 5s inside the hole must still
+    read as 5s drift, not 0 (a hole isn't automatically "no drift" -- only a
+    hole that disagrees between flanks because of a cancelling shared cut is).
+    """
+    host = [
+        Clip(id="h1", track_id="host", source_start=0, source_end=50, timeline_start=0),
+        # [50, 60) timeline hole; both flanks land back on offset 0 (no shared cut).
+        Clip(id="h2", track_id="host", source_start=60, source_end=160, timeline_start=60),
+    ]
+    guest = [Clip(id="g", track_id="guest", source_start=57, source_end=60, timeline_start=52)]
+    p = _drift_project(tmp_path, "pure-hole-drift", host, guest)
+    assert SessionTimeline(p).clip_relative_drift(guest[0], "host") == pytest.approx(5.0)
+
+
+def test_clip_relative_drift_flags_drift_past_last_or_before_first_reference_clip(
+    tmp_path,
+) -> None:
+    """A guest clip with only one reference neighbor (start/end of the recording)."""
+    host_early = [Clip(id="h1", track_id="host", source_start=0, source_end=50, timeline_start=0)]
+    guest_after = [
+        Clip(id="g", track_id="guest", source_start=65, source_end=68, timeline_start=60)
+    ]
+    p_after = _drift_project(tmp_path, "past-last-clip", host_early, guest_after)
+    assert SessionTimeline(p_after).clip_relative_drift(guest_after[0], "host") == pytest.approx(
+        5.0
+    )
+
+    host_late = [
+        Clip(id="h1", track_id="host", source_start=100, source_end=150, timeline_start=100)
+    ]
+    guest_before = [Clip(id="g", track_id="guest", source_start=5, source_end=8, timeline_start=0)]
+    p_before = _drift_project(tmp_path, "before-first-clip", host_late, guest_before)
+    assert SessionTimeline(p_before).clip_relative_drift(guest_before[0], "host") == pytest.approx(
+        5.0
+    )
+
+
 def test_clip_relative_drift_visits_only_overlapping_reference_spans(tmp_path, monkeypatch) -> None:
     from podcast_mcp.engines import session_timeline as timeline
 
