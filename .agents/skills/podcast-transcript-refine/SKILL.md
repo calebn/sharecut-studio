@@ -38,6 +38,8 @@ Precorrect `--apply` resets status to **pending**. Unattended pipelines (`PODCAS
 | `correct_transcript_phrase_tool` | 1 per phrase |
 | `correct_transcript_tool` | 1 per word (avoid many) |
 
+**CLI:** `podcast transcript cleanup-batch --track T --corrections-json '{"words": [...], "phrases": [...]}'` (same batch path as `apply_transcript_cleanup_tool`), `podcast transcript correct-phrase`, `podcast transcript correct`.
+
 Never call `correct_word` / `correct_phrase` outside `ProjectWorkspace.mutate`.
 
 ## Tools

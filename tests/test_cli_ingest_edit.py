@@ -425,6 +425,132 @@ def test_edit_transcript_and_preview_cut(minimal_project):
     assert "start" in json.loads(preview.stdout)
 
 
+def test_transcript_correct_phrase_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "correct-phrase",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--start-word-index",
+            "0",
+            "--end-word-index",
+            "1",
+            "--text",
+            "hi there",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Corrected." in result.stdout
+    words = load_project(project).transcripts[0].words
+    assert [w.text for w in words] == ["hi", "there"]
+
+
+def test_transcript_correct_phrase_cmd_stale_index_prints_clean_error(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "correct-phrase",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--start-word-index",
+            "0",
+            "--end-word-index",
+            "1",
+            "--text",
+            "hi there",
+            "--expected-text",
+            "not the actual words",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert result.stderr.strip()
+
+
+def test_transcript_suppress_word_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    suppress = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+        ],
+    )
+    assert suppress.exit_code == 0
+    assert load_project(project).transcripts[0].words[0].suppressed is True
+
+    unsuppress = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+            "--unsuppressed",
+        ],
+    )
+    assert unsuppress.exit_code == 0
+    assert load_project(project).transcripts[0].words[0].suppressed is False
+
+
+def test_transcript_cleanup_batch_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    corrections = json.dumps({"words": [{"word_index": 0, "text": "Hello"}]})
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            corrections,
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Applied 1 correction(s)." in result.stdout
+    assert load_project(project).transcripts[0].words[0].text == "Hello"
+
+
+def test_transcript_cleanup_batch_cmd_rejects_non_object_json(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            "[]",
+        ],
+    )
+    assert result.exit_code != 0
+
+
 def test_edit_join_quality_cli(minimal_project, monkeypatch):
     project = _setup_edit_project(minimal_project)
 

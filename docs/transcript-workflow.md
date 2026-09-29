@@ -303,7 +303,8 @@ them with a warning, or use Studio Re-transcribe, which names the edited tracks 
 
 **What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
 `correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
-which MCP tools, CLI `podcast transcript correct` and Studio document commands all
+which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-word`,
+`cleanup-batch`) and Studio document commands all
 use, and only when the words actually changed. Automated passes stay unmarked on
 purpose because re-running the pipeline re-derives them: precorrect (glossary and
 cross-track), reconciliation, speaker attribution, audio-quality and bleed
@@ -346,8 +347,10 @@ the refused text, says Apply again retries against the current text. If the load
 no live update has arrived yet, it keeps the host's re-read wording instead.
 Once any Studio correction of the same word (same track and start index) lands, live or
 replayed from the offline queue, earlier refusals of it leave **Needs attention**.
-`podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
-`verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
+`podcast transcript correct` / `correct-phrase` / `suppress-word` all take it as
+`--expected-text`; the batch cleanup (`apply_transcript_cleanup_tool` /
+`podcast transcript cleanup-batch`) / `verify_transcript` paths do not send it, and
+omitting it keeps the edit unguarded.
 MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
 `podcast transcript correct --expected-text`), the inline chip editor, and Suppress /
 Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript

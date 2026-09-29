@@ -65,6 +65,86 @@ def transcript_correct_cmd(
     typer.echo("Corrected.")
 
 
+@transcript_app.command("correct-phrase")
+@timed_command("transcript correct-phrase")
+def transcript_correct_phrase_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str = typer.Option(..., "--track"),
+    start_word_index: int = typer.Option(..., "--start-word-index"),
+    end_word_index: int = typer.Option(..., "--end-word-index"),
+    text: str = typer.Option(..., "--text"),
+    expected_text: str | None = typer.Option(
+        None,
+        "--expected-text",
+        help=(
+            "Space-joined words you read for this range; refuse the fix if they "
+            "changed meanwhile (#650)."
+        ),
+    ),
+) -> None:
+    """Replace a word range's text in one undo step.
+
+    Re-times the replaced words evenly across the span, so word-level
+    ``correct`` is a better fit for casing/phrase fixes that must keep
+    original timings; use this for merging split ASR tokens or short phrases.
+    """
+    ws = ProjectWorkspace.open(project)
+    EditService(ws).correct_phrase(
+        track, start_word_index, end_word_index, text, expected_text=expected_text
+    )
+    typer.echo("Corrected.")
+
+
+@transcript_app.command("suppress-word")
+@timed_command("transcript suppress-word")
+def transcript_suppress_word_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str = typer.Option(..., "--track"),
+    word_index: int = typer.Option(..., "--word-index"),
+    suppressed: bool = typer.Option(
+        True,
+        "--suppressed/--unsuppressed",
+        help="Toggle suppress on (default) or restore (unsuppress) the word.",
+    ),
+    expected_text: str | None = typer.Option(
+        None,
+        "--expected-text",
+        help="Word text you read at --word-index; refuse the toggle if it changed meanwhile (#744).",
+    ),
+) -> None:
+    """Suppress or unsuppress one per-track word (text only; audio unchanged)."""
+    ws = ProjectWorkspace.open(project)
+    result = EditService(ws).set_word_suppressed(
+        track, word_index, suppressed, expected_text=expected_text
+    )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@transcript_app.command("cleanup-batch")
+@timed_command("transcript cleanup-batch")
+def transcript_cleanup_batch_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str = typer.Option(..., "--track"),
+    corrections_json: str = typer.Option(
+        ...,
+        "--corrections-json",
+        help=(
+            'JSON {"words": [{"word_index": i, "text": "..."}], '
+            '"phrases": [{"start_word_index": i, "end_word_index": j, "text": "..."}]}'
+        ),
+    ),
+) -> None:
+    """Batch word + phrase corrections on one track in a single undo step."""
+    ws = ProjectWorkspace.open(project)
+    payload = json.loads(corrections_json)
+    if not isinstance(payload, dict):
+        raise typer.BadParameter("--corrections-json must be a JSON object")
+    words = payload.get("words")
+    phrases = payload.get("phrases")
+    n = EditService(ws).apply_transcript_cleanup(track, words=words, phrases=phrases)
+    typer.echo(f"Applied {n} correction(s).")
+
+
 @transcript_app.command("review")
 @timed_command("transcript review")
 def transcript_review_cmd(
