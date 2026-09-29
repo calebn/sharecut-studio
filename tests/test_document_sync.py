@@ -46,6 +46,7 @@ from podcast_mcp.services.document_sync.payloads import parse_document_command, 
 from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.util.project_state import RenderBusyError
 from sqlite_helpers import FailingConnection
 from sync_helpers import _foreign_document_write
 
@@ -2985,8 +2986,12 @@ def test_command_id_retry_from_another_client_is_a_conflict(minimal_project):
 
 @pytest.mark.parametrize(
     "error",
-    [Timeout("episode.project.json.lock"), sqlite3.OperationalError("database is locked")],
-    ids=["project-lock", "sqlite-busy"],
+    [
+        Timeout("episode.project.json.lock"),
+        sqlite3.OperationalError("database is locked"),
+        RenderBusyError("/artifacts/render.lock"),
+    ],
+    ids=["project-lock", "sqlite-busy", "render-lock"],
 )
 def test_http_command_returns_503_when_the_project_is_busy(minimal_project, monkeypatch, error):
     def busy(self, command, **kwargs):
@@ -3006,8 +3011,11 @@ def test_http_command_returns_503_when_the_project_is_busy(minimal_project, monk
         },
     )
     assert r.status_code == 503
-    assert "busy" in r.json()["detail"].lower()
+    assert "try again" in r.json()["detail"].lower()
     assert r.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "/artifacts" not in r.json()["detail"]
+    if isinstance(error, RenderBusyError):
+        assert "another render of this project is in progress" in r.json()["detail"]
 
 
 def test_http_command_does_not_hide_other_sqlite_errors(minimal_project, monkeypatch):

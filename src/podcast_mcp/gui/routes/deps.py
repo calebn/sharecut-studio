@@ -29,6 +29,11 @@ def project_busy_error(detail: str) -> HTTPException:
     )
 
 
+def project_busy_from_timeout(exc: Timeout) -> HTTPException:
+    """``project_busy_error`` with the fixed, path-free text for *exc* (``busy_message``)."""
+    return project_busy_error(busy_message(exc))
+
+
 async def project_busy_exception_handler(request: Request, exc: Exception) -> Response:
     """App-wide fallback: any ``filelock.Timeout`` a route doesn't map itself becomes 503 (#488).
 
@@ -40,7 +45,7 @@ async def project_busy_exception_handler(request: Request, exc: Exception) -> Re
     that and narrows the type for ``busy_message``.
     """
     assert isinstance(exc, Timeout)
-    return await http_exception_handler(request, project_busy_error(busy_message(exc)))
+    return await http_exception_handler(request, project_busy_from_timeout(exc))
 
 
 def peer_host(request: Request) -> str | None:

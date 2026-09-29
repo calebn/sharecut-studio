@@ -17,6 +17,7 @@ from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denie
 from podcast_mcp.gui.routes.deps import (
     peer_host,
     project_busy_error,
+    project_busy_from_timeout,
     require_authz,
     resolve_project,
 )
@@ -102,6 +103,8 @@ def post_document_command(
     except (Timeout, sqlite3.OperationalError) as exc:
         if not _is_project_busy(exc):
             raise
+        if isinstance(exc, Timeout):
+            raise project_busy_from_timeout(exc) from exc
         raise project_busy_error(PROJECT_BUSY_MESSAGE) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

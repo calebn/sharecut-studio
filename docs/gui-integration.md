@@ -166,7 +166,7 @@ An Approve click made while another live host command from the same tab (or this
 
 ### Busy project (503)
 
-Any route that does not map `project_commit_lock` / `render_lock` contention itself falls through to an app-wide FastAPI exception handler (`gui/routes/deps.py::project_busy_exception_handler`, installed on `Timeout` in `create_app()`), which returns HTTP 503 with `X-Sharecut-Error-Code: project_busy` and a fixed, path-free message (`util.project_state.busy_message`). `document.py`'s own `Timeout` / sqlite-busy mapping and the `/api/audio` render-busy path keep their existing, more specific contracts; the app-wide handler only covers routes (such as `/api/comments`) that would otherwise surface a raw 500 (#488). See [architecture.md § Staleness](architecture.md#staleness) and [persistence.md](persistence.md) for the underlying locks.
+Any route that does not map `project_commit_lock` / `render_lock` contention itself falls through to an app-wide FastAPI exception handler (`gui/routes/deps.py::project_busy_exception_handler`, installed on `Timeout` in `create_app()`), which returns HTTP 503 with `X-Sharecut-Error-Code: project_busy` and a fixed, path-free message (`util.project_state.busy_message`). `document.py`'s own `Timeout` / sqlite-busy mapping (same `busy_message` text for a lock timeout, so a render-busy command keeps its render advice) and the `/api/audio` render-busy path keep their existing, more specific contracts; the app-wide handler only covers routes (such as `/api/comments`) that would otherwise surface a raw 500 (#488). See [architecture.md § Staleness](architecture.md#staleness) and [persistence.md](persistence.md) for the underlying locks.
 
 ### Clip join fields
 
