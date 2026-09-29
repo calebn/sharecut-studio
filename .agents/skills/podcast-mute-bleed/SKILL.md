@@ -1,8 +1,8 @@
 ---
 name: podcast-mute-bleed
 description: >-
-  After transcript reconcile, gate dialogue stems to non-suppressed word intervals
-  so bleed is muted acoustically. Use when transcript bleed is fixed but wrong-mic
+  After transcript reconcile, reduce independently verified foreign-only audio
+  while preserving owner and uncertain speech. Use when transcript bleed is fixed but wrong-mic
   audio is still audible in stems or premix — not for changing suppression flags
   (podcast-transcript-reconcile).
 ---
@@ -17,7 +17,7 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Applyin
 
 ## When to use
 
-- `audition_context_tool` / `podcast play context` reports **`echo_risk`**: one mic carries another speaker's voice at one consistent lag far more often than the same pair time-shifted (evidence names `source_track_id`, `bleed_track_id`, `lag_ms`, `level_db`, `consistent_rate` against `null_consistent_rate`, `examples`). Suppressing the bleed words in the transcript does not remove that doubled voice from the mix; this skill does. Reconcile already used the same measurement to keep the source mic's words and drop the bleed mic's copies on that pair (`reason: echo_twin`), and it tags acoustic `bleed` only along a measured path (#774), so the gate below mutes audio the transcript no longer claims and a pair with no path has no bleed words to gate. The transcript-side lag can differ from `lag_ms`: on the lab's Zoom host track the copy lands ~150 ms *before* the co-host's own network-delayed track. **Confirm before gating**: listen with the `suggested_listen` compose entry at the strongest example, or check the per-pair evidence (a real same-room path is several times its null; a remote participant has none). Only then gate the `bleed_track_id` stem. Never gate a track on the code alone.
+- `audition_context_tool` / `podcast play context` reports **`echo_risk`**: one mic carries another speaker at a consistent lag above the same pair's time-shifted null. Reconcile may already tag those copies as suppressed `bleed`, but this acoustic operation verifies candidates independently from ungated selected media. A measured pair is a reason to inspect the gate preview, not permission to mute every untranscribed sample. Confirm the named relationship with `suggested_listen` or per-pair evidence, then inspect `attenuation_count` and `gate_reasons`. Network delays and room coloration may prevent the conservative verifier from removing any audio.
 - Transcript search/NL edits are clean but `play --compare` still shows bleed on the wrong mic.
 - Pass-1 or post-FX stems exist under `artifacts/tracks/`.
 - Reconcile has run and `suppressed` words mark bleed on the off-mic track.
@@ -38,16 +38,18 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Applyin
 
 1. Confirm transcript reconcile: `overlap_duplicates_tool` → `text_match_count == 0` on the `echo_risk` pairs (co-speech elsewhere stays, #774).
 2. Ensure stems are fresh **and not longer than the session timeline** (`render_dialogue_stems` or `assemble_timeline`). Bleed mute skips stems that fail `stem_is_fresh` (hash or overlong duration).
-3. `apply_transcript_gate_tool` with `dry_run=true` — review `interval_count` per track; check `skipped` for stale stems.
+3. `apply_transcript_gate_tool` with `dry_run=true` — review `attenuation_count` and `gate_reasons` per track; check `skipped` for stale stems. `interval_count` is a compatibility count of retained transcript spans, not a measure of justified acoustic removal.
    If apply fails with "another render of this project is in progress", an export or Refresh holds the render lock: retry when it finishes.
 4. Apply on one track or both; audition with `play_compose_tool` (both mics at once) or `play --compare` in the bleed window.
 5. Re-run mix/premix after gating (never pad gates to a longer source-length file).
 
 ## Design
 
-- Gating uses `word_intervals`, which maps each non-suppressed word's **source-media span through `SessionTimeline` to timeline seconds** before gating the (timeline-clock) stem. Only **non-suppressed** words stay audible on each track. This is why gated intervals land correctly even after upstream cuts compress the timeline — the mute windows are the mapped positions, not raw word times.
-- Apply sets `track.transcript_gate = true` (snapshotted in history). Stem WAVs are rewritten for immediate mix use; undo clears the flag and segment/`--rerender` play rebuilds ungated audio. `play_ab` across before/after history indices therefore differs.
-- Optional `start_sec`/`end_sec` mute only that timeline window; audio outside the window is left unchanged.
-- Do **not** run before reconcile — without suppression metadata, gating would be wrong.
+- The acoustic gate defaults to unity gain. Retained owner words protect connected raw activity; missing transcript words and unresolved audio remain audible. Suppression alone never authorizes acoustic removal. Automatic candidates must be suppressed `bleed` words with another dominant track, independently supported by matching ungated raw audio and an absolute PCM16 residual guard.
+- Coarse evidence uses 8 kHz raw media; bounded 48 kHz window reads protect activity outside that evidence band. Automatic verification currently supports mono PCM16 WAV sources at up to 48 kHz. Unavailable or unsupported evidence causes abstention, reported in `gate_reasons`.
+- Apply sets `track.transcript_gate = true` and persists `transcript_gate_scope` in project history. Optional `start_sec`/`end_sec` selections map through `SessionTimeline` into source ranges and identities, follow selected media after edits, and survive reopening. Repeated applies rebuild from ungated media; they do not multiply an existing fade.
+- The same absolute attenuation envelope drives full and segment renders. Fades lie inside verified foreign regions, so a segment boundary does not introduce a new fade. Source proxies abstain when the lane selects other media than its primary raw source.
+- Room coloration and network delays may prevent every candidate from passing verification. A successful apply or enabled flag does not prove useful bleed reduction. Check `attenuation_count`, compare actual audio before/after, and report an unchanged result honestly.
+- Do **not** run before reconcile — without suppression metadata, there are no justified automatic candidates.
 
-See [docs/transcript-reconcile.md](../../docs/transcript-reconcile.md#acoustic-follow-up-mute-when-not-talking).
+See [docs/transcript-reconcile.md](../../../docs/transcript-reconcile.md#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed).

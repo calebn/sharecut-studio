@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import functools
-import logging
+import tempfile
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.config import load_defaults
+from podcast_mcp.engines.bleed_gate import (
+    BleedGatePlan,
+    build_bleed_gate_plan,
+    gate_scope_for_window,
+    merge_gate_scopes,
+)
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
     expected_stem_duration_sec,
@@ -14,13 +21,12 @@ from podcast_mcp.engines.play_audit import (
     stem_is_fresh,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.transcript_gated_play import gate_stem_window, word_intervals
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.project_state import render_lock_held
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
-
-log = logging.getLogger(__name__)
 
 
 def _stem_path(project: EpisodeProject, track_id: str) -> Path | None:
@@ -54,10 +60,17 @@ def _gate_into(
     duration_sec: float,
     win_start: float,
     win_end: float,
+    plan: BleedGatePlan,
 ) -> None:
     """Gate ``stem`` into ``tmp``; reject a render longer than the timeline before the swap."""
     gate_stem_window(
-        stem, intervals, tmp, duration_sec=duration_sec, win_start=win_start, win_end=win_end
+        stem,
+        intervals,
+        tmp,
+        duration_sec=duration_sec,
+        win_start=win_start,
+        win_end=win_end,
+        plan=plan,
     )
     # Gate must not grow the stem past the timeline (wrong-clock pad).
     after = probe_wav_duration_sec(tmp)
@@ -75,10 +88,10 @@ def apply_transcript_bleed_mute(
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     """
-    Gate dialogue stems to non-suppressed word intervals (mute bleed acoustically).
+    Attenuate verified foreign copies while protecting owner and uncertain audio.
     Requires fresh timeline-length stems under artifacts/tracks/. Sets
-    ``track.transcript_gate`` so history/undo and segment play re-apply the gate.
-    Optional ``start_sec``/``end_sec`` limit the muted window (rest of stem unchanged).
+    ``track.transcript_gate`` and source scope so history and renders reproduce the gate.
+    Optional ``start_sec``/``end_sec`` select source audio through its current placement.
     Transcript word metadata is unchanged.
     With ``dry_run=False`` the caller must hold ``render_lock(project)``, taken before the
     project locks (``EditService.apply_bleed_mute`` does); a gated render longer than the
@@ -136,22 +149,8 @@ def apply_transcript_bleed_mute(
                 if win_end <= win_start:
                     continue
 
+                plan = build_bleed_gate_plan(project, tid, ignore_scope=True)
                 intervals = word_intervals(project, tid, win_start, win_end)
-                try:
-                    from podcast_mcp.engines.speaker_id import (
-                        extend_intervals_with_speaker_gaps,
-                        load_all_profiles,
-                    )
-                    from podcast_mcp.transcript_context import load_transcript_context
-
-                    if load_all_profiles(project):
-                        ctx = load_transcript_context(project.workspace_path())
-                        intervals = extend_intervals_with_speaker_gaps(
-                            project, tid, intervals, ctx.speaker_id
-                        )
-                except Exception as exc:
-                    log.debug("speaker gap extension skipped: %s", exc, exc_info=True)
-                    speaker_errors.append(f"{tid}: {exc}")
                 tr = project.transcript_for_track(tid)
                 word_count = len(tr.words) if tr else 0
                 suppressed = sum(1 for w in tr.words if w.suppressed) if tr else 0
@@ -164,28 +163,49 @@ def apply_transcript_bleed_mute(
                     "word_count": word_count,
                     "suppressed_words": suppressed,
                     "duration_sec": dur,
+                    "attenuation_count": len(plan.attenuation_spans),
+                    "gate_reasons": list(plan.reasons),
                 }
                 candidates.append(entry)
 
                 if not dry_run:
                     was_gated = track.transcript_gate
-                    # The hash publish_stem writes must name the gated render.
+                    previous_scope = track.transcript_gate_scope
+                    scope = gate_scope_for_window(project, tid, win_start, min(win_end, dur))
+                    full_scope = start_sec is None and end_sec is None
+                    track.transcript_gate_scope = (
+                        None
+                        if full_scope or (was_gated and previous_scope is None)
+                        else merge_gate_scopes((previous_scope or []) + scope)
+                    )
                     track.transcript_gate = True
                     try:
-                        publish_stem(
-                            project,
-                            tid,
-                            functools.partial(
-                                _gate_into,
-                                stem=stem,
-                                intervals=intervals,
-                                duration_sec=dur,
-                                win_start=win_start,
-                                win_end=win_end,
-                            ),
-                        )
+                        with tempfile.TemporaryDirectory(dir=stem.parent) as temporary:
+                            ungated_project = project.model_copy(deep=True)
+                            ungated_track = ungated_project.track_by_id(tid)
+                            assert ungated_track is not None
+                            ungated_track.transcript_gate = False
+                            ungated = Path(temporary) / "ungated.wav"
+                            render_track_from_timeline(
+                                ungated_project, ungated_track, ungated, load_defaults()
+                            )
+                            scoped_plan = build_bleed_gate_plan(project, tid)
+                            publish_stem(
+                                project,
+                                tid,
+                                functools.partial(
+                                    _gate_into,
+                                    stem=ungated,
+                                    intervals=list(scoped_plan.attenuation_spans),
+                                    duration_sec=dur,
+                                    win_start=0.0,
+                                    win_end=dur,
+                                    plan=scoped_plan,
+                                ),
+                            )
                     except _GateGrewStemError as exc:
                         track.transcript_gate = was_gated
+                        track.transcript_gate_scope = previous_scope
                         skipped.append(
                             {
                                 "track_id": tid,
@@ -197,6 +217,7 @@ def apply_transcript_bleed_mute(
                         continue
                     except BaseException:
                         track.transcript_gate = was_gated
+                        track.transcript_gate_scope = previous_scope
                         raise
                     applied.append(entry)
             finally:

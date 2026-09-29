@@ -315,6 +315,12 @@ still rejects missing media. Replacing selected media or changing a
 clip's source therefore rebuilds its stem before export remixes the premix. An in-place
 rewrite that preserves all four stat fields is not detected by this check.
 
+Transcript-gated stems and source proxies also hash gate-driving word timing,
+suppression and ownership metadata, selected peer media, and persisted source
+scope. Caption timing alone does not stale ungated audio. Refresh reconciles
+gated tracks against evidence without the transcript gate before rendering the
+final gate-driving metadata, so the published stem matches its saved hash.
+
 Tighten proposal snapshots speaker profiles and speaker-ID settings once before
 parallel candidate analysis. The read-only snapshot gives every candidate the
 same bleed decision inputs and avoids repeated profile file reads.

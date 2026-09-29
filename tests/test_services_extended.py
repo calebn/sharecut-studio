@@ -274,13 +274,12 @@ def test_play_follow_transcript_track(minimal_project, sample_wav) -> None:
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     ws.project.artifacts_dir() / "gated.wav"
     with (
-        patch(
-            "podcast_mcp.services.play.render_track_segment",
-            return_value=seg_out,
+        patch.object(
+            PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.render_gated_track",
-            side_effect=lambda _seg, _iv, out, **_kw: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
+            side_effect=lambda _seg, out, _gain: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",
@@ -305,13 +304,12 @@ def test_play_follow_transcript_mix(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     with (
-        patch(
-            "podcast_mcp.services.play.render_track_segment",
-            return_value=seg_out,
+        patch.object(
+            PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.render_gated_mix",
-            side_effect=lambda _segs, _iv, out, **_kw: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",
@@ -989,9 +987,11 @@ def test_play_ensure_stem_unknown_track(minimal_project, sample_wav) -> None:
 
 def _follow_patches(seg_out, *, mix=None, track=None):
     return (
-        patch("podcast_mcp.services.play.render_track_segment", return_value=seg_out),
-        patch("podcast_mcp.services.play.render_gated_track", side_effect=track),
-        patch("podcast_mcp.services.play.render_gated_mix", side_effect=mix),
+        patch.object(
+            PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
+        ),
+        patch("podcast_mcp.services.play.FFmpegEngine.apply_gain", side_effect=track),
+        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=mix),
         patch("podcast_mcp.services.play.word_intervals", return_value=[(0.0, 0.4)]),
         patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
     )
@@ -1012,7 +1012,7 @@ def test_follow_transcript_mix_publishes_atomically(minimal_project, sample_wav)
     seg_out.touch()
     targets: list[Path] = []
 
-    def _render(_segs, _iv, out, **_kw):
+    def _render(_segs, out, **_kw):
         targets.append(out)
         out.write_bytes(b"RIFF")
         return out
@@ -1031,7 +1031,7 @@ def test_follow_transcript_mix_failed_render_leaves_no_cache_file(
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     seg_out.touch()
 
-    def _render(_segs, _iv, out, **_kw):
+    def _render(_segs, out, **_kw):
         out.write_bytes(b"RI")
         raise RuntimeError("boom")
 
@@ -1047,7 +1047,7 @@ def test_follow_transcript_track_publishes_atomically(minimal_project, sample_wa
     seg_out.touch()
     targets: list[Path] = []
 
-    def _render(_seg, _iv, out, **_kw):
+    def _render(_seg, out, _gain):
         targets.append(out)
         out.write_bytes(b"RIFF")
         return out
@@ -1062,17 +1062,16 @@ def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     with (
-        patch(
-            "podcast_mcp.services.play.render_track_segment",
-            return_value=seg_out,
+        patch.object(
+            PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.render_gated_track",
-            side_effect=lambda _seg, _iv, out, **_kw: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
+            side_effect=lambda _seg, out, _gain: out.touch() or None,
         ),
         patch(
-            "podcast_mcp.services.play.render_gated_mix",
-            side_effect=lambda _segs, _iv, out, **_kw: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",
@@ -1102,13 +1101,12 @@ def test_play_follow_transcript_track_source(minimal_project, sample_wav) -> Non
     ws = _dialogue_workspace(minimal_project, sample_wav)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     with (
-        patch(
-            "podcast_mcp.services.play.render_track_segment",
-            return_value=seg_out,
+        patch.object(
+            PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.render_gated_track",
-            side_effect=lambda _seg, _iv, out, **_kw: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
+            side_effect=lambda _seg, out, _gain: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",

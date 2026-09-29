@@ -170,6 +170,7 @@ def test_apply_transcript_bleed_mute_writes_stem(tmp_path: Path, sample_wav: Pat
         duration_sec=None,
         win_start=0.0,
         win_end=None,
+        plan=None,
     ) -> None:
         Path(dest).write_bytes(Path(src).read_bytes())
 
@@ -350,7 +351,9 @@ def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) 
     assert ws.project.track_by_id("host").transcript_gate is False
 
 
-def test_bleed_mute_uses_speaker_gap_extension(tmp_path: Path, sample_wav: Path) -> None:
+def test_bleed_mute_reports_uncertain_audio_without_speaker_gap_extension(
+    tmp_path: Path, sample_wav: Path
+) -> None:
     project = _project_with_stem(tmp_path, sample_wav)
     with (
         patch(
@@ -363,8 +366,10 @@ def test_bleed_mute_uses_speaker_gap_extension(tmp_path: Path, sample_wav: Path)
         ) as extend,
     ):
         result = apply_transcript_bleed_mute(project, dry_run=True)
-    extend.assert_called_once()
+    extend.assert_not_called()
     assert result["candidates"][0]["interval_count"] == 1
+    assert result["candidates"][0]["attenuation_count"] == 0
+    assert result["candidates"][0]["gate_reasons"] == ["no_confirmed_bleed_words"]
 
 
 def test_bleed_mute_swallows_speaker_extension_errors(tmp_path: Path, sample_wav: Path) -> None:

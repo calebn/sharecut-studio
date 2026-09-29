@@ -777,7 +777,11 @@ def apply_transcript_gate_tool(
     apply: bool = True,
     dry_run: bool = False,
 ) -> str:
-    """Rewrite fresh dialogue-stem WAVs to mute mic-bleed regions without changing transcript metadata."""
+    """Apply an acoustic bleed plan to fresh dialogue stems and persist its source scope.
+
+    Retained speech and unresolved audio stay open. Later renders reuse the plan's
+    policy and scope. Transcript metadata is unchanged.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).apply_bleed_mute(

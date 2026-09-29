@@ -83,7 +83,12 @@ podcast history-status --project episode.project.json   # JSON: cursor, can_undo
 
 With `rerender=true` the move and its stale marks are committed first, in one step under `project_commit_lock`, so no other writer's commit lands between them. The render then runs between `checkpoint()` and `save_merged()`, so an edit another request saved meanwhile is merged in as an `after merging concurrent edits` entry, and the returned cursor points at that entry (not at the move's target). The move stays saved whatever happens next: a same-value clash raises `ProjectMergeConflict` and a failed render raises `HistoryRerenderError`, and both messages say to re-render the preview, not to repeat the move. The document plane (`UndoHistory` / `RedoHistory`) returns both as a 409 conflict with that message. A failed render also drops its partial in-memory state from the workspace (`ProjectWorkspace.discard_changes()`), so a caller that keeps the workspace sees the saved move, not a half-rendered project. If another undo or redo moved the cursor during the render (`history.lineage` / `history.cursor`), the message says to check `history_status` before re-rendering instead, since the saved cursor is no longer this move's.
 
-Bleed mute (`apply_transcript_gate_tool`) sets `track.transcript_gate` in the project snapshot. That flag is what makes history A/B audible: segment render re-applies the gate when the flag is on, and skips it after undo.
+Bleed mute (`apply_transcript_gate_tool`) snapshots `track.transcript_gate` and
+`track.transcript_gate_scope`. A scoped apply stores source-media selections so
+later moves and ripple cuts retain the selected audio. Segment and full renders
+rebuild the same conservative gate from ungated media. Reapplying rebuilds from
+sources instead of multiplying the existing stem's fades. Undo restores the flag
+and scope together; a rerender recovers the original audio from untouched sources.
 
 A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
 

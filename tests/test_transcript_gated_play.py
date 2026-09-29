@@ -381,6 +381,7 @@ def test_gate_stem_window_edge_cases(tmp_path: Path) -> None:
 
 
 def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> None:
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
     from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
     from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
 
@@ -417,19 +418,20 @@ def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> No
         called.append((path, intervals, timeline_start, timeline_end))
         return path
 
+    plan = BleedGatePlan(attenuation_spans=((0.0, 0.2),))
     monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play.word_intervals",
-        lambda *a, **k: [(0.0, 0.2)],
+        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan",
+        lambda *a, **k: plan,
     )
     monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play.gate_rendered_wav",
+        "podcast_mcp.engines.transcript_gated_play.apply_bleed_gate_plan",
         _fake_gate,
     )
     assert (
         apply_track_transcript_gate(project, "host", wav, timeline_start=0.0, timeline_end=0.5)
         is wav
     )
-    assert called and called[0][1] == [(0.0, 0.2)]
+    assert called and called[0][1] is plan
 
 
 def test_gate_rendered_wav_zero_duration(tmp_path: Path) -> None:

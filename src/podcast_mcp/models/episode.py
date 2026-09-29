@@ -82,6 +82,14 @@ class TrackProxy(BaseModel):
     object_store_uploaded_at: str | None = None
 
 
+class TranscriptGateScope(ClipMuteRegion):
+    """Selected source audio for a transcript gate, retained across timeline edits."""
+
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    end_s: float = Field(gt=0, allow_inf_nan=False)
+    source_id: str | None = None
+
+
 class Track(BaseModel):
     id: str
     label: str
@@ -100,9 +108,9 @@ class Track(BaseModel):
     # Saved mix mute: the mix, play and bounce leave the track out. Edits,
     # stems and analysis still cover it, so it stays in sync for an unmute.
     muted: bool = False
-    # When True, stems/segments mute outside non-suppressed word intervals
-    # (acoustic bleed mute). Snapshotted in history so undo/play_ab work.
+    # Attenuate verified foreign speech while preserving owner and uncertain audio.
     transcript_gate: bool = False
+    transcript_gate_scope: list[TranscriptGateScope] | None = None
     proxy: TrackProxy | None = None
 
     @property

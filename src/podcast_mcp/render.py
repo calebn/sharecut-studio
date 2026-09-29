@@ -20,6 +20,14 @@ def rerender_preview(
     progress: ProgressReporter | None = None,
 ) -> dict[str, str | float | int | dict | None]:
     runner = PipelineRunner()
+    policy = AnalysisPolicy.from_defaults()
+    should_reconcile = reconcile
+    if should_reconcile is None:
+        should_reconcile = policy.reconcile_on_render and policy.transcript_mode != "off"
+    reconcile_before_gate = should_reconcile and any(
+        track.transcript_gate for track in project.tracks
+    )
+    reconciliation_result: dict | None = None
     with resolve_progress_task(
         "render",
         "Rendering preview",
@@ -27,24 +35,24 @@ def rerender_preview(
         prefer_parent=True,
         progress=progress,
     ) as task:
+        if reconcile_before_gate:
+            reconciliation_result = maybe_auto_reconcile(
+                project, force=True, policy=policy, progress=None
+            )
         runner.run(project, only_step="assemble_timeline", progress=NullProgress())
         task.advance(1, message="Assembled timeline", total=3)
         runner.run(project, only_step="mix_with_music", progress=NullProgress())
         task.advance(1, message="Mixed music", total=3)
         premix = premix_path(project)
         edit_count = sum(1 for e in project.edit_decisions if e.applied)
-        policy = AnalysisPolicy.from_defaults()
-        should_reconcile = reconcile
-        if should_reconcile is None:
-            should_reconcile = policy.reconcile_on_render and policy.transcript_mode != "off"
-        reconciliation_result: dict | None = None
         if should_reconcile:
-            reconciliation_result = maybe_auto_reconcile(
-                project,
-                force=True,
-                policy=policy,
-                progress=None,
-            )
+            if not reconcile_before_gate:
+                reconciliation_result = maybe_auto_reconcile(
+                    project,
+                    force=True,
+                    policy=policy,
+                    progress=None,
+                )
             task.advance(1, message="Reconciled transcript", total=3)
         else:
             mark_reconciliation_stale(project)

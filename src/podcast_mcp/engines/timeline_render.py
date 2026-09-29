@@ -21,7 +21,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 2: sub-tolerance (<= JOIN_GAP_TOLERANCE_SEC) gaps on CROSSFADE joins now crossfade.
 # 3: a cut is per join; the next clip's cut drops the left clip's fade-out (a clip's
 #    own cut join no longer drops its fade-out).
-RENDER_SEMANTICS_REV = 3
+RENDER_SEMANTICS_REV = 4
 
 
 def resolve_clip_audio_path(
@@ -379,14 +379,14 @@ def render_source_with_chain(
     probe = eng.probe(output_path)
     if track.transcript_gate:
         from podcast_mcp.engines.transcript_gated_play import (
-            gate_rendered_wav,
-            source_word_intervals,
+            apply_bleed_gate_plan,
+            build_bleed_gate_plan,
         )
 
-        intervals = source_word_intervals(project, track.id, 0.0, probe.duration_sec)
-        gate_rendered_wav(
+        plan = build_bleed_gate_plan(project, track.id, source_clock=True)
+        apply_bleed_gate_plan(
             output_path,
-            intervals,
+            plan,
             timeline_start=0.0,
             timeline_end=probe.duration_sec,
         )

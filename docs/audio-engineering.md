@@ -198,6 +198,25 @@ rolling up `master_qc.json`'s issues **plus** transcript reconciliation stalenes
 see [podcast-master-export](../.agents/skills/podcast-master-export/SKILL.md#final-ship-gate-export_qcjson)
 for the exact shape and what to do when `ok` is `false`.
 
+## Transcript gate diagnostics
+
+`analyze_gate_overreach` recognizes `track.transcript_gate` as well as `agate`
+effects. For a transcript gate, it compares retained words' onset, body, and tail
+windows in the processed stem against selected raw media on the edited timeline.
+It reports added onset or tail loss and wholly missing words. Missing stems or
+raw evidence produce `risk: unknown`; an enabled gate is not evidence of safety.
+These measurements detect excessive attenuation, but do not prove speaker
+ownership or complete speech preservation when ASR omitted a word.
+
+Reconciliation on a gated track renders evidence with the transcript gate
+disabled. Timeline edits and other effects remain active. If that evidence
+cannot be rendered, reconciliation fails without falling back to gated silence.
+
+Follow-transcript playback uses the same acoustic gate policy as stem rendering.
+It applies the envelope once on the absolute timeline, so an audition window
+starting inside a word does not create a new gate fade. Its returned transcript
+intervals identify caption evidence, not all audio that survives the gate.
+
 ## Effect presets (source of truth)
 
 `src/podcast_mcp/effects/presets.py::_BUILTIN_PRESETS` is the single source of
@@ -223,7 +242,7 @@ an unrelated file is not mistaken for pipeline defaults.
 (`resolve_presets(defaults)`) and seeds its `noise_reduction` and `gate`
 suggestions from them, not from reading `defaults["effects"]` directly, so its
 proposed config reflects the same presets `apply_preset_to_chain` would apply.
-On a gate-overreach finding it **always** proposes `effects.gate` with the
+On an `agate` gate-overreach finding it proposes `effects.gate` with the
 threshold lowered by 6 dB, once per Analyze call however many tracks report
 overreach (the gate chain is global): from the working set's own `effects.gate` if
 present, otherwise from the resolved `gate` preset. This happens even when the
@@ -231,6 +250,9 @@ base config's `effects` has no `gate` key, which is now the default because the
 repo `effects:` overlay is empty. The proposed config is a per-project working
 set, not a repo-tracked defaults YAML, so carrying a `gate` entry there does
 not violate the no-redefine rule above.
+Transcript-gate findings instead recommend reviewing the acoustic plan and speech
+boundaries. They do not introduce or adjust a noise-gate threshold. A report with
+both kinds still adjusts the noise gate once for its own findings.
 
 Analyze's `digital_silence` check reuses `engines.asr_silence.peak_envelope` — the
 same per-10 ms peak envelope the ASR silence filter streams — and flags a dialogue
