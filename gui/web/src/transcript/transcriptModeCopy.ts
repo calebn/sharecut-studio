@@ -58,6 +58,10 @@ export const TRANSCRIPT_CUT_AWAY_WORD_TIP =
 export const TRANSCRIPT_AUDIBILITY_LOCKED_TIP =
   "Suppression locked: set directly, not by a heuristic pass. Reconcile and auto-suppress leave it alone.";
 
+/** Title on the word inspector's Return to automatic action (#824): clears the lock only. */
+export const TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP =
+  "Return to automatic: clear the lock so the next reconcile pass decides this word again. Suppressed is unchanged until then.";
+
 /** Note shown next to the speaker label on a suppressed-only turn (#758). */
 export const TRANSCRIPT_SUPPRESSED_ONLY_NOTE = "all suppressed";
 
