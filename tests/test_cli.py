@@ -365,6 +365,7 @@ def test_info_command_omits_document_sync(tmp_path):
     result = runner.invoke(app, ["info", "--project", str(project_path)])
     assert result.exit_code == 0
     assert "document_sync" not in result.stdout
+    assert "secret-payload" not in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -398,4 +399,3 @@ def test_render_preview_reports_render_busy_error(minimal_project, monkeypatch) 
     assert result.exit_code == 1
     assert "Error: " in result.stderr
     assert "another render of this project is in progress" in result.stderr
-    assert "secret-payload" not in result.stdout
