@@ -2031,6 +2031,7 @@ name = "podcast-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "av" },
     { name = "coolname" },
     { name = "faster-whisper" },
     { name = "filelock" },
@@ -2116,6 +2117,7 @@ speaker-lite = [
 
 [package.metadata]
 requires-dist = [
+    { name = "av", specifier = ">=11,<19" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "boto3", marker = "extra == 'all'", specifier = ">=1.34.0" },
     { name = "boto3", marker = "extra == 'gui'", specifier = ">=1.34.0" },
