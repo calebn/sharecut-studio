@@ -1001,6 +1001,14 @@ def assess_project_joins(
                 d["speech"] = [
                     c.to_dict() for c in crossings if abs(c.join_timeline_sec - join_t) <= 1e-6
                 ]
+                # Continuity detectors score the splice's texture; a cut through the
+                # track's own voice is a defect whatever they say, so such a row never passes.
+                if d["speech"] and d["verdict"] == "pass":
+                    d["verdict"] = "review"
+                    d["reasons"] = [
+                        *d["reasons"],
+                        "voiced speech cut through this join (see speech); never a pass",
+                    ]
                 reports.append(d)
                 if worst is None or d["risk"] > worst["risk"]:
                     worst = d
