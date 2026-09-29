@@ -19,6 +19,7 @@ from podcast_mcp.edits.clips_ops import (
     set_track_clips,
     shift_clips_timeline,
     split_clip_at,
+    trim_edge_limits,
     update_timeline_duration,
 )
 from podcast_mcp.edits.clips_ops import (
@@ -759,6 +760,21 @@ def trim_clip_edge(
             if peer is not None and peer.id != clip_id
         ]
         targets.insert(0, (clip, float(source_sec)))
+        blocked = []
+        for target, target_sec in targets:
+            lo, hi = trim_edge_limits(project, target, edge)
+            if not lo - 1e-9 <= target_sec <= hi + 1e-9:
+                blocked.append(
+                    f"{target.track_id}: {edge}-point can move to {lo:.3f}..{hi:.3f}s, "
+                    f"needs {target_sec:.3f}s"
+                )
+        if blocked:
+            raise ValueError(
+                "all_tracks trim refused, the tracks would move by different amounts and "
+                "desync ("
+                + "; ".join(blocked)
+                + "); trim to a value inside every limit, or fix the blocking clip first"
+            )
     previous = {
         c.id: (c.source_start, c.source_end, c.timeline_start, c.timeline_end) for c, _ in targets
     }
