@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
+from filelock import Timeout
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.services import HistoryService, PipelineService
+from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
 runner = CliRunner()
 
@@ -361,4 +365,37 @@ def test_info_command_omits_document_sync(tmp_path):
     result = runner.invoke(app, ["info", "--project", str(project_path)])
     assert result.exit_code == 0
     assert "document_sync" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ProjectBusyError("/artifacts/episode.project.json.lock"),
+        RenderBusyError("/artifacts/render.lock"),
+        Timeout("/artifacts/transcript_context.yaml.lock"),
+    ],
+    ids=["project-busy", "render-busy", "raw-timeout"],
+)
+def test_undo_reports_busy_lock_via_root_group(minimal_project, monkeypatch, exc) -> None:
+    """A lock timeout escaping ``undo`` is caught by ``BusyErrorGroup``, not a traceback (#488)."""
+
+    def _raise(self, **kwargs):
+        raise exc
+
+    monkeypatch.setattr(HistoryService, "undo", _raise)
+    result = runner.invoke(app, ["undo", "--project", str(minimal_project)])
+    assert result.exit_code == 1
+    assert result.stderr.startswith("Error: ")
+    assert "/artifacts" not in result.stderr
+
+
+def test_render_preview_reports_render_busy_error(minimal_project, monkeypatch) -> None:
+    def _raise(self, **kwargs):
+        raise RenderBusyError("/artifacts/render.lock")
+
+    monkeypatch.setattr(PipelineService, "render_preview", _raise)
+    result = runner.invoke(app, ["render-preview", "--project", str(minimal_project)])
+    assert result.exit_code == 1
+    assert "Error: " in result.stderr
+    assert "another render of this project is in progress" in result.stderr
     assert "secret-payload" not in result.stdout
