@@ -25,6 +25,12 @@ from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
+from podcast_mcp.edits.voiced_runs import (
+    FRAME_SEC,
+    run_straddling,
+    voiced_runs,
+    voiced_sec_inside,
+)
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
@@ -380,7 +386,8 @@ def _cut_covers_reparandum(candidate: _CutCandidate, start: float, end: float) -
     gives waveform snapping and breath extension room to slide the cut well
     away from the reparandum, inside those bounds. A cut that ends up barely
     touching the reparandum removes neither copy and leaves both audible --
-    reject it rather than propose a no-op edit (PR #792 review).
+    reject it rather than propose a no-op edit (PR #792 review). A voiced-edge
+    nudge (#815) is held to the same bar for every word-targeted cut.
     """
     span = candidate.end - candidate.start
     if span <= 0:
@@ -1162,6 +1169,109 @@ def _resolve_analyzed_cuts(
     ]
 
 
+# A word's voice may run this far past its transcript time before a pause or
+# filler edge stops following it and the span is reviewed instead (Whisper places
+# soft onsets up to ~0.5 s late; see edits/join_speech.py).
+_EDGE_NUDGE_MAX_SEC = 0.5
+# Air kept between a word's voice edge and the cut edge, as join_speech suggests for
+# existing clip edges. On the lab tape the 45 ms join-gate window then sits below the
+# inaudible-splice floor instead of on the word's decay.
+_VOICE_EDGE_PAD_SEC = 0.06
+_INTERIOR_SPEECH_MIN_SEC = 0.1
+_MIN_NUDGED_CUT_SEC = 0.1
+
+
+@dataclass(frozen=True)
+class _VoicedSpeechCheck:
+    start: float
+    end: float
+    # ``interior_speech``: a pause span holds voice the transcript missed.
+    # ``voiced_edge``: an edge sits in a word's voice and no in-bounds nudge frees it.
+    flag: str | None = None
+
+
+def _accept_nudge(
+    candidate: _CutCandidate, before: tuple[float, float], start: float, end: float
+) -> tuple[float, float] | None:
+    """``(start, end)`` when the nudged span is one this candidate may still propose."""
+    if abs(start - before[0]) > _EDGE_NUDGE_MAX_SEC or abs(end - before[1]) > _EDGE_NUDGE_MAX_SEC:
+        return None
+    if _clamp_to_candidate(candidate, start, end) != (start, end):
+        return None
+    if end - start < _MIN_NUDGED_CUT_SEC:
+        return None
+    if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, start, end):
+        return None
+    return start, end
+
+
+def _check_voiced_speech(
+    candidate: _CutCandidate,
+    cut_start: float,
+    cut_end: float,
+    *,
+    audio_cache: TrackAudioCache,
+    word_index: CutWordIndex,
+    defaults: dict[str, Any],
+) -> _VoicedSpeechCheck:
+    """Move each cut edge out of a word's voice; flag speech a pause would swallow.
+
+    An edge inside a voiced run is nudged to the run's edge: past the run (plus a
+    little air) when the run belongs to a word that stays, so the word keeps its
+    tail or onset; to the run's own edge when it is the cut word's voice that the
+    transcript timed short. Word times are the only view the candidate had, and
+    on the lab tape aligned and Whisper ends both sit 120-270 ms inside the voice.
+    A kept-word nudge the candidate's bounds or coverage rule refuse leaves the
+    edge where it is and marks the cut for review.
+    """
+    floor = float(
+        defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0)
+    )
+    reach = _EDGE_NUDGE_MAX_SEC + _VOICE_EDGE_PAD_SEC + FRAME_SEC
+    window_lo, window_hi = cut_start - reach, cut_end + reach
+    runs = voiced_runs(audio_cache, window_lo, window_hi, floor_db=floor)
+    if not runs:
+        return _VoicedSpeechCheck(cut_start, cut_end)
+    span_lo = min(candidate.start, cut_start)
+    span_hi = max(candidate.end, cut_end)
+
+    def kept_word_in(lo: float, hi: float) -> bool:
+        # A run cut off by the window may go on into a word the window never saw.
+        if lo <= window_lo + FRAME_SEC:
+            lo = -math.inf
+        if hi >= window_hi - FRAME_SEC:
+            hi = math.inf
+        return word_index.kept_word_overlaps(lo, hi, exclude_start=span_lo, exclude_end=span_hi)
+
+    # Only a refused kept-word shrink is a defect worth a reviewer's ear; a cut word
+    # whose own voice runs past its transcript time keeps the status quo edge.
+    stuck = False
+    run = run_straddling(runs, cut_start)
+    if run is not None:
+        kept = kept_word_in(run[0], cut_start)
+        target = run[1] + _VOICE_EDGE_PAD_SEC if kept else run[0]
+        nudged = _accept_nudge(candidate, (cut_start, cut_end), target, cut_end)
+        if nudged is not None:
+            cut_start = nudged[0]
+        elif kept:
+            stuck = True
+    run = run_straddling(runs, cut_end)
+    if run is not None:
+        kept = kept_word_in(cut_end, run[1])
+        target = run[0] - _VOICE_EDGE_PAD_SEC if kept else run[1]
+        nudged = _accept_nudge(candidate, (cut_start, cut_end), cut_start, target)
+        if nudged is not None:
+            cut_end = nudged[1]
+        elif kept:
+            stuck = True
+    if (
+        candidate.cut_kind == "pause"
+        and voiced_sec_inside(runs, cut_start, cut_end) >= _INTERIOR_SPEECH_MIN_SEC
+    ):
+        return _VoicedSpeechCheck(cut_start, cut_end, "interior_speech")
+    return _VoicedSpeechCheck(cut_start, cut_end, "voiced_edge" if stuck else None)
+
+
 def _analyze_candidate(
     project: EpisodeProject,
     candidate: _CutCandidate,
@@ -1246,6 +1356,17 @@ def _analyze_candidate(
     if paced_span is None:
         return None
     cut_start, cut_end = paced_span
+    voiced_flag: str | None = None
+    if audio_cache is not None:
+        voiced = _check_voiced_speech(
+            candidate,
+            cut_start,
+            cut_end,
+            audio_cache=audio_cache,
+            word_index=word_index or CutWordIndex.build(project, track_id),
+            defaults=defaults,
+        )
+        cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     if candidate.cut_kind in ("repeat", "restart") and not _cut_covers_reparandum(
         candidate, cut_start, cut_end
     ):
@@ -1272,6 +1393,9 @@ def _analyze_candidate(
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
     # breath, laugh, or missed word rather than a filler.
     review_required = candidate.review_only or candidate.cut_kind in {"repeat", "restart"}
+    if voiced_flag is not None:
+        review_required = True
+        reason = f"{reason}:{voiced_flag}"
     replace_gap = paced.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
     # prior ripples punched holes; pad the shortfall with silence after ripple.

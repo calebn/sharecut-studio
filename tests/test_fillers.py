@@ -2159,7 +2159,13 @@ def test_join_continuity_verdicts_and_scorer_errors():
             "join_continuity_gate": True,
         }
     }
-    sentinel_cache = object()
+    import numpy as np
+
+    from podcast_mcp.edits.audio_cache import TrackAudioCache
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+
+    silent = TrackRmsCache(np.zeros(16_000 * 3, dtype=np.float32), 16_000)
+    sentinel_cache = TrackAudioCache(silent, silent)
     project = _project_with_transcript(words)
     with (
         patch(
