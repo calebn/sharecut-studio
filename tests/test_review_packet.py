@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,33 @@ def test_diff_is_capped_with_a_pointer(repo: Path, monkeypatch: pytest.MonkeyPat
     assert "[diff truncated at 50 chars; run `git diff base..HEAD` for the rest]" in packet
 
 
+def test_cut_notice_is_the_one_notice_shape() -> None:
+    assert (
+        review_packet.cut_notice("diff truncated at 5 chars", "git diff a..b")
+        == "[diff truncated at 5 chars; run `git diff a..b` for the rest]"
+    )
+    assert review_packet.cut_notice("packet truncated at 5 chars; cut: Diff") == (
+        "[packet truncated at 5 chars; cut: Diff]"
+    )
+
+
+def test_take_within_keeps_whole_items_and_stops_lazily() -> None:
+    def notice(kept: int) -> str:
+        return f"[kept {kept}]"
+
+    items = ["aaaa", "bbbb", "cccc"]  # 5 chars each, newline included
+    assert review_packet.take_within(items, 15, notice) == items
+    assert review_packet.take_within(items, 14, notice) == ["aaaa", "bbbb", "[kept 2]"]
+    assert review_packet.take_within(items, 4, notice) == ["[kept 0]"]
+
+    def lazy() -> Iterator[str]:
+        yield "aaaa"
+        yield "bbbb"
+        raise AssertionError("computed an item after the first misfit")
+
+    assert review_packet.take_within(lazy(), 5, notice) == ["aaaa", "[kept 1]"]
+
+
 def test_doc_heavy_packet_keeps_docs_sync_and_names_the_cut(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -142,9 +170,12 @@ def test_doc_heavy_packet_keeps_docs_sync_and_names_the_cut(
     full = review_packet.build("HEAD", "base..HEAD")
     assert (
         "more changed docs not listed; run "
-        "`git diff --name-only --diff-filter=d base..HEAD -- '*.md'`" in full
+        "`git diff --name-only --diff-filter=d base..HEAD -- '*.md'` for the rest]" in full
     )
     assert "### docs/d39.md" not in full
+    docs_section = full[full.index("## Changed docs") : full.index("## Diff (with 30")]
+    listed = docs_section.split("\n", 1)[1].split("\n[+")[0]
+    assert len(listed) < 300  # DOCS_CAP is a hard cap on the listed blocks
     monkeypatch.setattr(review_packet, "MAX_CHARS", full.index("## Diff (with 30") + 10)
     packet = review_packet.build("HEAD", "base..HEAD")
     assert "VIOLATED  mix-docs  Mix levels in services" in packet

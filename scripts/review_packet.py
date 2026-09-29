@@ -15,7 +15,7 @@ import posixpath
 import re
 import subprocess
 import sys
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 MAX_CHARS = 60_000
@@ -55,6 +55,27 @@ _MD_LINK_RE = re.compile(r"\]\(([^)\s#]+)")
 
 def git(*args: str) -> str:
     return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
+
+
+def cut_notice(what: str, command: str | None = None) -> str:
+    """The packet's one truncation-notice shape: what was cut, then the command that shows
+    the rest (when there is one). Every cut in this module ends in one of these."""
+    return f"[{what}; run `{command}` for the rest]" if command else f"[{what}]"
+
+
+def take_within(items: Iterable[str], budget: int, notice: Callable[[int], str]) -> list[str]:
+    """Keep whole ``items`` in order while they (each plus a newline) fit in ``budget``
+    chars. At the first item that does not fit, stop and append ``notice(kept)``, where
+    ``kept`` is how many items were kept. ``items`` may be lazy: nothing after that first
+    misfit is computed. The one budget cut for the packet's lists."""
+    kept: list[str] = []
+    size = 0
+    for item in items:
+        size += len(item) + 1
+        if size > budget:
+            return [*kept, notice(len(kept))]
+        kept.append(item)
+    return kept
 
 
 def changed_files(rng: str) -> list[str]:
@@ -166,26 +187,25 @@ def doc_references(rng: str, doc: str, tracked: frozenset[str]) -> list[str]:
 
 def docs_accuracy(ref: str, rng: str) -> list[str]:
     """The docs-accuracy lens's starting point: each changed doc and the code it names.
-    Blocks stop once they pass DOCS_CAP chars, so a doc-heavy PR cannot crowd out the diff.
+    Blocks stop within DOCS_CAP chars, so a doc-heavy PR cannot crowd out the diff.
     """
     docs = changed_docs(rng)
     if not docs:
         return []
     tracked = tracked_paths(ref)
-    lines: list[str] = []
-    size = 0
-    for i, doc in enumerate(docs):
-        if size > DOCS_CAP:
-            lines.append(
-                f"(+{len(docs) - i} more changed docs not listed; run "
-                f"`git diff --name-only --diff-filter=d {rng} -- '*.md'`)"
-            )
-            break
-        refs = doc_references(rng, doc, tracked)
-        block = f"### {doc}\npaths named in added lines: {', '.join(refs) or '(none)'}"
-        lines.append(block)
-        size += len(block) + 1
-    return lines
+    blocks = (
+        f"### {doc}\npaths named in added lines: "
+        + (", ".join(doc_references(rng, doc, tracked)) or "(none)")
+        for doc in docs
+    )
+    return take_within(
+        blocks,
+        DOCS_CAP,
+        lambda kept: cut_notice(
+            f"+{len(docs) - kept} more changed docs not listed",
+            f"git diff --name-only --diff-filter=d {rng} -- '*.md'",
+        ),
+    )
 
 
 def docs_sync_findings(ref: str, rng: str) -> list[str]:
@@ -218,7 +238,9 @@ def section(title: str, lines: list[str], empty: str = "(none)") -> str:
 
 def cap_packet(parts: list[str], limit: int) -> str:
     """Join the packet's sections and cut at ``limit`` chars. The notice names every
-    section the cut shortened or dropped, so a lens knows what it is missing."""
+    section the cut shortened or dropped, so a lens knows what it is missing.
+    It cuts mid-section, keeping the part of a section that fits, which take_within's
+    whole-item cut cannot do; its notice still comes from cut_notice."""
     packet = "".join(parts)
     if len(packet) <= limit:
         return packet
@@ -228,7 +250,12 @@ def cap_packet(parts: list[str], limit: int) -> str:
         end += len(part)
         if end > limit:
             cut.append(part.split("\n", 1)[0].removeprefix("## "))
-    return packet[:limit] + f"\n[packet truncated at {limit} chars; cut: {'; '.join(cut)}]\n"
+    return (
+        packet[:limit]
+        + "\n"
+        + cut_notice(f"packet truncated at {limit} chars; cut: {'; '.join(cut)}")
+        + "\n"
+    )
 
 
 def build(ref: str, rng: str) -> str:
@@ -236,7 +263,7 @@ def build(ref: str, rng: str) -> str:
     diff = git("diff", "-U30", rng)
     omitted = ""
     if len(diff) > DIFF_CAP:
-        omitted = f"\n[diff truncated at {DIFF_CAP} chars; run `git diff {rng}` for the rest]\n"
+        omitted = "\n" + cut_notice(f"diff truncated at {DIFF_CAP} chars", f"git diff {rng}") + "\n"
         diff = diff[:DIFF_CAP]
     symbols = changed_symbols(git("diff", "-U0", rng))
 
