@@ -12,6 +12,7 @@ from podcast_mcp.util.dsp import (
     db_to_amplitude,
     frame_rms_db,
     frame_rms_db_stream,
+    high_band_energy_fraction,
     rms_db,
     voicing_probes,
 )
@@ -93,3 +94,16 @@ def test_voicing_probes_score_periodic_frames_high_and_noise_low() -> None:
     assert voicing_probes(np.zeros(640), sr, **kwargs).tolist() == [0.0]
     assert voicing_probes(np.sin(2 * np.pi * 200 * t[:320]), sr, **kwargs).shape == (1,)
     assert voicing_probes(np.zeros(0), sr, **kwargs).size == 0
+
+
+def test_high_band_energy_fraction_splits_low_and_high_tones() -> None:
+    sr = 16_000
+    t = np.arange(1600) / sr
+    kwargs = {"split_hz": 4000, "lo_hz": 100, "hi_hz": 8000}
+
+    assert high_band_energy_fraction(np.sin(2 * np.pi * 500 * t), sr, **kwargs) < 0.01
+    assert high_band_energy_fraction(np.sin(2 * np.pi * 6000 * t), sr, **kwargs) > 0.99
+    mixed = np.sin(2 * np.pi * 500 * t) + np.sin(2 * np.pi * 6000 * t)
+    assert high_band_energy_fraction(mixed, sr, **kwargs) == pytest.approx(0.5, abs=0.02)
+    assert high_band_energy_fraction(np.zeros(1600), sr, **kwargs) == 0.0
+    assert high_band_energy_fraction(np.zeros(1), sr, **kwargs) == 0.0

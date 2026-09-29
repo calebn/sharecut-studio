@@ -124,41 +124,20 @@ def test_find_breath_in_window_returns_first_qualifying_run():
 
 
 def test_detect_adjacent_breath_finds_before_and_after():
-    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
-    from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
-
-    project = EpisodeProject.create("breath", "/tmp/ws")
-    project.tracks = [
-        Track(
-            id="host",
-            label="Host",
-            role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="/tmp/ws/raw/host.wav", duration_sec=30.0),
-        )
-    ]
-    project.clips = [
-        Clip(
-            id="c1",
-            track_id="host",
-            source_start=0.0,
-            source_end=30.0,
-            timeline_start=0.0,
-        )
-    ]
-
-    def fake_window(path, start_sec, duration_sec, sample_rate=16000):
-        n = max(8, int(duration_sec * sample_rate))
-        samples = np.full(n, 0.001, dtype=np.float32)
-        mid = n // 2
-        samples[mid - 1600 : mid + 1600] = 0.03
-        return samples
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
-        side_effect=fake_window,
+        side_effect=_fake_windows(
+            before=_shaped_noise(2560, 0.026), after=_shaped_noise(2560, 0.026)
+        ),
     ):
-        spans = detect_adjacent_breath(project, "host", 5.0, 5.2)
-    assert len(spans) >= 1
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+
+    assert spans == [
+        BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.86), side="before"),
+        BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.39), side="after"),
+    ]
 
 
 def test_extend_cut_overlapping_inside_range():
@@ -455,25 +434,53 @@ def _host_project():
     return project
 
 
+def _constant_envelope(x: np.ndarray, rms: float, frame: int = 160) -> np.ndarray:
+    """Scale each 10 ms frame to exactly ``rms`` so the detector's level band sees a flat run."""
+    out = np.empty(x.size, dtype=np.float32)
+    for start in range(0, x.size, frame):
+        chunk = x[start : start + frame]
+        out[start : start + frame] = rms * chunk / np.sqrt(np.mean(chunk**2))
+    return out
+
+
 def _harmonic_tone(n: int, rms: float, hz: float = 140.0) -> np.ndarray:
     t = np.arange(n) / 16000
-    x = sum(np.sin(2 * np.pi * hz * k * t) / k for k in (1, 2, 3))
-    return (rms * x / np.sqrt(np.mean(x**2))).astype(np.float32)
+    return _constant_envelope(sum(np.sin(2 * np.pi * hz * k * t) / k for k in (1, 2, 3)), rms)
 
 
 def _shaped_noise(n: int, rms: float) -> np.ndarray:
+    """Low-passed noise (8-tap moving average): breath-like, energy below 4 kHz."""
     x = np.random.default_rng(798).normal(0.0, 1.0, n + 7)
-    x = np.convolve(x, np.ones(8) / 8, mode="valid")
-    return (rms * x / np.sqrt(np.mean(x**2))).astype(np.float32)
+    return _constant_envelope(np.convolve(x, np.ones(8) / 8, mode="valid"), rms)
 
 
-def _after_window_with(blob: np.ndarray):
-    """load_mono_window stand-in: quiet air with ``blob`` 25 ms into the after-cut window."""
+def _sibilant_noise(n: int, rms: float) -> np.ndarray:
+    """High-passed noise (first difference): an `s`, energy above 4 kHz."""
+    x = np.random.default_rng(798).normal(0.0, 1.0, n + 1)
+    return _constant_envelope(np.diff(x), rms)
+
+
+def _fake_windows(
+    before: np.ndarray | None = None,
+    after: np.ndarray | None = None,
+    before_tail: np.ndarray | None = None,
+):
+    """load_mono_window stand-in around a 5.0-5.2 cut: quiet air plus frame-aligned blobs.
+
+    ``before`` lands 100 ms into the 400 ms window before the cut and ``before_tail``
+    fills that window's last 100 ms; ``after`` lands 30 ms into the 250 ms window
+    after the cut. Blob levels of 0.026 sit inside the detector's RMS band.
+    """
 
     def fake_window(path, start_sec, duration_sec, sample_rate=16000):
         samples = np.full(int(duration_sec * sample_rate), 0.001, dtype=np.float32)
-        if start_sec >= 5.2:
-            samples[400 : 400 + blob.size] = blob
+        if start_sec < 5.0:
+            if before is not None:
+                samples[1600 : 1600 + before.size] = before
+            if before_tail is not None:
+                samples[-before_tail.size :] = before_tail
+        elif after is not None:
+            samples[480 : 480 + after.size] = after
         return samples
 
     return fake_window
@@ -484,21 +491,37 @@ def test_voiced_tone_after_cut_is_not_a_breath():
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
-        side_effect=_after_window_with(_harmonic_tone(3200, 0.035)),
+        side_effect=_fake_windows(after=_harmonic_tone(2560, 0.026)),
     ):
         assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
 
 
-def test_shaped_noise_after_cut_is_a_breath():
-    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+def test_sibilant_noise_after_cut_is_not_a_breath():
+    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
-        side_effect=_after_window_with(_shaped_noise(3200, 0.035)),
+        side_effect=_fake_windows(after=_sibilant_noise(2560, 0.026)),
+    ):
+        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+
+
+def test_breath_before_cut_needs_unvoiced_audio_up_to_the_cut():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    breath = _shaped_noise(1600, 0.026)
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath, before_tail=_harmonic_tone(1600, 0.026)),
+    ):
+        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath),
     ):
         spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
 
-    assert spans == [BreathSpan(start=pytest.approx(5.22), end=pytest.approx(5.33), side="after")]
+    assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
 
 def test_find_breath_in_window_skips_voiced_run_for_later_unvoiced_run():

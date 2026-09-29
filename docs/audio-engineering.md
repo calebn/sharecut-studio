@@ -287,11 +287,14 @@ Silero does not require that RMS reference. Model lookup happens once per
 classification, and model or inference failures fall back to the RMS heuristic.
 
 With either backend, a run only counts as a breath when the same pitch sweep
-finds no probe at or above a normalized autocorrelation peak of 0.55: a breath
-is unvoiced noise, and a level band or a VAD probability dip alone selects the
-quieter frames of ordinary speech in a loud window. This applies to adjacent-cut
-breath co-removal as well as to acoustic candidates (#798), so a cut is never
-extended over a voiced run; the next quieter run in the window is tried instead.
+finds no probe at or above a normalized autocorrelation peak of 0.55 over the
+run and, for adjacent-cut co-removal, over everything between the run and the
+cut edge, and when less than half of the run's 100 Hz–8 kHz energy lies above
+4 kHz (a sibilant, not a breath). A breath is unvoiced noise, and a level band
+or a VAD probability dip alone selects the quieter frames of ordinary speech in
+a loud window. This applies to adjacent-cut breath co-removal as well as to
+acoustic candidates (#798), so a cut is never extended over a voiced run; the
+next quieter run in the window is tried instead.
 Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)
