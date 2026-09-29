@@ -22,6 +22,7 @@ import {
   clickHostTransport,
   createRecordRoom,
   ensureHostRecordCommand,
+  fillDisplayNameField,
   fillGuestDisplayName,
   HOST_PARTICIPANT_ID,
   hostRecordSnapshot,
@@ -294,8 +295,7 @@ test.describe("record lobby", () => {
               name: "Record 3 seconds of room tone",
             }),
           ).toHaveCount(0);
-          await producer.getByLabel("Display name").fill("Pat");
-          await expect(producer.getByLabel("Display name")).toHaveValue("Pat");
+          await fillDisplayNameField(producer, "Pat");
           await producer.getByRole("button", { name: "Join" }).click();
           await expect(producer.getByText("Waiting for host")).toBeVisible();
           await expect(

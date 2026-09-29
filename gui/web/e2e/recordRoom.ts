@@ -138,6 +138,22 @@ export async function recordParticipantId(
 export const HOST_PARTICIPANT_ID = "p_host";
 
 /**
+ * Fill the record lobby's Display name field and check that it holds `name`.
+ *
+ * A fill can be lost when the lobby re-renders under it (#764), so every
+ * record-link join types its name through this helper rather than a bare
+ * `fill`.
+ */
+export async function fillDisplayNameField(
+  page: Page,
+  name: string,
+): Promise<void> {
+  const field = page.getByLabel("Display name");
+  await field.fill(name);
+  await expect(field).toHaveValue(name);
+}
+
+/**
  * Type a guest's display name once its record socket has joined.
  *
  * The lobby mounts its Microphone step only after the room echoes this page's
@@ -153,9 +169,7 @@ export async function fillGuestDisplayName(
   await expect(
     page.getByRole("heading", { name: "Microphone", exact: true }),
   ).toBeVisible();
-  const field = page.getByLabel("Display name");
-  await field.fill(name);
-  await expect(field).toHaveValue(name);
+  await fillDisplayNameField(page, name);
 }
 
 /** Join a record link as a guest: name, headphones, mic, skip room tone, Accept; returns once the room lists the guest by name. */
@@ -188,8 +202,9 @@ export async function joinAsGuest(
  * Unlike a guest (`fillGuestDisplayName`), a producer's record socket opens
  * only after Join (`!!bootstrap && (!producer || producerJoined)` in
  * `src/record/RecordApp.tsx`), so nothing re-renders under the fill and the
- * socket joins with the typed name. Checking the field before Join keeps that
- * assumption explicit: the room then registers the producer as `name`.
+ * socket joins with the typed name. Checking the field (`fillDisplayNameField`)
+ * before Join keeps that assumption explicit: the room then registers the
+ * producer as `name`.
  */
 export async function joinAsProducer(
   page: Page,
@@ -197,9 +212,7 @@ export async function joinAsProducer(
   name: string,
 ): Promise<void> {
   await openRecordLink(page, token);
-  const field = page.getByLabel("Display name");
-  await field.fill(name);
-  await expect(field).toHaveValue(name);
+  await fillDisplayNameField(page, name);
   await page.getByRole("button", { name: "Join" }).click();
   await expect(page.getByText("Waiting for host")).toBeVisible();
 }
