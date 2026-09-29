@@ -16,7 +16,7 @@ Read **[docs/transcript-workflow.md](../../docs/transcript-workflow.md)** for th
 
 | # | Layer | Skill | Pipeline step(s) |
 |---|-------|-------|------------------|
-| 1 | Acoustic — suppress bleed/inaudible | **podcast-transcript-reconcile** | `reconcile_transcript` (after `render_dialogue_stems` and after `assemble_timeline`) |
+| 1 | Acoustic — suppress bleed/inaudible | **podcast-transcript-reconcile** | `reconcile_transcript` (after `render_dialogue_stems` and after `assemble_timeline`; raw media is mapped through `SessionTimeline` when stems are absent) |
 | 2 | Rules — glossary, cross-track | **podcast-transcript-precorrect** | `precorrect_transcript` (once, after pass 1 reconcile) |
 | 3 | Refine — context/grammar fixes | **podcast-transcript-refine** | `require_transcript_refine` (agent clears via `refine-done`) |
 | 4 | Escalate — one span, listen-first | **podcast-transcript-audition** | On demand from refine |

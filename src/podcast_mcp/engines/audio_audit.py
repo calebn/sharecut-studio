@@ -29,6 +29,7 @@ from podcast_mcp.util.progress import (
     resolve_progress_task,
 )
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
+from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 if TYPE_CHECKING:
@@ -318,11 +319,59 @@ class TrackRmsCacheSet:
 
 def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
     caches: dict[str, TrackRmsCache] = {}
+    timeline = SessionTimeline(project)
     for tid in dialogue_track_ids(project):
         proc = _processed_track_path(project, tid)
         if proc is not None:
             caches[tid] = TrackRmsCache.from_timeline_stem(proc)
+            continue
+
+        track = project.track_by_id(tid)
+        if track is None or track.media is None:
+            continue
+        try:
+            source = load_mono_full(track_audio_path(project, tid), sample_rate=_RMS_SAMPLE_RATE)
+        except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
+            continue
+        samples = _raw_samples_on_timeline(project, tid, source, timeline=timeline)
+        if samples.size:
+            caches[tid] = TrackRmsCache(samples=samples)
     return TrackRmsCacheSet(caches=caches)
+
+
+def _raw_samples_on_timeline(
+    project: EpisodeProject,
+    track_id: str,
+    source: np.ndarray,
+    *,
+    timeline: SessionTimeline,
+) -> np.ndarray:
+    """Place raw source samples on the session clock, leaving clip gaps silent."""
+    if timeline.is_identity(track_id):
+        return source
+    extent = timeline.timeline_extent(track_id)
+    if extent is None:
+        return source
+
+    timeline_end, _ = extent
+    sample_rate = _RMS_SAMPLE_RATE
+    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=source.dtype)
+    spans = timeline.map_timeline_spans(track_id, TimelineSec(0.0), timeline_end)
+    for span in spans:
+        target_start = round(float(span.timeline_start) * sample_rate)
+        source_start = round(float(span.source_start) * sample_rate)
+        if target_start < 0 or source_start < 0:
+            continue
+        count = min(
+            round((float(span.timeline_end) - float(span.timeline_start)) * sample_rate),
+            source.size - source_start,
+            placed.size - target_start,
+        )
+        if count > 0:
+            placed[target_start : target_start + count] += source[
+                source_start : source_start + count
+            ]
+    return placed
 
 
 def measure_window_rms_db(

@@ -88,7 +88,7 @@ Two clocks exist:
 | **Source** (`SourceSec`) | Seconds into a track's raw media file | `TranscriptWord.start/end`, `EditDecision.start/end`, `CombinedUtterance.start/end` |
 | **Timeline** (`TimelineSec`) | Seconds on the edited session/deliverable clock | Rendered stems, `artifacts/premix.wav`, mastered WAV, SRT/VTT captions, social clips, chapters, `review.comments` |
 
-`engines/session_timeline.py` (`SessionTimeline`) is the single hub that maps between them, driven by `timeline.clips`. Consumers never do clip arithmetic inline — see [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
+`engines/session_timeline.py` (`SessionTimeline`) is the single hub that maps between them, driven by `timeline.clips`. Its paired timeline/source span mapping also places raw samples on the session clock for audibility and directed bleed-path measurement when a rendered stem is not present. Consumers never do clip arithmetic inline — see [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
 
 ## Timeline and render
 
