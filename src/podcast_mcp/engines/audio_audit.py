@@ -962,17 +962,20 @@ def analyze_cleanup(
     per_track: list[dict[str, Any]] = []
 
     raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
-    # Whole project, not just `tracks`: a text-match loser's winner may sit on a track
-    # outside this report's scope, and `word_targets` judges every pair regardless of
-    # scope (#805, #806). Computed once and reused below instead of a second
-    # per-track acoustic pass.
-    audibility_map = compute_word_audibility_map(project, policy=pol, progress=None, caches=caches)
     flagged_by_track: dict[str, list[dict[str, Any]]] = {}
-    for row in audibility_map:
-        if row["audibility_status"] in _FLAGGED_STATUSES:
-            flagged_by_track.setdefault(row["track_id"], []).append(row)
     targets: dict[tuple[str, int], dict[str, Any]] = {}
     if pol.transcript_mode != "off":
+        # Whole project, not just `tracks`: a text-match loser's winner may sit on a
+        # track outside this report's scope, and `word_targets` judges every pair
+        # regardless of scope (#805, #806). Computed once and reused below instead of
+        # a second per-track acoustic pass.
+        audibility_map = compute_word_audibility_map(
+            project, policy=pol, progress=None, caches=caches
+        )
+        for row in audibility_map:
+            if row["audibility_status"] in _FLAGGED_STATUSES:
+                flagged_by_track.setdefault(row["track_id"], []).append(row)
+
         from podcast_mcp.engines.transcript_reconcile import word_targets
 
         targets = word_targets(project, policy=pol, audibility_map=audibility_map)
