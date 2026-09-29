@@ -132,7 +132,6 @@ def _frame_rms(samples: np.ndarray, frame: int, frame_size: int) -> float:
 
 
 def _frame_levels(samples: np.ndarray, frame_size: int, count: int) -> np.ndarray:
-    """RMS of each of ``count`` consecutive ``frame_size``-sample frames, shared by both backends."""
     return np.asarray([_frame_rms(samples, f, frame_size) for f in range(count)])
 
 
@@ -346,20 +345,6 @@ def _find_breath_in_window_silero(
     search_sec: tuple[float, float] | None = None,
     band: LevelBand | None = None,
 ) -> BreathSpan | None:
-    """Locate a breath as a dip in Silero VAD speech-probability.
-
-    Breaths are voiced-adjacent noise: typically low-but-nonzero speech
-    probability, distinguishable from true silence (near 0) and full speech
-    (near 1). The probability band below is a starting point, not a tuned
-    constant -- see docs/audio-engineering.md for how to tune it by ear. For
-    adjacent-cut co-removal (``cut_edge`` set), the same ``band`` built from
-    the track's own room tone and speech level (see :func:`level_profile`)
-    goes into the shared predicate below so a run that reaches a kept word or
-    a loud gap is rejected exactly as it is on the heuristic path
-    (:func:`_breath_run_predicate`). A candidate run (``cut_edge`` ``None``)
-    has no cut-adjacent gap or kept-word walk to check, so it keeps the
-    level-independent classification it always had.
-    """
     from podcast_mcp.engines.vad_silero import SileroVAD, get_shared_vad
 
     if vad is None:

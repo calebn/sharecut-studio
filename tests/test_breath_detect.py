@@ -804,15 +804,6 @@ def test_fricative_onset_of_the_next_kept_word_is_not_a_breath():
     assert spans == [BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.37), side="after")]
 
 
-# #820 gave the heuristic path a gap ceiling and kept-word adjacency; #828 found the
-# Silero path built its predicate without the band that carries both rules
-# (`breath_detect.py`, `_find_breath_in_window_silero` called `_breath_run_predicate`
-# with no `levels`/`band`). These three mirror the heuristic fry/decay/onset fixtures
-# above, but drive `_find_breath_in_window_silero` directly with a fake VAD dip so the
-# probability curve (unrelated to level in real Silero) marks the run while the level
-# array and keep-out spans -- built from the same fixture helpers -- exercise the
-# shared predicate. 32 ms Silero windows (512 samples @ 16kHz); all segments are laid
-# out on that boundary.
 _SILERO_WINDOW = 512
 _SILERO_FRAME_SEC = _SILERO_WINDOW / 16000
 
