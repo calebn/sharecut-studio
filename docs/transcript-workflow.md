@@ -461,8 +461,24 @@ respect `CaptionLimits` — never splitting inside a word, preferring a sentence
 (`.!?…`) break over a phrase (`,;:`) break over a hard cutoff, and wrapping each cue's
 text onto up to `max_lines` lines of at most `max_chars_per_line` characters. A single
 word longer than `max_chars_per_line` still gets its own (overlong) line rather than being
-split. The markdown transcript (`combined_transcript_markdown`) is unaffected: it stays
-whole utterances.
+split. A run that already fits the limits whole stays one cue even if it contains
+internal sentence/phrase punctuation (`"Yeah, totally."` is one cue, not two): a break is
+only taken when the remainder does not fit, and never when it would leave a one-word lead
+cue (`"Anyway,"` alone) — the break must leave at least two words behind it. The final cue
+list across every track is sorted by start, so a shorter run on one track that starts
+partway through a longer run on another interleaves correctly instead of trailing it. The
+markdown transcript (`combined_transcript_markdown`) is unaffected: it stays whole
+utterances.
+
+**Minimum on-screen time (#790).** A cue under `min_duration_sec` first tries to merge
+into its nearest same-track neighbour (smaller gap first) when the gap between them is at
+most `merge_max_gap_sec` and the merged cue still fits every other limit; this can pull in
+a neighbour from a different utterance run, not just a different split of the same run.
+Any cue still under `min_duration_sec` after that is held to that duration by extending
+its end, capped at the start of the next cue on the *same* track (never past it, and never
+capped by another track's overlapping cue). Neither pass can violate `max_duration_sec`,
+`max_chars_per_line`, or `max_lines`; the hold-to-minimum pass does not re-check
+`max_duration_sec` since it only affects display time, not text.
 
 Defaults (common caption guidance — about 2 lines of about 42 characters, at most 7s):
 
@@ -471,8 +487,17 @@ Defaults (common caption guidance — about 2 lines of about 42 characters, at m
 | Max cue duration | 7.0s | `export.captions.max_duration_sec` |
 | Max characters per line | 42 | `export.captions.max_chars_per_line` |
 | Max lines per cue | 2 | `export.captions.max_lines` |
+| Min cue duration | 1.0s | `export.captions.min_duration_sec` |
+| Max gap to merge a short cue across | 1.5s | `export.captions.merge_max_gap_sec` |
 
-Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml) (`export.captions`, used by `export_deliverables`), or per invocation with `podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …` (same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml)
+(`export.captions`, used by `export_deliverables`), or per invocation with
+`podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …`
+(same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+`min_duration_sec` / `merge_max_gap_sec` are yaml-only (no CLI flags). `--max-lines` must
+be at least 1 and `--max-duration-sec` must be greater than 0 — the CLI rejects a bad flag
+value with a usage error (exit 2); a bad `export.captions` yaml value fails the same way at
+load, but as a domain error (exit 1), since it isn't a CLI flag.
 
 ## Troubleshooting
 
