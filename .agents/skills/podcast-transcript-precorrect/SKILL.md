@@ -43,7 +43,7 @@ Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). S
 - Durations are compatible (`max_duration_ratio` / `max_word_duration_sec`) unless overlap covers most of both words
 - Winner is unambiguous: audibility score + confidence margin ≥ `confidence_margin` (default 0.15)
 
-**Common blockers:** all overlap pairs are `text_match` (nothing to fix); similarity too low (deferred); duration mismatch (deferred); both tracks `audible` with tied confidence (`ambiguous_audibility`). For CI gold, `synthetic_bleed_60s` includes a deliberate `todae`/`today` pair at 10 s with lower host confidence so cross-track applies once.
+**Common blockers:** the pair's mics have no measured bleed path (`echo_risk`; two people talking, skipped without a deferral, #774); all overlap pairs are `text_match` (nothing to fix); similarity too low (deferred); duration mismatch (deferred, unless one word is a stretched token already queued as `anomalous_word_duration`); both tracks `audible` with tied confidence (`ambiguous_audibility`). For CI gold, `synthetic_bleed_60s` includes a deliberate `todae`/`today` pair at 10 s with lower host confidence so cross-track applies once.
 
 See [docs/transcript-precorrect.md](../../docs/transcript-precorrect.md#cross-track-sync).
 

@@ -52,7 +52,7 @@ podcast transcript context set --project episode.project.json --file context.yam
 
 ## Cross-track sync
 
-Runs after glossary and optional speaker pass. Uses `overlap_duplicate_report` pairs where text **does not** already match.
+Runs after glossary and optional speaker pass. Uses `overlap_duplicate_report` pairs where text **does not** already match, **on mic pairs with a measured bleed path** only (`TrackRmsCacheSet.echo_pairs`, the `echo_risk` pairs reconcile uses): two mics carry one utterance only across such a path, so a text mismatch on any other pair is two people talking and is neither rewritten nor deferred (#774). On the lab tape that removed the 20 deferrals on pairs with the remote participant (17 `duration_mismatch`, 3 `ambiguous_audibility`).
 
 | Setting (`transcript_context.yaml` → `cross_track`) | Default | Effect |
 |-----------------------------------------------------|---------|--------|
@@ -64,7 +64,7 @@ Runs after glossary and optional speaker pass. Uses `overlap_duplicate_report` p
 | `min_overlap_of_both_frac` | 0.5 | Overlap-as-fraction-of-each-word escape hatch for the duration gates |
 | `confidence_margin` | 0.15 | Winner = higher audibility score + word confidence |
 
-Winner audibility scores: `audible` (3) &gt; `deferred` (2) &gt; `bleed` (1) &gt; `inaudible` (0). Tied totals → deferred as `ambiguous_audibility`. Duration mismatches → deferred as `duration_mismatch` (refine can still review). Stretched ASR words (`end - start` &gt; `max_word_audibility_sec`) are also enqueued as `anomalous_word_duration` without rewriting timestamps.
+Winner audibility scores: `audible` (3) &gt; `deferred` (2) &gt; `bleed` (1) &gt; `inaudible` (0). Tied totals → deferred as `ambiguous_audibility`. Duration mismatches → deferred as `duration_mismatch` (refine can still review), except when either word is a stretched ASR token (`end - start` &gt; `max_word_audibility_sec`): that word is enqueued once as `anomalous_word_duration` without rewriting timestamps, and its overlap pairs add nothing to review (#774: the lab's 2–5 s host tokens over the co-host's speech made most of the queue, which went from 70 items to 19: 6 `duration_mismatch` between normal-length words on the flagged pair plus the 13 stretched tokens).
 
 **Prerequisites:** `reconcile_transcript` with `transcript_mode: reconcile` so bleed/audibility metadata exists. Overlap alone is not enough — similar but mismatched text (e.g. ASR `todae` vs `today`) is the typical fix target.
 
