@@ -190,6 +190,7 @@ from podcast_mcp.mcp.tools.timeline import (  # noqa: E402, F401
     set_clip_join_tool,
     set_effect_bypass_tool,
     set_join_mode_tool,
+    set_word_automatic_tool,
     set_word_suppressed_tool,
     set_words_ignored_tool,
     shorten_gaps_tool,

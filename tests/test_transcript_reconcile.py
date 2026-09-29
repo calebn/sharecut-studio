@@ -314,6 +314,47 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
     assert host.words[2].audibility_status == "bleed"
 
 
+def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
+    """Return to automatic (#824) lets the next reconcile recompute a locked word."""
+    project = _two_track_project(tmp_path)
+    project_path = tmp_path / "episode.project.json"
+    save_project(project, project_path)
+    workspace = ProjectWorkspace.open(project_path)
+
+    # Lock word 1 ("bleed") to the wrong value: acoustically it is bleed (see
+    # fake_rms below), but the lock keeps it audible until cleared.
+    EditService(workspace).set_word_suppressed("host", 1, False)
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].audibility_locked is True
+    assert host.words[1].suppressed is False
+
+    EditService(workspace).set_word_automatic("host", 1)
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].audibility_locked is False
+    # The unlock itself never touches suppressed; only the next reconcile does.
+    assert host.words[1].suppressed is False
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        if track_id == "host" and t_start >= 1.0:
+            return -40.0
+        if track_id == "guest" and t_start >= 1.0:
+            return -30.0
+        return -30.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        run_reconciliation(workspace.project, dry_run=None)
+
+    host = workspace.project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].suppressed is True
+    assert host.words[1].audibility_status == "bleed"
+
+
 @pytest.mark.refine_gate
 def test_pipeline_refreshes_waiver_after_real_reconciliation(tmp_path: Path):
     project = _two_track_project(tmp_path)

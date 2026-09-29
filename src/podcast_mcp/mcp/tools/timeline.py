@@ -428,6 +428,26 @@ def set_word_suppressed_tool(
     )
 
 
+def set_word_automatic_tool(
+    project_path: str,
+    track_id: str,
+    word_index: int,
+    expected_text: str | None = None,
+) -> str:
+    """Clear one word's suppression lock; ``suppressed`` waits for the next reconcile (#824).
+
+    A word set directly by ``set_word_suppressed_tool``, an explicit-list suppress-bleed /
+    low-audibility apply, or Studio's Suppress toggle stays ``audibility_locked`` until this
+    call. It does not itself change ``suppressed`` — run ``reconcile_transcript_tool`` after
+    to get the computed target. Pass ``expected_text`` (the word text you read) to refuse the
+    unlock if the word at ``word_index`` changed meanwhile; omit to skip. TOOL_TIMEBASE: source.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        EditService(ws).set_word_automatic(track_id, word_index, expected_text=expected_text)
+    )
+
+
 def set_words_ignored_tool(
     project_path: str,
     track_id: str,
@@ -791,6 +811,7 @@ def register(mcp: MCPServer) -> None:
         correct_transcript_tool,
         correct_transcript_phrase_tool,
         set_word_suppressed_tool,
+        set_word_automatic_tool,
         set_words_ignored_tool,
         apply_transcript_cleanup_tool,
         verify_transcript_tool,
@@ -833,6 +854,7 @@ def register(mcp: MCPServer) -> None:
         correct_transcript_tool,
         correct_transcript_phrase_tool,
         set_word_suppressed_tool,
+        set_word_automatic_tool,
         set_words_ignored_tool,
         apply_transcript_cleanup_tool,
         low_confidence_words_tool,

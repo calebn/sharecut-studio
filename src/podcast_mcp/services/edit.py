@@ -107,6 +107,7 @@ from podcast_mcp.edits.transcript_correct import (
     list_low_confidence,
     require_word_text,
     run_user_transcript_edit,
+    set_word_automatic,
     set_word_suppressed,
     set_words_ignored,
     verify_words,
@@ -1169,6 +1170,26 @@ class EditService:
             word_index,
             expected_text,
             lambda p: set_word_suppressed(p, track_id, word_index, suppressed),
+        )
+
+    def set_word_automatic(
+        self,
+        track_id: str,
+        word_index: int,
+        *,
+        expected_text: str | None = None,
+    ) -> dict:
+        """Clear a word's suppression lock; ``suppressed`` waits for the next reconcile (#824).
+
+        ``expected_text`` guards against a stale index the same as ``set_word_suppressed``.
+        """
+        return self._guarded_transcript_edit(
+            "return word to automatic",
+            track_id,
+            word_index,
+            word_index,
+            expected_text,
+            lambda p: set_word_automatic(p, track_id, word_index),
         )
 
     def set_words_ignored(

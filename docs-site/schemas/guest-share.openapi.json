@@ -4433,6 +4433,126 @@
         "title": "SetTrackMutePayload",
         "type": "object"
       },
+      "SetTranscriptWordAutomaticCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTranscriptWordAutomaticPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTranscriptWordAutomatic",
+            "default": "SetTranscriptWordAutomatic",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetTranscriptWordAutomaticCommand",
+        "type": "object"
+      },
+      "SetTranscriptWordAutomaticPayload": {
+        "properties": {
+          "expected_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional stale-index guard: the word (or space-joined phrase) text the client saw at these indices. When it no longer matches (whitespace-collapsed, case-sensitive) or those indices no longer exist, the command is rejected with a 409 conflict and nothing changes. Omit to skip the check.",
+            "title": "Expected Text"
+          },
+          "track_id": {
+            "title": "Track Id",
+            "type": "string"
+          },
+          "word_index": {
+            "title": "Word Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "word_index"
+        ],
+        "title": "SetTranscriptWordAutomaticPayload",
+        "type": "object"
+      },
       "SetTranscriptWordSuppressedCommand": {
         "properties": {
           "causation_id": {
@@ -6738,6 +6858,7 @@
                     "SetTrackMedia": "#/components/schemas/SetTrackMediaCommand",
                     "SetTrackMeta": "#/components/schemas/SetTrackMetaCommand",
                     "SetTrackMute": "#/components/schemas/SetTrackMuteCommand",
+                    "SetTranscriptWordAutomatic": "#/components/schemas/SetTranscriptWordAutomaticCommand",
                     "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
                     "SetTranscriptWordsIgnored": "#/components/schemas/SetTranscriptWordsIgnoredCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
@@ -6820,6 +6941,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetTranscriptWordSuppressedCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTranscriptWordAutomaticCommand"
                   },
                   {
                     "$ref": "#/components/schemas/SetTranscriptWordsIgnoredCommand"
