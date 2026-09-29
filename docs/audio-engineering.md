@@ -334,13 +334,16 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   two mics with B shifted by ±7.3, ±13.1, ±23.3 and ±31.7 s (independent by
   construction), sampled on up to 400 dominated frames per shift and pooled into one
   consistent-copy rate per dominated frame. A pair is `echo_risk` when it has at
-  least 20 copy frames, at least 12 consistent ones, and its consistent rate is at
-  least 2× the pooled null rate (`null_margin`). Measured on the lab tape: the
-  same-room pair audra→caleb is 3 to 6× its null over the 220 s agent timeline and
-  over every 600 s span of the unedited run; caleb↔lana and audra↔lana never exceed
-  1.3×; 16 time-shifted audra/caleb controls and six synthetic cases (independent
-  harmonic voices, an open noise floor, same-pitch voices, delayed copies at -15 and
-  -24 dB) all classify correctly. A stationary periodic voice correlates with itself
+  least 20 copy frames, at least 12 consistent ones, its consistent count is
+  improbable under the null (one-sided binomial tail `p_value` ≤ `null_p_max`,
+  0.001, exact in log space) and its rate is at least `null_margin` (1.5×) the null,
+  so a long span cannot flag a small excess. Measured on the lab tape: the same-room
+  pair audra→caleb has p ≤ 1.4e-6 on every 600 s span of the unedited run (ratios
+  2.4 to 5.9) and p = 1.2e-24 on the 220 s agent timeline; the best remote pair with
+  the count floors met is caleb→lana at 100–700 s, ratio 1.83, p = 0.035; 16
+  time-shifted audra/caleb controls reach at most ratio 1.92, p ≥ 0.039; six
+  synthetic cases (independent harmonic voices, an open noise floor, same-pitch
+  voices, delayed copies at -15 and -24 dB) all classify correctly. A stationary periodic voice correlates with itself
   at any shift, but at lags spread over its period multiples, so the null rises with
   it and the one-lag cluster is what a real acoustic path adds. Evidence carries the
   pair, `lag_ms` (positive = B lags A), `level_db` (B relative to A), the frame

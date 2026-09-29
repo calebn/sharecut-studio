@@ -137,7 +137,16 @@ passed a cut that resumed inside a phrase. A splice whose two sides are both bel
 room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
 verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
 level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
-into passes and left the one real clipped onset. Each sweep row also carries `speech`
+into passes and left the one real clipped onset. A splice that is not silent but is
+covered by another stem the mix plays is a **masked splice**: when a peer's raw
+level over the join instant (`side_sec` before it through
+`join_continuity.mask_lookahead_sec`, 150 ms, after it, so a voice that starts
+inside the pad after the splice counts) is at least `mask_margin_db` (20 dB) above
+both sides, the join passes with one `masked_splice` detector naming the masker and
+the levels. Muted tracks do not mask (they are not in the mix). The lab's caleb join
+at 106.02 s (room tone at -59.5 dBFS into digital silence, 0.5 dB above the solo
+floor) passes that way because Lana's voice is 35 dB louder at the join; the same
+splice with Lana muted scores its level jump. Each sweep row also carries `speech`
 (`edits/join_speech.py` crossings at that join: clipped onset or tail, voice
 edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`) and the report a
 `speech_cross_count`; the audition context raises the same crossings as
