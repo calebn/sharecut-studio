@@ -1266,15 +1266,14 @@ def _clip_skew_warnings(
     """
     pairs: list[dict[str, Any]] = []
     warnings: list[str] = []
-    ids = [tid for tid, src in source_at_mid.items() if src is not None]
+    present = {tid: src for tid, src in source_at_mid.items() if src is not None}
+    ids = list(present)
     drift = {
-        tid: (mid - source_at_mid[tid]) - alignment_shift[tid]  # type: ignore[operator]
-        for tid in ids
-        if tid in alignment_shift
+        tid: (mid - present[tid]) - alignment_shift[tid] for tid in ids if tid in alignment_shift
     }
     for i, left in enumerate(ids):
         for right in ids[i + 1 :]:
-            delta = abs(source_at_mid[left] - source_at_mid[right])  # type: ignore[operator]
+            delta = abs(present[left] - present[right])
             skew = abs(drift[left] - drift[right]) if left in drift and right in drift else 0.0
             skewed = skew > skew_warn_sec
             pairs.append(
