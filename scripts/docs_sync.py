@@ -5,7 +5,7 @@ Usage:
   python3 scripts/docs_sync.py check --range origin/main...HEAD   # the gate: exit 1 on a violation
   python3 scripts/docs_sync.py check --staged                     # pre-commit: warn, always exit 0
   python3 scripts/docs_sync.py table [--check]                    # AGENTS.md § Docs in sync
-  python3 scripts/docs_sync.py replay --units units.jsonl         # triage merged PRs (make docs-sync-replay)
+  python3 scripts/docs_sync.py replay --units units.jsonl         # triage merged PRs + gate health (make docs-sync-replay)
 
 Stdlib only, so CI runs it before installing anything. Never reads ``__file__``:
 review_packet.py pipes this file into ``python3 -`` from a git object (see
@@ -20,8 +20,8 @@ import json
 import re
 import subprocess
 import sys
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
@@ -302,6 +302,9 @@ class Change:
     label: str  # "origin/main...HEAD", "index", "#744"
     files: tuple[str, ...]  # --no-renames: a rename contributes both paths
     waivers: tuple[Waiver, ...] = ()
+    # Changed lines (added + deleted) per path, from `git diff --numstat`. Only replay's
+    # trivial-edit signal reads it; a path missing here (unknown, or binary) is never trivial.
+    churn: Mapping[str, int] = field(default_factory=dict)
 
 
 Outcome = Literal["violated", "waived", "advisory", "satisfied"]
@@ -452,6 +455,17 @@ def _resolve_base(preferred: str = DEFAULT_BASE) -> str:
     return "HEAD"
 
 
+def _numstat(base: str, head: str) -> dict[str, int]:
+    """Added + deleted lines per path between two revs. Binary files (numstat ``-\t-``)
+    are left out, so they never count as a trivial edit."""
+    churn: dict[str, int] = {}
+    for line in git("diff", "--numstat", "--no-renames", base, head).splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+            churn[parts[2]] = int(parts[0]) + int(parts[1])
+    return churn
+
+
 def change_for_range(spec: str) -> tuple[Change, str]:
     """``A...B`` diffs from merge-base(A, B); ``A..B`` diffs from A. Returns the change and
     the head rev B, whose contract judges it (a PR is checked against its own contract)."""
@@ -466,7 +480,7 @@ def change_for_range(spec: str) -> tuple[Change, str]:
         f for f in git("diff", "--name-only", "--no-renames", base, head).splitlines() if f
     )
     waivers = parse_waivers(git("log", "--format=%h%x00%B%x1e", f"{base}..{head}"))
-    return Change(label=spec, files=files, waivers=waivers), head
+    return Change(label=spec, files=files, waivers=waivers, churn=_numstat(base, head)), head
 
 
 def change_for_index(base_ref: str = DEFAULT_BASE) -> Change:
@@ -528,12 +542,7 @@ def replay_units(contract: Contract, units: Iterable[tuple[str, str]]) -> list[t
         if note:
             print(f"note: {note}", file=sys.stderr)
         change, _head = change_for_range(guarded)
-        results.append(
-            (
-                label,
-                evaluate(contract, Change(label=label, files=change.files, waivers=change.waivers)),
-            )
-        )
+        results.append((label, evaluate(contract, replace(change, label=label))))
     return results
 
 
@@ -584,30 +593,84 @@ def format_report(report: Report) -> str:
     return "\n".join(lines)
 
 
+# Gate health (docs/contributing.md § Docs in sync). A rule is promoted to a gate when it
+# fired at least 6 times in a 100-PR replay and its docs were updated every time; a gate is
+# flagged for demotion when it is waived on more than about 1 in 10 of its firings, or when
+# most of the doc edits that satisfy it are trivial.
+WAIVE_RATE_LIMIT = 0.10
+TRIVIAL_DOC_LINES = 2  # added + deleted lines across all the docs that satisfied one firing
+TRIVIAL_SHARE_LIMIT = 0.5
+
+
+def satisfying_lines(finding: Finding, change: Change) -> int | None:
+    """Lines changed across the docs that satisfied ``finding``, or None when it was not
+    satisfied or a satisfying doc has no numstat count (unknown or binary)."""
+    if finding.outcome != "satisfied" or not finding.satisfied_by:
+        return None
+    total = 0
+    for path in finding.satisfied_by:
+        lines = change.churn.get(path)
+        if lines is None:
+            return None
+        total += lines
+    return total
+
+
 @dataclass(frozen=True)
 class RuleStats:
+    gate: bool
     fired: int
     satisfied: int
+    trivial: int  # satisfied firings whose doc edits total <= TRIVIAL_DOC_LINES lines
     waived: int
     violated: int
     advisory: int
+
+    @property
+    def waive_rate(self) -> float:
+        return self.waived / self.fired if self.fired else 0.0
+
+    def demotion_flags(self) -> tuple[str, ...]:
+        """Why this gate should go back to advisory; empty when healthy or not a gate."""
+        if not self.gate:
+            return ()
+        flags: list[str] = []
+        if self.waive_rate > WAIVE_RATE_LIMIT:
+            flags.append(f"waived {self.waived}/{self.fired} > {WAIVE_RATE_LIMIT:.0%}")
+        if self.satisfied and self.trivial / self.satisfied > TRIVIAL_SHARE_LIMIT:
+            flags.append(
+                f"trivial {self.trivial}/{self.satisfied} satisfying edits "
+                f"(<= {TRIVIAL_DOC_LINES} lines)"
+            )
+        return tuple(flags)
 
 
 def summarize(reports: Iterable[Report]) -> dict[str, RuleStats]:
     """Per-rule counts across replay units: the tuning signal for broad triggers (a rule
     with many ``violated`` and few ``satisfied`` needs a narrower trigger, an ``exclude``,
-    or to move to ``advisory`` until it is precise)."""
-    counts: dict[str, dict[Outcome, int]] = {}
+    or to move to ``advisory`` until it is precise), and the health check for promoted
+    gates (``RuleStats.demotion_flags``)."""
+    counts: dict[str, dict[str, int]] = {}
+    gates: dict[str, bool] = {}
     for report in reports:
         for finding in report.findings:
+            rule_id = finding.rule.id
+            gates[rule_id] = isinstance(finding.rule.enforcement, Gate)
             bucket = counts.setdefault(
-                finding.rule.id,
-                {"satisfied": 0, "waived": 0, "violated": 0, "advisory": 0},
+                rule_id,
+                {"satisfied": 0, "trivial": 0, "waived": 0, "violated": 0, "advisory": 0},
             )
             bucket[finding.outcome] += 1
+            lines = satisfying_lines(finding, report.change)
+            if lines is not None and lines <= TRIVIAL_DOC_LINES:
+                bucket["trivial"] += 1
     return {
-        rule_id: RuleStats(fired=sum(bucket.values()), **bucket)
-        for rule_id, bucket in counts.items()
+        rule_id: RuleStats(
+            gate=gates[rule_id],
+            fired=b["satisfied"] + b["waived"] + b["violated"] + b["advisory"],
+            **b,
+        )
+        for rule_id, b in counts.items()
     }
 
 
@@ -684,9 +747,10 @@ def _cmd_replay(args: argparse.Namespace) -> int:
     contract = load_contract(None)
     results = replay_units(contract, units)
 
-    print("label\trule\toutcome\ttriggered_by\tsatisfied_by")
+    print("label\trule\toutcome\ttriggered_by\tsatisfied_by\tdoc_lines")
     for label, report in results:
         for finding in report.findings:
+            n = satisfying_lines(finding, report.change)
             print(
                 "\t".join(
                     (
@@ -695,15 +759,24 @@ def _cmd_replay(args: argparse.Namespace) -> int:
                         finding.outcome,
                         ";".join(finding.triggered_by),
                         ";".join(finding.satisfied_by),
+                        "" if n is None else str(n),
                     )
                 )
             )
 
     stats = summarize(report for _label, report in results)
     print()
-    print("rule\tfired\tsatisfied\twaived\tviolated\tadvisory")
-    for rule_id, s in sorted(stats.items(), key=lambda kv: kv[1].violated, reverse=True):
-        print(f"{rule_id}\t{s.fired}\t{s.satisfied}\t{s.waived}\t{s.violated}\t{s.advisory}")
+    print("rule\tkind\tfired\tsatisfied\ttrivial\twaived\tviolated\tadvisory\twaive_rate\tflags")
+    # Gates flagged for demotion first, then the noisiest triggers.
+    ordered = sorted(
+        stats.items(), key=lambda kv: (not kv[1].demotion_flags(), -kv[1].violated, kv[0])
+    )
+    for rule_id, s in ordered:
+        kind = "gate" if s.gate else "advisory"
+        print(
+            f"{rule_id}\t{kind}\t{s.fired}\t{s.satisfied}\t{s.trivial}\t{s.waived}"
+            f"\t{s.violated}\t{s.advisory}\t{s.waive_rate:.0%}\t{'; '.join(s.demotion_flags())}"
+        )
     return 0
 
 
