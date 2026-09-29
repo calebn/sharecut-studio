@@ -11,15 +11,20 @@ Two families land here, both printed as ``Error: <message>`` on stderr with exit
   ``ValueError``, ...) (#773).
 
 Set ``PODCAST_DEBUG=1`` to get the original traceback instead of either message — useful
-for a real bug (``TypeError``, a bad unpack, ``NotImplementedError``) that happens to
-subclass one of the two caught types, or to see exactly where a busy lock came from.
+for a real bug (``TypeError``, a bad unpack) that happens to subclass one of the two
+caught types, or to see exactly where a busy lock came from.
 
-``typer.Exit`` / ``typer.Abort`` subclass ``RuntimeError`` in the installed typer version,
-so they pass through untouched: a command that already chose its own exit code (e.g.
-``bootstrap --component bogus`` -> 2, or a Click usage error -> 2) is unaffected. A command
-with its own narrower ``try/except`` (``undo``, ``redo``, ``history goto`` for move-advice
-text; ``transcript context set`` for a busy context lock) is also unaffected — its except
-clause runs first and this group never sees the exception.
+A few ``RuntimeError`` subclasses always pass through untouched, debug flag or not,
+because nothing in this codebase raises them as a domain condition:
+
+- ``typer.Exit`` / ``typer.Abort`` — typer's own control-flow signals for a command
+  that already chose its exit code (e.g. ``bootstrap --component bogus`` -> 2, or a
+  Click usage error -> 2);
+- ``NotImplementedError`` / ``RecursionError`` — always a bug, never a guard.
+
+A command with its own narrower ``try/except`` (``undo``, ``redo``, ``history goto`` for
+move-advice text; ``transcript context set`` for a busy context lock) is also
+unaffected — its except clause runs first and this group never sees the exception.
 """
 
 from __future__ import annotations
@@ -36,15 +41,26 @@ from podcast_mcp.util.project_state import busy_message
 _DEBUG_ENV_VAR = "PODCAST_DEBUG"
 _DEBUG_HINT = f"(set {_DEBUG_ENV_VAR}=1 for the traceback)"
 
-# typer's own control-flow signals; both subclass RuntimeError in the installed typer
-# version, so they must be excluded or every explicit exit code would collapse to 1.
-_PASSTHROUGH: tuple[type[BaseException], ...] = (typer.Exit, typer.Abort)
+# Always a bug, never a domain condition: bypass the debug flag and always traceback.
+# typer.Exit / typer.Abort are control-flow signals (see module docstring); both
+# subclass RuntimeError in the installed typer version, so they must be excluded or
+# every explicit exit code would collapse to 1. NotImplementedError / RecursionError
+# also subclass RuntimeError, and nothing in src/podcast_mcp raises either as a guard.
+_PASSTHROUGH: tuple[type[BaseException], ...] = (
+    typer.Exit,
+    typer.Abort,
+    NotImplementedError,
+    RecursionError,
+)
 
 _DOMAIN_ERRORS: tuple[type[BaseException], ...] = (ValueError, RuntimeError)
 
 
+_DEBUG_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
 def _debug_enabled() -> bool:
-    return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() not in ("", "0", "false")
+    return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() in _DEBUG_TRUE_VALUES
 
 
 class BusyErrorGroup(TyperGroup):
