@@ -15,7 +15,7 @@ from typing import Concatenate, ParamSpec, TypeVar
 from filelock import Timeout
 
 from podcast_mcp.models import EpisodeProject, project_file_path, workspace_artifacts_dir
-from podcast_mcp.util.file_locks import hold_shared_file_lock, shared_file_lock
+from podcast_mcp.util.file_locks import shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import CancelledProgress
 
@@ -28,6 +28,16 @@ RENDER_LOCK_TIMEOUT_SEC = 3600.0
 # MCP tool calls cannot be cancelled: they wait this long for the render lock, then RenderBusyError.
 REQUEST_RENDER_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_POLL_SEC = 0.5
+
+#: Shared across every adapter that maps a busy lock to a structured error (#488): the
+#: GUI's ``X-Sharecut-Error-Code`` header, the MCP tool result's ``structured_content``,
+#: and the guest remote-MCP JSON-RPC error ``data``.
+PROJECT_BUSY_CODE = "project_busy"
+#: Fixed text for ``ProjectBusyError`` (never names the lock path).
+PROJECT_BUSY_MESSAGE = "Project is busy in another process; try again"
+#: Fallback for a raw ``filelock.Timeout`` that is not one of ours (e.g. the transcript-context
+#: lock, #396/#401): its default ``str()`` includes the lock path, which adapters must not leak.
+LOCK_BUSY_MESSAGE = "This project is busy; try again"
 
 log = logging.getLogger(__name__)
 _P = ParamSpec("_P")
@@ -44,16 +54,40 @@ _render_cancel_check: ContextVar[Callable[[], bool] | None] = ContextVar(
 )
 
 
-class RenderBusyError(Timeout):
+class ProjectBusyError(Timeout):
+    """``project_commit_lock`` timed out waiting for another process's commit (#488).
+
+    A ``filelock.Timeout`` subclass, so every existing ``except Timeout`` keeps working.
+    Fixed text that never names the lock path; every adapter's single busy-error choke
+    point (CLI ``BusyErrorGroup``, MCP ``install_busy_errors``, guest remote MCP, and the
+    GUI's app-wide exception handler) maps it to the same ``project_busy`` code.
+    """
+
+    def __str__(self) -> str:
+        return PROJECT_BUSY_MESSAGE
+
+
+class RenderBusyError(ProjectBusyError):
     """Another render of this workspace held ``render_lock`` past the caller's timeout (#482).
 
-    A ``filelock.Timeout``, so adapters that map the project-lock timeout to a busy error
-    (``project_busy``: the GUI audio and document routes) map this one the same way; CLI
-    and MCP adapters do not yet (#488).
+    A ``ProjectBusyError`` (so, transitively, a ``filelock.Timeout``): every adapter that
+    maps a busy project lock to ``project_busy`` maps this one the same way (#488).
     """
 
     def __str__(self) -> str:
         return "another render of this project is in progress; try again when it finishes"
+
+
+def busy_message(exc: Timeout) -> str:
+    """Fixed, path-free text for a busy lock timeout.
+
+    ``ProjectBusyError`` (and ``RenderBusyError``) already format their own message without
+    the lock path; a raw ``filelock.Timeout`` — e.g. the transcript-context lock (#396/#401)
+    — gets a generic fallback instead of leaking its path (``str(Timeout)`` includes it).
+    """
+    if isinstance(exc, ProjectBusyError):
+        return str(exc)
+    return LOCK_BUSY_MESSAGE
 
 
 def _workspace_key(project: EpisodeProject) -> str:
@@ -129,15 +163,24 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     project lock, then sqlite write lock, or two processes can deadlock until a timeout.
     ``ProjectWorkspace.transaction()`` holds it from the reload through the
     commit, so read-modify-write is serialized across processes (#213).
-    Raises ``filelock.Timeout`` after ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``.
+
+    Raises ``ProjectBusyError`` (a ``filelock.Timeout`` subclass) after
+    ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC`` if *acquiring* the file lock times out. A
+    ``filelock.Timeout`` raised by the body once the lock is held (a nested lock, e.g.
+    the transcript-context lock, #396/#401) propagates unchanged — only the acquire is
+    rewrapped (#488).
     """
-    with (
-        project_state_lock(project),
-        hold_shared_file_lock(
-            project_commit_lock_path(project), timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC
-        ),
-    ):
-        yield
+    lock_path = project_commit_lock_path(project)
+    lock = shared_file_lock(lock_path)
+    with project_state_lock(project):
+        try:
+            lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
+        except Timeout as exc:
+            raise ProjectBusyError(str(lock_path)) from exc
+        try:
+            yield
+        finally:
+            lock.release()
 
 
 @contextmanager
