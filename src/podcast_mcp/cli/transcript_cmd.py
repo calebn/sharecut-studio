@@ -19,6 +19,7 @@ from podcast_mcp.services import (
     TranscriptService,
     TranscriptTextChangedError,
 )
+from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 transcript_app = typer.Typer(help="Transcript correction and export.")
 context_app = typer.Typer(help="Episode transcript context and glossary.")
@@ -207,6 +208,6 @@ def transcript_context_set_cmd(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     except Timeout as exc:
-        typer.echo(f"Transcript context is busy; try again ({exc})", err=True)
+        typer.echo(f"Error: {TRANSCRIPT_CONTEXT_BUSY_MESSAGE}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Wrote {path}")

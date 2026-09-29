@@ -459,7 +459,7 @@ def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
     project = _init_project(tmp_path)
 
     def busy(self, **_kwargs):
-        raise Timeout("transcript_context.yaml.lock")
+        raise Timeout("/artifacts/transcript_context.yaml.lock")
 
     monkeypatch.setattr(
         "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.update_context",
@@ -470,6 +470,7 @@ def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
     )
     assert result.exit_code == 1
     assert "busy" in result.output
+    assert "/artifacts" not in result.output
 
 
 def test_pipeline_run_force_sets_run_only_overwrite(tmp_path, sample_wav):
