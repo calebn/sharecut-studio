@@ -17,6 +17,7 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from podcast_mcp.mcp.server import mcp
+from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 
 HOST_MCP_PATH = "/mcp"
 
@@ -48,14 +49,8 @@ def install_host_project_injection() -> None:
     if _call_tool_wrapped:
         return
 
-    original_call_tool = mcp.call_tool
-
-    async def call_tool(
-        name: str,
-        arguments: dict[str, Any],
-        context: Any = None,
-        *args: Any,
-        **kwargs: Any,
+    async def inject_project(
+        name: str, arguments: dict[str, Any], context: Any, call_next: CallNext
     ) -> Any:
         arguments = dict(arguments or {})
         app = _request_app.get()
@@ -65,9 +60,9 @@ def install_host_project_injection() -> None:
                 return _no_open_project_result()
             if _tool_accepts_project_path(name):
                 arguments["project_path"] = str(served)
-        return await original_call_tool(name, arguments, context, *args, **kwargs)
+        return await call_next(arguments)
 
-    mcp.call_tool = call_tool  # type: ignore[method-assign]
+    wrap_call_tool(mcp, inject_project)
     _call_tool_wrapped = True
 
 

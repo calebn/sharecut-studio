@@ -2,7 +2,8 @@
 error (#488).
 
 Installed once on the ``MCPServer`` (same choke-point pattern as ``install_mcp_progress`` /
-``install_project_default``): wraps ``call_tool`` so a ``filelock.Timeout`` raised by a tool
+``install_project_default``): wraps ``call_tool`` via ``util.mcp_call_tool.wrap_call_tool`` so
+a ``filelock.Timeout`` raised by a tool
 (``ProjectBusyError`` / ``RenderBusyError``, or a raw one such as the transcript-context
 lock, #396/#401) — which the SDK would otherwise surface only as an opaque
 ``UnexpectedToolError`` — becomes an ``is_error`` ``CallToolResult`` with
@@ -12,13 +13,13 @@ can see and act on it instead of the crash message alone.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from filelock import Timeout
 from mcp.server.mcpserver.exceptions import UnexpectedToolError
 from mcp.types import CallToolResult, TextContent
 
+from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 
 
@@ -56,22 +57,16 @@ def install_busy_errors(server: Any) -> None:
     if getattr(server, "_podcast_busy_errors_installed", False):
         return
 
-    original_call_tool: Callable[..., Any] = server.call_tool
-
-    async def call_tool(
-        name: str,
-        arguments: dict[str, Any],
-        context: Any = None,
-        *args: Any,
-        **kwargs: Any,
+    async def around(
+        name: str, arguments: dict[str, Any], context: Any, call_next: CallNext
     ) -> Any:
         try:
-            return await original_call_tool(name, arguments, context, *args, **kwargs)
+            return await call_next(arguments)
         except UnexpectedToolError as exc:
             cause = lock_timeout_cause(exc)
             if cause is None:
                 raise
             return busy_tool_result(cause)
 
-    server.call_tool = call_tool  # type: ignore[method-assign]
+    wrap_call_tool(server, around)
     server._podcast_busy_errors_installed = True
