@@ -323,7 +323,7 @@ Handler behavior stays in `test_document_sync.py` (constructs internal `Document
 Two meta-tests keep the source/timeline split (see [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock)) from regressing:
 
 - **`test_timebase_guards.py`** scans `src/podcast_mcp` and fails if the clip mapping formula (`source_start + (t - timeline_start)`, etc.) appears outside `engines/session_timeline.py` or the `Clip.timeline_end` property. New code doing ad-hoc clip math fails CI with a pointer to `SessionTimeline`.
-- **`test_raw_echo_cache.py`** exercises CLI and MCP audibility/reconcile paths without rendered stems. Its fixture shifts clips on the timeline and removes source spans, proving raw samples are placed through the mapper before the measured echo path can classify bleed.
+- **`test_raw_echo_cache.py`** exercises CLI and MCP audibility/reconcile paths without rendered stems. Its fixture shifts clips on the timeline and removes source spans, proving raw samples are placed through the mapper before the measured echo path can classify bleed. Literal PCM tests cover overlapping extra recordings, moved clips, repeated-file decode reuse, a missing primary with available extras, and abstention for missing, invalid, dangling, escaped, or short selected media.
 - **`test_time_conformance.py`** introspects every registered MCP tool; any tool with a seconds-like parameter that is missing from `TOOL_TIMEBASE` in `util/tool_timebase.py` fails. It also runs a conformance suite on a shared compressed-timeline fixture (30s removed mid-track) asserting the mapper, exports, and QC touch the correct audio region. **Adding a new time-bearing tool = one registry entry.**
 
 ### Fixture hygiene

@@ -12,7 +12,7 @@ description: >-
 
 Hub: [podcast-transcript-workflow](../podcast-transcript-workflow/SKILL.md). This skill is **layer 1 (acoustic)** — suppress bleed/inaudible metadata only; **no text fixes**.
 
-**Pipeline:** `reconcile_transcript` runs twice in full pipeline — after `render_dialogue_stems` (pass 1) and after `assemble_timeline` (pass 2, post-FX). If stems are absent on a first pass, audibility and directed bleed-path analysis use raw media projected through `SessionTimeline`; a missing source gives no path evidence.
+**Pipeline:** `reconcile_transcript` runs twice in full pipeline — after `render_dialogue_stems` (pass 1) and after `assemble_timeline` (pass 2, post-FX). If stems are absent on a first pass, audibility and directed bleed-path analysis use raw media projected through `SessionTimeline`; each clip uses its selected source file on its current lane, and any unavailable selected file or required samples invalidate the whole lane cache.
 
 The transcript is a **derived view** of audio. Reconciliation measures word-level RMS on every dialogue track and updates suppression metadata — it never modifies waveforms or word text.
 

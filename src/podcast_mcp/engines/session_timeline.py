@@ -93,6 +93,11 @@ class TimelineSourceSpan:
 
 
 @dataclass(frozen=True)
+class TimelineClipSpan(TimelineSourceSpan):
+    clip: Clip
+
+
+@dataclass(frozen=True)
 class _TrackIndex:
     by_timeline: tuple[_Span, ...]  # sorted by timeline_start
     by_source: tuple[_Span, ...]  # sorted by source_start
@@ -571,6 +576,20 @@ class SessionTimeline:
                 )
             )
         return out
+
+    def lane_clip_spans(self, track_id: str) -> list[TimelineClipSpan]:
+        """Clip placements on the current lane, retaining selected media identity."""
+        return [
+            TimelineClipSpan(
+                timeline_start=TimelineSec(clip.timeline_start),
+                timeline_end=TimelineSec(clip.timeline_end),
+                source_start=SourceSec(clip.source_start),
+                source_end=SourceSec(clip.source_end),
+                clip=clip,
+            )
+            for clip in self._project.clips
+            if clip.track_id == track_id
+        ]
 
     def source_to_timeline_clamped(self, track_id: str, sec: SourceSec) -> TimelineSec:
         """Best-effort point mapping for boundary math.
