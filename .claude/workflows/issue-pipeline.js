@@ -464,6 +464,7 @@ Return ok=true once done.`,
 // pr-multi-review's reviewer lenses (SKILL.md § Launch). Workflow subagents cannot spawn
 // subagents, so the script fans the lenses out itself and hands their reports to the
 // Opus review parent, which merges, dedupes and posts (the skill's remaining steps).
+// The ninth lens, docs, is repo-local (#761, docs/contributing.md § Automated issue pipeline): it runs only when the round's diff changes a doc.
 const LENSES = [
   { key: 'bugbot', section: '1. Bugbot', checklist: '~/.agents/skills/multi-review/defect-checklist.md',
     prompt: 'Focus on bugs, regressions, a11y breaks, contrast/theme mistakes, broken CSS selectors, missing tests for new behavior, and anything Bugbot typically flags. Ignore pure style nits.' },
@@ -486,9 +487,12 @@ const LENSES = [
   { key: 'patterns', section: '8. Algorithms / contracts', checklist: '~/.agents/skills/pr-multi-review/patterns-antipatterns.md',
     context: 'Required reading: follow each changed control flow at least two hops upstream (producers) and downstream (consumers) so every Require/Guarantee in your inventory is grounded in code you read.',
     prompt: 'For every queue, cache, retry, debounce/coalesce, snapshot vs delta, poll, merge, or similar control flow: write Require (what the data must be) and Guarantee (what the next consumer gets), check the composition chain, and flag where this diff breaks it or a "fix" is a sibling algorithm with the same false require. Findings use Trigger → Path → Expected vs actual.' },
+  { key: 'docs', section: '9. Docs accuracy', origin: 'docs/contributing.md § Automated issue pipeline',
+    context: 'Required reading: the packet\'s "Changed docs (docs-accuracy lens)" section. Read each listed doc in full at the PR head (`git show origin/<branch>:<doc>`) and, for every claim the diff adds or edits, the code it describes: the paths listed under that doc, plus any symbol the claim names (find it with `git grep -n`).',
+    prompt: 'Docs accuracy. Review ONLY the docs this diff changes. For every added or edited claim, check that the code at the PR head supports it exactly. Claims include what the code does, when, which values, always/never, defaults, limits, and file, symbol or flag names. Flag any claim that says more than the code does, is broader or stricter than the code, names a path/symbol/flag that does not exist, or contradicts another sentence in the same doc. Cite the doc line and the code line in each finding. Ignore wording, style and docs the diff does not touch: docs-sync already checks which docs were touched.' },
 ]
-// Round 2+ only re-reviews the (small) feedback-fix diff.
-const FOLLOWUP_LENSES = ['bugbot', 'risk', 'reuse']
+// Round 2+ only re-reviews the (small) feedback-fix diff. The docs lens rejoins when the fixes edit a doc.
+const FOLLOWUP_LENSES = ['bugbot', 'risk', 'reuse', 'docs']
 const S_LENS = {
   type: 'object',
   properties: {
@@ -517,6 +521,7 @@ const S_PACKET = {
   properties: {
     path: { type: 'string', description: 'absolute path of the packet file, exactly as the script printed it' },
     chars: { type: 'integer' },
+    docs: { type: 'integer', description: 'N from the "docs=N" the script printed: Markdown docs changed in the range' },
   },
   required: ['path', 'chars'],
 }
@@ -532,7 +537,7 @@ function reviewPacket(issue, pr, branch, round, since) {
   return stage(
     `Build the review packet for ${REPO} PR #${pr} by running one script; do not write or edit it yourself.
 \`cd "$(git rev-parse --show-toplevel)" && git fetch -q origin --prune && python3 <(git show origin/main:scripts/review_packet.py) --ref origin/${branch} --range ${diff} --out "$(cd "$(git rev-parse --git-common-dir)" && pwd)/pipeline-packets/pr${pr}-r${round}.md"\`
-It prints "<path> <chars>". Return exactly that path and char count. If the command fails, return path "" and chars 0.`,
+It prints "<path> <chars> docs=<N>". Return exactly that path, char count and N (as docs). If the command fails, return path "" and chars 0.`,
     { label: `packet:${tag(issue)}:r${round}`, phase: 'Review', model: M.cheap, effort: 'low', schema: S_PACKET },
   ).then((p) => (p && PACKET_PATH_RE.test(p.path) && p.chars > 0 ? p : null))
 }
@@ -548,7 +553,7 @@ function lensReview(issue, pr, branch, round, packet, lens) {
     `You are one reviewer lens for ${REPO} PR #${pr} (branch ${branch}), review round ${round}. Read-only: do not check out, post, push or edit. Read any further code with \`git show origin/${branch}:<path>\` or \`git grep -n <pattern> origin/${branch}\`.
 ${round > 1 ? 'This round covers only the feedback-fix diff; do not re-raise resolved threads.\n' : ''}${packetRead(packet)}
 ---
-YOUR LENS: "${lens.key}" (pr-multi-review § Launch → ${lens.section}).
+YOUR LENS: "${lens.key}" (${lens.origin || 'pr-multi-review § Launch'} → ${lens.section}).
 ${lens.prompt}${lens.checklist ? `\nChecklist: read and follow ${lens.checklist}.` : ''}${lens.context ? `\n${lens.context}` : ''}
 The packet is a starting point, not the boundary: complete your required reading and follow any lead outside it before concluding. If the packet shows no surface for your lens, return an empty findings list with a one-line residual_risks entry saying why. Otherwise return every concrete finding (severity, path, line, title, detail with evidence) and residual risks.`,
     { label: `lens:${lens.key}:${tag(issue)}:r${round}`, phase: 'Review', model: M.worker, schema: S_LENS },
@@ -556,8 +561,11 @@ The packet is a starting point, not the boundary: complete your required reading
 }
 
 async function review(issue, pr, branch, round, since) {
-  const lenses = round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES
   const packet = await reviewPacket(issue, pr, branch, round, since)
+  // The docs lens runs only when this round's diff changes a doc; with no count it runs anyway.
+  const docsChanged = !packet || !Number.isInteger(packet.docs) || packet.docs > 0
+  const lenses = (round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES)
+    .filter((l) => l.key !== 'docs' || docsChanged)
   if (!packet) log(`${tag(issue)} review r${round}: packet unavailable; lenses gather context themselves`)
   const reports = (await parallel(lenses.map((l) => () => lensReview(issue, pr, branch, round, packet, l)))).filter(Boolean)
   if (reports.length < lenses.length) log(`${tag(issue)} review r${round}: ${lenses.length - reports.length} lens(es) returned nothing`)
@@ -1012,7 +1020,7 @@ Branch: ${plan.branch} (if it already exists on origin, append -2, -3, …).
 PLAN:
 ${plan.plan_md}
 ${LEAN_TURNS}
-Steps: implement code + tests + docs; run ${plan.verify_cmds.join(' && ')}; fix failures; commit (conventional message, repo style); \`git push origin HEAD:refs/heads/<branch>\`; then \`gh pr create -R ${REPO} --base main --head <branch>\` with a summary, a test plan, and these issue-link lines verbatim, each on its own line:
+Steps: implement code + tests + docs; run ${plan.verify_cmds.join(' && ')}; fix failures; reread every doc you changed next to the code it describes and correct or cut any claim the code does not support (docs-sync only proves a doc was touched); commit (conventional message, repo style); \`git push origin HEAD:refs/heads/<branch>\`; then \`gh pr create -R ${REPO} --base main --head <branch>\` with a summary, a test plan, and these issue-link lines verbatim, each on its own line:
 ${LINKS(issue.number, plan.related_issues)}
 End the PR body with "🤖 Generated with [Claude Code](https://claude.com/claude-code)".
 Return ok, pr number, branch, head_sha.`,
