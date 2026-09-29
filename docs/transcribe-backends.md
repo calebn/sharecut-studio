@@ -33,7 +33,7 @@ Report: `tests/fixtures/aligned_dialogue/artifacts/transcribe_benchmark.json` (g
 
 **~4.2× faster** with whisper.cpp on this fixture (Metal, cold run, no warmup).
 
-Word counts differ because the fixture is mostly humming/music with sparse speech; the benchmark measures wall-clock time, not WER.
+Measured before #801 on the old tone fixture; word counts there are not meaningful.
 
 ## Accuracy (WER)
 
@@ -49,7 +49,7 @@ python scripts/benchmark_transcribe_backends.py \
 
 WER is measured on words inside speech time windows from the reference transcript (filters out-of-window hallucinations).
 
-**Note:** `aligned_dialogue` + `canned_transcript_aligned.json` is **not** valid for accuracy — the canned text is seeded for e2e pipeline tests and does not match the humming/chime audio. Both backends score ~100% WER there.
+**Note:** Since #801 the fixture audio speaks `canned_transcript_aligned.json` at its word times, so WER against it is meaningful. The 2026-06-09 tables above predate that and were not re-measured.
 
 ### Results (2026-06-09, first 90s of `test_fixture_5min`, `base` / `ggml-base.en.bin`)
 

@@ -6,7 +6,7 @@ Commands assume `podcast` is on your PATH from the project venv.
 
 | Fixture | Path | Use |
 |---------|------|-----|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; Piper TTS speech at canned word times; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/episode.project.json` | Bleed/reconcile gold |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/episode.project.json` | AMI overlap realism |
 | `audition_defects` | `tests/fixtures/audition_defects/` (audio generated at test time) | Hum / clipping / skew hypothesis eval |
@@ -30,7 +30,11 @@ podcast fixture seed-transcript --project "$PROJECT" \
   --from tests/fixtures/canned_transcript_aligned.json
 ```
 
-Known search phrases: `documented`, `people`, `today`, `going`, `great`.
+Known search phrases: `documented`, `people`, `today`, `going`, `great`. Live `podcast
+transcribe` recovers these from the committed Piper TTS audio (checklist #3, "Transcribe
+(slow)"); regenerate the audio with
+`uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py` if you
+change the canned word times.
 
 ---
 

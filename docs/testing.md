@@ -361,7 +361,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 
 ### Committed fixtures (Tier A)
 
-- `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript)
+- `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript; Piper TTS speech at the canned word times, so live transcribe hears the known phrases)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
 - `tests/fixtures/asr_gold/` — LibriSpeech WER regression
 
@@ -872,8 +872,9 @@ pass in `engines/word_align.py`, #714). Targets:
 
 - `librispeech` — scored against the same gold fixture as above.
 - `aligned_dialogue` and `lab` — agreement only (native vs. each candidate,
-  and candidates against each other); `aligned_dialogue`'s canned transcript
-  does not match its audio, so it has no ground-truth boundaries.
+  and candidates against each other); `aligned_dialogue` is TTS placed at
+  canned word times (#801), which are approximate, not measured boundaries,
+  so it stays agreement-only.
 
 **Shipped-pass harness (#715).** The `run`/`agree` subcommands above drive the
 harness's own `align_prediction` (`retime_spans` against a bare backend), not
@@ -904,7 +905,8 @@ share one runs dir) with `scored`, `agreement`, `load_sec`, `asr_runtime_sec`
 per-item `duration_profile` (`word_boundary_metrics.word_duration_profile()`:
 max/p95/p99 and counts over each of `DURATION_THRESHOLDS_SEC` — 1.00, 1.25,
 1.50, 1.75, 2.00, 2.25, 2.50 s). `aligned_dialogue` is not a pipeline target:
-it has zero native words (above), so there is nothing to re-time. The label
+when #715 ran, the fixture was non-speech tone with zero native words; since
+#801 it is TTS speech but stays agreement-only. The label
 is `onnx-base-pipeline`, not `pipeline-onnx-base`, so it never matches the
 `run` harness's own `*.onnx-base.json` glob. A fast test
 (`test_run_pipeline_pass_end_to_end_with_fakes`) covers the pass with a fake
@@ -1010,7 +1012,8 @@ inherits the earlier candidates' peaks (`onnx-base-int8` inherits fp32's
 disk-cache state (`torch-large` took 47.70 s combined vs 11.70 s alone), so
 treat `load` as order-of-magnitude only.
 
-**Table 2 — agreement against native Whisper `base`.** `aligned_dialogue`
+**Table 2 — agreement against native Whisper `base`.** Measured before #801,
+when `aligned_dialogue` was a non-speech tone fixture: `aligned_dialogue`
 (2 × 60 s) produced **zero** native words: its canned transcript doesn't match
 the synthesized audio closely enough for faster-whisper `base` to transcribe
 anything, so every candidate — which re-times the native word list, not the

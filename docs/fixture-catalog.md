@@ -8,7 +8,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 
 | Fixture | Path | Size | Gold labels | Purpose |
 |---------|------|------|-------------|---------|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned only (text ≠ audio) | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned transcript = audio (Piper TTS placed at canned word times) | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
 | `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | Sharecut Studio UX Pages demo; pending edit, comments, chapters |
 | `asr_gold` | `tests/fixtures/asr_gold/` | ~5 MB | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
@@ -22,6 +22,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 python3 scripts/build_synthetic_bleed_fixture.py
 ./scripts/download_fixture_asr_gold.sh
 ./scripts/download_fixture_ami.sh   # fetches AMI words XML, builds ami_bleed_60s
+uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py
 ```
 
 Synthetic bleed uses `tests/fixtures/synthetic_bleed_e2e_pipeline.yaml` (`transcript_mode: reconcile`). Standard e2e smoke uses `tests/fixtures/e2e_pipeline.yaml` (`transcript_mode: flag`).
@@ -132,6 +133,6 @@ make e2e-real     # nightly: AMI bleed + benchmark regression
 
 **A** = automated assertion, **S** = synthetic gold, **R** = range/threshold, **I** = AMI overlap realism.
 
-Synthetic bleed is the **primary gold** for bleed/reconcile/precorrect in PR CI; AMI validates overlap realism; LibriSpeech validates ASR; `aligned_dialogue` remains wiring smoke only.
+Synthetic bleed is the **primary gold** for bleed/reconcile/precorrect in PR CI; AMI validates overlap realism; LibriSpeech validates ASR; `aligned_dialogue` is wiring smoke plus a live-transcribe known-phrase check.
 
 **Operational lessons** from building these fixtures (dominance thresholds, duck/inject recipes, cross-track precorrect gates) live in [transcript-reconcile.md](transcript-reconcile.md) and [transcript-precorrect.md](transcript-precorrect.md) — not only in test code.
