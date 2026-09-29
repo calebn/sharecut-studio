@@ -113,7 +113,7 @@ podcast edit low-audibility --project ...
 
 `podcast edit approve` prints the number of edits it applied. If no requested edits can be applied, it prints `Approved 0 edit(s).` and warns on stderr. A mute or remove whose source range no longer overlaps a clip stays pending for review.
 
-Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb.
+Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb. Its `retain_sec` / `--retain-sec` (default `1.0`, both sides) leaves ~2s of air at a default join; lower it (`0.3`–`0.6`) for a tighter conversational handoff — see [inaudible-cuts.md § Narrative handoffs](inaudible-cuts.md#narrative-handoffs).
 
 NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` / `filler_room_tone_replace` / `filler_pad_mode` (same as auto-tighten): default replace expands the cut across the inter-word hesitation and sets `replace_gap_sec` so approve inserts a paced beat (**silence** by default; `room_tone` opt-in). See [filler-cut-quality.md](filler-cut-quality.md). When another dialogue stem is speaking in the window (`tighten.speech_energy_guard`), the decision uses **`scope=track`** (punch silence on the cut track only) instead of cross-track ripple.
 
