@@ -697,9 +697,14 @@ def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path
 
 
 def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
-    """On a fresh project a host-scoped pass leaves guest words untouched but already
-    writes host words at the target a full pass would reach (#805)."""
+    """A host-scoped pass leaves guest words untouched but writes host words at the target
+    a full pass would reach, even when host:0's winner (guest:0) is already stored
+    suppressed by an earlier pass. Reading that partner by its stored flag instead of
+    its computed target left host:0 audible on trunk (#805)."""
     project = _sign_off_chain_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words[0] = guest.words[0].model_copy(update={"suppressed": True})
     pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
 
     with patch(
@@ -713,12 +718,74 @@ def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
     assert after_scoped == {
         ("host", 0): (True, "bleed", "guest"),
         ("host", 1): (False, "audible", None),
-        ("guest", 0): (False, None, None),
+        ("guest", 0): (True, None, None),
     }
     assert [(s["track_id"], s["word_index"]) for s in scoped["suppress"]] == [("host", 0)]
-    assert [(s["track_id"], s["word_index"]) for s in full["suppress"]] == [("guest", 0)]
+    assert full["suppress"] == []
     assert full["unsuppress"] == []
+    assert full["status_updates"] == 1
     assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
+
+
+def test_window_pass_leaves_text_match_losers_outside_the_window_alone(tmp_path: Path):
+    """A start_sec/end_sec pass writes the in-window text-match loser at its target and
+    never suppresses or re-tags the losers just outside the window on either side; the
+    next full pass picks those up (#805)."""
+    project = _two_track_project(tmp_path)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="one", start=1.0, end=1.5, confidence=0.9),
+                TranscriptWord(text="two", start=3.0, end=3.5, confidence=0.9),
+                TranscriptWord(text="three", start=5.0, end=5.5, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="one", start=1.0, end=1.5, confidence=0.95),
+                TranscriptWord(text="two", start=3.0, end=3.5, confidence=0.95),
+                TranscriptWord(text="three", start=5.0, end=5.5, confidence=0.95),
+            ],
+        ),
+    ]
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        windowed = run_reconciliation(
+            project, policy=pol, dry_run=False, start_sec=2.0, end_sec=4.0
+        )
+        after_window = _word_state(project)
+        full = run_reconciliation(project, policy=pol, dry_run=False)
+
+    assert after_window == {
+        ("host", 0): (False, None, None),
+        ("host", 1): (True, "bleed", "guest"),
+        ("host", 2): (False, None, None),
+        ("guest", 0): (False, None, None),
+        ("guest", 1): (False, "audible", None),
+        ("guest", 2): (False, None, None),
+    }
+    assert [(s["track_id"], s["word_index"], s["reason"]) for s in windowed["suppress"]] == [
+        ("host", 1, "text_match_overlap")
+    ]
+    assert windowed["status_updates"] == 2
+    assert [(s["track_id"], s["word_index"]) for s in full["suppress"]] == [
+        ("host", 0),
+        ("host", 2),
+    ]
+    assert _word_state(project) == {
+        ("host", 0): (True, "bleed", "guest"),
+        ("host", 1): (True, "bleed", "guest"),
+        ("host", 2): (True, "bleed", "guest"),
+        ("guest", 0): (False, "audible", None),
+        ("guest", 1): (False, "audible", None),
+        ("guest", 2): (False, "audible", None),
+    }
 
 
 def test_audio_state_fingerprint_changes_on_effect(tmp_path: Path):
