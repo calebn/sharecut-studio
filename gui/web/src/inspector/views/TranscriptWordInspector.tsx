@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import {
+  setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "../../api";
@@ -18,6 +19,7 @@ import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CORRECT_CONFLICT_NOTE,
   TRANSCRIPT_CORRECT_TIMING_NOTE,
+  TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP,
   TRANSCRIPT_SPAN_UNVERIFIED_NOTE,
   TRANSCRIPT_SUPPRESS_TIP,
   TRANSCRIPT_UNSUPPRESS_TIP,
@@ -267,6 +269,12 @@ export function TranscriptWordInspector({
     );
   };
 
+  const returnToAutomatic = async () => {
+    await runForWord("suppressed", () =>
+      setTranscriptWordAutomatic(projectPath, trackId, wordIndex, wordSpanText),
+    );
+  };
+
   const toggleIgnored = async () => {
     await runForWord("ignored", () =>
       setTranscriptWordsIgnored(
@@ -403,7 +411,18 @@ export function TranscriptWordInspector({
         ) : null}
       </DefinitionList>
       {locked ? (
-        <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+        <>
+          <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+          {editable ? (
+            <Button
+              disabled={busy}
+              onClick={() => void returnToAutomatic()}
+              title={TRANSCRIPT_RETURN_TO_AUTOMATIC_TIP}
+            >
+              Return to automatic
+            </Button>
+          ) : null}
+        </>
       ) : null}
       {editable ? (
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>

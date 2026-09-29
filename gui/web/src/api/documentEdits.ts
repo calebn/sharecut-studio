@@ -320,6 +320,19 @@ export async function setTranscriptWordSuppressed(
   });
 }
 
+export async function setTranscriptWordAutomatic(
+  projectPath: string,
+  trackId: string,
+  wordIndex: number,
+  expectedText?: string | null,
+): Promise<void> {
+  await submitDocumentCommand(projectPath, "SetTranscriptWordAutomatic", {
+    track_id: trackId,
+    word_index: wordIndex,
+    ...withExpectedText(expectedText),
+  });
+}
+
 export async function setTranscriptWordsIgnored(
   projectPath: string,
   trackId: string,

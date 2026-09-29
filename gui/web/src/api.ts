@@ -54,6 +54,7 @@ export {
   setTrackMediaCommand,
   setTrackMetaCommand,
   setTrackMuteCommand,
+  setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
   splitAtTime,
