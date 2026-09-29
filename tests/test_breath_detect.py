@@ -965,3 +965,189 @@ def test_voicing_is_assessed_only_where_the_level_could_be_speech():
         assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+def test_complete_breath_crossing_cut_end_keeps_its_onset(backend: str) -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    samples = _shaped_noise(16000, _FLOOR_RMS)
+    samples[3200:7040] = _shaped_noise(3840, 0.026)
+    vad = _fake_silero_vad([0.0] * 6 + [0.2] * 8 + [0.0] * 18)
+    with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=vad):
+        hit = classify_breath_samples(
+            samples,
+            4.8,
+            sample_rate=16000,
+            vad_backend=backend,
+            speech_reference_rms=_SPEECH_RMS,
+            noise_floor_rms=_FLOOR_RMS,
+            cut_edge="start",
+            search_sec=(5.15, 5.3),
+        )
+
+    assert hit is not None
+    assert hit.start == pytest.approx(5.0, abs=0.01)
+    assert hit.end == pytest.approx(5.24, abs=0.01)
+
+
+def test_final_end_crossing_detector_reads_before_boundary() -> None:
+    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
+
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((_shaped_noise(3840, 0.026), 5.1),)),
+    ):
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, crossing_end_only=True)
+
+    assert len(spans) == 1
+    assert (spans[0].start, spans[0].end) == pytest.approx((5.1, 5.34), abs=0.01)
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+@pytest.mark.parametrize("protected", ["voiced", "sibilant", "onset", "decay", "long"])
+def test_crossing_breath_keeps_speech_protection(backend: str, protected: str) -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    samples = _shaped_noise(16000, _FLOOR_RMS)
+    samples[3200:7040] = _shaped_noise(3840, 0.026)
+    keep_out = []
+    probs = [0.0] * 6 + [0.2] * 8 + [0.0] * 18
+    if protected == "voiced":
+        samples[3200:7040] = _harmonic_tone(3840, 0.026)
+    elif protected == "sibilant":
+        samples[3200:7040] = _sibilant_noise(3840, 0.026)
+    elif protected == "onset":
+        samples[7040:10240] = _harmonic_tone(3200, _SPEECH_RMS)
+        keep_out = [(5.24, 5.44)]
+    elif protected == "decay":
+        samples[0:3200] = _harmonic_tone(3200, _SPEECH_RMS)
+        keep_out = [(4.8, 5.0)]
+    else:
+        samples[3200:12800] = _shaped_noise(9600, 0.026)
+        probs = [0.0] * 6 + [0.2] * 19 + [0.0] * 7
+
+    with patch(
+        "podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_fake_silero_vad(probs)
+    ):
+        hit = classify_breath_samples(
+            samples,
+            4.8,
+            sample_rate=16000,
+            vad_backend=backend,
+            speech_reference_rms=_SPEECH_RMS,
+            noise_floor_rms=_FLOOR_RMS,
+            cut_edge="start",
+            search_sec=(4.8, 5.3),
+            crossing_sec=5.2,
+            keep_out=keep_out,
+        )
+
+    assert hit is None
+    control = _shaped_noise(16000, _FLOOR_RMS)
+    control[3200:7040] = _shaped_noise(3840, 0.026)
+    with patch(
+        "podcast_mcp.engines.vad_silero.get_shared_vad",
+        return_value=_fake_silero_vad([0.0] * 6 + [0.2] * 8 + [0.0] * 18),
+    ):
+        valid = classify_breath_samples(
+            control,
+            4.8,
+            sample_rate=16000,
+            vad_backend=backend,
+            speech_reference_rms=_SPEECH_RMS,
+            noise_floor_rms=_FLOOR_RMS,
+            cut_edge="start",
+            search_sec=(4.8, 5.3),
+            crossing_sec=5.2,
+        )
+    assert valid is not None
+    assert valid.start == pytest.approx(5.0, abs=0.01)
+
+
+def test_final_end_crossing_abstains_when_disabled() -> None:
+    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
+
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((_shaped_noise(3840, 0.026), 5.1),)),
+    ):
+        enabled = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, crossing_end_only=True)
+        disabled = detect_adjacent_breath(
+            _host_project(),
+            "host",
+            5.0,
+            5.2,
+            defaults={"tighten": {"breath_handling": {"enabled": False}}},
+            crossing_end_only=True,
+        )
+
+    assert len(enabled) == 1
+    assert enabled[0].start == pytest.approx(5.1)
+    assert disabled == []
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+@pytest.mark.parametrize(
+    "protection", ["quiet", "voiced", "onset", "decay", "noise_floor", "window", "search", "long"]
+)
+def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protection: str) -> None:
+    from podcast_mcp.edits.breath_detect import classify_breath_samples
+
+    samples = _shaped_noise(16000, _FLOOR_RMS)
+    samples[3200:4800] = _shaped_noise(1600, 0.0008)
+    samples[4800:7040] = _shaped_noise(2240, 0.026)
+    keep_out = []
+    search = (4.8, 5.6)
+    window_start = 4.8
+    probs = [0.0] * 9 + [0.2] * 5 + [0.0] * 18
+    if protection == "voiced":
+        samples[3200:4800] = _harmonic_tone(1600, 0.0008)
+    elif protection == "onset":
+        samples[7040:8640] = _shaped_noise(1600, 0.0008)
+        samples[8640:10240] = _harmonic_tone(1600, _SPEECH_RMS)
+        keep_out = [(5.34, 5.44)]
+    elif protection == "decay":
+        samples[1600:3200] = _harmonic_tone(1600, _SPEECH_RMS)
+        keep_out = [(4.9, 5.0)]
+    elif protection == "noise_floor":
+        samples[:4800] = _shaped_noise(4800, 0.0008)
+    elif protection == "window":
+        samples = samples[3200:]
+        window_start = 5.0
+        probs = [0.0] * 3 + [0.2] * 5 + [0.0] * 18
+    elif protection == "search":
+        search = (5.05, 5.6)
+    elif protection == "long":
+        samples[160:4800] = _shaped_noise(4640, 0.0008)
+
+    def classify(crossing):
+        with patch(
+            "podcast_mcp.engines.vad_silero.get_shared_vad",
+            return_value=_fake_silero_vad(probs),
+        ):
+            return classify_breath_samples(
+                samples,
+                window_start,
+                sample_rate=16000,
+                max_duration_sec=0.4,
+                vad_backend=backend,
+                speech_reference_rms=_SPEECH_RMS,
+                noise_floor_rms=_FLOOR_RMS,
+                cut_edge="start",
+                keep_out=keep_out,
+                search_sec=search,
+                crossing_sec=crossing,
+            )
+
+    seed = classify(None)
+    if protection != "decay":
+        assert seed is not None
+        assert seed.start == pytest.approx(5.1, abs=0.015)
+    refined = classify(5.2)
+    if protection == "quiet":
+        assert refined is not None
+        assert refined.start == pytest.approx(5.0)
+        assert refined.end == seed.end
+    else:
+        assert refined is None

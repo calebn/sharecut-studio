@@ -1401,11 +1401,27 @@ def _analyze_candidate(
             peer_caches=peer_caches,
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
+    crossing_breaths = detect_adjacent_breath(
+        project,
+        track_id,
+        cut_start,
+        cut_end,
+        defaults=defaults,
+        audio_cache=audio_cache,
+        word_index=word_index,
+        crossing_end_only=True,
+    )
+    cut_end = min(
+        (span.start for span in crossing_breaths if span.start < cut_end < span.end),
+        default=cut_end,
+    )
+    if cut_end <= cut_start:
+        return None
     if candidate.cut_kind in ("repeat", "restart") and not _cut_covers_reparandum(
         candidate, cut_start, cut_end
     ):
         return None
-    if candidate.strictly_bounded and (cut_start, cut_end) != (opt.start, opt.end):
+    if (cut_start, cut_end) != (opt.start, opt.end):
         # Risk was measured on the optimized span; re-assess the span we cut.
         risk = assess_cut_risk(
             project,

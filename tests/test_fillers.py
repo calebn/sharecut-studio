@@ -1345,9 +1345,12 @@ def test_fillers_leave_in_when_risky():
     ]
     project = _project_with_transcript(words)
     risky = CutRisk(score=1.0, reasons=["harsh join"])
-    with patch(
-        "podcast_mcp.edits.fillers.optimize_and_assess",
-        side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
+    with (
+        patch(
+            "podcast_mcp.edits.fillers.optimize_and_assess",
+            side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
+        ),
+        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=risky),
     ):
         defaults = {
             "tighten": {
@@ -1390,9 +1393,12 @@ def test_fillers_flags_risky_for_review_when_not_leaving_in():
     ]
     project = _project_with_transcript(words)
     risky = CutRisk(score=1.0, reasons=["harsh join"])
-    with patch(
-        "podcast_mcp.edits.fillers.optimize_and_assess",
-        side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
+    with (
+        patch(
+            "podcast_mcp.edits.fillers.optimize_and_assess",
+            side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
+        ),
+        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=risky),
     ):
         defaults = {
             "tighten": {
