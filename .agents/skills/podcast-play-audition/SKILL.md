@@ -28,6 +28,8 @@ word or a doubled voice. Read `hypotheses[]` and act on `next`:
 | `clipping_in_window` / `hum_in_window` | Windowed astats / hum on the span; clipping needs a peak at or above -20 dBFS (near-silent gated tracks no longer trip it). | **podcast-audio-cleanup**. |
 | `stale_render` | Stems or premix do not match the timeline; `limits` also says `echo_check_needs_fresh_stems`. | `render_preview`, then re-run the check. |
 
+Reconciliation can measure directed bleed from raw media when stems are absent. `audition_context_tool` still requires fresh stems for its `echo_risk` report.
+
 `podcast edit join-sweep` / `join_qa_sweep_tool` runs the join checks on **every**
 splice in one call (each row has `speech`, the report `speech_cross_count`); use it
 after a content cut, then `play context` on the flagged joins for the full picture.

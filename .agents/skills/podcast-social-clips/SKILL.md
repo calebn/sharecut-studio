@@ -39,6 +39,8 @@ Not implemented yet. Exported JSON includes `start`/`end` for a future video pip
 
 Candidates are **scored** on source-clock combined utterances but store **timeline** `start`/`end` (mapped through `SessionTimeline`), because export cuts the premix/mastered audio which runs on the timeline clock. So candidate times line up with the listenable WAV, not the raw source. If you narrow a boundary with `cut_time_range_tool`, pass **source** seconds (re-propose to refresh mapped candidate times). See [docs/social-clips.md](../../docs/social-clips.md).
 
+Audibility checks also use timeline-clock samples. When no rendered stem exists, the cache places raw samples through `SessionTimeline` before measuring them.
+
 ## Non-destructive
 
 Clip export reads premix/export WAV only; source `raw/` is untouched. Snapshots recorded on propose/approve.

@@ -146,6 +146,63 @@ def test_map_timeline_span_recovers_source_ranges(compressed_project):
     assert spans[1][1] == pytest.approx(95.0)
 
 
+def test_map_timeline_spans_preserves_timeline_and_source_pairs(compressed_project):
+    st = SessionTimeline(compressed_project)
+    spans = st.map_timeline_spans("host", TimelineSec(55.0), TimelineSec(65.0))
+
+    assert [
+        (float(s.timeline_start), float(s.timeline_end), float(s.source_start), float(s.source_end))
+        for s in spans
+    ] == [(55.0, 60.0, 55.0, 60.0), (60.0, 65.0, 90.0, 95.0)]
+
+
+def test_map_timeline_span_keeps_merged_source_range_contract(tmp_path):
+    project = _project(
+        tmp_path,
+        [
+            Clip(id="c1", track_id="host", source_start=0, source_end=10, timeline_start=3),
+            Clip(id="c2", track_id="host", source_start=10, source_end=20, timeline_start=13),
+        ],
+    )
+    st = SessionTimeline(project)
+
+    assert [
+        (float(s.timeline_start), float(s.timeline_end), float(s.source_start), float(s.source_end))
+        for s in st.map_timeline_spans("host", TimelineSec(3), TimelineSec(23))
+    ] == [(3, 13, 0, 10), (13, 23, 10, 20)]
+    assert st.map_timeline_span("host", TimelineSec(3), TimelineSec(23)) == [(0, 20)]
+
+
+def test_map_timeline_spans_follow_origin_media_across_lanes(tmp_path):
+    project = _project(
+        tmp_path,
+        [
+            Clip(
+                id="parked-host-audio",
+                track_id="guest",
+                source_id="host-recording",
+                source_start=10,
+                source_end=20,
+                timeline_start=3,
+            )
+        ],
+    )
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            media=MediaAsset(path="raw/guest.wav", duration_sec=20.0),
+        )
+    )
+    project.sources.append(SourceRecording(id="host-recording", path="raw/host.wav"))
+    st = SessionTimeline(project)
+
+    assert [
+        (float(s.timeline_start), float(s.source_start))
+        for s in st.map_timeline_spans("host", TimelineSec(0), TimelineSec(13))
+    ] == [(3.0, 10.0)]
+
+
 def test_source_to_timeline_clamped(compressed_project):
     st = SessionTimeline(compressed_project)
     # Inside the 60-90 cut -> the join where the gap closed.

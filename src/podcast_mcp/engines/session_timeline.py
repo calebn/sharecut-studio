@@ -83,6 +83,16 @@ class _Span:
 
 
 @dataclass(frozen=True)
+class TimelineSourceSpan:
+    """A surviving interval with both its timeline and source-media bounds."""
+
+    timeline_start: TimelineSec
+    timeline_end: TimelineSec
+    source_start: SourceSec
+    source_end: SourceSec
+
+
+@dataclass(frozen=True)
 class _TrackIndex:
     by_timeline: tuple[_Span, ...]  # sorted by timeline_start
     by_source: tuple[_Span, ...]  # sorted by source_start
@@ -519,20 +529,48 @@ class SessionTimeline:
         self, track_id: str, start: TimelineSec, end: TimelineSec
     ) -> list[tuple[SourceSec, SourceSec]]:
         """Source intervals backing a timeline span (gaps omitted, merged)."""
+        source_spans = [
+            (float(span.source_start), float(span.source_end))
+            for span in self.map_timeline_spans(track_id, start, end)
+        ]
+        return [(SourceSec(s), SourceSec(e)) for s, e in _merge_intervals(source_spans, _MERGE_EPS)]
+
+    def map_timeline_spans(
+        self, track_id: str, start: TimelineSec, end: TimelineSec
+    ) -> list[TimelineSourceSpan]:
+        """Surviving timeline intervals with their corresponding source bounds.
+
+        Unlike :meth:`map_timeline_span`, this preserves each clip placement and
+        its paired timeline offsets. Track-local gaps are omitted.
+        """
         if end <= start:
             return []
         idx = self._index(track_id)
         if idx is None:
-            return [(SourceSec(float(start)), SourceSec(float(end)))]
-        out: list[tuple[float, float]] = []
+            return [
+                TimelineSourceSpan(
+                    timeline_start=start,
+                    timeline_end=end,
+                    source_start=SourceSec(float(start)),
+                    source_end=SourceSec(float(end)),
+                )
+            ]
+        out: list[TimelineSourceSpan] = []
         for span in _candidates_timeline(idx, float(start), float(end)):
             ov_start = max(float(start), span.timeline_start)
             ov_end = min(float(end), span.timeline_end)
             if ov_end <= ov_start + _EPS:
                 continue
             src_start = span.source_start + (ov_start - span.timeline_start)
-            out.append((src_start, src_start + (ov_end - ov_start)))
-        return [(SourceSec(s), SourceSec(e)) for s, e in _merge_intervals(out, _MERGE_EPS)]
+            out.append(
+                TimelineSourceSpan(
+                    timeline_start=TimelineSec(ov_start),
+                    timeline_end=TimelineSec(ov_end),
+                    source_start=SourceSec(src_start),
+                    source_end=SourceSec(src_start + (ov_end - ov_start)),
+                )
+            )
+        return out
 
     def source_to_timeline_clamped(self, track_id: str, sec: SourceSec) -> TimelineSec:
         """Best-effort point mapping for boundary math.

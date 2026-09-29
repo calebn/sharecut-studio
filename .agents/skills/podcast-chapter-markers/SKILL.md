@@ -23,3 +23,5 @@ description: >-
 3. `render_final` or full pipeline to refresh export
 
 Using `start` (source seconds) here would place chapters at the wrong point on the edited audio whenever cuts precede the anchor.
+
+Chapter positions always use the timeline clock. Raw-media audibility checks project samples through `SessionTimeline` when rendered stems are absent.
