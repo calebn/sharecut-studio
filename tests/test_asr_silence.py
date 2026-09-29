@@ -478,7 +478,7 @@ def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
     settled = evidence_term(project, "host", bleed_check=True)
     own = evidence_term(project, "host", bleed_check=False)
     assert own.startswith("own:")
-    assert settled.startswith("bleed:") and len(settled) == len("bleed:") + 16
+    assert settled.startswith("bleed:") and len(settled) == len("bleed:") + 33
     project.track_by_id("guest").gain_db = 12.0
     assert evidence_term(project, "host", bleed_check=False) == own
     assert evidence_term(project, "host", bleed_check=True) != settled

@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
-    evidence_term,
+    evidence_terms,
     refresh_silence_flags,
     silence_filter_fingerprint,
 )
@@ -358,18 +358,16 @@ def _refresh_silence_flags(
     """Re-flag stored transcripts whose fingerprint no longer matches; see the two callers.
 
     The evidence scope is part of the fingerprint. Before placement is settled
-    (``bleed_check`` off) a transcript already flagged under the full gate on the current
-    placement is left alone, so a later ``transcribe_tracks`` run does not undo reconcile's
-    bleed flags; with ``bleed_check`` on only that full-gate fingerprint counts, so flags
-    read from an older placement, or from the own-track half alone, are recomputed.
+    (``bleed_check`` off) a transcript already flagged under the full gate with current
+    gains and placement is left alone, so a later ``transcribe_tracks`` run does not undo
+    reconcile's bleed flags; with ``bleed_check`` on only that full-gate fingerprint counts,
+    so flags from older gains, placement, or the own-track half are recomputed.
     Returns (labels whose audio could not be decoded, transcripts re-flagged).
     """
     stored = {t.key: t for t in project.transcripts}
     skipped: list[str] = []
     refreshed = 0
     levels: SpeechLevels | None = None
-    settled = evidence_term(project, bleed_check=True)
-    accepted = [settled] if bleed_check else ["own", settled]
     for job in jobs:
         transcript = stored.get(job.key)
         if transcript is None:
@@ -378,6 +376,14 @@ def _refresh_silence_flags(
         if audio_hash is None:
             continue
         current = transcript.silence_filter_fingerprint
+        accepted = evidence_terms(
+            project,
+            job.track_id,
+            transcript.words,
+            options,
+            bleed_check=bleed_check,
+            source_id=job.source_id,
+        )
         if current is not None and any(
             current == silence_filter_fingerprint(transcript.words, audio_hash, options, evidence=t)
             for t in accepted
@@ -385,15 +391,11 @@ def _refresh_silence_flags(
             continue
         evidence: SpeechLevels | None = None
         term = "own"
-        if (
-            options.forced_alignment_min_word_score > 0
-            and job.source_id is None
-            and any(w.alignment_score is not None for w in transcript.words)
-        ):
+        if accepted != ("own",):
             if levels is None:
                 levels = SpeechLevels.for_project(project, options, bleed_check=bleed_check)
             evidence = levels
-            term = levels.fingerprint_term()
+            term = levels.fingerprint_term(job.track_id)
         refreshed += 1
         flagged = refresh_silence_flags(
             transcript.words, job.audio, options, evidence=evidence, track_id=job.track_id

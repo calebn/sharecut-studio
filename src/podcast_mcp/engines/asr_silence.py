@@ -21,14 +21,14 @@ over emitting frames, low by construction on one-to-four-frame words such as "um
 "to". The other-track half reads the session placement, which ``align_tracks`` settles
 after ASR, so ``transcribe_tracks`` applies the own-track half only (``bleed_check``
 off) and ``reconcile_transcript`` re-flags with the full gate; the fingerprint carries
-that scope and a digest of the dialogue clips' placement, so a placement change
-re-flags once. It is still flag-only and never retimed.
+that scope and the gains used by the gate, plus dialogue clip placement for the settled
+scope, so an evidence change re-flags once. It is still flag-only and never retimed.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 from hashlib import sha256
@@ -67,9 +67,9 @@ def silence_filter_fingerprint(
 ) -> str:
     """Identify the media, filter policy, spans, stored flag state and evidence scope.
 
-    ``evidence`` is ``SpeechLevels.fingerprint_term()``: ``"own"`` when only the own-track
-    half of the aligner gate applied, ``"bleed:<placement digest>"`` after the full gate ran
-    on a settled placement. It only counts once a word carries a score.
+    ``evidence`` is ``SpeechLevels.fingerprint_term(track_id)``. It records the target
+    track's gain for the own-track gate, and all dialogue gains plus clip placement after
+    the full gate ran on a settled placement. It only counts once a word carries a score.
     """
     digest = sha256()
     digest.update(f"v2:{audio_sha256}:{options.silence_filter_enabled}:".encode())
@@ -109,9 +109,69 @@ def placement_digest(project: EpisodeProject) -> str:
     return sha256(repr(rows).encode()).hexdigest()[:16]
 
 
-def evidence_term(project: EpisodeProject, *, bleed_check: bool) -> str:
-    """The fingerprint's evidence scope without decoding any audio."""
-    return f"bleed:{placement_digest(project)}" if bleed_check else "own"
+def _evidence_term(
+    gains_db: Mapping[str, float],
+    track_id: str,
+    *,
+    bleed_check: bool,
+    placement: str | None = None,
+) -> str:
+    relevant_gains = (
+        sorted(gains_db.items()) if bleed_check else [(track_id, gains_db.get(track_id, 0.0))]
+    )
+    gain_digest = sha256(
+        repr(tuple((tid, float(gain).hex()) for tid, gain in relevant_gains)).encode()
+    ).hexdigest()[:16]
+    if bleed_check:
+        return f"bleed:{placement or ''}:{gain_digest}"
+    return f"own:{gain_digest}"
+
+
+def evidence_term(project: EpisodeProject, track_id: str, *, bleed_check: bool) -> str:
+    """The fingerprint's gain and placement scope without decoding any audio."""
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    gains_db = {
+        tid: float(track.gain_db) if (track := project.track_by_id(tid)) is not None else 0.0
+        for tid in dialogue_track_ids(project)
+    }
+    return _evidence_term(
+        gains_db,
+        track_id,
+        bleed_check=bleed_check,
+        placement=placement_digest(project) if bleed_check else None,
+    )
+
+
+def evidence_applies(
+    words: Sequence[TranscriptWord],
+    options: AsrOptions,
+    *,
+    source_id: str | None,
+) -> bool:
+    """Whether scored primary-media words use the acoustic evidence gate."""
+    return (
+        options.forced_alignment_min_word_score > 0
+        and source_id is None
+        and any(word.alignment_score is not None for word in words)
+    )
+
+
+def evidence_terms(
+    project: EpisodeProject,
+    track_id: str,
+    words: Sequence[TranscriptWord],
+    options: AsrOptions,
+    *,
+    bleed_check: bool,
+    source_id: str | None = None,
+) -> tuple[str, ...]:
+    """Fingerprint scopes accepted for the acoustic evidence actually applicable here."""
+    if not evidence_applies(words, options, source_id=source_id):
+        return ("own",)
+    own = evidence_term(project, track_id, bleed_check=False)
+    settled = evidence_term(project, track_id, bleed_check=True)
+    return (settled,) if bleed_check else (own, settled)
 
 
 def flag_words_over_silence(
@@ -202,7 +262,7 @@ class SpeechLevels:
     no other dialogue track is ``bleed_margin_db`` louder over the same session-clock span.
     ``bleed_check`` is off at transcribe time, before ``align_tracks`` has placed the tracks
     against each other, and on when ``reconcile_transcript`` re-flags afterwards; the
-    ``placement`` digest ties those flags to the placement they were read from. Spans are
+    fingerprint ties those flags to the gains and placement they were read from. Spans are
     widened to ``MIN_SPAN_SEC`` like the silence filter, so a one-frame aligned word still
     measures something. A track that could not be decoded, or a span cut from the
     timeline, counts as evidence: the flag never fires on the score alone.
@@ -235,24 +295,29 @@ class SpeechLevels:
             placement=placement_digest(project),
         )
         for tid in dialogue_track_ids(project):
+            track = project.track_by_id(tid)
+            levels.gains_db[tid] = float(track.gain_db) if track else 0.0
             try:
                 energy = TrackEnergy.decode(track_audio_path(project, tid))
             except Exception as exc:
                 log.warning("aligner evidence levels skipped for track %s: %s", tid, exc)
                 levels.skipped.append(tid)
                 continue
-            track = project.track_by_id(tid)
             levels.tracks[tid] = energy
-            levels.gains_db[tid] = float(track.gain_db) if track else 0.0
         return levels
 
     @property
     def floors_db(self) -> dict[str, float]:
         return {tid: energy.floor_db for tid, energy in self.tracks.items()}
 
-    def fingerprint_term(self) -> str:
+    def fingerprint_term(self, track_id: str) -> str:
         """What ``silence_filter_fingerprint`` records about the gate these flags came from."""
-        return f"bleed:{self.placement}" if self.bleed_check else "own"
+        return _evidence_term(
+            self.gains_db,
+            track_id,
+            bleed_check=self.bleed_check,
+            placement=self.placement,
+        )
 
     def _level_db(self, track_id: str, start: float, end: float) -> float | None:
         energy = self.tracks.get(track_id)

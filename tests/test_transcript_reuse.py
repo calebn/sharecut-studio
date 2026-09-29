@@ -290,7 +290,8 @@ class _FixedEvidence:
     def has_speech(self, track_id: str, start: float, end: float) -> bool:
         return self.speech
 
-    def fingerprint_term(self) -> str:
+    def fingerprint_term(self, track_id: str) -> str:
+        assert track_id == "host"
         return "own"
 
 
@@ -353,6 +354,8 @@ def _flags(transcript):
 def test_transcribe_time_reflag_does_not_flag_a_real_word_under_a_wrong_placement(
     tmp_workspace,
 ):
+    from podcast_mcp.engines.asr_silence import evidence_term
+
     """#780 lane (c): host placed 1.0 s late so its real word sits under the guest's line."""
     project, host = _scored_two_mic(tmp_workspace, host_timeline_start=1.0)
     job = TranscribeJob("host", None, tmp_workspace / "raw" / "host.wav")
@@ -362,7 +365,12 @@ def test_transcribe_time_reflag_does_not_flag_a_real_word_under_a_wrong_placemen
     assert refresh_reused_silence_flags(project, plan, options) == []
     assert _flags(host) == [False, False, True]
     own_fp = host.silence_filter_fingerprint
-    assert own_fp == silence_filter_fingerprint(host.words, host.audio_sha256, options)
+    assert own_fp == silence_filter_fingerprint(
+        host.words,
+        host.audio_sha256,
+        options,
+        evidence=evidence_term(project, "host", bleed_check=False),
+    )
 
     # The same run again is a no-op: the own-scope fingerprint matches.
     assert refresh_reused_silence_flags(project, plan, options) == []
@@ -382,7 +390,10 @@ def test_settled_reflag_reads_placement_and_fixing_it_reflags(tmp_workspace):
     assert _flags(host) == [True, False, True]
     wrong_fp = host.silence_filter_fingerprint
     assert wrong_fp == silence_filter_fingerprint(
-        host.words, host.audio_sha256, options, evidence=evidence_term(project, bleed_check=True)
+        host.words,
+        host.audio_sha256,
+        options,
+        evidence=evidence_term(project, "host", bleed_check=True),
     )
     assert refresh_settled_silence_flags(project, options) == ([], 0)
 
@@ -442,6 +453,21 @@ def test_settled_reflag_tracks_peer_gain_and_reuses_unchanged_evidence(tmp_works
     assert refresh_settled_silence_flags(project, options) == ([], 1)
     assert _flags(host) == [False, False, True]
     assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+
+def test_scored_transcript_without_evidence_gate_keeps_own_fingerprint(tmp_workspace):
+    project, host = _scored_two_mic(tmp_workspace)
+    options = AsrOptions(
+        silence_filter_enabled=False,
+        forced_alignment_min_word_score=0.0,
+    )
+
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    fingerprint = host.silence_filter_fingerprint
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+    project.track_by_id("guest").gain_db = -20.0
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+    assert host.silence_filter_fingerprint == fingerprint
 
 
 def test_settled_reflag_skips_unscored_and_hashless_transcripts(tmp_workspace):

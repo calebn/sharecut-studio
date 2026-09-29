@@ -8,7 +8,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 4. `require_align_accept` — Gate until align done/waived (`align.accept.mode`; auto-waive with `--unattended`, but never moves above `align.large_move_sec`)
 5. `merge_transcript` — Combined time-ordered script
 6. `render_dialogue_stems` — Pass-1 per-track stems for audibility (queues no waveform pyramids; `assemble_timeline` does)
-7. `reconcile_transcript` — Pass 1: audibility/bleed suppress; also re-flags the aligner's no-evidence words under the full gate now that the tracks share one clock (#780, [transcript-workflow.md § Aligner evidence](transcript-workflow.md))
+7. `reconcile_transcript` — Pass 1: audibility/bleed suppress; also re-flags the aligner's no-evidence words under the full gate now that the tracks share one clock (#780, [transcript-workflow.md § Aligner evidence](transcript-workflow.md)). Cached aligner-evidence flags are reused only while their evidence inputs still match: own-track gain before placement settles, then all dialogue gains and clip placement after settlement.
 8. `precorrect_transcript` — Glossary and cross-track sync
 9. `require_transcript_refine` — Hard agent gate (`refine-done` / waive; auto-waive with `--unattended` / `PODCAST_BATCH=1` when mode is `waive_unattended`; after an active gate, a successful unattended run refreshes its waiver only for later suppression changes)
 10. `analyze_prosody` — Cache a per-track prosody profile (pitch, rate, energy, voice quality, prominent words, phrase boundaries) for `audition_context` to read. On by default (`prosody.enabled`); a no-op with a clear summary when the optional `praat-parselmouth` backend is not installed. See [§ Prosody profile](#prosody-profile).
