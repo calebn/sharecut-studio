@@ -280,12 +280,18 @@ default remains `heuristic`. Classification is confined to each proposed run.
 The RMS classifier compares a run with short, audible windows inside both
 flanking transcript words; it abstains and leaves the run for review when
 either speech reference is missing or below the active audibility floor.
-For an acoustic candidate in the heuristic breath band, short pitch probes
-also keep clearly periodic speech-like runs reviewable; weakly periodic
-broadband breath-like runs may be rejected. This check does not alter adjacent
-cut breath co-removal.
+For an acoustic candidate in the heuristic breath band, 40 ms speech-pitch
+probes every 10 ms also keep clearly periodic speech-like runs reviewable;
+weakly periodic broadband breath-like runs may be rejected.
 Silero does not require that RMS reference. Model lookup happens once per
 classification, and model or inference failures fall back to the RMS heuristic.
+
+With either backend, a run only counts as a breath when the same pitch sweep
+finds no probe at or above a normalized autocorrelation peak of 0.55: a breath
+is unvoiced noise, and a level band or a VAD probability dip alone selects the
+quieter frames of ordinary speech in a loud window. This applies to adjacent-cut
+breath co-removal as well as to acoustic candidates (#798), so a cut is never
+extended over a voiced run; the next quieter run in the window is tried instead.
 Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)

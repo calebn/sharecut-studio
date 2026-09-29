@@ -126,6 +126,32 @@ def autocorr_peak(
     return float(sample_rate) / float(lag), float(corr[lag]) / energy
 
 
+def voicing_probes(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    probe_sec: float,
+    hop_sec: float,
+    fmin: float,
+    fmax: float,
+) -> np.ndarray:
+    """Normalized speech-pitch autocorrelation peak of each ``probe_sec`` frame every ``hop_sec``.
+
+    A frame :func:`autocorr_peak` cannot score (silent, or too short for the lag
+    range) scores 0.0. Input shorter than one probe is scored as a single frame;
+    empty input yields an empty array.
+    """
+    if samples.size == 0:
+        return np.empty(0, dtype=np.float64)
+    frame = min(samples.size, max(1, round(sample_rate * probe_sec)))
+    hop = max(1, round(sample_rate * hop_sec))
+    scores = []
+    for start in range(0, samples.size - frame + 1, hop):
+        peak = autocorr_peak(samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax)
+        scores.append(peak[1] if peak is not None else 0.0)
+    return np.asarray(scores, dtype=np.float64)
+
+
 def bool_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Half-open ``(start, end)`` index spans of contiguous ``True`` values."""
     flags = np.asarray(mask, dtype=bool)
