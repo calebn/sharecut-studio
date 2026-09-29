@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".claude" / "workflows" / "issue-pipeline.js"
@@ -206,10 +211,7 @@ def test_context_hungry_lenses_have_required_reading() -> None:
 def test_docs_lens_runs_only_on_changed_docs() -> None:
     script = _script()
     assert _js_string_list("FOLLOWUP_LENSES") == ["bugbot", "risk", "reuse", "docs"]
-    assert (
-        r"const docsChanged = !packet || !(packet.docs === 0 && /\sdocs=0$/.test((packet.printed || '').trim()))"
-        in script
-    )
+    assert "const docsChanged = docsLensRuns(packet)" in script
     assert "printed: { type: 'string'" in script
     assert "plus the whole printed line verbatim (as printed)" in script
     assert ".filter((l) => l.key !== 'docs' || docsChanged)" in script
@@ -219,6 +221,37 @@ def test_docs_lens_runs_only_on_changed_docs() -> None:
     assert "Changed docs (docs-accuracy lens)" in packet_script
     assert "docs={len(changed_docs(args.range))}" in packet_script
     assert "docs-accuracy lens" in CONTRIBUTING.read_text(encoding="utf-8")
+
+
+def _js_function(name: str) -> str:
+    script = _script()
+    start = script.index(f"\nfunction {name}(") + 1
+    return script[start : script.index("\n}\n", start) + 2]
+
+
+_DOCS_LENS_CASES = [
+    (None, True),
+    ({"docs": 0, "printed": "/g/pr1-r1.md 900 docs=0"}, False),
+    ({"docs": 0, "printed": "  /g/pr1-r1.md 900 docs=0\n"}, False),
+    ({"docs": 0}, True),
+    ({"docs": 0, "printed": ""}, True),
+    ({"docs": 0, "printed": "/g/pr1-r1.md 900 docs=3"}, True),
+    ({"docs": 0, "printed": "/g/pr1-r1.md 900 docs=10"}, True),
+    ({"docs": "0", "printed": "/g/pr1-r1.md 900 docs=0"}, True),
+    ({"printed": "/g/pr1-r1.md 900 docs=0"}, True),
+    ({"docs": 2, "printed": "/g/pr1-r1.md 900 docs=2"}, True),
+]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="runs the workflow predicate under node")
+def test_docs_lens_skips_only_when_count_and_printed_line_both_say_zero() -> None:
+    packets = json.dumps([packet for packet, _ in _DOCS_LENS_CASES])
+    program = (
+        f"{_js_function('docsLensRuns')}\n"
+        f"console.log(JSON.stringify({packets}.map((p) => docsLensRuns(p))))"
+    )
+    out = subprocess.run(["node", "-e", program], check=True, capture_output=True, text=True).stdout
+    assert json.loads(out) == [runs for _, runs in _DOCS_LENS_CASES]
 
 
 def test_implementer_rereads_changed_docs_before_opening_the_pr() -> None:
