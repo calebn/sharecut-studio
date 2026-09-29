@@ -411,8 +411,10 @@ def classify_breath_samples(
     transcript words), and the hit may not continue a kept word on its far side
     without the level first falling to the band floor. The level band comes from
     the caller's ``speech_reference_rms`` and ``noise_floor_rms`` (see
-    :func:`level_profile`); without a speech reference nothing can be classified.
-    A caller with no floor measurement bounds the band by the speech level alone.
+    :func:`level_profile`); adjacent-cut classification abstains when no valid
+    band can be formed. A caller with no floor measurement bounds the band by
+    the speech level alone. Silero candidate-run classification can proceed
+    without a level reference because it has no adjacent cut to protect.
     Both backends share this one band and predicate construction (below), so a
     Silero hit is rejected by the same gap-ceiling and kept-word-adjacency rules
     as a heuristic one. Silero is only used at its required 16 kHz rate with its
@@ -421,6 +423,9 @@ def classify_breath_samples(
     band = None
     if speech_reference_rms is not None and np.isfinite(speech_reference_rms):
         band = breath_level_band(noise_floor_rms or 0.0, speech_reference_rms)
+
+    if cut_edge is not None and band is None:
+        return None
 
     if vad_backend == "silero" and sample_rate == 16000:
         from podcast_mcp.engines.vad_silero import get_shared_vad

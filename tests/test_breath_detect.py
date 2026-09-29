@@ -321,6 +321,30 @@ def test_sample_classifier_does_not_fallback_after_valid_silero_no_breath() -> N
     heuristic.assert_not_called()
 
 
+def test_adjacent_silero_abstains_when_level_band_cannot_be_formed() -> None:
+    from podcast_mcp.edits.breath_detect import BreathSpan, classify_breath_samples
+
+    with (
+        patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=MagicMock()),
+        patch(
+            "podcast_mcp.edits.breath_detect._find_breath_in_window_silero",
+            return_value=BreathSpan(start=1.0, end=1.1, side="detected"),
+        ) as silero,
+    ):
+        result = classify_breath_samples(
+            np.zeros(1600, dtype=np.float32),
+            1.0,
+            sample_rate=16000,
+            vad_backend="silero",
+            speech_reference_rms=0.001,
+            noise_floor_rms=0.001,
+            cut_edge="end",
+        )
+
+    assert result is None
+    silero.assert_not_called()
+
+
 def test_sample_classifier_looks_up_silero_once_and_falls_back_on_inference_error() -> None:
     from podcast_mcp.edits.breath_detect import classify_breath_samples
 
