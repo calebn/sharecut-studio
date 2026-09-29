@@ -14,7 +14,11 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
+from podcast_mcp.edits.fillers import (
+    _check_voiced_speech,
+    _CutCandidate,
+    analyze_fillers_and_pauses,
+)
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.voiced_runs import run_straddling, voiced_runs, voiced_sec_inside
@@ -307,3 +311,70 @@ def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> Non
     assert decision.reason == "pause:2.60s:solo:interior_audio"
     assert decision.review_required is True
     assert apply_tighten_decisions(project) == 0
+
+
+def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
+    """Voice runs 0.30-0.70 s but the transcript has "um" only at 0.50-0.70: the first
+    200 ms is a word Whisper dropped, or "um" timed short, and the audio cannot say
+    which. The cut keeps its transcript-bounded start (the optimizer's 0.475) instead
+    of growing over the untranscribed voice, and is reviewed."""
+    host = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(host, 0.30, 0.70)
+    _voice(host, 0.90, 1.10)
+    _voice(host, 2.0, 2.4)
+    words = [
+        TranscriptWord(text="um", start=0.50, end=0.70),
+        TranscriptWord(text="uh", start=0.90, end=1.10),
+        TranscriptWord(text="edits", start=2.0, end=2.4),
+    ]
+    project = _project(tmp_path, host, words)
+    defaults = {
+        "tighten": {
+            "filler_words": ["um", "uh"],
+            "discourse_markers": [],
+            "acoustic_gap_filler": {"enabled": False},
+        }
+    }
+
+    um, uh = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    assert um.reason == "filler:um:voiced_edge"
+    assert um.review_required is True
+    assert um.start == pytest.approx(0.475, abs=0.011)
+    assert um.start >= 0.46
+    assert um.end == pytest.approx(0.701, abs=0.005)
+    # The neighbouring filler sits in silence on both sides and is untouched.
+    assert uh.reason == "filler:uh"
+    assert uh.review_required is False
+    assert uh.start == pytest.approx(0.740, abs=0.011)
+    assert apply_tighten_decisions(project) == 1
+
+
+def test_voice_after_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
+    """A transcript-bounded cut ending at 0.80 s must not widen into untranscribed
+    voice that continues to 1.00 s. The audio cannot tell whether it is a missed word
+    or a short filler alignment, so the unchanged edge is reviewed."""
+    host = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(host, 0.70, 1.00)
+    words = [TranscriptWord(text="um", start=0.50, end=0.70)]
+    project = _project(tmp_path, host, words)
+    candidate = _CutCandidate(
+        track_id="host",
+        start=0.50,
+        end=0.80,
+        reason="filler:um",
+        cut_kind="filler",
+    )
+
+    result = _check_voiced_speech(
+        candidate,
+        0.50,
+        0.80,
+        audio_cache=_cache(host),
+        word_index=CutWordIndex.build(project, "host"),
+        defaults={},
+    )
+
+    assert result.start == pytest.approx(0.50)
+    assert result.end == pytest.approx(0.80)
+    assert result.flag == "voiced_edge"
