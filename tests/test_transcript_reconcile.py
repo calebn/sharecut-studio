@@ -316,6 +316,7 @@ def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
     assert host.words[2].audibility_status == "bleed"
 
 
+@_ROOM_PAIR_MEASURED
 def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
     """Return to automatic (#824) lets the next reconcile recompute a locked word."""
     project = _two_track_project(tmp_path)
