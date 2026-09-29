@@ -82,7 +82,9 @@ def test_audibility_uses_timeline_not_source(monkeypatch, tmp_path):
         return -30.0
 
     monkeypatch.setattr(audio_audit, "_rms_for_track_at_timeline", fake_rms)
-    monkeypatch.setattr(audio_audit, "build_track_rms_caches", lambda _p: {})
+    monkeypatch.setattr(
+        audio_audit, "build_track_rms_caches", lambda _p: audio_audit.TrackRmsCacheSet()
+    )
 
     rows = audio_audit.compute_word_audibility_map(p)
     assert len(rows) == 2

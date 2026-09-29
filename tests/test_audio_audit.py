@@ -11,6 +11,7 @@ from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCache,
+    TrackRmsCacheSet,
     analyze_cleanup,
     analyze_gate_overreach,
     build_track_rms_caches,
@@ -1472,8 +1473,8 @@ def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
             return_value=-35.0,
         ),
         patch(
-            "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
-            new=lambda caches: [room_pair("host", "guest"), room_pair("guest", "host")],
+            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            new=lambda self: [room_pair("host", "guest"), room_pair("guest", "host")],
         ),
     ):
         report = analyze_cleanup(project, policy=pol)
@@ -1736,3 +1737,81 @@ def test_clipping_indicated_ignores_flat_factor_in_near_silence() -> None:
     )
     assert clipping_indicated({"peak_level_db": -20.0, "flat_factor": 6.0}) is True
     assert clipping_indicated({"peak_level_db": -20.1, "flat_factor": 6.0}) is False
+
+
+def _bleed_path(source: str, bleed: str) -> EchoPairProfile:
+    return EchoPairProfile(
+        source_track_id=source,
+        bleed_track_id=bleed,
+        span_start=0.0,
+        span_end=10.0,
+        dominated_frames=100,
+        copy_frames=40,
+        consistent_frames=30,
+        lag_ms=3.0,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+
+
+@pytest.mark.parametrize(
+    ("paths", "expected"),
+    [
+        ([], ("audible", None)),
+        ([("host", "guest")], ("audible", None)),
+        ([("guest", "host")], ("bleed", "guest")),
+        ([("guest", "host"), ("host", "guest")], ("bleed", "guest")),
+    ],
+    ids=["no-path", "path-the-other-way", "path-from-the-louder-mic", "both-ways"],
+)
+def test_bleed_needs_a_measured_path_from_the_louder_mic(tmp_path: Path, paths, expected):
+    """The guest mic is 10 dB louder in the host word's window in every case; the word is
+    `bleed` only when a guest -> host path is measured (#774)."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid) for tid in ("host", "guest")
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="own", start=0.0, end=0.4)]),
+        Transcript(track_id="guest", words=[TranscriptWord(text="loud", start=0.0, end=0.4)]),
+    ]
+    levels = {"host": -36.0, "guest": -26.0}
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            side_effect=lambda project, track_id, t0, t1, **kw: levels[track_id],
+        ),
+        patch(
+            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            new=lambda self: [_bleed_path(a, b) for a, b in paths],
+        ),
+    ):
+        rows = compute_word_audibility_map(project, policy=AnalysisPolicy())
+
+    assert [(r["track_id"], r["audibility_status"], r["dominant_track"]) for r in rows] == [
+        ("host", *expected),
+        ("guest", "audible", None),
+    ]
+    assert rows[0]["track_rms_db"] == {"host": -36.0, "guest": -26.0}
+
+
+def test_cache_set_measures_its_bleed_paths_once() -> None:
+    caches = TrackRmsCacheSet(
+        caches={
+            "host": TrackRmsCache(samples=np.zeros(800, dtype=np.float32), sample_rate=8000),
+            "guest": TrackRmsCache(samples=np.zeros(800, dtype=np.float32), sample_rate=8000),
+        }
+    )
+    measure = MagicMock(return_value=[_bleed_path("guest", "host")])
+    with patch("podcast_mcp.engines.bleed_echo.echo_risk_pairs", measure):
+        assert caches.echo_pairs() == [_bleed_path("guest", "host")]
+        assert caches.bleed_sources("host") == frozenset({"guest"})
+        assert caches.bleed_sources("guest") == frozenset()
+
+    assert measure.call_count == 1
+    (audio,), kwargs = measure.call_args
+    assert set(audio) == {"host", "guest"} and kwargs == {"sample_rate": 8000}
+    assert TrackRmsCacheSet().echo_pairs() == []

@@ -68,7 +68,7 @@ Default `transcript_mode: reconcile` applies suppressions automatically (history
 
 ## Bleed detection (operational)
 
-Bleed requires the **other track's RMS to exceed own-track RMS by ≥ `bleed_dominance_db`** (default **6.0 dB**) while the dominant track is above **`bleed_min_other_rms_db`** (−50 dB). This is acoustic dominance — ASR text need not match.
+Bleed requires the **other track's RMS to exceed own-track RMS by ≥ `bleed_dominance_db`** (default **6.0 dB**) while the dominant track is above **`bleed_min_other_rms_db`** (−50 dB), **and a measured bleed path from that track into this one** (the `echo_risk` pairs, next paragraphs; #774). This is acoustic dominance — ASR text need not match. On a pair with no measured path a quieter word is two people talking and keeps its own audibility (`audible`, or `inaudible` below the floor); `audibility_map_tool` still shows every mic's level in `track_rms_db`. On the lab tape that restored caleb "hello" / "Stay" / "I", audra "She's" / "Keep", and lana's words under caleb: all own speech by pitch and spectrogram.
 
 **Zero-duration ASR junk** (`start == end` / sub-5ms) cannot be RMS-measured and is tagged `inaudible` (`reason: zero_duration_word`) so reconcile suppresses it out of `combined.json`. If ghost fragments like `much, Victoria` remain after a prior reconcile, re-run `reconcile_transcript_tool` (or scoped CLI) after this classification is available.
 
@@ -80,6 +80,7 @@ Bleed requires the **other track's RMS to exceed own-track RMS by ≥ `bleed_dom
 
 **If bleed count is zero during known cross-talk:**
 
+0. Check `audition_context_tool` → `echo_risk` for the pair: with no measured path in that direction nothing is tagged `bleed`, whatever the dominance (#774).
 1. Measure dominance at the overlap (guest RMS − host RMS must clear 6 dB).
 2. Ensure stems are fresh (`assemble_timeline` / `render_preview`; clear stale `artifacts/` after raw WAV changes).
 3. Audition both tracks before lowering heuristics.

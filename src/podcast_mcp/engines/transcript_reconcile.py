@@ -11,7 +11,6 @@ from podcast_mcp.engines.audio_audit import (
     build_track_rms_caches,
     compute_word_audibility_map,
 )
-from podcast_mcp.engines.bleed_echo import EchoPairProfile, echo_risk_pairs
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
@@ -133,14 +132,6 @@ def _reconcile_word(
 WordKey = tuple[str, int]
 
 
-def measured_echo_pairs(caches: TrackRmsCacheSet) -> list[EchoPairProfile]:
-    """Mic pairs with a bleed path, measured on the stems reconcile already decoded."""
-    if not caches.caches:
-        return []
-    rate = next(iter(caches.caches.values())).sample_rate
-    return echo_risk_pairs({tid: c.samples for tid, c in caches.caches.items()}, sample_rate=rate)
-
-
 def word_targets(
     project: EpisodeProject,
     *,
@@ -162,9 +153,10 @@ def word_targets(
     pass writes (``ignored``, ``audibility_locked``, or without a row because they are
     cut out of the timeline) enter the candidates by their stored ``suppressed`` flag.
 
-    On a mic pair with a measured bleed path the text-match winner is the source mic
-    by the path's lag, never by loudness (#774); ``measured_echo_pairs`` finds those
-    pairs on the same decoded stems.
+    Both verdicts need a measured bleed path (``TrackRmsCacheSet.echo_pairs``, found on
+    the same decoded stems): the acoustic verdict tags ``bleed`` only along a path, and
+    on a path the text-match winner is the source mic by the path's lag, never by
+    loudness (#774).
 
     ``audibility_map`` and ``caches`` are this project's ``compute_word_audibility_map``
     and ``build_track_rms_caches`` when the caller already has them.
@@ -196,7 +188,7 @@ def word_targets(
         progress=None,
         audibility=rows,
         is_suppressed=acoustic_suppressed,
-        echo_pairs=measured_echo_pairs(caches),
+        echo_pairs=caches.echo_pairs(),
     ):
         key = (loser["track_id"], loser["word_index"])
         by_key[key] = {

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import contextlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -30,6 +30,9 @@ from podcast_mcp.util.progress import (
 )
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.bleed_echo import EchoPairProfile
 
 _RMS_SAMPLE_RATE = 8000
 # Acoustic statuses that call for transcript suppression (used both for the flagged/
@@ -283,9 +286,34 @@ class TrackRmsCache:
 @dataclass
 class TrackRmsCacheSet:
     caches: dict[str, TrackRmsCache] = field(default_factory=dict)
+    _echo_pairs: list[EchoPairProfile] | None = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     def get(self, track_id: str) -> TrackRmsCache | None:
         return self.caches.get(track_id)
+
+    def echo_pairs(self) -> list[EchoPairProfile]:
+        """Directed mic pairs with a measured bleed path, from the stems already decoded.
+
+        ``echo_risk_pairs`` over the whole timeline-clock tracks, measured once per cache
+        set: the acoustic verdict and the text-match rule both read it (#774).
+        """
+        if self._echo_pairs is None:
+            # bleed_echo reaches this module through the edits package; import lazily.
+            from podcast_mcp.engines.bleed_echo import echo_risk_pairs
+
+            rate = next((c.sample_rate for c in self.caches.values()), _RMS_SAMPLE_RATE)
+            self._echo_pairs = echo_risk_pairs(
+                {tid: c.samples for tid, c in self.caches.items()}, sample_rate=rate
+            )
+        return self._echo_pairs
+
+    def bleed_sources(self, track_id: str) -> frozenset[str]:
+        """Mics whose voice reaches ``track_id`` over a measured path."""
+        return frozenset(
+            p.source_track_id for p in self.echo_pairs() if p.bleed_track_id == track_id
+        )
 
 
 def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
@@ -388,14 +416,22 @@ def _classify_word_audibility(
     track_rms: dict[str, float],
     *,
     policy: AnalysisPolicy,
+    bleed_sources: Collection[str],
 ) -> tuple[str, str | None]:
+    """The acoustic verdict for one word window.
+
+    ``bleed`` needs a louder mic *and* a measured bleed path from that mic to this one
+    (``bleed_sources``): a word quieter than another mic on a pair with no path is two
+    people talking, not a copy, and keeps its own audibility (#774). The levels stay in
+    the row's ``track_rms_db`` for review.
+    """
     if own_rms is None:
         return "inaudible", None
 
     dominant_tid = max(track_rms, key=lambda tid: track_rms.get(tid, -80.0))
     dominant_rms = track_rms.get(dominant_tid, -80.0)
 
-    if dominant_tid != own_track_id:
+    if dominant_tid != own_track_id and dominant_tid in bleed_sources:
         own_val = track_rms.get(own_track_id, own_rms)
         if (
             dominant_rms - own_val >= policy.bleed_dominance_db
@@ -417,7 +453,11 @@ def compute_word_audibility_map(
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
 ) -> list[dict[str, Any]]:
-    """Per-word audibility across all dialogue tracks at each word's timeline window."""
+    """Per-word audibility across all dialogue tracks at each word's timeline window.
+
+    A ``bleed`` verdict needs a measured path from the louder mic into the word's own
+    (``TrackRmsCacheSet.echo_pairs``), so it needs rendered stems for both mics.
+    """
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":
         return []
@@ -450,6 +490,7 @@ def compute_word_audibility_map(
             tr = project.transcript_for_track(tid)
             if not tr:
                 continue
+            bleed_sources = caches.bleed_sources(tid)
             for i, w in enumerate(tr.words):
                 # Degenerate ASR timestamps (start==end) never produce an RMS window.
                 # Isolated junk → inaudible/suppress. Sandwiched between normal-duration
@@ -522,7 +563,9 @@ def compute_word_audibility_map(
                         track_rms[other_tid] = rms
 
                 own_rms = track_rms.get(tid)
-                status, dominant = _classify_word_audibility(tid, own_rms, track_rms, policy=pol)
+                status, dominant = _classify_word_audibility(
+                    tid, own_rms, track_rms, policy=pol, bleed_sources=bleed_sources
+                )
 
                 entry: dict[str, Any] = {
                     "track_id": tid,

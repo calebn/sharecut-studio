@@ -146,6 +146,17 @@ def _render_burst_segment(
     subprocess.run(cmd, check=True, capture_output=True)
 
 
+def _word_freq(base_hz: float, index: int) -> float:
+    """Each word's tone, five semitones up from the last (cycling every twelve words).
+
+    One stationary tone per track would correlate with itself at any time shift, and
+    reconcile's bleed-path measurement (``echo_risk``) scores a pair against the same
+    two mics shifted by seconds; with one pitch the shifted null matches the copy and no
+    path is measured (#774). Different pitches per word keep the null at chance.
+    """
+    return base_hz * 2 ** (((index * 5) % 12) / 12)
+
+
 def _render_clean_track(
     engine: FFmpegEngine,
     *,
@@ -190,7 +201,7 @@ def _render_clean_track(
         mid = (start + end) / 2.0
         burst_start = max(0.0, mid - dur / 2.0)
         delay_ms = int(burst_start * 1000)
-        cmd.extend(["-f", "lavfi", "-i", f"sine=f={freq}:duration={dur}"])
+        cmd.extend(["-f", "lavfi", "-i", f"sine=f={_word_freq(freq, i):.3f}:duration={dur}"])
         idx = i + 1
         label = f"b{i}"
         filters.append(f"[{idx}:a]volume=0.9,adelay={delay_ms}|{delay_ms}[{label}]")
@@ -439,7 +450,9 @@ def build_fixture(
     readme = out_root / "README.md"
     readme.write_text(
         "# synthetic_bleed_60s\n\n"
-        "Two-track fixture with controlled cross-bleed (12-16s overlap).\n\n"
+        "Two-track fixture with controlled cross-bleed (12 to 16 s overlap).\n\n"
+        "Each word is its own tone (five semitones apart) so `echo_risk` can measure the\n"
+        "bleed path against its time-shifted null (#774).\n\n"
         "Regenerate: `python scripts/build_synthetic_bleed_fixture.py`\n",
         encoding="utf-8",
     )

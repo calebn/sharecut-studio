@@ -6,6 +6,7 @@ from unittest.mock import patch
 from podcast_mcp.edits.audio_quality import bleed_words, suppress_bleed_words
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,
@@ -15,6 +16,29 @@ from podcast_mcp.models import (
     TrackRole,
     Transcript,
     TranscriptWord,
+)
+
+# The acoustic bleed verdict needs a measured path from the louder mic (#774); these
+# tests fake a guest-dominant window on the host mic, so the guest -> host path is measured.
+_GUEST_TO_HOST_MEASURED = patch(
+    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    new=lambda self: [
+        EchoPairProfile(
+            source_track_id="guest",
+            bleed_track_id="host",
+            span_start=0.0,
+            span_end=10.0,
+            dominated_frames=100,
+            copy_frames=40,
+            consistent_frames=30,
+            lag_ms=3.0,
+            level_db=-18.0,
+            examples=(1.0,),
+            null_runs=8,
+            null_copy_rate=0.05,
+            null_consistent_rate=0.02,
+        )
+    ],
 )
 
 
@@ -88,6 +112,7 @@ def _fake_rms(project, track_id, t_start, t_end, **kwargs):
     return -30.0
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_does_not_touch_inaudible(tmp_path: Path):
     project = _two_track_project(tmp_path)
     with patch(
@@ -122,6 +147,7 @@ def test_suppress_bleed_explicit_word_keys_locks(tmp_path: Path):
     assert result["suppressed_count"] == 1
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_heuristic_respects_existing_lock(tmp_path: Path):
     """#781: a heuristic (no word_keys) apply must not override a word a person
     or agent already locked unsuppressed."""
@@ -147,6 +173,7 @@ def test_suppress_bleed_heuristic_respects_existing_lock(tmp_path: Path):
     assert result["candidates"] == []
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_heuristic_dry_run_excludes_locked_unsuppressed(tmp_path: Path):
     """#781/#802: the heuristic dry-run preview must not list a word apply will
     leave alone, or it overstates what apply does."""
@@ -167,6 +194,7 @@ def test_suppress_bleed_heuristic_dry_run_excludes_locked_unsuppressed(tmp_path:
     assert result["candidates"] == []
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_time_range(tmp_path: Path):
     project = _two_track_project(tmp_path)
     host = project.transcript_for_track("host")
@@ -201,6 +229,7 @@ def test_suppress_bleed_time_range(tmp_path: Path):
     assert dry["candidates"][0]["text"] == "later"
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_exclude_word_keys(tmp_path: Path):
     project = _two_track_project(tmp_path)
     with patch(
@@ -220,6 +249,7 @@ def test_suppress_bleed_exclude_word_keys(tmp_path: Path):
     assert result["suppressed_count"] == 0
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_suppress_bleed_rebuilds_combined(tmp_path: Path):
     project = _two_track_project(tmp_path)
     with patch(
@@ -238,6 +268,7 @@ def test_suppress_bleed_rebuilds_combined(tmp_path: Path):
     assert len(guest_matches) >= 1
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_reconcile_transcript_time_range_limits_apply(tmp_path: Path):
     project = _two_track_project(tmp_path)
     host = project.transcript_for_track("host")
@@ -261,6 +292,7 @@ def test_reconcile_transcript_time_range_limits_apply(tmp_path: Path):
     assert len(result["suppress"]) == 1
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_overlap_duplicate_report_text_match(tmp_path: Path):
     project = _two_track_project(tmp_path)
     with patch(
@@ -276,6 +308,7 @@ def test_overlap_duplicate_report_text_match(tmp_path: Path):
     assert match["text_b"] == "bleed"
 
 
+@_GUEST_TO_HOST_MEASURED
 def test_bleed_words_filters_status(tmp_path: Path):
     project = _two_track_project(tmp_path)
     with patch(

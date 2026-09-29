@@ -11,7 +11,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned only (text ≠ audio) | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
 | `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | Sharecut Studio UX Pages demo; pending edit, comments, chapters |
 | `asr_gold` | `tests/fixtures/asr_gold/` | ~5 MB | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
-| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
+| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON; one tone per word so `echo_risk` measures the bleed path (#774) | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~15 MB | AMI word XML + synthetic audio | Natural overlap vs synthetic calibration (nightly) |
 | `word_boundary` | `tests/fixtures/word_boundary/` | 3 short clips | LibriSpeech MFA reference (not hand-checked) | Word-boundary benchmark (native vs forced aligners) + checked-in candidate reports (#641) |
 | `word_boundary_synthetic` | `tests/fixtures/word_boundary_synthetic/` | 2.5 s tone bursts | Exact by construction (hand-computed) | Word-boundary metric/harness correctness |

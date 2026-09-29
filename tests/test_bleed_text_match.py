@@ -313,8 +313,8 @@ def test_reconcile_applies_text_match_suppression(tmp_path: Path) -> None:
             side_effect=_equal_rms,
         ),
         patch(
-            "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
-            new=lambda caches: _ROOM_PAIR,
+            "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+            new=lambda self: _ROOM_PAIR,
         ),
     ):
         run_reconciliation(project, dry_run=False)

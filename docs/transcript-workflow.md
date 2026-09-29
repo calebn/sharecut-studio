@@ -10,7 +10,7 @@ Agent skill hub: [.agents/skills/podcast-transcript-workflow/SKILL.md](../.agent
 
 | Layer | What it does | Changes text? | Changes audio? | Skill |
 |-------|----------------|---------------|----------------|-------|
-| **1. Acoustic** | Word-level RMS; tag bleed/inaudible; suppress in combined | No | No | `podcast-transcript-reconcile` |
+| **1. Acoustic** | Word-level RMS; tag bleed (only along a measured bleed path, #774) / inaudible; suppress in combined | No | No | `podcast-transcript-reconcile` |
 | **2. Rules** | Glossary, homophones, cross-track sync | Yes (rules) | No | `podcast-transcript-precorrect` |
 | **3. Refine** | Agent context/grammar fixes from deferred queue | Yes (reviewed) | No | `podcast-transcript-refine` |
 | **4. Escalate** | Listen-first single-span decisions | Yes (one span) | No | `podcast-transcript-audition` |
