@@ -52,7 +52,6 @@ abuts at a join. Equal values describe one continuous point (a proposed or sourc
 join with no clip boundary)."""
 
 _DEFAULT_SIDE_SEC = 0.045
-# Edge placements a verdict must hold for; see _worst_placement.
 _DEFAULT_EDGE_TOLERANCE_MS = 3.0
 _CALIBRATE_N = 24
 _CALIBRATE_MARGIN = 1.15
@@ -416,8 +415,6 @@ _SHAPE_DETECTORS = frozenset(
 
 
 def _spectral_audibility(left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig) -> float:
-    """How much the splice's spectral shape can be heard: 1 when its louder side is
-    ``spectral_audibility_db`` or more above the inaudible floor, 0 at the floor."""
     if cfg.spectral_audibility_db <= 0:
         return 1.0
     loud = max(rms_db(left, floor_db=_SILENT_DB), rms_db(right, floor_db=_SILENT_DB))
@@ -494,11 +491,6 @@ def _natural_baseline_p95(
     sr: int,
     config: JoinContinuityConfig,
 ) -> float | None:
-    """p95 risk of ``calibrate_n`` natural (uncut) points, scored like a join.
-
-    The points come from a fixed-seed generator, so the baseline and every verdict
-    it calibrates are the same on every run over the same audio (#812).
-    """
     side = max(8, int(config.side_sec * sr))
     need = side * 2 + 8
     if samples.size < need * 4:
@@ -560,16 +552,6 @@ def _worst_placement(
     *,
     inaudible: bool = True,
 ) -> _Placement:
-    """Score the splice at ``(left_i, right_i)`` and at every edge placement within
-    ``cfg.edge_tolerance_ms``; the riskiest placement decides (fail-closed), which
-    roughly halves the verdict flips a few-millisecond edge move causes (#822). Ties
-    keep the placement as proposed, which is scored first.
-
-    Inaudibility is decided at the proposed edges only: a splice both of whose sides
-    sit below the floor there passes, whatever the detectors read 3 ms away (the floor
-    is a hard threshold, so taking the worst placement across it would turn a clean
-    quiet-air cut into a fail).
-    """
     side = max(8, int(cfg.side_sec * sr))
     left, right = _sides(samples, left_i, right_i, side)
     quiet = _inaudible_splice(left, right, cfg) if inaudible else None
