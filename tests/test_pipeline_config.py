@@ -369,6 +369,47 @@ def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> 
     assert payload["components"]["whisper"]["model"] == "small.en"
 
 
+def test_build_config_payload_reports_the_resolved_forced_alignment(tmp_path, monkeypatch) -> None:
+    """#780: the Precise word boundaries toggle follows the installed model, not the raw value."""
+    from model_pin_helpers import plant_pinned_word_aligner
+    from podcast_mcp.services import pipeline_config as pc
+
+    proj = tmp_path / "ep.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = pc.config_store()
+    store.put(proj, reset=True)
+
+    hidden = pc.build_config_payload(proj)["forced_alignment"]
+    assert hidden == {
+        "enabled": False,
+        "model": None,
+        "requested": None,
+        "installed": False,
+        "blocked": False,
+        "reason": (
+            "unavailable: word aligner 'onnx-base' is not downloaded "
+            "(podcast bootstrap --component word-aligner)"
+        ),
+    }
+
+    store.put(proj, config={"transcribe": {"forced_alignment": {"enabled": True}}})
+    assert pc.build_config_payload(proj)["forced_alignment"]["blocked"] is True
+
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    store.put(proj, reset=True)
+    installed = pc.build_config_payload(proj)["forced_alignment"]
+    assert installed["enabled"] is True
+    assert installed["requested"] is None
+    assert installed["installed"] is True
+    assert installed["model"] == "onnx-base"
+
+    store.put(proj, config={"transcribe": {"forced_alignment": {"enabled": False}}})
+    explicit_off = pc.build_config_payload(proj)["forced_alignment"]
+    assert explicit_off["enabled"] is False
+    assert explicit_off["requested"] is False
+    assert explicit_off["installed"] is True
+
+
 def test_apply_patches_keeps_a_concurrent_edit(tmp_path) -> None:
     proj = tmp_path / "ep-patch.project.json"
     proj.write_text("{}", encoding="utf-8")

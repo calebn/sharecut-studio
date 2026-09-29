@@ -198,10 +198,14 @@ function withTranscribeEnabled(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** baseConfig plus the Precise word boundaries field and word-aligner component status. */
+/**
+ * baseConfig plus the Precise word boundaries field, the word-aligner component status
+ * and the host's resolved `forced_alignment` (#780): `requested` is the raw config value
+ * (null = unset, follows the model), `installed` whether the snapshot is downloaded.
+ */
 function alignerConfig(
-  enabled: boolean,
-  ok: boolean,
+  requested: boolean | null,
+  installed: boolean,
 ): import("../types/pipeline").PipelineConfigResponse {
   const cfg = structuredClone(
     baseConfig,
@@ -211,7 +215,7 @@ function alignerConfig(
     label: "Precise word boundaries",
     description: "Re-time Whisper's words with a local forced aligner.",
     type: "boolean",
-    default: false,
+    default: null,
     group: "advanced",
     section: "transcribe",
     affects: ["transcribe_tracks"],
@@ -220,18 +224,41 @@ function alignerConfig(
     ...cfg.config,
     transcribe: {
       ...(cfg.config.transcribe as Record<string, unknown>),
-      forced_alignment: { enabled },
+      forced_alignment: { enabled: requested },
     },
   };
   cfg.components = {
     ...cfg.components,
     "word-aligner": {
-      ok,
+      ok: installed,
       opt_in: true,
       size: "~360 MB",
-      hint: "Word aligner (~360 MB) is not downloaded; Precise word boundaries keeps Whisper's times until it is. Download it next to that field in the Pipeline tab",
+      hint: "Word aligner (~360 MB) is not downloaded; Precise word boundaries is unavailable and words keep Whisper's times until it is. Download it next to that field in the Pipeline tab",
       bootstrap: "podcast bootstrap --component word-aligner",
     },
+  };
+  const enabled = installed && requested !== false;
+  const missing =
+    "word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner)";
+  let reason: string;
+  if (requested === false) {
+    reason = "off: transcribe.forced_alignment.enabled is false";
+  } else if (requested === true) {
+    reason = installed
+      ? "on: transcribe.forced_alignment.enabled is true"
+      : `blocked: transcribe.forced_alignment.enabled is true but ${missing}`;
+  } else {
+    reason = installed
+      ? "on by default: word aligner 'onnx-base' is installed"
+      : `unavailable: ${missing}`;
+  }
+  cfg.forced_alignment = {
+    enabled,
+    model: enabled ? "onnx-base" : null,
+    requested,
+    installed,
+    blocked: requested === true && !installed,
+    reason,
   };
   return cfg;
 }
@@ -409,6 +436,76 @@ describe("PipelinePanel", () => {
     expect(
       await screen.findByRole("button", { name: "Re-time words" }),
     ).toBeInTheDocument();
+  });
+
+  it("locks Precise word boundaries off with the download when the aligner is missing", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(null, false));
+    const { container } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+
+    const toggle = await screen.findByLabelText(/Precise word boundaries/i);
+    expect(toggle).toBeDisabled();
+    expect(toggle).not.toBeChecked();
+    expect(
+      screen.getByText(
+        /Precise word boundaries unavailable: word aligner 'onnx-base' is not downloaded \(podcast bootstrap --component word-aligner\)/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Re-time words" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Missing word-aligner/i)).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows Precise word boundaries on by default once the aligner is downloaded", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig.mockResolvedValue(alignerConfig(null, true));
+    const { container } = render(<PipelinePanel />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
+        0,
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Transcribe tracks" }));
+    await user.click(screen.getByRole("button", { name: "Show advanced" }));
+
+    const toggle = await screen.findByLabelText(/Precise word boundaries/i);
+    expect(toggle).toBeEnabled();
+    expect(toggle).toBeChecked();
+    expect(
+      screen.getByText(
+        /Precise word boundaries on by default: word aligner 'onnx-base' is installed/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-time words" })).toBeEnabled();
+    await expectNoA11yViolations(container);
+
+    putPipelineConfig.mockResolvedValue(alignerConfig(false, true));
+    await user.click(toggle);
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalled();
+    });
+    const body = putPipelineConfig.mock.calls.at(-1)?.[1] as {
+      config: { transcribe: { forced_alignment: { enabled: unknown } } };
+    };
+    expect(body.config.transcribe.forced_alignment.enabled).toBe(false);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Re-time words" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/Precise word boundaries/i)).not.toBeChecked();
   });
 
   it("Re-time words asks about edited tracks and starts a run from transcribe", async () => {
