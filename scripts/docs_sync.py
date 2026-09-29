@@ -41,6 +41,7 @@ _TRAILER_RE = re.compile(r"^Docs-Sync-Waive:[ \t]*(?P<id>[a-z0-9-]+)[ \t]*(?P<re
 _LEGACY_RE = re.compile(r"\[skip (?P<id>[a-z0-9-]+)\]")
 # A backticked prose token may be root-relative or (like the rest of AGENTS.md's SOLID/DRY
 # section) shorthand for a path under the package root; try both before giving up.
+# scripts/review_packet.py keeps a copy (PACKAGE_PREFIX); a test pins them equal.
 _PACKAGE_PREFIX = "src/podcast_mcp/"
 
 
@@ -218,7 +219,10 @@ def _resolve_prose_path(token: str, tracked: frozenset[str]) -> str | None:
     is not path-like (a code symbol, env var, make target, or bare skill name never resolve).
 
     Tries ``token`` as a root-relative path first, then as shorthand for a path under
-    ``src/podcast_mcp/`` (the convention this file's own SOLID/DRY section uses)."""
+    ``src/podcast_mcp/`` (the convention this file's own SOLID/DRY section uses).
+
+    scripts/review_packet.py's ``doc_references`` is a smaller copy of this resolver (it runs
+    from a git object and cannot import this module): carry a resolver fix over to it."""
     candidates = [token]
     if not token.startswith(_PACKAGE_PREFIX):
         candidates.append(_PACKAGE_PREFIX + token)
