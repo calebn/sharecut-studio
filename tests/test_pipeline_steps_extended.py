@@ -573,7 +573,7 @@ def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp
     assert data["punctuation_flags"] == []
 
 
-def _two_track_dialogue_words(punctuated: int, total: int = 30) -> list:
+def _two_track_dialogue_words(punctuated: int, total: int = 100) -> list:
     from podcast_mcp.models import TranscriptWord
 
     return [
@@ -1720,6 +1720,56 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
         _first_pass(proj)
     assert proj.transcripts[0].word_aligner is None
     assert proj.transcripts[0].alignment_score_method is None
+
+    defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
+    aligner = MagicMock()
+    aligner.model = word_aligner_model()
+    aligner.supports_language.return_value = True
+    aligner.cache_identity.return_value = {"model": "stub"}
+    aligner.align.return_value = WordAlignResult(
+        [(0.1, 0.4)], RetimeStats(1, 0, 1, 0), 0.01, (0.9,)
+    )
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        patch("podcast_mcp.engines.word_align.WordAligner.load", return_value=aligner),
+    ):
+        summary = steps.transcribe_tracks(proj, defaults)
+
+    assert "0 transcribed, 0 reused" in summary
+    assert "1 reused track(s) re-timed from the ASR cache" in summary
+    assert "1 words re-timed" in summary
+    assert proj.transcripts[0].word_aligner == "onnx-base"
+    assert proj.transcripts[0].alignment_score_method == ALIGNMENT_SCORE_METHOD
+
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"]["retime"]["retimed"] == ["Track host"]
+    assert timing["forced_alignment"]["retime"]["failed"] == []
+
+
+def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
+    minimal_project, sample_wav, tmp_workspace
+):
+    """#769: a project transcribed before the priming default still re-times, not re-runs ASR.
+
+    Its ASR cache is keyed by the old (unprompted) prompt; plan_retime must fall back to it
+    when the current primed prompt misses, and run_transcribe_plan must send that same
+    fallback prompt on the real run, or the cache misses again and Whisper re-runs.
+    """
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
+    from podcast_mcp.engines.word_align import WordAlignResult
+    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.transcript_context import TranscriptContext
+    from podcast_mcp.word_aligner_models import word_aligner_model
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    TranscriptContext(transcribe={"initial_prompt": False}).save(proj.workspace_path())
+    _first_pass(proj)
+    # The project is re-opened under today's default (primed) prompt, as an older project
+    # would be: nothing chose to disable priming, it simply predates #769.
+    TranscriptContext().save(proj.workspace_path())
 
     defaults = transcribe_run_config(load_defaults(), force=False, retime_words=True)
     aligner = MagicMock()

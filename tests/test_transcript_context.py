@@ -144,6 +144,34 @@ def test_initial_prompt_disabled_and_truncated() -> None:
     assert len(prompt) <= 40
 
 
+def test_initial_prompt_never_truncates_primer_mid_word() -> None:
+    """A budget under the primer's length sends vocabulary alone, never a cut primer."""
+    ctx = TranscriptContext(
+        terms=["Kaczynski"], transcribe={"initial_prompt_max_chars": len(DEFAULT_PROMPT_PRIMER) - 1}
+    )
+    assert ctx.initial_prompt_text() == "Kaczynski"
+
+    empty = TranscriptContext(
+        transcribe={"initial_prompt_max_chars": len(DEFAULT_PROMPT_PRIMER) - 1}
+    )
+    assert empty.initial_prompt_text() is None
+
+
+def test_initial_prompt_vocabulary_truncated_flag() -> None:
+    fits = TranscriptContext(terms=["Kaczynski"])
+    assert fits.initial_prompt_vocabulary_truncated() is False
+
+    overflows = TranscriptContext(terms=["a" * 380], transcribe={"initial_prompt_max_chars": 400})
+    assert overflows.initial_prompt_vocabulary_truncated() is True
+    # The primer survives whole even though vocabulary was cut.
+    assert overflows.initial_prompt_text().startswith(DEFAULT_PROMPT_PRIMER)
+
+    disabled = TranscriptContext(
+        terms=["a" * 380], transcribe={"initial_prompt": False, "initial_prompt_max_chars": 400}
+    )
+    assert disabled.initial_prompt_vocabulary_truncated() is False
+
+
 def test_parse_replacements_and_skip_spans_skips_invalid() -> None:
     from podcast_mcp.transcript_context import context_from_dict
 

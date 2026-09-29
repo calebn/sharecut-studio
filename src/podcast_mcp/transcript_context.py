@@ -105,14 +105,42 @@ class TranscriptContext:
             return DEFAULT_PROMPT_PRIMER
         return f"{DEFAULT_PROMPT_PRIMER} {vocabulary}"
 
+    def _fit_prompt(self, *, max_chars: int) -> tuple[str, bool]:
+        """The prompt to send within ``max_chars``, and whether vocabulary was cut to fit it.
+
+        The primer is never split mid-word: when it alone is longer than the budget,
+        vocabulary is sent by itself (truncated to fit) instead of a partial primer
+        sentence. Otherwise vocabulary is truncated at a comma boundary to leave the
+        full primer intact, and dropped entirely if none of it fits alongside the primer.
+        """
+        vocabulary = self.full_prompt_text()
+        primer = DEFAULT_PROMPT_PRIMER
+        if len(primer) > max_chars:
+            fitted = vocabulary[:max_chars].rsplit(",", 1)[0] if vocabulary else ""
+            return fitted, fitted != vocabulary
+        room = max_chars - len(primer) - (1 if vocabulary else 0)
+        fitted_vocabulary = (
+            vocabulary if len(vocabulary) <= room else vocabulary[:room].rsplit(",", 1)[0]
+        )
+        text = f"{primer} {fitted_vocabulary}" if fitted_vocabulary else primer
+        return text, fitted_vocabulary != vocabulary
+
     def initial_prompt_text(self, *, max_chars: int = 400) -> str | None:
         if not self.initial_prompt_enabled():
             return None
-        limit = self.initial_prompt_limit(max_chars=max_chars)
-        text = self.primed_prompt_text()
-        if len(text) > limit:
-            text = text[: limit - 3].rsplit(",", 1)[0]
+        text, _truncated = self._fit_prompt(
+            max_chars=self.initial_prompt_limit(max_chars=max_chars)
+        )
         return text or None
+
+    def initial_prompt_vocabulary_truncated(self, *, max_chars: int = 400) -> bool:
+        """True when ``initial_prompt_text`` had to cut saved vocabulary to fit the budget."""
+        if not self.initial_prompt_enabled():
+            return False
+        _text, truncated = self._fit_prompt(
+            max_chars=self.initial_prompt_limit(max_chars=max_chars)
+        )
+        return truncated
 
     def context_path(self, workspace: Path) -> Path:
         return workspace / "transcript_context.yaml"
