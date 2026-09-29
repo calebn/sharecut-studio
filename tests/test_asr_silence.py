@@ -444,7 +444,7 @@ def test_own_scope_ignores_the_other_tracks_and_their_placement(tmp_workspace):
     # Host placed 1.0 s late: its own -30 dBFS word now sits under the guest's -12 dBFS line.
     misplaced = two_mic_project(tmp_workspace, host_timeline_start=1.0)
     own = SpeechLevels.for_project(misplaced, AsrOptions(), bleed_check=False)
-    assert own.fingerprint_term() == "own"
+    assert own.fingerprint_term("host").startswith("own:")
     assert own.has_speech("host", 0.70, 0.72) is True
     assert own.has_speech("host", 1.6, 1.9) is True
     assert own.has_speech("host", 2.5, 2.6) is False
@@ -452,7 +452,7 @@ def test_own_scope_ignores_the_other_tracks_and_their_placement(tmp_workspace):
     # The full gate on that wrong placement is exactly the defect: the real word is flagged.
     full = SpeechLevels.for_project(misplaced, AsrOptions(), bleed_check=True)
     assert full.has_speech("host", 0.70, 0.72) is False
-    assert full.fingerprint_term().startswith("bleed:")
+    assert full.fingerprint_term("host").startswith("bleed:")
 
     # With the placement fixed the full gate flags the bleed span and not the real word,
     # and the fingerprint term changes with the placement.
@@ -460,7 +460,7 @@ def test_own_scope_ignores_the_other_tracks_and_their_placement(tmp_workspace):
     settled = SpeechLevels.for_project(fixed, AsrOptions(), bleed_check=True)
     assert settled.has_speech("host", 0.70, 0.72) is True
     assert settled.has_speech("host", 1.6, 1.9) is False
-    assert settled.fingerprint_term() != full.fingerprint_term()
+    assert settled.fingerprint_term("host") != full.fingerprint_term("host")
 
 
 def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
@@ -468,15 +468,26 @@ def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
     from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 
     project = EpisodeProject.create("fp", "/tmp")
-    project.tracks = [Track(id="host", label="host", role=TrackRole.DIALOGUE)]
+    project.tracks = [
+        Track(id="host", label="host", role=TrackRole.DIALOGUE),
+        Track(id="guest", label="guest", role=TrackRole.DIALOGUE),
+    ]
     project.clips = [
         Clip(id="c", track_id="host", source_start=0.0, source_end=3.0, timeline_start=0.0)
     ]
-    settled = evidence_term(project, bleed_check=True)
-    assert evidence_term(project, bleed_check=False) == "own"
+    settled = evidence_term(project, "host", bleed_check=True)
+    own = evidence_term(project, "host", bleed_check=False)
+    assert own.startswith("own:")
     assert settled.startswith("bleed:") and len(settled) == len("bleed:") + 16
+    project.track_by_id("guest").gain_db = 12.0
+    assert evidence_term(project, "host", bleed_check=False) == own
+    assert evidence_term(project, "host", bleed_check=True) != settled
+    settled = evidence_term(project, "host", bleed_check=True)
+    project.track_by_id("host").gain_db = 3.0
+    assert evidence_term(project, "host", bleed_check=False) != own
+    assert evidence_term(project, "host", bleed_check=True) != settled
     project.clips[0].timeline_start = 0.5
-    assert evidence_term(project, bleed_check=True) != settled
+    assert evidence_term(project, "host", bleed_check=True) != settled
 
     words = [_w(0.0, 0.5)]
     unscored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence="own")

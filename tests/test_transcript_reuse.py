@@ -399,6 +399,51 @@ def test_settled_reflag_reads_placement_and_fixing_it_reflags(tmp_workspace):
     assert _flags(host) == [False, True, True]
 
 
+def test_reused_reflag_tracks_own_gain_and_reuses_unchanged_evidence(tmp_workspace, monkeypatch):
+    from podcast_mcp.edits import transcript_reuse
+
+    project, host = _scored_two_mic(tmp_workspace)
+    job = TranscribeJob("host", None, tmp_workspace / "raw" / "host.wav")
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: host.audio_sha256})
+    options = AsrOptions(silence_filter_enabled=False)
+    refresh_count = 0
+    refresh = transcript_reuse.refresh_silence_flags
+
+    def count_refresh(*args, **kwargs):
+        nonlocal refresh_count
+        refresh_count += 1
+        return refresh(*args, **kwargs)
+
+    monkeypatch.setattr(transcript_reuse, "refresh_silence_flags", count_refresh)
+
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert _flags(host) == [False, False, True]
+    assert refresh_count == 1
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert refresh_count == 1
+
+    project.track_by_id("host").gain_db = 25.0
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert refresh_count == 2
+    assert _flags(host) == [False, False, False]
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert refresh_count == 2
+
+
+def test_settled_reflag_tracks_peer_gain_and_reuses_unchanged_evidence(tmp_workspace):
+    project, host = _scored_two_mic(tmp_workspace)
+    options = AsrOptions(silence_filter_enabled=False)
+
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [False, True, True]
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+    project.track_by_id("guest").gain_db = -20.0
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [False, False, True]
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+
 def test_settled_reflag_skips_unscored_and_hashless_transcripts(tmp_workspace):
     project, host = _scored_two_mic(tmp_workspace)
     for w in host.words:
