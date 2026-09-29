@@ -72,16 +72,20 @@ def cut_notice(what: str, command: str | None = None) -> str:
 
 def take_within(items: Iterable[str], budget: int, notice: Callable[[int], str]) -> list[str]:
     """Keep whole ``items`` in order while they (each plus a newline) fit in ``budget``
-    chars. At the first item that does not fit, stop and append ``notice(kept)``, where
-    ``kept`` is how many items were kept. ``items`` may be lazy: nothing after that first
-    misfit is computed. The one budget cut for the packet's lists."""
+    chars. At the first item that does not fit, append ``notice(kept)``, where ``kept`` is
+    how many items were kept, after dropping trailing kept items until the notice fits
+    too, so the result (each line plus a newline) stays within ``budget`` whenever the
+    notice alone does. ``items`` may be lazy: nothing after that first misfit is computed.
+    The one budget cut for the packet's lists."""
     kept: list[str] = []
     size = 0
     for item in items:
-        size += len(item) + 1
-        if size > budget:
+        if size + len(item) + 1 > budget:
+            while kept and size + len(notice(len(kept))) + 1 > budget:
+                size -= len(kept.pop()) + 1
             return [*kept, notice(len(kept))]
         kept.append(item)
+        size += len(item) + 1
     return kept
 
 
@@ -293,7 +297,7 @@ def build(ref: str, rng: str) -> str:
     omitted = ""
     if len(diff) > DIFF_CAP:
         omitted = "\n" + cut_notice(f"diff truncated at {DIFF_CAP} chars", f"git diff {rng}") + "\n"
-        diff = diff[:DIFF_CAP]
+        diff = diff[: max(0, DIFF_CAP - len(omitted))]  # the notice counts toward the cap
     symbols = changed_symbols(git("diff", "-U0", rng))
 
     callers = []
@@ -316,8 +320,9 @@ def build(ref: str, rng: str) -> str:
             twins.append(f"### {f}\n" + "\n".join(marked))
 
     parts = [
-        # Each capped (STAT_CAP, DOCS_SYNC_CAP, DOCS_CAP); with DIFF_CAP they fit under
-        # MAX_CHARS, so they sit ahead of the diff and the cut only reaches later sections.
+        # Each capped (STAT_CAP, DOCS_SYNC_CAP, DOCS_CAP; notices count toward each cap); with
+        # DIFF_CAP and the headers they fit under MAX_CHARS, so they sit ahead of the diff and
+        # the cut only reaches later sections.
         section(
             "Diff stat",
             take_within(
