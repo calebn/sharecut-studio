@@ -189,6 +189,14 @@ def test_map_transcript_utterances_to_timeline() -> None:
                     text="world", start=1.5, end=2.0, confidence=0.4, suspect_hallucination=True
                 ),
                 TranscriptWord(text="skip", start=1.7, end=1.9, suppressed=True, confidence=0.9),
+                TranscriptWord(
+                    text="locked",
+                    start=1.9,
+                    end=2.1,
+                    suppressed=False,
+                    audibility_locked=True,
+                    confidence=0.9,
+                ),
             ],
         )
     ]
@@ -211,7 +219,7 @@ def test_map_transcript_utterances_to_timeline() -> None:
     assert u["mappable"] is True
     assert u["timeline_start"] == pytest.approx(1.0)
     assert u["timeline_end"] == pytest.approx(2.0)
-    assert len(u["words"]) == 3
+    assert len(u["words"]) == 4
     assert u["words"][0]["text"] == "hello"
     assert u["words"][0]["word_index"] == 0
     assert u["words"][0]["suppressed"] is False
@@ -226,6 +234,10 @@ def test_map_transcript_utterances_to_timeline() -> None:
     assert u["words"][2]["suppressed"] is True
     assert u["words"][0]["suspect_hallucination"] is False
     assert u["words"][1]["suspect_hallucination"] is True
+    assert u["words"][0]["audibility_locked"] is False
+    assert u["words"][3]["text"] == "locked"
+    assert u["words"][3]["suppressed"] is False
+    assert u["words"][3]["audibility_locked"] is True
 
 
 def test_transcript_word_mapping_batches_unsorted_words_once_per_track(monkeypatch) -> None:

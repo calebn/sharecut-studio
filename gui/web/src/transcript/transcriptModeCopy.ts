@@ -53,6 +53,11 @@ export const TRANSCRIPT_EDIT_BOUNDARY_TIP = "Edit boundary glyph (Annotate)";
 export const TRANSCRIPT_CUT_AWAY_WORD_TIP =
   "Cut away: not in the mix · drag nearby boundary to restore";
 
+/** Title/tooltip on a word whose suppression is locked: a person or agent decided it
+ * directly, so reconcile and auto-suppress passes leave it alone (#768/#781). */
+export const TRANSCRIPT_AUDIBILITY_LOCKED_TIP =
+  "Suppression locked: set directly, not by a heuristic pass. Reconcile and auto-suppress leave it alone.";
+
 /** Note shown next to the speaker label on a suppressed-only turn (#758). */
 export const TRANSCRIPT_SUPPRESSED_ONLY_NOTE = "all suppressed";
 
