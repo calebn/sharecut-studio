@@ -97,6 +97,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 - Cut tools (`cut_time_range_tool`, `cut_text_match_tool`, `cut_words_tool`) take **source** seconds. Play, chapters, comments, and ripple-by-time take **timeline** seconds.
 - Ripple delete / tighten **do not rewrite word times** — clips move, words stay in source seconds, fully-cut words are dropped. Do not assume timestamps "shifted" after an edit; re-search to get fresh mapped `timeline_*` values.
 - Audibility and directed bleed-path checks use timeline-clock audio; when stems are absent, raw samples are placed through `SessionTimeline` before measurement.
+- **Whisper-only word times** — when `audition_context_tool` lists `whisper_word_times` in `limits` (a track's `word_aligner` is `null`, no forced aligner ran), word `start`/`end` are Whisper's own and can sit ~100 ms off the voice (measured 120 ms early at a lab cut, #775). Audition the boundary (`play_pending_preview_tool`) before approving a cut at a word edge, or have the user download the word aligner (`podcast bootstrap --component word-aligner`) and re-time; with it installed, alignment is on by default (#780).
 
 ## Rules
 
