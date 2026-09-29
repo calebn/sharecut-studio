@@ -31,7 +31,9 @@ from podcast_mcp.edits.audio_cache import (
     TrackAudioCache,
     build_track_audio_caches,
 )
+from podcast_mcp.edits.clips_ops import clips_for_track, splice_joins
 from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
+from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.engines.align import read_open_wav_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -43,6 +45,11 @@ from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
 Verdict = Literal["pass", "review", "fail"]
+
+SplicePoints = tuple[float, float]
+"""``(left_source_end, right_source_start)`` in source seconds: the audio the render
+abuts at a join. Equal values describe one continuous point (a proposed or source-clock
+join with no clip boundary)."""
 
 _DEFAULT_SIDE_SEC = 0.045
 _CALIBRATE_N = 24
@@ -468,36 +475,76 @@ def _resolve_source_samples(
 
 
 def _load_sides(
-    samples: np.ndarray, sr: int, join_sample: int, side_sec: float
+    samples: np.ndarray, sr: int, points: SplicePoints, side_sec: float
 ) -> tuple[np.ndarray, np.ndarray]:
     side = max(8, int(side_sec * sr))
-    left = samples[max(0, join_sample - side) : join_sample]
-    right = samples[join_sample : min(samples.size, join_sample + side)]
+    left_i = int(max(0.0, points[0]) * sr)
+    right_i = int(max(0.0, points[1]) * sr)
+    left = samples[max(0, left_i - side) : left_i]
+    right = samples[right_i : min(samples.size, right_i + side)]
     return left, right
 
 
+def _splice_points(
+    project: EpisodeProject,
+    track_id: str,
+    join_sec: float,
+    *,
+    timebase: Literal["source", "timeline"],
+    timeline: SessionTimeline | None = None,
+) -> SplicePoints:
+    """Source audio on each side of ``join_sec``.
+
+    A timeline join that sits on a clip splice scores the two clip edges the render
+    abuts (left clip ``source_end``, right clip ``source_start``); any other point
+    scores the source on both sides of one instant.
+    """
+    if timebase == "source":
+        return float(join_sec), float(join_sec)
+    for prev, cur in splice_joins(clips_for_track(project, track_id)):
+        if abs(float(cur.timeline_start) - float(join_sec)) <= 1e-3:
+            return float(prev.source_end), float(cur.source_start)
+    st = timeline or SessionTimeline(project)
+    mapped = st.timeline_to_source(track_id, TimelineSec(join_sec))
+    if mapped is None:
+        raise ValueError(f"timeline join {join_sec} falls in a gap on track {track_id!r}")
+    return float(mapped), float(mapped)
+
+
 def _click_check_hires(
-    project: EpisodeProject, track_id: str, src_join_sec: float, *, side_sec: float = 0.02
+    project: EpisodeProject, track_id: str, points: SplicePoints, *, side_sec: float = 0.02
 ) -> float | None:
     path = track_audio_path(project, track_id)
-    return _score_single_highrate_window(path, src_join_sec, side_sec=side_sec)
+    return _score_single_highrate_window(path, points, side_sec=side_sec)
+
+
+_CLICK_RATE = 48000
+
+
+def _splice_window(left: np.ndarray, right: np.ndarray, *, side_sec: float) -> np.ndarray:
+    """The audio a render abuts: ``side_sec`` before the left edge, then after the right."""
+    side = int(side_sec * _CLICK_RATE)
+    return np.concatenate([np.asarray(left)[-side:], np.asarray(right)[:side]]).astype(np.float32)
 
 
 def _score_single_highrate_window(
-    path: Path, src_join_sec: float, *, side_sec: float
+    path: Path, points: SplicePoints, *, side_sec: float
 ) -> float | None:
     from podcast_mcp.engines.align import load_mono_window
 
     try:
-        win = load_mono_window(
+        left = load_mono_window(
             path,
-            start_sec=max(0.0, src_join_sec - side_sec),
-            duration_sec=side_sec * 2,
-            sample_rate=48000,
+            start_sec=max(0.0, points[0] - side_sec),
+            duration_sec=side_sec,
+            sample_rate=_CLICK_RATE,
+        )
+        right = load_mono_window(
+            path, start_sec=max(0.0, points[1]), duration_sec=side_sec, sample_rate=_CLICK_RATE
         )
     except Exception:  # pragma: no cover - decode failures
         return None
-    return _click_spike_from_window(win)
+    return _click_spike_from_window(_splice_window(left, right, side_sec=side_sec))
 
 
 def _click_spike_from_window(win: np.ndarray) -> float | None:
@@ -510,10 +557,9 @@ def _click_spike_from_window(win: np.ndarray) -> float | None:
 
 @contextmanager
 def _highrate_click_scorer(
-    path: Path, *, source_joins: Sequence[float] = (), side_sec: float = 0.02
-) -> Iterator[Callable[[float], float | None]]:
+    path: Path, *, source_joins: Sequence[SplicePoints] = (), side_sec: float = 0.02
+) -> Iterator[Callable[[SplicePoints], float | None]]:
     """Keep one bounded WAV reader or batch seeked windows for a join sweep."""
-    duration = side_sec * 2
     with ExitStack() as stack:
         try:
             reader = stack.enter_context(wave.open(str(path), "rb"))
@@ -525,29 +571,35 @@ def _highrate_click_scorer(
             )
             if probe.size:
 
-                def score_wav(src_join_sec: float) -> float | None:
+                def score_wav(points: SplicePoints) -> float | None:
                     try:
-                        win, _ = read_open_wav_mono_window(
+                        left, _ = read_open_wav_mono_window(
                             reader,
-                            start_sec=max(0.0, src_join_sec - side_sec),
-                            duration_sec=duration,
-                            out_rate=48000,
+                            start_sec=max(0.0, points[0] - side_sec),
+                            duration_sec=side_sec,
+                            out_rate=_CLICK_RATE,
+                        )
+                        right, _ = read_open_wav_mono_window(
+                            reader,
+                            start_sec=max(0.0, points[1]),
+                            duration_sec=side_sec,
+                            out_rate=_CLICK_RATE,
                         )
                     except (OSError, ValueError, wave.Error):
                         return None
-                    return _click_spike_from_window(np.asarray(win, dtype=np.float32))
+                    return _click_spike_from_window(_splice_window(left, right, side_sec=side_sec))
 
                 yield score_wav
                 return
 
-    # Unsupported containers use one seek per join. Keep only a small batch of
-    # 0.1-second outputs at a time, never a decoded copy of the full recording.
+    # Unsupported containers use one seek per join side. Keep only a small batch
+    # of short outputs at a time, never a decoded copy of the full recording.
     scores = _score_highrate_batches(path, source_joins, side_sec=side_sec)
 
-    def score_seeked(src_join_sec: float) -> float | None:
-        if src_join_sec in scores:
-            return scores[src_join_sec]
-        return _score_single_highrate_window(path, src_join_sec, side_sec=side_sec)
+    def score_seeked(points: SplicePoints) -> float | None:
+        if points in scores:
+            return scores[points]
+        return _score_single_highrate_window(path, points, side_sec=side_sec)
 
     yield score_seeked
 
@@ -583,9 +635,10 @@ def _preferred_audio_stream(path: Path) -> int:
 
 
 def _score_highrate_batches(
-    path: Path, source_joins: Sequence[float], *, side_sec: float
-) -> dict[float, float | None]:
-    scores: dict[float, float | None] = {}
+    path: Path, source_joins: Sequence[SplicePoints], *, side_sec: float
+) -> dict[SplicePoints, float | None]:
+    """One ffmpeg run per batch of joins, two seeked side windows per join."""
+    scores: dict[SplicePoints, float | None] = {}
     if not source_joins:
         return scores
     try:
@@ -600,30 +653,38 @@ def _score_highrate_batches(
         batch = source_joins[offset : offset + _CLICK_BATCH_SIZE]
         try:
             with tempfile.TemporaryDirectory(prefix="join-click-") as temp:
-                outputs = [Path(temp) / f"{i}.f32le" for i in range(len(batch))]
+                outputs = [
+                    (Path(temp) / f"{i}_left.f32le", Path(temp) / f"{i}_right.f32le")
+                    for i in range(len(batch))
+                ]
                 command = [resolve_ffmpeg(), "-v", "error", "-y"]
-                for join in batch:
-                    command.extend(["-ss", str(max(0.0, join - side_sec)), "-i", str(path)])
-                for i, output in enumerate(outputs):
-                    command.extend(
-                        [
-                            "-map",
-                            f"{i}:a:{stream}",
-                            "-t",
-                            str(max(0.1, side_sec * 2)),
-                            "-ac",
-                            "1",
-                            "-ar",
-                            "48000",
-                            "-f",
-                            "f32le",
-                            str(output),
-                        ]
-                    )
+                for left_end, right_start in batch:
+                    command.extend(["-ss", str(max(0.0, left_end - side_sec)), "-i", str(path)])
+                    command.extend(["-ss", str(max(0.0, right_start)), "-i", str(path)])
+                for i, (left_out, right_out) in enumerate(outputs):
+                    for k, output in ((2 * i, left_out), (2 * i + 1, right_out)):
+                        command.extend(
+                            [
+                                "-map",
+                                f"{k}:a:{stream}",
+                                "-t",
+                                str(max(0.1, side_sec)),
+                                "-ac",
+                                "1",
+                                "-ar",
+                                str(_CLICK_RATE),
+                                "-f",
+                                "f32le",
+                                str(output),
+                            ]
+                        )
                 run(command, stderr=DEVNULL, check=True)
-                for join, output in zip(batch, outputs, strict=True):
-                    win = np.fromfile(output, dtype=np.float32)
-                    scores[join] = _click_spike_from_window(win)
+                for join, (left_out, right_out) in zip(batch, outputs, strict=True):
+                    left = np.fromfile(left_out, dtype=np.float32)
+                    right = np.fromfile(right_out, dtype=np.float32)
+                    scores[join] = _click_spike_from_window(
+                        _splice_window(left, right, side_sec=side_sec)
+                    )
         except Exception as exc:
             _LOG.debug("high-rate click batch failed for %s at offset %d: %s", path, offset, exc)
             # One bad output must not hide reports from the remaining joins.
@@ -751,25 +812,20 @@ def _assess_existing_join(
     natural_p95: float | None = None,
     baseline_ready: bool = False,
     timeline: SessionTimeline | None = None,
-    click_score: Callable[[float], float | None] | None = None,
+    points: SplicePoints | None = None,
+    click_score: Callable[[SplicePoints], float | None] | None = None,
 ) -> JoinContinuityReport:
     cfg = config or JoinContinuityConfig.from_defaults(defaults)
     if samples is None:
         samples = _resolve_source_samples(project, track_id, cfg.sample_rate)
-    src_join = float(join_sec)
-    if timebase == "timeline":
-        st = timeline or SessionTimeline(project)
-        mapped = st.timeline_to_source(track_id, TimelineSec(join_sec))
-        if mapped is None:
-            raise ValueError(f"timeline join {join_sec} falls in a gap on track {track_id!r}")
-        src_join = float(mapped)
-    join_i = int(max(0.0, src_join) * cfg.sample_rate)
-    left, right = _load_sides(samples, cfg.sample_rate, join_i, cfg.side_sec)
+    if points is None:
+        points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
+    left, right = _load_sides(samples, cfg.sample_rate, points, cfg.side_sec)
     risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
     spike = (
-        click_score(float(src_join))
+        click_score(points)
         if click_score is not None
-        else _click_check_hires(project, track_id, float(src_join))
+        else _click_check_hires(project, track_id, points)
     )
     if spike is not None and spike > 12.0:  # pragma: no branch
         hits.append(
@@ -782,7 +838,7 @@ def _assess_existing_join(
         )
         wsum = sum(h.weight for h in hits) or 1.0
         risk = sum(h.score * h.weight for h in hits) / wsum
-    neural_hits, neural_info = _maybe_neural(project, track_id, float(src_join), cfg)
+    neural_hits, neural_info = _maybe_neural(project, track_id, points[1], cfg)
     if neural_hits:
         hits.extend(neural_hits)
         wsum = sum(h.weight for h in hits) or 1.0
@@ -862,34 +918,24 @@ def assess_project_joins(
     worst: dict[str, Any] | None = None
     timeline = SessionTimeline(project)
     for tid in tids:
-        clips = sorted(
-            (c for c in project.timeline.clips if c.track_id == tid),
-            key=lambda c: c.timeline_start,
-        )
-        joins = [
-            (clips[i - 1], clips[i])
-            for i in range(1, len(clips))
-            if abs(float(clips[i].source_start) - float(clips[i - 1].source_end)) >= 1e-4
-        ]
+        joins = splice_joins(clips_for_track(project, tid))
         if not joins:
             continue
         samples = _resolve_source_samples(project, tid, cfg.sample_rate)
         natural_p95 = (
             _natural_baseline_p95(samples, cfg.sample_rate, cfg) if cfg.calibrate else None
         )
-        source_joins: list[float] = []
-        for _prev, cur in joins:
-            join_t = float(cur.timeline_start)
-            mapped = timeline.timeline_to_source(tid, TimelineSec(join_t))
-            if mapped is None:
-                raise ValueError(f"timeline join {join_t} falls in a gap on track {tid!r}")
-            source_joins.append(float(mapped))
+        source_joins: list[SplicePoints] = [
+            (float(prev.source_end), float(cur.source_start)) for prev, cur in joins
+        ]
+        crossings = find_speech_crossings(
+            project, tid, joins, samples=samples, sample_rate=cfg.sample_rate
+        )
         with _highrate_click_scorer(
             track_audio_path(project, tid), source_joins=source_joins
         ) as click_score:
-            for prev, cur in joins:
+            for (_prev, cur), points in zip(joins, source_joins, strict=True):
                 join_t = float(cur.timeline_start)
-                gap = abs(float(cur.source_start) - float(prev.source_end))
                 rep = _assess_existing_join(
                     project,
                     tid,
@@ -901,10 +947,14 @@ def assess_project_joins(
                     natural_p95=natural_p95,
                     baseline_ready=True,
                     timeline=timeline,
+                    points=points,
                     click_score=click_score,
                 )
                 d = rep.to_dict()
-                d["source_gap_sec"] = round(gap, 4)
+                d["source_gap_sec"] = round(abs(points[1] - points[0]), 4)
+                d["speech"] = [
+                    c.to_dict() for c in crossings if abs(c.join_timeline_sec - join_t) <= 1e-6
+                ]
                 reports.append(d)
                 if worst is None or d["risk"] > worst["risk"]:
                     worst = d
@@ -915,6 +965,7 @@ def assess_project_joins(
         "fail_count": len(fails),
         "review_count": len(reviews),
         "pass_count": len(reports) - len(fails) - len(reviews),
+        "speech_cross_count": sum(len(r["speech"]) for r in reports),
         "worst": worst,
         "joins": reports,
         "disclaimer": _DISCLAIMER,

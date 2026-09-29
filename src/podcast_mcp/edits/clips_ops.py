@@ -44,6 +44,27 @@ def abutting_pairs(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
     return [(left, right) for left, right in pairwise(clips) if clips_abut(left, right)]
 
 
+SPLICE_SOURCE_EPS_SEC = 1e-4
+"""Smallest source discontinuity (seconds) between neighbouring clips that counts as a splice."""
+
+
+def is_splice(left: Clip, right: Clip) -> bool:
+    """True when ``right`` does not resume where ``left`` stopped in the source.
+
+    A split clip (continuous source) is not a splice; a cut, a ripple delete or a
+    clip moved in from another source is. The single rule shared by join QA and
+    the audition context.
+    """
+    if left.source_id != right.source_id:
+        return True
+    return abs(float(right.source_start) - float(left.source_end)) >= SPLICE_SOURCE_EPS_SEC
+
+
+def splice_joins(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
+    """Neighbouring ``(left, right)`` pairs of timeline-sorted ``clips`` whose source is discontinuous."""
+    return [(left, right) for left, right in pairwise(clips) if is_splice(left, right)]
+
+
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 
