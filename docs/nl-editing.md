@@ -56,6 +56,10 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `play_pending_preview_tool` | Current / Suggested skip / A/B around a pending session remove (does not mutate). Host speakers. Share agents: `guest_pending_preview`. |
 | `audition_context_tool` | Per-track captions + stem freshness for a timeline window (no audio). Payload `schema: audition_context.v2` adds typed `hypotheses[]` (including windowed hum/clip at default `summary`), `suggested_listen[]`, explicit clocks, and `limits`. `detail=visual` adds PNGs. Each track also carries a `prosody` window (pitch, rate, energy, prominent words, phrase boundaries) read from the pipeline's cached profile (`missing`/`stale` with a hint when no fresh profile is cached; `unavailable` with a redacted `error` when the cached profile cannot be read or parsed); top-level `prosody_notes` has up to 8 one-line summaries — see [pipeline.md § Prosody profile](pipeline.md#prosody-profile). |
 
+### Busy project
+
+A tool call that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`) does not crash with an opaque `Error executing tool <name>`. `mcp.busy_errors.install_busy_errors`, installed once on the server in `mcp/server.py`, catches it and returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere (#488).
+
 ## Skills
 
 - Editing: `.agents/skills/podcast-edit-natural-language/SKILL.md`

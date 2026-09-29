@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from filelock import Timeout
 from pydantic import ValidationError
 
 from podcast_mcp.services.remote_mcp.context import (
@@ -20,6 +21,7 @@ from podcast_mcp.util.progress import (
     clear_guest_progress_context,
     set_guest_progress_context,
 )
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 
 PROTOCOL_VERSION = "2024-11-05"
 # Claude.ai and current MCP auth/transport eras; negotiate on initialize.
@@ -45,11 +47,16 @@ def _result(req_id: Any, result: Any) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": req_id, "result": result}
 
 
-def _error(req_id: Any, code: int, message: str) -> dict[str, Any]:
+def _error(
+    req_id: Any, code: int, message: str, *, data: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    error: dict[str, Any] = {"code": code, "message": message}
+    if data is not None:
+        error["data"] = data
     return {
         "jsonrpc": "2.0",
         "id": req_id,
-        "error": {"code": code, "message": message},
+        "error": error,
     }
 
 
@@ -137,6 +144,10 @@ def _dispatch(
                 return _error(req_id, -32602, str(exc))
             except KeyError as exc:
                 return _error(req_id, -32601, str(exc))
+            except Timeout as exc:
+                return _error(
+                    req_id, -32000, busy_message(exc), data={"error_code": PROJECT_BUSY_CODE}
+                )
             except Exception as exc:
                 return _error(req_id, -32000, str(exc))
             text = result if isinstance(result, str) else json.dumps(result, indent=2, default=str)
