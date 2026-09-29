@@ -227,10 +227,15 @@ def test_write_transcript_mirrors_matches_project_store(tmp_path: Path) -> None:
     shutil.copy(FIXTURE / "fixture.meta.json", tmp_path / "fixture.meta.json")
     shutil.copy(FIXTURE / "ingest.yaml", tmp_path / "ingest.yaml")
     before = (tmp_path / "episode.project.json").read_bytes()
+    (tmp_path / "transcripts" / "combined.json").write_text("stale")
 
     bld.write_transcript_mirrors(tmp_path)
 
     project = load_project(tmp_path / "episode.project.json")
+    assert project.transcript_data.combined is not None
+    assert (tmp_path / "transcripts" / "combined.json").read_bytes() == (
+        project.transcript_data.combined.model_dump_json(indent=2, by_alias=True).encode("utf-8")
+    )
     for transcript in project.transcript_data.per_track:
         if not transcript.words:
             continue
@@ -239,3 +244,25 @@ def test_write_transcript_mirrors_matches_project_store(tmp_path: Path) -> None:
         assert actual == expected
 
     assert (tmp_path / "episode.project.json").read_bytes() == before
+
+
+def test_main_regenerates_audio_and_transcript_mirrors(tmp_path: Path, monkeypatch) -> None:
+    bld = _load_builder()
+    for name in ("episode.project.json", "fixture.meta.json", "ingest.yaml"):
+        shutil.copy(FIXTURE / name, tmp_path / name)
+    synth, calls = _make_fake_synthesizer()
+    monkeypatch.setattr(bld, "download_voice", lambda _voice: tmp_path / "fake.onnx")
+    monkeypatch.setattr(bld, "piper_synthesizer", lambda _path: synth)
+    monkeypatch.setattr(bld, "SAMPLE_RATE", FAKE_SR)
+
+    assert bld.main(["--fixture", str(tmp_path)]) == 0
+    assert calls
+    for track, source_duration in (("reference", 90), ("guest", 180)):
+        raw, rate = bld.read_wav_int16(tmp_path / "raw" / f"{track}.wav")
+        source, source_rate = bld.read_wav_int16(tmp_path / "sources" / f"{track}.wav")
+        assert rate == source_rate == FAKE_SR
+        assert raw.size == 60 * FAKE_SR
+        assert source.size == source_duration * FAKE_SR
+        assert np.max(np.abs(raw)) > 1000
+        assert (tmp_path / "transcripts" / f"{track}.json").is_file()
+    assert (tmp_path / "transcripts" / "combined.json").is_file()
