@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import click
 import pytest
 from typer.testing import CliRunner
 
@@ -473,7 +474,11 @@ def test_transcript_correct_phrase_cmd_stale_index_prints_clean_error(minimal_pr
     )
     assert result.exit_code == 1
     assert "Traceback" not in result.output
-    assert result.stderr.strip()
+    assert click.unstyle(result.stderr.strip()) == (
+        "Error: Transcript words 0-1 on track 'host' changed since you read them, "
+        "so the edit was not applied. Re-read the transcript and try again. "
+        "(set PODCAST_DEBUG=1 for the traceback)"
+    )
 
 
 def test_transcript_suppress_word_cmd(minimal_project):
@@ -553,7 +558,7 @@ def test_transcript_cleanup_batch_cmd_rejects_non_object_json(minimal_project):
         ],
     )
     assert result.exit_code == 2
-    assert "--corrections-json must be a JSON object" in result.output
+    assert "--corrections-json must be a JSON object" in click.unstyle(result.output)
 
 
 def test_transcript_cleanup_batch_cmd_rejects_invalid_json(minimal_project):
@@ -572,7 +577,7 @@ def test_transcript_cleanup_batch_cmd_rejects_invalid_json(minimal_project):
         ],
     )
     assert result.exit_code == 2
-    assert "--corrections-json is not valid JSON" in result.output
+    assert "--corrections-json is not valid JSON" in click.unstyle(result.output)
 
 
 def test_edit_join_quality_cli(minimal_project, monkeypatch):
