@@ -43,6 +43,14 @@ def _caption_limits(
     if max_lines is not None and max_lines < 1:
         raise typer.BadParameter("must be >= 1", param_hint="'--max-lines'")
     base = resolve_caption_limits(load_defaults().get("export", {}))
+    if max_duration_sec is not None and max_duration_sec < base.min_duration_sec:
+        # Caught here, against the flag, rather than left to CaptionLimits below: that
+        # raises a domain ValueError naming min_duration_sec, a yaml key this user never
+        # set (#816). The value is still worth surfacing, just not as something to flag.
+        raise typer.BadParameter(
+            f"must be >= the configured min_duration_sec ({base.min_duration_sec})",
+            param_hint="'--max-duration-sec'",
+        )
     return CaptionLimits(
         max_duration_sec=base.max_duration_sec if max_duration_sec is None else max_duration_sec,
         max_chars_per_line=(
