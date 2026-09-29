@@ -452,7 +452,7 @@ def test_click_hires_and_maybe_neural(minimal_project: Path, sample_wav: Path) -
     ]
     save_project(project, minimal_project)
     project = load_project(minimal_project)
-    spike = _click_check_hires(project, "host", 0.5)
+    spike = _click_check_hires(project, "host", (0.5, 0.5))
     assert spike is None or spike >= 0.0
     cfg = JoinContinuityConfig(neural=False)
     hits, info = _maybe_neural(project, "host", 0.5, cfg)
