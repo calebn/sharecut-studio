@@ -253,8 +253,14 @@ as the effect params to use a different one of `GregorR/rnnoise-models`'s preset
 
 ## Silero-VAD breath detection (opt-in)
 
-`edits/breath_detect.py` defaults to an RMS-percentile heuristic to locate breath
-sounds adjacent to a cut. Setting `tighten.breath_handling.vad_backend: silero` in
+`edits/breath_detect.py` defaults to a level-band heuristic to locate breath sounds
+adjacent to a cut: 10 ms frames that sit at least 9.5 dB above the track's room tone
+and 7–40 dB below its speech level, both read as the 10th and 90th percentiles of the
+live frames in 5 s of kept audio on each side of the cut (`level_profile`,
+`breath_level_band`). Nothing about the band is absolute, so a quiet −48 dBFS breath
+over a −70 dBFS floor and a −26 dBFS breath under −15 dBFS speech are both in band,
+while a noise-gated track with no live audio near the cut yields no band and no
+breath. Setting `tighten.breath_handling.vad_backend: silero` in
 [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml) switches to
 [`engines/vad_silero.py`](../src/podcast_mcp/engines/vad_silero.py), which looks for
 a breath as a *dip* in Silero VAD speech-probability (breaths are voiced-adjacent
@@ -277,25 +283,40 @@ tune it by ear against real recordings before switching the default away from
 The same sample-window classifiers reject breath-shaped acoustic gap filler
 candidates. Configure `tighten.acoustic_gap_filler.vad_backend` separately; its
 default remains `heuristic`. Classification is confined to each proposed run.
-The RMS classifier compares a run with short, audible windows inside both
+The level classifier compares a run with short, audible windows inside both
 flanking transcript words; it abstains and leaves the run for review when
-either speech reference is missing or below the active audibility floor.
+either speech reference is missing or below the active audibility floor, and
+with no room-tone measurement its band is bounded by that speech level alone.
 For an acoustic candidate in the heuristic breath band, 40 ms speech-pitch
 probes every 10 ms also keep clearly periodic speech-like runs reviewable;
 weakly periodic broadband breath-like runs may be rejected.
-Silero does not require that RMS reference. Model lookup happens once per
-classification, and model or inference failures fall back to the RMS heuristic.
+Silero does not require that level reference. Model lookup happens once per
+classification, and model or inference failures fall back to the level heuristic.
 
 With either backend, a run only counts as a breath when the same pitch sweep
 finds no probe at or above a normalized autocorrelation peak of 0.55 over the
 run and, for adjacent-cut co-removal, over everything between the run and the
 cut edge, and when less than half of the 100 Hz–8 kHz energy of the run, and
-separately of that gap, lies above 4 kHz (a sibilant, not a breath). A breath is unvoiced noise, and a level band
+separately of that gap, lies above 4 kHz (a sibilant, not a breath). The
+heuristic probes only frames that reach the band floor: on the lab tape room
+tone 40 dB under the speech level scores 0.6–0.8 on the same sweep, and it is
+not speech to protect (#814). A breath is unvoiced noise, and a level band
 or a VAD probability dip alone selects the quieter frames of ordinary speech in
 a loud window. This applies to adjacent-cut breath co-removal as well as to
 acoustic candidates (#798), so a cut is never extended over a voiced run; the
-next quieter run in the window is tried instead.
-Tune against real recordings by ear before changing either default.
+next quieter run in the window is tried instead. For adjacent-cut co-removal
+the kept transcript words are also handed to the classifier as keep-out spans:
+a frame inside one is never breath and the stretch between a run and the cut
+may not touch one, because the search windows lie inside the neighbouring word
+whenever a cut edge abuts it (a word the cut removes at least half of is not
+kept). A run that continues a kept word on its far side without the level first
+falling to the band floor is that word's decay or onset and is rejected too, so
+a fricative onset under the 4 kHz split or a voiced tail whose probes stay under
+0.55 cannot be co-removed; the heuristic scans the whole 5 s of flanking audio
+for that walk. And no frame between the run and the cut may exceed the band
+ceiling (speech level −7 dB): vocal fry has pulses at speech level but scores
+0.1–0.4 on the 70–350 Hz probe, so level, not pitch, is what separates it from
+a breath. Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)
 
