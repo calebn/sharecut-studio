@@ -26,6 +26,7 @@ from podcast_mcp.edits.comments import list_comments
 from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window
 from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
 from podcast_mcp.engines.audio_audit import clipping_indicated
+from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
@@ -157,6 +158,17 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "meaning": (
             "Voiced speech runs through a clip edge at this join: the cut removed the start "
             "(clipped onset) or the end (clipped tail) of a phrase."
+        ),
+    },
+    "echo_risk": {
+        "severity": "warn",
+        "confidence": "measured",
+        "autonomy": "needs_approval",
+        "skill": "podcast-mute-bleed",
+        "tools": ["play_compose_tool", "apply_transcript_gate_tool"],
+        "meaning": (
+            "One dialogue mic carries a delayed, attenuated copy of another speaker "
+            "(same-room bleed): the mix doubles that voice."
         ),
     },
 }
@@ -399,8 +411,11 @@ def build_audition_context(
         else []
     )
     hypotheses.extend(_visual_hypotheses(window, dsp))
+    echo_skipped = False
     if include_dsp:
         hypotheses.extend(_speech_cut_hypotheses(project, track_ids, timeline_start, timeline_end))
+        echo_hyps, echo_skipped = _echo_hypotheses(project, window, timeline_start, timeline_end)
+        hypotheses.extend(echo_hyps)
 
     visuals: list[dict[str, Any]] | None = None
     if detail == "visual":
@@ -433,7 +448,11 @@ def build_audition_context(
         "render_status": render_status,
         "hypotheses": hypotheses,
         "suggested_listen": suggested,
-        "limits": _limits(detail=detail, needs_rerender=bool(render_status.get("needs_rerender"))),
+        "limits": _limits(
+            detail=detail,
+            needs_rerender=bool(render_status.get("needs_rerender")),
+            echo_skipped=echo_skipped,
+        ),
         "warnings": warnings,
         "summary": _summary(tracks_out, warnings, comments),
         "prosody_notes": _prosody_notes(tracks_out) if include_prosody else [],
@@ -686,6 +705,45 @@ def _speech_cut_hypotheses(
     return out
 
 
+ECHO_LISTEN_PAD_SEC = 1.5
+
+
+def _echo_meaning(p: EchoPairProfile) -> str:
+    lag = f"{p.lag_ms:+.1f} ms" if p.lag_ms is not None else "an unresolved lag"
+    level = f"{p.level_db:.0f} dB down" if p.level_db is not None else "at an unmeasured level"
+    example = f" (e.g. {p.examples[0]:.1f}s)" if p.examples else ""
+    return (
+        f"echo_risk: {p.bleed_track_id} carries {p.source_track_id}'s voice {level} at {lag} lag "
+        f"in {p.consistent_frames} of {p.copy_frames} correlated frames over timeline "
+        f"{p.span_start:.0f}-{p.span_end:.0f}s{example}: same-room bleed doubles "
+        f"{p.source_track_id} in the mix. Gate {p.bleed_track_id} to its own words "
+        f"(podcast-mute-bleed) or check mic placement."
+    )
+
+
+def _echo_hypotheses(
+    project: EpisodeProject,
+    window: dict[str, Any],
+    timeline_start: float,
+    timeline_end: float,
+) -> tuple[list[dict[str, Any]], bool]:
+    """``echo_risk`` per directed mic pair, and whether any stem was skipped as stale."""
+    cfg = EchoConfig()
+    profiles, skipped = echo_profiles(project, start_sec=timeline_start, end_sec=timeline_end)
+    out = [
+        _hypothesis(
+            "echo_risk",
+            tracks=[p.source_track_id, p.bleed_track_id],
+            window=window,
+            evidence=p.to_dict(cfg),
+            meaning=_echo_meaning(p),
+        )
+        for p in profiles
+        if p.echo_risk(cfg)
+    ]
+    return out, bool(skipped)
+
+
 def _build_suggested_listen(
     hypotheses: list[dict[str, Any]],
     window: dict[str, Any],
@@ -719,6 +777,23 @@ def _build_suggested_listen(
                 "tier": "processed",
                 "start": start,
                 "end": end,
+                "clock": "timeline",
+            }
+        )
+    for h in track_specific:
+        examples = (h.get("evidence") or {}).get("examples") or []
+        if h["code"] != "echo_risk" or not examples or len(entries) >= MAX_SUGGESTED_LISTEN:
+            continue
+        source, bleed = h["tracks"]
+        entries.append(
+            {
+                "id": f"sl-{len(entries) + 1}",
+                "why": f"Hear {source} doubled in {bleed} at the strongest example",
+                "track_ids": [source, bleed],
+                "pair": [source, bleed],
+                "tier": "processed",
+                "start": max(0.0, float(examples[0]) - ECHO_LISTEN_PAD_SEC),
+                "end": float(examples[0]) + ECHO_LISTEN_PAD_SEC,
                 "clock": "timeline",
             }
         )
@@ -758,20 +833,25 @@ def _attach_listen_refs(
         for s in suggested
         if isinstance(s.get("source"), str) and s["source"].startswith("processed:")
     }
+    pair_listen = {tuple(s["pair"]): s["id"] for s in suggested if s.get("pair")}
     for h in hypotheses:
         tracks = h.get("tracks") or []
         listen = premix_id
-        if len(tracks) == 1 and tracks[0] in isolate_by_track:
+        if tuple(tracks) in pair_listen:
+            listen = pair_listen[tuple(tracks)]
+        elif len(tracks) == 1 and tracks[0] in isolate_by_track:
             listen = isolate_by_track[tracks[0]]
         elif len(tracks) >= 2 and compose_id:
             listen = compose_id
         h["next"]["listen"] = listen
 
 
-def _limits(*, detail: str, needs_rerender: bool) -> list[str]:
+def _limits(*, detail: str, needs_rerender: bool, echo_skipped: bool = False) -> list[str]:
     out = ["cannot_hear", "captions_are_transcript_not_audio"]
     if needs_rerender:
         out.append("needs_rerender")
+    if echo_skipped:
+        out.append("echo_check_needs_fresh_stems")
     if detail == "visual":
         out.append("visuals_are_degradation_not_asr")
     return out

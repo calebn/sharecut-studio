@@ -66,6 +66,9 @@ def _xcorr_lag_window(
     return window, max_lag_samples
 
 
+xcorr_lag_window = _xcorr_lag_window
+"""Public name for callers outside alignment (the bleed echo profile)."""
+
 GCC_PHAT_MIN_CONFIDENCE = 0.25
 _SILENCE_STD = 1e-4
 
