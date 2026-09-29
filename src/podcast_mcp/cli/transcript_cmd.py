@@ -32,14 +32,33 @@ def _caption_limits(
     max_chars_per_line: int | None,
     max_lines: int | None,
 ) -> CaptionLimits:
-    """Pipeline defaults' ``export.captions``, overridden by any CLI flags given."""
+    """Pipeline defaults' ``export.captions``, overridden by any CLI flags given.
+
+    A given flag is validated here (bad value -> ``typer.BadParameter``, a usage error,
+    exit 2); an invalid ``export.captions`` yaml default is a domain ``ValueError`` from
+    ``CaptionLimits`` itself, exit 1 (#790).
+    """
+    if max_duration_sec is not None and max_duration_sec <= 0:
+        raise typer.BadParameter("must be > 0", param_hint="'--max-duration-sec'")
+    if max_lines is not None and max_lines < 1:
+        raise typer.BadParameter("must be >= 1", param_hint="'--max-lines'")
     base = resolve_caption_limits(load_defaults().get("export", {}))
+    if max_duration_sec is not None and max_duration_sec < base.min_duration_sec:
+        # Caught here, against the flag, rather than left to CaptionLimits below: that
+        # raises a domain ValueError naming min_duration_sec, a yaml key this user never
+        # set (#816). The value is still worth surfacing, just not as something to flag.
+        raise typer.BadParameter(
+            f"must be >= the configured min_duration_sec ({base.min_duration_sec})",
+            param_hint="'--max-duration-sec'",
+        )
     return CaptionLimits(
         max_duration_sec=base.max_duration_sec if max_duration_sec is None else max_duration_sec,
         max_chars_per_line=(
             base.max_chars_per_line if max_chars_per_line is None else max_chars_per_line
         ),
         max_lines=base.max_lines if max_lines is None else max_lines,
+        min_duration_sec=base.min_duration_sec,
+        merge_max_gap_sec=base.merge_max_gap_sec,
     )
 
 

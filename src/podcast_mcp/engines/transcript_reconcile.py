@@ -5,7 +5,13 @@ from typing import Any
 
 from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
 from podcast_mcp.edits.transcript_sync import rebuild_combined
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.audio_audit import (
+    AnalysisPolicy,
+    TrackRmsCacheSet,
+    build_track_rms_caches,
+    compute_word_audibility_map,
+)
+from podcast_mcp.engines.bleed_echo import EchoPairProfile, echo_risk_pairs
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
@@ -127,11 +133,20 @@ def _reconcile_word(
 WordKey = tuple[str, int]
 
 
+def measured_echo_pairs(caches: TrackRmsCacheSet) -> list[EchoPairProfile]:
+    """Mic pairs with a bleed path, measured on the stems reconcile already decoded."""
+    if not caches.caches:
+        return []
+    rate = next(iter(caches.caches.values())).sample_rate
+    return echo_risk_pairs({tid: c.samples for tid, c in caches.caches.items()}, sample_rate=rate)
+
+
 def word_targets(
     project: EpisodeProject,
     *,
     policy: AnalysisPolicy,
     audibility_map: list[dict[str, Any]] | None = None,
+    caches: TrackRmsCacheSet | None = None,
 ) -> dict[WordKey, dict[str, Any]]:
     """One target per word for the whole project.
 
@@ -147,11 +162,16 @@ def word_targets(
     pass writes (``ignored``, ``audibility_locked``, or without a row because they are
     cut out of the timeline) enter the candidates by their stored ``suppressed`` flag.
 
-    ``audibility_map`` is this project's ``compute_word_audibility_map`` when the
-    caller already has it.
+    On a mic pair with a measured bleed path the text-match winner is the source mic
+    by the path's lag, never by loudness (#774); ``measured_echo_pairs`` finds those
+    pairs on the same decoded stems.
+
+    ``audibility_map`` and ``caches`` are this project's ``compute_word_audibility_map``
+    and ``build_track_rms_caches`` when the caller already has them.
     """
+    caches = build_track_rms_caches(project) if caches is None else caches
     rows = (
-        compute_word_audibility_map(project, policy=policy, progress=None)
+        compute_word_audibility_map(project, policy=policy, progress=None, caches=caches)
         if audibility_map is None
         else audibility_map
     )
@@ -176,6 +196,7 @@ def word_targets(
         progress=None,
         audibility=rows,
         is_suppressed=acoustic_suppressed,
+        echo_pairs=measured_echo_pairs(caches),
     ):
         key = (loser["track_id"], loser["word_index"])
         by_key[key] = {
@@ -219,10 +240,13 @@ def reconcile_transcript(
         progress=progress,
     ) as task:
         task.set_phase("audibility", "Analyzing word audibility…")
-        audibility_map = compute_word_audibility_map(project, policy=pol, progress=None)
+        caches = build_track_rms_caches(project)
+        audibility_map = compute_word_audibility_map(
+            project, policy=pol, progress=None, caches=caches
+        )
         if pol.bleed_text_match_enabled:
             task.set_phase("text_match", "Matching bleed text…")
-        targets = word_targets(project, policy=pol, audibility_map=audibility_map)
+        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
 
         result = ReconciliationResult()
         apply_suppression = not dry_run

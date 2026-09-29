@@ -1322,7 +1322,13 @@ def _analyze_candidate(
         cut_start, cut_end = snapped
 
     breaths = detect_adjacent_breath(
-        project, track_id, cut_start, cut_end, defaults=defaults, audio_cache=audio_cache
+        project,
+        track_id,
+        cut_start,
+        cut_end,
+        defaults=defaults,
+        audio_cache=audio_cache,
+        word_index=word_index,
     )
     extended = _clamp_to_candidate(candidate, *extend_cut_for_breaths(cut_start, cut_end, breaths))
     if extended is None:

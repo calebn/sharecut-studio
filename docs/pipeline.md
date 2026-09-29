@@ -247,10 +247,13 @@ export:
     max_duration_sec: 7.0
     max_chars_per_line: 42
     max_lines: 2
+    min_duration_sec: 1.0
+    merge_max_gap_sec: 1.5
 ```
 
-Word-timed splitting, sentence/phrase break preference, and the CLI's matching
-`--max-duration-sec` / `--max-chars-per-line` / `--max-lines` options are documented in
+Word-timed splitting, sentence/phrase break preference, the minimum on-screen time
+(merge/hold), and the CLI's matching `--max-duration-sec` / `--max-chars-per-line` /
+`--max-lines` options are documented in
 [transcript-workflow.md § Captions](transcript-workflow.md#captions-srtvtt).
 
 ## Performance

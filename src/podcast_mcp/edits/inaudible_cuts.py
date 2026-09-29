@@ -104,11 +104,16 @@ class CutWordIndex:
     first_audible: tuple[int, ...]
     original_starts: tuple[float, ...]
     bleed_index: HalfOpenIntervalIndex
+    live_spans: tuple[tuple[float, float], ...]
+    live_index: HalfOpenIntervalIndex
 
     @classmethod
     def build(cls, project: EpisodeProject, track_id: str) -> CutWordIndex:
         tr = project.transcript_for_track(track_id)
         words = tr.words if tr is not None else []
+        live_spans = tuple(
+            (float(w.start), float(w.end)) for w in words if not w.suppressed and w.end > w.start
+        )
         boundaries = sorted(
             (float(boundary), ordinal)
             for i, w in enumerate(words)
@@ -149,10 +154,18 @@ class CutWordIndex:
             tuple(first_audible),
             tuple(float(w.start) for w in words),
             HalfOpenIntervalIndex.build(bleed),
+            live_spans,
+            HalfOpenIntervalIndex.build(live_spans),
         )
 
     def has_bleed_overlap(self, start: float, end: float) -> bool:
         return self.bleed_index.overlaps(start, end)
+
+    def live_word_spans(self, start: float, end: float) -> list[tuple[float, float]]:
+        """Unsuppressed word spans overlapping ``[start, end)``, in transcript order."""
+        return [
+            self.live_spans[i] for i in sorted(self.live_index.overlapping_ordinals(start, end))
+        ]
 
     def nearest_boundary(self, t: float, max_shift: float) -> float:
         if not self.boundaries:
