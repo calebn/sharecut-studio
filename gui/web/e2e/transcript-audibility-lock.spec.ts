@@ -93,6 +93,55 @@ test.describe("Audibility lock indicator (#781)", () => {
     await expectPageAxeClean(page);
   });
 
+  test("selecting or tabbing to a locked word shows the explanation in the word inspector (#813)", async ({
+    page,
+  }) => {
+    await page.route(
+      (url) => new URL(url).pathname === "/api/project",
+      async (route) => {
+        const response = await route.fetch();
+        const body = (await response.json()) as Record<string, unknown>;
+        lockWord(body);
+        await route.fulfill({ response, json: body });
+      },
+    );
+
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /aligned dialogue/i,
+    );
+    await page
+      .getByLabel("Editor panels")
+      .getByRole("button", { name: "Transcript", exact: true })
+      .click();
+    await page.getByRole("button", { name: /^Correct:/i }).click();
+
+    const chip = page
+      .locator(".transcript-list")
+      .getByRole("button", { name: "matters", exact: true })
+      .first();
+    const inspector = page.locator(".inspector");
+    const explanation = inspector.getByText(/Suppression locked: set directly/);
+
+    // Tabbing to the chip and activating it with the keyboard opens the word
+    // inspector and shows the explanation as real text, not a hover-only
+    // tooltip (#813). A keypress first switches Chromium to keyboard input
+    // modality (as in the focus-ring test above), so the focus() below
+    // matches `:focus-visible`.
+    await page.keyboard.press("Tab");
+    await chip.focus();
+    await page.keyboard.press("Enter");
+    await expect(inspector).toContainText("Suppressed");
+    await expect(inspector).toContainText("(locked)");
+    await expect(explanation).toBeVisible();
+    await expectPageAxeClean(page, ".inspector");
+
+    // Selecting the same word with a mouse click shows the same explanation.
+    await chip.click();
+    await expect(explanation).toBeVisible();
+    await expectPageAxeClean(page, ".inspector");
+  });
+
   test("the lock stays visible on a low-confidence word in Annotate mode", async ({
     page,
   }) => {

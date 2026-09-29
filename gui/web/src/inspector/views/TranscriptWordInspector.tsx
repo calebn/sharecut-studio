@@ -15,6 +15,7 @@ import {
 } from "../../transcript/detachedWordFailure";
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
 import {
+  TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CORRECT_CONFLICT_NOTE,
   TRANSCRIPT_CORRECT_TIMING_NOTE,
   TRANSCRIPT_SPAN_UNVERIFIED_NOTE,
@@ -147,6 +148,7 @@ export function TranscriptWordInspector({
   const editable = !isShareProjectKey(projectPath);
   const suppressed = Boolean(word?.suppressed);
   const ignored = Boolean(word?.ignored);
+  const locked = Boolean(word?.audibility_locked);
   const lowConf = word != null && isLowConfidenceWord(word);
   const hintId = useId();
 
@@ -354,7 +356,10 @@ export function TranscriptWordInspector({
             : "Not available"}
           {lowConf ? " (low)" : ""}
         </DefItem>
-        <DefItem label="Suppressed">{suppressed ? "yes" : "no"}</DefItem>
+        <DefItem label="Suppressed">
+          {suppressed ? "yes" : "no"}
+          {locked ? " (locked)" : ""}
+        </DefItem>
         <DefItem label="Ignored">{ignored ? "yes" : "no"}</DefItem>
         {editable ? (
           <>
@@ -397,6 +402,9 @@ export function TranscriptWordInspector({
           </>
         ) : null}
       </DefinitionList>
+      {locked ? (
+        <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>
+      ) : null}
       {editable ? (
         <p className="ui-field-hint">{TRANSCRIPT_CORRECT_TIMING_NOTE}</p>
       ) : null}
