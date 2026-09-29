@@ -605,18 +605,6 @@ class SessionTimeline:
             return True
         return all(abs(clip_source_to_timeline_shift(s)) <= _EPS for s in idx.by_timeline)
 
-    def drift_at(self, track_id: str, tl_sec: TimelineSec) -> float:
-        """Source-minus-timeline offset at a timeline position (0 if unmapped)."""
-        src = self.timeline_to_source(track_id, tl_sec)
-        if src is not None:
-            return float(src) - float(tl_sec)
-        idx = self._index(track_id)
-        if idx is None or not idx.by_timeline:
-            return 0.0
-        prior = bisect_right(idx.timeline_starts, float(tl_sec)) - 1
-        span = idx.by_timeline[max(0, prior)]
-        return -clip_source_to_timeline_shift(span)
-
     def max_drift(self, track_id: str) -> float:
         """Largest absolute source-vs-timeline offset across the track's clips."""
         idx = self._index(track_id)

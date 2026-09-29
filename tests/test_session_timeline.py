@@ -197,9 +197,6 @@ def test_word_intervals_timeline_window_clamps(compressed_project):
 
 def test_drift_diagnostics(compressed_project):
     st = SessionTimeline(compressed_project)
-    assert st.drift_at("host", TimelineSec(30.0)) == pytest.approx(0.0)
-    assert st.drift_at("host", TimelineSec(70.0)) == pytest.approx(30.0)
-    assert st.drift_at("host", TimelineSec(200.0)) == pytest.approx(50.0)
     assert st.max_drift("host") == pytest.approx(50.0)
     assert not st.is_identity("host")
 
