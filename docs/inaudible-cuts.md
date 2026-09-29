@@ -70,6 +70,8 @@ The default optimizer is a **local** boundary tool — not a multi-second transi
 
 Helper: `edits/silence_islands.py` → `suggest_handoff_cut` / MCP `suggest_handoff_cut_tool` / CLI `podcast edit suggest-handoff-cut`. Given timeline `keep_left_end` + `keep_right_start`, it places `cut_start` / `cut_end` at the requested beat on each keep (clamped if the gap is shorter) and snaps onto a **measured RMS silence island** on the stem. Transcript word gaps are not silence — um, chair noise, and bleed with no token still block a join if they sit at the retain target. Audible junk *between* the bounds is removed with the ripple. If a bound is still in energy after snap, the suggestion is not ok.
 
+**Tune the beat with `retain_sec` / `--retain-sec`** (default `1.0`, applied on *both* sides, so a default call leaves ~2s of air at the join). That is fine for a punchline beat but too long for a tight conversational handoff; a real run needed `0.3`–`0.6` to keep the join snappy. Nothing tunes this automatically — pass it explicitly per join.
+
 Do **not** loosen global `absorb_trailing_silence_retain_sec` for this — handoffs opt out by locking suggested silence bounds.
 
 Audition ~10–15s around the join before resolving review comments. Prefer existing room tone over `insert_gap` of pure silence unless the user asks.
@@ -99,6 +101,7 @@ Audition ~10–15s around the join before resolving review comments. Prefer exis
 ```bash
 podcast edit preview-cut --project episode.project.json --track host --start 32.4 --end 34.8
 podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
+podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0 --retain-sec 0.4  # tighter conversational join
 podcast edit join-quality --project ... --track host --join 12.5 --timebase timeline
 podcast edit join-sweep --project ...
 podcast edit cut-range --project ... --track host --start 32.4 --end 34.8   # optimized by default
