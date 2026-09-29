@@ -30,9 +30,9 @@ podcast fixture seed-transcript --project "$PROJECT" \
   --from tests/fixtures/canned_transcript_aligned.json
 ```
 
-Known search phrases: `documented`, `people`, `today`, `going`, `great`. Live `podcast
-transcribe` recovers these from the committed Piper TTS audio (checklist #3, "Transcribe
-(slow)"); regenerate the audio with
+Known search phrases: `documented`, `people`, `today`, `going`, `great`. The live
+transcription test checks `documented`, `people`, and `today` against the committed
+Piper TTS audio (checklist #3, "Transcribe (slow)"). Regenerate the audio with
 `uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py` if you
 change the canned word times.
 

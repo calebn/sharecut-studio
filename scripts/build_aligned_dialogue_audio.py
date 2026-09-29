@@ -37,6 +37,7 @@ sys.path.insert(0, str(_REPO / "src"))
 
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.models import load_project
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
@@ -264,6 +265,7 @@ def resample_int16(samples: np.ndarray, from_sr: int, to_sr: int) -> np.ndarray:
                 str(dst),
             ],
             check=True,
+            timeout=120,
         )
         out, _sr = read_wav_int16(dst)
     return out
@@ -296,15 +298,8 @@ def piper_synthesizer(model_path: Path) -> Synthesize:
 
 
 def write_transcript_mirrors(fixture: Path) -> None:
-    """Rewrite transcripts/{track}.json to match episode.project.json, byte-for-byte with
-    ``ProjectStore._mirror_transcript_cache``.
-    """
     project = load_project(fixture / "episode.project.json")
-    for transcript in project.transcript_data.per_track:
-        if not transcript.words:
-            continue
-        out = fixture / "transcripts" / f"{transcript.track_id}.json"
-        out.write_bytes(transcript.model_dump_json(indent=2, by_alias=True).encode("utf-8"))
+    ProjectStore(fixture / "episode.project.json")._mirror_transcript_cache(project)
 
 
 def main(argv: list[str] | None = None) -> int:
