@@ -9,7 +9,7 @@ description: >-
 
 # Mute bleed (transcript-gated stems)
 
-**Prerequisite:** [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md) — `overlap_duplicates_tool` → `text_match_count == 0` in scope and combined transcript is clean. On a pair `echo_risk` names, identical words whose onsets do not fit the measured lag are two people talking and stay after reconcile (#774); they do not block this skill.
+**Prerequisite:** [podcast-transcript-reconcile](../podcast-transcript-reconcile/SKILL.md) — `overlap_duplicates_tool` → `text_match_count == 0` on the pairs `echo_risk` names and combined transcript is clean. Identical words on a pair with no measured path, and words on a one-way pair whose onsets do not fit the measured lag, are two people talking and stay after reconcile (#774); they do not block this skill.
 
 This skill applies **waveform** gating derived from reconciled transcript metadata. It does not change word text or suppression flags.
 
@@ -34,7 +34,7 @@ This skill applies **waveform** gating derived from reconciled transcript metada
 
 ## Workflow
 
-1. Confirm transcript reconcile: `overlap_duplicates_tool` → `text_match_count == 0`.
+1. Confirm transcript reconcile: `overlap_duplicates_tool` → `text_match_count == 0` on the `echo_risk` pairs (co-speech elsewhere stays, #774).
 2. Ensure stems are fresh **and not longer than the session timeline** (`render_dialogue_stems` or `assemble_timeline`). Bleed mute skips stems that fail `stem_is_fresh` (hash or overlong duration).
 3. `apply_transcript_gate_tool` with `dry_run=true` — review `interval_count` per track; check `skipped` for stale stems.
    If apply fails with "another render of this project is in progress", an export or Refresh holds the render lock: retry when it finishes.
