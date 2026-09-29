@@ -459,15 +459,20 @@ def _resolve_base(preferred: str = DEFAULT_BASE) -> str:
     return "HEAD"
 
 
-def _numstat(base: str, head: str) -> dict[str, int]:
-    """Added + deleted lines per path between two revs. Binary files (numstat ``-\t-``)
-    are left out, so they never count as a trivial edit."""
+def _diff_numstat(base: str, head: str) -> tuple[tuple[str, ...], dict[str, int]]:
+    """Every changed path, and added + deleted lines per path, from one ``git diff
+    --numstat``. Binary files (numstat ``-\t-``) are listed but get no churn, so they
+    never count as a trivial edit."""
+    files: list[str] = []
     churn: dict[str, int] = {}
     for line in git("diff", "--numstat", "--no-renames", base, head).splitlines():
         parts = line.split("\t", 2)
-        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+        if len(parts) != 3:
+            continue
+        files.append(parts[2])
+        if parts[0].isdigit() and parts[1].isdigit():
             churn[parts[2]] = int(parts[0]) + int(parts[1])
-    return churn
+    return tuple(files), churn
 
 
 def change_for_range(spec: str) -> tuple[Change, str]:
@@ -480,11 +485,9 @@ def change_for_range(spec: str) -> tuple[Change, str]:
         base, _, head = spec.partition("..")
     else:
         raise ContractError(f"invalid range {spec!r}: expected A...B or A..B")
-    files = tuple(
-        f for f in git("diff", "--name-only", "--no-renames", base, head).splitlines() if f
-    )
+    files, churn = _diff_numstat(base, head)
     waivers = parse_waivers(git("log", "--format=%h%x00%B%x1e", f"{base}..{head}"))
-    return Change(label=spec, files=files, waivers=waivers, churn=_numstat(base, head)), head
+    return Change(label=spec, files=files, waivers=waivers, churn=churn), head
 
 
 def change_for_index(base_ref: str = DEFAULT_BASE) -> Change:

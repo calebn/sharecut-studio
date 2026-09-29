@@ -555,13 +555,13 @@ def test_summarize_counts_trivial_only_with_known_churn() -> None:
     assert unknown_churn["r"].trivial == 0
 
 
-def test_numstat_counts_text_and_skips_binary(check_repo: Path) -> None:
+def test_diff_numstat_lists_every_path_and_skips_binary_churn(check_repo: Path) -> None:
     _write(check_repo, "docs/a.md", "one\ntwo\n")
     (check_repo / "bin.dat").write_bytes(b"\x00\x01\x02")
     _git(check_repo, "add", "docs/a.md", "bin.dat")
     _git(check_repo, "commit", "-qm", "add docs and binary")
     head = _git(check_repo, "rev-parse", "HEAD").strip()
-    assert ds._numstat("base", head) == {"docs/a.md": 2}
+    assert ds._diff_numstat("base", head) == (("bin.dat", "docs/a.md"), {"docs/a.md": 2})
 
 
 def test_replay_cli_flags_a_waived_gate(
