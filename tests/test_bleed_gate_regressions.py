@@ -1,12 +1,14 @@
-from pathlib import Path
 import wave
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from podcast_mcp.engines.audio_audit import analyze_gate_overreach
-from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
+from podcast_mcp.engines.play_audit import proxy_render_hash, stem_is_fresh, track_render_hash
+from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
+from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.play import PlayRequest, PlayService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -95,3 +97,35 @@ def test_gate_overreach_reports_added_tail_loss(tmp_path: Path) -> None:
     report = analyze_gate_overreach(project, "host")
     assert report["gate_present"] is True
     assert any(issue["kind"] == "processed_offset_chop" for issue in report["issues"])
+
+
+def test_reconcile_does_not_treat_gate_created_silence_as_source_evidence(tmp_path: Path) -> None:
+    project = audio_project(tmp_path)
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(stem), "wb") as stream:
+        stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        stream.writeframes(np.zeros(16000 * 3, dtype="<i2").tobytes())
+    reconcile_transcript(project, dry_run=False)
+    word = project.transcripts[0].words[0]
+    assert word.suppressed is False
+    assert word.audibility_status == "audible"
+
+
+def test_refresh_publishes_stem_for_final_gate_driving_transcript(tmp_path: Path) -> None:
+    project = audio_project(tmp_path)
+    rerender_preview(project)
+    assert stem_is_fresh(project, "host")
+
+
+def test_reconcile_refuses_gated_fallback_when_ungated_evidence_fails(tmp_path, monkeypatch):
+    project = audio_project(tmp_path)
+    before = project.transcripts[0].words[0].model_dump()
+
+    def unavailable(*args):
+        raise ValueError("ungated evidence unavailable")
+
+    monkeypatch.setattr("podcast_mcp.engines.audio_audit._pre_transcript_gate_cache", unavailable)
+    with pytest.raises(ValueError, match="ungated evidence unavailable"):
+        reconcile_transcript(project, dry_run=False)
+    assert project.transcripts[0].words[0].model_dump() == before
