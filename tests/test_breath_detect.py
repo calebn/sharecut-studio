@@ -524,6 +524,24 @@ def test_breath_before_cut_needs_unvoiced_audio_up_to_the_cut():
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
 
 
+def test_breath_before_cut_is_not_extended_across_a_sibilant():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    breath = _shaped_noise(1600, 0.026)
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath, before_tail=_sibilant_noise(1600, 0.026)),
+    ):
+        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath, before_tail=_shaped_noise(1600, 0.026)),
+    ):
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+
+    assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
+
+
 def test_find_breath_in_window_skips_voiced_run_for_later_unvoiced_run():
     samples = np.full(8000, 0.001, dtype=np.float32)
     samples[800:2400] = _harmonic_tone(1600, 0.035)

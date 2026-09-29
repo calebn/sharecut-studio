@@ -106,18 +106,31 @@ def _is_sibilant(samples: np.ndarray, sample_rate: int) -> bool:
 def _breath_run_predicate(
     samples: np.ndarray, sample_rate: int, frame_size: int, cut_edge: str | None
 ) -> Callable[[int, int], bool]:
-    """Predicate over frame runs: the run is breath-shaped and unvoiced all the way to the cut.
+    """Predicate over frame runs: the run and the gap to the cut are breath-shaped and unvoiced.
 
     ``cut_edge`` is the window edge the cut touches: ``"end"`` for a window before
     the cut, ``"start"`` for one after it, ``None`` when the window is the candidate
-    itself. The cut is extended out to the run, so audio between them is removed too.
+    itself. The cut is extended out to the run, so audio between them is removed too:
+    the gap is checked for sibilance on its own (a word-final ``s`` next to a loud
+    breath would otherwise average out below the split) and for voicing together
+    with the run.
     """
 
     def accept(start: int, end: int) -> bool:
-        run = samples[start * frame_size : end * frame_size]
-        lo = 0 if cut_edge == "start" else start * frame_size
-        hi = samples.size if cut_edge == "end" else end * frame_size
-        return not _is_sibilant(run, sample_rate) and _is_unvoiced(samples[lo:hi], sample_rate)
+        run_lo, run_hi = start * frame_size, end * frame_size
+        if cut_edge == "start":
+            gap = samples[:run_lo]
+        elif cut_edge == "end":
+            gap = samples[run_hi:]
+        else:
+            gap = samples[:0]
+        lo = 0 if cut_edge == "start" else run_lo
+        hi = samples.size if cut_edge == "end" else run_hi
+        return (
+            not _is_sibilant(samples[run_lo:run_hi], sample_rate)
+            and not _is_sibilant(gap, sample_rate)
+            and _is_unvoiced(samples[lo:hi], sample_rate)
+        )
 
     return accept
 

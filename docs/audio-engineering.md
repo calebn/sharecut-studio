@@ -289,8 +289,8 @@ classification, and model or inference failures fall back to the RMS heuristic.
 With either backend, a run only counts as a breath when the same pitch sweep
 finds no probe at or above a normalized autocorrelation peak of 0.55 over the
 run and, for adjacent-cut co-removal, over everything between the run and the
-cut edge, and when less than half of the run's 100 Hz–8 kHz energy lies above
-4 kHz (a sibilant, not a breath). A breath is unvoiced noise, and a level band
+cut edge, and when less than half of the 100 Hz–8 kHz energy of the run, and
+separately of that gap, lies above 4 kHz (a sibilant, not a breath). A breath is unvoiced noise, and a level band
 or a VAD probability dip alone selects the quieter frames of ordinary speech in
 a loud window. This applies to adjacent-cut breath co-removal as well as to
 acoustic candidates (#798), so a cut is never extended over a voiced run; the
