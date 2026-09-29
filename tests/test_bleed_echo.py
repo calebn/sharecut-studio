@@ -72,6 +72,8 @@ def test_delayed_attenuated_copy_is_an_echo_risk_with_its_lag_and_level() -> Non
     assert profile.null_runs == 8
     assert profile.null_consistent_rate is not None
     assert profile.consistent_rate >= 4 * profile.null_consistent_rate
+    assert profile.null_ratio is not None and profile.null_ratio >= 4.0
+    assert profile.p_value is not None and profile.p_value < 1e-9
     d = profile.to_dict(cfg)
     assert d["source_track_id"] == "a"
     assert d["bleed_track_id"] == "b"
@@ -81,27 +83,54 @@ def test_delayed_attenuated_copy_is_an_echo_risk_with_its_lag_and_level() -> Non
         "min_copy_frames": 20,
         "min_consistent_frames": 12,
         "lag_tolerance_ms": 1.5,
-        "null_margin": 2.0,
+        "null_p_max": 0.001,
+        "null_margin": 1.5,
     }
-    assert set(d) >= {"copy_rate", "consistent_rate", "null_copy_rate", "null_consistent_rate"}
+    assert set(d) >= {
+        "copy_rate",
+        "consistent_rate",
+        "null_copy_rate",
+        "null_consistent_rate",
+        "null_ratio",
+        "p_value",
+    }
 
 
-def test_stationary_periodic_voice_beats_no_null() -> None:
-    """A steady 118 Hz harmonic voice correlates with itself at any time shift, so the
-    null rate rises with it and an independent tone at the same pitch is not an echo."""
-    t = np.arange(20 * RATE) / RATE
-    tone = sum(np.sin(2 * np.pi * 118.0 * k * t) / k for k in range(1, 12))
-    other = sum(np.sin(2 * np.pi * 118.0 * k * t + 0.7 * k) / k for k in range(1, 12))
-    a = (0.2 * tone / np.max(np.abs(tone))).astype(np.float32)
-    b = (0.05 * other / np.max(np.abs(other))).astype(np.float32)
+def _wandering_voice(seed: int, f0: float, level: float) -> np.ndarray:
+    """A harmonic voice whose pitch drifts slowly and independently per seed."""
+    rng = np.random.default_rng(seed)
+    n = 20 * RATE
+    f0_track = f0 * (1 + 0.08 * np.cumsum(rng.normal(0, 0.002, n)))
+    phase = 2 * np.pi * np.cumsum(f0_track) / RATE
+    tone = sum(np.sin(k * phase) / k for k in range(1, 12))
+    return (level * tone / np.max(np.abs(tone))).astype(np.float32)
+
+
+def test_same_pitch_independent_voices_beat_no_null() -> None:
+    """Two harmonic voices at the same pitch correlate at any time shift, so the null
+    rate rises with them and the pair is not an echo."""
+    a = _wandering_voice(1, 118.0, 0.2)
+    b = _wandering_voice(5, 118.0, 0.05)
     cfg = EchoConfig()
     profile = echo_pair_profile(
         a, b, sample_rate=RATE, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg
     )
     assert profile.copy_frames >= cfg.min_copy_frames
     assert profile.null_consistent_rate is not None
-    assert profile.consistent_rate < cfg.null_margin * profile.null_consistent_rate
+    assert profile.p_value is not None and profile.p_value > cfg.null_p_max
     assert profile.echo_risk(cfg) is False
+
+
+def test_binomial_tail_matches_known_values() -> None:
+    from podcast_mcp.engines.bleed_echo import binomial_tail
+
+    assert binomial_tail(0, 10, 0.3) == 1.0
+    assert binomial_tail(11, 10, 0.3) == 0.0
+    assert binomial_tail(10, 10, 0.5) == pytest.approx(0.5**10)
+    # P(X >= 12 | n=307, p=0.0215): the remote pair's best span stays chance-level.
+    assert binomial_tail(12, 307, 0.0215) == pytest.approx(0.035, abs=0.005)
+    # P(X >= 37 | n=621, p=0.0247): the same-room pair over 0-600 s.
+    assert binomial_tail(37, 621, 0.0247) == pytest.approx(1.3e-6, rel=0.1)
 
 
 def test_unrelated_quiet_speech_is_not_an_echo_risk() -> None:
