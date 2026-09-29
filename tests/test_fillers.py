@@ -189,7 +189,6 @@ def _safe_risk():
 
 
 def _write_speech_wav(path, spans: list[tuple[float, float]], *, rate: int = 48_000) -> None:
-    """A 5 s track: a 180 Hz harmonic "vowel" at -20 dBFS over each span, silence elsewhere."""
     import wave
 
     import numpy as np
@@ -209,14 +208,6 @@ def _write_speech_wav(path, spans: list[tuple[float, float]], *, rate: int = 48_
 
 
 def test_analyze_fillers_integration(tmp_path):
-    """Real optimizer, guard and join gate over a track whose words sit in silence.
-
-    The two fillers form a cluster; the cut takes "um" with the air before it, and the
-    splice lands silence against silence (an inaudible splice, risk 0). The "uh"
-    candidate, extended to the lead-in of "hello", fails the gate outright (risk 0.71),
-    so no verdict here sits near a threshold. A continuous tone used to stand in for
-    speech and left the survivors on the review band's edge (PR #821).
-    """
     ws = tmp_path / "ws"
     raw = ws / "raw"
     raw.mkdir(parents=True)
