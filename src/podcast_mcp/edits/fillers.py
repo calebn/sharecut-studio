@@ -350,6 +350,22 @@ def _words_are_contiguous(
     )
 
 
+def _bounded_repeat_start(words: list[TranscriptWord], reparandum_start_i: int) -> float:
+    """Floor for a repeat/restart cut: the end of the preceding surviving word.
+
+    Whisper times leave adjacent words touching, so this floor equals the
+    reparandum's own start there. Aligned times leave a real gap between
+    words; clamping the floor to the reparandum's own start (the old
+    behavior) stranded that gap as unremoved air on the left. The preceding
+    word is never part of the cut, so its end is always a safe floor. Falls
+    back to the reparandum's own start when it is the first word in the
+    track, since there is no neighbor to bound against.
+    """
+    if reparandum_start_i > 0:
+        return words[reparandum_start_i - 1].end
+    return words[reparandum_start_i].start
+
+
 def _collect_repetition_candidates(
     words: list[TranscriptWord],
     track_id: str,
@@ -412,8 +428,8 @@ def _collect_repetition_candidates(
                         reason=f"restart:partial:{partial}",
                         cut_kind="restart",
                         filler_confidence=first.confidence,
-                        min_start=first.start,
-                        max_end=first.end,
+                        min_start=_bounded_repeat_start(words, first_i),
+                        max_end=second.start,
                     )
                 )
                 continue
@@ -463,8 +479,8 @@ def _collect_repetition_candidates(
                         reason=f"restart:partial:{partial}",
                         cut_kind="restart",
                         filler_confidence=partial_word.confidence,
-                        min_start=words[start_i].start,
-                        max_end=partial_word.end,
+                        min_start=_bounded_repeat_start(words, start_i),
+                        max_end=repair_word.start,
                     )
                 )
                 split_repair_found = True
@@ -515,8 +531,8 @@ def _collect_repetition_candidates(
                     ),
                     cut_kind="restart",
                     filler_confidence=_span_confidence(words, start_i, end_i),
-                    min_start=words[start_i].start,
-                    max_end=words[end_i].end,
+                    min_start=_bounded_repeat_start(words, start_i),
+                    max_end=words[right[0]].start,
                 )
             )
             phrase_found = True
@@ -542,8 +558,8 @@ def _collect_repetition_candidates(
                         reason=f"repetition:word:{first_token}",
                         cut_kind="repeat",
                         filler_confidence=first.confidence,
-                        min_start=first.start,
-                        max_end=first.end,
+                        min_start=_bounded_repeat_start(words, first_i),
+                        max_end=second.start,
                     )
                 )
     return candidates
