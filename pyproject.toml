@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml>=6.0",
     "mcp>=2.0.0",
     "faster-whisper>=1.1.0",
+    "av>=11,<19",
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already
     # installs both, so this only makes the dependency explicit (deptry DEP003).
     "onnxruntime>=1.17.0",
@@ -279,6 +280,7 @@ resemblyzer = "resemblyzer"
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [
+    "av", # Compatibility constraint for faster-whisper's metadata_errors argument.
     # Pin floor for speaker-lite (resemblyzer -> numba); not imported directly.
     "numba",
 ]

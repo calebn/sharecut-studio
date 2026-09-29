@@ -321,3 +321,21 @@ def test_fingerprint_unchanged_without_scores_and_tracks_min_score_with_scores()
     assert silence_filter_fingerprint(words, "sha", low) != silence_filter_fingerprint(
         words, "sha", high
     )
+
+
+def test_whisper_audio_decoder_reads_pcm_without_loading_a_model(tmp_path):
+    from faster_whisper.audio import decode_audio
+
+    path = tmp_path / "decode.wav"
+    samples = np.full(1600, 8192, dtype="<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(samples.tobytes())
+
+    decoded = decode_audio(str(path), sampling_rate=16000)
+
+    assert decoded.shape == (1600,)
+    assert decoded.dtype == np.float32
+    np.testing.assert_allclose(decoded, 0.25, atol=1 / 32768)
