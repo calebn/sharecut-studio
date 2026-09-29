@@ -618,6 +618,109 @@ def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_pat
         )
 
 
+def _sign_off_chain_project(tmp_path: Path) -> EpisodeProject:
+    """Three identical "bye" words in a chain, as on the lab tape's sign-off (#805):
+    host:0 loses to guest:0, and guest:0 loses to host:1."""
+    project = _two_track_project(tmp_path)
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="bye", start=1.0, end=1.5, confidence=0.9),
+                TranscriptWord(text="bye", start=1.5, end=1.8, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="bye", start=1.3, end=1.8, confidence=0.95)],
+        ),
+    ]
+    return project
+
+
+def _sign_off_chain_rms(project, track_id, t_start, t_end, **kwargs):
+    # Every mic gap stays under bleed_dominance_db, so all three words are acoustically
+    # audible and only the text-match rule decides. Host is quieter than guest during
+    # its first "bye" and louder during its second.
+    if track_id == "host":
+        return -36.0 if t_start < 1.5 else -30.0
+    return -35.0
+
+
+_SIGN_OFF_CHAIN_CONVERGED = {
+    ("host", 0): (True, "bleed", "guest"),
+    ("host", 1): (False, "audible", None),
+    ("guest", 0): (True, "bleed", "host"),
+}
+
+
+def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path):
+    """A track- or window-scoped pass reads out-of-scope words by their computed target,
+    not their stored flags, so it reaches the full pass's target for the words it writes.
+    Under the pairwise chain rule a loser to a loser is still a loser (#805)."""
+    project = _sign_off_chain_project(tmp_path)
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    def counts(out: dict) -> tuple[int, int, int, int]:
+        return (
+            out["suppress_count"],
+            out["unsuppress_count"],
+            out["reattribute_count"],
+            out["status_updates"],
+        )
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_sign_off_chain_rms,
+    ):
+        first = run_reconciliation(project, policy=pol, dry_run=False)
+        assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
+        assert [(s["track_id"], s["word_index"], s["reason"]) for s in first["suppress"]] == [
+            ("host", 0, "text_match_overlap"),
+            ("guest", 0, "text_match_overlap"),
+        ]
+        assert counts(first) == (2, 0, 2, 3)
+
+        later = [
+            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="host")),
+            counts(run_reconciliation(project, policy=pol, dry_run=False)),
+            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="guest")),
+            counts(run_reconciliation(project, policy=pol, dry_run=False)),
+            counts(
+                run_reconciliation(project, policy=pol, dry_run=False, start_sec=1.0, end_sec=1.2)
+            ),
+            counts(run_reconciliation(project, policy=pol, dry_run=False, track_id="host")),
+        ]
+
+    assert later == [(0, 0, 0, 0)] * 6
+    assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
+
+
+def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
+    """On a fresh project a host-scoped pass leaves guest words untouched but already
+    writes host words at the target a full pass would reach (#805)."""
+    project = _sign_off_chain_project(tmp_path)
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_sign_off_chain_rms,
+    ):
+        scoped = run_reconciliation(project, policy=pol, dry_run=False, track_id="host")
+        after_scoped = _word_state(project)
+        full = run_reconciliation(project, policy=pol, dry_run=False)
+
+    assert after_scoped == {
+        ("host", 0): (True, "bleed", "guest"),
+        ("host", 1): (False, "audible", None),
+        ("guest", 0): (False, None, None),
+    }
+    assert [(s["track_id"], s["word_index"]) for s in scoped["suppress"]] == [("host", 0)]
+    assert [(s["track_id"], s["word_index"]) for s in full["suppress"]] == [("guest", 0)]
+    assert full["unsuppress"] == []
+    assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
+
+
 def test_audio_state_fingerprint_changes_on_effect(tmp_path: Path):
     project = _two_track_project(tmp_path)
     before = audio_state_fingerprint(project)
