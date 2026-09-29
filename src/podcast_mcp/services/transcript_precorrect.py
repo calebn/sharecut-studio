@@ -188,7 +188,7 @@ def _ensure_prompt_covers_vocabulary(ctx: TranscriptContext) -> None:
     """
     if not ctx.initial_prompt_enabled():
         return
-    used = len(ctx.full_prompt_text())
+    used = len(ctx.primed_prompt_text())
     limit = ctx.initial_prompt_limit()
     if used > limit:
         raise ValueError(

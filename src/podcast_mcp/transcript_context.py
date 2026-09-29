@@ -18,6 +18,13 @@ from podcast_mcp.util.file_locks import hold_shared_file_lock
 
 _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_glossary.yaml"
 
+# Primes Whisper's first decode window into a punctuated, cased register. A bare
+# comma-joined vocabulary list, or no prompt at all, can decode as an unpunctuated
+# run-on for content Whisper finds ambiguous (rambling, filler-heavy speech); with
+# condition_on_previous_text on, that first window's style then carries through the
+# rest of the file (#769). Always prepended, even with no vocabulary set.
+DEFAULT_PROMPT_PRIMER = "Podcast episode transcript."
+
 
 @dataclass(frozen=True)
 class ReplacementRule:
@@ -87,15 +94,22 @@ class TranscriptContext:
         return int((self.transcribe or {}).get("initial_prompt_max_chars", max_chars))
 
     def full_prompt_text(self) -> str:
-        """Untruncated prompt: show title, terms, guest names; stripped, deduped, comma-joined."""
+        """Untruncated vocabulary: show title, terms, guest names; stripped, deduped, comma-joined."""
         parts = [self.show_title or "", *self.terms, *self.guest_names]
         return ", ".join(dict.fromkeys(p.strip() for p in parts if p.strip()))
+
+    def primed_prompt_text(self) -> str:
+        """Untruncated Whisper prompt: the punctuation primer, then any vocabulary."""
+        vocabulary = self.full_prompt_text()
+        if not vocabulary:
+            return DEFAULT_PROMPT_PRIMER
+        return f"{DEFAULT_PROMPT_PRIMER} {vocabulary}"
 
     def initial_prompt_text(self, *, max_chars: int = 400) -> str | None:
         if not self.initial_prompt_enabled():
             return None
         limit = self.initial_prompt_limit(max_chars=max_chars)
-        text = self.full_prompt_text()
+        text = self.primed_prompt_text()
         if len(text) > limit:
             text = text[: limit - 3].rsplit(",", 1)[0]
         return text or None

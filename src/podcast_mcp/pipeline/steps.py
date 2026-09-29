@@ -107,6 +107,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.transcribe import (
         collect_anomalous_asr_duration_flags,
+        collect_punctuation_outlier_flags,
         dialogue_transcribe_jobs,
         forced_alignment_succeeded,
     )
@@ -194,6 +195,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             "skipped_edited": plan.retime_skipped_edited,
             "skipped_no_asr_cache": plan.retime_skipped_no_cache,
         }
+    punctuation_flags = collect_punctuation_outlier_flags(project)
     timing_path = artifact(project, "transcript_timing.json")
     timing_path.write_text(
         json.dumps(
@@ -202,6 +204,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
                 "flag_count": len(timing_flags),
                 "flags": timing_flags,
                 "forced_alignment": forced_alignment,
+                "punctuation_flags": punctuation_flags,
             },
             indent=2,
         ),
@@ -212,6 +215,9 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
+    if punctuation_flags:
+        low = ", ".join(f["track_id"] for f in punctuation_flags)
+        summary += f", low punctuation rate on {low}"
     suspect = sum(
         1
         for t in project.transcripts

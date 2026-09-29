@@ -7,7 +7,9 @@ import pytest
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
 from podcast_mcp.engines.transcribe import (
     TranscriptionEngine,
+    collect_punctuation_outlier_flags,
     flag_anomalous_asr_durations,
+    track_punctuation_rate,
 )
 from podcast_mcp.models import (
     CombinedTranscript,
@@ -342,6 +344,52 @@ def test_flag_anomalous_asr_durations_leaves_existing_status() -> None:
 def test_word_duration_is_anomalous_threshold() -> None:
     assert word_duration_is_anomalous(2.1, 2.0)
     assert not word_duration_is_anomalous(2.0, 2.0)
+
+
+def _words(n: int, punctuated: int) -> list[TranscriptWord]:
+    """``n`` words, the first ``punctuated`` ending in a period."""
+    return [
+        TranscriptWord(text=("word." if i < punctuated else "word"), start=float(i), end=i + 0.4)
+        for i in range(n)
+    ]
+
+
+def test_track_punctuation_rate_below_min_words_is_none() -> None:
+    assert track_punctuation_rate(_words(19, 19)) is None
+
+
+def test_track_punctuation_rate_computes_fraction() -> None:
+    assert track_punctuation_rate(_words(20, 5)) == 0.25
+
+
+def test_collect_punctuation_outlier_flags_flags_track_far_below_peers(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    proj.transcripts = [
+        Transcript(track_id="caleb", words=_words(30, 1)),
+        Transcript(track_id="audra", words=_words(30, 15)),
+        Transcript(track_id="lana", words=_words(30, 18)),
+    ]
+    flags = collect_punctuation_outlier_flags(proj)
+    assert len(flags) == 1
+    assert flags[0]["track_id"] == "caleb"
+    assert flags[0]["reason"] == "punctuation_rate_outlier"
+    assert flags[0]["punctuation_rate"] == pytest.approx(1 / 30, abs=1e-4)
+
+
+def test_collect_punctuation_outlier_flags_needs_two_tracks(minimal_project) -> None:
+    proj = load_project(minimal_project)
+    proj.transcripts = [Transcript(track_id="caleb", words=_words(30, 1))]
+    assert collect_punctuation_outlier_flags(proj) == []
+
+
+def test_collect_punctuation_outlier_flags_skips_uniformly_low_peers(minimal_project) -> None:
+    """No peer with a real punctuation rate to compare against: nothing to flag."""
+    proj = load_project(minimal_project)
+    proj.transcripts = [
+        Transcript(track_id="caleb", words=_words(30, 0)),
+        Transcript(track_id="audra", words=_words(30, 1)),
+    ]
+    assert collect_punctuation_outlier_flags(proj) == []
     assert not word_duration_is_anomalous(9.0, max_sec=0)
 
 

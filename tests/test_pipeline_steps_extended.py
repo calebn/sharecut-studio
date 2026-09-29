@@ -480,7 +480,11 @@ def test_ingest_waveform_failure_tolerated(minimal_project, sample_wav, tmp_work
 
 def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+    from podcast_mcp.transcript_context import (
+        DEFAULT_PROMPT_PRIMER,
+        TranscriptContext,
+        load_transcript_context,
+    )
 
     ctx = TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one")
     ctx.save(proj.workspace_path())
@@ -492,7 +496,7 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
         steps.transcribe_tracks(proj, load_defaults())
         assert (
             eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
-            == "Kaczynski"
+            == f"{DEFAULT_PROMPT_PRIMER} Kaczynski"
         )
     assert proj.transcripts
     assert mock_tr.vocabulary_revision == "revision-one"
@@ -566,6 +570,48 @@ def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp
     assert data["flags"][0]["reason"] == "anomalous_word_duration"
     assert data["flags"][0]["end"] == 10.0
     assert data["forced_alignment"] == {"enabled": False, "model": None, "jobs": []}
+    assert data["punctuation_flags"] == []
+
+
+def _two_track_dialogue_words(punctuated: int, total: int = 30) -> list:
+    from podcast_mcp.models import TranscriptWord
+
+    return [
+        TranscriptWord(text=("word." if i < punctuated else "word"), start=float(i), end=i + 0.4)
+        for i in range(total)
+    ]
+
+
+def test_transcribe_tracks_flags_low_punctuation_track_against_peers(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import Transcript
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    (tmp_workspace / "raw" / "guest.wav").write_bytes(sample_wav.read_bytes())
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            speaker="Guest",
+            media=MediaAsset(path="raw/guest.wav"),
+        )
+    )
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+
+    host_transcript = Transcript(track_id="host", words=_two_track_dialogue_words(1))
+    guest_transcript = Transcript(track_id="guest", words=_two_track_dialogue_words(18))
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [
+            host_transcript,
+            guest_transcript,
+        ]
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert "low punctuation rate on host" in summary
+    data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8"))
+    assert [f["track_id"] for f in data["punctuation_flags"]] == ["host"]
 
 
 def test_ingest_skips_track_without_media(minimal_project, sample_wav, tmp_workspace):
@@ -1094,9 +1140,13 @@ def test_transcribe_tracks_honours_legacy_cache(minimal_project, sample_wav, tmp
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.transcribe import legacy_cache_path
     from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.transcript_context import TranscriptContext
     from podcast_mcp.util.hashing import sha256_file
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    # The legacy cache is only trusted with no prompt at all (docs/transcript-workflow.md);
+    # the default priming prompt (#769) would otherwise always disqualify it.
+    TranscriptContext(transcribe={"initial_prompt": False}).save(proj.workspace_path())
     legacy = legacy_cache_path(proj, "host", sha256_file(tmp_workspace / "raw" / "host.wav"))
     legacy.parent.mkdir(parents=True, exist_ok=True)
     legacy.write_text(
