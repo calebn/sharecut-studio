@@ -10,6 +10,7 @@ import {
 } from "../e2e/queuedComment";
 import {
   createRecordRoom,
+  fillGuestDisplayName,
   markSharecutE2e,
   openRecordLink,
 } from "../e2e/recordRoom";
@@ -236,7 +237,7 @@ test.describe("browser compatibility matrix", () => {
               ).permissions?.query === "function",
           ),
         ).toBe(browserName !== "webkit");
-        await guest.getByLabel("Display name").fill("Ava");
+        await fillGuestDisplayName(guest, "Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await expect(
           guest.getByRole("heading", {
