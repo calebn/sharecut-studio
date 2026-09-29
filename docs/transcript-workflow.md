@@ -115,7 +115,8 @@ recommends `onnx-base`: 42.98 ms MAE and 4.8% of matched words over 150 ms on
 LibriSpeech, against native's 82.3 ms / 35.7%, at an RTF of 0.044.
 `transcribe.forced_alignment.enabled` runs it in the pipeline (on by default once
 the model is downloaded, [#780](https://github.com/calebn/sharecut-studio/issues/780);
-shipped as an opt-in pass in [#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
+the model download remains opt-in, and a saved explicit request can be turned off
+in Studio while the model is missing; shipped in [#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
 pipeline results are [#715](https://github.com/calebn/sharecut-studio/issues/715).
 See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
 
@@ -244,7 +245,9 @@ its reason go to `transcript_timing.json` → `forced_alignment` (`enabled`, `re
 `installed`, `blocked`, `reason`) and, when off, to the step summary ("forced alignment
 unavailable: …" / "forced alignment off: …"). A transcript whose `word_aligner` is `null`
 still carries Whisper's own word times; `audition_context_tool` lists `whisper_word_times`
-in `limits` for such windows so an agent double-checks cut points.
+in `limits` for such windows so an agent double-checks cut points. In Studio, a blocked
+explicit `true` stays checked and can be switched off; the unset missing-model default stays
+unchecked, unavailable, and locked until the model is downloaded.
 
 The run-only `retime_words` flag (Studio **Re-time words** next to the Pipeline tab's
 Precise word boundaries field, CLI `pipeline run --retime-words`, MCP

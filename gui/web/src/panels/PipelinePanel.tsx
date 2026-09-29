@@ -1131,10 +1131,13 @@ export function PipelinePanel() {
                         <Fragment key={field.path}>
                           <ParamControl
                             field={field}
-                            value={alignment.enabled}
+                            value={alignment.requested ?? alignment.enabled}
                             defaultValue={alignment.installed}
                             disabled={
-                              running || starting || !alignment.installed
+                              running ||
+                              starting ||
+                              (!alignment.installed &&
+                                alignment.requested !== true)
                             }
                             highlighted={highlightPaths.has(field.path)}
                             onChange={(v) => void onParamChange(field.path, v)}
