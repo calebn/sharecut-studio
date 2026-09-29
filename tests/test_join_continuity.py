@@ -267,6 +267,54 @@ def test_existing_join_scores_the_splice_sides(minimal_project: Path) -> None:
     assert join["speech"][0]["removed_ms"] == pytest.approx(500.0, abs=20.0)
 
 
+def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
+    """Room tone against gated digital silence is below the audibility floor on both
+    sides: no level-jump fail, one ``inaudible_splice`` hit, verdict pass."""
+    project = load_project(minimal_project)
+    raw = project.workspace_path() / "raw" / "host.wav"
+    sr = 16000
+    rng = np.random.default_rng(3)
+    samples = np.concatenate(
+        [rng.normal(0, 10 ** (-75 / 20), sr).astype(np.float32), np.zeros(sr, dtype=np.float32)]
+    )
+    pcm = (samples * 32767).astype("<i2")
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes(pcm.tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=0.5, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=1.5, source_end=2.0, timeline_start=0.5),
+    ]
+    save_project(project, minimal_project)
+    project = load_project(minimal_project)
+
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    assert rep.verdict == "pass"
+    assert rep.risk == 0.0
+    assert [h.name for h in rep.detectors] == ["inaudible_splice"]
+    assert rep.detectors[0].detail["floor_db"] == -60.0
+    assert rep.detectors[0].detail["left_db"] < -60.0
+    assert rep.detectors[0].detail["right_db"] == -200.0
+    assert "inaudible splice: both sides below -60 dBFS" in rep.reasons
+    proposed = assess_proposed_cut(project, "host", 0.5, 1.5, timebase="source", config=_cfg())
+    assert proposed.verdict == "pass"
+    assert [h.name for h in proposed.detectors] == ["inaudible_splice"]
+    sweep = assess_project_joins(project, track_id="host", config=_cfg())
+    assert sweep["pass_count"] == 1 and sweep["fail_count"] == 0
+
+
 def test_project_join_sweep_shares_decode_and_baseline(
     minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

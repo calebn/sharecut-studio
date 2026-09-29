@@ -93,6 +93,9 @@ class JoinContinuityConfig:
     weight_late_energy: float = 0.55
     weight_nisqa: float = 1.4
     weight_wavlm: float = 1.4
+    # Both splice sides below this RMS (dBFS) cannot be heard: room tone against
+    # gated digital silence passes as "inaudible splice" instead of scoring a level jump.
+    inaudible_floor_db: float = -60.0
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -122,6 +125,7 @@ class JoinContinuityConfig:
             weight_late_energy=float(cfg.get("weight_late_energy", 0.55)),
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
+            inaudible_floor_db=float(cfg.get("inaudible_floor_db", -60.0)),
         )
 
 
@@ -381,6 +385,26 @@ def score_splice_samples(
     wsum = sum(h.weight for h in hits) or 1.0
     risk = sum(h.score * h.weight for h in hits) / wsum
     return float(risk), hits
+
+
+def _inaudible_splice(
+    left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig
+) -> DetectorHit | None:
+    """The one hit for a splice whose two sides are both below ``inaudible_floor_db``."""
+    left_db = rms_db(left, floor_db=_SILENT_DB)
+    right_db = rms_db(right, floor_db=_SILENT_DB)
+    if left_db >= cfg.inaudible_floor_db or right_db >= cfg.inaudible_floor_db:
+        return None
+    return DetectorHit(
+        "inaudible_splice",
+        0.0,
+        1.0,
+        {
+            "left_db": round(max(left_db, -200.0), 1),
+            "right_db": round(max(right_db, -200.0), 1),
+            "floor_db": cfg.inaudible_floor_db,
+        },
+    )
 
 
 def _verdict(
@@ -821,6 +845,22 @@ def _assess_existing_join(
     if points is None:
         points = _splice_points(project, track_id, join_sec, timebase=timebase, timeline=timeline)
     left, right = _load_sides(samples, cfg.sample_rate, points, cfg.side_sec)
+    quiet = _inaudible_splice(left, right, cfg)
+    if quiet is not None:
+        return _finalize(
+            track_id=track_id,
+            mode="existing_join",
+            join_sec=float(join_sec),
+            timebase=timebase,
+            risk=0.0,
+            hits=[quiet],
+            samples=samples,
+            cfg=cfg,
+            extra_reasons=[f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"],
+            artifacts_dir=project.artifacts_dir(),
+            natural_p95=natural_p95,
+            baseline_ready=baseline_ready,
+        )
     risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
     spike = (
         click_score(points)
@@ -890,7 +930,13 @@ def assess_proposed_cut(
     i1 = int(max(0.0, src1) * cfg.sample_rate)
     left = samples[max(0, i0 - side) : i0]
     right = samples[i1 : min(samples.size, i1 + side)]
-    risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
+    quiet = _inaudible_splice(left, right, cfg)
+    if quiet is not None:
+        risk, hits = 0.0, [quiet]
+        extra = [f"inaudible splice: both sides below {cfg.inaudible_floor_db:.0f} dBFS"]
+    else:
+        risk, hits = score_splice_samples(left, right, sample_rate=cfg.sample_rate, config=cfg)
+        extra = []
     return _finalize(
         track_id=track_id,
         mode="proposed_cut",
@@ -900,7 +946,7 @@ def assess_proposed_cut(
         hits=hits,
         samples=samples,
         cfg=cfg,
-        extra_reasons=[f"cut {cut_start:.3f}->{cut_end:.3f} ({timebase})"],
+        extra_reasons=[f"cut {cut_start:.3f}->{cut_end:.3f} ({timebase})", *extra],
         artifacts_dir=project.artifacts_dir(),
     )
 

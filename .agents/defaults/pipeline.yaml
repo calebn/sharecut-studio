@@ -140,6 +140,9 @@ tighten:
   room_tone_edge_margin_sec: 0.15
   # Reject room-tone samples quieter than this (digital silence / gated air).
   room_tone_min_rms_db: -65.0
+  # Both splice sides below this RMS (dBFS) are inaudible: room tone against gated
+  # digital silence reads "inaudible splice" (pass) instead of a level jump.
+  inaudible_floor_db: -60.0
   # When another dialogue stem is speaking in the cut window, do not
   # cross-track ripple (avoids mid-word chops when ASR missed a word).
   speech_energy_guard:
