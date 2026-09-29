@@ -102,6 +102,9 @@ def test_packet_has_every_section_with_real_data(
     ):
         assert title in packet, title
     assert "## Applicable repo rules (AGENTS.md rows)" not in packet
+    # The small docs sections precede the diff so the MAX_CHARS cut never drops them.
+    assert packet.index("## Docs-sync rules") < packet.index("## Changed docs")
+    assert packet.index("## Changed docs") < packet.index("## Diff (with 30 lines of context)")
     assert "+def normalize_gain(x):" in packet
     assert "### normalize_gain" in packet
     # The CLI adapter imports the changed service module: a twin path, unchanged in this diff.
@@ -116,13 +119,35 @@ def test_packet_has_every_section_with_real_data(
 def test_packet_is_capped(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(review_packet, "MAX_CHARS", 200)
     packet = review_packet.build("HEAD", "base..HEAD")
-    assert packet.endswith("[packet truncated at 200 chars]\n")
+    assert "\n[packet truncated at 200 chars; cut: " in packet
+    assert packet.endswith("; Related tests]\n")
 
 
 def test_diff_is_capped_with_a_pointer(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(review_packet, "DIFF_CAP", 50)
     packet = review_packet.build("HEAD", "base..HEAD")
     assert "[diff truncated at 50 chars; run `git diff base..HEAD` for the rest]" in packet
+
+
+def test_doc_heavy_packet_keeps_docs_sync_and_names_the_cut(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for i in range(40):
+        _write(repo, f"docs/d{i:02}.md", "See `services/mix.py` and `cli/mix.py`.\n")
+    _git(repo, "add", "docs")
+    _git(repo, "commit", "-qm", "docs: many")
+    monkeypatch.setattr(review_packet, "DOCS_CAP", 300)
+    full = review_packet.build("HEAD", "base..HEAD")
+    assert (
+        "more changed docs not listed; run "
+        "`git diff --name-only --diff-filter=d base..HEAD -- '*.md'`" in full
+    )
+    assert "### docs/d39.md" not in full
+    monkeypatch.setattr(review_packet, "MAX_CHARS", full.index("## Diff (with 30") + 10)
+    packet = review_packet.build("HEAD", "base..HEAD")
+    assert "VIOLATED  mix-docs  Mix levels in services" in packet
+    assert "### docs/d00.md" in packet
+    assert "cut: Diff (with 30 lines of context); Callers and references" in packet
 
 
 def test_main_writes_the_file(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
