@@ -88,6 +88,9 @@ export function WordAlignerStatus({
         {alignment?.reason
           ? ` Precise word boundaries ${alignment.reason}.`
           : null}
+        {alignment?.blocked && alignment.requested === true
+          ? " This saved request can be turned off here."
+          : null}
       </span>
       {busy && progress ? (
         <span
