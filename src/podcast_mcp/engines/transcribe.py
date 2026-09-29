@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
+    SpeechLevels,
     below_evidence_floor,
     refresh_silence_flags,
     silence_filter_fingerprint,
@@ -376,6 +377,9 @@ class TranscriptionEngine:
         self.forced_alignment_jobs: list[dict[str, Any]] = []
         self._word_aligner: WordAligner | None = None
         self._word_aligner_error: Exception | None = None
+        # Dialogue-track levels for the aligner evidence gate (#780), decoded once per engine
+        # the first time a scored transcript needs them.
+        self._speech_levels: SpeechLevels | None = None
 
     def _get_model(self):
         if self._model is None:
@@ -482,6 +486,12 @@ class TranscriptionEngine:
         key = hashlib.sha256(key_src.encode()).hexdigest()[:16]
         return _cache_file(project, cache_id, f"{asr_cache.stem}.word_align_{key}.json")
 
+    def speech_levels(self, project: EpisodeProject) -> SpeechLevels:
+        """The evidence gate's track levels, built once per engine (one run or request)."""
+        if self._speech_levels is None:
+            self._speech_levels = SpeechLevels.for_project(project, self.options)
+        return self._speech_levels
+
     def _align_words(
         self,
         project: EpisodeProject,
@@ -490,10 +500,12 @@ class TranscriptionEngine:
         asr_cache: Path,
         *,
         use_cache: bool,
-    ) -> None:
-        """Forced alignment (on when the aligner is installed); on any failure Whisper's times stay and the job is reported."""
+    ) -> dict[str, Any] | None:
+        """Forced alignment (on when the aligner is installed); on any failure Whisper's times
+        stay and the job is reported. Returns this job's report entry, None when alignment is off.
+        """
         if not self.options.forced_alignment_enabled or not transcript.words:
-            return
+            return None
         from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
         from podcast_mcp.engines.word_align import apply_word_spans
 
@@ -518,13 +530,13 @@ class TranscriptionEngine:
             aligner = self.load_word_aligner()
         except Exception as exc:  # missing model / onnxruntime / corrupt snapshot
             keep_whisper("failed", str(exc))
-            return
+            return entry
         if not aligner.supports_language(transcript.language):
             keep_whisper(
                 "skipped",
                 f"{aligner.model.id} does not support language {transcript.language!r}",
             )
-            return
+            return entry
         path = self.word_align_cache_path(
             project, job.cache_id, asr_cache, aligner, transcript.words
         )
@@ -539,7 +551,7 @@ class TranscriptionEngine:
                     result = aligner.align(job.audio, transcript.words)
             except Exception as exc:  # decode / inference failure
                 keep_whisper("failed", str(exc))
-                return
+                return entry
             spans = result.spans
             scores: list[float | None] = list(result.scores) or [None] * len(spans)
             align_sec = round(result.runtime_sec, 3)
@@ -549,7 +561,7 @@ class TranscriptionEngine:
         retimed = apply_word_spans(transcript.words, spans, scores)
         if not retimed:
             keep_whisper("failed", "no words aligned")
-            return
+            return entry
         entry.update(
             status=status,
             aligned_words=retimed,
@@ -557,14 +569,9 @@ class TranscriptionEngine:
         )
         if align_sec is not None:
             entry["align_sec"] = align_sec
-        min_score = self.options.forced_alignment_min_word_score
-        if min_score > 0:
-            # Same predicate flag_words_without_acoustic_evidence applies to these words.
-            entry["no_evidence_words"] = sum(
-                1 for w in transcript.words if below_evidence_floor(w.alignment_score, min_score)
-            )
         transcript.word_aligner = aligner.model.id
         transcript.alignment_score_method = ALIGNMENT_SCORE_METHOD
+        return entry
 
     def transcribe_file(
         self,
@@ -671,12 +678,25 @@ class TranscriptionEngine:
             # Whisper's own times (transcribe_file already flagged them with this
             # max_word_sec); alignment has its own cache, so the flag never re-runs Whisper.
             write_text_atomic(cache, transcript.model_dump_json(indent=2))
-        self._align_words(project, job, transcript, cache, use_cache=use_cache)
+        align_entry = self._align_words(project, job, transcript, cache, use_cache=use_cache)
         # Backstop on the final spans (aligned, or Whisper's where alignment was off/failed).
         flag_anomalous_asr_durations(
             transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
         )
-        n = refresh_silence_flags(transcript.words, job.audio, self.options)
+        n = refresh_silence_flags(
+            transcript.words,
+            job.audio,
+            self.options,
+            evidence=self._evidence_for(project, job, transcript),
+            track_id=job.track_id,
+        )
+        min_score = self.options.forced_alignment_min_word_score
+        if align_entry is not None and forced_alignment_succeeded(align_entry) and min_score > 0:
+            align_entry["no_evidence_words"] = sum(
+                1
+                for w in transcript.words
+                if w.suspect_hallucination and below_evidence_floor(w.alignment_score, min_score)
+            )
         if n is None:
             self.silence_filter_skipped.append(job.label)
             transcript.silence_filter_fingerprint = None
@@ -691,6 +711,20 @@ class TranscriptionEngine:
                 n,
             )
         return transcript
+
+    def _evidence_for(
+        self, project: EpisodeProject, job: TranscribeJob, transcript: Transcript
+    ) -> SpeechLevels | None:
+        """Track levels for the evidence gate, only when a scored word could need them.
+
+        An extra-source job (``source_id``) is not the track's primary media, so its clock
+        does not match the track levels; it gets no gate and its low scores never flag.
+        """
+        if self.options.forced_alignment_min_word_score <= 0 or job.source_id is not None:
+            return None
+        if not any(w.alignment_score is not None for w in transcript.words):
+            return None
+        return self.speech_levels(project)
 
     def transcribe_track(
         self,

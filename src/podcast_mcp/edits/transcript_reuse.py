@@ -8,7 +8,11 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.engines.asr_silence import refresh_silence_flags, silence_filter_fingerprint
+from podcast_mcp.engines.asr_silence import (
+    SpeechLevels,
+    refresh_silence_flags,
+    silence_filter_fingerprint,
+)
 from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
@@ -355,6 +359,7 @@ def refresh_reused_silence_flags(
     """
     stored = {t.key: t for t in project.transcripts}
     skipped: list[str] = []
+    levels: SpeechLevels | None = None
     for job in plan.reused:
         transcript = stored.get(job.key)
         if transcript is None:
@@ -364,7 +369,19 @@ def refresh_reused_silence_flags(
             transcript.words, audio_hash, options
         ):
             continue
-        if refresh_silence_flags(transcript.words, job.audio, options) is None:
+        evidence: SpeechLevels | None = None
+        if (
+            options.forced_alignment_min_word_score > 0
+            and job.source_id is None
+            and any(w.alignment_score is not None for w in transcript.words)
+        ):
+            if levels is None:
+                levels = SpeechLevels.for_project(project, options)
+            evidence = levels
+        refreshed = refresh_silence_flags(
+            transcript.words, job.audio, options, evidence=evidence, track_id=job.track_id
+        )
+        if refreshed is None:
             skipped.append(job.label)
             transcript.silence_filter_fingerprint = None
         else:

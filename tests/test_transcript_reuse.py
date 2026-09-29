@@ -281,7 +281,19 @@ def test_needs_retime_truth_table(job):
     assert needs_retime(stale, model)
 
 
-def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch):
+class _FixedEvidence:
+    def __init__(self, speech: bool) -> None:
+        self.speech = speech
+        self.builds = 0
+
+    def has_speech(self, track_id: str, start: float, end: float) -> bool:
+        return self.speech
+
+
+@pytest.mark.parametrize("speech", [False, True])
+def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch, speech):
+    """A reused low-score word is re-flagged through the #780 gate: only when its own
+    track carries no speech there."""
     from podcast_mcp.engines import asr_silence
 
     transcript = _tr()
@@ -290,11 +302,19 @@ def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch):
     p, plan = _reused_plan(job, transcript)
 
     monkeypatch.setattr(asr_silence, "flag_silent_words_in_file", lambda *a, **k: 0)
+    evidence = _FixedEvidence(speech)
+
+    def build(cls, project, options):
+        evidence.builds += 1
+        return evidence
+
+    monkeypatch.setattr(asr_silence.SpeechLevels, "for_project", classmethod(build))
 
     skipped = refresh_reused_silence_flags(p, plan, AsrOptions())
 
     assert skipped == []
-    assert transcript.words[0].suspect_hallucination is True
+    assert evidence.builds == 1
+    assert transcript.words[0].suspect_hallucination is (not speech)
     assert transcript.silence_filter_fingerprint is not None
 
 

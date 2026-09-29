@@ -22,6 +22,21 @@ from podcast_mcp.models import TranscriptWord
 SR = 8000
 
 
+class _Evidence:
+    """A fixed answer to `has_speech`, for tests that exercise the flag logic alone."""
+
+    def __init__(self, speech: bool) -> None:
+        self.speech = speech
+        self.asked: list[tuple[str, float, float]] = []
+
+    def has_speech(self, track_id: str, start: float, end: float) -> bool:
+        self.asked.append((track_id, start, end))
+        return self.speech
+
+
+NO_SPEECH = _Evidence(False)
+
+
 def _w(start: float, end: float) -> TranscriptWord:
     return TranscriptWord(text="x", start=start, end=end)
 
@@ -262,7 +277,7 @@ def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
     words = [tone, clear, silent]
     path = tmp_path / "a.wav"
 
-    n = refresh_silence_flags(words, path, AsrOptions())
+    n = refresh_silence_flags(words, path, AsrOptions(), evidence=NO_SPEECH, track_id="host")
 
     assert [w.suspect_hallucination for w in words] == [True, False, True]
     assert n == 2
@@ -270,8 +285,26 @@ def test_evidence_flag_ors_with_silence_flag(monkeypatch, tmp_path):
     # A word that is silent *and* scored low stays True.
     words2 = [_w(0.2, 0.5)]
     words2[0].alignment_score = 0.001
-    assert refresh_silence_flags(words2, path, AsrOptions()) == 1
+    assert refresh_silence_flags(words2, path, AsrOptions(), evidence=NO_SPEECH) == 1
     assert words2[0].suspect_hallucination is True
+
+
+def test_low_score_alone_never_flags_a_word_with_own_speech(monkeypatch, tmp_path):
+    """#780: a 1-4 frame "um" scores below the floor; the audio, not the score, decides."""
+    from podcast_mcp.engines import asr_silence
+
+    monkeypatch.setattr(asr_silence, "peak_envelope", lambda path: (_audio(), float(SR)))
+    um = _w(1.2, 1.24)
+    um.alignment_score = 0.0
+    path = tmp_path / "a.wav"
+    spoken = _Evidence(True)
+
+    assert refresh_silence_flags([um], path, AsrOptions(), evidence=spoken, track_id="host") == 0
+    assert um.suspect_hallucination is False
+    assert spoken.asked == [("host", 1.2, 1.24)]
+
+    assert refresh_silence_flags([um], path, AsrOptions(), evidence=None, track_id="host") == 0
+    assert um.suspect_hallucination is False
 
 
 def test_below_evidence_floor_truth_table() -> None:
@@ -285,7 +318,12 @@ def test_below_evidence_floor_truth_table() -> None:
 def test_evidence_flag_off_at_zero_min_score():
     words = [_w(0.0, 0.1)]
     words[0].alignment_score = 0.0001
-    assert flag_words_without_acoustic_evidence(words, min_score=0.0) == 0
+    assert (
+        flag_words_without_acoustic_evidence(
+            words, min_score=0.0, evidence=NO_SPEECH, track_id="host"
+        )
+        == 0
+    )
     assert words[0].suspect_hallucination is False
 
 
@@ -297,14 +335,16 @@ def test_evidence_flag_applies_when_silence_filter_off_or_decode_fails(monkeypat
     scored.alignment_score = 0.001
     path = tmp_path / "a.wav"
 
-    result = refresh_silence_flags([scored], path, AsrOptions(silence_filter_enabled=False))
+    result = refresh_silence_flags(
+        [scored], path, AsrOptions(silence_filter_enabled=False), evidence=NO_SPEECH
+    )
     assert result == 1
     assert scored.suspect_hallucination is True
 
     monkeypatch.setattr(asr_silence, "flag_silent_words_in_file", lambda *a, **k: None)
     scored2 = _w(1.2, 1.5)
     scored2.alignment_score = 0.001
-    result2 = refresh_silence_flags([scored2], path, AsrOptions())
+    result2 = refresh_silence_flags([scored2], path, AsrOptions(), evidence=NO_SPEECH)
     assert result2 is None
     assert scored2.suspect_hallucination is True
 
@@ -321,3 +361,123 @@ def test_fingerprint_unchanged_without_scores_and_tracks_min_score_with_scores()
     assert silence_filter_fingerprint(words, "sha", low) != silence_filter_fingerprint(
         words, "sha", high
     )
+    wide = AsrOptions(forced_alignment_min_word_score=0.01, forced_alignment_bleed_margin_db=6.0)
+    assert silence_filter_fingerprint(words, "sha", low) != silence_filter_fingerprint(
+        words, "sha", wide
+    )
+
+
+def _write_wav(path, samples: np.ndarray, sample_rate: int = SR) -> None:
+    pcm = np.round(np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sample_rate)
+        f.writeframes(pcm.tobytes())
+
+
+def _two_mic_project(tmp_workspace, *, host_gain_db: float = 0.0):
+    """host: tone 0.5-1.0 s at -30 dBFS, silence elsewhere; guest: tone 1.5-2.0 s at -12 dBFS.
+
+    Both tracks sit at session offset 0, with a faint noise bed so the noise floor is real.
+    Words on host at 1.5-2.0 s are heard only on guest's mic (bleed); host's own 0.5-1.0 s
+    tone is host's own speech; 2.5-2.6 s is silent on both.
+    """
+    from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+
+    rng = np.random.default_rng(780)
+    t = np.arange(3 * SR) / SR
+    bed = rng.normal(0.0, 10 ** (-70 / 20), 3 * SR)
+    host = bed.copy()
+    host[SR // 2 : SR] += 10 ** (-30 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t[SR // 2 : SR])
+    # The guest's voice reaches the host mic 20 dB down: bleed, not host speech.
+    host[3 * SR // 2 : 2 * SR] += (
+        10 ** (-32 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t[3 * SR // 2 : 2 * SR])
+    )
+    guest = bed.copy()
+    guest[3 * SR // 2 : 2 * SR] += (
+        10 ** (-12 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t[3 * SR // 2 : 2 * SR])
+    )
+    raw = tmp_workspace / "raw"
+    raw.mkdir(exist_ok=True)
+    _write_wav(raw / "host.wav", host)
+    _write_wav(raw / "guest.wav", guest)
+    project = EpisodeProject.create("gate", str(tmp_workspace))
+    project.tracks = [
+        Track(
+            id=tid,
+            label=tid,
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=3.0),
+            gain_db=host_gain_db if tid == "host" else 0.0,
+        )
+        for tid in ("host", "guest")
+    ]
+    project.clips = [
+        Clip(id=f"c_{tid}", track_id=tid, source_start=0.0, source_end=3.0, timeline_start=0.0)
+        for tid in ("host", "guest")
+    ]
+    return project
+
+
+def test_speech_levels_gate_flags_bleed_and_silence_but_not_a_short_real_word(tmp_workspace):
+    """#780: literal outcomes for the three word classes the lab tape showed."""
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+
+    project = _two_mic_project(tmp_workspace)
+    levels = SpeechLevels.for_project(project, AsrOptions())
+    assert set(levels.caches) == {"host", "guest"}
+    assert levels.skipped == []
+    assert levels.floors_db["host"] == pytest.approx(-70.0, abs=2.0)
+
+    real = _w(0.70, 0.72)  # a one-frame "um" inside host's own tone
+    real.alignment_score = 0.0
+    bleed = _w(1.6, 1.9)  # the guest talking, 20 dB louder on the guest mic
+    bleed.alignment_score = 0.003
+    silent = _w(2.5, 2.6)
+    silent.alignment_score = 0.0
+    scored_fine = _w(1.6, 1.9)  # same bleed span, but the aligner was sure of it
+    scored_fine.alignment_score = 0.8
+    words = [real, bleed, silent, scored_fine]
+
+    n = refresh_silence_flags(
+        words,
+        tmp_workspace / "raw" / "host.wav",
+        AsrOptions(silence_filter_enabled=False),
+        evidence=levels,
+        track_id="host",
+    )
+
+    assert [w.suspect_hallucination for w in words] == [False, True, True, False]
+    assert n == 2
+    assert levels.has_speech("host", 0.70, 0.72) is True
+    assert levels.has_speech("host", 1.6, 1.9) is False
+    assert levels.has_speech("host", 2.5, 2.6) is False
+    # The guest's own word over the same span is the guest's speech.
+    assert levels.has_speech("guest", 1.6, 1.9) is True
+
+
+def test_speech_levels_apply_the_track_gain_and_the_bleed_margin(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+
+    # +15 dB on host lifts its -32 dBFS bleed to -17 dBFS against the guest's -12 dBFS:
+    # still bleed at the 3 dB default, the host's own speech at a 6 dB margin.
+    project = _two_mic_project(tmp_workspace, host_gain_db=15.0)
+    assert SpeechLevels.for_project(project, AsrOptions()).has_speech("host", 1.6, 1.9) is False
+    lenient = SpeechLevels.for_project(project, AsrOptions(forced_alignment_bleed_margin_db=6.0))
+    assert lenient.has_speech("host", 1.6, 1.9) is True
+
+
+def test_speech_levels_treat_an_undecodable_track_as_evidence(tmp_workspace, caplog):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+
+    project = _two_mic_project(tmp_workspace)
+    (tmp_workspace / "raw" / "guest.wav").write_bytes(b"not audio")
+    with caplog.at_level("WARNING"):
+        levels = SpeechLevels.for_project(project, AsrOptions())
+    assert levels.skipped == ["guest"]
+    assert "aligner evidence levels skipped for track guest" in caplog.text
+    # No guest levels: host's bleed span cannot be called bleed, so it is not flagged.
+    assert levels.has_speech("host", 1.6, 1.9) is True
+    # A track with no levels at all is never flagged on the score.
+    assert levels.has_speech("guest", 1.6, 1.9) is True
