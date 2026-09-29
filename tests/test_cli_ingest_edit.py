@@ -629,6 +629,7 @@ def test_edit_timeline_ops(minimal_project):
             "0.2",
             "--end",
             "0.3",
+            "--json",
         ],
     )
     assert ripple.exit_code == 0
@@ -844,10 +845,39 @@ def test_edit_ripple_delete_by_query(minimal_project):
                 str(project),
                 "--query",
                 "hello",
+                "--json",
             ],
         )
     assert result.exit_code == 0
     assert json.loads(result.stdout)["operation"] == "ripple_delete_text"
+
+
+def test_edit_ripple_delete_default_prints_summary(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+        svc_cls.return_value.ripple_delete.return_value = {
+            "operation": "ripple_delete",
+            "affected_tracks": ["host", "guest"],
+            "timeline_duration_sec": 12.5,
+            "join_quality": {"verdict": "pass", "risk": 0.12},
+        }
+        result = runner.invoke(
+            app,
+            [
+                "edit",
+                "ripple-delete",
+                "--project",
+                str(project),
+                "--start",
+                "0.2",
+                "--end",
+                "0.3",
+            ],
+        )
+    assert result.exit_code == 0
+    assert result.stdout.strip() == (
+        "Ripple-deleted: timeline now 12.50s, 2 track(s), join pass (risk 0.12)."
+    )
 
 
 def test_edit_move_by_query(minimal_project):

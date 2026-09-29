@@ -346,7 +346,44 @@ def test_info_command(tmp_path):
     assert "episode" in result.stdout
 
 
-def test_info_command_omits_document_sync(tmp_path):
+def test_info_command_prints_summary_by_default(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    result = runner.invoke(
+        app,
+        ["info", "--project", str(ws / "episode.project.json")],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload == {
+        "name": "episode",
+        "duration_sec": None,
+        "tracks": [],
+        "clip_count": 0,
+        "pending_edits": 0,
+        "chapters": 0,
+        "applied_edits": 0,
+        "reconciliation_stale": False,
+    }
+    # The summary is the whole point: no full-project dump by default.
+    assert "document_sync" not in result.stdout
+
+
+def test_info_command_json_flag_dumps_full_project(tmp_path):
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    result = runner.invoke(
+        app,
+        ["info", "--project", str(ws / "episode.project.json"), "--json"],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["version"] == "2.0"
+    assert "timeline" in payload
+    assert "document_sync" not in payload
+
+
+def test_info_command_json_flag_omits_document_sync(tmp_path):
     from podcast_mcp.models import SavedDocumentCommand, load_project, save_project
 
     ws = tmp_path / "ep"
@@ -362,7 +399,7 @@ def test_info_command_omits_document_sync(tmp_path):
         base_server_seq=0,
     )
     save_project(proj, project_path)
-    result = runner.invoke(app, ["info", "--project", str(project_path)])
+    result = runner.invoke(app, ["info", "--project", str(project_path), "--json"])
     assert result.exit_code == 0
     assert "document_sync" not in result.stdout
     assert "secret-payload" not in result.stdout

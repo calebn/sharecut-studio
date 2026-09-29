@@ -95,8 +95,16 @@ def export_transcript_cmd(
 
 def info_cmd(
     project: Path = typer.Option(..., "--project"),
+    as_json: bool = typer.Option(
+        False, "--json", help="Emit the full project JSON instead of the summary."
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    # document_sync holds an unredacted command payload for crash recovery (#575); this
-    # output gets pasted into bug reports, so leave it out.
-    typer.echo(json.dumps(ws.project.model_dump(exclude={"document_sync"}), indent=2, default=str))
+    if as_json:
+        # document_sync holds an unredacted command payload for crash recovery (#575); this
+        # output gets pasted into bug reports, so leave it out.
+        typer.echo(
+            json.dumps(ws.project.model_dump(exclude={"document_sync"}), indent=2, default=str)
+        )
+        return
+    typer.echo(json.dumps(EpisodeService(ws).summary(), indent=2))
