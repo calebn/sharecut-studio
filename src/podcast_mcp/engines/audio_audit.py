@@ -32,6 +32,9 @@ from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 _RMS_SAMPLE_RATE = 8000
+# Acoustic statuses that call for transcript suppression (used both for the flagged/
+# bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
+_FLAGGED_STATUSES = ("inaudible", "bleed")
 
 
 @dataclass(frozen=True)
@@ -570,7 +573,7 @@ def list_flagged_words(
         for row in compute_word_audibility_map(
             project, track_id=track_id, policy=policy, progress=progress, caches=caches
         )
-        if row["audibility_status"] in ("inaudible", "bleed")
+        if row["audibility_status"] in _FLAGGED_STATUSES
     ]
 
 
@@ -958,6 +961,22 @@ def analyze_cleanup(
     caches = build_track_rms_caches(project)
     per_track: list[dict[str, Any]] = []
 
+    raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
+    # Whole project, not just `tracks`: a text-match loser's winner may sit on a track
+    # outside this report's scope, and `word_targets` judges every pair regardless of
+    # scope (#805, #806). Computed once and reused below instead of a second
+    # per-track acoustic pass.
+    audibility_map = compute_word_audibility_map(project, policy=pol, progress=None, caches=caches)
+    flagged_by_track: dict[str, list[dict[str, Any]]] = {}
+    for row in audibility_map:
+        if row["audibility_status"] in _FLAGGED_STATUSES:
+            flagged_by_track.setdefault(row["track_id"], []).append(row)
+    targets: dict[tuple[str, int], dict[str, Any]] = {}
+    if pol.transcript_mode != "off":
+        from podcast_mcp.engines.transcript_reconcile import word_targets
+
+        targets = word_targets(project, policy=pol, audibility_map=audibility_map)
+
     with resolve_progress_task(
         "analyze-cleanup",
         "Running cleanup analysis",
@@ -975,11 +994,7 @@ def analyze_cleanup(
             low_aud = list_low_audibility_words(
                 project, policy=pol, track_id=tid, progress=None, caches=caches
             )
-            flagged = (
-                list_flagged_words(project, policy=pol, track_id=tid, progress=None, caches=caches)
-                if pol.transcript_mode != "off"
-                else []
-            )
+            flagged = flagged_by_track.get(tid, [])
             bleed = [f for f in flagged if f["audibility_status"] == "bleed"]
             tr_for_ratio = project.transcript_for_track(tid)
             total_words = len(tr_for_ratio.words) if tr_for_ratio else 0
@@ -1015,10 +1030,16 @@ def analyze_cleanup(
                     "alone won't remove it from the audio; see podcast-mute-bleed to gate "
                     "stems, and check mic gain staging/placement for future recordings."
                 )
-            if pol.transcript_mode == "suggest" and flagged:
-                track_row["suppression_recommendations"] = [
-                    {"track_id": f["track_id"], "word_index": f["word_index"]} for f in flagged
+            if pol.transcript_mode == "suggest" and tr_for_ratio:
+                recs = [
+                    {"track_id": tid, "word_index": i}
+                    for i, w in enumerate(tr_for_ratio.words)
+                    if not (w.ignored or w.audibility_locked or w.suppressed)
+                    and (target := targets.get((tid, i))) is not None
+                    and target["audibility_status"] in _FLAGGED_STATUSES
                 ]
+                if recs:
+                    track_row["suppression_recommendations"] = recs
             per_track.append(track_row)
             task.advance(1, total=len(tracks), message=f"track {tid}")
 

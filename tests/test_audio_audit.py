@@ -1024,11 +1024,16 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
             words=[TranscriptWord(text="x", start=0.0, end=0.4)],
         )
     ]
-    flagged = [
+    audibility_map = [
         {
             "track_id": "host",
             "word_index": 0,
+            "text": "x",
+            "start": 0.0,
+            "end": 0.4,
             "audibility_status": "inaudible",
+            "dominant_track": None,
+            "suppressed": False,
         }
     ]
     pol = AnalysisPolicy(transcript_mode="suggest")
@@ -1042,8 +1047,8 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
-            return_value=flagged,
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
+            return_value=audibility_map,
         ),
         patch(
             "podcast_mcp.engines.audio_audit.recommend_boundary_fades",
@@ -1052,7 +1057,9 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
     ):
         report = analyze_cleanup(project, policy=pol)
     assert len(report["tracks"]) == 1
-    assert report["tracks"][0]["suppression_recommendations"]
+    assert report["tracks"][0]["suppression_recommendations"] == [
+        {"track_id": "host", "word_index": 0}
+    ]
     assert "boundary fade" in report["summary"]
 
 
@@ -1071,7 +1078,7 @@ def test_analyze_cleanup_summary_no_issues(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=[],
         ),
         patch(
@@ -1105,7 +1112,7 @@ def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(aa, "analyze_gate_overreach", record_gate)
     monkeypatch.setattr(aa, "list_low_audibility_words", record)
-    monkeypatch.setattr(aa, "list_flagged_words", record)
+    monkeypatch.setattr(aa, "compute_word_audibility_map", record)
     monkeypatch.setattr(aa, "recommend_boundary_fades", record)
     aa.analyze_cleanup(project)
     assert len(builds) == 1
@@ -1327,7 +1334,7 @@ def test_analyze_cleanup_flags_high_bleed_ratio(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=bleed_rows,
         ),
         patch(
@@ -1365,7 +1372,7 @@ def test_analyze_cleanup_no_bleed_warning_below_threshold(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=bleed_rows,
         ),
         patch(
@@ -1386,6 +1393,48 @@ def test_analyze_cleanup_bleed_ratio_none_without_transcript(tmp_path: Path):
     ]
     report = analyze_cleanup(project)
     assert report["tracks"][0]["bleed_ratio"] is None
+
+
+def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
+    """A word the acoustic map alone calls audible, but that loses an identical-text
+    overlap to another track, still gets a suppression recommendation (#806): the
+    recommendation comes from `word_targets`, the same per-word rule
+    `reconcile_transcript` applies, not from the acoustic map on its own."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    for tid in ("host", "guest"):
+        project.timeline.tracks.append(
+            Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid)
+        )
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.5, confidence=0.9),
+                TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="world", start=0.0, end=0.5, confidence=0.9),
+                TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85),
+            ],
+        ),
+    ]
+    pol = AnalysisPolicy(transcript_mode="suggest", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        report = analyze_cleanup(project, policy=pol)
+
+    by_track = {row["track_id"]: row for row in report["tracks"]}
+    assert by_track["guest"]["flagged_count"] == 0
+    assert by_track["guest"]["suppression_recommendations"] == [
+        {"track_id": "guest", "word_index": 1}
+    ]
+    assert "suppression_recommendations" not in by_track["host"]
 
 
 def test_audio_diagnostics_report_with_processed_stem(tmp_path: Path, sample_wav: Path):
