@@ -260,11 +260,18 @@ def test_existing_join_scores_the_splice_sides(minimal_project: Path) -> None:
     assert sweep["join_count"] == 1
     assert sweep["joins"][0]["source_gap_sec"] == 1.0
     (join,) = sweep["joins"]
-    assert {k: v for k, v in join.items() if k not in ("source_gap_sec", "speech")} == rep.to_dict()
-    # The left clip ends 500 ms before the tone stops: a clipped tail on the sweep too.
+    skipped = ("source_gap_sec", "speech", "verdict", "reasons")
+    assert {k: v for k, v in join.items() if k not in skipped} == {
+        k: v for k, v in rep.to_dict().items() if k not in ("verdict", "reasons")
+    }
+    # The left clip ends 500 ms before the tone stops: a clipped tail on the sweep too,
+    # and a row with a crossing never reads pass.
     assert sweep["speech_cross_count"] == 1
     assert join["speech"][0]["direction"] == "clipped_tail"
     assert join["speech"][0]["removed_ms"] == pytest.approx(500.0, abs=20.0)
+    assert rep.verdict == "fail"
+    assert join["verdict"] == "fail"
+    assert join["reasons"] == rep.reasons
 
 
 def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
@@ -315,6 +322,33 @@ def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
     assert sweep["pass_count"] == 1 and sweep["fail_count"] == 0
 
 
+def test_sweep_row_with_a_speech_crossing_is_never_a_pass(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    """The continuity detectors score the splice's texture; a cut through the track's own
+    voice at that join is a defect whatever they score, so the row reads review. The
+    tiny fixture cuts 0.5 s out of a steady tone, which the crossing detector reads as a
+    clipped onset and tail, while the splice itself scores pass."""
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    project = _tiny_project(minimal_project, sample_wav)
+    cfg = _cfg()
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=cfg)
+    assert rep.verdict == "pass"
+
+    sweep = assess_project_joins(project, track_id="host", config=cfg)
+    (row,) = sweep["joins"]
+    assert [c["direction"] for c in row["speech"]] == ["clipped_tail", "clipped_onset"]
+    assert row["verdict"] == "review"
+    assert row["risk"] == rep.to_dict()["risk"]
+    assert row["reasons"] == [
+        *rep.reasons,
+        "voiced speech cut through this join (see speech); never a pass",
+    ]
+    assert sweep["pass_count"] == 0 and sweep["review_count"] == 1
+    assert sweep["speech_cross_count"] == 2
+
+
 def test_project_join_sweep_shares_decode_and_baseline(
     minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -345,9 +379,16 @@ def test_project_join_sweep_shares_decode_and_baseline(
     sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
     assert counts == {"decode": 1, "baseline": 1}
     for actual, expected in zip(sweep["joins"], individual, strict=True):
-        assert {
-            k: v for k, v in actual.items() if k not in ("source_gap_sec", "speech")
-        } == expected
+        skipped = ("source_gap_sec", "speech", "verdict", "reasons")
+        assert {k: v for k, v in actual.items() if k not in skipped} == {
+            k: v for k, v in expected.items() if k not in ("verdict", "reasons")
+        }
+        if actual["speech"] and expected["verdict"] == "pass":
+            assert actual["verdict"] == "review"
+            assert actual["reasons"][:-1] == expected["reasons"]
+        else:
+            assert actual["verdict"] == expected["verdict"]
+            assert actual["reasons"] == expected["reasons"]
 
 
 def test_project_join_sweep_keeps_one_bounded_wav_reader(
@@ -416,7 +457,10 @@ def test_project_join_sweep_batches_unsupported_container_windows(
     assert len([cmd for cmd in commands if Path(cmd[0]).name == "ffmpeg"]) == 1
     assert len(temporary_dirs) == 1 and not temporary_dirs[0].exists()
     for actual, expected in zip(sweep["joins"], individual, strict=True):
-        assert actual["verdict"] == expected["verdict"]
+        if actual["speech"] and expected["verdict"] == "pass":
+            assert actual["verdict"] == "review"
+        else:
+            assert actual["verdict"] == expected["verdict"]
         assert actual["risk"] == pytest.approx(expected["risk"], abs=0.01)
 
 
