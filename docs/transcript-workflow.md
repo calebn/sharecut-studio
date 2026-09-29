@@ -288,8 +288,10 @@ only (`bleed_check` off, so a wrong ingest offset can never flag a real word), a
 `reconcile_transcript` (after `align_tracks`, on both passes) re-flags every stored dialogue
 transcript under the full gate (`refresh_settled_silence_flags`, "aligner evidence re-flagged on
 N track(s)" in its summary). The `silence_filter_fingerprint` records which scope produced the
-flags and a digest of the dialogue clips' placement (`evidence_term`), so a placement change
-re-flags once and a later `transcribe_tracks` run leaves reconcile's bleed flags alone. The score alone never flags: it
+flags and a digest of the gains that affect it (`evidence_term`): own-only checks include the
+target track's gain, while settled checks include every dialogue track's gain and clip placement.
+A relevant gain or placement change re-flags once, and a later `transcribe_tracks` run leaves
+reconcile's bleed flags alone while those inputs are unchanged. The score alone never flags: it
 is a mean over emitting frames and is low by construction on one-to-four-frame words such as
 "um", "uh" and "to" (on the lab tape the ungated flag marked 97 of the speaker's own words per
 episode; the gate keeps the 64 bleed and 3 silent flags and none of those). It is flag-only,

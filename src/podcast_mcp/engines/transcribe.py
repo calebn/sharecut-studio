@@ -15,6 +15,7 @@ from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
     below_evidence_floor,
+    evidence_applies,
     refresh_silence_flags,
     silence_filter_fingerprint,
 )
@@ -710,7 +711,9 @@ class TranscriptionEngine:
                 transcript.words,
                 sha,
                 self.options,
-                evidence=evidence.fingerprint_term() if evidence is not None else "own",
+                evidence=(
+                    evidence.fingerprint_term(job.track_id) if evidence is not None else "own"
+                ),
             )
         if n:
             log.info(
@@ -728,9 +731,7 @@ class TranscriptionEngine:
         An extra-source job (``source_id``) is not the track's primary media, so its clock
         does not match the track levels; it gets no gate and its low scores never flag.
         """
-        if self.options.forced_alignment_min_word_score <= 0 or job.source_id is not None:
-            return None
-        if not any(w.alignment_score is not None for w in transcript.words):
+        if not evidence_applies(transcript.words, self.options, source_id=job.source_id):
             return None
         return self.speech_levels(project)
 
