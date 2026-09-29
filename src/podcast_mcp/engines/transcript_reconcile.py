@@ -78,7 +78,7 @@ def _reconcile_word(
     if w.audibility_status != status or w.dominant_track != dominant:
         result.status_updates += 1
 
-    if update_status:
+    if update_status or apply_suppression:
         tr.words[i] = w.model_copy(
             update={
                 "audibility_status": status,
@@ -141,6 +141,13 @@ def reconcile_transcript(
     identical-text overlap picks this word as the loser. Both verdicts come from the
     audio and the transcript, never from the stored flags, so a repeat run on an
     unchanged project reports zero changes (#782).
+
+    The target is computed the same way whether or not this call writes it: a
+    ``dry_run=True`` preview and a ``flag``/``suggest`` tag-only pass (``update_status``
+    without ``apply_suppression``) both fold in the text-match override, so what they
+    report is exactly what an apply would do (#791). ``apply_suppression`` also forces
+    the status write, so a word is never left suppressed with a stale
+    ``audibility_status``/``dominant_track`` behind it.
     """
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":
@@ -161,7 +168,7 @@ def reconcile_transcript(
         by_key = {(row["track_id"], row["word_index"]): row for row in audibility_map}
         transcripts = [tr for tr in project.transcripts if not track_id or tr.track_id == track_id]
 
-        if pol.bleed_text_match_enabled and apply_suppression:
+        if pol.bleed_text_match_enabled:
             task.set_phase("text_match", "Matching bleed text…")
             words_by_track = {tr.track_id: tr.words for tr in project.transcripts}
             in_scope = {tr.track_id for tr in transcripts}

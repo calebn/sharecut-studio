@@ -516,6 +516,58 @@ def test_reconcile_second_pass_on_unchanged_project_is_a_no_op(tmp_path: Path):
     }
 
 
+def _diff_keys(entries: list[dict]) -> set[tuple[str, int]]:
+    return {(e["track_id"], e["word_index"]) for e in entries}
+
+
+def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_path: Path):
+    """A dry-run preview must report the same per-word target an apply writes, including
+    the text-match override, both on a fresh project and a converged one (#791).
+
+    Before the fix, ``by_key`` only picked up the text-match verdict when
+    ``apply_suppression`` was true, so a preview on a converged project fell back to the
+    acoustic verdict alone: the acoustically-audible text-match loser read as a spurious
+    ``unsuppress`` that the apply, which did see the text-match verdict, never made.
+    """
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        if t_start < 1.0:
+            return -30.0 if track_id == "host" else -40.0
+        return -35.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        before = _word_state(project)
+        preview = run_reconciliation(project, policy=pol, dry_run=True)
+        assert _word_state(project) == before, "preview must not write"
+
+        applied = run_reconciliation(project, policy=pol, dry_run=False)
+        converged = _word_state(project)
+        assert converged != before
+
+        for key in ("suppress", "unsuppress", "reattribute"):
+            assert _diff_keys(preview[key]) == _diff_keys(applied[key]), key
+        assert _diff_keys(preview["suppress"]) == {("guest", 0), ("guest", 1)}
+
+        preview_converged = run_reconciliation(project, policy=pol, dry_run=True)
+        assert _word_state(project) == converged, "preview must not write"
+
+        applied_converged = run_reconciliation(project, policy=pol, dry_run=False)
+        assert _word_state(project) == converged, "apply on a converged project is a no-op"
+
+    for key in ("suppress", "unsuppress", "reattribute"):
+        assert _diff_keys(preview_converged[key]) == _diff_keys(applied_converged[key]) == set(), (
+            key
+        )
+
+
 def test_audio_state_fingerprint_changes_on_effect(tmp_path: Path):
     project = _two_track_project(tmp_path)
     before = audio_state_fingerprint(project)

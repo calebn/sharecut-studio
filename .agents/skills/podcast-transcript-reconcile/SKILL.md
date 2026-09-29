@@ -74,6 +74,8 @@ Bleed requires the **other track's RMS to exceed own-track RMS by ≥ `bleed_dom
 
 **Identical overlap text:** when both tracks transcribe the same word in an overlap window but dominance is below threshold, reconcile also suppresses the loser via `bleed_text_match_enabled` (winner: audibility + confidence + RMS), except when either word exceeds `max_word_audibility_sec`. The loser verdict overrides the acoustic verdict for that word, so the two never fight: a repeat reconcile on an unchanged project reports `0 suppressed, 0 unsuppressed, 0 reattributed, 0 status updates` (#782); non-zero counts on a re-run mean audio, text, or clips changed. **Success gate:** `text_match_count == 0` after reconcile in scope (stretched ASR pairs may remain).
 
+**Preview matches apply (#791):** `dry_run=true` computes the same per-word target an apply would write, text-match override included, so it never previews an unsuppress the apply won't make. `flag`/`suggest` mode tags a text-match loser's `audibility_status`/`dominant_track` as `bleed`/the winner's track without suppressing it — the tag reflects the real target even though the word stays in the combined transcript.
+
 **If bleed count is zero during known cross-talk:**
 
 1. Measure dominance at the overlap (guest RMS − host RMS must clear 6 dB).
