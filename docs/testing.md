@@ -136,6 +136,8 @@ GitHub Actions runs the required full suite on public pushes and pull requests. 
 
 The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py check --range` over the PR's base/head SHAs — the docs-sync gate from [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It needs the job's `actions/checkout` at `fetch-depth: 0` (the merge base and commit trailers, not just the head commit). Run the same check locally with `make docs-sync` before opening a PR; the `docs-sync` pre-commit hook runs it on staged files but only warns.
 
+The `pytest` job also runs `actions/setup-node`, so tests that run workflow JavaScript under `node` (for example the docs-lens predicate test in `tests/test_issue_pipeline_workflow.py`) always run in CI. Locally they skip when `node` is not on `PATH`. With `CI` set they fail instead of skipping.
+
 ## Fast inner loop
 
 The audio-audit cache regression tests use deterministic decoder-call counts

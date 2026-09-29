@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from github_yaml import load_github_yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".claude" / "workflows" / "issue-pipeline.js"
@@ -243,7 +246,11 @@ _DOCS_LENS_CASES = [
 ]
 
 
-@pytest.mark.skipif(shutil.which("node") is None, reason="runs the workflow predicate under node")
+# CI must run this (the pytest job sets up Node); only a local run without node may skip.
+@pytest.mark.skipif(
+    shutil.which("node") is None and not os.environ.get("CI"),
+    reason="runs the workflow predicate under node (required when CI is set)",
+)
 def test_docs_lens_skips_only_when_count_and_printed_line_both_say_zero() -> None:
     packets = json.dumps([packet for packet, _ in _DOCS_LENS_CASES])
     program = (
@@ -252,6 +259,11 @@ def test_docs_lens_skips_only_when_count_and_printed_line_both_say_zero() -> Non
     )
     out = subprocess.run(["node", "-e", program], check=True, capture_output=True, text=True).stdout
     assert json.loads(out) == [runs for _, runs in _DOCS_LENS_CASES]
+
+
+def test_pytest_job_sets_up_node_for_the_workflow_predicate_test() -> None:
+    steps = load_github_yaml(TEST_WORKFLOW)["jobs"]["pytest"]["steps"]
+    assert any(str(step.get("uses", "")).startswith("actions/setup-node@") for step in steps)
 
 
 def test_implementer_rereads_changed_docs_before_opening_the_pr() -> None:
