@@ -137,20 +137,49 @@ export async function recordParticipantId(
 /** Participant id of the host keeper (services/record/state.py). */
 export const HOST_PARTICIPANT_ID = "p_host";
 
-/** Join a record link as a guest: name, headphones, mic, skip room tone, Accept. */
+/**
+ * Type a guest's display name once its record socket has joined.
+ *
+ * The lobby mounts its Microphone step only after the room echoes this page's
+ * Join (`showMic={!!me}` in `src/record/RecordApp.tsx`). A fill that lands in
+ * that re-render can be lost: a WebKit CI trace for #764 had the field still
+ * empty after `fill("Ava")`, so the room kept the socket's `Guest` name. After
+ * the join the name reaches the room through `UpdateName`.
+ */
+export async function fillGuestDisplayName(
+  page: Page,
+  name: string,
+): Promise<void> {
+  await expect(
+    page.getByRole("heading", { name: "Microphone", exact: true }),
+  ).toBeVisible();
+  const field = page.getByLabel("Display name");
+  await field.fill(name);
+  await expect(field).toHaveValue(name);
+}
+
+/** Join a record link as a guest: name, headphones, mic, skip room tone, Accept; returns once the room lists the guest by name. */
 export async function joinAsGuest(
   page: Page,
   token: string,
   name: string,
 ): Promise<void> {
   await openRecordLink(page, token);
-  await page.getByLabel("Display name").fill(name);
+  await fillGuestDisplayName(page, name);
   await page.getByLabel("I am wearing headphones").check();
   await page.getByRole("button", { name: "Allow microphone" }).click();
   await expect(page.getByLabel("Level")).toBeVisible();
   await page.getByRole("button", { name: "Skip" }).click();
   await page.getByRole("button", { name: "Accept" }).click();
   await expect(page.getByText("Waiting for host")).toBeVisible();
+  // Registration signal for the name: the guest's roster renders the room
+  // snapshot, the same state `recordParticipantId` reads on the host.
+  await expect(
+    page
+      .getByRole("region", { name: "Recording", exact: true })
+      .getByRole("listitem")
+      .filter({ hasText: `${name} · consented` }),
+  ).toBeVisible();
 }
 
 /** Join a record link as a listen-only producer. */

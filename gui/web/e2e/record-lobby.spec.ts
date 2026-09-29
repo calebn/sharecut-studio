@@ -22,6 +22,7 @@ import {
   clickHostTransport,
   createRecordRoom,
   ensureHostRecordCommand,
+  fillGuestDisplayName,
   HOST_PARTICIPANT_ID,
   hostRecordSnapshot,
   joinAsGuest,
@@ -229,7 +230,7 @@ test.describe("record lobby", () => {
           await expect(
             guest.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible();
-          await guest.getByLabel("Display name").fill("Ava");
+          await fillGuestDisplayName(guest, "Ava");
           await guest.getByLabel("I am wearing headphones").check();
           await expect(
             guest.getByRole("heading", {
