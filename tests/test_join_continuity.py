@@ -672,6 +672,38 @@ def test_verdict_holds_when_an_edge_moves_within_the_tolerance(minimal_project: 
     assert next(h for h in stable.detectors if h.name == "click").score == 1.0
 
 
+def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits import join_continuity
+    from podcast_mcp.edits.join_detectors import DetectorHit
+
+    scores = iter((0.2, 0.51, 0.55, 0.6, 0.7, 0.75, 0.73, 0.85, 0.9))
+
+    def score(*args, **kwargs):
+        risk = next(scores)
+        return risk, [DetectorHit("probe", risk, 1.0, {"score": risk})]
+
+    monkeypatch.setattr(
+        join_continuity, "_resolve_source_samples", lambda *args, **kwargs: np.ones(32000)
+    )
+    monkeypatch.setattr(join_continuity, "score_splice_samples", score)
+    project = load_project(minimal_project)
+
+    report = assess_proposed_cut(
+        project,
+        "host",
+        0.5,
+        1.0,
+        timebase="source",
+        config=_cfg(edge_tolerance_ms=3.0),
+    )
+
+    assert report.verdict == "fail"
+    assert report.risk == pytest.approx(0.9)
+    assert report.detectors[0].detail["score"] == pytest.approx(0.9)
+
+
 def test_join_verdicts_and_risks_are_the_same_on_every_run(
     minimal_project: Path, sample_wav: Path
 ) -> None:
