@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 import pytest
+from filelock import Timeout
 
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import (
@@ -28,6 +29,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services import PipelineRunResult
+from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
 
 @pytest.fixture(autouse=True)
@@ -1856,6 +1858,66 @@ def test_api_comment_noop_patch_journals_nothing(minimal_project) -> None:
     assert noop.status_code == 200
     assert noop.json()["comment"]["id"] == cid
     assert client.get("/api/project/meta", params={"path": path}).json()["server_seq"] == seq
+
+
+@pytest.mark.parametrize(
+    "make_exc",
+    [
+        lambda: ProjectBusyError("/artifacts/episode.project.json.lock"),
+        lambda: RenderBusyError("/artifacts/render.lock"),
+        lambda: Timeout("/artifacts/transcript_context.yaml.lock"),
+    ],
+    ids=["project-busy", "render-busy", "raw-timeout"],
+)
+def test_api_comments_busy_lock_returns_503(minimal_project, monkeypatch, make_exc) -> None:
+    """A busy project/render lock (#488) maps to 503 project_busy, never the lock path."""
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.routes import comments as comments_route
+    from podcast_mcp.gui.server import create_app
+
+    def _raise(self, **kwargs):
+        raise make_exc()
+
+    monkeypatch.setattr(comments_route.CommentService, "add", _raise)
+    client = TestClient(create_app())
+    res = client.post(
+        "/api/comments",
+        json={
+            "path": str(minimal_project),
+            "body": "note",
+            "author": "host",
+            "timeline_start": 1.0,
+        },
+    )
+    assert res.status_code == 503
+    assert res.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert "/artifacts" not in res.text
+
+
+def test_api_comments_non_busy_error_stays_500(minimal_project, monkeypatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.routes import comments as comments_route
+    from podcast_mcp.gui.server import create_app
+
+    def _raise(self, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(comments_route.CommentService, "add", _raise)
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    res = client.post(
+        "/api/comments",
+        json={
+            "path": str(minimal_project),
+            "body": "note",
+            "author": "host",
+            "timeline_start": 1.0,
+        },
+    )
+    assert res.status_code == 500
 
 
 def test_api_pipeline_steps() -> None:

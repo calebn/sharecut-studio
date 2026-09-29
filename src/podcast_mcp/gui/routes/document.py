@@ -30,11 +30,11 @@ from podcast_mcp.services.document_sync.payloads import document_command_from_bo
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import AuthzDecision, authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.util.project_state import PROJECT_BUSY_MESSAGE
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
-_PROJECT_BUSY = "Project is busy in another process; try again"
 log = logging.getLogger(__name__)
 # The socket has no inbound frames to hook, so authorize_client re-runs on a timer.
 # Owner session-authz interval, deliberately independent of guest_ws_common's
@@ -102,7 +102,7 @@ def post_document_command(
     except (Timeout, sqlite3.OperationalError) as exc:
         if not _is_project_busy(exc):
             raise
-        raise project_busy_error(_PROJECT_BUSY) from exc
+        raise project_busy_error(PROJECT_BUSY_MESSAGE) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:

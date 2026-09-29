@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from filelock import Timeout
 
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.bootstrap_jobs import shared_bootstrap_job_manager
@@ -38,7 +39,7 @@ from podcast_mcp.gui.routes import (
     transcript,
     waveform,
 )
-from podcast_mcp.gui.routes.deps import require_host
+from podcast_mcp.gui.routes.deps import project_busy_exception_handler, require_host
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
 from podcast_mcp.gui.validation_errors import format_validation_errors
@@ -233,6 +234,8 @@ def create_app(
     app.state.served_project = served_project.resolve() if served_project is not None else None
     jobs.set_served_project(app.state.served_project)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
+    # App-wide fallback for a route that does not map its own busy-lock contract (#488).
+    app.add_exception_handler(Timeout, project_busy_exception_handler)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
