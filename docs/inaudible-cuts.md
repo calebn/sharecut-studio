@@ -167,6 +167,36 @@ MFCC scoring shares an immutable mel filterbank for equal sample rates and FFT s
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
 Fusion rule of thumb: ≥2 detectors with score ≥ 0.65 → at least `review`.
+Verdict bands (`join_continuity.pass_below` 0.28, `review_below` 0.48): risk below
+0.28 is `pass`, below 0.48 `review`, else `fail`.
+
+**Edge tolerance (#822).** Several detectors read very short windows (the click
+detector 2 ms, onset 10 ms, spectral flux one 16 ms frame), so a point score moves
+by a few hundredths when an edge moves a few milliseconds, and 16% of the lab's
+tighten candidates sat within ±0.02 of the fail line. A verdict therefore has to
+hold for every edge placement within `join_continuity.edge_tolerance_ms` (3 ms):
+each edge is scored at −tol, 0 and +tol (nine placements for a proposed cut or a
+clip splice, three for a single point) and the riskiest placement decides. That
+fails closed, and a nudge or a re-timed word inside the tolerance cannot flip the
+verdict on its own. The report carries the worst placement's detectors and, when
+it is not the edges as proposed, the reason `worst edge placement +0/+3 ms within
++-3 ms`. Measured offline on the lab tape (edge shifts of 2–6 ms on either
+or both edges): point scoring flipped 313 of 3240 shifted scorings on the Whisper
+run and 739 of 5712 on the aligned run; the 3 ms tolerance halves that (161 and
+299) and halves the candidates that flip under some shift (46→29 of 108, 192→94 of
+476). A wider 5 ms grid was no better (201 / 386) and a 25-point grid cost 25×
+the detector work for a further halving, so 3 ms is the default. The tolerance
+costs nine detector passes per splice instead of one (~5 ms each on 45 ms sides);
+`edge_tolerance_ms: 0` restores single-point scoring. The natural-join baseline
+below is scored the same way so calibration compares like with like.
+
+**Determinism (#812).** Calibration scores `calibrate_n` natural (uncut) points
+drawn from a fixed-seed generator over the track's samples, so a sweep repeated over
+the same project reads identical verdicts and risks; there is no wall-clock or
+process state in a verdict. The run-to-run variance #812 reported came from
+comparing sweeps taken at different heads of PR #787 (the module changed between
+its review rounds), not from the baseline: five trunk sweeps over the same clone
+were byte-identical.
 
 **Audio for harvest / demos:** use the in-repo short fixture
 `tests/fixtures/join_continuity/` (~3 s stems). Do not point tools at huge

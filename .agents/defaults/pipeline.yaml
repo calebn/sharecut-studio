@@ -391,6 +391,9 @@ social_clips:
 # Perceptual join continuity (FOSS multi-detector fusion). See docs/inaudible-cuts.md.
 join_continuity:
   side_sec: 0.045
+  # A verdict must hold for edges placed anywhere within this many ms: each edge is
+  # scored at -tol, 0 and +tol and the riskiest placement decides. 0 scores one point.
+  edge_tolerance_ms: 3.0
   sample_rate: 16000
   pass_below: 0.28
   review_below: 0.48
