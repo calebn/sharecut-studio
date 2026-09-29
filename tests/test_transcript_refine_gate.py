@@ -584,3 +584,35 @@ def test_service_assert_clear_and_cli(minimal_project):
         ).exit_code
         == 0
     )
+
+
+@pytest.mark.refine_gate
+def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_project):
+    """#773: TranscriptRefineRequiredError used to print as a raw traceback on
+    every ripple, including trims that remove no words."""
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    proj = _with_words(minimal_project)
+    mark_refine_pending(proj)
+    save_project(proj, minimal_project)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "edit",
+            "ripple-delete",
+            "--project",
+            str(minimal_project),
+            "--start",
+            "0.0",
+            "--end",
+            "0.1",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert result.stderr.startswith("Error: ")
+    assert "Transcript refine is required" in result.stderr
+    assert "PODCAST_DEBUG=1" in result.stderr
