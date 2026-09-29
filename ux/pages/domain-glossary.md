@@ -29,6 +29,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
 | **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
+| **Bleed gate** | Reduce verified wrong-mic audio while retaining speech and uncertain audio. Suppressing a word alone does not mute it. A selected gate region follows its original audio through later edits. |
 
 ---
 
