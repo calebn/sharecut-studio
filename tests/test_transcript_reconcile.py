@@ -454,6 +454,68 @@ def test_reconcile_unsuppresses_when_audible_again(tmp_path: Path):
     assert len(result.unsuppress) == 1
 
 
+def _word_state(
+    project: EpisodeProject,
+) -> dict[tuple[str, int], tuple[bool, str | None, str | None]]:
+    return {
+        (tr.track_id, i): (w.suppressed, w.audibility_status, w.dominant_track)
+        for tr in project.transcripts
+        for i, w in enumerate(tr.words)
+    }
+
+
+def test_reconcile_second_pass_on_unchanged_project_is_a_no_op(tmp_path: Path):
+    """Reconcile converges: the acoustic verdict and the text-match verdict agree on one
+    target per word, so a repeat run on unchanged audio and text changes nothing (#782)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        # 0.0-0.5: host dominates -> guest "world" is acoustic bleed.
+        # 1.0-1.5: both mics equal -> both "bleed" words are audible; the text-match rule
+        # picks the host copy on ASR confidence (0.9 > 0.85).
+        if t_start < 1.0:
+            return -30.0 if track_id == "host" else -40.0
+        return -35.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        first = run_reconciliation(project, policy=pol, dry_run=False)
+        converged = _word_state(project)
+        second = run_reconciliation(project, policy=pol, dry_run=False)
+
+    assert converged == {
+        ("host", 0): (False, "audible", None),
+        ("host", 1): (False, "audible", None),
+        ("guest", 0): (True, "bleed", "host"),
+        ("guest", 1): (True, "bleed", "host"),
+    }
+    assert [(s["track_id"], s["word_index"], s["reason"]) for s in first["suppress"]] == [
+        ("guest", 0, "cross_track_bleed"),
+        ("guest", 1, "text_match_overlap"),
+    ]
+    assert first["unsuppress"] == []
+    assert [r["attributed_to_track"] for r in first["reattribute"]] == ["host", "host"]
+    assert first["status_updates"] == 4
+
+    assert _word_state(project) == converged
+    assert {k: second[k] for k in first if k != "reconciliation"} == {
+        "suppress": [],
+        "unsuppress": [],
+        "reattribute": [],
+        "status_updates": 0,
+        "applied": True,
+        "suppress_count": 0,
+        "unsuppress_count": 0,
+        "reattribute_count": 0,
+    }
+
+
 def test_audio_state_fingerprint_changes_on_effect(tmp_path: Path):
     project = _two_track_project(tmp_path)
     before = audio_state_fingerprint(project)
