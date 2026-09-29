@@ -2,9 +2,9 @@ import { type Browser, expect, test } from "@playwright/test";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   createRecordRoom,
+  joinAsGuest,
   markSharecutE2e,
   openHostRecordRoom,
-  openRecordLink,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 
@@ -34,13 +34,7 @@ test("host publishes close risk across recording and pause, then clears after st
       const dialog = await openHostRecordRoom(host);
 
       await markSharecutE2e(guest);
-      await openRecordLink(guest, room.guest.token);
-      await guest.getByLabel("Display name").fill("Ava");
-      await guest.getByLabel("I am wearing headphones").check();
-      await guest.getByRole("button", { name: "Allow microphone" }).click();
-      await expect(guest.getByLabel("Level")).toBeVisible();
-      await guest.getByRole("button", { name: "Skip" }).click();
-      await guest.getByRole("button", { name: "Accept" }).click();
+      await joinAsGuest(guest, room.guest.token, "Ava");
       await expect(
         dialog.getByRole("button", { name: "Start", exact: true }),
       ).toBeEnabled();
