@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
 from podcast_mcp.engines.ctc_forced_align import RetimeStats
 from podcast_mcp.engines.transcribe import (
     TranscribeJob,
@@ -33,6 +33,11 @@ from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligne
 )
 def test_forced_alignment_succeeded(entry, expected) -> None:
     assert forced_alignment_succeeded(entry) is expected
+
+
+def _options(enabled: bool = True, **kwargs) -> AsrOptions:
+    """Engine options with forced alignment resolved as if the model were installed (or off)."""
+    return AsrOptions(forced_alignment=ForcedAlignment(requested=enabled, installed=True), **kwargs)
 
 
 class StubAligner:
@@ -88,9 +93,7 @@ def _setup(
     wav = tmp_path / "clip.wav"
     _write_wav(wav, duration_sec=duration_sec)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(
-        options=AsrOptions(forced_alignment_enabled=forced_alignment_enabled)
-    )
+    engine = TranscriptionEngine(options=_options(forced_alignment_enabled))
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(
@@ -277,7 +280,7 @@ def test_missing_model_keeps_whisper_times_and_loads_once_per_engine(
         assert load.call_count == 1
         assert engine.forced_alignment_jobs[1]["status"] == "failed"
 
-        fresh = TranscriptionEngine(options=AsrOptions(forced_alignment_enabled=True))
+        fresh = TranscriptionEngine(options=_options())
         with patch.object(
             fresh,
             "transcribe_file",
@@ -328,9 +331,7 @@ def test_min_word_score_zero_never_flags_or_counts(minimal_project, tmp_path):
     wav = tmp_path / "clip.wav"
     _write_wav(wav)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(
-        options=AsrOptions(forced_alignment_enabled=True, forced_alignment_min_word_score=0.0)
-    )
+    engine = TranscriptionEngine(options=_options(forced_alignment_min_word_score=0.0))
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(

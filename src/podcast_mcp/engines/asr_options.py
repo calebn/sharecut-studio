@@ -12,14 +12,84 @@ to the yaml).
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.config import bounded_float
 from podcast_mcp.util.dicts import get_by_path
+from podcast_mcp.word_aligner_models import (
+    DEFAULT_WORD_ALIGNER,
+    WORD_ALIGNER_BOOTSTRAP,
+    WordAlignerMissingError,
+    word_aligner_installed,
+)
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
 FASTER_WHISPER_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+
+
+@dataclass(frozen=True)
+class ForcedAlignment:
+    """``transcribe.forced_alignment.enabled`` resolved against the installed word aligner (#780).
+
+    ``requested`` is the config value: ``None`` (unset) follows the model, ``False`` keeps
+    Whisper's times, ``True`` requires the aligner. ``installed`` is ``word_aligner_installed``
+    at resolve time. Everything else derives from those two, so every reader (engine, step
+    report, Studio toggle) sees one decision.
+    """
+
+    requested: bool | None
+    installed: bool
+    model: str = DEFAULT_WORD_ALIGNER
+
+    @classmethod
+    def resolve(cls, requested: object) -> ForcedAlignment:
+        return cls(
+            requested=None if requested is None else bool(requested),
+            installed=word_aligner_installed(DEFAULT_WORD_ALIGNER),
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self.installed and self.requested is not False
+
+    @property
+    def blocked(self) -> bool:
+        """Explicitly turned on without the model: a run must fail, never fall back silently."""
+        return self.requested is True and not self.installed
+
+    @property
+    def reason(self) -> str:
+        missing = f"word aligner {self.model!r} is not downloaded ({WORD_ALIGNER_BOOTSTRAP})"
+        if self.requested is False:
+            return "off: transcribe.forced_alignment.enabled is false"
+        if self.requested is True:
+            if self.installed:
+                return "on: transcribe.forced_alignment.enabled is true"
+            return f"blocked: transcribe.forced_alignment.enabled is true but {missing}"
+        if self.installed:
+            return f"on by default: word aligner {self.model!r} is installed"
+        return f"unavailable: {missing}"
+
+    def require(self) -> None:
+        """Raise ``WordAlignerMissingError`` (with the download command) when ``blocked``."""
+        if self.blocked:
+            raise WordAlignerMissingError(
+                self.model,
+                "transcribe.forced_alignment.enabled is true; unset it to follow the "
+                "installed model or set it to false for Whisper's times",
+            )
+
+    def report(self) -> dict[str, Any]:
+        """The ``forced_alignment`` block of ``artifacts/transcript_timing.json`` and the config payload."""
+        return {
+            "enabled": self.enabled,
+            "model": self.model if self.enabled else None,
+            "requested": self.requested,
+            "installed": self.installed,
+            "blocked": self.blocked,
+            "reason": self.reason,
+        }
 
 
 def _section(defaults: Mapping[str, Any], path: str) -> Mapping[str, Any]:
@@ -50,10 +120,14 @@ class AsrOptions:
     silence_filter_enabled: bool = True
     silence_peak_dbfs: float = -60.0
     # Not part of decode_key(): alignment has its own cache beside the ASR cache,
-    # so toggling it never re-runs Whisper.
-    forced_alignment_enabled: bool = False
+    # so toggling it never re-runs Whisper. The default follows the installed model.
+    forced_alignment: ForcedAlignment = field(default_factory=lambda: ForcedAlignment.resolve(None))
     # Flag-only threshold on TranscriptWord.alignment_score; not a decode_key input.
     forced_alignment_min_word_score: float = 0.01
+
+    @property
+    def forced_alignment_enabled(self) -> bool:
+        return self.forced_alignment.enabled
 
     @classmethod
     def from_defaults(cls, defaults: Mapping[str, Any] | None = None) -> AsrOptions:
@@ -102,7 +176,7 @@ class AsrOptions:
             silence_peak_dbfs=bounded_float(
                 sil.get("peak_dbfs"), base.silence_peak_dbfs, -120.0, 0.0
             ),
-            forced_alignment_enabled=bool(fa.get("enabled", base.forced_alignment_enabled)),
+            forced_alignment=ForcedAlignment.resolve(fa.get("enabled")),
             forced_alignment_min_word_score=bounded_float(
                 fa.get("min_word_score"), base.forced_alignment_min_word_score, 0.0, 1.0
             ),

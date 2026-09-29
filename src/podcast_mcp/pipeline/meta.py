@@ -390,12 +390,13 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         label="Precise word boundaries",
         description=(
             "Re-time Whisper's words with a local forced aligner (English, ~360 MB). "
-            "Download it below this field or with podcast bootstrap --component word-aligner. "
+            "On by default once the aligner is downloaded (below this field or with "
+            "podcast bootstrap --component word-aligner) and unavailable until then. "
             "Off keeps Whisper's timestamps. Re-time words re-times stored transcripts from "
             "the ASR cache without re-running Whisper."
         ),
         type="boolean",
-        default=False,
+        default=None,
         group="advanced",
         section="transcribe",
         affects=("transcribe_tracks",),

@@ -1,4 +1,4 @@
-"""Opt-in forced-aligner model catalog, cache detection and download.
+"""Forced-aligner model catalog, cache detection and download (download is opt-in).
 
 Sibling of ``whisper_models.py``: a small catalog of pinned Hugging Face
 snapshots for the CTC forced-alignment pass (``engines/word_align.py``,
@@ -162,6 +162,22 @@ def resolve_word_aligner_dir(model_id: str = DEFAULT_WORD_ALIGNER) -> Path:
         return resolve_pinned_snapshot(model.pin, word_aligner_cache_dir())
     except PinnedSnapshotMissingError as exc:
         raise WordAlignerMissingError(model.id, exc.detail) from exc
+
+
+def word_aligner_installed(model_id: str = DEFAULT_WORD_ALIGNER) -> bool:
+    """A complete local snapshot (or override dir) exists for ``model_id``; never downloads.
+
+    The presence check behind the ``transcribe.forced_alignment.enabled`` default (#780).
+    It does not hash the snapshot (that takes seconds for the 360 MB ONNX), so a corrupt
+    pinned snapshot still counts as installed here: ``WordAligner.load`` verifies the pin
+    and the run reports that failure with the ``--upgrade`` hint. Status polls and
+    ``podcast doctor`` use ``word_aligner_problem`` for the verified answer.
+    """
+    try:
+        resolve_word_aligner_dir(model_id)
+    except (WordAlignerMissingError, OSError):
+        return False
+    return True
 
 
 def word_aligner_problem(

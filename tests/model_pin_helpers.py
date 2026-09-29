@@ -35,6 +35,26 @@ def pin_word_aligner_to_fake_snapshot(root: Path, monkeypatch: pytest.MonkeyPatc
     return root
 
 
+def plant_pinned_word_aligner(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Install a complete fake ``onnx-base`` snapshot where the hidden test cache looks (#780).
+
+    ``conftest._hide_host_word_aligner`` points the cache at ``tmp_path / "word-aligner"``;
+    the HF layout under it makes ``word_aligner_installed()`` true, so forced alignment
+    resolves on by default. The fake ONNX cannot load: stub ``WordAligner.load`` in tests
+    that reach it.
+    """
+    model = word_aligner_models.word_aligner_model()
+    snap = (
+        tmp_path
+        / "word-aligner"
+        / f"models--{model.hf_repo.replace('/', '--')}"
+        / "snapshots"
+        / model.revision
+    )
+    pin_word_aligner_to_fake_snapshot(snap, monkeypatch)
+    return snap
+
+
 def plant_pinned_whisper(cache: Path, model: str, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A complete HF-layout snapshot for a catalog size under ``cache``, pin patched to it."""
     pin = whisper_models.WHISPER_PINS[model]

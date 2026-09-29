@@ -21,6 +21,8 @@ class TranscriptService:
 
         # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
         self._engine.options = asr_options_for(self.ws.path)
+        # Same fail-fast as transcribe_tracks: forced alignment explicitly on without the model.
+        self._engine.options.forced_alignment.require()
 
         def mutate(p) -> list[str]:
             jobs = [track_transcribe_job(p, track_id)] if track_id else dialogue_transcribe_jobs(p)
