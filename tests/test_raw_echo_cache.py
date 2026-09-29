@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 from typer.testing import CliRunner
 
@@ -84,3 +85,20 @@ def test_missing_raw_source_does_not_create_echo_evidence(tmp_path: Path) -> Non
 
     assert set(caches.caches) == {"host"}
     assert caches.echo_pairs() == []
+
+
+def test_raw_cache_omits_zero_offset_cut_and_truncated_tail(tmp_path: Path) -> None:
+    project_path = _raw_only_fixture(tmp_path)
+    project = load_project(project_path)
+    project.clips = [
+        Clip(id="host-first", track_id="host", source_start=0, source_end=8, timeline_start=0),
+        Clip(id="host-last", track_id="host", source_start=10, source_end=20, timeline_start=10),
+    ]
+
+    cache = build_track_rms_caches(project).get("host")
+
+    assert cache is not None
+    assert cache.samples.size == 20 * cache.sample_rate
+    np.testing.assert_array_equal(cache.window(8, 10), 0)
+    assert cache.window(20, 21).size == 0
+    assert np.any(cache.window(1, 2) != 0)

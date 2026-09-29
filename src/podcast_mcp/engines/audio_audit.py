@@ -333,30 +333,36 @@ def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
             source = load_mono_full(track_audio_path(project, tid), sample_rate=_RMS_SAMPLE_RATE)
         except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
             continue
-        samples = _raw_samples_on_timeline(project, tid, source, timeline=timeline)
+        samples = _raw_samples_on_timeline(tid, source, timeline=timeline)
         if samples.size:
             caches[tid] = TrackRmsCache(samples=samples)
     return TrackRmsCacheSet(caches=caches)
 
 
 def _raw_samples_on_timeline(
-    project: EpisodeProject,
     track_id: str,
     source: np.ndarray,
     *,
     timeline: SessionTimeline,
 ) -> np.ndarray:
     """Place raw source samples on the session clock, leaving clip gaps silent."""
-    if timeline.is_identity(track_id):
-        return source
     extent = timeline.timeline_extent(track_id)
     if extent is None:
         return source
 
     timeline_end, _ = extent
     sample_rate = _RMS_SAMPLE_RATE
-    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=source.dtype)
     spans = timeline.map_timeline_spans(track_id, TimelineSec(0.0), timeline_end)
+    if len(spans) == 1:
+        span = spans[0]
+        if (
+            span.timeline_start == 0
+            and span.source_start == 0
+            and span.timeline_end == span.source_end
+            and round(float(span.source_end) * sample_rate) == source.size
+        ):
+            return source
+    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=source.dtype)
     for span in spans:
         target_start = round(float(span.timeline_start) * sample_rate)
         source_start = round(float(span.source_start) * sample_rate)
