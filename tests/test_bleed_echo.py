@@ -68,11 +68,40 @@ def test_delayed_attenuated_copy_is_an_echo_risk_with_its_lag_and_level() -> Non
     assert profile.copy_frames >= 100
     assert all(100.0 <= t <= 120.0 for t in profile.examples)
     assert len(profile.examples) == 3
+    # The null (the same pair shifted by seconds) sees chance clusters only.
+    assert profile.null_runs == 8
+    assert profile.null_consistent_rate is not None
+    assert profile.consistent_rate >= 4 * profile.null_consistent_rate
     d = profile.to_dict(cfg)
     assert d["source_track_id"] == "a"
     assert d["bleed_track_id"] == "b"
     assert d["span_start"] == 100.0
-    assert d["thresholds"]["min_copy_frames"] == 20
+    assert d["thresholds"] == {
+        "copy_ncc": 0.25,
+        "min_copy_frames": 20,
+        "min_consistent_frames": 12,
+        "lag_tolerance_ms": 1.5,
+        "null_margin": 2.0,
+    }
+    assert set(d) >= {"copy_rate", "consistent_rate", "null_copy_rate", "null_consistent_rate"}
+
+
+def test_stationary_periodic_voice_beats_no_null() -> None:
+    """A steady 118 Hz harmonic voice correlates with itself at any time shift, so the
+    null rate rises with it and an independent tone at the same pitch is not an echo."""
+    t = np.arange(20 * RATE) / RATE
+    tone = sum(np.sin(2 * np.pi * 118.0 * k * t) / k for k in range(1, 12))
+    other = sum(np.sin(2 * np.pi * 118.0 * k * t + 0.7 * k) / k for k in range(1, 12))
+    a = (0.2 * tone / np.max(np.abs(tone))).astype(np.float32)
+    b = (0.05 * other / np.max(np.abs(other))).astype(np.float32)
+    cfg = EchoConfig()
+    profile = echo_pair_profile(
+        a, b, sample_rate=RATE, t0=0.0, source_track_id="a", bleed_track_id="b", config=cfg
+    )
+    assert profile.copy_frames >= cfg.min_copy_frames
+    assert profile.null_consistent_rate is not None
+    assert profile.consistent_rate < cfg.null_margin * profile.null_consistent_rate
+    assert profile.echo_risk(cfg) is False
 
 
 def test_unrelated_quiet_speech_is_not_an_echo_risk() -> None:
