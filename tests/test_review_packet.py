@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from script_loader import load_script
+
 ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location(
     "review_packet", ROOT / "scripts" / "review_packet.py"
@@ -220,3 +222,9 @@ def test_tracked_paths_include_parent_dirs(repo: Path) -> None:
     assert "src/podcast_mcp/services/mix.py" in tracked
     assert "src/podcast_mcp/services" in tracked
     assert "src" in tracked
+
+
+def test_package_prefix_matches_docs_sync() -> None:
+    # review_packet.py runs from a git object and cannot import docs_sync.py, so it keeps a copy.
+    docs_sync = load_script("docs_sync", register=True)
+    assert review_packet.PACKAGE_PREFIX == docs_sync._PACKAGE_PREFIX
