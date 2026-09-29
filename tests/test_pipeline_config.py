@@ -621,6 +621,38 @@ def test_suggest_pipeline_tuning_shifts_gate_once_for_multiple_tracks(monkeypatc
     assert [r["track_id"] for r in gate_reasons] == track_ids
 
 
+@pytest.mark.parametrize("noise_gate", [False, True])
+def test_transcript_gate_findings_do_not_add_noise_gate(monkeypatch, noise_gate) -> None:
+    from podcast_mcp.engines import audio_audit
+    from podcast_mcp.models import EpisodeProject
+
+    project = EpisodeProject.create(name="t", workspace_dir="/tmp")
+    base = merge_pipeline_config({"effects": {}})
+
+    def analyze(project, **kwargs):
+        rows = [
+            {
+                "track_id": "host",
+                "health": {},
+                "gate_analysis": {
+                    "gate_type": "transcript",
+                    "risk": "high",
+                    "issues": [{"kind": "processed_offset_chop"}],
+                },
+            }
+        ]
+        if noise_gate:
+            rows.append({"track_id": "guest", "health": {}, "gate_analysis": {"risk": "high"}})
+        return {"tracks": rows}
+
+    monkeypatch.setattr(audio_audit, "analyze_cleanup", analyze)
+    result = suggest_pipeline_tuning(project, base_config=base)
+    assert ("gate" in result["proposed_config"]["effects"]) is noise_gate
+    reason = next(r for r in result["reasons"] if r["code"] == "gate_overreach")
+    assert reason["evidence"]["gate_type"] == "transcript"
+    assert "review the acoustic gate" in reason["message"]
+
+
 def test_deep_merge_skips_underscore_keys() -> None:
     assert deep_merge({"a": 1}, {"_secret": 2, "a": 3}) == {"a": 3}
 
