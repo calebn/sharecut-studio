@@ -58,28 +58,44 @@ def _cache(samples: np.ndarray) -> TrackAudioCache:
     return TrackAudioCache(empty, TrackRmsCache(samples.astype(np.float32), RATE))
 
 
-def _project(tmp_path: Path, samples: np.ndarray, words: list[TranscriptWord]) -> EpisodeProject:
-    path = tmp_path / "raw" / "host.wav"
-    path.parent.mkdir(parents=True)
-    with wave.open(str(path), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(RATE)
-        handle.writeframes((np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes())
-    duration = samples.size / RATE
+def _project(
+    tmp_path: Path,
+    samples: np.ndarray,
+    words: list[TranscriptWord],
+    *,
+    peer: np.ndarray | None = None,
+) -> EpisodeProject:
+    """One dialogue track "host"; with ``peer``, a second one "guest" with no words."""
     project = EpisodeProject.create("voicing", str(tmp_path))
-    project.timeline.tracks.append(
-        Track(
-            id="host",
-            label="host",
-            role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="raw/host.wav", duration_sec=duration),
+    for tid, audio in (("host", samples), ("guest", peer)):
+        if audio is None:
+            continue
+        path = tmp_path / "raw" / f"{tid}.wav"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(path), "wb") as handle:
+            handle.setnchannels(1)
+            handle.setsampwidth(2)
+            handle.setframerate(RATE)
+            handle.writeframes((np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+        duration = audio.size / RATE
+        project.timeline.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=duration),
+            )
         )
-    )
-    project.timeline.clips.append(
-        Clip(id="c", track_id="host", source_start=0.0, source_end=duration, timeline_start=0.0)
-    )
-    project.transcripts = [Transcript(track_id="host", words=words)]
+        project.timeline.clips.append(
+            Clip(
+                id=f"c_{tid}",
+                track_id=tid,
+                source_start=0.0,
+                source_end=duration,
+                timeline_start=0.0,
+            )
+        )
+        project.transcripts.append(Transcript(track_id=tid, words=words if tid == "host" else []))
     return project
 
 
@@ -227,3 +243,67 @@ def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Pa
 
     assert [d.reason for d in decisions] == ["filler:like:voiced_edge", "filler:um:voiced_edge"]
     assert all(d.review_required for d in decisions)
+
+
+def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
+    """The ripple removes the window from every track; the guest's untranscribed 100 ms
+    burst at -32 dBFS averages -45 dBFS over the 2 s window, under the speech-energy
+    guard's floor, so only the run check sees it (the lab's lana 673.3 s, in miniature)."""
+    host = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(host, 0.2, 0.4)
+    _voice(host, 3.0, 3.2)
+    guest = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(guest, 1.5, 1.6, level_db=-32.0)
+    words = [
+        TranscriptWord(text="one", start=0.2, end=0.4),
+        TranscriptWord(text="two", start=3.0, end=3.2),
+    ]
+    project = _project(tmp_path, host, words, peer=guest)
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+
+    assert decision.reason == "pause:2.60s:solo:interior_speech"
+    assert decision.review_required is True
+    assert decision.scope == "session"
+    assert apply_tighten_decisions(project) == 0
+
+
+def test_peer_onset_at_the_pause_end_moves_the_edge_before_it(tmp_path: Path) -> None:
+    """The guest starts speaking at 2.42 s, 30 ms before the pause cut would end."""
+    host = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(host, 0.2, 0.4)
+    _voice(host, 3.0, 3.2)
+    guest = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(guest, 2.42, 3.2, level_db=-30.0)
+    words = [
+        TranscriptWord(text="one", start=0.2, end=0.4),
+        TranscriptWord(text="two", start=3.0, end=3.2),
+    ]
+    project = _project(tmp_path, host, words, peer=guest)
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+
+    assert decision.reason == "pause:2.60s:solo"
+    assert decision.review_required is False
+    # Guest voice edge on the frame grid (2.41) minus 60 ms of air.
+    assert decision.end == pytest.approx(2.35, abs=0.011)
+
+
+def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> None:
+    """1.4 s of fricative-like noise at -25 dBFS carries no pitch, so it is not speech to
+    the voiced check, but a pause that removes it is not removing dead air."""
+    host = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(host, 0.2, 0.4)
+    _breath(host, 0.8, 2.2, level_db=-25.0)
+    _voice(host, 3.0, 3.2)
+    words = [
+        TranscriptWord(text="one", start=0.2, end=0.4),
+        TranscriptWord(text="two", start=3.0, end=3.2),
+    ]
+    project = _project(tmp_path, host, words)
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
+
+    assert decision.reason == "pause:2.60s:solo:interior_audio"
+    assert decision.review_required is True
+    assert apply_tighten_decisions(project) == 0
