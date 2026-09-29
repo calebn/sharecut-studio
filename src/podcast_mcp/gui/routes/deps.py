@@ -16,8 +16,9 @@ from podcast_mcp.services.session_sync.authz import (
     authorize_host,
     is_loopback_host,
 )
-from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 
 def project_busy_error(detail: str) -> HTTPException:
@@ -32,6 +33,19 @@ def project_busy_error(detail: str) -> HTTPException:
 def project_busy_from_timeout(exc: Timeout) -> HTTPException:
     """``project_busy_error`` with the fixed, path-free text for *exc* (``busy_message``)."""
     return project_busy_error(busy_message(exc))
+
+
+def project_busy_http_error(exc: BaseException) -> HTTPException | None:
+    """503 ``project_busy`` for a lock ``Timeout`` or a busy ``document.db`` sqlite write lock.
+
+    ``None`` for anything else, so callers fall through to their own mapping. Shared by the
+    host and guest document-command routes so both report contention the same way.
+    """
+    if isinstance(exc, Timeout):
+        return project_busy_from_timeout(exc)
+    if is_sqlite_busy(exc):
+        return project_busy_error(PROJECT_BUSY_MESSAGE)
+    return None
 
 
 async def project_busy_exception_handler(request: Request, exc: Exception) -> Response:

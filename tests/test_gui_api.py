@@ -1563,6 +1563,25 @@ def test_project_busy_error_is_a_503_with_the_shared_code() -> None:
     assert PROJECT_BUSY_CODE == "project_busy"
 
 
+def test_project_busy_http_error_maps_timeout_and_sqlite_busy_only() -> None:
+    pytest.importorskip("fastapi")
+    import sqlite3
+
+    from filelock import Timeout
+
+    from podcast_mcp.gui.routes.deps import project_busy_http_error
+    from podcast_mcp.util.project_state import PROJECT_BUSY_MESSAGE
+
+    lock = project_busy_http_error(Timeout("/secret/artifacts/episode.project.json.lock"))
+    assert lock is not None and lock.status_code == 503
+    assert "/secret" not in lock.detail
+    db = project_busy_http_error(sqlite3.OperationalError("database is locked"))
+    assert db is not None and db.detail == PROJECT_BUSY_MESSAGE
+    assert db.headers == {"X-Sharecut-Error-Code": "project_busy"}
+    assert project_busy_http_error(sqlite3.OperationalError("no such table: x")) is None
+    assert project_busy_http_error(ValueError("bad")) is None
+
+
 def test_api_audio_render_busy_is_503(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

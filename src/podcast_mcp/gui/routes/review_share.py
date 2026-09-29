@@ -23,7 +23,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.background import release_background
-from podcast_mcp.gui.routes.deps import project_busy_from_timeout
+from podcast_mcp.gui.routes.deps import project_busy_from_timeout, project_busy_http_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GuestWsGuard,
@@ -172,8 +172,9 @@ def _map_share_exc(exc: Exception) -> HTTPException:
         return HTTPException(status_code=404, detail="not found")
     if isinstance(exc, ValueError):
         return HTTPException(status_code=400, detail=str(exc))
-    if isinstance(exc, Timeout):
-        return project_busy_from_timeout(exc)
+    busy = project_busy_http_error(exc)
+    if busy is not None:
+        return busy
     return HTTPException(status_code=500, detail="internal error")
 
 

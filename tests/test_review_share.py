@@ -1220,6 +1220,13 @@ def test_map_share_exc_branches():
     assert render.status_code == 503
     assert "another render of this project is in progress" in render.detail
 
+    import sqlite3
+
+    locked = _map_share_exc(sqlite3.OperationalError("database is locked"))
+    assert locked.status_code == 503
+    assert locked.headers == {"X-Sharecut-Error-Code": "project_busy"}
+    assert _map_share_exc(sqlite3.OperationalError("no such table: x")).status_code == 500
+
 
 def test_guest_daw_ws_authz_denied(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
