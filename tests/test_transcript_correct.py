@@ -20,6 +20,14 @@ from podcast_mcp.engines.asr_silence import flag_words_without_acoustic_evidence
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 
 
+class _NoSpeechEvidence:
+    def has_speech(self, track_id: str, start: float, end: float) -> bool:
+        return False
+
+
+_NO_SPEECH = _NoSpeechEvidence()
+
+
 def test_correct_word_and_low_confidence() -> None:
     p = EpisodeProject.create("tc", "/tmp")
     p.transcripts = [
@@ -68,7 +76,12 @@ def test_correct_word_drops_stale_aligner_evidence() -> None:
     fixed = p.transcripts[0].words[0]
     assert fixed.alignment_score is None and fixed.suspect_hallucination is False
     # The evidence signal cannot bring the flag back on the corrected word.
-    assert flag_words_without_acoustic_evidence([fixed], min_score=0.01) == 0
+    assert (
+        flag_words_without_acoustic_evidence(
+            [fixed], min_score=0.01, evidence=_NO_SPEECH, track_id="host"
+        )
+        == 0
+    )
     # Same text: nothing to invalidate.
     correct_word(p, "host", 1, "same")
     kept = p.transcripts[0].words[1]
@@ -94,7 +107,12 @@ def test_correct_phrase_words_have_no_aligner_evidence() -> None:
     correct_phrase(p, "host", 0, 0, "Caleb")
     words = p.transcripts[0].words
     assert words[0].alignment_score is None and not words[0].suspect_hallucination
-    assert flag_words_without_acoustic_evidence(words, min_score=0.01) == 0
+    assert (
+        flag_words_without_acoustic_evidence(
+            words, min_score=0.01, evidence=_NO_SPEECH, track_id="host"
+        )
+        == 0
+    )
 
 
 def test_set_word_suppressed_toggles_and_rebuilds() -> None:

@@ -260,9 +260,15 @@ transcribe:
   forced_alignment:
     enabled: null
     # Aligned words whose mean character posterior is below this get
-    # suspect_hallucination (flag only, never deleted; #195). Stored scores keep
-    # flagging when enabled is turned off; 0 = off.
+    # suspect_hallucination (flag only, never deleted; #195), but only when the
+    # audio agrees (#780): the word's own track is quieter than its noise floor
+    # + evidence_speech_margin_db over the aligned span, or another dialogue
+    # track is evidence_bleed_margin_db louder there. The score alone is low by
+    # construction on one-to-four-frame words ("um", "to"), so it never flags on
+    # its own. Stored scores keep flagging when enabled is turned off; 0 = off.
     min_word_score: 0.01
+    evidence_speech_margin_db: 12.0
+    evidence_bleed_margin_db: 3.0
 
 align:
   # Conversation-clock placement after ASR. Uncheck align_tracks for unrelated clips.

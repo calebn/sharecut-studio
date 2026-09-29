@@ -406,7 +406,8 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         label="Aligner evidence floor",
         description=(
             "Words the forced aligner (precise word boundaries) placed with a mean character "
-            "probability below this are flagged suspect_hallucination (never deleted). Stored "
+            "probability below this are flagged suspect_hallucination (never deleted) when "
+            "their own track is quiet over the word or another track is louder there. Stored "
             "scores keep flagging after precise word boundaries is turned off. 0 = off."
         ),
         type="number",
@@ -416,6 +417,38 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("transcribe_tracks",),
         minimum=0.0,
         maximum=1.0,
+    ),
+    ParamField(
+        path="transcribe.forced_alignment.evidence_speech_margin_db",
+        label="Aligner evidence speech margin",
+        description=(
+            "A low-scoring aligned word counts as spoken when its own track is at least this "
+            "far above the track's noise floor over the word; quieter words are flagged."
+        ),
+        type="number",
+        default=12.0,
+        unit="dB",
+        group="advanced",
+        section="transcribe",
+        affects=("transcribe_tracks",),
+        minimum=0.0,
+        maximum=60.0,
+    ),
+    ParamField(
+        path="transcribe.forced_alignment.evidence_bleed_margin_db",
+        label="Aligner evidence bleed margin",
+        description=(
+            "A low-scoring aligned word is flagged as bleed when another dialogue track is at "
+            "least this much louder over the word."
+        ),
+        type="number",
+        default=3.0,
+        unit="dB",
+        group="advanced",
+        section="transcribe",
+        affects=("transcribe_tracks",),
+        minimum=0.0,
+        maximum=60.0,
     ),
     ParamField(
         path="transcribe.decode.no_speech_threshold",

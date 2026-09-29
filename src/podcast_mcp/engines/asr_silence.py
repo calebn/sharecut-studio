@@ -14,25 +14,35 @@ resulting fraction is cached in-process per file version.
 
 ``refresh_silence_flags`` also ORs in the forced aligner's evidence signal (#195):
 an aligned word whose ``alignment_score`` is below `transcribe.forced_alignment.
-min_word_score` is flagged too. It is still flag-only and never retimed.
+min_word_score` is flagged too, but only when the audio agrees (#780): the word's own
+track carries no speech over the aligned span, or another dialogue track is louder
+there (``SpeechLevels``). The score alone never flags: it is a mean character posterior
+over emitting frames, low by construction on one-to-four-frame words such as "um" and
+"to". It is still flag-only and never retimed.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
 from podcast_mcp.engines.asr_options import AsrOptions
-from podcast_mcp.models import TranscriptWord
+from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.hashing import sha256_head_tail
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
+
+if TYPE_CHECKING:
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.engines.session_timeline import SessionTimeline
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +65,12 @@ def silence_filter_fingerprint(
     # Aligner evidence (#195) counts only once a word carries a score, so fingerprints
     # stored before it stay valid and unchanged reused transcripts are not re-decoded.
     if any(w.alignment_score is not None for w in words):
-        digest.update(f"ctc:{float(options.forced_alignment_min_word_score).hex()}:".encode())
+        digest.update(
+            "ctc2:"
+            f"{float(options.forced_alignment_min_word_score).hex()}:"
+            f"{float(options.forced_alignment_speech_margin_db).hex()}:"
+            f"{float(options.forced_alignment_bleed_margin_db).hex()}:".encode()
+        )
     return digest.hexdigest()
 
 
@@ -93,17 +108,116 @@ def below_evidence_floor(score: float | None, min_score: float) -> bool:
     return min_score > 0 and score is not None and score < min_score
 
 
+class SpeechEvidence(Protocol):
+    """Whether a track carries its own speech over a source span (the #780 evidence gate)."""
+
+    def has_speech(self, track_id: str, start: float, end: float) -> bool: ...
+
+
+@dataclass
+class SpeechLevels:
+    """Dialogue-track levels for the aligner evidence gate (#780).
+
+    A word has speech evidence when its own track's RMS over the aligned span (the
+    recording's level plus the track gain, the same rule reconcile's audibility uses) sits
+    at least ``speech_margin_db`` above that track's noise floor and no other dialogue
+    track is ``bleed_margin_db`` louder over the same session-clock span. Spans are widened
+    to ``MIN_SPAN_SEC`` like the silence filter, so a one-frame aligned word still measures
+    something. A track that could not be decoded, or a span cut from the timeline, counts
+    as evidence: the flag never fires on the score alone.
+    """
+
+    timeline: SessionTimeline
+    caches: dict[str, TrackRmsCache]
+    floors_db: dict[str, float]
+    gains_db: dict[str, float]
+    speech_margin_db: float
+    bleed_margin_db: float
+    skipped: list[str] = field(default_factory=list)
+
+    @classmethod
+    def for_project(cls, project: EpisodeProject, options: AsrOptions) -> SpeechLevels:
+        """Decode every dialogue track's primary media once (about 1 s per hour)."""
+        from podcast_mcp.engines.audio_audit import TrackRmsCache
+        from podcast_mcp.engines.session_timeline import SessionTimeline
+        from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+
+        levels = cls(
+            timeline=SessionTimeline(project),
+            caches={},
+            floors_db={},
+            gains_db={},
+            speech_margin_db=options.forced_alignment_speech_margin_db,
+            bleed_margin_db=options.forced_alignment_bleed_margin_db,
+        )
+        for tid in dialogue_track_ids(project):
+            try:
+                cache = TrackRmsCache.from_timeline_stem(track_audio_path(project, tid))
+            except Exception as exc:
+                log.warning("aligner evidence levels skipped for track %s: %s", tid, exc)
+                levels.skipped.append(tid)
+                continue
+            track = project.track_by_id(tid)
+            levels.caches[tid] = cache
+            levels.floors_db[tid] = cache.noise_floor_db()
+            levels.gains_db[tid] = float(track.gain_db) if track else 0.0
+        return levels
+
+    def _level_db(self, track_id: str, start: float, end: float) -> float | None:
+        cache = self.caches.get(track_id)
+        if cache is None:
+            return None
+        centre = (start + end) / 2.0
+        half = max(end - start, MIN_SPAN_SEC) / 2.0
+        rms = cache.rms_db(max(0.0, centre - half), centre + half)
+        return None if rms is None else rms + self.gains_db[track_id]
+
+    def has_speech(self, track_id: str, start: float, end: float) -> bool:
+        from podcast_mcp.util.source_spans import source_span_timeline_bounds
+        from podcast_mcp.util.timebase import TimelineSec
+
+        own = self._level_db(track_id, start, end)
+        if own is None:
+            return True
+        if own < self.floors_db[track_id] + self.speech_margin_db:
+            return False
+        tl_start, tl_end = source_span_timeline_bounds(self.timeline, track_id, start, end)
+        if tl_start is None or tl_end is None:
+            return True
+        for other_id in self.caches:
+            if other_id == track_id:
+                continue
+            src_start = self.timeline.timeline_to_source(other_id, TimelineSec(tl_start))
+            src_end = self.timeline.timeline_to_source(other_id, TimelineSec(tl_end))
+            if src_start is None or src_end is None:
+                continue
+            other = self._level_db(other_id, float(src_start), float(src_end))
+            if other is not None and other >= own + self.bleed_margin_db:
+                return False
+        return True
+
+
 def flag_words_without_acoustic_evidence(
-    words: Sequence[TranscriptWord], *, min_score: float
+    words: Sequence[TranscriptWord],
+    *,
+    min_score: float,
+    evidence: SpeechEvidence | None,
+    track_id: str,
 ) -> int:
-    """Set ``suspect_hallucination`` on aligned words scoring below ``min_score``; never clears.
+    """Set ``suspect_hallucination`` on aligned words scoring below ``min_score`` whose
+    ``evidence`` finds no own speech over the span; never clears.
 
     ``alignment_score`` is None for words the forced aligner did not place (no evidence either
-    way). ``min_score <= 0`` turns the signal off. Returns how many words it flagged.
+    way). ``min_score <= 0`` turns the signal off, and so does ``evidence=None`` (no levels to
+    check, so a low score alone never flags). Returns how many words it flagged.
     """
+    if evidence is None:
+        return 0
     flagged = 0
     for w in words:
-        if below_evidence_floor(w.alignment_score, min_score):
+        if below_evidence_floor(w.alignment_score, min_score) and not evidence.has_speech(
+            track_id, w.start, w.end
+        ):
             w.suspect_hallucination = True
             flagged += 1
     return flagged
@@ -191,22 +305,33 @@ def flag_silent_words_in_file(
 
 
 def refresh_silence_flags(
-    words: Sequence[TranscriptWord], path: Path, options: AsrOptions
+    words: Sequence[TranscriptWord],
+    path: Path,
+    options: AsrOptions,
+    *,
+    evidence: SpeechEvidence | None = None,
+    track_id: str = "",
 ) -> int | None:
     """Recompute ``suspect_hallucination`` on ``words`` from both signals in ``options``.
 
     Every flag is cleared first; the silence filter (when on) sets its flags, then aligned
-    words without acoustic evidence are OR-ed in. Returns the flagged count, or ``None`` when
-    ``path`` cannot be decoded (silence flags stay cleared, the evidence flags still apply and
-    are the only flags, a warning is logged). Callers store no fingerprint on ``None``, so the
-    next run retries the decode.
+    words without acoustic evidence (low score and ``evidence`` finds no own speech on
+    ``track_id``) are OR-ed in. Returns the flagged count, or ``None`` when ``path`` cannot be
+    decoded (silence flags stay cleared, the evidence flags still apply and are the only
+    flags, a warning is logged). Callers store no fingerprint on ``None``, so the next run
+    retries the decode.
     """
     for w in words:
         w.suspect_hallucination = False
     silent: int | None = 0
     if options.silence_filter_enabled:
         silent = flag_silent_words_in_file(words, path, peak_dbfs=options.silence_peak_dbfs)
-    flag_words_without_acoustic_evidence(words, min_score=options.forced_alignment_min_word_score)
+    flag_words_without_acoustic_evidence(
+        words,
+        min_score=options.forced_alignment_min_word_score,
+        evidence=evidence,
+        track_id=track_id,
+    )
     if silent is None:
         return None
     return sum(1 for w in words if w.suspect_hallucination)
