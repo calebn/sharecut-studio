@@ -82,7 +82,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_packet_has_every_section_with_real_data(repo: Path) -> None:
+def test_packet_has_every_section_with_real_data(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The fixture embeds the real, growing scripts/docs_sync.py as a whole-file addition;
+    # raise the cap so its diff never crowds out the later files under test (cap behavior
+    # itself is covered by test_diff_is_capped_with_a_pointer / test_packet_is_capped).
+    monkeypatch.setattr(review_packet, "DIFF_CAP", 200_000)
     packet = review_packet.build("HEAD", "base..HEAD")
     for title in (
         "## Diff stat",
@@ -91,6 +97,7 @@ def test_packet_has_every_section_with_real_data(repo: Path) -> None:
         "## Importers of changed modules (second hop)",
         "## Twin paths (CLI / MCP / GUI adapters)",
         "## Related tests",
+        "## Changed docs (docs-accuracy lens)",
         "## Docs-sync rules (contracts/docs-sync.json)",
     ):
         assert title in packet, title
@@ -102,6 +109,8 @@ def test_packet_has_every_section_with_real_data(repo: Path) -> None:
     assert "[unchanged]" in packet
     assert "tests/test_mix.py" in packet
     assert "VIOLATED  mix-docs  Mix levels in services" in packet
+    # The fixture's change commit touches no Markdown doc.
+    assert "(no docs changed)" in packet
 
 
 def test_packet_is_capped(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -120,7 +129,9 @@ def test_main_writes_the_file(repo: Path, capsys: pytest.CaptureFixture[str]) ->
     out = repo / ".git" / "pipeline-packets" / "pr1-r1.md"
     assert review_packet.main(["--ref", "HEAD", "--range", "base..HEAD", "--out", str(out)]) == 0
     assert out.read_text(encoding="utf-8").startswith("## Diff stat")
-    assert str(out) in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert str(out) in printed
+    assert printed.strip().endswith("docs=0")
 
 
 def test_docs_sync_findings_reports_a_violation_at_the_given_ref(repo: Path) -> None:
@@ -149,3 +160,38 @@ def test_typescript_importers(repo: Path) -> None:
         "gui/web/src/ui/Panel.tsx:1:import { peak } from '../audio/meter'"
     ]
     assert review_packet.importers("HEAD", "README.md") == []
+
+
+def test_changed_docs_name_the_code_their_added_lines_reference(repo: Path) -> None:
+    _write(
+        repo,
+        "docs/mix.md",
+        "Normalize with `services/mix.py` (`normalize_gain`); see "
+        "[CLI](../src/podcast_mcp/cli/mix.py), [site](https://x.dev/a.md) and "
+        "`docs/missing.md`.\n",
+    )
+    _git(repo, "add", "docs/mix.md")
+    _git(repo, "commit", "-qm", "docs: mix")
+    assert review_packet.changed_docs("base..HEAD") == ["docs/mix.md"]
+    packet = review_packet.build("HEAD", "base..HEAD")
+    assert (
+        "### docs/mix.md\npaths named in added lines: "
+        "src/podcast_mcp/services/mix.py, src/podcast_mcp/cli/mix.py" in packet
+    )
+
+
+def test_deleted_docs_are_not_listed(repo: Path) -> None:
+    _write(repo, "docs/old.md", "old\n")
+    _git(repo, "add", "docs/old.md")
+    _git(repo, "commit", "-qm", "docs: add old")
+    _git(repo, "branch", "with-doc")
+    _git(repo, "rm", "-q", "docs/old.md")
+    _git(repo, "commit", "-qm", "docs: remove old")
+    assert review_packet.changed_docs("with-doc..HEAD") == []
+
+
+def test_tracked_paths_include_parent_dirs(repo: Path) -> None:
+    tracked = review_packet.tracked_paths("HEAD")
+    assert "src/podcast_mcp/services/mix.py" in tracked
+    assert "src/podcast_mcp/services" in tracked
+    assert "src" in tracked
