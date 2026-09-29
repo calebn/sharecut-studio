@@ -2,6 +2,7 @@ import {
   Fragment,
   useEffect,
   useEffectEvent,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -126,6 +127,7 @@ function ParamControl({
   disabled,
   highlighted,
   onChange,
+  describedBy,
 }: {
   field: PipelineParamField;
   value: unknown;
@@ -133,6 +135,8 @@ function ParamControl({
   disabled: boolean;
   highlighted: boolean;
   onChange: (v: unknown) => void;
+  /** Element id announced as this control's description (a boolean's lock reason). */
+  describedBy?: string;
 }) {
   const display = value ?? defaultValue ?? "";
   const rangeHint =
@@ -157,6 +161,7 @@ function ParamControl({
           type="checkbox"
           checked={Boolean(display)}
           disabled={disabled}
+          aria-describedby={describedBy}
           onChange={(e) => onChange(e.target.checked)}
         />
       ) : field.type === "enum" && field.enum ? (
@@ -313,6 +318,7 @@ export function PipelinePanel() {
   const [starting, setStarting] = useState(false);
   /** A second Re-time words click before `retiming` re-renders must not start a second re-time. */
   const { busy: retiming, run: runRetime } = useSingleFlight();
+  const alignerReasonId = useId();
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const persistRequest = useLatestRequest();
@@ -1132,10 +1138,12 @@ export function PipelinePanel() {
                             }
                             highlighted={highlightPaths.has(field.path)}
                             onChange={(v) => void onParamChange(field.path, v)}
+                            describedBy={alignerReasonId}
                           />
                           <WordAlignerStatus
                             status={cfg.components[WORD_ALIGNER_COMPONENT]}
                             alignment={alignment}
+                            reasonId={alignerReasonId}
                             disabled={running || starting || retiming}
                             retiming={retiming}
                             onDownloaded={() =>
