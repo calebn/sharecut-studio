@@ -18,6 +18,7 @@ from podcast_mcp.engines.transcribe import (
 from podcast_mcp.engines.word_align import WordAlignResult
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.word_aligner_models import WordAlignerMissingError, word_aligner_model
+from two_mic_project import two_mic_project
 
 
 @pytest.mark.parametrize(
@@ -107,6 +108,24 @@ def _setup(
 
 
 HI_BYE_WORDS = [("hi", 0.0, 0.5), ("bye", 0.5, 1.0)]
+
+
+def test_fresh_alignment_keeps_own_speech_under_a_wrong_track_placement(tmp_workspace):
+    project = two_mic_project(tmp_workspace, host_timeline_start=1.0)
+    engine = TranscriptionEngine(options=_options(silence_filter_enabled=False))
+    engine._word_aligner = StubAligner([(0.70, 0.72)], n_aligned=1, n_unaligned=0, scores=[0.0])
+    job = TranscribeJob(track_id="host", source_id=None, audio=tmp_workspace / "raw/host.wav")
+    transcript = Transcript(
+        track_id="host", words=[TranscriptWord(text="real", start=0.70, end=0.72)]
+    )
+
+    with patch.object(engine, "transcribe_file", return_value=transcript):
+        result = engine.transcribe_job(project, job, language="en", use_cache=False)
+
+    assert result.words[0].text == "real"
+    assert result.words[0].alignment_score == 0.0
+    assert result.words[0].suspect_hallucination is False
+    assert engine.forced_alignment_jobs[0]["no_evidence_words"] == 0
 
 
 def test_disabled_by_default_never_loads_the_aligner(minimal_project, tmp_path):
