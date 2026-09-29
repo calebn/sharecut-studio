@@ -359,9 +359,9 @@ def _refresh_silence_flags(
 
     The evidence scope is part of the fingerprint. Before placement is settled
     (``bleed_check`` off) a transcript already flagged under the full gate with current
-    gains and placement is left alone, so a later ``transcribe_tracks`` run does not undo
-    reconcile's bleed flags; with ``bleed_check`` on only that full-gate fingerprint counts,
-    so flags from older gains, placement, or the own-track half are recomputed.
+    gains, placement, and selected-media revisions is left alone, so a later
+    ``transcribe_tracks`` run does not undo reconcile's bleed flags; with ``bleed_check`` on
+    only that full-gate fingerprint counts, so evidence from older inputs is recomputed.
     Returns (labels whose audio could not be decoded, transcripts re-flagged).
     """
     stored = {t.key: t for t in project.transcripts}
