@@ -309,7 +309,14 @@ the kept transcript words are also handed to the classifier as keep-out spans:
 a frame inside one is never breath and the stretch between a run and the cut
 may not touch one, because the search windows lie inside the neighbouring word
 whenever a cut edge abuts it (a word the cut removes at least half of is not
-kept). Tune against real recordings by ear before changing either default.
+kept). A run that continues a kept word on its far side without the level first
+falling to the band floor is that word's decay or onset and is rejected too, so
+a fricative onset under the 4 kHz split or a voiced tail whose probes stay under
+0.55 cannot be co-removed; the heuristic scans the whole 5 s of flanking audio
+for that walk. And no frame between the run and the cut may exceed the band
+ceiling (speech level −7 dB): vocal fry has pulses at speech level but scores
+0.1–0.4 on the 70–350 Hz probe, so level, not pitch, is what separates it from
+a breath. Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)
 

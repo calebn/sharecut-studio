@@ -495,6 +495,25 @@ def _sibilant_noise(n: int, rms: float) -> np.ndarray:
     return _constant_envelope(np.diff(x), rms)
 
 
+def _bandpass_noise(n: int, rms: float, lo_hz: float, hi_hz: float) -> np.ndarray:
+    """Noise confined to ``[lo_hz, hi_hz]``: a `sh` at 2-3.5 kHz sits under the 4 kHz split."""
+    spectrum = np.fft.rfft(np.random.default_rng(814).normal(0.0, 1.0, n))
+    freqs = np.fft.rfftfreq(n, d=1 / 16000)
+    spectrum[(freqs < lo_hz) | (freqs > hi_hz)] = 0.0
+    return _constant_envelope(np.fft.irfft(spectrum, n), rms)
+
+
+def _vocal_fry(n: int, rms: float, pulse_hz: float = 45.0) -> np.ndarray:
+    """Glottal pulses every 22 ms, the loudest 10 ms frame at ``rms``: creaky speech the
+    70-350 Hz pitch probe scores below 0.4, with in-band frames between the pulses."""
+    pulses = np.zeros(n)
+    pulses[:: round(16000 / pulse_hz)] = 1.0
+    burst = np.exp(-np.arange(48) / 8.0) * np.sin(2 * np.pi * 900.0 * np.arange(48) / 16000)
+    fry = np.convolve(pulses, burst)[:n]
+    frames = fry[: n - n % 160].reshape(-1, 160)
+    return (fry * rms / np.sqrt(np.mean(frames**2, axis=1)).max()).astype(np.float32)
+
+
 def _track_signal(gap_floor: float, sample_rate: int) -> np.ndarray:
     """10.2 s around a 5.0-5.2 cut: 300 ms tone words every 500 ms over room tone at
     ``gap_floor`` (0 for a noise-gated track), with only room tone in the 400 ms before
@@ -518,13 +537,14 @@ def _fake_windows(
     before_tail: np.ndarray | None = None,
     *,
     gap_floor: float = _FLOOR_RMS,
+    placed: tuple[tuple[np.ndarray, float], ...] = (),
 ):
     """load_mono_window stand-in over :func:`_track_signal` with frame-aligned blobs.
 
     ``before`` lands at 4.7 (100 ms into the 400 ms window before the cut) and
     ``before_tail`` ends at the cut; ``after`` lands at 5.23 (30 ms into the 250 ms
-    window after it). Blob levels of 0.026 (-31.7 dBFS) sit inside the level band
-    the fixture track yields (-55 to -22 dBFS).
+    window after it); ``placed`` blobs land at their own times. Blob levels of 0.026
+    (-31.7 dBFS) sit inside the level band the fixture track yields (-55 to -22 dBFS).
     """
 
     def fake_window(path, start_sec, duration_sec, sample_rate=16000):
@@ -540,6 +560,8 @@ def _fake_windows(
             place(before_tail, 5.0 - before_tail.size / sample_rate)
         if after is not None:
             place(after, 5.23)
+        for blob, at in placed:
+            place(blob, at)
         i = round(start_sec * sample_rate)
         return signal[i : i + round(duration_sec * sample_rate)]
 
@@ -723,6 +745,63 @@ def test_word_the_cut_removes_does_not_block_its_breath():
         spans = detect_adjacent_breath(_host_project([("um", 4.98, 5.2)]), "host", 5.0, 5.2)
 
     assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.86), side="before")]
+
+
+def test_vocal_fry_between_breath_and_cut_is_not_a_breath():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    breath = _shaped_noise(1600, 0.026)
+    fry = _vocal_fry(3200, _dbfs(-17.0))
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath, before_tail=fry),
+    ):
+        assert detect_adjacent_breath(_host_project(), "host", 5.0, 5.2) == []
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(before=breath),
+    ):
+        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2)
+
+    assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.8), side="before")]
+
+
+def test_kept_word_decay_tail_is_not_a_breath():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    word = _harmonic_tone(3200, _SPEECH_RMS)
+    decay = _shaped_noise(2400, _dbfs(-35.0))
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((word, 4.5), (decay, 4.7))),
+    ):
+        assert detect_adjacent_breath(_host_project([("she", 4.5, 4.7)]), "host", 5.0, 5.2) == []
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((word[:1600], 4.5), (decay, 4.7))),
+    ):
+        spans = detect_adjacent_breath(_host_project([("she", 4.5, 4.6)]), "host", 5.0, 5.2)
+
+    assert spans == [BreathSpan(start=pytest.approx(4.7), end=pytest.approx(4.85), side="before")]
+
+
+def test_fricative_onset_of_the_next_kept_word_is_not_a_breath():
+    from podcast_mcp.edits.breath_detect import BreathSpan, detect_adjacent_breath
+
+    onset = _bandpass_noise(2240, _dbfs(-30.0), 2000.0, 3500.0)
+    word = _harmonic_tone(3200, _SPEECH_RMS)
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((onset, 5.23), (word, 5.37))),
+    ):
+        assert detect_adjacent_breath(_host_project([("she", 5.37, 5.57)]), "host", 5.0, 5.2) == []
+    with patch(
+        "podcast_mcp.edits.breath_detect.load_mono_window",
+        side_effect=_fake_windows(placed=((onset, 5.23), (word, 5.57))),
+    ):
+        spans = detect_adjacent_breath(_host_project([("she", 5.57, 5.77)]), "host", 5.0, 5.2)
+
+    assert spans == [BreathSpan(start=pytest.approx(5.23), end=pytest.approx(5.37), side="after")]
 
 
 def test_voicing_is_assessed_only_where_the_level_could_be_speech():
