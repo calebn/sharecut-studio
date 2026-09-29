@@ -65,6 +65,43 @@ def splice_joins(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
     return [(left, right) for left, right in pairwise(clips) if is_splice(left, right)]
 
 
+JOIN_INSTANT_EPS_SEC = 1e-3
+"""Clip edges within this many timeline seconds of each other sit on one join instant."""
+
+
+def clip_edges_at(
+    project: EpisodeProject, timeline_sec: float, edge: str
+) -> dict[str, Clip | None]:
+    """Per dialogue track, the clip whose ``in`` (start) or ``out`` (end) edge sits at ``timeline_sec``.
+
+    A session-wide cut (ripple) leaves an edge on every track at the same instant; a
+    track-local punch leaves one on its own track only. ``None`` marks a track without
+    an edge there.
+    """
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    if edge not in ("in", "out"):
+        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+    out: dict[str, Clip | None] = {}
+    for tid in dialogue_track_ids(project):
+        out[tid] = next(
+            (
+                c
+                for c in clips_for_track(project, tid)
+                if abs((c.timeline_start if edge == "in" else c.timeline_end) - timeline_sec)
+                <= JOIN_INSTANT_EPS_SEC
+            ),
+            None,
+        )
+    return out
+
+
+def is_session_join(project: EpisodeProject, timeline_sec: float, edge: str) -> bool:
+    """True when every dialogue track has a clip edge at ``timeline_sec``."""
+    edges = clip_edges_at(project, timeline_sec, edge)
+    return bool(edges) and all(c is not None for c in edges.values())
+
+
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 

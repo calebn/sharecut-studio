@@ -268,12 +268,51 @@ def test_audition_context_flags_the_clipped_onset_with_a_concrete_fix(tmp_path: 
         "play_audio_tool",
     ]
     assert hyp["next"]["fix"] == {"skill": "podcast-inaudible-cuts", "autonomy": "needs_approval"}
+    # One dialogue track, so its clip edge is the whole session's join.
+    assert hyp["evidence"]["session_join"] is True
+    assert hyp["evidence"]["fix"] == {
+        "tool": "trim_clip_edge_tool",
+        "clip_id": "c1",
+        "edge": "in",
+        "source_sec": pytest.approx(0.94, abs=0.02),
+        "all_tracks": True,
+    }
     warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
     assert re.search(r"host: clip starts 3[45]0 ms into voiced speech \(voice from source", warning)
     assert "'Um,' starts 1.49s" in warning
     assert "word times disagree with the audio here" in warning
-    assert re.search(r"trim the in-point back to 0\.9[34]s, or move the cut", warning)
+    assert re.search(
+        r"trim the in-point back to 0\.9[34]s on every track \(trim_clip_edge_tool with "
+        r"all_tracks=true; this join is a session-wide cut\), or move the cut",
+        warning,
+    )
     assert "cannot_hear" in ctx["limits"]
+
+
+def test_track_local_edge_gets_a_single_clip_fix(tmp_path: Path) -> None:
+    """A second track with no clip edge at the join makes the boundary track-local."""
+    from podcast_mcp.edits.audition_context import build_audition_context
+
+    audio = _voice(3.0, 1.0, 2.2)
+    project = _project(tmp_path, audio, [(0.0, 0.5), (1.34, 3.0)])
+    project.timeline.tracks.append(
+        Track(
+            id="peer",
+            label="Peer",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=3.0),
+        )
+    )
+    project.timeline.clips.append(
+        Clip(id="p0", track_id="peer", source_start=0.0, source_end=3.0, timeline_start=0.0)
+    )
+    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False)
+    (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
+    assert hyp["evidence"]["session_join"] is False
+    assert hyp["evidence"]["fix"]["all_tracks"] is False
+    assert hyp["evidence"]["fix"]["clip_id"] == "c1"
+    warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
+    assert "on clip c1 (trim_clip_edge_tool; this edge is track-local)" in warning
 
 
 def test_audition_context_skips_the_join_check_without_dsp(tmp_path: Path) -> None:

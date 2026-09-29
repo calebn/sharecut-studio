@@ -457,10 +457,20 @@ def edit_trim_clip_cmd(
     source_sec: float = typer.Option(
         ..., "--source-sec", help="New edge position in source-media seconds"
     ),
+    all_tracks: bool = typer.Option(
+        False,
+        "--all-tracks",
+        help="Move the same join instant on every dialogue track (session-wide cut)",
+    ),
 ) -> None:
     """Move one clip edge (later clips ripple); `play context` suggests the value."""
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(EditService(ws).trim_clip_edge(clip, edge, source_sec), indent=2))
+    typer.echo(
+        json.dumps(
+            EditService(ws).trim_clip_edge(clip, edge, source_sec, all_tracks=all_tracks),
+            indent=2,
+        )
+    )
 
 
 @edit_app.command("add-chapter")

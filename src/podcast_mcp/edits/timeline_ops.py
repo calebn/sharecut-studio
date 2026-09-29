@@ -8,6 +8,7 @@ from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipp
 from podcast_mcp.edits.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     build_clips_after_removes,
+    clip_edges_at,
     clips_for_track,
     extract_clips_in_timeline_range,
     join_render_fields,
@@ -727,21 +728,49 @@ def trim_clip_edge(
     source_sec: float,
     *,
     mode: str = "ripple",
+    all_tracks: bool = False,
 ) -> dict:
+    """Move one clip edge; with ``all_tracks`` move the same join instant on every track.
+
+    A session-wide cut (ripple) leaves a clip edge on every dialogue track at one
+    timeline instant. Trimming one of them alone ripples that track only and desyncs
+    the rest of the episode, so ``all_tracks=True`` applies the same source delta to
+    the clip edge each track has at that instant (raises when a track has none: the
+    boundary is then track-local and a plain trim is the right operation).
+    """
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
         raise ValueError(f"unknown clip_id: {clip_id!r}")
-    old_start = clip.source_start
-    old_end = clip.source_end
-    old_tl_start = clip.timeline_start
-    old_tl_end = clip.timeline_end
-    trim_clip_edge_bounds(project, clip_id, edge, source_sec, mode=mode)
+    old_edge = clip.source_start if edge == "in" else clip.source_end
+    targets: list[tuple[Clip, float]] = [(clip, float(source_sec))]
+    if all_tracks:
+        instant = clip.timeline_start if edge == "in" else clip.timeline_end
+        edges = clip_edges_at(project, instant, edge)
+        missing = sorted(tid for tid, c in edges.items() if c is None)
+        if missing:
+            raise ValueError(
+                f"no clip edge at timeline {instant:.3f}s on {', '.join(missing)}; "
+                "this boundary is track-local, trim without all_tracks"
+            )
+        delta = float(source_sec) - float(old_edge)
+        targets = [
+            (peer, float(peer.source_start if edge == "in" else peer.source_end) + delta)
+            for peer in edges.values()
+            if peer is not None and peer.id != clip_id
+        ]
+        targets.insert(0, (clip, float(source_sec)))
+    previous = {
+        c.id: (c.source_start, c.source_end, c.timeline_start, c.timeline_end) for c, _ in targets
+    }
+    for target, target_sec in targets:
+        trim_clip_edge_bounds(project, target.id, edge, target_sec, mode=mode)
     rebuild_combined(project)
     clip = next(c for c in project.clips if c.id == clip_id)
+    track_ids = [c.track_id for c, _ in targets]
     archive_timeline_op(
         project,
         operation="trim_clip_edge",
-        track_ids=[clip.track_id],
+        track_ids=track_ids,
         source_start=clip.source_start,
         source_end=clip.source_end,
         timeline_start=clip.timeline_start,
@@ -749,20 +778,24 @@ def trim_clip_edge(
         params={
             "edge": edge,
             "mode": mode,
-            "previous_source_start": old_start,
-            "previous_source_end": old_end,
-            "previous_timeline_start": old_tl_start,
-            "previous_timeline_end": old_tl_end,
+            "all_tracks": all_tracks,
+            "clip_ids": [c.id for c, _ in targets],
+            "previous_source_start": previous[clip_id][0],
+            "previous_source_end": previous[clip_id][1],
+            "previous_timeline_start": previous[clip_id][2],
+            "previous_timeline_end": previous[clip_id][3],
         },
     )
     return change_summary(
         project,
         operation="trim_clip_edge",
-        affected_tracks=[clip.track_id],
+        affected_tracks=track_ids,
         clip_id=clip_id,
         edge=edge,
         source_sec=source_sec,
         mode=mode,
+        all_tracks=all_tracks,
+        clip_ids=[c.id for c, _ in targets],
     )
 
 
