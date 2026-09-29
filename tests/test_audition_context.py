@@ -169,6 +169,33 @@ def test_all_tracks_trim_keeps_the_tracks_in_sync(minimal_project, sample_wav, t
     assert all(h["code"] != "clip_skew" for h in ctx["hypotheses"])
 
 
+def test_audition_context_says_when_word_times_are_whisper_only(
+    minimal_project, sample_wav, tmp_workspace
+):
+    """#780: an agent must know whether word times came from the forced aligner."""
+    proj = _two_track_project(minimal_project, sample_wav, tmp_workspace)
+    ctx = build_audition_context(proj, 2.0, 6.0)
+    assert "whisper_word_times" in ctx["limits"]
+    assert {t["track_id"]: t["word_aligner"] for t in ctx["tracks"]} == {
+        "host": None,
+        "guest": None,
+    }
+
+    for tr in proj.transcripts:
+        tr.word_aligner = "onnx-base"
+    aligned = build_audition_context(proj, 2.0, 6.0)
+    assert "whisper_word_times" not in aligned["limits"]
+    assert {t["word_aligner"] for t in aligned["tracks"]} == {"onnx-base"}
+
+    proj.transcripts[0].word_aligner = None
+    mixed = build_audition_context(proj, 2.0, 6.0)
+    assert "whisper_word_times" in mixed["limits"]
+    assert {t["track_id"]: t["word_aligner"] for t in mixed["tracks"]} == {
+        "host": None,
+        "guest": "onnx-base",
+    }
+
+
 def test_audition_context_aligned_no_skew(minimal_project, sample_wav, tmp_workspace):
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.0)
     ctx = build_audition_context(proj, 2.0, 6.0)
