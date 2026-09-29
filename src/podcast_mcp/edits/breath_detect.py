@@ -205,10 +205,11 @@ def _breath_run_predicate(
     blocked: np.ndarray,
     levels: np.ndarray | None = None,
     band: LevelBand | None = None,
+    cut_sample: int | None = None,
 ) -> Callable[[int, int], bool]:
     """Predicate over frame runs: the run and the gap to the cut are breath-shaped and unvoiced.
 
-    ``cut_edge`` is the window edge the cut touches: ``"end"`` for a window before
+    ``cut_edge`` is the protected side: ``"end"`` for a window before
     the cut, ``"start"`` for one after it, ``None`` when the window is the candidate
     itself. The cut is extended out to the run, so audio between them is removed too:
     nothing in the run or that gap may be a ``blocked`` frame (a kept transcript
@@ -218,29 +219,38 @@ def _breath_run_predicate(
     and a ``band``, no gap frame may exceed the band ceiling (vocal fry between a
     breath and the cut scores 0.1-0.4 on the pitch probe but sits at speech level),
     and the run may not continue a kept word without the level first falling to the
-    band floor (:func:`_joined_to_kept_word`).
+    band floor (:func:`_joined_to_kept_word`). ``cut_sample`` locates a cut inside
+    the window, where the full crossing run must be separate from kept words on
+    both sides.
     """
     floor = band.lo if band is not None else 0.0
+    edge = cut_sample if cut_sample is not None else (0 if cut_edge == "start" else samples.size)
+    edge_frame = edge // frame_size
 
     def accept(start: int, end: int) -> bool:
         run_lo, run_hi = start * frame_size, end * frame_size
         if cut_edge == "start":
-            gap = samples[:run_lo]
+            gap = samples[edge:run_lo]
         elif cut_edge == "end":
-            gap = samples[run_hi:]
+            gap = samples[run_hi:edge]
         else:
             gap = samples[:0]
-        lo = 0 if cut_edge == "start" else run_lo
-        hi = samples.size if cut_edge == "end" else run_hi
-        first = 0 if cut_edge == "start" else start
-        last = blocked.size if cut_edge == "end" else end
+        lo = min(edge, run_lo) if cut_edge == "start" else run_lo
+        hi = max(edge, run_hi) if cut_edge == "end" else run_hi
+        first = min(edge_frame, start) if cut_edge == "start" else start
+        last = max(edge_frame, end) if cut_edge == "end" else end
         if blocked[first:last].any():
             return False
         if levels is not None and band is not None:
-            gap_levels = levels[:start] if cut_edge == "start" else levels[end:]
+            gap_levels = levels[edge_frame:start] if cut_edge == "start" else levels[end:edge_frame]
             if cut_edge is not None and (
                 (gap_levels > band.hi).any()
                 or _joined_to_kept_word(levels, blocked, start, end, cut_edge, band.lo)
+            ):
+                return False
+            if cut_sample is not None and any(
+                _joined_to_kept_word(levels, blocked, start, end, side, band.lo)
+                for side in ("start", "end")
             ):
                 return False
         return (
@@ -269,14 +279,23 @@ def _first_breath_span(
     min_duration_sec: float,
     max_duration_sec: float,
     accept: Callable[[int, int], bool],
+    *,
+    search_frames: np.ndarray,
+    crossing_sec: float | None = None,
 ) -> BreathSpan | None:
     """First active run of breath length that ``accept(start_frame, end_frame)`` passes."""
     for start, end in bool_runs(active):
+        if not search_frames[start:end].any():
+            continue
+        start_sec = window_start + start * frame_duration
+        end_sec = window_start + end * frame_duration
+        if crossing_sec is not None and not start_sec < crossing_sec < end_sec:
+            continue
         duration = (end - start) * frame_duration
         if min_duration_sec <= duration <= max_duration_sec and accept(start, end):
             return BreathSpan(
-                start=window_start + start * frame_duration,
-                end=window_start + end * frame_duration,
+                start=start_sec,
+                end=end_sec,
                 side="detected",
             )
     return None
@@ -293,8 +312,9 @@ def _find_breath_in_window(
     cut_edge: str | None = None,
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
+    crossing_sec: float | None = None,
 ) -> BreathSpan | None:
-    """First in-band run inside ``search_sec`` (default: the whole window) that passes the predicate.
+    """First complete in-band run overlapping ``search_sec`` that passes the predicate.
 
     The predicate sees every frame of ``samples``, so the window may carry audio
     beyond the search span for the kept-word adjacency walk.
@@ -309,12 +329,7 @@ def _find_breath_in_window(
 
     frame_duration = frame_size / sample_rate
     blocked = _blocked_frames(keep_out, window_start, frame_duration, levels.size)
-    active = (
-        (band.lo <= levels)
-        & (levels <= band.hi)
-        & ~blocked
-        & _search_frames(search_sec, window_start, frame_duration, levels.size)
-    )
+    active = (band.lo <= levels) & (levels <= band.hi)
     return _first_breath_span(
         active,
         window_start,
@@ -329,7 +344,14 @@ def _find_breath_in_window(
             blocked=blocked,
             levels=levels,
             band=band,
+            cut_sample=(
+                round((crossing_sec - window_start) * sample_rate)
+                if crossing_sec is not None
+                else None
+            ),
         ),
+        search_frames=_search_frames(search_sec, window_start, frame_duration, levels.size),
+        crossing_sec=crossing_sec,
     )
 
 
@@ -344,6 +366,7 @@ def _find_breath_in_window_silero(
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
     band: LevelBand | None = None,
+    crossing_sec: float | None = None,
 ) -> BreathSpan | None:
     from podcast_mcp.engines.vad_silero import SileroVAD, get_shared_vad
 
@@ -359,12 +382,7 @@ def _find_breath_in_window_silero(
 
     frame_duration = window / SileroVAD.SAMPLE_RATE
     blocked = _blocked_frames(keep_out, window_start, frame_duration, probs.size)
-    active = (
-        (lo <= probs)
-        & (probs <= hi)
-        & ~blocked
-        & _search_frames(search_sec, window_start, frame_duration, probs.size)
-    )
+    active = (lo <= probs) & (probs <= hi)
     levels = _frame_levels(samples, window, probs.size)
     return _first_breath_span(
         active,
@@ -380,8 +398,68 @@ def _find_breath_in_window_silero(
             blocked=blocked,
             levels=levels,
             band=band if cut_edge is not None else None,
+            cut_sample=(
+                round((crossing_sec - window_start) * SileroVAD.SAMPLE_RATE)
+                if crossing_sec is not None
+                else None
+            ),
         ),
+        search_frames=_search_frames(search_sec, window_start, frame_duration, probs.size),
+        crossing_sec=crossing_sec,
     )
+
+
+def _refine_crossing_onset(
+    samples: np.ndarray,
+    window_start: float,
+    hit: BreathSpan | None,
+    *,
+    sample_rate: int,
+    noise_floor_rms: float | None,
+    band: LevelBand | None,
+    crossing_sec: float,
+    search_sec: tuple[float, float] | None,
+    keep_out: Sequence[tuple[float, float]],
+    max_duration_sec: float,
+) -> BreathSpan | None:
+    if hit is None or band is None or noise_floor_rms is None or noise_floor_rms <= 0.0:
+        return None
+    frame_size = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
+    frame_duration = frame_size / sample_rate
+    levels = _frame_levels(samples, frame_size, samples.size // frame_size)
+    start = max(0, math.floor((hit.start - window_start) / frame_duration + 1e-9))
+    end = min(levels.size, math.ceil((hit.end - window_start) / frame_duration - 1e-9))
+    lower_bound = max(window_start, search_sec[0] if search_sec else window_start)
+    # The level band finds the breath's body; its quiet onset can lie below it.
+    floor = min(noise_floor_rms, band.lo) * (1.0 + 1e-6)
+    while start > 0 and levels[start - 1] > floor:
+        if levels[start - 1] > band.hi:
+            return None
+        start -= 1
+        if window_start + start * frame_duration <= lower_bound:
+            return None
+        if (end - start) * frame_duration > max_duration_sec:
+            return None
+    if (
+        start == 0
+        or window_start + start * frame_duration <= lower_bound
+        or (end - start) * frame_duration > max_duration_sec
+    ):
+        return None
+    blocked = _blocked_frames(keep_out, window_start, frame_duration, levels.size)
+    accept = _breath_run_predicate(
+        samples,
+        sample_rate,
+        frame_size,
+        "start",
+        blocked=blocked,
+        levels=levels,
+        band=LevelBand(lo=floor, hi=band.hi),
+        cut_sample=round((crossing_sec - window_start) * sample_rate),
+    )
+    if not accept(start, end):
+        return None
+    return BreathSpan(window_start + start * frame_duration, hit.end, hit.side)
 
 
 def classify_breath_samples(
@@ -399,12 +477,17 @@ def classify_breath_samples(
     cut_edge: str | None = None,
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
+    crossing_sec: float | None = None,
 ) -> BreathSpan | None:
     """Classify a bounded sample window using the shared breath detectors.
 
     Callers choose the window: a hit outside that window cannot classify it, and
-    ``search_sec`` narrows where a hit may lie while the rest of the window still
-    informs the checks. ``cut_edge`` names the window edge that touches the cut
+    ``search_sec`` selects complete runs overlapping that interval while the rest
+    of the window still informs the checks. ``crossing_sec`` selects a run crossing
+    that source second and locates the cut inside the window. An approved crossing
+    run can be traced back to room tone to include a quiet onset, within the search
+    window and maximum duration, with speech protections checked again.
+    ``cut_edge`` names the window edge that touches the cut
     being extended (``"end"`` before it, ``"start"`` after it); a hit then also
     needs unvoiced audio below the band ceiling all the way to that edge, neither
     the hit nor that stretch may touch a ``keep_out`` span (source seconds; the kept
@@ -427,6 +510,22 @@ def classify_breath_samples(
     if cut_edge is not None and band is None:
         return None
 
+    def finish(hit: BreathSpan | None) -> BreathSpan | None:
+        if crossing_sec is None:
+            return hit
+        return _refine_crossing_onset(
+            samples,
+            window_start,
+            hit,
+            sample_rate=sample_rate,
+            noise_floor_rms=noise_floor_rms,
+            band=band,
+            crossing_sec=crossing_sec,
+            search_sec=search_sec,
+            keep_out=keep_out,
+            max_duration_sec=max_duration_sec,
+        )
+
     if vad_backend == "silero" and sample_rate == 16000:
         from podcast_mcp.engines.vad_silero import get_shared_vad
 
@@ -434,7 +533,7 @@ def classify_breath_samples(
         try:
             vad = get_shared_vad()
             if vad is not None:
-                return _find_breath_in_window_silero(
+                hit = _find_breath_in_window_silero(
                     samples,
                     window_start,
                     min_duration_sec=min_duration_sec,
@@ -444,7 +543,9 @@ def classify_breath_samples(
                     keep_out=keep_out,
                     search_sec=search_sec,
                     band=band,
+                    crossing_sec=crossing_sec,
                 )
+                return finish(hit)
         except Exception:
             log.debug("Silero breath inference failed; using RMS heuristic", exc_info=True)
 
@@ -461,7 +562,7 @@ def classify_breath_samples(
         # in it keeps the whole candidate reviewable rather than calling it breath.
         if not _is_unvoiced(samples, sample_rate, min_rms=band.lo):
             return None
-    return _find_breath_in_window(
+    hit = _find_breath_in_window(
         samples,
         window_start,
         sample_rate=sample_rate,
@@ -471,7 +572,9 @@ def classify_breath_samples(
         cut_edge=cut_edge,
         keep_out=keep_out,
         search_sec=search_sec,
+        crossing_sec=crossing_sec,
     )
+    return finish(hit)
 
 
 def detect_adjacent_breath(
@@ -484,6 +587,7 @@ def detect_adjacent_breath(
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
+    crossing_end_only: bool = False,
 ) -> list[BreathSpan]:
     """Breath-shaped runs just before and after a cut on ``track_id``'s raw audio.
 
@@ -491,6 +595,8 @@ def detect_adjacent_breath(
     none) are never part of a breath or of the stretch between it and the cut, and
     a run that continues one without the level falling to the band floor is that
     word's tail or onset; words the cut itself removes at least half of are not kept.
+    ``crossing_end_only`` reads across the final cut end and returns only a complete
+    breath crossing it, so a caller can retreat to the breath's onset.
     """
     cfg = _breath_cfg(defaults)
     if not cfg["enabled"]:
@@ -521,6 +627,7 @@ def detect_adjacent_breath(
             cut_edge=cut_edge,
             keep_out=keep_out,
             search_sec=search_sec,
+            crossing_sec=cut_end if crossing_end_only else None,
         )
 
     use_cache = audio_cache is not None and audio_cache.waveform.sample_rate == sample_rate
@@ -556,6 +663,13 @@ def detect_adjacent_breath(
         for start, end in word_index.live_word_spans(context_start, cut_end + _LEVEL_CONTEXT_SEC)
         if min(end, cut_end) - max(start, cut_start) < 0.5 * (end - start)
     ]
+
+    if crossing_end_only:
+        window_start = max(0.0, cut_end - _LEVEL_CONTEXT_SEC)
+        context = _read(window_start, cut_end + _LEVEL_CONTEXT_SEC - window_start)
+        search = (cut_end - max_dur, cut_end + max_dur)
+        hit = _find(context, window_start, "start", profile, keep_out, search)
+        return [BreathSpan(start=hit.start, end=hit.end, side="crossing")] if hit else []
 
     spans: list[BreathSpan] = []
     before_sec = cfg["search_before_ms"] / 1000.0
