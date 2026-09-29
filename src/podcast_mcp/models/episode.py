@@ -163,10 +163,14 @@ class TranscriptWord(BaseModel):
     def resolve_auto_suppression(self, would_suppress: bool) -> bool:
         """Value an automatic suppression writer should use for `suppressed`.
 
-        Every heuristic pass (reconcile, speaker attribution, low-audibility scan)
-        must route its `suppressed` decision through this instead of writing the
-        field directly, so `audibility_locked` (a person or agent's explicit
-        decision, #768/#781) can never be silently overwritten by a new writer.
+        Speaker attribution (`engines/speaker_id.py`) and the low-audibility
+        heuristic scan (`suppress_low_audibility_words`) route their `suppressed`
+        decision through this instead of writing the field directly, so
+        `audibility_locked` (a person or agent's explicit decision, #768/#781)
+        can never be silently overwritten by a new writer. Reconcile
+        (`engines/transcript_reconcile.py`) does not call this: it has its own
+        equivalent guard, skipping a locked word (`w.ignored or w.audibility_locked`
+        in `_reconcile_word`) before it ever computes a new verdict.
         """
         return self.suppressed if self.audibility_locked else would_suppress
 

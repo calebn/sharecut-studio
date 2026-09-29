@@ -1289,10 +1289,14 @@ def test_home_speaker_gate_apply_respects_lock(tmp_path, sample_wav) -> None:
         patch("podcast_mcp.engines.speaker_id._classify_role", return_value=("bleed", "guest")),
         patch("podcast_mcp.edits.transcript_sync.rebuild_combined"),
     ):
-        label_track_home_speaker(
+        report = label_track_home_speaker(
             project, cfg, MockSpeakerBackend(), track_ids=["host"], dry_run=False
         )
     word = project.transcript_for_track("host").words[0]
     assert word.suppressed is False
     assert word.audibility_locked is True
     assert word.speaker_match_track == "guest"
+    # #781: touched (attribution updated) but not suppressed, so it must not
+    # count toward words_suppressed.
+    assert report["words_would_suppress"] == 1
+    assert report["words_suppressed"] == 0
