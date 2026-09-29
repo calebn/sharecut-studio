@@ -3,7 +3,7 @@
   "meta": {
     "name": "synthetic bleed 60s",
     "workspace_dir": ".",
-    "created_at": "2026-06-09T03:21:44.799042+00:00",
+    "created_at": "2026-09-29T11:58:39.466851+00:00",
     "schema_id": "podcast-mcp/episode/2",
     "ingest_alignment": null
   },
@@ -22,8 +22,12 @@
           "sample_rate": 44100,
           "channels": 1
         },
+        "room_tone": null,
         "gain_db": 0.0,
-        "muted": false
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "proxy": null
       },
       {
         "id": "guest",
@@ -36,8 +40,12 @@
           "sample_rate": 44100,
           "channels": 1
         },
+        "room_tone": null,
         "gain_db": 0.0,
-        "muted": false
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "proxy": null
       }
     ],
     "clips": [
@@ -49,7 +57,9 @@
         "timeline_start": 0.0,
         "source_id": null,
         "fade_in_ms": 0,
-        "fade_out_ms": 0
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
       },
       {
         "id": "clip_guest",
@@ -59,12 +69,15 @@
         "timeline_start": 0.0,
         "source_id": null,
         "fade_in_ms": 0,
-        "fade_out_ms": 0
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
       }
     ]
   },
   "editorial": {
     "edit_decisions": [],
+    "edit_log": [],
     "chapters": []
   },
   "transcripts": {
@@ -82,7 +95,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "to",
@@ -93,7 +110,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "the",
@@ -104,7 +125,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "show",
@@ -115,7 +140,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "todae",
@@ -126,7 +155,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "we",
@@ -137,7 +170,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "discuss",
@@ -148,7 +185,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "documented",
@@ -159,7 +200,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "stories",
@@ -170,7 +215,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "and",
@@ -181,7 +230,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "real",
@@ -192,7 +245,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "change",
@@ -203,7 +260,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "for",
@@ -214,7 +275,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "people",
@@ -225,7 +290,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "who",
@@ -236,7 +305,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "care",
@@ -247,9 +320,22 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           }
-        ]
+        ],
+        "source_id": null,
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
       },
       {
         "track_id": "guest",
@@ -264,7 +350,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "thanks",
@@ -275,7 +365,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "for",
@@ -286,7 +380,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "having",
@@ -297,7 +395,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "me",
@@ -308,7 +410,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "here",
@@ -319,7 +425,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "today",
@@ -330,7 +440,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "great",
@@ -341,7 +455,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "to",
@@ -352,7 +470,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "be",
@@ -363,7 +485,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "back",
@@ -374,7 +500,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "hello",
@@ -385,7 +515,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "everyone",
@@ -396,7 +530,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "listening",
@@ -407,7 +545,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "on",
@@ -418,7 +560,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "the",
@@ -429,7 +575,11 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "podcast",
@@ -440,9 +590,22 @@
             "audibility_status": null,
             "dominant_track": null,
             "speaker_match_track": null,
-            "speaker_match_score": null
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           }
-        ]
+        ],
+        "source_id": null,
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
       }
     ],
     "combined": {
@@ -490,66 +653,29 @@
     "automation_envelopes": []
   },
   "render": {
-    "last_completed_step": "assemble_timeline",
-    "pipeline_runs": [
-      {
-        "id": "138dc56a7bd4",
-        "started_at": "2026-06-09T03:34:01.893698+00:00",
-        "steps": [
-          {
-            "step": "ingest_tracks",
-            "started_at": "2026-06-09T03:34:01.893744+00:00",
-            "finished_at": "2026-06-09T03:34:02.228359+00:00",
-            "status": "ok",
-            "message": null
-          }
-        ]
-      },
-      {
-        "id": "f1887c175c68",
-        "started_at": "2026-06-09T03:34:02.831862+00:00",
-        "steps": [
-          {
-            "step": "assemble_timeline",
-            "started_at": "2026-06-09T03:34:02.832561+00:00",
-            "finished_at": "2026-06-09T03:34:02.843530+00:00",
-            "status": "ok",
-            "message": null
-          }
-        ]
-      }
-    ],
+    "last_completed_step": null,
+    "pipeline_runs": [],
     "artifacts": {
       "premix": null,
       "mastered": null
     },
-    "reconciliation_stale": true,
-    "last_reconciliation_hash": null
+    "reconciliation_stale": false,
+    "last_reconciliation_hash": null,
+    "invalidations": []
   },
   "social": {
     "clip_candidates": []
   },
+  "review": {
+    "comments": [],
+    "versions": [],
+    "active_version_id": null
+  },
   "history": {
-    "cursor": 2,
-    "entries": [
-      {
-        "id": "71e2b713a0fb",
-        "label": "before pipeline run",
-        "created_at": "2026-06-09T03:34:01.889226+00:00",
-        "snapshot_file": "history/snapshots/71e2b713a0fb.json"
-      },
-      {
-        "id": "28945bf11d15",
-        "label": "after ingest_tracks",
-        "created_at": "2026-06-09T03:34:02.212558+00:00",
-        "snapshot_file": "history/snapshots/28945bf11d15.json"
-      },
-      {
-        "id": "82a602d53506",
-        "label": "after assemble_timeline",
-        "created_at": "2026-06-09T03:34:02.837091+00:00",
-        "snapshot_file": "history/snapshots/82a602d53506.json"
-      }
-    ]
+    "cursor": -1,
+    "entries": []
+  },
+  "document_sync": {
+    "last_command": null
   }
 }

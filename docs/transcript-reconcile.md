@@ -14,7 +14,7 @@ For each word window, reconciliation compares RMS on the word's own track agains
 
 **Anomalously long words** (duration &gt; `max_word_audibility_sec`, default **2.0 s**) skip full-span mean RMS. Stretched Whisper tokens that cover speech + silence + peer talk would otherwise look like bleed/inaudible. They are tagged **`deferred`** with `reason: anomalous_word_duration` and are **not** auto-suppressed — neither mean-RMS nor identical-text overlap (`overlap_text_match_losers`).
 
-A word is tagged **`bleed`** when another track's RMS exceeds the own-track RMS by at least **`bleed_dominance_db`** (default **6.0 dB**) and the dominant track is above **`bleed_min_other_rms_db`** (default **−50 dB**).
+A word is tagged **`bleed`** when another track's RMS exceeds the own-track RMS by at least **`bleed_dominance_db`** (default **6.0 dB**), the dominant track is above **`bleed_min_other_rms_db`** (default **−50 dB**), **and a bleed path from that track into this one is measured** ([below](#bleed-pairs-the-source-wins-by-lag-not-by-loudness-774)). On a pair with no measured path a quieter word is two people talking, not a copy: it keeps its own audibility (`audible`, or `inaudible` below `audibility_rms_db`) and `dominant_track` stays empty; the levels stay in the row's `track_rms_db` for review (#774). Measured on the lab tape: every acoustic bleed tag on a pair with the remote participant, and every tag of the co-host's mic as bleed of the host (no path that way; `bleed_echo` puts it below its null), was the speaker's own voice by pitch and spectrogram (caleb "hello", "Stay", "I"; audra "She's", "Keep", "Or", "beat", "Can"), so no `bleed` tag is written without a path. Bleed therefore needs rendered stems for both mics (`render_dialogue_stems` before `reconcile_transcript`).
 
 | Heuristic | Default | Meaning |
 |-----------|---------|---------|
@@ -48,19 +48,22 @@ Configure under `analysis.heuristics` in pipeline defaults (workspace `pipeline.
 
 Loudness cannot tell a same-room copy from the speaker on a Zoom-recorded host track. Measured on the lab tape: the host mic (caleb) carries the co-host (audra) about **150 ms before** her own track, because her stream reaches the recording host over the network while the room bleed reaches his mic at once; Zoom's gain often brings that copy to or above her own level. So the loudness tiebreak kept the copy and suppressed her word ("that's" at 1629.07 s), and a short copy 150 ms early no longer overlapped its source, so the overlap rule never saw it and the duplicate stayed.
 
-Reconcile therefore measures the bleed path first. `measured_echo_pairs` (`engines/transcript_reconcile.py`) runs the [`echo_risk`](audio-engineering.md#agent-audition-context-v2) statistic (`engines/bleed_echo.py`, `echo_risk_pairs`) on the RMS caches reconcile has already decoded, so nothing is decoded again (0.8 s on the 28-minute tape). Every directed pair that clears the same null-calibrated test as `audition_context_tool` is a **bleed pair**. On the lab tape that is audra → caleb and no pair with the remote participant.
+Reconcile therefore measures the bleed path first. `TrackRmsCacheSet.echo_pairs` (`engines/audio_audit.py`) runs the [`echo_risk`](audio-engineering.md#agent-audition-context-v2) statistic (`engines/bleed_echo.py`, `echo_risk_pairs`) on the RMS caches reconcile has already decoded, once per cache set and shared by the acoustic verdict and the text rule, so nothing is decoded or measured twice (0.8 s on the 28-minute tape). Every directed pair that clears the same null-calibrated test as `audition_context_tool` is a **bleed pair**. On the lab tape that is audra → caleb and no pair with the remote participant.
 
 For each bleed pair flagged in one direction, `echo_twin_paths` (`edits/bleed_text_match.py`) builds an `EchoTwinPath`: the transcript-side lag between a source word and the bleed mic's copy. With at least 6 identical-text twins within ±0.5 s it is the median onset delta around their densest 50 ms bin (−150 ms on the tape, with a 30–40 ms spread; the remote pairs have no such peak). With fewer twins the acoustic `lag_ms` stands in. The tolerance is ±150 ms, which covers ASR onset error plus the jitter of a network-delayed track. Then:
 
 - A bleed-mic word with the same normalized text as a source-mic word, starting at the path's lag ± tolerance, is the copy. It loses (`audibility_status: bleed`, `dominant_track` = the source mic, `reason: echo_twin`) whatever its level or ASR confidence, and whether or not the two words overlap in time.
 - Identical words on the pair at any other spacing are two people talking, for example a sign-off said together. Neither loses; the loudness rule is not applied to a one-way bleed pair at all.
-- A source word the acoustic verdict already suppresses anchors no copy: its copy on the bleed mic is then the only place the word survives, so it stays (aligned run: audra "to" 804.87 under lana, "who" 1629.34, "Keep" 1661.02).
+- A source word the acoustic verdict already suppresses anchors no copy: its copy on the bleed mic is then the only place the word survives, so it stays (aligned run: audra "to" 804.87 and "who" 1629.47, both below the audibility floor). A source word the no-path rule restores anchors again: audra "Keep" 1661.02 was tagged bleed of lana with no lana path, so it is audible and caleb's "keep" 1660.82 loses to it.
+- The acoustic verdict follows the same rule: `bleed` + `dominant_track` only along a measured direction. So on the lab's one-way pair caleb's words can be bleed of audra, audra's never bleed of caleb, and nobody's word is bleed of the remote participant.
 - A pair flagged in both directions (no single source) keeps the loudness rule above. A pair with no measured path gets no text-match suppression at all.
 - Stretched ASR tokens (`max_word_audibility_sec`) are skipped on both sides, as in the overlap rule. The acoustic verdict per word is unchanged: a copy the RMS rule already tags as `bleed` never reaches the text rule.
 
 Measured and rejected: correcting the level by the path's `level_db` (−18 dB on the tape) does not work on a Zoom track, because its gain raises the copy to the speaker's level when the host is silent, so a corrected level would call every such copy the host's own speech.
 
 Lab result (`pipeline run --only reconcile_transcript`, trunk → this rule): Whisper-timed run 12 audra words restored (incl. "that's"), 20 caleb copies suppressed, 12 caleb words that were 300–1200 ms from their twin restored, and the 8 coincidence words on pairs with the remote participant restored (incl. the three-person "Bye." at 1686–1687 s); forced-aligner run 7 audra words restored, 45 caleb copies suppressed, 4 coincidence words restored; agent-edited run 1 restored, 6 copies suppressed, the 2 "Bye."s restored.
+
+With the acoustic verdict on the same rule (no path, no `bleed`): Whisper-timed run 95 words change, 70 restored (30 caleb, 15 audra, 25 lana) and 25 retagged `inaudible` and still suppressed; forced-aligner run 79 (59 restored, 19 retagged, caleb "keep" 1660.82 newly an echo twin of the restored audra "Keep"); agent-edited run 14 (9 restored, 5 retagged). Every changed word is one the rule names, lana's decisions change nowhere else, a dry run reports what the apply writes, and a second pass reports 0 on all three.
 
 ---
 
@@ -81,6 +84,7 @@ Lab result (`pipeline run --only reconcile_transcript`, trunk → this rule): Wh
 
 When `bleed_words_tool` or `audibility_map_tool` returns all `audible` during known cross-talk:
 
+0. **Check the pair has a measured bleed path** — `audition_context_tool` reports `echo_risk` per directed pair. Without a path no word is tagged `bleed`, whatever the dominance gap (#774): a mic that carries no copy of the other voice has nothing to suppress. Zoom's per-participant suppression can leave a same-room pair with a path one way only.
 1. **Check the dominance gap** — at the overlap midpoint, guest RMS minus host RMS must be ≥ `bleed_dominance_db`. A gap of ~5.8 dB will miss the 6.0 threshold.
 2. **Confirm stems are fresh** — stale `artifacts/tracks/` can skip re-render and produce misleadingly quiet stems. After changing raw WAVs or FX, delete `artifacts/` or run `assemble_timeline` on a clean workspace copy.
 3. **Pipeline order** — audibility needs rendered stems: `ingest_tracks` → `transcribe_tracks` → `merge_transcript` → `render_dialogue_stems` → `reconcile_transcript` (pass 1); pass 2 after `assemble_timeline`. See [transcript-workflow.md](transcript-workflow.md).
@@ -172,7 +176,7 @@ replaces the original after the gate succeeds.
 
 | Fixture | What it validates |
 |---------|-------------------|
-| `synthetic_bleed_60s` | Deterministic bleed SNR, reconcile suppressions, precorrect cross-track |
+| `synthetic_bleed_60s` | Deterministic bleed SNR, reconcile suppressions, precorrect cross-track. Each word is its own tone: one stationary tone per track matched `echo_risk`'s time-shifted null and no path was measured (#774) |
 | `ami_bleed_60s` | AMI word timings + synthetic overlap audio (headset WAV URLs unavailable) |
 
 Build scripts encode the bleed recipes above:

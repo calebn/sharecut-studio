@@ -72,8 +72,8 @@ def _room_path(source: str, bleed: str) -> EchoPairProfile:
 # The identical-text loudness rule applies only where bleed is measured; these tests
 # pin that rule, so they run on a room pair with bleed both ways (#774).
 _ROOM_PAIR_MEASURED = patch(
-    "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
-    new=lambda caches: [_room_path("host", "guest"), _room_path("guest", "host")],
+    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    new=lambda self: [_room_path("host", "guest"), _room_path("guest", "host")],
 )
 
 
@@ -250,6 +250,7 @@ def test_analysis_policy_bleed_defaults():
     assert pol.bleed_text_match_min_overlap_sec == 0.02
 
 
+@_ROOM_PAIR_MEASURED
 def test_run_reconciliation_applies_by_default(tmp_path: Path):
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy.from_defaults()
@@ -273,6 +274,7 @@ def test_run_reconciliation_applies_by_default(tmp_path: Path):
     assert result["applied"] is True
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_honors_word_suppressed_through_service(tmp_path: Path):
     """A word a person/agent unsuppressed via the service outlives a later reconcile (#768)."""
     project = _two_track_project(tmp_path)
@@ -356,6 +358,7 @@ def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
 
 
 @pytest.mark.refine_gate
+@_ROOM_PAIR_MEASURED
 def test_pipeline_refreshes_waiver_after_real_reconciliation(tmp_path: Path):
     project = _two_track_project(tmp_path)
     project_path = tmp_path / "episode.project.json"
@@ -390,6 +393,7 @@ def test_pipeline_refreshes_waiver_after_real_reconciliation(tmp_path: Path):
     assert EditService(workspace).approve([]) == 0
 
 
+@_ROOM_PAIR_MEASURED
 def test_compute_word_audibility_map_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(audibility_rms_db=-42.0, bleed_dominance_db=6.0)
@@ -415,6 +419,7 @@ def test_compute_word_audibility_map_bleed(tmp_path: Path):
     assert bleed_rows[0]["dominant_track"] == "guest"
 
 
+@_ROOM_PAIR_MEASURED
 def test_list_flagged_words_includes_inaudible_and_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(audibility_rms_db=-35.0, bleed_dominance_db=6.0)
@@ -553,6 +558,7 @@ def test_reconcile_flag_mode_tags_text_match_loser_without_suppressing(tmp_path:
     assert guest.words[1].dominant_track == "host"
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_transcript_suppresses_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(transcript_mode="reconcile", bleed_dominance_db=6.0)
@@ -578,6 +584,34 @@ def test_reconcile_transcript_suppresses_bleed(tmp_path: Path):
     assert project.combined_transcript is not None
     combined_text = " ".join(u.text for u in project.combined_transcript.utterances)
     assert "bleed" not in combined_text
+
+
+def test_reconcile_keeps_a_quieter_word_on_a_pair_with_no_bleed_path(tmp_path: Path):
+    """Same levels as `test_reconcile_transcript_suppresses_bleed` (guest 10 dB louder in
+    the host word's window) but no measured path between the mics: the host word is two
+    people talking, not bleed, and both stay (#774)."""
+    project = _two_track_project(tmp_path)
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_dominance_db=6.0)
+
+    def fake_rms(project, track_id, t_start, t_end, **kwargs):
+        if track_id == "host" and t_start >= 1.0:
+            return -40.0
+        if track_id == "guest" and t_start >= 1.0:
+            return -30.0
+        return -30.0
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=fake_rms,
+    ):
+        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+
+    assert _word_state(project) == {
+        ("host", 0): (False, "audible", None),
+        ("host", 1): (False, "audible", None),
+        ("guest", 0): (False, "audible", None),
+    }
+    assert (result.suppress, result.unsuppress, result.reattribute) == ([], [], [])
 
 
 def test_reconcile_unsuppresses_when_audible_again(tmp_path: Path):
