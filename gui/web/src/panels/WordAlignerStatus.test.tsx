@@ -192,6 +192,89 @@ describe("WordAlignerStatus", () => {
     ).toBeDisabled();
   });
 
+  it("locks to the download and names the reason when the aligner is missing", async () => {
+    const { container } = render(
+      <WordAlignerStatus
+        status={{ ok: false, opt_in: true, size: "~360 MB" }}
+        alignment={{
+          enabled: false,
+          model: null,
+          requested: null,
+          installed: false,
+          blocked: false,
+          reason:
+            "unavailable: word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner)",
+        }}
+        disabled={false}
+        retiming={false}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Precise word boundaries unavailable: word aligner 'onnx-base' is not downloaded (podcast bootstrap --component word-aligner).",
+    );
+    expect(
+      screen.getByRole("button", { name: "Download word aligner" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Re-time words" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("offers Re-time words when the aligner is downloaded and the field is on by default", async () => {
+    const onRetime = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <WordAlignerStatus
+        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        alignment={{
+          enabled: true,
+          model: "onnx-base",
+          requested: null,
+          installed: true,
+          blocked: false,
+          reason: "on by default: word aligner 'onnx-base' is installed",
+        }}
+        disabled={false}
+        retiming={false}
+        onDownloaded={vi.fn()}
+        onRetime={onRetime}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Word aligner is downloaded (~360 MB). Precise word boundaries on by default: word aligner 'onnx-base' is installed.",
+    );
+    await user.click(screen.getByRole("button", { name: "Re-time words" }));
+    expect(onRetime).toHaveBeenCalledTimes(1);
+    await expectNoA11yViolations(container);
+  });
+
+  it("hides Re-time words when the field is explicitly off", () => {
+    render(
+      <WordAlignerStatus
+        status={{ ok: true, opt_in: true, size: "~360 MB" }}
+        alignment={{
+          enabled: false,
+          model: null,
+          requested: false,
+          installed: true,
+          blocked: false,
+          reason: "off: transcribe.forced_alignment.enabled is false",
+        }}
+        disabled={false}
+        retiming={false}
+        onDownloaded={vi.fn()}
+        onRetime={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Precise word boundaries off: transcribe.forced_alignment.enabled is false.",
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("has no axe violations when needing download", async () => {
     const { container } = render(
       <WordAlignerStatus

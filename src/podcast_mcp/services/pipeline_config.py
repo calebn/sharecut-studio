@@ -252,8 +252,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     ``whisper.ok`` requires both the faster-whisper import **and** on-disk
     weights for ``whisper_model`` (working-set / resolved preference).
-    ``word-aligner`` is opt-in (``opt_in: true``): readiness for
-    ``transcribe.forced_alignment.enabled``.
+    ``word-aligner`` is an opt-in download (``opt_in: true``); the Precise word boundaries
+    toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
     from podcast_mcp.services.bootstrap import whisper_component, word_aligner_component
     from podcast_mcp.whisper_models import resolve_whisper_model
@@ -300,7 +300,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "bootstrap": "podcast bootstrap --component rnnoise",
         }
 
-    # Opt-in: the Pipeline tab lists it as missing only while forced alignment is on.
+    # Opt-in download: the Pipeline tab lists it as missing only when forced alignment is
+    # explicitly on without it (`forced_alignment.blocked`).
     out["word-aligner"] = word_aligner_component()
     return out
 
@@ -476,6 +477,9 @@ def build_config_payload(project_path: Path | str) -> dict[str, Any]:
         "steps": ordered_step_metas(),
         "params": param_fields_payload(),
         "components": component_status(whisper_model=selected),
+        # The Precise word boundaries toggle shows this resolved state, not the raw config
+        # value: unset means on when the aligner is installed (#780).
+        "forced_alignment": AsrOptions.from_defaults(ws.config).forced_alignment.report(),
         "whisper_models": catalog_payload(),
         "step_names": list(STEP_NAMES),
     }

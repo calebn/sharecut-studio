@@ -25,6 +25,7 @@ import type {
   PipelineAnalyzeReason,
   PipelineAnalyzeResponse,
   PipelineConfigResponse,
+  PipelineForcedAlignment,
   PipelineJobSnapshot,
   PipelineParamField,
   PipelineStepMeta,
@@ -253,12 +254,28 @@ function pipelineRunOptions(
   };
 }
 
-/** True while `transcribe.forced_alignment.enabled` is on (config, falling back to defaults). */
-function forcedAlignmentOn(cfg: PipelineConfigResponse): boolean {
-  return Boolean(
+/**
+ * The host's resolved Precise word boundaries state (#780). An older host without
+ * `forced_alignment` in its payload is read the pre-#780 way: the raw flag, and the
+ * aligner component's readiness.
+ */
+function forcedAlignment(cfg: PipelineConfigResponse): PipelineForcedAlignment {
+  if (cfg.forced_alignment) {
+    return cfg.forced_alignment;
+  }
+  const requested = Boolean(
     getByPath(cfg.config, FORCED_ALIGNMENT_PATH) ??
       getByPath(cfg.defaults, FORCED_ALIGNMENT_PATH),
   );
+  const installed = cfg.components[WORD_ALIGNER_COMPONENT]?.ok === true;
+  return {
+    enabled: requested && installed,
+    model: requested && installed ? WORD_ALIGNER_COMPONENT : null,
+    requested,
+    installed,
+    blocked: requested && !installed,
+    reason: "",
+  };
 }
 
 export function PipelinePanel() {
@@ -802,7 +819,7 @@ export function PipelinePanel() {
 
   const blockedComponents = cfg
     ? Object.entries(cfg.components).filter(
-        ([, c]) => !c.ok && (!c.opt_in || forcedAlignmentOn(cfg)),
+        ([, c]) => !c.ok && (!c.opt_in || forcedAlignment(cfg).blocked),
       )
     : [];
 
@@ -1103,29 +1120,31 @@ export function PipelinePanel() {
                       );
                     }
                     if (field.path === FORCED_ALIGNMENT_PATH) {
+                      const alignment = forcedAlignment(cfg);
                       return (
                         <Fragment key={field.path}>
                           <ParamControl
                             field={field}
-                            value={getByPath(cfg.config, field.path)}
-                            defaultValue={getByPath(cfg.defaults, field.path)}
-                            disabled={running || starting}
+                            value={alignment.enabled}
+                            defaultValue={alignment.installed}
+                            disabled={
+                              running || starting || !alignment.installed
+                            }
                             highlighted={highlightPaths.has(field.path)}
                             onChange={(v) => void onParamChange(field.path, v)}
                           />
-                          {forcedAlignmentOn(cfg) ? (
-                            <WordAlignerStatus
-                              status={cfg.components[WORD_ALIGNER_COMPONENT]}
-                              disabled={running || starting || retiming}
-                              retiming={retiming}
-                              onDownloaded={() =>
-                                void refreshConfig().catch((e: unknown) =>
-                                  setError(errorMessage(e)),
-                                )
-                              }
-                              onRetime={() => void onRetime()}
-                            />
-                          ) : null}
+                          <WordAlignerStatus
+                            status={cfg.components[WORD_ALIGNER_COMPONENT]}
+                            alignment={alignment}
+                            disabled={running || starting || retiming}
+                            retiming={retiming}
+                            onDownloaded={() =>
+                              void refreshConfig().catch((e: unknown) =>
+                                setError(errorMessage(e)),
+                              )
+                            }
+                            onRetime={() => void onRetime()}
+                          />
                         </Fragment>
                       );
                     }
