@@ -40,9 +40,7 @@ def test_value_error_prints_one_line_and_exits_1():
 def test_runtime_error_prints_one_line_and_exits_1():
     result = runner.invoke(_build_app(), ["boom-runtime"])
     assert result.exit_code == 1
-    assert (
-        result.stderr.strip() == "Error: not ready yet (set PODCAST_DEBUG=1 for the traceback)"
-    )
+    assert result.stderr.strip() == "Error: not ready yet (set PODCAST_DEBUG=1 for the traceback)"
 
 
 def test_unrelated_exception_types_are_not_swallowed():
