@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,24 @@ from podcast_mcp.project_io import copy_relocated_workspace
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 _E2E_PIPELINE = _FIXTURES / "e2e_pipeline.yaml"
+
+# pyproject.toml addopts sets a blanket --timeout=60 sized for the default fast
+# suite. e2e_slow tests run live ASR / heavier pipelines that can take minutes
+# (#795), so give the tier its own bound here instead of lifting the limit
+# globally. A test with its own explicit @pytest.mark.timeout keeps that value.
+E2E_SLOW_TIMEOUT_SEC = 300
+
+
+def apply_e2e_slow_timeout(
+    items: Iterable[pytest.Item], seconds: int = E2E_SLOW_TIMEOUT_SEC
+) -> None:
+    for item in items:
+        if item.get_closest_marker("e2e_slow") and not item.get_closest_marker("timeout"):
+            item.add_marker(pytest.mark.timeout(seconds))
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    apply_e2e_slow_timeout(items)
 
 
 @pytest.fixture(autouse=True)
