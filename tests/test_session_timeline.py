@@ -201,6 +201,13 @@ def test_map_timeline_spans_follow_origin_media_across_lanes(tmp_path):
         (float(s.timeline_start), float(s.source_start))
         for s in st.map_timeline_spans("host", TimelineSec(0), TimelineSec(13))
     ] == [(3.0, 10.0)]
+    assert st.map_timeline_span("host", TimelineSec(0), TimelineSec(13)) == [(10, 20)]
+    lane = st.lane_clip_spans("guest")
+    assert [
+        (s.timeline_start, s.timeline_end, s.source_start, s.source_end, s.clip.source_id)
+        for s in lane
+    ] == [(3, 13, 10, 20, "host-recording")]
+    assert st.lane_clip_spans("host") == []
 
 
 def test_source_to_timeline_clamped(compressed_project):

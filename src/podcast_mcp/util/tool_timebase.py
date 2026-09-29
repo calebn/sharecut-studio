@@ -1,9 +1,4 @@
-"""Registry of MCP/CLI tool time-parameter semantics (source vs timeline clock).
-
-Reconciliation tool times stay source-clock even though audibility and measured
-bleed-path analysis project raw samples through ``SessionTimeline`` when stems
-are absent.
-"""
+"""Registry of MCP/CLI tool time-parameter semantics (source vs timeline clock)."""
 
 from __future__ import annotations
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+from collections import Counter
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,7 +17,8 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_MAX_WORD_DURATION_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
+from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -29,7 +31,6 @@ from podcast_mcp.util.progress import (
     resolve_progress_task,
 )
 from podcast_mcp.util.source_spans import source_span_timeline_bounds
-from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 if TYPE_CHECKING:
@@ -319,6 +320,8 @@ class TrackRmsCacheSet:
 
 def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
     caches: dict[str, TrackRmsCache] = {}
+    sources: dict[Path, np.ndarray] = {}
+    raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
     for tid in dialogue_track_ids(project):
         proc = _processed_track_path(project, tid)
@@ -327,34 +330,50 @@ def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
             continue
 
         track = project.track_by_id(tid)
-        if track is None or track.media is None:
+        if track is None:
             continue
         try:
-            source = load_mono_full(track_audio_path(project, tid), sample_rate=_RMS_SAMPLE_RATE)
+            spans = timeline.lane_clip_spans(tid)
+            paths = (
+                [resolve_clip_audio_path(project, track, span.clip) for span in spans]
+                if spans
+                else [track_audio_path(project, tid).resolve()]
+            )
+        except (OSError, ValueError):
+            continue
+        raw_tracks[tid] = spans, paths
+
+    remaining_users = Counter(path for _, paths in raw_tracks.values() for path in set(paths))
+    for tid, (spans, paths) in raw_tracks.items():
+        try:
+            samples = _raw_samples_on_timeline(spans, paths, sources=sources)
         except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
             continue
-        samples = _raw_samples_on_timeline(tid, source, timeline=timeline)
+        finally:
+            for path in set(paths):
+                remaining_users[path] -= 1
+                if remaining_users[path] == 0:
+                    sources.pop(path, None)
         if samples.size:
             caches[tid] = TrackRmsCache(samples=samples)
     return TrackRmsCacheSet(caches=caches)
 
 
 def _raw_samples_on_timeline(
-    track_id: str,
-    source: np.ndarray,
+    spans: list[TimelineClipSpan],
+    paths: list[Path],
     *,
-    timeline: SessionTimeline,
+    sources: dict[Path, np.ndarray],
 ) -> np.ndarray:
-    """Place raw source samples on the session clock, leaving clip gaps silent."""
-    extent = timeline.timeline_extent(track_id)
-    if extent is None:
-        return source
-
-    timeline_end, _ = extent
     sample_rate = _RMS_SAMPLE_RATE
-    spans = timeline.map_timeline_spans(track_id, TimelineSec(0.0), timeline_end)
+    for path in paths:
+        if path not in sources:
+            sources[path] = load_mono_full(path, sample_rate=sample_rate)
+    if not spans:
+        return sources[paths[0]]
     if len(spans) == 1:
         span = spans[0]
+        source = sources[paths[0]]
         if (
             span.timeline_start == 0
             and span.source_start == 0
@@ -362,21 +381,18 @@ def _raw_samples_on_timeline(
             and round(float(span.source_end) * sample_rate) == source.size
         ):
             return source
-    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=source.dtype)
-    for span in spans:
+
+    timeline_end = max(span.timeline_end for span in spans)
+    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=np.float32)
+    for span, path in zip(spans, paths, strict=True):
+        source = sources[path]
         target_start = round(float(span.timeline_start) * sample_rate)
+        target_end = round(float(span.timeline_end) * sample_rate)
         source_start = round(float(span.source_start) * sample_rate)
-        if target_start < 0 or source_start < 0:
-            continue
-        count = min(
-            round((float(span.timeline_end) - float(span.timeline_start)) * sample_rate),
-            source.size - source_start,
-            placed.size - target_start,
-        )
-        if count > 0:
-            placed[target_start : target_start + count] += source[
-                source_start : source_start + count
-            ]
+        count = target_end - target_start
+        if target_start < 0 or source_start < 0 or source_start + count > source.size:
+            raise ValueError(f"clip {span.clip.id} source samples are unavailable")
+        placed[target_start:target_end] += source[source_start : source_start + count]
     return placed
 
 
