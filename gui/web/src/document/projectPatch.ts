@@ -159,6 +159,10 @@ function sameSuppressedOnly(
   return Boolean(a.suppressed_only) === Boolean(b.suppressed_only);
 }
 
+function sameLockedWords(a: CombinedUtterance, b: CombinedUtterance): boolean {
+  return sameItems(a.locked_word_indices ?? [], b.locked_word_indices ?? []);
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
@@ -183,7 +187,8 @@ function overlayTranscriptWords(
       prior.text !== utterance.text ||
       !sameIgnoredWords(prior, utterance) ||
       !sameEdgeSuppressedWords(prior, utterance) ||
-      !sameSuppressedOnly(prior, utterance)
+      !sameSuppressedOnly(prior, utterance) ||
+      !sameLockedWords(prior, utterance)
     ) {
       complete = false;
       return utterance;

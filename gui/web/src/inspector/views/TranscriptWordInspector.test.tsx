@@ -235,6 +235,58 @@ describe("TranscriptWordInspector", () => {
     });
   });
 
+  it("moves focus to the heading when Return to automatic disappears", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(async () => {
+      useDawStore.setState({ project: projectWithSuppressedWord() });
+    });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    const button = screen.getByRole("button", { name: "Return to automatic" });
+    button.focus();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(
+      screen.queryByRole("button", { name: "Return to automatic" }),
+    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "there" })).toHaveFocus();
+    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("yes");
+  });
+
+  it("records a detached unlock failure under the lock flag", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    let reject: (error: Error) => void = () => {
+      throw new Error("request not started");
+    };
+    vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const { rerender } = render(
+      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to automatic" }),
+    );
+    rerender(
+      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+    );
+    await act(async () => {
+      reject(new Error("unlock failed"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 1,
+      originalText: "there",
+      flag: { name: "audibility_locked", was: true },
+      message: "Could not update “there”: unlock failed",
+    });
+  });
+
   it("Apply with end index = start calls correctTranscriptWord", async () => {
     render(<TranscriptWordInspector trackId="host" wordIndex={0} />);
     expect(

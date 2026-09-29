@@ -153,17 +153,6 @@ function isWordSpan(startWordIndex: number, endWordIndex: number): boolean {
  * view, so their text is identical. If two loaded listings still disagree,
  * the index is unverifiable and maps to `null` rather than guessing which
  * listing is current.
- *
- * That branch is defensive. The only way listings come from different
- * snapshots is the SHELL overlay (`overlayTranscriptWords` in
- * `document/projectPatch.ts`), which reuses a row's previous `words[]` only
- * while that row's text, `ignored_word_indices`,
- * `edge_suppressed_word_indices` and `suppressed_only` (#758) are unchanged
- * and otherwise marks the words incomplete
- * (the inspector then shows "Loading"). `document/projectPatch.test.ts` pins
- * that a SHELL overlay of a word listed under two utterances leaves both
- * listings agreeing or the words incomplete; the disagreement tests in
- * `utils/transcript.test.ts` use hand-built fixtures.
  */
 function collectWordTexts(
   project: ProjectView | null,
