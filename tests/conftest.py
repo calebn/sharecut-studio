@@ -97,6 +97,24 @@ def _repo_pipeline_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _hide_host_word_aligner(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Unit tests never see the developer's downloaded word aligner (#780).
+
+    Forced alignment is on whenever the snapshot is installed, so a test that transcribes
+    with default options would otherwise load the real model on a machine that has it.
+    Tests plant a fake snapshot (``model_pin_helpers.plant_pinned_word_aligner``) or stub
+    ``WordAligner.load``; ``e2e_real`` tests keep the host cache.
+    """
+    if request.node.get_closest_marker("e2e_real"):
+        return
+    monkeypatch.setattr(
+        "podcast_mcp.config.word_aligner_cache_dir", lambda: tmp_path / "word-aligner"
+    )
+
+
+@pytest.fixture(autouse=True)
 def _transcript_refine_gate_off_by_default(
     request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
 ) -> None:

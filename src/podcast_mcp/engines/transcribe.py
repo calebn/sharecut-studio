@@ -491,7 +491,7 @@ class TranscriptionEngine:
         *,
         use_cache: bool,
     ) -> None:
-        """Opt-in forced alignment; on any failure Whisper's times stay and the job is reported."""
+        """Forced alignment (on when the aligner is installed); on any failure Whisper's times stay and the job is reported."""
         if not self.options.forced_alignment_enabled or not transcript.words:
             return
         from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD

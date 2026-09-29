@@ -1,4 +1,4 @@
-"""Opt-in CTC forced-alignment pass over Whisper's words (#714).
+"""CTC forced-alignment pass over Whisper's words (#714; on by default when installed, #780).
 
 Re-times Whisper's word boundaries with a local wav2vec2 CTC aligner
 (``word_aligner_models.WORD_ALIGNER_CATALOG``). Words the aligner cannot
