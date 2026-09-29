@@ -155,6 +155,17 @@ voice is a defect whatever they score, so such a row reads at least `review` wit
 the reason `voiced speech cut through this join (see speech); never a pass`. The
 audition context raises the same crossings as
 `speech_crosses_cut` (see [audio-engineering.md](audio-engineering.md#agent-audition-context-v2)).
+The gate measures splice texture, not content: a cut that starts inside a word at
+-10 dBFS and resumes inside the untranscribed onset of the next word reads as
+continuous (audra 1485.417 s on the aligned lab run scores 0.28 `review`), while
+the same cut started in the gap reads as a level and spectral jump (0.61 `fail`),
+although the second is the shape of every natural word onset. Tighten proposals
+therefore settle their edges before the gate sees them (`fillers._check_voiced_speech`
+over `edits/voiced_runs.py`, [filler-cut-quality.md § Voiced edges](filler-cut-quality.md#policy)):
+an edge inside a kept word's voice is moved out of it or the cut is reviewed, so the
+gate never gets to bless an in-speech edge for texture. The gate's verdict still
+flips at its 0.48 threshold on 3–6 ms edge shifts; that sensitivity is unchanged
+here and tracked in #815.
 The project join sweep reuses each track's decoded waveform, natural-join
 calibration, and high-rate source reader across its joins. PCM WAV checks seek
 bounded windows through one open reader. Other containers use FFmpeg to seek
