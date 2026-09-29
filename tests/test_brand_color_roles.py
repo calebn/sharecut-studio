@@ -514,24 +514,54 @@ def test_review_stop_outline_meets_non_text_contrast(theme: str) -> None:
         assert _contrast_ratio(outline, fill) >= 3.0, (theme, fill)
 
 
+_WASH_RE = re.compile(r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)")
+
+
 @pytest.mark.parametrize("theme", ["dark", "light"])
 def test_locked_word_shadow_meets_non_text_contrast(theme: str) -> None:
-    """The audibility-lock indicator (#781, `.utterance-word.locked`) draws a solid
-    --color-text-secondary inset box-shadow over the plain surface and the active
-    turn (accent-subtle) / segment (accent-muted) washes; WCAG 1.4.11 needs 3:1.
-    --color-border-strong, tried first, measured 2.63/2.91 on the turn wash and
-    1.75/2.24 on the segment wash (dark/light) and was replaced (#802 review)."""
+    """The audibility-lock indicator (#781, `.utterance-word.locked`) is a solid
+    inset box-shadow; WCAG 1.4.11 needs 3:1 against every fill a locked word can
+    sit on, live-measured in Studio (#802 review, round 2):
+
+    - plain surface, active turn (accent-subtle) and active segment (accent-muted).
+    - active word (clicked or currently playing): accent-strong over the segment.
+    - hover, and selected: `.utterance-word:hover` has higher specificity than
+      `.active`/`.selected`, so it replaces the word's own background outright
+      (confirmed live via getComputedStyle) with a white-10% wash over the
+      segment, rather than layering over the active-word/selected fill. Selected
+      alone uses the same accent-muted wash as the segment, over the segment.
+
+    --color-border-strong (round 1) failed the turn/segment washes.
+    --color-text-secondary (round 2) failed the active-word fill (2.41/3.07) and
+    the hover/selected-adjacent fills; --color-text-primary clears 3:1 everywhere
+    with margin.
+    """
     roles = _studio_roles(theme)
     accent = _resolve_hex("--color-accent", roles)
     surface = _resolve_hex("--color-bg-surface", roles)
     turn = _mix(accent, surface, _accent_wash_alpha("--color-accent-subtle", roles))
     segment = _mix(accent, turn, _accent_wash_alpha("--color-accent-muted", roles))
-    shadow = _resolve_hex("--color-text-secondary", roles)
-    for fill in (surface, turn, segment):
-        assert _contrast_ratio(shadow, fill) >= 3.0, (theme, fill)
+    active_word = _mix(accent, segment, _accent_wash_alpha("--color-accent-strong", roles))
+    selected = _mix(accent, segment, _accent_wash_alpha("--color-accent-muted", roles))
 
+    white_match = _WASH_RE.fullmatch(roles["--color-overlay-white-10"])
+    assert white_match, roles["--color-overlay-white-10"]
+    white = _resolve_hex(white_match.group(1), roles)
+    hover_alpha = float(white_match.group(2)) / 100
+    hover = _mix(white, segment, hover_alpha)
 
-_WASH_RE = re.compile(r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)")
+    shadow = _resolve_hex("--color-text-primary", roles)
+    fills = {
+        "surface": surface,
+        "active_turn": turn,
+        "active_segment": segment,
+        "active_word": active_word,
+        "hover": hover,
+        "selected": selected,
+        "selected_hover": hover,
+    }
+    for name, fill in fills.items():
+        assert _contrast_ratio(shadow, fill) >= 3.0, (theme, name, fill)
 
 
 @pytest.mark.parametrize("theme", ["dark", "light"])

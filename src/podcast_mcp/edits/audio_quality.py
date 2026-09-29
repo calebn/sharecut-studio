@@ -364,6 +364,17 @@ def suppress_bleed_words(
         if w.suppressed
     }
     targets -= already_suppressed
+    if not explicit:
+        # Apply skips a locked-unsuppressed word (resolve_auto_suppression), so
+        # the heuristic preview must too, or it lists a word apply then leaves
+        # alone (#781/#791's preview == apply rule, #802 review).
+        locked_unsuppressed = {
+            (tr.track_id, i)
+            for tr in project.transcripts
+            for i, w in enumerate(tr.words)
+            if w.audibility_locked and not w.suppressed
+        }
+        targets -= locked_unsuppressed
 
     candidates: list[dict[str, Any]] = []
     for tr in project.transcripts:
