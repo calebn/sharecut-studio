@@ -407,6 +407,56 @@ def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
     assert any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
 
+def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_false(
+    tmp_path: Path,
+):
+    """apply_suppression must write the status behind a text-match suppression even when
+    a direct engine call passes update_status=False (#791 follow-up: this combination is
+    unreachable through run_reconciliation, but trunk left it suppressing the word while
+    leaving its audibility_status/dominant_track stale)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        reconcile_transcript(project, policy=pol, dry_run=False, update_status=False)
+
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    assert guest.words[1].suppressed is True
+    assert guest.words[1].audibility_status == "bleed"
+    assert guest.words[1].dominant_track == "host"
+
+
+def test_reconcile_flag_mode_tags_text_match_loser_without_suppressing(tmp_path: Path):
+    """flag mode (update_status without apply_suppression) must tag a text-match loser's
+    audibility_status/dominant_track as bleed/the winner's track without suppressing it
+    (#791 follow-up: flag mode previously skipped the text-match override entirely, so the
+    loser stayed tagged audible)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="flag", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        run_reconciliation(project, policy=pol, dry_run=None)
+
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    assert guest.words[1].suppressed is False
+    assert guest.words[1].audibility_status == "bleed"
+    assert guest.words[1].dominant_track == "host"
+
+
 def test_reconcile_transcript_suppresses_bleed(tmp_path: Path):
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(transcript_mode="reconcile", bleed_dominance_db=6.0)
