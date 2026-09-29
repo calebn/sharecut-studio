@@ -98,6 +98,77 @@ def test_audition_context_captions_and_skew(minimal_project, sample_wav, tmp_wor
     assert all(h["code"] != "clip_skew" for h in ctx["hypotheses"])
 
 
+def _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace):
+    """Two aligned tracks sharing one ripple join at timeline 1.0 s."""
+    proj = load_project(minimal_project)
+    raw = tmp_workspace / "raw"
+    raw.mkdir(exist_ok=True)
+    for tid in ("host", "guest"):
+        (raw / f"{tid}.wav").write_bytes(sample_wav.read_bytes())
+    proj.tracks = [
+        Track(
+            id=tid,
+            label=tid,
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=60.0),
+        )
+        for tid in ("host", "guest")
+    ]
+    proj.clips = []
+    for tid in ("host", "guest"):
+        proj.clips += [
+            Clip(id=f"{tid}_a", track_id=tid, source_start=0.0, source_end=1.0, timeline_start=0.0),
+            Clip(
+                id=f"{tid}_b", track_id=tid, source_start=20.0, source_end=40.0, timeline_start=1.0
+            ),
+        ]
+    save_project(proj, minimal_project)
+    return load_project(minimal_project)
+
+
+def test_single_track_trim_after_a_shared_join_is_clip_skew(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.edits.timeline_ops import trim_clip_edge
+
+    proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
+    trim_clip_edge(proj, "guest_b", "in", 19.6)
+    ctx = build_audition_context(
+        proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
+    )
+    (pair,) = ctx["clip_skew"]["pairs"]
+    assert pair["skewed"] is True
+    assert pair["skew_sec"] == pytest.approx(0.4, abs=1e-6)
+    assert pair["source_delta_sec"] == pytest.approx(0.4, abs=1e-6)
+    assert ctx["clip_skew"]["any_skewed"] is True
+    assert ctx["clip_skew"]["warnings"] == [
+        "host and guest are 400 ms out of sync at 11.00s relative to their alignment "
+        "(a single-track ripple moved one of them); undo it, or trim the join on every track"
+    ]
+    (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "clip_skew"]
+    assert hyp["tracks"] == ["guest", "host"]
+    assert hyp["severity"] == "warn"
+    assert hyp["next"]["tools"] == ["history_undo", "trim_clip_edge_tool"]
+    assert any(
+        w.startswith("clip_skew: host and guest are 400 ms out of sync") for w in ctx["warnings"]
+    )
+
+
+def test_all_tracks_trim_keeps_the_tracks_in_sync(minimal_project, sample_wav, tmp_workspace):
+    from podcast_mcp.edits.timeline_ops import trim_clip_edge
+
+    proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
+    trim_clip_edge(proj, "guest_b", "in", 19.6, all_tracks=True)
+    ctx = build_audition_context(
+        proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
+    )
+    (pair,) = ctx["clip_skew"]["pairs"]
+    assert pair["skewed"] is False
+    assert pair["skew_sec"] == 0.0
+    assert ctx["clip_skew"]["any_skewed"] is False
+    assert all(h["code"] != "clip_skew" for h in ctx["hypotheses"])
+
+
 def test_audition_context_aligned_no_skew(minimal_project, sample_wav, tmp_workspace):
     proj = _two_track_project(minimal_project, sample_wav, tmp_workspace, skew_sec=0.0)
     ctx = build_audition_context(proj, 2.0, 6.0)

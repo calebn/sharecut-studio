@@ -22,6 +22,7 @@ from podcast_mcp.engines.audio_audit import (
     measure_window_rms_db,
     recommend_boundary_fades,
 )
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
@@ -314,8 +315,36 @@ def test_suppress_low_audibility_mutates_and_rebuilds(tmp_path: Path):
     )
     assert result["suppressed_count"] == 1
     assert project.transcripts[0].words[0].suppressed is True
+    assert project.transcripts[0].words[0].audibility_locked is True
     merged = TranscriptionEngine().merge_transcripts(project)
     assert "quiet" not in merged.utterances[0].text if merged.utterances else True
+
+
+def test_suppress_low_audibility_heuristic_respects_lock(tmp_path: Path):
+    """#781: a bulk (no word_keys) apply must not override a locked-unsuppressed word."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(
+                    text="quiet", start=0.0, end=0.2, suppressed=False, audibility_locked=True
+                ),
+                TranscriptWord(text="loud", start=0.3, end=0.5),
+            ],
+        )
+    ]
+    with patch(
+        "podcast_mcp.edits.audio_quality.list_low_audibility_words",
+        return_value=[{"track_id": "host", "word_index": 0}],
+    ):
+        result = suppress_low_audibility_words(project, track_id="host")
+    assert result["suppressed_count"] == 0
+    assert project.transcripts[0].words[0].suppressed is False
+    assert project.transcripts[0].words[0].audibility_locked is True
 
 
 def test_zero_duration_words_classified_inaudible(tmp_path: Path):
@@ -996,11 +1025,16 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
             words=[TranscriptWord(text="x", start=0.0, end=0.4)],
         )
     ]
-    flagged = [
+    audibility_map = [
         {
             "track_id": "host",
             "word_index": 0,
+            "text": "x",
+            "start": 0.0,
+            "end": 0.4,
             "audibility_status": "inaudible",
+            "dominant_track": None,
+            "suppressed": False,
         }
     ]
     pol = AnalysisPolicy(transcript_mode="suggest")
@@ -1014,8 +1048,8 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
-            return_value=flagged,
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
+            return_value=audibility_map,
         ),
         patch(
             "podcast_mcp.engines.audio_audit.recommend_boundary_fades",
@@ -1024,7 +1058,9 @@ def test_analyze_cleanup_suggest_mode_and_skip_non_dialogue(tmp_path: Path):
     ):
         report = analyze_cleanup(project, policy=pol)
     assert len(report["tracks"]) == 1
-    assert report["tracks"][0]["suppression_recommendations"]
+    assert report["tracks"][0]["suppression_recommendations"] == [
+        {"track_id": "host", "word_index": 0}
+    ]
     assert "boundary fade" in report["summary"]
 
 
@@ -1043,7 +1079,7 @@ def test_analyze_cleanup_summary_no_issues(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=[],
         ),
         patch(
@@ -1077,7 +1113,7 @@ def test_analyze_cleanup_shares_cache_set(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(aa, "analyze_gate_overreach", record_gate)
     monkeypatch.setattr(aa, "list_low_audibility_words", record)
-    monkeypatch.setattr(aa, "list_flagged_words", record)
+    monkeypatch.setattr(aa, "compute_word_audibility_map", record)
     monkeypatch.setattr(aa, "recommend_boundary_fades", record)
     aa.analyze_cleanup(project)
     assert len(builds) == 1
@@ -1299,7 +1335,7 @@ def test_analyze_cleanup_flags_high_bleed_ratio(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=bleed_rows,
         ),
         patch(
@@ -1337,7 +1373,7 @@ def test_analyze_cleanup_no_bleed_warning_below_threshold(tmp_path: Path):
             return_value=[],
         ),
         patch(
-            "podcast_mcp.engines.audio_audit.list_flagged_words",
+            "podcast_mcp.engines.audio_audit.compute_word_audibility_map",
             return_value=bleed_rows,
         ),
         patch(
@@ -1358,6 +1394,96 @@ def test_analyze_cleanup_bleed_ratio_none_without_transcript(tmp_path: Path):
     ]
     report = analyze_cleanup(project)
     assert report["tracks"][0]["bleed_ratio"] is None
+
+
+def test_analyze_cleanup_off_mode_skips_audibility_map(tmp_path: Path):
+    """``transcript_mode: off`` must not pay for an acoustic pass it never reports:
+    characterization pin, true on trunk and on this branch alike."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    project.timeline.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="x", start=0.0, end=0.4)])
+    ]
+    pol = AnalysisPolicy(transcript_mode="off")
+
+    with patch(
+        "podcast_mcp.engines.audio_audit.compute_word_audibility_map"
+    ) as mock_audibility_map:
+        report = analyze_cleanup(project, policy=pol)
+
+    mock_audibility_map.assert_not_called()
+    row = report["tracks"][0]
+    assert row["flagged_count"] == 0
+    assert "suppression_recommendations" not in row
+
+
+def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
+    """A word the acoustic map alone calls audible, but that loses an identical-text
+    overlap to another track, still gets a suppression recommendation (#806): the
+    recommendation comes from `word_targets`, the same per-word rule
+    `reconcile_transcript` applies, not from the acoustic map on its own."""
+    project = EpisodeProject.create("ep", str(tmp_path))
+    for tid in ("host", "guest"):
+        project.timeline.tracks.append(
+            Track(id=tid, label=tid, role=TrackRole.DIALOGUE, speaker=tid)
+        )
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.5, confidence=0.9),
+                TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.9),
+            ],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text="world", start=0.0, end=0.5, confidence=0.9),
+                TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85),
+            ],
+        ),
+    ]
+    pol = AnalysisPolicy(transcript_mode="suggest", bleed_text_match_enabled=True)
+
+    def room_pair(source: str, bleed: str) -> EchoPairProfile:
+        return EchoPairProfile(
+            source_track_id=source,
+            bleed_track_id=bleed,
+            span_start=0.0,
+            span_end=10.0,
+            dominated_frames=100,
+            copy_frames=40,
+            consistent_frames=30,
+            lag_ms=3.0,
+            level_db=-18.0,
+            examples=(1.0,),
+            null_runs=8,
+            null_copy_rate=0.05,
+            null_consistent_rate=0.02,
+        )
+
+    # The identical-text rule runs only on a pair with measured bleed (#774); bleed
+    # both ways keeps the loudness rule this test pins.
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            return_value=-35.0,
+        ),
+        patch(
+            "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
+            new=lambda caches: [room_pair("host", "guest"), room_pair("guest", "host")],
+        ),
+    ):
+        report = analyze_cleanup(project, policy=pol)
+
+    by_track = {row["track_id"]: row for row in report["tracks"]}
+    assert by_track["guest"]["flagged_count"] == 0
+    assert by_track["guest"]["suppression_recommendations"] == [
+        {"track_id": "guest", "word_index": 1}
+    ]
+    assert "suppression_recommendations" not in by_track["host"]
 
 
 def test_audio_diagnostics_report_with_processed_stem(tmp_path: Path, sample_wav: Path):
@@ -1596,3 +1722,17 @@ def test_clipping_indicated_unions_astats_signals() -> None:
     assert (
         clipping_indicated({"peak_level_db": -12.0, "flat_factor": 0.0, "peak_count": 99}) is False
     )
+    assert clipping_indicated({"peak_level_db": -12.0, "flat_factor": 6.0}) is True
+
+
+def test_clipping_indicated_ignores_flat_factor_in_near_silence() -> None:
+    """A gated track peaking at -68.7 dBFS repeats sample values (flat_factor 6.0)
+    without clipping anything (#775)."""
+    from podcast_mcp.engines.audio_audit import clipping_indicated
+
+    assert (
+        clipping_indicated({"peak_level_db": -68.725109, "flat_factor": 6.0206, "peak_count": 2})
+        is False
+    )
+    assert clipping_indicated({"peak_level_db": -20.0, "flat_factor": 6.0}) is True
+    assert clipping_indicated({"peak_level_db": -20.1, "flat_factor": 6.0}) is False

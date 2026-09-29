@@ -126,6 +126,58 @@ def autocorr_peak(
     return float(sample_rate) / float(lag), float(corr[lag]) / energy
 
 
+def voicing_probes(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    probe_sec: float,
+    hop_sec: float,
+    fmin: float,
+    fmax: float,
+) -> np.ndarray:
+    """Normalized speech-pitch autocorrelation peak of each ``probe_sec`` frame every ``hop_sec``.
+
+    A frame :func:`autocorr_peak` cannot score (silent, or too short for the lag
+    range) scores 0.0. Input shorter than one probe is scored as a single frame;
+    empty input yields an empty array.
+    """
+    if samples.size == 0:
+        return np.empty(0, dtype=np.float64)
+    frame = min(samples.size, max(1, round(sample_rate * probe_sec)))
+    hop = max(1, round(sample_rate * hop_sec))
+    scores = []
+    for start in range(0, samples.size - frame + 1, hop):
+        peak = autocorr_peak(samples[start : start + frame], sample_rate, fmin=fmin, fmax=fmax)
+        scores.append(peak[1] if peak is not None else 0.0)
+    return np.asarray(scores, dtype=np.float64)
+
+
+def high_band_energy_fraction(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    split_hz: float,
+    lo_hz: float,
+    hi_hz: float,
+) -> float:
+    """Share of the ``[lo_hz, hi_hz]`` spectral energy that lies at or above ``split_hz``.
+
+    One Hann-windowed spectrum over the whole input; silent or too-short input
+    scores 0.0.
+    """
+    if samples.size < 2:
+        return 0.0
+    x = samples.astype(np.float64, copy=True)
+    x -= np.mean(x)
+    power = np.abs(np.fft.rfft(x * np.hanning(x.size))) ** 2
+    freqs = np.fft.rfftfreq(x.size, d=1.0 / sample_rate)
+    band = (freqs >= lo_hz) & (freqs <= hi_hz)
+    total = float(np.sum(power[band]))
+    if total <= 1e-20:
+        return 0.0
+    return float(np.sum(power[band & (freqs >= split_hz)]) / total)
+
+
 def bool_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Half-open ``(start, end)`` index spans of contiguous ``True`` values."""
     flags = np.asarray(mask, dtype=bool)

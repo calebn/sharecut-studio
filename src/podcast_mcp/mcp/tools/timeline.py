@@ -213,6 +213,29 @@ def set_clip_join_tool(
     return to_json(EditService(ws).set_clip_join(left_clip_id, right_clip_id, mode, length_ms))
 
 
+def trim_clip_edge_tool(
+    project_path: str,
+    clip_id: str,
+    edge: str,
+    source_sec: float,
+    all_tracks: bool = False,
+) -> str:
+    """Move one clip's ``in`` or ``out`` edge to ``source_sec`` (source-media seconds).
+
+    Later clips ripple by the duration change; expansion is clamped to unused source
+    between the neighbouring clips. Default is track-local (a punch or a single-track
+    clip): only this track ripples. For a session-wide cut (a ripple that left an edge
+    on every dialogue track at this join) pass ``all_tracks=true`` so the same source
+    delta is applied to every track's edge at that instant and the episode stays in
+    sync; trimming one track alone would desync the rest (``clip_skew``). The fix for a
+    ``speech_crosses_cut`` hypothesis from ``audition_context_tool`` is its
+    ``evidence.fix`` (clip, edge, source_sec, all_tracks). Same operation as the DAW
+    trim handle (``TrimClipEdge``); undoable. Follow with ``render_preview``.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(EditService(ws).trim_clip_edge(clip_id, edge, source_sec, all_tracks=all_tracks))
+
+
 def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
@@ -758,6 +781,7 @@ def register(mcp: MCPServer) -> None:
         set_clip_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
+        trim_clip_edge_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,
@@ -794,6 +818,7 @@ def register(mcp: MCPServer) -> None:
         set_clip_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
+        trim_clip_edge_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,

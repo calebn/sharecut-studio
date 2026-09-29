@@ -54,8 +54,10 @@ values for fields FFmpeg only prints once, e.g. `Crest factor`):
   means over-compression/over-limiting already baked into the source.
 - `flat_factor` — consecutive samples at the crest. Treat it as clipping only together
   with `peak_level_db` near 0 dBFS; quantized quiet tones can look "flat" without
-  hitting digital max. `peak_count` is how many times the file hit *its own* peak,
-  not 0 dBFS.
+  hitting digital max. `clipping_indicated` therefore ignores `flat_factor` when the
+  peak is under `CLIPPING_MIN_PEAK_DB` (-20 dBFS): a gated Zoom track peaking at
+  -68.7 dBFS reported `flat_factor` 6.0 and is not clipped (#775). `peak_count` is how
+  many times the file hit *its own* peak, not 0 dBFS.
 - `noise_floor_db` / `dynamic_range_db` — how much room is between noise and peaks.
 
 ## High-bleed warning
@@ -251,8 +253,14 @@ as the effect params to use a different one of `GregorR/rnnoise-models`'s preset
 
 ## Silero-VAD breath detection (opt-in)
 
-`edits/breath_detect.py` defaults to an RMS-percentile heuristic to locate breath
-sounds adjacent to a cut. Setting `tighten.breath_handling.vad_backend: silero` in
+`edits/breath_detect.py` defaults to a level-band heuristic to locate breath sounds
+adjacent to a cut: 10 ms frames that sit at least 9.5 dB above the track's room tone
+and 7–40 dB below its speech level, both read as the 10th and 90th percentiles of the
+live frames in 5 s of kept audio on each side of the cut (`level_profile`,
+`breath_level_band`). Nothing about the band is absolute, so a quiet −48 dBFS breath
+over a −70 dBFS floor and a −26 dBFS breath under −15 dBFS speech are both in band,
+while a noise-gated track with no live audio near the cut yields no band and no
+breath. Setting `tighten.breath_handling.vad_backend: silero` in
 [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml) switches to
 [`engines/vad_silero.py`](../src/podcast_mcp/engines/vad_silero.py), which looks for
 a breath as a *dip* in Silero VAD speech-probability (breaths are voiced-adjacent
@@ -275,16 +283,40 @@ tune it by ear against real recordings before switching the default away from
 The same sample-window classifiers reject breath-shaped acoustic gap filler
 candidates. Configure `tighten.acoustic_gap_filler.vad_backend` separately; its
 default remains `heuristic`. Classification is confined to each proposed run.
-The RMS classifier compares a run with short, audible windows inside both
+The level classifier compares a run with short, audible windows inside both
 flanking transcript words; it abstains and leaves the run for review when
-either speech reference is missing or below the active audibility floor.
-For an acoustic candidate in the heuristic breath band, short pitch probes
-also keep clearly periodic speech-like runs reviewable; weakly periodic
-broadband breath-like runs may be rejected. This check does not alter adjacent
-cut breath co-removal.
-Silero does not require that RMS reference. Model lookup happens once per
-classification, and model or inference failures fall back to the RMS heuristic.
-Tune against real recordings by ear before changing either default.
+either speech reference is missing or below the active audibility floor, and
+with no room-tone measurement its band is bounded by that speech level alone.
+For an acoustic candidate in the heuristic breath band, 40 ms speech-pitch
+probes every 10 ms also keep clearly periodic speech-like runs reviewable;
+weakly periodic broadband breath-like runs may be rejected.
+Silero does not require that level reference. Model lookup happens once per
+classification, and model or inference failures fall back to the level heuristic.
+
+With either backend, a run only counts as a breath when the same pitch sweep
+finds no probe at or above a normalized autocorrelation peak of 0.55 over the
+run and, for adjacent-cut co-removal, over everything between the run and the
+cut edge, and when less than half of the 100 Hz–8 kHz energy of the run, and
+separately of that gap, lies above 4 kHz (a sibilant, not a breath). The
+heuristic probes only frames that reach the band floor: on the lab tape room
+tone 40 dB under the speech level scores 0.6–0.8 on the same sweep, and it is
+not speech to protect (#814). A breath is unvoiced noise, and a level band
+or a VAD probability dip alone selects the quieter frames of ordinary speech in
+a loud window. This applies to adjacent-cut breath co-removal as well as to
+acoustic candidates (#798), so a cut is never extended over a voiced run; the
+next quieter run in the window is tried instead. For adjacent-cut co-removal
+the kept transcript words are also handed to the classifier as keep-out spans:
+a frame inside one is never breath and the stretch between a run and the cut
+may not touch one, because the search windows lie inside the neighbouring word
+whenever a cut edge abuts it (a word the cut removes at least half of is not
+kept). A run that continues a kept word on its far side without the level first
+falling to the band floor is that word's decay or onset and is rejected too, so
+a fricative onset under the 4 kHz split or a voiced tail whose probes stay under
+0.55 cannot be co-removed; the heuristic scans the whole 5 s of flanking audio
+for that walk. And no frame between the run and the cut may exceed the band
+ceiling (speech level −7 dB): vocal fry has pulses at speech level but scores
+0.1–0.4 on the 70–350 Hz probe, so level, not pitch, is what separates it from
+a breath. Tune against real recordings by ear before changing either default.
 
 ## Agent audition context (v2)
 
@@ -294,6 +326,86 @@ the span (same numbers as `audio_diagnostics_tool` with a window) and emits
 60s. Longer windows emit `dsp_unavailable` instead of a full-file FFT. It does not
 attach PNGs. Windowed extract uses a fresh timeline stem or `SessionTimeline`
 source mapping — never timeline seconds on raw/stale files.
+
+Three checks make the context an agent's ears at edit boundaries (#775):
+
+- **`speech_crosses_cut`** — for every splice whose join instant lies in the window
+  (`clips_ops.splice_joins`, on every dialogue track), `edits/join_speech.py` reads
+  the raw source around each clip edge (1.0 s of removed audio, 0.4 s kept) at 16 kHz,
+  frames it (20 ms / 10 ms hop), calls a frame speech when it sits within 25 dB of the
+  window's loud frames (95th percentile) and above -50 dBFS, bridges 30 ms dips, and
+  requires the run through the edge to be periodic (`util.dsp.autocorr_peak` over
+  70–350 Hz, like the acoustic-gap detector) so a cut breath is not flagged. A clip
+  that starts inside such a run for at least 100 ms is a **clipped onset**; a clip
+  that ends inside one is a **clipped tail**; runs shorter than 40 ms on the removed
+  side are ignored, and a run that dies within 100 ms inside the clip is a remnant,
+  not a phrase. Evidence: `voice_edge_source_sec`, `removed_ms`,
+  `suggested_source_sec` (60 ms of air before the voice edge), kept/removed levels,
+  the transcript words either side of the cut and `asr_disagrees` (no word covers
+  the cut although the voice does). This is why the check works from audio energy
+  and not word times: Whisper placed the lab's `Um,` 490 ms after the voice onset,
+  the forced aligner 850 ms after it. `evidence.session_join` says whether every
+  dialogue track has a clip edge at that instant (a ripple) or only this track (a
+  punch), and `evidence.fix` is the one command that restores the audio without
+  desyncing the episode: `trim_clip_edge_tool(clip_id, edge, source_sec,
+  all_tracks=session_join)`. A session-wide cut trimmed on one track alone leaves that
+  track's later clips out of step with the others (see `clip_skew`). The other fix is
+  `suggest_handoff_cut_tool` to move the cut to a silence.
+- **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
+  mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
+  the listener hears, one clock for every track). In 50 ms frames where speaker A is
+  above -40 dBFS, mic B is open (above -60 dBFS) and at least 6 dB quieter, the
+  normalised cross-correlation peak over ±40 ms marks B as carrying a copy of A when
+  it reaches 0.25; the copies' lags are clustered in half-millisecond bins and the
+  copies within ±1.5 ms of the most common lag are the *consistent* ones. Chance
+  peaks between independent voices also cluster near 0 ms (full overlap gives the
+  normalised correlation its largest variance at small lags), which is where a
+  same-room path sits, so every pair is scored against its own **null**: the same
+  two mics with B shifted by ±7.3, ±13.1, ±23.3 and ±31.7 s (independent by
+  construction), sampled on up to 400 dominated frames per shift and pooled into one
+  consistent-copy rate per dominated frame. A pair is `echo_risk` when it has at
+  least 20 copy frames, at least 12 consistent ones, its consistent count is
+  improbable under the null (one-sided binomial tail `p_value` ≤ `null_p_max`,
+  0.001, exact in log space) and its rate is at least `null_margin` (1.5×) the null,
+  so a long span cannot flag a small excess. Measured on the lab tape: the same-room
+  pair audra→caleb has p ≤ 1.4e-6 on every 600 s span of the unedited run (ratios
+  2.4 to 5.9) and p = 1.2e-24 on the 220 s agent timeline; the best remote pair with
+  the count floors met is caleb→lana at 100–700 s, ratio 1.83, p = 0.035; 16
+  time-shifted audra/caleb controls reach at most ratio 1.92, p ≥ 0.039; six
+  synthetic cases (independent harmonic voices, an open noise floor, same-pitch
+  voices, delayed copies at -15 and -24 dB) all classify correctly. A stationary periodic voice correlates with itself
+  at any shift, but at lags spread over its period multiples, so the null rises with
+  it and the one-lag cluster is what a real acoustic path adds. Evidence carries the
+  pair, `lag_ms` (positive = B lags A), `level_db` (B relative to A), the frame
+  counts, `copy_rate` / `consistent_rate`, `null_copy_rate` / `null_consistent_rate`
+  and `null_runs`, the thresholds, the analysed span and the strongest `examples`
+  (timeline seconds); `suggested_listen` composes the pair at the first example. A
+  stale or missing stem skips the pair and adds `echo_check_needs_fresh_stems` to
+  `limits` (`stale_render` already says to render first). Profiles are cached
+  in-process by stem `file_revision`. One summed correlation function over all
+  co-open frames was measured and rejected: on the lab tape it did not separate the
+  same-room pair from the remote one. Act on it by listening to the compose entry
+  or reading the per-pair evidence, then gate the bleed mic to its own words
+  ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)) or fix mic
+  placement for the next session; never gate a track on the code alone. Reconcile
+  runs the same statistic on its own RMS caches (`echo_risk_pairs`) to pick the
+  source mic on a flagged pair ([transcript-reconcile.md](transcript-reconcile.md#bleed-pairs-the-source-wins-by-lag-not-by-loudness-774)).
+  `lag_ms` is the acoustic path inside ±40 ms; where the bleed mic's ASR copy lands
+  relative to the source's own words is a separate, transcript-side lag, −150 ms on
+  the lab tape because the co-host's stream reaches the recording host over the
+  network after her voice reached his mic.
+- **`clip_skew`** — `clip_skew.pairs[]` has always carried `source_delta_sec` (the
+  two tracks' source clocks at the window mid); that alone is not desync, because
+  tracks aligned with different offsets differ by design and a track-local punch
+  keeps later clips in place. Each track's shift at mid (timeline minus source) is
+  now compared with its own first clip's shift (its alignment); a session ripple
+  moves every track alike and a punch moves none, so a pair whose shifts moved apart
+  by more than `skew_warn_sec` (50 ms) was rippled on one track only. Such a pair is
+  `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line and a `clip_skew`
+  hypothesis (`history_undo`, or `trim_clip_edge_tool` with `all_tracks=true`).
+
+`clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
+(`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
 
 The owner golden-ear harness requests this context without track DSP so its
 captions and timing cannot be mistaken for measurements of a proposed cut. It
@@ -305,8 +417,9 @@ PNGs and per-side errors in `key.json`; see [filler-cut-quality.md](filler-cut-q
 `FFmpegEngine.annotate_time_marks` (`drawbox`; `drawtext` only when the ffmpeg
 build includes it). Read the PNG paths; do not treat spectrograms as ASR.
 
-The payload stays a briefing, not a kitchen sink: no LUFS, join scores, or bleed
-maps in the same JSON (call those tools). No extra MOS. No stacked mix PNG (the
+The payload stays a briefing, not a kitchen sink: no LUFS, join scores, or per-word
+bleed maps in the same JSON (call those tools; the two boundary checks above are the
+exception because they are what a blind editor cannot infer from captions). No extra MOS. No stacked mix PNG (the
 engine already has `render_stacked_showwavespic` for alignment audit). No
 hypothetical FX graph without mutating the project. Share guests do not get
 host `audition_context_tool` / `play_compose_tool` — see

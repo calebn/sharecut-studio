@@ -53,7 +53,7 @@ This is editorial judgment (content edit + rough cut), not mechanical density
 **Mutate:** `apply_edit_plan_tool`, `approve_edits_tool`, `edit_impact_report_tool`,
 `play_transcript_query_tool`, `play_audio_tool`, `history_snapshot`, `history_undo`.
 
-See **podcast-play-audition** for playback rules (`track:` vs source vs `processed:`).
+See **podcast-play-audition** for playback rules (`track:` vs source vs `processed:`) and for the context check you run on every applied join before export (§ Ears: `speech_crosses_cut`, `echo_risk`).
 
 ## Workflow
 
@@ -206,9 +206,11 @@ Session without duration goal:
 2. Write `focus_brief.md` with theme + core/support/divert map.
 3. Propose 4–8 REVIEW/DIVERT cuts (repeats, travel digressions that don't pay off).
 4. User: “Keep the Facebook-group safety story” → reclassify that segment as CORE.
-5. Approve → assemble → premix audition at act boundaries.
+5. Approve → assemble → `audition_context_tool` on every applied join (or one `join_qa_sweep_tool`), fix each `speech_crosses_cut` with its `evidence.fix` (`trim_clip_edge_tool`, `all_tracks=true` on a session-wide cut), confirm each `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed** → premix audition at act boundaries → export.
 
 **Alignment:** if audition text ≠ audio, fix transcript source times before bulk cuts.
+
+**Ears:** you cannot hear the joins you make. Transcript word times can be hundreds of ms off the voice (Whisper and the forced aligner both were on the lab tape), so a cut placed a comfortable pad before a word can still clip its onset. The context check measures the audio at each clip edge; run it on every join before export (**podcast-play-audition** § Ears).
 
 ## v2 (engine, not required for agents)
 

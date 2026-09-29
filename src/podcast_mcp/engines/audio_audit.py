@@ -32,6 +32,9 @@ from podcast_mcp.util.source_spans import source_span_timeline_bounds
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path, track_audio_path
 
 _RMS_SAMPLE_RATE = 8000
+# Acoustic statuses that call for transcript suppression (used both for the flagged/
+# bleed report and, via `word_targets`, for suggest-mode's suppression_recommendations).
+_FLAGGED_STATUSES = ("inaudible", "bleed")
 
 
 @dataclass(frozen=True)
@@ -158,15 +161,26 @@ def measure_astats(path: Path, *, ffmpeg: str | None = None) -> dict[str, float 
 # ``peak_count`` is occasions at the file's own peak, not digital max — do not
 # treat a positive count as clipping by itself.
 CLIPPING_PEAK_LEVEL_DB = -0.3
+# Below this peak nothing can be clipped: flat_factor also counts repeated sample
+# values in dithered near-silence (a gated Zoom track peaked at -68.7 dBFS with
+# flat_factor 6.0, #775), so the flat-factor test needs a level floor.
+CLIPPING_MIN_PEAK_DB = -20.0
 
 
 def clipping_indicated(astats: dict[str, Any] | None) -> bool:
-    """True when astats show pinned crests or near-full-scale peaks."""
+    """True when astats show pinned crests or near-full-scale peaks.
+
+    A missing ``peak_level_db`` is treated as loud enough, so an astats row that
+    only carries ``flat_factor`` still counts.
+    """
     if not astats:
         return False
     peak = astats.get("peak_level_db")
-    if isinstance(peak, (int, float)) and peak >= CLIPPING_PEAK_LEVEL_DB:
-        return True
+    if isinstance(peak, (int, float)):
+        if peak >= CLIPPING_PEAK_LEVEL_DB:
+            return True
+        if peak < CLIPPING_MIN_PEAK_DB:
+            return False
     flat = astats.get("flat_factor")
     return isinstance(flat, (int, float)) and flat > 0
 
@@ -559,7 +573,7 @@ def list_flagged_words(
         for row in compute_word_audibility_map(
             project, track_id=track_id, policy=policy, progress=progress, caches=caches
         )
-        if row["audibility_status"] in ("inaudible", "bleed")
+        if row["audibility_status"] in _FLAGGED_STATUSES
     ]
 
 
@@ -947,6 +961,25 @@ def analyze_cleanup(
     caches = build_track_rms_caches(project)
     per_track: list[dict[str, Any]] = []
 
+    raise_if_cancel_requested(cancel_check, "Cleanup analysis cancelled")
+    flagged_by_track: dict[str, list[dict[str, Any]]] = {}
+    targets: dict[tuple[str, int], dict[str, Any]] = {}
+    if pol.transcript_mode != "off":
+        # Whole project, not just `tracks`: a text-match loser's winner may sit on a
+        # track outside this report's scope, and `word_targets` judges every pair
+        # regardless of scope (#805, #806). Computed once and reused below instead of
+        # a second per-track acoustic pass.
+        audibility_map = compute_word_audibility_map(
+            project, policy=pol, progress=None, caches=caches
+        )
+        for row in audibility_map:
+            if row["audibility_status"] in _FLAGGED_STATUSES:
+                flagged_by_track.setdefault(row["track_id"], []).append(row)
+
+        from podcast_mcp.engines.transcript_reconcile import word_targets
+
+        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
+
     with resolve_progress_task(
         "analyze-cleanup",
         "Running cleanup analysis",
@@ -964,11 +997,7 @@ def analyze_cleanup(
             low_aud = list_low_audibility_words(
                 project, policy=pol, track_id=tid, progress=None, caches=caches
             )
-            flagged = (
-                list_flagged_words(project, policy=pol, track_id=tid, progress=None, caches=caches)
-                if pol.transcript_mode != "off"
-                else []
-            )
+            flagged = flagged_by_track.get(tid, [])
             bleed = [f for f in flagged if f["audibility_status"] == "bleed"]
             tr_for_ratio = project.transcript_for_track(tid)
             total_words = len(tr_for_ratio.words) if tr_for_ratio else 0
@@ -1004,10 +1033,16 @@ def analyze_cleanup(
                     "alone won't remove it from the audio; see podcast-mute-bleed to gate "
                     "stems, and check mic gain staging/placement for future recordings."
                 )
-            if pol.transcript_mode == "suggest" and flagged:
-                track_row["suppression_recommendations"] = [
-                    {"track_id": f["track_id"], "word_index": f["word_index"]} for f in flagged
+            if pol.transcript_mode == "suggest" and tr_for_ratio:
+                recs = [
+                    {"track_id": tid, "word_index": i}
+                    for i, w in enumerate(tr_for_ratio.words)
+                    if not (w.ignored or w.audibility_locked or w.suppressed)
+                    and (target := targets.get((tid, i))) is not None
+                    and target["audibility_status"] in _FLAGGED_STATUSES
                 ]
+                if recs:
+                    track_row["suppression_recommendations"] = recs
             per_track.append(track_row)
             task.advance(1, total=len(tracks), message=f"track {tid}")
 

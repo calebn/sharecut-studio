@@ -39,6 +39,7 @@ import {
   TranscriptTurnView,
 } from "../transcript/TranscriptTurnView";
 import {
+  TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CUT_AWAY_WORD_TIP,
   TRANSCRIPT_IGNORED_WORD_TIP,
   TRANSCRIPT_INLINE_SAVING_STATUS,
@@ -1120,6 +1121,9 @@ export function TranscriptPanel() {
                   const ignoredTip = w.ignored
                     ? TRANSCRIPT_IGNORED_WORD_TIP
                     : undefined;
+                  const lockedTip = w.audibility_locked
+                    ? TRANSCRIPT_AUDIBILITY_LOCKED_TIP
+                    : undefined;
                   const restoreRun =
                     wordIndex != null
                       ? runsByLastPos?.get(wordIndex)
@@ -1161,6 +1165,7 @@ export function TranscriptPanel() {
                         cutAwayTip ?? interactionTip,
                         suspectTip,
                         ignoredTip,
+                        lockedTip,
                         prominent ? PROMINENT_TIP : undefined,
                       ]
                         .filter(Boolean)

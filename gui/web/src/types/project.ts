@@ -206,6 +206,8 @@ export interface TranscriptWordView {
   ignored?: boolean;
   /** Own-track audio under the word is digital silence, or the forced aligner found no acoustic evidence (possible Whisper hallucination). */
   suspect_hallucination?: boolean;
+  /** A person or agent set `suppressed` directly (not a heuristic pass); reconcile and auto-suppress leave it alone (#768/#781). */
+  audibility_locked?: boolean;
 }
 
 /**

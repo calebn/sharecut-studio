@@ -378,6 +378,7 @@ def _word_view(
         "suppressed": bool(word.suppressed),
         "ignored": bool(word.ignored),
         "suspect_hallucination": bool(word.suspect_hallucination),
+        "audibility_locked": bool(word.audibility_locked),
     }
 
 

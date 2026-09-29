@@ -85,7 +85,7 @@ With `rerender=true` the move and its stale marks are committed first, in one st
 
 Bleed mute (`apply_transcript_gate_tool`) sets `track.transcript_gate` in the project snapshot. That flag is what makes history A/B audible: segment render re-applies the gate when the flag is on, and skips it after undo.
 
-A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488).
+A busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, both `filelock.Timeout`) escaping any command is caught by the root `BusyErrorGroup` (`cli/busy.py`), the one choke point for every CLI command: it prints `Error: <message>` to stderr and exits 1, instead of an unhandled-exception traceback. Move-specific commands (`undo`, `redo`, `history goto`) still catch their own narrower errors first for move advice text; a lock timeout reaches the group either way (#488). The same choke point also catches a domain guard error (`ValueError` / `RuntimeError`, e.g. `TranscriptRefineRequiredError`) escaping any command, printing it the same way (#773); set `PODCAST_DEBUG=1` to get the original traceback back for either case instead of the one-line message.
 
 Snapshots are recorded automatically before/after:
 

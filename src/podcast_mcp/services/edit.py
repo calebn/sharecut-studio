@@ -853,17 +853,21 @@ class EditService:
         source_sec: float,
         *,
         mode: str = "ripple",
+        all_tracks: bool = False,
     ) -> dict:
         return self.ws.mutate(
             "before trim clip edge",
             "after trim clip edge",
-            lambda p: trim_clip_edge(p, clip_id, edge, source_sec, mode=mode),
+            lambda p: trim_clip_edge(
+                p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks
+            ),
             operation="trim_clip_edge",
             params={
                 "clip_id": clip_id,
                 "edge": edge,
                 "source_sec": source_sec,
                 "mode": mode,
+                "all_tracks": all_tracks,
             },
         )
 

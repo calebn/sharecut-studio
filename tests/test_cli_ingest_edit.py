@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import click
 import pytest
 from typer.testing import CliRunner
 
@@ -425,6 +426,160 @@ def test_edit_transcript_and_preview_cut(minimal_project):
     assert "start" in json.loads(preview.stdout)
 
 
+def test_transcript_correct_phrase_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "correct-phrase",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--start-word-index",
+            "0",
+            "--end-word-index",
+            "1",
+            "--text",
+            "hi there",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Corrected." in result.stdout
+    words = load_project(project).transcripts[0].words
+    assert [w.text for w in words] == ["hi", "there"]
+
+
+def test_transcript_correct_phrase_cmd_stale_index_prints_clean_error(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "correct-phrase",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--start-word-index",
+            "0",
+            "--end-word-index",
+            "1",
+            "--text",
+            "hi there",
+            "--expected-text",
+            "not the actual words",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert click.unstyle(result.stderr.strip()) == (
+        "Error: Transcript words 0-1 on track 'host' changed since you read them, "
+        "so the edit was not applied. Re-read the transcript and try again. "
+        "(set PODCAST_DEBUG=1 for the traceback)"
+    )
+
+
+def test_transcript_suppress_word_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    suppress = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+        ],
+    )
+    assert suppress.exit_code == 0
+    suppressed_word = load_project(project).transcripts[0].words[0]
+    assert suppressed_word.suppressed is True
+    assert suppressed_word.audibility_locked is True
+
+    unsuppress = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+            "--unsuppressed",
+        ],
+    )
+    assert unsuppress.exit_code == 0
+    unsuppressed_word = load_project(project).transcripts[0].words[0]
+    assert unsuppressed_word.suppressed is False
+    assert unsuppressed_word.audibility_locked is True
+
+
+def test_transcript_cleanup_batch_cmd(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    corrections = json.dumps({"words": [{"word_index": 0, "text": "Hello"}]})
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            corrections,
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Applied 1 correction(s)." in result.stdout
+    assert load_project(project).transcripts[0].words[0].text == "Hello"
+
+
+def test_transcript_cleanup_batch_cmd_rejects_non_object_json(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            "[]",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "--corrections-json must be a JSON object" in click.unstyle(result.output)
+
+
+def test_transcript_cleanup_batch_cmd_rejects_invalid_json(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            "not json",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "--corrections-json is not valid JSON" in click.unstyle(result.output)
+
+
 def test_edit_join_quality_cli(minimal_project, monkeypatch):
     project = _setup_edit_project(minimal_project)
 
@@ -503,6 +658,7 @@ def test_edit_timeline_ops(minimal_project):
             "0.2",
             "--end",
             "0.3",
+            "--json",
         ],
     )
     assert ripple.exit_code == 0
@@ -718,10 +874,39 @@ def test_edit_ripple_delete_by_query(minimal_project):
                 str(project),
                 "--query",
                 "hello",
+                "--json",
             ],
         )
     assert result.exit_code == 0
     assert json.loads(result.stdout)["operation"] == "ripple_delete_text"
+
+
+def test_edit_ripple_delete_default_prints_summary(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
+        svc_cls.return_value.ripple_delete.return_value = {
+            "operation": "ripple_delete",
+            "affected_tracks": ["host", "guest"],
+            "timeline_duration_sec": 12.5,
+            "join_quality": {"verdict": "pass", "risk": 0.12},
+        }
+        result = runner.invoke(
+            app,
+            [
+                "edit",
+                "ripple-delete",
+                "--project",
+                str(project),
+                "--start",
+                "0.2",
+                "--end",
+                "0.3",
+            ],
+        )
+    assert result.exit_code == 0
+    assert result.stdout.strip() == (
+        "Ripple-deleted: timeline now 12.50s, 2 track(s), join pass (risk 0.12)."
+    )
 
 
 def test_edit_move_by_query(minimal_project):

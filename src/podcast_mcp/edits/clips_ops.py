@@ -44,6 +44,64 @@ def abutting_pairs(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
     return [(left, right) for left, right in pairwise(clips) if clips_abut(left, right)]
 
 
+SPLICE_SOURCE_EPS_SEC = 1e-4
+"""Smallest source discontinuity (seconds) between neighbouring clips that counts as a splice."""
+
+
+def is_splice(left: Clip, right: Clip) -> bool:
+    """True when ``right`` does not resume where ``left`` stopped in the source.
+
+    A split clip (continuous source) is not a splice; a cut, a ripple delete or a
+    clip moved in from another source is. The single rule shared by join QA and
+    the audition context.
+    """
+    if left.source_id != right.source_id:
+        return True
+    return abs(float(right.source_start) - float(left.source_end)) >= SPLICE_SOURCE_EPS_SEC
+
+
+def splice_joins(clips: Sequence[Clip]) -> list[tuple[Clip, Clip]]:
+    """Neighbouring ``(left, right)`` pairs of timeline-sorted ``clips`` whose source is discontinuous."""
+    return [(left, right) for left, right in pairwise(clips) if is_splice(left, right)]
+
+
+JOIN_INSTANT_EPS_SEC = 1e-3
+"""Clip edges within this many timeline seconds of each other sit on one join instant."""
+
+
+def clip_edges_at(
+    project: EpisodeProject, timeline_sec: float, edge: str
+) -> dict[str, Clip | None]:
+    """Per dialogue track, the clip whose ``in`` (start) or ``out`` (end) edge sits at ``timeline_sec``.
+
+    A session-wide cut (ripple) leaves an edge on every track at the same instant; a
+    track-local punch leaves one on its own track only. ``None`` marks a track without
+    an edge there.
+    """
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    if edge not in ("in", "out"):
+        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+    out: dict[str, Clip | None] = {}
+    for tid in dialogue_track_ids(project):
+        out[tid] = next(
+            (
+                c
+                for c in clips_for_track(project, tid)
+                if abs((c.timeline_start if edge == "in" else c.timeline_end) - timeline_sec)
+                <= JOIN_INSTANT_EPS_SEC
+            ),
+            None,
+        )
+    return out
+
+
+def is_session_join(project: EpisodeProject, timeline_sec: float, edge: str) -> bool:
+    """True when every dialogue track has a clip edge at ``timeline_sec``."""
+    edges = clip_edges_at(project, timeline_sec, edge)
+    return bool(edges) and all(c is not None for c in edges.values())
+
+
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 
@@ -256,6 +314,30 @@ def update_timeline_duration(project: EpisodeProject) -> None:
 _MIN_CLIP_SPAN_SEC = 0.05
 
 
+def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[float, float]:
+    """Source range ``(lo, hi)`` a clip's ``in`` or ``out`` edge may move to.
+
+    Expansion stops at the neighbouring clip's source on the same track (and at the
+    media end when known); contraction keeps ``_MIN_CLIP_SPAN_SEC`` of the clip.
+    """
+    if edge not in ("in", "out"):
+        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
+    track_clips = clips_for_track(project, clip.track_id)
+    idx = clip_index(track_clips, clip.id)
+    prev = previous_clip(track_clips, clip.id)
+    nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
+    if edge == "out":
+        hi = float("inf")
+        track = project.track_by_id(clip.track_id)
+        if track is not None and track.media is not None and track.media.duration_sec is not None:
+            hi = float(track.media.duration_sec)
+        if nxt is not None:
+            hi = min(hi, float(nxt.source_start))
+        return clip.source_start + _MIN_CLIP_SPAN_SEC, hi
+    lo = 0.0 if prev is None else max(0.0, float(prev.source_end))
+    return lo, clip.source_end - _MIN_CLIP_SPAN_SEC
+
+
 def trim_clip_edge(
     project: EpisodeProject,
     clip_id: str,
@@ -280,33 +362,14 @@ def trim_clip_edge(
     if clip is None:
         raise ValueError(f"unknown clip_id: {clip_id!r}")
 
-    track_clips = clips_for_track(project, clip.track_id)
-    idx = clip_index(track_clips, clip_id)
-    prev = previous_clip(track_clips, clip_id)
-    nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
-
-    track = project.track_by_id(clip.track_id)
-    media_end = float("inf")
-    if track is not None and track.media is not None and track.media.duration_sec is not None:
-        media_end = float(track.media.duration_sec)
-
     old_dur = clip.source_end - clip.source_start
     old_tl_end = clip.timeline_end
 
+    lo, hi = trim_edge_limits(project, clip, edge)
     if edge == "out":
-        lo = clip.source_start + _MIN_CLIP_SPAN_SEC
-        hi = media_end
-        if nxt is not None:
-            hi = min(hi, float(nxt.source_start))
-        new_end = min(max(float(source_sec), lo), hi)
-        clip.source_end = new_end
+        clip.source_end = min(max(float(source_sec), lo), hi)
     else:
-        lo = 0.0
-        if prev is not None:
-            lo = max(lo, float(prev.source_end))
-        hi = clip.source_end - _MIN_CLIP_SPAN_SEC
-        new_start = min(max(float(source_sec), lo), hi)
-        clip.source_start = new_start
+        clip.source_start = min(max(float(source_sec), lo), hi)
 
     new_dur = clip.source_end - clip.source_start
     delta = new_dur - old_dur

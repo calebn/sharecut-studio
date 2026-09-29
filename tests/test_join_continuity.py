@@ -218,6 +218,137 @@ def test_assess_proposed_cut_and_project_joins(minimal_project: Path, sample_wav
     assert "disclaimer" in sweep
 
 
+def test_existing_join_scores_the_splice_sides(minimal_project: Path) -> None:
+    """A timeline join on a clip splice abuts the left clip's end and the right clip's
+    start; the raw audio around the resume point alone is not the join (#775)."""
+    project = load_project(minimal_project)
+    raw = project.workspace_path() / "raw" / "host.wav"
+    sr = 16000
+    t = np.arange(2 * sr) / sr
+    samples = np.where(t < 1.0, 0.5 * np.sin(2 * np.pi * 220.0 * t), 0.0).astype(np.float32)
+    pcm = (samples * 32767).astype("<i2")
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes(pcm.tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    # Left clip ends inside the tone; right clip resumes in the silent half.
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=0.5, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=1.5, source_end=2.0, timeline_start=0.5),
+    ]
+    save_project(project, minimal_project)
+    project = load_project(minimal_project)
+
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    level = next(h for h in rep.detectors if h.name == "level_jump")
+    assert level.detail["pre_db"] > -12.0
+    assert level.detail["post_db"] < -100.0
+    assert level.score == 1.0
+
+    sweep = assess_project_joins(project, track_id="host", config=_cfg())
+    assert sweep["join_count"] == 1
+    assert sweep["joins"][0]["source_gap_sec"] == 1.0
+    (join,) = sweep["joins"]
+    skipped = ("source_gap_sec", "speech", "verdict", "reasons")
+    assert {k: v for k, v in join.items() if k not in skipped} == {
+        k: v for k, v in rep.to_dict().items() if k not in ("verdict", "reasons")
+    }
+    # The left clip ends 500 ms before the tone stops: a clipped tail on the sweep too,
+    # and a row with a crossing never reads pass.
+    assert sweep["speech_cross_count"] == 1
+    assert join["speech"][0]["direction"] == "clipped_tail"
+    assert join["speech"][0]["removed_ms"] == pytest.approx(500.0, abs=20.0)
+    assert rep.verdict == "fail"
+    assert join["verdict"] == "fail"
+    assert join["reasons"] == rep.reasons
+
+
+def test_inaudible_splice_passes_with_its_levels(minimal_project: Path) -> None:
+    """Room tone against gated digital silence is below the audibility floor on both
+    sides: no level-jump fail, one ``inaudible_splice`` hit, verdict pass."""
+    project = load_project(minimal_project)
+    raw = project.workspace_path() / "raw" / "host.wav"
+    sr = 16000
+    rng = np.random.default_rng(3)
+    samples = np.concatenate(
+        [rng.normal(0, 10 ** (-75 / 20), sr).astype(np.float32), np.zeros(sr, dtype=np.float32)]
+    )
+    pcm = (samples * 32767).astype("<i2")
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes(pcm.tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=0.5, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=1.5, source_end=2.0, timeline_start=0.5),
+    ]
+    save_project(project, minimal_project)
+    project = load_project(minimal_project)
+
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=_cfg())
+    assert rep.verdict == "pass"
+    assert rep.risk == 0.0
+    assert [h.name for h in rep.detectors] == ["inaudible_splice"]
+    assert rep.detectors[0].detail["floor_db"] == -60.0
+    assert rep.detectors[0].detail["left_db"] < -60.0
+    assert rep.detectors[0].detail["right_db"] == -200.0
+    assert "inaudible splice: both sides below -60 dBFS" in rep.reasons
+    proposed = assess_proposed_cut(project, "host", 0.5, 1.5, timebase="source", config=_cfg())
+    assert proposed.verdict == "pass"
+    assert [h.name for h in proposed.detectors] == ["inaudible_splice"]
+    sweep = assess_project_joins(project, track_id="host", config=_cfg())
+    assert sweep["pass_count"] == 1 and sweep["fail_count"] == 0
+
+
+def test_sweep_row_with_a_speech_crossing_is_never_a_pass(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    """The continuity detectors score the splice's texture; a cut through the track's own
+    voice at that join is a defect whatever they score, so the row reads review. The
+    tiny fixture cuts 0.5 s out of a steady tone, which the crossing detector reads as a
+    clipped onset and tail, while the splice itself scores pass."""
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    project = _tiny_project(minimal_project, sample_wav)
+    cfg = _cfg()
+    rep = assess_existing_join(project, "host", 0.5, timebase="timeline", config=cfg)
+    assert rep.verdict == "pass"
+
+    sweep = assess_project_joins(project, track_id="host", config=cfg)
+    (row,) = sweep["joins"]
+    assert [c["direction"] for c in row["speech"]] == ["clipped_tail", "clipped_onset"]
+    assert row["verdict"] == "review"
+    assert row["risk"] == rep.to_dict()["risk"]
+    assert row["reasons"] == [
+        *rep.reasons,
+        "voiced speech cut through this join (see speech); never a pass",
+    ]
+    assert sweep["pass_count"] == 0 and sweep["review_count"] == 1
+    assert sweep["speech_cross_count"] == 2
+
+
 def test_project_join_sweep_shares_decode_and_baseline(
     minimal_project: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -248,7 +379,16 @@ def test_project_join_sweep_shares_decode_and_baseline(
     sweep = jc.assess_project_joins(project, track_id="host", config=cfg)
     assert counts == {"decode": 1, "baseline": 1}
     for actual, expected in zip(sweep["joins"], individual, strict=True):
-        assert {k: v for k, v in actual.items() if k != "source_gap_sec"} == expected
+        skipped = ("source_gap_sec", "speech", "verdict", "reasons")
+        assert {k: v for k, v in actual.items() if k not in skipped} == {
+            k: v for k, v in expected.items() if k not in ("verdict", "reasons")
+        }
+        if actual["speech"] and expected["verdict"] == "pass":
+            assert actual["verdict"] == "review"
+            assert actual["reasons"][:-1] == expected["reasons"]
+        else:
+            assert actual["verdict"] == expected["verdict"]
+            assert actual["reasons"] == expected["reasons"]
 
 
 def test_project_join_sweep_keeps_one_bounded_wav_reader(
@@ -317,7 +457,10 @@ def test_project_join_sweep_batches_unsupported_container_windows(
     assert len([cmd for cmd in commands if Path(cmd[0]).name == "ffmpeg"]) == 1
     assert len(temporary_dirs) == 1 and not temporary_dirs[0].exists()
     for actual, expected in zip(sweep["joins"], individual, strict=True):
-        assert actual["verdict"] == expected["verdict"]
+        if actual["speech"] and expected["verdict"] == "pass":
+            assert actual["verdict"] == "review"
+        else:
+            assert actual["verdict"] == expected["verdict"]
         assert actual["risk"] == pytest.approx(expected["risk"], abs=0.01)
 
 
@@ -328,7 +471,7 @@ def test_unsupported_click_windows_match_individual_flac(tmp_path: Path, sample_
 
     flac = tmp_path / "source.flac"
     run([resolve_ffmpeg(), "-y", "-v", "error", "-i", str(sample_wav), str(flac)], check=True)
-    joins = [1.2, 0.01, 0.8, 1.2, 100.0]
+    joins = [(1.2, 1.2), (0.01, 0.01), (0.3, 0.8), (1.2, 1.2), (100.0, 100.0)]
     with jc._highrate_click_scorer(flac, source_joins=joins) as score:
         actual = [score(join) for join in joins]
     expected = [jc._score_single_highrate_window(flac, join, side_sec=0.02) for join in joins]
@@ -395,8 +538,8 @@ def test_click_batch_matches_ffmpeg_audio_stream_selection(tmp_path: Path) -> No
     assert jc._preferred_audio_stream(first) == 0
     assert jc._preferred_audio_stream(second) == 1
     for path in (first, second):
-        join = 0.5
-        with jc._highrate_click_scorer(path, source_joins=[join, 0.8]) as score:
+        join = (0.5, 0.5)
+        with jc._highrate_click_scorer(path, source_joins=[join, (0.8, 0.8)]) as score:
             actual = score(join)
         expected = jc._score_single_highrate_window(path, join, side_sec=0.02)
         assert actual == pytest.approx(expected, rel=1e-5)
@@ -409,7 +552,7 @@ def test_click_batch_bounds_temporary_bytes_for_long_source(
 
     path = tmp_path / "long.flac"
     path.write_bytes(b"fixture")
-    joins = [float(7200 + i) for i in range(18)]
+    joins = [(float(7200 + i), float(9000 + i)) for i in range(18)]
     sizes: list[int] = []
     commands: list[list[str]] = []
     directories: list[Path] = []
@@ -434,7 +577,8 @@ def test_click_batch_bounds_temporary_bytes_for_long_source(
     scores = jc._score_highrate_batches(path, joins, side_sec=0.02)
     assert list(scores) == joins
     assert len(commands) == 2
-    assert sizes == [16 * 4800 * 4, 2 * 4800 * 4]
+    # Two seeked side windows per join, so a batch of 16 joins holds 32 short outputs.
+    assert sizes == [16 * 2 * 4800 * 4, 2 * 2 * 4800 * 4]
     assert all("-ss" in command and "-t" in command for command in commands)
     assert all(not directory.exists() for directory in directories)
 
@@ -461,15 +605,16 @@ def test_click_batch_failure_falls_back_per_join_and_cleans_up(
 
     def fallback(_path, join, *, side_sec):
         calls.append(join)
-        return join if join != 2.0 else None
+        return join[1] if join != (2.0, 2.5) else None
 
     monkeypatch.setattr(jc, "_preferred_audio_stream", lambda _path: 0)
     monkeypatch.setattr(jc, "run", fail_batch)
     monkeypatch.setattr(jc, "_score_single_highrate_window", fallback)
     monkeypatch.setattr(jc.tempfile, "TemporaryDirectory", tracked_temporary_directory)
-    scores = jc._score_highrate_batches(path, [1.0, 2.0, 3.0], side_sec=0.02)
-    assert scores == {1.0: 1.0, 2.0: None, 3.0: 3.0}
-    assert calls == [1.0, 2.0, 3.0]
+    joins = [(1.0, 1.0), (2.0, 2.5), (3.0, 3.0)]
+    scores = jc._score_highrate_batches(path, joins, side_sec=0.02)
+    assert scores == {(1.0, 1.0): 1.0, (2.0, 2.5): None, (3.0, 3.0): 3.0}
+    assert calls == joins
     assert len(directories) == 1 and not directories[0].exists()
 
 

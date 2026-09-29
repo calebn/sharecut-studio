@@ -322,6 +322,32 @@ def edit_strip_silence_cmd(
     typer.echo(json.dumps(result, indent=2))
 
 
+def _ripple_delete_summary(result: dict) -> str:
+    """One-line verdict for a ripple-delete result (``--json`` has the rest).
+
+    ``ripple-delete`` otherwise prints ~200 lines of per-detector JSON with no
+    verdict up front, so an agent has to pull `verdict` / `risk` /
+    `timeline_duration_sec` out by hand.
+    """
+    bits: list[str] = []
+    duration = result.get("timeline_duration_sec")
+    if duration is not None:
+        bits.append(f"timeline now {duration:.2f}s")
+    tracks = result.get("affected_tracks")
+    if tracks:
+        bits.append(f"{len(tracks)} track(s)")
+    join_quality = result.get("join_quality")
+    if isinstance(join_quality, dict) and join_quality.get("verdict") is not None:
+        risk = join_quality.get("risk")
+        verdict_bit = f"join {join_quality['verdict']}"
+        if risk is not None:
+            verdict_bit += f" (risk {risk})"
+        bits.append(verdict_bit)
+    if not bits:
+        return "Ripple-deleted."
+    return "Ripple-deleted: " + ", ".join(bits) + "."
+
+
 @edit_app.command("ripple-delete")
 def edit_ripple_delete_cmd(
     project: Path = typer.Option(..., "--project"),
@@ -329,6 +355,7 @@ def edit_ripple_delete_cmd(
     end: float | None = typer.Option(None, "--end"),
     query: str | None = typer.Option(None, "--query"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
+    as_json: bool = typer.Option(False, "--json", help="Emit the full per-detector result as JSON"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     if query:
@@ -344,7 +371,10 @@ def edit_ripple_delete_cmd(
         )
     else:
         raise typer.BadParameter("provide --start and --end, or --query")
-    typer.echo(json.dumps(result, indent=2))
+    if as_json:
+        typer.echo(json.dumps(result, indent=2))
+        return
+    typer.echo(_ripple_delete_summary(result))
 
 
 @edit_app.command("move")
@@ -447,6 +477,30 @@ def edit_set_clip_join_cmd(
     """Set one join's mode and fades (crossfade needs fades to blend)."""
     ws = ProjectWorkspace.open(project)
     typer.echo(json.dumps(EditService(ws).set_clip_join(left, right, mode, length_ms), indent=2))
+
+
+@edit_app.command("trim-clip")
+def edit_trim_clip_cmd(
+    project: Path = typer.Option(..., "--project"),
+    clip: str = typer.Option(..., "--clip", help="Clip id"),
+    edge: str = typer.Option(..., "--edge", help="in | out"),
+    source_sec: float = typer.Option(
+        ..., "--source-sec", help="New edge position in source-media seconds"
+    ),
+    all_tracks: bool = typer.Option(
+        False,
+        "--all-tracks",
+        help="Move the same join instant on every dialogue track (session-wide cut)",
+    ),
+) -> None:
+    """Move one clip edge (later clips ripple); `play context` suggests the value."""
+    ws = ProjectWorkspace.open(project)
+    typer.echo(
+        json.dumps(
+            EditService(ws).trim_clip_edge(clip, edge, source_sec, all_tracks=all_tracks),
+            indent=2,
+        )
+    )
 
 
 @edit_app.command("add-chapter")

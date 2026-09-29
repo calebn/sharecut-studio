@@ -33,6 +33,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `crossfade_joins_tool` | Opt-in overlapping crossfade at joins (music / explicit blend) |
 | `list_clips_tool` | Clip timeline for GUI/agents (`join_in_mode`, `source_id`, `origin_track_id`, effective join render `join_left_clip_id` / `join_render_mode` / `join_crossfade_ms` / `join_crossfade_blocked`) |
 | `set_clip_join_tool` | One join's mode plus fades (`left_clip_id`, `right_clip_id`, `mode`, `length_ms?`); `set_join_mode_tool` is mode-only |
+| `trim_clip_edge_tool` | Move one clip's `in` / `out` edge to a source-media second (later clips ripple; expansion clamped to unused source). Track-local by default (a punch or a single-track clip); `all_tracks=true` moves the edge every dialogue track has at that join instant by the same delta, which is the fix for a session-wide cut (a ripple): trimming one track alone desyncs the rest (`clip_skew`). It refuses when any track's edge could not move the full delta (a neighbouring clip or the media end in the way), naming each blocking track's limit and the value it needed, rather than clamping tracks differently. `speech_crosses_cut`'s `evidence.fix` gives the exact call. Same as the DAW trim handle |
 | `list_applied_edits_tool` | Committed-cut provenance from `editorial.edit_log` |
 | `render_status_tool` | Stem freshness, premix, reconciliation stale |
 | `history_status_tool` / `history_goto_tool` / `history_diff_tool` | Structured history inspector |
@@ -54,7 +55,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `play_audio_tool` | Play by time range, `query`, or `processed:<id>` / `premix` |
 | `play_compose_tool` | Mix a subset of tracks (`track_ids` + `processed`/`raw`) for a timeline window into `play_cache` (no mute/FX mutation) |
 | `play_pending_preview_tool` | Current / Suggested skip / A/B around a pending session remove (does not mutate). Host speakers. Share agents: `guest_pending_preview`. |
-| `audition_context_tool` | Per-track captions + stem freshness for a timeline window (no audio). Payload `schema: audition_context.v2` adds typed `hypotheses[]` (including windowed hum/clip at default `summary`), `suggested_listen[]`, explicit clocks, and `limits`. `detail=visual` adds PNGs. Each track also carries a `prosody` window (pitch, rate, energy, prominent words, phrase boundaries) read from the pipeline's cached profile (`missing`/`stale` with a hint when no fresh profile is cached; `unavailable` with a redacted `error` when the cached profile cannot be read or parsed); top-level `prosody_notes` has up to 8 one-line summaries — see [pipeline.md § Prosody profile](pipeline.md#prosody-profile). |
+| `audition_context_tool` | The blind editor's ears for a timeline window: per-track captions + stem freshness (no audio). Payload `schema: audition_context.v2` adds typed `hypotheses[]` (windowed hum/clip at default `summary`; `speech_crosses_cut` for every splice in the window whose clip edge sits in voiced speech, with `removed_ms`, `suggested_source_sec` and `asr_disagrees`; `echo_risk` when one dialogue mic carries another speaker at one consistent lag far more often than the same pair time-shifted, with lag, level and the null rates; `clip_skew` when a single-track ripple moved one track's later clips out of step; clipping needs a peak at or above -20 dBFS), `suggested_listen[]`, explicit clocks, and `limits` (`echo_check_needs_fresh_stems` when stems are stale). Run it on every applied join before export; fix a clipped onset with the `trim_clip_edge_tool` call in `evidence.fix`, confirm an `echo_risk` by listening or from its per-pair evidence before gating with `podcast-mute-bleed`. `detail=visual` adds PNGs. Each track also carries a `prosody` window (pitch, rate, energy, prominent words, phrase boundaries) read from the pipeline's cached profile (`missing`/`stale` with a hint when no fresh profile is cached; `unavailable` with a redacted `error` when the cached profile cannot be read or parsed); top-level `prosody_notes` has up to 8 one-line summaries — see [pipeline.md § Prosody profile](pipeline.md#prosody-profile). |
 
 ### Busy project
 
@@ -102,6 +103,7 @@ podcast comment add --project ... --author agent --start 12.5 --body "Trim intro
 podcast play --project ... --source processed:host --start 0 --end 15
 podcast play compose --project ... --track-ids host,guest --tier processed --start 12 --end 18 --dry-run
 podcast play context --project ... --start 12 --end 18
+podcast edit trim-clip --project ... --clip clip_9c2a08cf --edge in --source-sec 1575.55 --all-tracks   # session-wide cut; omit --all-tracks for a punch
 podcast edit analyze-cleanup --project ...
 podcast edit recommend-fades --project ...
 podcast edit fade-joins --project ...
@@ -111,7 +113,7 @@ podcast edit low-audibility --project ...
 
 `podcast edit approve` prints the number of edits it applied. If no requested edits can be applied, it prints `Approved 0 edit(s).` and warns on stderr. A mute or remove whose source range no longer overlaps a clip stays pending for review.
 
-Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb.
+Cut boundary optimization (default-on): [inaudible-cuts.md](inaudible-cuts.md). For punchline→pivot / “leave a beat” transitions, see **Narrative handoffs** there — use `suggest_handoff_cut_tool`, not word→word absorb. Its `retain_sec` / `--retain-sec` (default `1.0`, both sides) leaves ~2s of air at a default join; lower it (`0.3`–`0.6`) for a tighter conversational handoff — see [inaudible-cuts.md § Narrative handoffs](inaudible-cuts.md#narrative-handoffs).
 
 NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` / `filler_room_tone_replace` / `filler_pad_mode` (same as auto-tighten): default replace expands the cut across the inter-word hesitation and sets `replace_gap_sec` so approve inserts a paced beat (**silence** by default; `room_tone` opt-in). See [filler-cut-quality.md](filler-cut-quality.md). When another dialogue stem is speaking in the window (`tighten.speech_energy_guard`), the decision uses **`scope=track`** (punch silence on the cut track only) instead of cross-track ripple.
 

@@ -736,7 +736,7 @@ def label_window(
                     update={
                         "speaker_match_track": ws.best_track_id,
                         "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": cfg.auto_suppress or w.suppressed,
+                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
                     }
                 )
             changed += 1
@@ -972,16 +972,20 @@ def label_track_home_speaker(
                     continue
                 track_would += 1
                 if not dry_run:
+                    new_suppressed = w.resolve_auto_suppression(True)
                     tr.words[i] = w.model_copy(
                         update={
                             "speaker_match_track": ws.best_track_id,
                             "speaker_match_score": round(
                                 ws.scores.get(ws.best_identity or "", 0), 4
                             ),
-                            "suppressed": True,
+                            "suppressed": new_suppressed,
                         }
                     )
-                    track_done += 1
+                    # A locked word's suppressed value doesn't move (#781): don't
+                    # count it as suppressed just because this pass touched it.
+                    if new_suppressed != w.suppressed:
+                        track_done += 1
 
             would_suppress += track_would
             suppressed += track_done
@@ -1089,7 +1093,7 @@ def run_speaker_attribution(
                     update={
                         "speaker_match_track": ws.best_track_id,
                         "speaker_match_score": round(ws.scores.get(ws.best_identity or "", 0), 4),
-                        "suppressed": cfg.auto_suppress or w.suppressed,
+                        "suppressed": w.resolve_auto_suppression(cfg.auto_suppress or w.suppressed),
                     }
                 )
                 changed += 1

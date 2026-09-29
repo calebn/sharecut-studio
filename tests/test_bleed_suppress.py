@@ -100,9 +100,71 @@ def test_suppress_bleed_does_not_touch_inaudible(tmp_path: Path):
     assert host is not None
     assert host.words[1].suppressed is True
     assert host.words[1].audibility_status == "bleed"
-    assert host.words[1].audibility_locked is True
+    # Heuristic pick (no word_keys), not a caller decision: it recomputes
+    # reconcile's own bleed verdict, so it must not lock (#781 operator decision).
+    assert host.words[1].audibility_locked is False
     assert host.words[2].suppressed is False
     assert result["suppressed_count"] == 1
+
+
+def test_suppress_bleed_explicit_word_keys_locks(tmp_path: Path):
+    """An explicit word_keys list is a caller decision, so it locks (#768/#781)."""
+    project = _two_track_project(tmp_path)
+    result = suppress_bleed_words(
+        project,
+        dry_run=False,
+        word_keys=[{"track_id": "host", "word_index": 1}],
+    )
+    host = project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].suppressed is True
+    assert host.words[1].audibility_locked is True
+    assert result["suppressed_count"] == 1
+
+
+def test_suppress_bleed_heuristic_respects_existing_lock(tmp_path: Path):
+    """#781: a heuristic (no word_keys) apply must not override a word a person
+    or agent already locked unsuppressed."""
+    project = _two_track_project(tmp_path)
+    host = project.transcript_for_track("host")
+    assert host is not None
+    host.words[1] = host.words[1].model_copy(
+        update={"suppressed": False, "audibility_locked": True}
+    )
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_fake_rms,
+    ):
+        result = suppress_bleed_words(project, dry_run=False, track_id="host")
+
+    host = project.transcript_for_track("host")
+    assert host is not None
+    assert host.words[1].suppressed is False
+    assert host.words[1].audibility_locked is True
+    assert result["suppressed_count"] == 0
+    # preview == apply (#791's rule): apply skipped it, so it must not be listed
+    # as a candidate either.
+    assert result["candidates"] == []
+
+
+def test_suppress_bleed_heuristic_dry_run_excludes_locked_unsuppressed(tmp_path: Path):
+    """#781/#802: the heuristic dry-run preview must not list a word apply will
+    leave alone, or it overstates what apply does."""
+    project = _two_track_project(tmp_path)
+    host = project.transcript_for_track("host")
+    assert host is not None
+    host.words[1] = host.words[1].model_copy(
+        update={"suppressed": False, "audibility_locked": True}
+    )
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_fake_rms,
+    ):
+        result = suppress_bleed_words(project, dry_run=True, track_id="host")
+
+    assert result["dry_run"] is True
+    assert result["candidate_count"] == 0
+    assert result["candidates"] == []
 
 
 def test_suppress_bleed_time_range(tmp_path: Path):

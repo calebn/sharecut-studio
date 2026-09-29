@@ -1,12 +1,43 @@
 ---
 name: podcast-play-audition
 description: >-
-  Play podcast audio by transcript topic or time range: search what was said,
-  audition raw or processed (FX + edits) segments on the user's speakers.
-  Use when the user says play, listen, hear, or audition a moment, line, or topic.
+  The agent's ears and the user's playback. You cannot hear: before you approve,
+  after you apply, and before you export, run audition_context_tool /
+  `podcast play context` on every join and suspect window to measure what a
+  listener would hear (speech_crosses_cut = a cut through a voiced onset or tail
+  with the ms removed and the edge to trim to; echo_risk = same-room bleed, pair,
+  lag, level; hum, clipping, stale stems, captions per track). Also plays audio
+  by transcript topic or time range on the user's speakers when they say play,
+  listen, hear, or audition.
 ---
 
 # Play / audition audio
+
+## Ears for an agent that cannot hear
+
+Run **`audition_context_tool`** (CLI `podcast play context --start … --end …`) on
+every applied join and every window you are about to sign off, before `render_final`
+/ `export_deliverables`. It measures the audio; captions alone cannot show a clipped
+word or a doubled voice. Read `hypotheses[]` and act on `next`:
+
+| Code | What was measured | Do |
+|------|-------------------|----|
+| `speech_crosses_cut` | Voiced speech runs through a clip edge at a join in the window (raw source energy + voicing, not word times). `evidence.direction` is `clipped_onset` or `clipped_tail`, `removed_ms` how much voice the cut removed, `voice_edge_source_sec` where the voice really starts/ends, `asr_disagrees` when the transcript put the cut between words, `session_join` whether every track has an edge there. | Call exactly `evidence.fix`: `trim_clip_edge_tool(clip_id, edge, source_sec, all_tracks)`. `all_tracks=true` on a session-wide cut moves every track's edge together; trimming one track alone desyncs the episode (`clip_skew`). Or `suggest_handoff_cut_tool` to move the cut to a real silence. Then `render_preview` and re-check: the join reads clean (no `speech_crosses_cut`), or `join-sweep` passes it as `inaudible_splice`. `all_tracks` refuses (naming each blocking track's limit) when the tracks could not move the same amount; fix the blocking clip first. **End state:** if a join still `fail`s after the suggested fix, listen to it once (`play_audio_tool` ±1.5 s) and either accept it or record a waiver in your report; do not loop on it. A `join-sweep` row with a `speech` crossing is never a pass, whatever its verdict. After `history_undo`, check the clip edges (`list_clips_tool`) rather than counting steps: a render records a history entry only when auto-reconcile changed transcript metadata. |
+| `echo_risk` | One dialogue mic carries another speaker at one consistent lag far more often than the same two mics time-shifted (its null): `source_track_id`, `bleed_track_id`, `lag_ms`, `level_db`, `consistent_rate` vs `null_consistent_rate`, `examples`. The mix doubles that voice. | **Confirm before gating.** Listen with the `suggested_listen` compose entry at the first example, or read the per-pair evidence (a real path is several times its null; a remote guest has no acoustic path to the room). Then **podcast-mute-bleed** (`apply_transcript_gate_tool` on `bleed_track_id`). Transcript suppression alone leaves the echo in the mix; gating a clean track on the code alone silences a speaker. |
+| `clip_skew` | Two tracks drifted apart relative to their alignment: a single-track ripple (a trim or cut on one track only) moved that track's later clips. `clip_skew.pairs[].skew_sec`. | `history_undo`, or redo the trim with `all_tracks=true`. `source_delta_sec` alone is not skew (alignment offsets and punches are fine). |
+| `clipping_in_window` / `hum_in_window` | Windowed astats / hum on the span; clipping needs a peak at or above -20 dBFS (near-silent gated tracks no longer trip it). | **podcast-audio-cleanup**. |
+| `stale_render` | Stems or premix do not match the timeline; `limits` also says `echo_check_needs_fresh_stems`. | `render_preview`, then re-run the check. |
+
+`podcast edit join-sweep` / `join_qa_sweep_tool` runs the join checks on **every**
+splice in one call (each row has `speech`, the report `speech_cross_count`); use it
+after a content cut, then `play context` on the flagged joins for the full picture.
+A splice both of whose sides are below -60 dBFS passes as `inaudible_splice`; a row
+with a `speech` crossing is never a pass (the cut goes through that track's own voice,
+fix it); `review` means listen. A join that still `fail`s after its fix gets one
+listen, then accept or waive (see the table).
+Word times are not enough for cut decisions: on the lab tape Whisper placed an
+onset 490 ms late and the forced aligner 850 ms late; the energy check is what
+catches the clipped entry, with or without the aligner model installed.
 
 ## Harness
 
@@ -14,7 +45,7 @@ description: >-
 
 | Tool | When |
 |------|------|
-| `audition_context_tool` | **Before play** when diagnosing overlap / desync — per-track captions, stem freshness, typed `hypotheses[]`, `suggested_listen[]` |
+| `audition_context_tool` | **Your ears.** Every applied join, every window before sign-off, and before play when diagnosing overlap / desync — per-track captions, stem freshness, typed `hypotheses[]` (`speech_crosses_cut`, `echo_risk`, hum, clipping), `suggested_listen[]` |
 | `play_transcript_query_tool` | User names a topic or phrase — *"play where they talk about family"* |
 | `search_transcript_tool` | Preview matches before playing (multiple hits) |
 | `play_audio_tool` | Explicit time range or after you already have start/end |
@@ -50,7 +81,7 @@ podcast play pending-preview --project ... --edit-id cut1 --mode ab --gap 0.4
 When the user hears “two conversations at once,” overlap that isn’t simple crosstalk, or anything after ripple/tighten, call **`audition_context_tool`** (or `podcast play context`) **before** `play_audio_tool`:
 
 1. Returns `schema: audition_context.v2` with per-track transcript text for the **timeline** window, `window.clock`, and per-span `clock: source`.
-2. `hypotheses[]` are typed (`code`, `severity`, `confidence`, `evidence`, `next.fix.autonomy`). Treat `heuristic` as present-only. `auto_ok` is re-render / re-reconcile only; editorial/FX changes stay `needs_approval`. Windowed `hum_in_window` / `clipping_in_window` fire at **every** `detail` when the span is ≤60s (DSP on the span, not the whole stem). Longer windows emit `dsp_unavailable` instead of a full-file FFT. `detail=visual` is only for PNGs + `events[]`.
+2. `hypotheses[]` are typed (`code`, `severity`, `confidence`, `evidence`, `next.fix.autonomy`). Treat `heuristic` as present-only. `auto_ok` is re-render / re-reconcile only; editorial/FX changes stay `needs_approval`. Windowed `hum_in_window` / `clipping_in_window` fire at **every** `detail` when the span is ≤60s (DSP on the span, not the whole stem). Longer windows emit `dsp_unavailable` instead of a full-file FFT. `speech_crosses_cut` and `echo_risk` (table above) fire at every `detail` regardless of span; the join check reads raw source around each clip edge, the echo check needs fresh stems. `detail=visual` is only for PNGs + `events[]`.
 3. `suggested_listen[]` gives ready-to-call play args (`source` premix / `processed:<id>`, or `track_ids` for `play_compose_tool`). Use `hypotheses[].next.listen` instead of inventing ranges.
 4. `clip_skew.pairs` may list source-clock deltas at window mid. Unequal per-track cuts make those clocks diverge — remaining-clip math, not recorder desync. Do **not** run `podcast-align-audio` from it. Captions come from each track's `source_spans`. `stale_render` is the mix-trust warning.
 5. Flags **`stale_render`** / **`stale_reconciliation`** so you don’t trust a stale premix against current captions (`limits` includes `needs_rerender` when stale).
@@ -63,7 +94,7 @@ When the user hears “two conversations at once,” overlap that isn’t simple
 
 Do not skip this step when reviewing multitrack join quality or when the user reports disparate dialogue in the mix.
 
-**Not in this payload (call other tools / later work):** LUFS, join scores, bleed maps, premix/stacked mix PNGs, MOS, hypothetical FX without a project mutation, share-guest compose. Share agents use `guest_audition_context`, not this host tool.
+**Not in this payload (call other tools / later work):** LUFS, fused join risk scores (`join_qa_sweep_tool`), per-word bleed maps (`audibility_map_tool`), premix/stacked mix PNGs, MOS, hypothetical FX without a project mutation, share-guest compose. Share agents use `guest_audition_context`, not this host tool.
 
 **`--follow-transcript`** — unmute each track only when that speaker has non-suppressed attributed words (uses processed stems). Default source `premix` → gated **mix** of all dialogue tracks. `processed:<id>` → single gated track. `--compare` → each gated track sequentially, then gated mix. Every follow-transcript take (single track, each `--compare` take, and the gated mix) plays each track at its output gain (same rule as `play_compose_tool`). Single and compare takes keep that level, unless the gain would push a take past full scale: then it is pulled back to just under full scale instead of hard-clipping. The gated mix then peak-normalises the sum, so it matches the premix's balance between tracks but not its loudness: moving every fader by the same amount, or the fader of the only audible track, doesn't change how loud the gated mix plays.
 

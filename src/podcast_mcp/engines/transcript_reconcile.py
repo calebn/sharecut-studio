@@ -5,7 +5,13 @@ from typing import Any
 
 from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
 from podcast_mcp.edits.transcript_sync import rebuild_combined
-from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
+from podcast_mcp.engines.audio_audit import (
+    AnalysisPolicy,
+    TrackRmsCacheSet,
+    build_track_rms_caches,
+    compute_word_audibility_map,
+)
+from podcast_mcp.engines.bleed_echo import EchoPairProfile, echo_risk_pairs
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
@@ -124,6 +130,84 @@ def _reconcile_word(
             tr.words[i] = tr.words[i].model_copy(update={"suppressed": False})
 
 
+WordKey = tuple[str, int]
+
+
+def measured_echo_pairs(caches: TrackRmsCacheSet) -> list[EchoPairProfile]:
+    """Mic pairs with a bleed path, measured on the stems reconcile already decoded."""
+    if not caches.caches:
+        return []
+    rate = next(iter(caches.caches.values())).sample_rate
+    return echo_risk_pairs({tid: c.samples for tid, c in caches.caches.items()}, sample_rate=rate)
+
+
+def word_targets(
+    project: EpisodeProject,
+    *,
+    policy: AnalysisPolicy,
+    audibility_map: list[dict[str, Any]] | None = None,
+    caches: TrackRmsCacheSet | None = None,
+) -> dict[WordKey, dict[str, Any]]:
+    """One target per word for the whole project.
+
+    The target is the acoustic verdict, overridden by ``bleed`` plus the winner's track
+    where the word loses an identical-text overlap. Both verdicts come from the audio
+    and the transcript, never from the stored flags, so a repeat run on an unchanged
+    project reports zero changes (#782).
+
+    Targets know nothing about a pass's scope. A track- or window-scoped pass writes
+    only its scope but judges every text-match pair by the partner's computed target,
+    in or out of scope, so it lands where a full pass lands (#805). Pairs are judged
+    independently: a loser stays a loser when its winner loses another pair. Words no
+    pass writes (``ignored``, ``audibility_locked``, or without a row because they are
+    cut out of the timeline) enter the candidates by their stored ``suppressed`` flag.
+
+    On a mic pair with a measured bleed path the text-match winner is the source mic
+    by the path's lag, never by loudness (#774); ``measured_echo_pairs`` finds those
+    pairs on the same decoded stems.
+
+    ``audibility_map`` and ``caches`` are this project's ``compute_word_audibility_map``
+    and ``build_track_rms_caches`` when the caller already has them.
+    """
+    caches = build_track_rms_caches(project) if caches is None else caches
+    rows = (
+        compute_word_audibility_map(project, policy=policy, progress=None, caches=caches)
+        if audibility_map is None
+        else audibility_map
+    )
+    by_key: dict[WordKey, dict[str, Any]] = {
+        (row["track_id"], row["word_index"]): row for row in rows
+    }
+    if not policy.bleed_text_match_enabled:
+        return by_key
+
+    words_by_track = {tr.track_id: tr.words for tr in project.transcripts}
+
+    def acoustic_suppressed(tid: str, i: int) -> bool:
+        w = words_by_track[tid][i]
+        row = by_key.get((tid, i))
+        if row is None or w.ignored or w.audibility_locked:
+            return w.suppressed
+        return _should_suppress(row["audibility_status"])
+
+    for loser in overlap_text_match_losers(
+        project,
+        policy=policy,
+        progress=None,
+        audibility=rows,
+        is_suppressed=acoustic_suppressed,
+        echo_pairs=measured_echo_pairs(caches),
+    ):
+        key = (loser["track_id"], loser["word_index"])
+        by_key[key] = {
+            **by_key.get(key, {}),
+            "audibility_status": loser["audibility_status"],
+            "dominant_track": loser["dominant_track"],
+            "reason": loser["reason"],
+        }
+    return by_key
+
+
 def reconcile_transcript(
     project: EpisodeProject,
     *,
@@ -135,12 +219,8 @@ def reconcile_transcript(
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
 ) -> ReconciliationResult:
-    """Converge every word in scope to one target and report only what changed.
-
-    The target is the acoustic verdict, overridden by the text-match verdict where an
-    identical-text overlap picks this word as the loser. Both verdicts come from the
-    audio and the transcript, never from the stored flags, so a repeat run on an
-    unchanged project reports zero changes (#782).
+    """Converge every word in scope to its ``word_targets`` target and report only what
+    changed. ``track_id``, ``start_sec`` and ``end_sec`` bound the write, not the target.
 
     The target is computed the same way whether or not this call writes it: a
     ``dry_run=True`` preview and a ``flag``/``suggest`` tag-only pass (``update_status``
@@ -160,51 +240,21 @@ def reconcile_transcript(
         progress=progress,
     ) as task:
         task.set_phase("audibility", "Analyzing word audibility…")
-        # Every track's rows: the text-match pairs need the partner word's verdict too.
-        audibility_map = compute_word_audibility_map(project, policy=pol, progress=None)
-        result = ReconciliationResult()
-        apply_suppression = not dry_run
-
-        by_key = {(row["track_id"], row["word_index"]): row for row in audibility_map}
-        transcripts = [tr for tr in project.transcripts if not track_id or tr.track_id == track_id]
-
+        caches = build_track_rms_caches(project)
+        audibility_map = compute_word_audibility_map(
+            project, policy=pol, progress=None, caches=caches
+        )
         if pol.bleed_text_match_enabled:
             task.set_phase("text_match", "Matching bleed text…")
-            words_by_track = {tr.track_id: tr.words for tr in project.transcripts}
-            in_scope = {tr.track_id for tr in transcripts}
+        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
 
-            def acoustic_suppressed(tid: str, i: int) -> bool:
-                w = words_by_track[tid][i]
-                row = by_key.get((tid, i))
-                if (
-                    row is None
-                    or tid not in in_scope
-                    or not _reconciles_word(w, start_sec=start_sec, end_sec=end_sec)
-                ):
-                    return w.suppressed
-                return _should_suppress(row["audibility_status"])
-
-            for loser in overlap_text_match_losers(
-                project,
-                policy=pol,
-                track_id=track_id,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                progress=None,
-                audibility=audibility_map,
-                is_suppressed=acoustic_suppressed,
-            ):
-                key = (loser["track_id"], loser["word_index"])
-                by_key[key] = {
-                    **by_key.get(key, {}),
-                    "audibility_status": loser["audibility_status"],
-                    "dominant_track": loser["dominant_track"],
-                    "reason": loser["reason"],
-                }
-
-        for tr in transcripts:
+        result = ReconciliationResult()
+        apply_suppression = not dry_run
+        for tr in project.transcripts:
+            if track_id and tr.track_id != track_id:
+                continue
             for i in range(len(tr.words)):
-                row = by_key.get((tr.track_id, i))
+                row = targets.get((tr.track_id, i))
                 if not row:
                     continue
                 _reconcile_word(

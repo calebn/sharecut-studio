@@ -69,9 +69,9 @@ podcast pipeline run --project episode.project.json --unattended              # 
 
 **Fixes:** Words tagged `bleed` or `inaudible` get `suppressed: true` and are **omitted** from `combined.json` and search/play gating. Raw per-track JSON still retains all words.
 
-The reconciliation engine applies status, suppression, and reattribution together for each word, from one target per word (acoustic verdict, overridden by the identical-text overlap loser verdict), and reports only the fields that differ from the stored word. A repeat run on an unchanged project reports zero changes (#782). Its window filter leaves out-of-window words untouched; dry runs report proposed changes without applying suppression.
+The reconciliation engine applies status, suppression, and reattribution together for each word, from one target per word (acoustic verdict, overridden by the identical-text loser verdict on a mic pair with a measured bleed path, #774), and reports only the fields that differ from the stored word. A repeat run on an unchanged project reports zero changes (#782). A track or time-window scope leaves out-of-scope words untouched but still judges in-scope words against out-of-scope partners by their computed target, so a scoped pass reaches the same target as a full pass (#805); dry runs report proposed changes without applying suppression.
 
-**Does not:** Revert a word's `suppressed` once a person or agent set it directly (`audibility_locked: true`, #768). `set_word_suppressed_tool` and applying `apply_bleed_suppression_tool` / `suppress-bleed` lock the word the same way `ignored` already does; reconcile — including pass 2 after `assemble_timeline` and the text-match overlap pass — skips a locked word entirely instead of recomputing its audibility over the decision. See [episode-format-v2.md](episode-format-v2.md) for the field.
+**Does not:** Revert a word's `suppressed` once a person or agent set it directly (`audibility_locked: true`, #768). `set_word_suppressed_tool`, `apply_bleed_suppression_tool` / `suppress-bleed` called with an explicit word list, and `apply_low_audibility_suppression_tool` called with an explicit `words_json` list all lock the word the same way `ignored` already does; reconcile — including pass 2 after `assemble_timeline` and the text-match overlap pass — skips a locked word entirely instead of recomputing its audibility over the decision. A heuristic `suppress-bleed` or low-audibility apply (no explicit list) does not lock, since it is just reconcile's own verdict recomputed (#781). Speaker attribution's automatic suppression (`run_speaker_attribution`, the home-speaker gate) also leaves a locked word's `suppressed` value alone. See [episode-format-v2.md](episode-format-v2.md) for the field.
 
 Word times stay in **source-media seconds** at every layer — reconcile, precorrect, and refine never rewrite them onto the edited clock. Audibility RMS and follow-transcript gating map word source spans to timeline seconds through `SessionTimeline` when they read rendered stems (see [episode-format-v2.md § Timebase invariant](episode-format-v2.md#timebase-invariant)).
 
@@ -303,7 +303,8 @@ them with a warning, or use Studio Re-transcribe, which names the edited tracks 
 
 **What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
 `correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
-which MCP tools, CLI `podcast transcript correct` and Studio document commands all
+which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-word`,
+`cleanup-batch`) and Studio document commands all
 use, and only when the words actually changed. Automated passes stay unmarked on
 purpose because re-running the pipeline re-derives them: precorrect (glossary and
 cross-track), reconciliation, speaker attribution, audio-quality and bleed
@@ -346,8 +347,10 @@ the refused text, says Apply again retries against the current text. If the load
 no live update has arrived yet, it keeps the host's re-read wording instead.
 Once any Studio correction of the same word (same track and start index) lands, live or
 replayed from the offline queue, earlier refusals of it leave **Needs attention**.
-`podcast transcript correct` takes it as `--expected-text`; the batch cleanup /
-`verify_transcript` paths do not send it, and omitting it keeps the edit unguarded.
+`podcast transcript correct` / `correct-phrase` / `suppress-word` all take it as
+`--expected-text`; the batch cleanup (`apply_transcript_cleanup_tool` /
+`podcast transcript cleanup-batch`) / `verify_transcript` paths do not send it, and
+omitting it keeps the edit unguarded.
 MCP/CLI callers (`correct_transcript_tool`, `correct_transcript_phrase_tool`,
 `podcast transcript correct --expected-text`), the inline chip editor, and Suppress /
 Ignore do not re-capture: the fix for a rejected edit there is to re-read the transcript
@@ -458,8 +461,30 @@ respect `CaptionLimits` — never splitting inside a word, preferring a sentence
 (`.!?…`) break over a phrase (`,;:`) break over a hard cutoff, and wrapping each cue's
 text onto up to `max_lines` lines of at most `max_chars_per_line` characters. A single
 word longer than `max_chars_per_line` still gets its own (overlong) line rather than being
-split. The markdown transcript (`combined_transcript_markdown`) is unaffected: it stays
-whole utterances.
+split. A run that already fits the limits whole stays one cue even if it contains
+internal sentence/phrase punctuation (`"Yeah, totally."` is one cue, not two): a break is
+only taken when the remainder does not fit, and never when it would leave a one-word lead
+cue (`"Anyway,"` alone) — the break must leave at least two words behind it. The final cue
+list across every track is sorted by start, so a shorter run on one track that starts
+partway through a longer run on another interleaves correctly instead of trailing it. The
+markdown transcript (`combined_transcript_markdown`) is unaffected: it stays whole
+utterances.
+
+**Minimum on-screen time (#790, cross-track guards #816).** A cue under
+`min_duration_sec` first tries to merge into its nearest same-track neighbour (smaller
+gap first) when the gap between them is at most `merge_max_gap_sec`, the merged cue still
+fits every other limit, and no other track has a *word* timed inside the gap being
+bridged — checked at word granularity, not cue granularity, since another track's cue can
+start before the gap and still have a later word land inside it (an interjection
+mid-utterance). A qualifying merge can pull in a neighbour from a different utterance
+run, not just a different split of the same run. Any cue still under `min_duration_sec`
+after that is held to that duration by extending its end, capped at the start of the next
+cue on the *same* track and at the start of the next cue on *any other* track that begins
+at or after this cue's own (pre-hold) end — a track already mid-utterance when this cue
+starts isn't a "next" cue to cap against, but one that starts once this cue is naturally
+done is. Neither pass can violate `max_duration_sec`, `max_chars_per_line`, or
+`max_lines`; the hold-to-minimum pass does not re-check `max_duration_sec` since it only
+affects display time, not text.
 
 Defaults (common caption guidance — about 2 lines of about 42 characters, at most 7s):
 
@@ -468,8 +493,20 @@ Defaults (common caption guidance — about 2 lines of about 42 characters, at m
 | Max cue duration | 7.0s | `export.captions.max_duration_sec` |
 | Max characters per line | 42 | `export.captions.max_chars_per_line` |
 | Max lines per cue | 2 | `export.captions.max_lines` |
+| Min cue duration | 1.0s | `export.captions.min_duration_sec` |
+| Max gap to merge a short cue across | 1.5s | `export.captions.merge_max_gap_sec` |
 
-Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml) (`export.captions`, used by `export_deliverables`), or per invocation with `podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …` (same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+Set them in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml)
+(`export.captions`, used by `export_deliverables`), or per invocation with
+`podcast transcript export-srt --max-duration-sec … --max-chars-per-line … --max-lines …`
+(same flags on `export-vtt`); unset CLI flags fall back to the pipeline defaults.
+`min_duration_sec` / `merge_max_gap_sec` are yaml-only (no CLI flags). `--max-lines` must
+be at least 1 and `--max-duration-sec` must be greater than 0 — the CLI rejects a bad flag
+value with a usage error (exit 2). `export.captions` yaml values are checked the same way
+at load, but as a domain error (exit 1), since they aren't CLI flags: `min_duration_sec`
+must be greater than 0 and at most `max_duration_sec` (a longer minimum than the duration
+cap would hold cues past the cap it's supposed to respect), and `merge_max_gap_sec` must
+be at least 0.
 
 ## Troubleshooting
 

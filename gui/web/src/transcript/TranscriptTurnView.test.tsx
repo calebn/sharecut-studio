@@ -211,6 +211,37 @@ describe("TranscriptTurnView", () => {
     ).toHaveLength(1);
   });
 
+  it("marks an audibility-locked word chip (#781)", async () => {
+    const { container } = render(
+      <main>
+        <TranscriptTurnView
+          {...props}
+          segments={[
+            {
+              ...props.segments[0],
+              words: [
+                {
+                  ...props.segments[0].words[0],
+                  word: {
+                    ...props.segments[0].words[0].word,
+                    audibility_locked: true,
+                  },
+                  title:
+                    "Suppression locked: set directly, not by a heuristic pass.",
+                },
+                props.segments[0].words[1],
+              ],
+            },
+          ]}
+        />
+      </main>,
+    );
+    const chip = container.querySelector(".utterance-word.locked");
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toContain("hello");
+    await expectNoA11yViolations(container);
+  });
+
   it("marks the current low-confidence walkthrough stop (#634)", () => {
     const { container } = render(
       <main>

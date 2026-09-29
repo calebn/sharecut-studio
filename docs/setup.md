@@ -93,7 +93,7 @@ podcast doctor
 
 | Extra | Adds | When you need it |
 |-------|------|------------------|
-| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), mcp, onnxruntime + huggingface-hub (explicit; used by the opt-in forced aligner), … | Always — `uv sync` with no extras |
+| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp, onnxruntime + huggingface-hub (explicit; used by the opt-in forced aligner), … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
@@ -497,6 +497,26 @@ podcast review share --project episode.project.json --version <id> \
 # Cursor: { "mcpServers": { "podcast-remote": { "url": "<printed MCP URL>" } } }
 # Claude.ai: Connectors → paste MCP URL (/mcp/{token}/mcp), leave OAuth blank (authless)
 ```
+
+## Debugging the CLI
+
+A domain error (a busy project/render lock, `TranscriptRefineRequiredError`, a bad
+`resolve_track` call, ...) escaping any `podcast` command prints one line to stderr and
+exits 1 instead of a full traceback (`cli/busy.py`'s `BusyErrorGroup`, the CLI's one
+choke point). Set `PODCAST_DEBUG=1` to get the original traceback back instead:
+
+```bash
+podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end 10 --keep-right-start 20
+# Error: track_id or speaker is required (set PODCAST_DEBUG=1 for the traceback)
+
+PODCAST_DEBUG=1 podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end 10 --keep-right-start 20
+# full traceback
+```
+
+Accepted truthy values are `1` / `true` / `yes` / `on` (case-insensitive); anything else,
+including unset, keeps the one-line message. A bug that is not a domain condition
+(`TypeError`, a bad unpack, `NotImplementedError`) always shows its traceback — the
+one-line message only replaces `ValueError` / `RuntimeError`.
 
 ## Troubleshooting
 

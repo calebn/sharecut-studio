@@ -241,6 +241,26 @@ class EpisodeService:
         )
         return {"track_id": track_id, "removed": True}
 
+    def summary(self) -> dict:
+        """Compact project overview for ``podcast info`` (default output).
+
+        ``podcast info`` used to dump the whole project JSON (2+ MB on a real
+        episode) with nothing to orient an agent; this is what it prints by
+        default now, with ``--json`` still available for the full dump.
+        """
+        p = self.ws.project
+        pending = sum(1 for d in p.edit_decisions if d.review_required)
+        return {
+            "name": p.name,
+            "duration_sec": p.timeline.duration_sec,
+            "tracks": [t.id for t in p.tracks],
+            "clip_count": len(p.timeline.clips),
+            "pending_edits": pending,
+            "chapters": len(p.editorial.chapters),
+            "applied_edits": len(p.editorial.edit_log),
+            "reconciliation_stale": p.render.reconciliation_stale,
+        }
+
     def reorder_track(self, track_id: str, index: int) -> dict:
         """Move ``track_id`` to 0-based position ``index`` in ``timeline.tracks``."""
         if self.ws.project.track_by_id(track_id) is None:

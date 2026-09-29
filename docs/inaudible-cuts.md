@@ -70,6 +70,8 @@ The default optimizer is a **local** boundary tool — not a multi-second transi
 
 Helper: `edits/silence_islands.py` → `suggest_handoff_cut` / MCP `suggest_handoff_cut_tool` / CLI `podcast edit suggest-handoff-cut`. Given timeline `keep_left_end` + `keep_right_start`, it places `cut_start` / `cut_end` at the requested beat on each keep (clamped if the gap is shorter) and snaps onto a **measured RMS silence island** on the stem. Transcript word gaps are not silence — um, chair noise, and bleed with no token still block a join if they sit at the retain target. Audible junk *between* the bounds is removed with the ripple. If a bound is still in energy after snap, the suggestion is not ok.
 
+**Tune the beat with `retain_sec` / `--retain-sec`** (default `1.0`, applied on *both* sides, so a default call leaves ~2s of air at the join). That is fine for a punchline beat but too long for a tight conversational handoff; a real run needed `0.3`–`0.6` to keep the join snappy. Nothing tunes this automatically — pass it explicitly per join.
+
 Do **not** loosen global `absorb_trailing_silence_retain_sec` for this — handoffs opt out by locking suggested silence bounds.
 
 Audition ~10–15s around the join before resolving review comments. Prefer existing room tone over `insert_gap` of pure silence unless the user asks.
@@ -99,6 +101,7 @@ Audition ~10–15s around the join before resolving review comments. Prefer exis
 ```bash
 podcast edit preview-cut --project episode.project.json --track host --start 32.4 --end 34.8
 podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
+podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0 --retain-sec 0.4  # tighter conversational join
 podcast edit join-quality --project ... --track host --join 12.5 --timebase timeline
 podcast edit join-sweep --project ...
 podcast edit cut-range --project ... --track host --start 32.4 --end 34.8   # optimized by default
@@ -126,14 +129,40 @@ The spectral and optional neural scorers keep their native score formats;
 adapters implement `JoinDetector.detect()` and return weighted `DetectorHit`
 values to the fusion step. This keeps detector policy in one place while the
 published report format stays stable.
+An existing join is scored on the audio the render abuts: a timeline join that
+sits on a clip splice (`clips_ops.splice_joins`: the right clip does not resume
+where the left clip's source stopped) reads the source before the left clip's
+`source_end` and after the right clip's `source_start` (`SplicePoints`); any
+other instant reads both sides of that one point. Before #775 the sweep mapped
+the join to the resume point alone and scored raw source continuity there, which
+passed a cut that resumed inside a phrase. A splice whose two sides are both below
+`join_continuity.inaudible_floor_db` (-60 dBFS RMS over the 45 ms side windows, e.g.
+room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
+verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
+level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
+into passes and left the one real clipped onset. That floor is the only level rule:
+a "masked by a louder stem" pass was tried and removed, because the sweep reads raw
+source levels and what the mix plays depends on staging gain, fader, mute and the
+transcript gate (the mixer's job, not a second copy of it). The lab's caleb join at
+106.02 s (room tone at -59.5 dBFS into digital silence, 0.5 dB above the floor)
+therefore still fails after the Lana fix; the skill's loop ends there with one
+listen, then accept or waive. Each sweep row also carries `speech`
+(`edits/join_speech.py` crossings at that join: clipped onset or tail, voice
+edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`) and the report a
+`speech_cross_count`. A row with a `speech` crossing is never a `pass`: the
+continuity detectors score the splice's texture, and a cut through the track's own
+voice is a defect whatever they score, so such a row reads at least `review` with
+the reason `voiced speech cut through this join (see speech); never a pass`. The
+audition context raises the same crossings as
+`speech_crosses_cut` (see [audio-engineering.md](audio-engineering.md#agent-audition-context-v2)).
 The project join sweep reuses each track's decoded waveform, natural-join
 calibration, and high-rate source reader across its joins. PCM WAV checks seek
 bounded windows through one open reader. Other containers use FFmpeg to seek
-independent 0.1-second source windows in batches of at most 16 joins; temporary
-PCM output is discarded after each batch, so a long source is never decoded
-wholesale for click checks. If a batch fails, each affected join is retried
-with the individual short-window decoder. Individual join scoring reads only a
-short window around its join.
+independent short source windows, two per join (one per splice side), in
+batches of at most 16 joins; temporary PCM output is discarded after each
+batch, so a long source is never decoded wholesale for click checks. If a batch
+fails, each affected join is retried with the individual short-window decoder.
+Individual join scoring reads only a short window around its join.
 MFCC scoring shares an immutable mel filterbank for equal sample rates and FFT sizes.
 
 Every report includes a disclaimer — not PEAQ/POLQA and not a human-ear guarantee.
@@ -150,7 +179,8 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 
 - `preview_inaudible_cut_tool` — dry-run: shifted boundaries, mode, confidence.
 - `suggest_handoff_cut_tool` — retain ~1s on each keep, snap to quiet, for narrative handoffs (timeline clock); prefer with `use_inaudible_opt=false`.
-- `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep non-abutting clip boundaries (default timebase `timeline`).
+- `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep every splice (default timebase `timeline`); sweep rows carry `speech` (voiced speech cut through at the join) and the report `speech_cross_count`.
+- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk` and `clip_skew`; its `evidence.fix` names the `trim_clip_edge_tool` call (`all_tracks=true` for a session-wide cut, so every track's edge moves and the episode stays in sync; a track-local punch trims one clip).
 - `join_label_tool` — record explicit pass/fail A/B labels into `artifacts/join_labels.jsonl`.
 - `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (Sharecut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
 - Cut tools accept optional `use_inaudible_opt=false` to skip optimization for one call.

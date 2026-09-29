@@ -1121,6 +1121,23 @@ describe("TranscriptPanel", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("marks a word locked against auto-suppression (#781)", async () => {
+    const base = project();
+    const word = base.transcript?.utterances[0]?.words?.[1];
+    if (!word) throw new Error("fixture word missing");
+    word.audibility_locked = true;
+    useDawStore.setState({ project: base });
+    const { container } = render(<TranscriptPanel />);
+    const locked = container.querySelectorAll(".utterance-word.locked");
+    expect(locked).toHaveLength(1);
+    expect(locked[0]?.textContent).toContain("there");
+    expect(locked[0]).toHaveAttribute(
+      "title",
+      expect.stringContaining("Suppression locked"),
+    );
+    await expectNoA11yViolations(container);
+  });
+
   it("Annotate marks words flagged suspect_hallucination", () => {
     const base = project();
     const word = base.transcript?.utterances[0]?.words?.[1];

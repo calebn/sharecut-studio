@@ -480,8 +480,33 @@
   pointer-events: auto;
 }
 
+/* Audibility lock (#768/#781): a person or agent set `suppressed` directly, not a
+   heuristic pass. Independent of the .suppressed/.ignored text-decoration strikes
+   so a locked-unsuppressed word (no strike) still reads as pinned. A box-shadow,
+   not `outline`: `outline` is the native `:focus-visible` ring, and an always-on
+   outline here made a focused locked chip look identical to an unfocused one
+   (WCAG 2.4.7, #802 review). --color-text-primary, not --border-strong or
+   --color-text-secondary (both tried first): the word's own background can be
+   the active-word accent-strong fill (a clicked or playing word) or, hovered or
+   selected, a lighter wash over the active segment, and only --color-text-primary
+   clears 3:1 (WCAG 1.4.11) on all of those plus the plain/active-turn/
+   active-segment fills, in both themes (test_locked_word_shadow_meets_non_text_contrast). */
+.utterance-word.locked {
+  box-shadow: inset 0 0 0 1px var(--color-text-primary);
+}
+
 .utterance-word.low-confidence {
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
+}
+
+/* Annotate mode combines both marks (#802 review): .low-confidence's box-shadow
+   alone came later in the cascade and silently ate .locked's at equal
+   specificity, hiding the lock on exactly the words under review. Stack both
+   shadows explicitly instead of relying on source order. */
+.utterance-word.locked.low-confidence {
+  box-shadow:
+    var(--color-text-primary) inset 0 0 0 1px,
+    var(--color-warning-underline) inset 0 -0.125rem 0;
 }
 
 /* Prosody layer (#719): prominent word. Always bold. The overline (not

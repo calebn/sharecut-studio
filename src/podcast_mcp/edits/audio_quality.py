@@ -237,9 +237,16 @@ def suppress_low_audibility_words(
 ) -> dict[str, Any]:
     """
     Set suppressed=True on low-audibility words (or explicit track_id/word_index list).
+
+    An explicit ``word_keys`` list is a caller decision, not a heuristic: it locks
+    the word (``audibility_locked``) so later reconcile/heuristic passes leave it
+    alone (#781). The heuristic path (no ``word_keys``) routes through
+    ``TranscriptWord.resolve_auto_suppression`` so it can't override a word a
+    person or agent already locked unsuppressed.
     Rebuilds combined transcript so exports/search omit suppressed words.
     """
     pol = policy or AnalysisPolicy.from_defaults()
+    explicit = word_keys is not None
     if word_keys is not None:
         targets = {(str(item["track_id"]), int(item["word_index"])) for item in word_keys}
     else:
@@ -249,7 +256,12 @@ def suppress_low_audibility_words(
     count = 0
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) in targets:
+            if (tr.track_id, i) not in targets:
+                continue
+            if explicit:
+                tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                count += 1
+            elif w.resolve_auto_suppression(True) != w.suppressed:
                 tr.words[i] = w.model_copy(update={"suppressed": True})
                 count += 1
     rebuild_combined(project)
@@ -320,11 +332,17 @@ def suppress_bleed_words(
 ) -> dict[str, Any]:
     """
     Suppress bleed-tagged words on the wrong track (metadata only).
-    Dry-run returns candidates; apply sets suppressed=True, locks the word against
-    later reconcile passes (#768), and rebuilds combined.
+    Dry-run returns candidates; apply sets suppressed=True and rebuilds combined.
+
+    An explicit ``word_keys`` list is a caller decision, so it also locks the word
+    against later reconcile/heuristic passes (#768). Heuristic-picked words (no
+    ``word_keys``) are not locked: they are reconcile's own bleed verdict, and
+    locking a heuristic guess would pin it forever instead of letting a later
+    reconcile pass recompute it (#781).
     """
     pol = policy or AnalysisPolicy.from_defaults()
     reporter = resolve_progress(progress)
+    explicit = word_keys is not None
     if word_keys is not None:
         targets = _word_key_set(word_keys)
     else:
@@ -346,6 +364,17 @@ def suppress_bleed_words(
         if w.suppressed
     }
     targets -= already_suppressed
+    if not explicit:
+        # Apply skips a locked-unsuppressed word (resolve_auto_suppression), so
+        # the heuristic preview must too, or it lists a word apply then leaves
+        # alone (#781/#791's preview == apply rule, #802 review).
+        locked_unsuppressed = {
+            (tr.track_id, i)
+            for tr in project.transcripts
+            for i, w in enumerate(tr.words)
+            if w.audibility_locked and not w.suppressed
+        }
+        targets -= locked_unsuppressed
 
     candidates: list[dict[str, Any]] = []
     for tr in project.transcripts:
@@ -377,8 +406,13 @@ def suppress_bleed_words(
     count = 0
     for tr in project.transcripts:
         for i, w in enumerate(tr.words):
-            if (tr.track_id, i) in targets and not w.suppressed:
+            if (tr.track_id, i) not in targets or w.suppressed:
+                continue
+            if explicit:
                 tr.words[i] = w.model_copy(update={"suppressed": True, "audibility_locked": True})
+                count += 1
+            elif w.resolve_auto_suppression(True):
+                tr.words[i] = w.model_copy(update={"suppressed": True})
                 count += 1
     rebuild_combined(project)
     mark_reconciliation_fresh(project)
