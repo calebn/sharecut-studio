@@ -1052,6 +1052,15 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
     from podcast_mcp.export.audio import export_episode_audio
     from podcast_mcp.export.names import sanitize_export_stem
 
+    caption_limits = None
+    if project.combined_transcript:
+        from podcast_mcp.export.transcript import resolve_caption_limits
+
+        # Validate export.captions before any file is written (#816): a bad value
+        # (e.g. min_duration_sec > max_duration_sec) should fail before audio export,
+        # not after it, when caption writing is reached.
+        caption_limits = resolve_caption_limits(export_cfg)
+
     with resolve_progress_task(
         "export_deliverables",
         "Exporting deliverables",
@@ -1079,7 +1088,6 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
         if project.combined_transcript:
             from podcast_mcp.export.transcript import (
-                resolve_caption_limits,
                 utterances_to_srt,
                 write_combined_transcript_markdown,
             )
@@ -1088,7 +1096,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             write_combined_transcript_markdown(project)
             srt = project.export_dir() / f"{sanitize_export_stem(project.name)}.srt"
             srt.write_text(
-                utterances_to_srt(project, limits=resolve_caption_limits(export_cfg)),
+                utterances_to_srt(project, limits=caption_limits),
                 encoding="utf-8",
             )
             extras.append("SRT+MD")

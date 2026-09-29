@@ -362,8 +362,10 @@ export:
     max_chars_per_line: 42
     max_lines: 2
     # Minimum on-screen time (#790): a cue under this is merged into a same-track
-    # neighbour (below merge_max_gap_sec), else held to this duration, capped at
-    # the next same-track cue.
+    # neighbour (below merge_max_gap_sec, and only if no other track has a word in the
+    # gap being bridged), else held to this duration, capped at the next same-track cue
+    # and at the next cue on any other track that starts after this cue's natural end
+    # (#816).
     min_duration_sec: 1.0
     # Largest gap to a same-track neighbour a sub-minimum cue may still merge across.
     merge_max_gap_sec: 1.5

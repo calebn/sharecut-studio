@@ -462,12 +462,11 @@ def test_short_cue_holds_to_minimum_duration_capped_at_next_same_track_cue():
 
 
 def test_merge_skips_a_gap_another_track_speaks_in():
-    """A same-track merge is skipped when another track has a word inside the gap
-    being bridged, even though that other cue's own start is outside the gap (#816):
-    a same-track merge must never cover a moment a different speaker is on screen for.
-    Both now-unmerged host cues, plus the guest cue, get held instead: each capped at
-    whichever track's next cue starts first, so the three end up back to back with no
-    overlap.
+    """A same-track merge is skipped when another track has a cue that starts inside
+    the gap being bridged (#816): a same-track merge must never cover a moment a
+    different speaker is on screen for. Both now-unmerged host cues, plus the guest
+    cue, get held instead: each capped at whichever track's next cue starts first, so
+    the three end up back to back with no overlap.
     """
     host_words = [
         TranscriptWord(text="Hi.", start=0.0, end=0.3),
@@ -486,6 +485,41 @@ def test_merge_skips_a_gap_another_track_speaks_in():
         "1\n00:00:00,000 --> 00:00:00,600\nHi.\n"
         "\n"
         "2\n00:00:00,600 --> 00:00:01,199\nWait.\n"
+        "\n"
+        "3\n00:00:01,199 --> 00:00:02,200\nthere.\n"
+    )
+
+
+def test_merge_skips_a_gap_another_track_only_partly_speaks_in():
+    """The merge guard is word-level, not cue-level (#816): it must still skip the
+    merge when the other cue's own *start* is before the gap, as long as one of its
+    *words* lands inside it. A cue-start-only check would miss this: the guest cue
+    here starts at 0.05s, well before the host gap opens at 0.3s, but its second word
+    "now" (0.5-0.65s) lies wholly inside that gap. Weakening the guard to check only
+    other cues' starts makes the host cues merge into one "Hi. there." cue instead of
+    the three below, so this pins the stricter, word-level check.
+    """
+    host_words = [
+        TranscriptWord(text="Hi.", start=0.0, end=0.3),
+        TranscriptWord(text="there.", start=1.2, end=1.5),
+    ]
+    guest_words = [
+        TranscriptWord(text="Well", start=0.05, end=0.2),
+        # Inside the host gap [0.3, 1.2), even though the guest cue itself starts
+        # (0.05s) before the gap and would pass a cue-start-only check.
+        TranscriptWord(text="now", start=0.5, end=0.65),
+    ]
+    project = EpisodeProject.create("merge-guard-word-level", "/tmp/ws")
+    project.transcripts = [
+        Transcript(track_id="host", words=host_words),
+        Transcript(track_id="guest", words=guest_words),
+    ]
+
+    srt = utterances_to_srt(project)
+    assert srt == (
+        "1\n00:00:00,000 --> 00:00:01,000\nHi.\n"
+        "\n"
+        "2\n00:00:00,050 --> 00:00:01,050\nWell now\n"
         "\n"
         "3\n00:00:01,199 --> 00:00:02,200\nthere.\n"
     )
