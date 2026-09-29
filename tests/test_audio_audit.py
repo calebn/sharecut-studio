@@ -22,6 +22,7 @@ from podcast_mcp.engines.audio_audit import (
     measure_window_rms_db,
     recommend_boundary_fades,
 )
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
@@ -1446,9 +1447,34 @@ def test_analyze_cleanup_suggest_mode_includes_text_match_loser(tmp_path: Path):
     ]
     pol = AnalysisPolicy(transcript_mode="suggest", bleed_text_match_enabled=True)
 
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        return_value=-35.0,
+    def room_pair(source: str, bleed: str) -> EchoPairProfile:
+        return EchoPairProfile(
+            source_track_id=source,
+            bleed_track_id=bleed,
+            span_start=0.0,
+            span_end=10.0,
+            dominated_frames=100,
+            copy_frames=40,
+            consistent_frames=30,
+            lag_ms=3.0,
+            level_db=-18.0,
+            examples=(1.0,),
+            null_runs=8,
+            null_copy_rate=0.05,
+            null_consistent_rate=0.02,
+        )
+
+    # The identical-text rule runs only on a pair with measured bleed (#774); bleed
+    # both ways keeps the loudness rule this test pins.
+    with (
+        patch(
+            "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+            return_value=-35.0,
+        ),
+        patch(
+            "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
+            new=lambda caches: [room_pair("host", "guest"), room_pair("guest", "host")],
+        ),
     ):
         report = analyze_cleanup(project, policy=pol)
 
