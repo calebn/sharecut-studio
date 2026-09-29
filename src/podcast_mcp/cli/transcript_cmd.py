@@ -136,7 +136,10 @@ def transcript_cleanup_batch_cmd(
 ) -> None:
     """Batch word + phrase corrections on one track in a single undo step."""
     ws = ProjectWorkspace.open(project)
-    payload = json.loads(corrections_json)
+    try:
+        payload = json.loads(corrections_json)
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"--corrections-json is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise typer.BadParameter("--corrections-json must be a JSON object")
     words = payload.get("words")

@@ -492,7 +492,9 @@ def test_transcript_suppress_word_cmd(minimal_project):
         ],
     )
     assert suppress.exit_code == 0
-    assert load_project(project).transcripts[0].words[0].suppressed is True
+    suppressed_word = load_project(project).transcripts[0].words[0]
+    assert suppressed_word.suppressed is True
+    assert suppressed_word.audibility_locked is True
 
     unsuppress = runner.invoke(
         app,
@@ -509,7 +511,9 @@ def test_transcript_suppress_word_cmd(minimal_project):
         ],
     )
     assert unsuppress.exit_code == 0
-    assert load_project(project).transcripts[0].words[0].suppressed is False
+    unsuppressed_word = load_project(project).transcripts[0].words[0]
+    assert unsuppressed_word.suppressed is False
+    assert unsuppressed_word.audibility_locked is True
 
 
 def test_transcript_cleanup_batch_cmd(minimal_project):
@@ -548,7 +552,27 @@ def test_transcript_cleanup_batch_cmd_rejects_non_object_json(minimal_project):
             "[]",
         ],
     )
-    assert result.exit_code != 0
+    assert result.exit_code == 2
+    assert "--corrections-json must be a JSON object" in result.output
+
+
+def test_transcript_cleanup_batch_cmd_rejects_invalid_json(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "cleanup-batch",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--corrections-json",
+            "not json",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "--corrections-json is not valid JSON" in result.output
 
 
 def test_edit_join_quality_cli(minimal_project, monkeypatch):
