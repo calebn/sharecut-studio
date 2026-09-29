@@ -33,6 +33,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `crossfade_joins_tool` | Opt-in overlapping crossfade at joins (music / explicit blend) |
 | `list_clips_tool` | Clip timeline for GUI/agents (`join_in_mode`, `source_id`, `origin_track_id`, effective join render `join_left_clip_id` / `join_render_mode` / `join_crossfade_ms` / `join_crossfade_blocked`) |
 | `set_clip_join_tool` | One join's mode plus fades (`left_clip_id`, `right_clip_id`, `mode`, `length_ms?`); `set_join_mode_tool` is mode-only |
+| `trim_clip_edge_tool` | Move one clip's `in` / `out` edge to a source-media second (later clips ripple; expansion clamped to unused source). The fix for a `speech_crosses_cut` hypothesis: `edge="in"` at its `suggested_source_sec` restores a clipped onset. Same as the DAW trim handle |
 | `list_applied_edits_tool` | Committed-cut provenance from `editorial.edit_log` |
 | `render_status_tool` | Stem freshness, premix, reconciliation stale |
 | `history_status_tool` / `history_goto_tool` / `history_diff_tool` | Structured history inspector |
@@ -102,6 +103,7 @@ podcast comment add --project ... --author agent --start 12.5 --body "Trim intro
 podcast play --project ... --source processed:host --start 0 --end 15
 podcast play compose --project ... --track-ids host,guest --tier processed --start 12 --end 18 --dry-run
 podcast play context --project ... --start 12 --end 18
+podcast edit trim-clip --project ... --clip clip_9c2a08cf --edge in --source-sec 1575.55
 podcast edit analyze-cleanup --project ...
 podcast edit recommend-fades --project ...
 podcast edit fade-joins --project ...

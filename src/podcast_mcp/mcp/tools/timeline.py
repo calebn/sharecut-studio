@@ -213,6 +213,24 @@ def set_clip_join_tool(
     return to_json(EditService(ws).set_clip_join(left_clip_id, right_clip_id, mode, length_ms))
 
 
+def trim_clip_edge_tool(
+    project_path: str,
+    clip_id: str,
+    edge: str,
+    source_sec: float,
+) -> str:
+    """Move one clip's ``in`` or ``out`` edge to ``source_sec`` (source-media seconds).
+
+    Later clips on the track ripple by the duration change; expansion is clamped to
+    unused source between the neighbouring clips. The fix for a ``speech_crosses_cut``
+    hypothesis from ``audition_context_tool``: ``edge="in"`` at its ``suggested_source_sec``
+    restores a clipped onset, ``edge="out"`` a clipped tail. Same operation as the DAW
+    trim handle (``TrimClipEdge``); undoable. Follow with ``render_preview``.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(EditService(ws).trim_clip_edge(clip_id, edge, source_sec))
+
+
 def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
@@ -758,6 +776,7 @@ def register(mcp: MCPServer) -> None:
         set_clip_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
+        trim_clip_edge_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,
@@ -794,6 +813,7 @@ def register(mcp: MCPServer) -> None:
         set_clip_fade_tool,
         set_join_mode_tool,
         set_clip_join_tool,
+        trim_clip_edge_tool,
         shorten_gaps_tool,
         split_clip_tool,
         duplicate_segment_tool,

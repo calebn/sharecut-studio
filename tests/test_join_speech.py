@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import wave
 from pathlib import Path
 
@@ -239,3 +240,45 @@ def test_caller_samples_are_reused_instead_of_reading_media(tmp_path: Path) -> N
     )
     assert [h.direction for h in hits] == ["clipped_onset"]
     assert hits[0].removed_ms == pytest.approx(340.0, abs=20.0)
+
+
+def test_audition_context_flags_the_clipped_onset_with_a_concrete_fix(tmp_path: Path) -> None:
+    from podcast_mcp.edits.audition_context import build_audition_context
+
+    audio = _voice(3.0, 1.0, 2.2)
+    project = _project(
+        tmp_path,
+        audio,
+        [(0.0, 0.5), (1.34, 3.0)],
+        [TranscriptWord(text="Um,", start=1.49, end=1.9)],
+    )
+    ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False)
+    (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
+    assert hyp["tracks"] == ["host"]
+    assert hyp["severity"] == "warn"
+    assert hyp["confidence"] == "measured"
+    assert hyp["window"] == {"clock": "timeline", "unit": "sec", "start": 0.0, "end": 1.5}
+    assert hyp["evidence"]["direction"] == "clipped_onset"
+    assert hyp["evidence"]["clip_id"] == "c1"
+    assert hyp["evidence"]["removed_ms"] == pytest.approx(340.0, abs=20.0)
+    assert hyp["evidence"]["asr_disagrees"] is True
+    assert hyp["next"]["tools"] == [
+        "trim_clip_edge_tool",
+        "suggest_handoff_cut_tool",
+        "play_audio_tool",
+    ]
+    assert hyp["next"]["fix"] == {"skill": "podcast-inaudible-cuts", "autonomy": "needs_approval"}
+    warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
+    assert re.search(r"host: clip starts 3[45]0 ms into voiced speech \(voice from source", warning)
+    assert "'Um,' starts 1.49s" in warning
+    assert "word times disagree with the audio here" in warning
+    assert re.search(r"trim the in-point back to 0\.9[34]s, or move the cut", warning)
+    assert "cannot_hear" in ctx["limits"]
+
+
+def test_audition_context_skips_the_join_check_without_dsp(tmp_path: Path) -> None:
+    from podcast_mcp.edits.audition_context import build_audition_context
+
+    project = _project(tmp_path, _voice(3.0, 1.0, 2.2), [(0.0, 0.5), (1.34, 3.0)])
+    ctx = build_audition_context(project, 0.0, 1.5, include_dsp=False, include_prosody=False)
+    assert not [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]

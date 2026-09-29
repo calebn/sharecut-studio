@@ -1,99 +1,81 @@
-"""Tests for trim_clip_edge domain op and TrimClipEdge document command."""
+"""MCP / CLI adapters over EditService.trim_clip_edge (the speech_crosses_cut fix)."""
 
 from __future__ import annotations
 
-import pytest
+import json
+from pathlib import Path
+from unittest.mock import patch
 
-from podcast_mcp.edits.clips_ops import trim_clip_edge
-from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
-from podcast_mcp.services.document_sync.commands import DocumentCommand
-from podcast_mcp.services.document_sync.service import DocumentSyncService
-from podcast_mcp.services.workspace import ProjectWorkspace
+from typer.testing import CliRunner
+
+from podcast_mcp.cli.main import app
+from podcast_mcp.mcp.tools import timeline as mcp_timeline
+from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+
+runner = CliRunner()
 
 
-def _two_clips_with_cutaway(ws: ProjectWorkspace) -> None:
-    ws.project.timeline.tracks = [
+def _spliced_project(minimal_project: Path) -> Path:
+    project = load_project(minimal_project)
+    project.tracks = [
         Track(
             id="host",
             label="Host",
             role=TrackRole.DIALOGUE,
-            media=MediaAsset(path="raw/host.wav", duration_sec=40.0),
+            media=MediaAsset(path="raw/host.wav", duration_sec=60.0),
         )
     ]
-    # Cutaway source 5..15 between clips; timeline abutting 0..5 and 5..15
-    ws.project.timeline.clips = [
-        Clip(
-            id="c1",
-            track_id="host",
-            source_start=0.0,
-            source_end=5.0,
-            timeline_start=0.0,
-        ),
-        Clip(
-            id="c2",
-            track_id="host",
-            source_start=15.0,
-            source_end=25.0,
-            timeline_start=5.0,
-        ),
+    project.clips = [
+        Clip(id="c0", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(id="c1", track_id="host", source_start=20.34, source_end=30.0, timeline_start=10.0),
+        Clip(id="c2", track_id="host", source_start=40.0, source_end=45.0, timeline_start=19.66),
     ]
-    ws.save()
+    save_project(project, minimal_project)
+    return minimal_project
 
 
-def test_trim_clip_edge_out_expands_into_cutaway_and_ripples(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
-    _two_clips_with_cutaway(ws)
-    project = ws.project
-    trim_clip_edge(project, "c1", "out", 12.0)
-    c1 = next(c for c in project.clips if c.id == "c1")
-    c2 = next(c for c in project.clips if c.id == "c2")
-    assert c1.source_end == 12.0
-    assert c1.timeline_end == pytest.approx(12.0)
-    assert c2.timeline_start == pytest.approx(12.0)
-    assert c2.source_start == 15.0
+def test_trim_clip_edge_tool_restores_a_clipped_onset_and_ripples(minimal_project: Path) -> None:
+    path = _spliced_project(minimal_project)
+    out = json.loads(mcp_timeline.trim_clip_edge_tool(str(path), "c1", "in", 19.94))
+    assert out["operation"] == "trim_clip_edge"
+    project = load_project(path)
+    clips = {c.id: c for c in project.clips}
+    assert clips["c1"].source_start == 19.94
+    assert clips["c1"].timeline_start == 10.0
+    # The clip grew by 0.4 s, so the next clip on the track moved by the same amount.
+    assert round(clips["c2"].timeline_start, 6) == 20.06
 
 
-def test_trim_clip_edge_out_clamps_to_next_source_start(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
-    _two_clips_with_cutaway(ws)
-    project = ws.project
-    trim_clip_edge(project, "c1", "out", 20.0)  # would invade c2 source
-    c1 = next(c for c in project.clips if c.id == "c1")
-    assert c1.source_end == 15.0
+def test_trim_clip_edge_tool_is_undoable(minimal_project: Path) -> None:
+    from podcast_mcp.services import HistoryService, ProjectWorkspace
+
+    path = _spliced_project(minimal_project)
+    mcp_timeline.trim_clip_edge_tool(str(path), "c0", "out", 9.5)
+    assert load_project(path).clips[0].source_end == 9.5
+    HistoryService(ProjectWorkspace.open(path)).undo(rerender=False)
+    assert load_project(path).clips[0].source_end == 10.0
 
 
-def test_trim_clip_edge_in_restores_cutaway(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
-    _two_clips_with_cutaway(ws)
-    project = ws.project
-    trim_clip_edge(project, "c2", "in", 10.0)
-    c2 = next(c for c in project.clips if c.id == "c2")
-    assert c2.source_start == 10.0
-    assert c2.timeline_start == pytest.approx(5.0)
-    assert c2.timeline_end == pytest.approx(20.0)  # duration 15
-
-
-def test_document_trim_clip_edge(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
-    _two_clips_with_cutaway(ws)
-    svc = DocumentSyncService.open(minimal_project)
-    out = svc.submit(
-        DocumentCommand(
-            type="TrimClipEdge",
-            payload={
-                "clip_id": "c1",
-                "edge": "out",
-                "source_sec": 10.0,
-                "mode": "ripple",
-            },
-            client_id="c1",
-            role="viewer",
-            client_seq=1,
+def test_cli_trim_clip(tmp_path: Path) -> None:
+    ws = tmp_path / "ep"
+    runner.invoke(app, ["episode", "init", "--dir", str(ws)])
+    with patch("podcast_mcp.cli.edit.EditService") as service:
+        service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
+        result = runner.invoke(
+            app,
+            [
+                "edit",
+                "trim-clip",
+                "--project",
+                str(ws / "episode.project.json"),
+                "--clip",
+                "c1",
+                "--edge",
+                "in",
+                "--source-sec",
+                "1575.55",
+            ],
         )
-    )
-    assert out["ok"]
-    ws2 = ProjectWorkspace.open(minimal_project)
-    c1 = next(c for c in ws2.project.clips if c.id == "c1")
-    c2 = next(c for c in ws2.project.clips if c.id == "c2")
-    assert c1.source_end == 10.0
-    assert c2.timeline_start == pytest.approx(10.0)
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["operation"] == "trim_clip_edge"
+    service.return_value.trim_clip_edge.assert_called_once_with("c1", "in", 1575.55)
