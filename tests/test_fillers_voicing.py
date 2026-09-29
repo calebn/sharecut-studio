@@ -314,10 +314,6 @@ def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> Non
 
 
 def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
-    """Voice runs 0.30-0.70 s but the transcript has "um" only at 0.50-0.70: the first
-    200 ms is a word Whisper dropped, or "um" timed short, and the audio cannot say
-    which. The cut keeps its transcript-bounded start (the optimizer's 0.475) instead
-    of growing over the untranscribed voice, and is reviewed."""
     host = np.zeros(4 * RATE, dtype=np.float32)
     _voice(host, 0.30, 0.70)
     _voice(host, 0.90, 1.10)
@@ -343,7 +339,6 @@ def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Pa
     assert um.start == pytest.approx(0.475, abs=0.011)
     assert um.start >= 0.46
     assert um.end == pytest.approx(0.701, abs=0.005)
-    # The neighbouring filler sits in silence on both sides and is untouched.
     assert uh.reason == "filler:uh"
     assert uh.review_required is False
     assert uh.start == pytest.approx(0.740, abs=0.011)
@@ -351,9 +346,6 @@ def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Pa
 
 
 def test_voice_after_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
-    """A transcript-bounded cut ending at 0.80 s must not widen into untranscribed
-    voice that continues to 1.00 s. The audio cannot tell whether it is a missed word
-    or a short filler alignment, so the unchanged edge is reviewed."""
     host = np.zeros(4 * RATE, dtype=np.float32)
     _voice(host, 0.70, 1.00)
     words = [TranscriptWord(text="um", start=0.50, end=0.70)]

@@ -1219,22 +1219,6 @@ def _check_voiced_speech(
     defaults: dict[str, Any],
     peer_caches: Sequence[TrackAudioCache] = (),
 ) -> _VoicedSpeechCheck:
-    """Move each cut edge out of kept voice; flag speech the cut would swallow.
-
-    An edge inside a voiced run that belongs to a word that stays is nudged past
-    the run (plus a little air), so the word keeps its tail or onset. Word times
-    are the only view the candidate had, and on the lab tape aligned and Whisper
-    ends both sit 120-270 ms inside the voice. An edge inside voice that no kept
-    word owns, or a nudge the candidate's bounds or coverage rule refuse, leaves
-    the edge where it is and marks the cut for review.
-
-    ``peer_caches`` are the other dialogue tracks a session ripple removes the
-    same window from. Everything on a peer stays, so a peer run at an edge is
-    always a kept-word nudge, and a peer run inside the span is speech the ripple
-    deletes whatever the cut's kind. A pause must also be dead air on every track
-    it ripples: audible frames the pitch probe cannot vouch for (a fricative, a
-    click, a laugh) still make it a review.
-    """
     floor = float(
         defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0)
     )
@@ -1253,11 +1237,7 @@ def _check_voiced_speech(
             hi = math.inf
         return word_index.kept_word_overlaps(lo, hi, exclude_start=span_lo, exclude_end=span_hi)
 
-    # A cut only ever shrinks here. Voice past an edge with no transcript word in it
-    # is either the cut word timed short or a word the transcript dropped (#818's
-    # premise), and the audio cannot tell which, so widening onto it is never
-    # automatic: the edge stays and the cut is reviewed.
-    stuck = False
+    needs_review = False
     for runs, own in ((own_runs, True), *((runs, False) for runs in peer_runs)):
         run = run_straddling(runs, cut_start)
         if run is not None:
@@ -1267,7 +1247,7 @@ def _check_voiced_speech(
                     candidate, (cut_start, cut_end), run[1] + _VOICE_EDGE_PAD_SEC, cut_end
                 )
             if nudged is None:
-                stuck = True
+                needs_review = True
             else:
                 cut_start = nudged[0]
         run = run_straddling(runs, cut_end)
@@ -1278,7 +1258,7 @@ def _check_voiced_speech(
                     candidate, (cut_start, cut_end), cut_start, run[0] - _VOICE_EDGE_PAD_SEC
                 )
             if nudged is None:
-                stuck = True
+                needs_review = True
             else:
                 cut_end = nudged[1]
     deleted = [*peer_runs, *([own_runs] if candidate.cut_kind == "pause" else [])]
@@ -1292,7 +1272,7 @@ def _check_voiced_speech(
         for c in (audio_cache, *peer_caches)
     ):
         return _VoicedSpeechCheck(cut_start, cut_end, "interior_audio")
-    return _VoicedSpeechCheck(cut_start, cut_end, "voiced_edge" if stuck else None)
+    return _VoicedSpeechCheck(cut_start, cut_end, "voiced_edge" if needs_review else None)
 
 
 def _analyze_candidate(
