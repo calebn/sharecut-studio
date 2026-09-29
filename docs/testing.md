@@ -20,9 +20,9 @@ skipping tests. Keep a separate Playwright browser run for real-browser checks.
 
 `make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in parallel with a `frontend` job for Sharecut Studio (`gui/web`).
 
-Hang protection: `pytest-timeout` (`--timeout=60 --timeout-method=thread` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server — Starlette `TestClient` nested sockets can deadlock.
+Hang protection: `pytest-timeout` (`--timeout=60 --timeout-method=thread` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server — Starlette `TestClient` nested sockets can deadlock. The blanket 60 s is sized for that fast default suite; `tests/e2e/conftest.py`'s `pytest_collection_modifyitems` hook gives every `e2e_slow`-marked test its own `E2E_SLOW_TIMEOUT_SEC` (300 s) instead, since live ASR / heavier pipeline runs in that tier can take minutes (#795). A test that sets its own `@pytest.mark.timeout` keeps that value.
 
-`e2e_slow` (live ASR / HF downloads) and `e2e_real` (AMI / benchmark regression) are **not** in the default gate — run `make e2e-slow` / `make e2e-real` locally or on a schedule. Fast `e2e` fixture tests stay in `make test` so coverage stays above 95%.
+`e2e_slow` (live ASR / HF downloads) and `e2e_real` (AMI / benchmark regression) are **not** in the default gate — run `make e2e-slow` / `make e2e-real` locally or on a schedule. Fast `e2e` fixture tests stay in `make test` so coverage stays above 95%. `test_fixture_transcribe_slow.py::test_live_transcribe` currently `xfail`s: `aligned_dialogue`'s raw audio is a non-speech synthetic tone, so Whisper's VAD (`transcribe.vad`, #521) correctly finds no speech in it and live transcribe returns 0 words; see #801 for regenerating the fixture with real speech.
 
 Tests that execute a Python file from `scripts/` use `tests/script_loader.py`'s
 `load_script(name)`. Each call executes a fresh module without changing
