@@ -18,7 +18,7 @@ from podcast_mcp.engines.asr_silence import (
     silent_fraction,
 )
 from podcast_mcp.models import TranscriptWord
-from two_mic_project import two_mic_project
+from two_mic_project import two_mic_project, write_wav
 
 SR = 8000
 
@@ -419,6 +419,122 @@ def test_speech_levels_apply_the_track_gain_and_the_bleed_margin(tmp_workspace):
         project, AsrOptions(forced_alignment_bleed_margin_db=6.0), bleed_check=True
     )
     assert lenient.has_speech("host", 1.6, 1.9) is True
+
+
+def test_speech_levels_measure_the_selected_peer_source_not_its_primary_media(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    write_wav(tmp_workspace / "raw" / "extra.wav", np.zeros(3 * SR, dtype=np.float32))
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=1.5,
+            source_end=2.0,
+            timeline_start=0.5,
+        )
+    )
+
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    # At host source .70, the guest lane plays silent extra.wav at source 1.70.
+    # guest.wav is loud there, but it is not the selected media for that clip.
+    assert levels.has_speech("host", 0.70, 0.72) is True
+
+
+def test_speech_levels_measure_loud_offset_source_when_peer_primary_is_silent(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    write_wav(tmp_workspace / "raw" / "guest.wav", np.zeros(3 * SR, dtype=np.float32))
+    extra = np.zeros(5 * SR, dtype=np.float32)
+    start, end = int(4.15 * SR), int(4.35 * SR)
+    t = np.arange(end - start) / SR
+    extra[start:end] = 10 ** (-12 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t)
+    write_wav(tmp_workspace / "raw" / "extra.wav", extra)
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=5.0)]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=4.0,
+            source_end=4.5,
+            timeline_start=0.5,
+        )
+    )
+
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    # Timeline .70-.72 maps through this clip to source 4.20-4.22.
+    assert levels.has_speech("host", 0.70, 0.72) is False
+
+
+def test_speech_levels_skip_peer_gaps_and_unavailable_selected_sources(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    project.clips[1] = Clip(
+        id="guest-gap", track_id="guest", source_start=0.0, source_end=0.1, timeline_start=0.5
+    )
+    assert (
+        SpeechLevels.for_project(project, AsrOptions(), bleed_check=True).has_speech(
+            "host", 0.70, 0.72
+        )
+        is True
+    )
+
+    project.sources = [SourceRecording(id="missing", path="raw/missing.wav")]
+    project.clips[1] = Clip(
+        id="guest-missing",
+        track_id="guest",
+        source_id="missing",
+        source_start=1.5,
+        source_end=2.0,
+        timeline_start=0.5,
+    )
+    assert (
+        SpeechLevels.for_project(project, AsrOptions(), bleed_check=True).has_speech(
+            "host", 0.70, 0.72
+        )
+        is True
+    )
+
+
+def test_speech_levels_decode_each_selected_media_path_once(tmp_workspace, monkeypatch):
+    from podcast_mcp.engines.asr_silence import SpeechLevels, TrackEnergy
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    project.sources = [SourceRecording(id="host-copy", path="raw/host.wav", duration_sec=3.0)]
+    project.clips.append(
+        Clip(
+            id="guest-host-copy",
+            track_id="guest",
+            source_id="host-copy",
+            source_start=0.5,
+            source_end=1.0,
+            timeline_start=0.5,
+        )
+    )
+    decoded: list[str] = []
+    decode = TrackEnergy.decode
+
+    def record_decode(cls, path, **kwargs):
+        decoded.append(str(path.resolve()))
+        return decode(path, **kwargs)
+
+    monkeypatch.setattr(TrackEnergy, "decode", classmethod(record_decode))
+
+    SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    assert decoded.count(str((tmp_workspace / "raw" / "host.wav").resolve())) == 1
 
 
 def test_speech_levels_treat_an_undecodable_track_as_evidence(tmp_workspace, caplog):
