@@ -16,8 +16,7 @@ from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredE
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
 from podcast_mcp.gui.routes.deps import (
     peer_host,
-    project_busy_error,
-    project_busy_from_timeout,
+    project_busy_http_error,
     require_authz,
     resolve_project,
 )
@@ -31,9 +30,7 @@ from podcast_mcp.services.document_sync.payloads import document_command_from_bo
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import AuthzDecision, authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.util.project_state import PROJECT_BUSY_MESSAGE
 from podcast_mcp.util.proxy_paths import is_relayed_request
-from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -41,11 +38,6 @@ log = logging.getLogger(__name__)
 # Owner session-authz interval, deliberately independent of guest_ws_common's
 # GUEST_SHARE_RECHECK_S (guest share validity) even though both are 30 s today.
 DOCUMENT_WS_AUTHZ_RECHECK_S = 30.0
-
-
-def _is_project_busy(exc: BaseException) -> bool:
-    """The project file lock timed out, or the document.db write lock stayed busy."""
-    return isinstance(exc, Timeout) or is_sqlite_busy(exc)
 
 
 @router.get("/api/document/comments")
@@ -101,11 +93,10 @@ def post_document_command(
             headers={"X-Sharecut-Error-Code": "transcript_refine_required"},
         ) from exc
     except (Timeout, sqlite3.OperationalError) as exc:
-        if not _is_project_busy(exc):
+        busy = project_busy_http_error(exc)
+        if busy is None:
             raise
-        if isinstance(exc, Timeout):
-            raise project_busy_from_timeout(exc) from exc
-        raise project_busy_error(PROJECT_BUSY_MESSAGE) from exc
+        raise busy from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
