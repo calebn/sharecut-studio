@@ -497,3 +497,21 @@ def test_track_energy_levels_match_the_tone_and_stream_in_frames(tmp_workspace):
     assert energy.level_db(0.1, 0.4) == pytest.approx(-70.0, abs=2.0)
     assert energy.level_db(2.99, 3.05) is not None
     assert energy.level_db(3.5, 3.6) is None
+
+
+def test_whisper_audio_decoder_reads_pcm_without_loading_a_model(tmp_path):
+    from faster_whisper.audio import decode_audio
+
+    path = tmp_path / "decode.wav"
+    samples = np.full(1600, 8192, dtype="<i2")
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(16000)
+        handle.writeframes(samples.tobytes())
+
+    decoded = decode_audio(str(path), sampling_rate=16000)
+
+    assert decoded.shape == (1600,)
+    assert decoded.dtype == np.float32
+    np.testing.assert_allclose(decoded, 0.25, atol=1 / 32768)
