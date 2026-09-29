@@ -166,6 +166,7 @@ def propose_tighten_edits(
             speaker_context=speaker_context,
             word_index=word_indexes[c.track_id],
             peer_indexes=peer_indexes,
+            audio_caches=audio_caches,
         ),
         max_workers=max_workers,
     )

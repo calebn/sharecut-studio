@@ -120,22 +120,41 @@ def transcript_suppress_word_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
     word_index: int = typer.Option(..., "--word-index"),
-    suppressed: bool = typer.Option(
-        True,
+    suppressed: bool | None = typer.Option(
+        None,
         "--suppressed/--unsuppressed",
-        help="Toggle suppress on (default) or restore (unsuppress) the word.",
+        help="Suppress (default) or restore (unsuppress) the word. Mutually exclusive with --automatic.",
+    ),
+    automatic: bool = typer.Option(
+        False,
+        "--automatic",
+        help=(
+            "Clear the word's suppression lock instead of setting it (#824): `suppressed` is "
+            "left as is until the next reconcile pass. Mutually exclusive with "
+            "--suppressed/--unsuppressed."
+        ),
     ),
     expected_text: str | None = typer.Option(
         None,
         "--expected-text",
-        help="Word text you read at --word-index; refuse the toggle if it changed meanwhile (#744).",
+        help="Word text you read at --word-index; refuse the change if it changed meanwhile (#744).",
     ),
 ) -> None:
-    """Suppress or unsuppress one per-track word (text only; audio unchanged)."""
+    """Suppress, unsuppress, or return to automatic one per-track word (text only; audio unchanged)."""
+    if automatic and suppressed is not None:
+        raise typer.BadParameter(
+            "--automatic is mutually exclusive with --suppressed/--unsuppressed."
+        )
     ws = ProjectWorkspace.open(project)
-    result = EditService(ws).set_word_suppressed(
-        track, word_index, suppressed, expected_text=expected_text
-    )
+    if automatic:
+        result = EditService(ws).set_word_automatic(track, word_index, expected_text=expected_text)
+    else:
+        result = EditService(ws).set_word_suppressed(
+            track,
+            word_index,
+            suppressed if suppressed is not None else True,
+            expected_text=expected_text,
+        )
     typer.echo(json.dumps(result, indent=2))
 
 

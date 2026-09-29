@@ -11,6 +11,7 @@ vi.mock("../../api", async (orig) => ({
   correctTranscriptWord: vi.fn(async () => {}),
   correctTranscriptPhrase: vi.fn(async () => {}),
   setTranscriptWordSuppressed: vi.fn(async () => {}),
+  setTranscriptWordAutomatic: vi.fn(async () => {}),
   setTranscriptWordsIgnored: vi.fn(async () => {}),
   refreshProject: vi.fn(),
 }));
@@ -22,6 +23,7 @@ vi.mock("../../commands/execute", () => ({
 import {
   correctTranscriptPhrase,
   correctTranscriptWord,
+  setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "../../api";
@@ -141,6 +143,7 @@ describe("TranscriptWordInspector", () => {
     vi.mocked(correctTranscriptPhrase).mockClear();
     vi.mocked(setTranscriptWordsIgnored).mockClear();
     vi.mocked(setTranscriptWordSuppressed).mockClear();
+    vi.mocked(setTranscriptWordAutomatic).mockClear();
     useDawStore.setState({
       project: project(),
       projectPath: "/tmp/ep",
@@ -188,6 +191,100 @@ describe("TranscriptWordInspector", () => {
       <TranscriptWordInspector trackId="host" wordIndex={1} />,
     );
     await expectNoA11yViolations(container);
+  });
+
+  it("hides Return to automatic for a word that is not locked", () => {
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(
+      screen.queryByRole("button", { name: "Return to automatic" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Return to automatic for a locked word (#824)", () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(
+      screen.getByRole("button", { name: "Return to automatic" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides Return to automatic for a guest even on a locked word", () => {
+    useDawStore.setState({
+      project: projectWithLockedWord(),
+      projectPath: "share:tok",
+    });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    expect(
+      screen.queryByRole("button", { name: "Return to automatic" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Return to automatic calls setTranscriptWordAutomatic with the displayed text (#824)", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to automatic" }),
+    );
+    await vi.waitFor(() => {
+      expect(setTranscriptWordAutomatic).toHaveBeenCalledWith(
+        "/tmp/ep",
+        "host",
+        1,
+        "there",
+      );
+    });
+  });
+
+  it("moves focus to the heading when Return to automatic disappears", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(async () => {
+      useDawStore.setState({ project: projectWithSuppressedWord() });
+    });
+    render(<TranscriptWordInspector trackId="host" wordIndex={1} />);
+    const button = screen.getByRole("button", { name: "Return to automatic" });
+    button.focus();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(
+      screen.queryByRole("button", { name: "Return to automatic" }),
+    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "there" })).toHaveFocus();
+    expect(screen.getByText("Suppressed").nextSibling).toHaveTextContent("yes");
+  });
+
+  it("records a detached unlock failure under the lock flag", async () => {
+    useDawStore.setState({ project: projectWithLockedWord() });
+    let reject: (error: Error) => void = () => {
+      throw new Error("request not started");
+    };
+    vi.mocked(setTranscriptWordAutomatic).mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const { rerender } = render(
+      <TranscriptWordInspector key="host:1" trackId="host" wordIndex={1} />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Return to automatic" }),
+    );
+    rerender(
+      <TranscriptWordInspector key="host:0" trackId="host" wordIndex={0} />,
+    );
+    await act(async () => {
+      reject(new Error("unlock failed"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(useDawStore.getState().transcriptInlineEditFailure).toEqual({
+      projectPath: "/tmp/ep",
+      trackId: "host",
+      wordIndex: 1,
+      originalText: "there",
+      flag: { name: "audibility_locked", was: true },
+      message: "Could not update “there”: unlock failed",
+    });
   });
 
   it("Apply with end index = start calls correctTranscriptWord", async () => {

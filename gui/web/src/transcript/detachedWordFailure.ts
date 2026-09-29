@@ -6,19 +6,21 @@ import type {
 } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 
-/**
- * What failed on the word: a text fix, or a Suppress / Ignore toggle. The
- * toggle names are boolean-only word fields (TranscriptWordBooleanFlag), since
- * `flag.was` and the moot check read them through `Boolean()`.
- */
+/** Text corrections and boolean actions whose late failures can become moot. */
 export type DetachedWordAction = "fix" | TranscriptWordBooleanFlag;
+
+/** Fields captured when an action starts and compared when its late failure is shown. */
+export type DetachedWordSnapshot = Pick<
+  TranscriptWordView,
+  "text" | "suppressed" | "ignored" | "audibility_locked"
+>;
 
 export interface DetachedWordFailureInput {
   projectPath: string;
   trackId: string;
   wordIndex: number;
   /** The word as it was when the action was submitted. */
-  word: Pick<TranscriptWordView, "text" | "suppressed" | "ignored">;
+  word: DetachedWordSnapshot;
   action: DetachedWordAction;
   failure: unknown;
 }
@@ -60,13 +62,13 @@ export function reportDetachedWordFailure(
 /**
  * True once a late failure no longer applies: another project is open, the
  * word is gone, its text changed by any path (inspector Apply, a later
- * inline fix, a remote edit), or, for a failed Suppress / Ignore, that flag
- * changed (a retry succeeded).
+ * inline fix, a remote edit), or, for a failed Suppress / Ignore / Return to
+ * automatic, that flag changed (a retry succeeded).
  */
 export function isDetachedWordFailureMoot(
   failure: TranscriptInlineEditFailure,
   projectPath: string,
-  word: Pick<TranscriptWordView, "text" | "suppressed" | "ignored"> | null,
+  word: DetachedWordSnapshot | null,
 ): boolean {
   if (failure.projectPath !== projectPath || !word) return true;
   if (word.text !== failure.originalText) return true;

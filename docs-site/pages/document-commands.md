@@ -62,6 +62,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTrackMedia` | `rel_path` (string), `track_id` (string) | — |
 | `SetTrackMeta` | `track_id` (string) | `label` (string \| null), `role` (string \| null), `speaker` (string \| null) |
 | `SetTrackMute` | `muted` (boolean), `track_id` (string) | — |
+| `SetTranscriptWordAutomatic` | `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
 | `SetTranscriptWordSuppressed` | `suppressed` (boolean), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
@@ -73,7 +74,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 47 command types._
+_Generated 48 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

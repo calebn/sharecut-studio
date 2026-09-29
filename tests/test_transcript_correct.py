@@ -10,6 +10,7 @@ from podcast_mcp.edits.transcript_correct import (
     list_low_confidence,
     require_word_text,
     run_user_transcript_edit,
+    set_word_automatic,
     set_word_suppressed,
     set_words_ignored,
     transcript_word_record,
@@ -139,6 +140,43 @@ def test_set_word_suppressed_toggles_and_rebuilds() -> None:
     assert p.transcripts[0].words[1].audibility_locked is True
     combined_text2 = " ".join(u.text for u in p.combined_transcript.utterances)
     assert "world" in combined_text2
+
+
+def test_set_word_automatic_clears_lock_leaves_suppressed() -> None:
+    p = EpisodeProject.create("tc-auto", "/tmp")
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.0, end=0.5, confidence=0.9),
+                TranscriptWord(text="world", start=0.6, end=1.0, confidence=0.9),
+            ],
+        )
+    ]
+    set_word_suppressed(p, "host", 1, True)
+    assert p.transcripts[0].words[1].audibility_locked is True
+
+    out = set_word_automatic(p, "host", 1)
+    assert out == {
+        "track_id": "host",
+        "word_index": 1,
+        "suppressed": True,
+        "audibility_locked": False,
+        "text": "world",
+    }
+    word = p.transcripts[0].words[1]
+    assert word.audibility_locked is False
+    # suppressed is untouched by the unlock itself.
+    assert word.suppressed is True
+
+
+def test_set_word_automatic_out_of_range_raises() -> None:
+    p = EpisodeProject.create("tc-auto-oob", "/tmp")
+    p.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.5)])
+    ]
+    with pytest.raises(ValueError, match="word_index out of range"):
+        set_word_automatic(p, "host", 5)
 
 
 def _ignore_project() -> EpisodeProject:

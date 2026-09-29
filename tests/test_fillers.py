@@ -188,12 +188,30 @@ def _safe_risk():
     return CutRisk(score=0.1, reasons=[])
 
 
-def test_analyze_fillers_integration(tmp_path, sample_wav):
+def _write_speech_wav(path, spans: list[tuple[float, float]], *, rate: int = 48_000) -> None:
+    import wave
+
+    import numpy as np
+
+    samples = np.zeros(5 * rate, dtype=np.float32)
+    for start, end in spans:
+        n = int((end - start) * rate)
+        t = np.arange(n) / rate
+        tone = sum(np.sin(2 * np.pi * 180.0 * k * t) / k for k in range(1, 6))
+        tone = tone / np.sqrt(np.mean(tone**2)) * 10 ** (-20.0 / 20)
+        samples[int(start * rate) : int(start * rate) + n] = tone.astype(np.float32)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes((np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+
+
+def test_analyze_fillers_integration(tmp_path):
     ws = tmp_path / "ws"
     raw = ws / "raw"
     raw.mkdir(parents=True)
-    audio = raw / "host.wav"
-    audio.write_bytes(sample_wav.read_bytes())
+    _write_speech_wav(raw / "host.wav", [(0.5, 0.7), (0.75, 0.95), (2.0, 2.4)])
 
     project = EpisodeProject.create("fint", str(ws))
     project.tracks = [
@@ -225,9 +243,14 @@ def test_analyze_fillers_integration(tmp_path, sample_wav):
     ]
     from podcast_mcp.config import load_defaults
 
-    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
-    assert decisions
-    assert all(d.cut_confidence is not None for d in decisions)
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
+
+    assert decision.reason == "filler:um"
+    assert decision.review_required is False
+    assert decision.scope == "session"
+    assert decision.start == pytest.approx(0.460, abs=0.011)
+    assert decision.end == pytest.approx(0.702, abs=0.005)
+    assert decision.cut_confidence is not None
 
 
 @pytest.fixture(autouse=True)
@@ -2159,7 +2182,13 @@ def test_join_continuity_verdicts_and_scorer_errors():
             "join_continuity_gate": True,
         }
     }
-    sentinel_cache = object()
+    import numpy as np
+
+    from podcast_mcp.edits.audio_cache import TrackAudioCache
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+
+    silent = TrackRmsCache(np.zeros(16_000 * 3, dtype=np.float32), 16_000)
+    sentinel_cache = TrackAudioCache(silent, silent)
     project = _project_with_transcript(words)
     with (
         patch(

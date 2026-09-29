@@ -298,9 +298,10 @@ finds no probe at or above a normalized autocorrelation peak of 0.55 over the
 run and, for adjacent-cut co-removal, over everything between the run and the
 cut edge, and when less than half of the 100 Hz–8 kHz energy of the run, and
 separately of that gap, lies above 4 kHz (a sibilant, not a breath). The
-heuristic probes only frames that reach the band floor: on the lab tape room
-tone 40 dB under the speech level scores 0.6–0.8 on the same sweep, and it is
-not speech to protect (#814). A breath is unvoiced noise, and a level band
+heuristic always probes only frames that reach the band floor, and so does
+Silero for adjacent-cut co-removal (#828): on the lab tape room tone 40 dB
+under the speech level scores 0.6–0.8 on the same sweep, and it is not speech
+to protect (#814). A breath is unvoiced noise, and a level band
 or a VAD probability dip alone selects the quieter frames of ordinary speech in
 a loud window. This applies to adjacent-cut breath co-removal as well as to
 acoustic candidates (#798), so a cut is never extended over a voiced run; the
@@ -312,11 +313,16 @@ whenever a cut edge abuts it (a word the cut removes at least half of is not
 kept). A run that continues a kept word on its far side without the level first
 falling to the band floor is that word's decay or onset and is rejected too, so
 a fricative onset under the 4 kHz split or a voiced tail whose probes stay under
-0.55 cannot be co-removed; the heuristic scans the whole 5 s of flanking audio
-for that walk. And no frame between the run and the cut may exceed the band
-ceiling (speech level −7 dB): vocal fry has pulses at speech level but scores
-0.1–0.4 on the 70–350 Hz probe, so level, not pitch, is what separates it from
-a breath. Tune against real recordings by ear before changing either default.
+0.55 cannot be co-removed; both backends scan the whole 5 s of flanking audio
+for that walk through the shared `_breath_run_predicate` (#828, previously
+heuristic-only). And no frame between the run and the cut may
+exceed the band ceiling (speech level −7 dB): vocal fry has pulses at speech
+level but scores 0.1–0.4 on the 70–350 Hz probe, so level, not pitch, is what
+separates it from a breath. This ceiling and the kept-word walk apply only to
+adjacent-cut co-removal, where a cut edge gives the gap and the far side their
+meaning; the acoustic-gap-filler candidate path above has neither, and Silero
+there still skips the level reference. Tune against real recordings by ear
+before changing either default.
 
 ## Agent audition context (v2)
 

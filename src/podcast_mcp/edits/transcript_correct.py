@@ -191,6 +191,34 @@ def set_word_suppressed(
     }
 
 
+def set_word_automatic(
+    project: EpisodeProject,
+    track_id: str,
+    word_index: int,
+) -> dict:
+    """Clear ``audibility_locked`` on one word; ``suppressed`` is untouched (#824).
+
+    Returns the word to automatic: the next reconcile pass (acoustic or text-match)
+    computes its target the same as any word that was never locked, instead of
+    honoring the stale explicit decision forever. Does not rebuild the combined
+    transcript: ``suppressed`` does not change here, only its later reconcile.
+    """
+    tr = project.transcript_for_track(track_id)
+    if not tr:
+        raise ValueError(f"no transcript for track {track_id!r}")
+    if word_index < 0 or word_index >= len(tr.words):
+        raise ValueError(f"word_index out of range: {word_index}")
+    w = tr.words[word_index]
+    tr.words[word_index] = w.model_copy(update={"audibility_locked": False})
+    return {
+        "track_id": track_id,
+        "word_index": word_index,
+        "suppressed": tr.words[word_index].suppressed,
+        "audibility_locked": tr.words[word_index].audibility_locked,
+        "text": tr.words[word_index].text,
+    }
+
+
 def set_words_ignored(
     project: EpisodeProject,
     track_id: str,

@@ -182,6 +182,28 @@ def _words_for_utterance(
     return [index.views[i] for i in sorted(selected)]
 
 
+def _flagged_word_indices_for_utterance(
+    words: Sequence[Any],
+    intervals: HalfOpenIntervalIndex,
+    source_start: float,
+    source_end: float,
+    attr: str,
+    *,
+    extra_indices: Sequence[int] = (),
+) -> list[int]:
+    selected = {
+        index
+        for index in _covered_word_ordinals(words, intervals, source_start, source_end)
+        if bool(getattr(words[index], attr, False))
+    }
+    selected.update(
+        index
+        for index in extra_indices
+        if index < len(words) and bool(getattr(words[index], attr, False))
+    )
+    return sorted(selected)
+
+
 def _ignored_word_indices_for_utterance(
     words: Sequence[Any],
     intervals: HalfOpenIntervalIndex,
@@ -190,26 +212,28 @@ def _ignored_word_indices_for_utterance(
     *,
     extra_indices: Sequence[int] = (),
 ) -> list[int]:
-    """Sorted per-track `word_index` values of ignored words overlapping the utterance (#633).
-
-    Takes the track's raw (unmapped) words and their ``_raw_word_intervals``
-    index, so each utterance visits only the words near its window and never
-    triggers a timeline word mapping (``SessionTimeline.map_word_spans``) —
-    that stays reserved for ``include_words=True``. ``extra_indices`` folds in
-    the edge-suppressed words attached to this utterance that are also
-    ignored (#752).
-    """
-    selected = {
-        index
-        for index in _covered_word_ordinals(words, intervals, source_start, source_end)
-        if bool(getattr(words[index], "ignored", False))
-    }
-    selected.update(
-        index
-        for index in extra_indices
-        if index < len(words) and bool(getattr(words[index], "ignored", False))
+    """Sorted per-track `word_index` values of ignored words overlapping the utterance (#633)."""
+    return _flagged_word_indices_for_utterance(
+        words, intervals, source_start, source_end, "ignored", extra_indices=extra_indices
     )
-    return sorted(selected)
+
+
+def _locked_word_indices_for_utterance(
+    words: Sequence[Any],
+    intervals: HalfOpenIntervalIndex,
+    source_start: float,
+    source_end: float,
+    *,
+    extra_indices: Sequence[int] = (),
+) -> list[int]:
+    return _flagged_word_indices_for_utterance(
+        words,
+        intervals,
+        source_start,
+        source_end,
+        "audibility_locked",
+        extra_indices=extra_indices,
+    )
 
 
 def _source_gap(word: Any, span: tuple[float, float]) -> float:
@@ -346,6 +370,9 @@ def _suppressed_only_rows(
             ignored = [i for i in run if bool(getattr(words[i], "ignored", False))]
             if ignored:
                 row["ignored_word_indices"] = ignored
+            locked = [i for i in run if bool(getattr(words[i], "audibility_locked", False))]
+            if locked:
+                row["locked_word_indices"] = locked
             rows.append(row)
     return rows
 
@@ -487,6 +514,15 @@ def map_transcript_utterances_to_timeline(
         )
         if ignored_word_indices:
             row["ignored_word_indices"] = ignored_word_indices
+        locked_word_indices = _locked_word_indices_for_utterance(
+            raw_words_by_track[track_id],
+            raw_intervals_by_track[track_id],
+            source_start,
+            source_end,
+            extra_indices=extra_indices,
+        )
+        if locked_word_indices:
+            row["locked_word_indices"] = locked_word_indices
         mapped.append(row)
 
     synthetic = _suppressed_only_rows(
