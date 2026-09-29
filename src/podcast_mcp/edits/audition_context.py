@@ -356,8 +356,12 @@ def build_audition_context(
     source_at_mid: dict[str, float | None] = {}
     alignment_shift: dict[str, float] = {}
     words_timeline: dict[str, list[tuple[float, str]]] = {}
+    whisper_only_tracks: list[str] = []
 
     for tid in track_ids:
+        transcript = project.transcript_for_track(tid)
+        if transcript is not None and transcript.words and transcript.word_aligner is None:
+            whisper_only_tracks.append(tid)
         spans = st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
         src_mid = st.timeline_to_source(tid, TimelineSec(mid))
         source_at_mid[tid] = float(src_mid) if src_mid is not None else None
@@ -385,6 +389,9 @@ def build_audition_context(
             "suppressed_only": bool(spans) and not words and _has_any_words(project, tid, spans),
             "effects": _active_effects(project, tid),
             "muted": bool(getattr(project.track_by_id(tid), "muted", False)),
+            # None = Whisper's own word times (no forced aligner ran): not reliable for cut
+            # decisions, so an agent double-checks boundaries before cutting (#780).
+            "word_aligner": transcript.word_aligner if transcript is not None else None,
         }
         if include_prosody:
             track_info["prosody"] = _prosody_for_track(project, st, tid, spans, prosody_params)
@@ -485,6 +492,7 @@ def build_audition_context(
             detail=detail,
             needs_rerender=bool(render_status.get("needs_rerender")),
             echo_skipped=echo_skipped,
+            whisper_word_times=bool(whisper_only_tracks),
         ),
         "warnings": warnings,
         "summary": _summary(tracks_out, warnings, comments),
@@ -901,12 +909,20 @@ def _attach_listen_refs(
         h["next"]["listen"] = listen
 
 
-def _limits(*, detail: str, needs_rerender: bool, echo_skipped: bool = False) -> list[str]:
+def _limits(
+    *,
+    detail: str,
+    needs_rerender: bool,
+    echo_skipped: bool = False,
+    whisper_word_times: bool = False,
+) -> list[str]:
     out = ["cannot_hear", "captions_are_transcript_not_audio"]
     if needs_rerender:
         out.append("needs_rerender")
     if echo_skipped:
         out.append("echo_check_needs_fresh_stems")
+    if whisper_word_times:
+        out.append("whisper_word_times")
     if detail == "visual":
         out.append("visuals_are_degradation_not_asr")
     return out
