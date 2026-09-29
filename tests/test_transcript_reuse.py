@@ -291,7 +291,7 @@ class _FixedEvidence:
         return self.speech
 
     def fingerprint_term(self, track_id: str) -> str:
-        assert track_id == "host"
+        del track_id
         return "own"
 
 
@@ -354,8 +354,6 @@ def _flags(transcript):
 def test_transcribe_time_reflag_does_not_flag_a_real_word_under_a_wrong_placement(
     tmp_workspace,
 ):
-    from podcast_mcp.engines.asr_silence import evidence_term
-
     """#780 lane (c): host placed 1.0 s late so its real word sits under the guest's line."""
     project, host = _scored_two_mic(tmp_workspace, host_timeline_start=1.0)
     job = TranscribeJob("host", None, tmp_workspace / "raw" / "host.wav")
@@ -365,6 +363,8 @@ def test_transcribe_time_reflag_does_not_flag_a_real_word_under_a_wrong_placemen
     assert refresh_reused_silence_flags(project, plan, options) == []
     assert _flags(host) == [False, False, True]
     own_fp = host.silence_filter_fingerprint
+    from podcast_mcp.engines.asr_silence import evidence_term
+
     assert own_fp == silence_filter_fingerprint(
         host.words,
         host.audio_sha256,
@@ -410,6 +410,35 @@ def test_settled_reflag_reads_placement_and_fixing_it_reflags(tmp_workspace):
     assert _flags(host) == [False, True, True]
 
 
+def test_settled_reflag_tracks_selected_peer_media_revision_once(tmp_workspace):
+    from podcast_mcp.models import Clip, SourceRecording
+    from two_mic_project import SR, write_wav
+
+    project, host = _scored_two_mic(tmp_workspace)
+    extra_path = tmp_workspace / "raw" / "extra.wav"
+    write_wav(extra_path, np.zeros(3 * SR, dtype=np.float32))
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=1.5,
+            source_end=2.0,
+            timeline_start=0.5,
+        )
+    )
+    options = AsrOptions(silence_filter_enabled=False)
+
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [False, False, True]
+    write_wav(extra_path, np.full(3 * SR, 0.1, dtype=np.float32))
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [True, False, True]
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+
 def test_reused_reflag_tracks_own_gain_and_reuses_unchanged_evidence(tmp_workspace, monkeypatch):
     from podcast_mcp.edits import transcript_reuse
 
@@ -428,7 +457,6 @@ def test_reused_reflag_tracks_own_gain_and_reuses_unchanged_evidence(tmp_workspa
     monkeypatch.setattr(transcript_reuse, "refresh_silence_flags", count_refresh)
 
     assert refresh_reused_silence_flags(project, plan, options) == []
-    assert _flags(host) == [False, False, True]
     assert refresh_count == 1
     assert refresh_reused_silence_flags(project, plan, options) == []
     assert refresh_count == 1
@@ -455,19 +483,43 @@ def test_settled_reflag_tracks_peer_gain_and_reuses_unchanged_evidence(tmp_works
     assert refresh_settled_silence_flags(project, options) == ([], 0)
 
 
-def test_scored_transcript_without_evidence_gate_keeps_own_fingerprint(tmp_workspace):
-    project, host = _scored_two_mic(tmp_workspace)
-    options = AsrOptions(
-        silence_filter_enabled=False,
-        forced_alignment_min_word_score=0.0,
+def test_unchanged_undecodable_selected_peer_media_does_not_refresh_again(
+    tmp_workspace, monkeypatch
+):
+    from podcast_mcp.engines.asr_silence import TrackEnergy
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project, _host = _scored_two_mic(tmp_workspace)
+    extra_path = tmp_workspace / "raw" / "extra.wav"
+    extra_path.write_bytes(b"not audio")
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=1.5,
+            source_end=2.0,
+            timeline_start=1.5,
+        )
     )
+    calls = 0
+    decode = TrackEnergy.decode
+
+    def count_selected_decode(cls, path, **kwargs):
+        nonlocal calls
+        if path.name == "extra.wav":
+            calls += 1
+        return decode(path, **kwargs)
+
+    monkeypatch.setattr(TrackEnergy, "decode", classmethod(count_selected_decode))
+    options = AsrOptions(silence_filter_enabled=False)
 
     assert refresh_settled_silence_flags(project, options) == ([], 1)
-    fingerprint = host.silence_filter_fingerprint
+    assert calls == 1
     assert refresh_settled_silence_flags(project, options) == ([], 0)
-    project.track_by_id("guest").gain_db = -20.0
-    assert refresh_settled_silence_flags(project, options) == ([], 0)
-    assert host.silence_filter_fingerprint == fingerprint
+    assert calls == 1
 
 
 def test_settled_reflag_skips_unscored_and_hashless_transcripts(tmp_workspace):

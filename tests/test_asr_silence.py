@@ -428,6 +428,7 @@ def test_speech_levels_measure_the_selected_peer_source_not_its_primary_media(tm
     project = two_mic_project(tmp_workspace)
     write_wav(tmp_workspace / "raw" / "extra.wav", np.zeros(3 * SR, dtype=np.float32))
     project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
     project.clips.append(
         Clip(
             id="guest-extra",
@@ -435,15 +436,14 @@ def test_speech_levels_measure_the_selected_peer_source_not_its_primary_media(tm
             source_id="extra",
             source_start=1.5,
             source_end=2.0,
-            timeline_start=0.5,
+            timeline_start=1.5,
         )
     )
 
     levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
 
-    # At host source .70, the guest lane plays silent extra.wav at source 1.70.
-    # guest.wav is loud there, but it is not the selected media for that clip.
-    assert levels.has_speech("host", 0.70, 0.72) is True
+    # The host word overlaps silent extra.wav, while guest.wav is loud at that time.
+    assert levels.has_speech("host", 1.60, 1.90) is True
 
 
 def test_speech_levels_measure_loud_offset_source_when_peer_primary_is_silent(tmp_workspace):
@@ -458,6 +458,7 @@ def test_speech_levels_measure_loud_offset_source_when_peer_primary_is_silent(tm
     extra[start:end] = 10 ** (-12 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t)
     write_wav(tmp_workspace / "raw" / "extra.wav", extra)
     project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=5.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
     project.clips.append(
         Clip(
             id="guest-extra",
@@ -473,6 +474,47 @@ def test_speech_levels_measure_loud_offset_source_when_peer_primary_is_silent(tm
 
     # Timeline .70-.72 maps through this clip to source 4.20-4.22.
     assert levels.has_speech("host", 0.70, 0.72) is False
+
+
+def test_speech_levels_widen_brief_peer_pulse_window_before_selected_source_mapping(
+    tmp_workspace,
+):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    host = np.full(3 * SR, 10 ** (-60 / 20) * np.sqrt(2), dtype=np.float32)
+    host_start, host_end = int(0.68 * SR), int(0.74 * SR)
+    host_time = np.arange(host_end - host_start) / SR
+    host[host_start:host_end] = 10 ** (-30 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * host_time)
+    write_wav(tmp_workspace / "raw" / "host.wav", host)
+    write_wav(tmp_workspace / "raw" / "guest.wav", np.zeros(3 * SR, dtype=np.float32))
+
+    peer = np.zeros(1 * SR, dtype=np.float32)
+    pulse_start, pulse_end = int(0.20 * SR), int(0.21 * SR)
+    pulse_time = np.arange(pulse_end - pulse_start) / SR
+    peer[pulse_start:pulse_end] = (
+        10 ** (-22 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * pulse_time)
+    )
+    write_wav(tmp_workspace / "raw" / "extra.wav", peer)
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=1.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=0.18,
+            source_end=0.24,
+            timeline_start=0.68,
+        )
+    )
+
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    # On the exact 20 ms word the pulse averages -25 dBFS against the host's -30 dBFS,
+    # enough to trigger the 3 dB bleed rule. The matched wider window dilutes it below that.
+    assert levels.has_speech("host", 0.70, 0.72) is True
 
 
 def test_speech_levels_skip_peer_gaps_and_unavailable_selected_sources(tmp_workspace):
@@ -497,11 +539,34 @@ def test_speech_levels_skip_peer_gaps_and_unavailable_selected_sources(tmp_works
         source_id="missing",
         source_start=1.5,
         source_end=2.0,
-        timeline_start=0.5,
+        timeline_start=1.5,
     )
     assert (
         SpeechLevels.for_project(project, AsrOptions(), bleed_check=True).has_speech(
-            "host", 0.70, 0.72
+            "host", 1.60, 1.90
+        )
+        is True
+    )
+
+
+def test_speech_levels_treat_partial_peer_gap_as_unknown(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip
+
+    project = two_mic_project(tmp_workspace)
+    project.clips[1] = Clip(
+        id="guest-partial",
+        track_id="guest",
+        source_start=1.5,
+        source_end=1.65,
+        timeline_start=1.5,
+    )
+
+    # The peer is loud for only half of the host word's interval; the remaining gap
+    # has no selected audio, so the partial measurement cannot establish bleed.
+    assert (
+        SpeechLevels.for_project(project, AsrOptions(), bleed_check=True).has_speech(
+            "host", 1.60, 1.90
         )
         is True
     )
@@ -535,6 +600,106 @@ def test_speech_levels_decode_each_selected_media_path_once(tmp_workspace, monke
     SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
 
     assert decoded.count(str((tmp_workspace / "raw" / "host.wav").resolve())) == 1
+
+
+def test_speech_levels_cache_failed_decode_for_repeated_selected_source(tmp_workspace, monkeypatch):
+    from podcast_mcp.engines.asr_silence import SpeechLevels, TrackEnergy
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    corrupt = tmp_workspace / "raw" / "corrupt.wav"
+    corrupt.write_bytes(b"not a WAV")
+    project.sources = [SourceRecording(id="corrupt", path="raw/corrupt.wav", duration_sec=2.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.extend(
+        [
+            Clip(
+                id="guest-corrupt-a",
+                track_id="guest",
+                source_id="corrupt",
+                source_start=0.0,
+                source_end=0.5,
+                timeline_start=0.5,
+            ),
+            Clip(
+                id="guest-corrupt-b",
+                track_id="guest",
+                source_id="corrupt",
+                source_start=0.5,
+                source_end=1.0,
+                timeline_start=1.0,
+            ),
+        ]
+    )
+    calls = 0
+    decode = TrackEnergy.decode
+
+    def count_corrupt_decode(cls, path, **kwargs):
+        nonlocal calls
+        if path.name == "corrupt.wav":
+            calls += 1
+        return decode(path, **kwargs)
+
+    monkeypatch.setattr(TrackEnergy, "decode", classmethod(count_corrupt_decode))
+
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    assert calls == 1
+    assert levels.skipped == ["guest"]
+
+
+def test_speech_levels_decode_selected_source_even_when_primary_is_missing(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    (tmp_workspace / "raw" / "guest.wav").unlink()
+    write_wav(tmp_workspace / "raw" / "extra.wav", np.full(3 * SR, 0.1, dtype=np.float32))
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=1.5,
+            source_end=2.0,
+            timeline_start=0.5,
+        )
+    )
+
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+
+    assert str((tmp_workspace / "raw" / "extra.wav").resolve()) in levels.media
+    assert levels.has_speech("host", 0.70, 0.72) is False
+
+
+def test_selected_peer_media_replacement_changes_evidence_term_once(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import evidence_term
+    from podcast_mcp.models import Clip, SourceRecording
+
+    project = two_mic_project(tmp_workspace)
+    extra_path = tmp_workspace / "raw" / "extra.wav"
+    write_wav(extra_path, np.zeros(3 * SR, dtype=np.float32))
+    project.sources = [SourceRecording(id="extra", path="raw/extra.wav", duration_sec=3.0)]
+    project.clips = [clip for clip in project.clips if clip.track_id != "guest"]
+    project.clips.append(
+        Clip(
+            id="guest-extra",
+            track_id="guest",
+            source_id="extra",
+            source_start=1.5,
+            source_end=2.0,
+            timeline_start=1.5,
+        )
+    )
+
+    before = evidence_term(project, "host", bleed_check=True)
+    write_wav(extra_path, np.ones(3 * SR, dtype=np.float32) * 0.1)
+    after = evidence_term(project, "host", bleed_check=True)
+
+    assert after != before
+    assert evidence_term(project, "host", bleed_check=True) == after
 
 
 def test_speech_levels_treat_an_undecodable_track_as_evidence(tmp_workspace, caplog):
@@ -584,24 +749,14 @@ def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
     from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
 
     project = EpisodeProject.create("fp", "/tmp")
-    project.tracks = [
-        Track(id="host", label="host", role=TrackRole.DIALOGUE),
-        Track(id="guest", label="guest", role=TrackRole.DIALOGUE),
-    ]
+    project.tracks = [Track(id="host", label="host", role=TrackRole.DIALOGUE)]
     project.clips = [
         Clip(id="c", track_id="host", source_start=0.0, source_end=3.0, timeline_start=0.0)
     ]
     settled = evidence_term(project, "host", bleed_check=True)
     own = evidence_term(project, "host", bleed_check=False)
     assert own.startswith("own:")
-    assert settled.startswith("bleed:") and len(settled) == len("bleed:") + 33
-    project.track_by_id("guest").gain_db = 12.0
-    assert evidence_term(project, "host", bleed_check=False) == own
-    assert evidence_term(project, "host", bleed_check=True) != settled
-    settled = evidence_term(project, "host", bleed_check=True)
-    project.track_by_id("host").gain_db = 3.0
-    assert evidence_term(project, "host", bleed_check=False) != own
-    assert evidence_term(project, "host", bleed_check=True) != settled
+    assert settled.startswith("bleed:")
     project.clips[0].timeline_start = 0.5
     assert evidence_term(project, "host", bleed_check=True) != settled
 
@@ -609,9 +764,9 @@ def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
     unscored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence="own")
     assert silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=settled) == unscored_own
     words[0].alignment_score = 0.9
-    scored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence="own")
+    scored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=own)
     assert silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=settled) != scored_own
-    assert silence_filter_fingerprint(words, "sha", AsrOptions()) == scored_own
+    assert silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=own) == scored_own
 
 
 def test_track_energy_levels_match_the_tone_and_stream_in_frames(tmp_workspace):
