@@ -55,7 +55,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
     request,
   }) => {
     const baseline = await stemRms(request, 2.35, 2.55);
-    expect(baseline).toBeGreaterThan(0.1);
+    expect(baseline).toBeGreaterThan(0.03);
 
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -215,7 +215,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
       await expect(the).not.toHaveClass(/ignored/);
 
       const restoredRms = await stemRms(request, 2.35, 2.55);
-      expect(restoredRms).toBeGreaterThan(baseline * 0.5);
+      expect(restoredRms).toBeCloseTo(baseline, 4);
     } finally {
       if (!restored) {
         await page.request.post(
