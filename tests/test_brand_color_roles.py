@@ -514,6 +514,23 @@ def test_review_stop_outline_meets_non_text_contrast(theme: str) -> None:
         assert _contrast_ratio(outline, fill) >= 3.0, (theme, fill)
 
 
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_locked_word_shadow_meets_non_text_contrast(theme: str) -> None:
+    """The audibility-lock indicator (#781, `.utterance-word.locked`) draws a solid
+    --color-text-secondary inset box-shadow over the plain surface and the active
+    turn (accent-subtle) / segment (accent-muted) washes; WCAG 1.4.11 needs 3:1.
+    --color-border-strong, tried first, measured 2.63/2.91 on the turn wash and
+    1.75/2.24 on the segment wash (dark/light) and was replaced (#802 review)."""
+    roles = _studio_roles(theme)
+    accent = _resolve_hex("--color-accent", roles)
+    surface = _resolve_hex("--color-bg-surface", roles)
+    turn = _mix(accent, surface, _accent_wash_alpha("--color-accent-subtle", roles))
+    segment = _mix(accent, turn, _accent_wash_alpha("--color-accent-muted", roles))
+    shadow = _resolve_hex("--color-text-secondary", roles)
+    for fill in (surface, turn, segment):
+        assert _contrast_ratio(shadow, fill) >= 3.0, (theme, fill)
+
+
 _WASH_RE = re.compile(r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, transparent\)")
 
 
