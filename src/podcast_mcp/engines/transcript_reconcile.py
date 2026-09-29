@@ -3,11 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.edits.bleed_text_match import suppress_overlap_text_matches
+from podcast_mcp.edits.bleed_text_match import overlap_text_match_losers
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.audio_audit import AnalysisPolicy, compute_word_audibility_map
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_fresh
-from podcast_mcp.models import EpisodeProject, Transcript
+from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.util.progress import (
     ProgressReporter,
     resolve_progress_task,
@@ -50,6 +50,14 @@ def _in_time_window(
     return not (end_sec is not None and start >= end_sec)
 
 
+def _reconciles_word(w: TranscriptWord, *, start_sec: float | None, end_sec: float | None) -> bool:
+    """Whether a pass may write this word: inside the window, and never over an ``ignored``
+    word or a decision a person or agent locked (#768)."""
+    if w.ignored or w.audibility_locked:
+        return False
+    return _in_time_window(w.start, start_sec=start_sec, end_sec=end_sec)
+
+
 def _reconcile_word(
     tr: Transcript,
     i: int,
@@ -62,16 +70,15 @@ def _reconcile_word(
     end_sec: float | None,
 ) -> None:
     w = tr.words[i]
-    if w.ignored or w.audibility_locked:
+    if not _reconciles_word(w, start_sec=start_sec, end_sec=end_sec):
         return
     status = row["audibility_status"]
     dominant = row.get("dominant_track")
-    in_window = _in_time_window(w.start, start_sec=start_sec, end_sec=end_sec)
 
-    if in_window and (w.audibility_status != status or w.dominant_track != dominant):
+    if w.audibility_status != status or w.dominant_track != dominant:
         result.status_updates += 1
 
-    if update_status and in_window:
+    if update_status:
         tr.words[i] = w.model_copy(
             update={
                 "audibility_status": status,
@@ -80,7 +87,7 @@ def _reconcile_word(
         )
         w = tr.words[i]
 
-    if _should_suppress(status) and not w.suppressed and in_window:
+    if _should_suppress(status) and not w.suppressed:
         entry = {
             "track_id": tr.track_id,
             "word_index": i,
@@ -102,7 +109,7 @@ def _reconcile_word(
         if apply_suppression:
             tr.words[i] = tr.words[i].model_copy(update={"suppressed": True})
 
-    elif not _should_suppress(status) and w.suppressed and in_window:
+    elif not _should_suppress(status) and w.suppressed:
         result.unsuppress.append(
             {
                 "track_id": tr.track_id,
@@ -128,6 +135,13 @@ def reconcile_transcript(
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
 ) -> ReconciliationResult:
+    """Converge every word in scope to one target and report only what changed.
+
+    The target is the acoustic verdict, overridden by the text-match verdict where an
+    identical-text overlap picks this word as the loser. Both verdicts come from the
+    audio and the transcript, never from the stored flags, so a repeat run on an
+    unchanged project reports zero changes (#782).
+    """
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":
         return ReconciliationResult(applied=False)
@@ -139,22 +153,53 @@ def reconcile_transcript(
         progress=progress,
     ) as task:
         task.set_phase("audibility", "Analyzing word audibility…")
-        audibility_map = compute_word_audibility_map(
-            project, track_id=track_id, policy=pol, progress=None
-        )
+        # Every track's rows: the text-match pairs need the partner word's verdict too.
+        audibility_map = compute_word_audibility_map(project, policy=pol, progress=None)
         result = ReconciliationResult()
         apply_suppression = not dry_run
 
         by_key = {(row["track_id"], row["word_index"]): row for row in audibility_map}
+        transcripts = [tr for tr in project.transcripts if not track_id or tr.track_id == track_id]
 
-        for tr in project.transcripts:
-            if track_id and tr.track_id != track_id:
-                continue
+        if pol.bleed_text_match_enabled and apply_suppression:
+            task.set_phase("text_match", "Matching bleed text…")
+            words_by_track = {tr.track_id: tr.words for tr in project.transcripts}
+            in_scope = {tr.track_id for tr in transcripts}
+
+            def acoustic_suppressed(tid: str, i: int) -> bool:
+                w = words_by_track[tid][i]
+                row = by_key.get((tid, i))
+                if (
+                    row is None
+                    or tid not in in_scope
+                    or not _reconciles_word(w, start_sec=start_sec, end_sec=end_sec)
+                ):
+                    return w.suppressed
+                return _should_suppress(row["audibility_status"])
+
+            for loser in overlap_text_match_losers(
+                project,
+                policy=pol,
+                track_id=track_id,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                progress=None,
+                audibility=audibility_map,
+                is_suppressed=acoustic_suppressed,
+            ):
+                key = (loser["track_id"], loser["word_index"])
+                by_key[key] = {
+                    **by_key.get(key, {}),
+                    "audibility_status": loser["audibility_status"],
+                    "dominant_track": loser["dominant_track"],
+                    "reason": loser["reason"],
+                }
+
+        for tr in transcripts:
             for i in range(len(tr.words)):
                 row = by_key.get((tr.track_id, i))
                 if not row:
                     continue
-
                 _reconcile_word(
                     tr,
                     i,
@@ -164,26 +209,6 @@ def reconcile_transcript(
                     apply_suppression=apply_suppression,
                     start_sec=start_sec,
                     end_sec=end_sec,
-                )
-
-        if pol.bleed_text_match_enabled and apply_suppression:
-            task.set_phase("text_match", "Matching bleed text…")
-            text_suppressions = suppress_overlap_text_matches(
-                project,
-                policy=pol,
-                apply=True,
-                track_id=track_id,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                progress=None,
-            )
-            for entry in text_suppressions:
-                result.suppress.append(entry)
-                result.reattribute.append(
-                    {
-                        **entry,
-                        "attributed_to_track": entry.get("dominant_track"),
-                    }
                 )
 
         if update_status or apply_suppression:

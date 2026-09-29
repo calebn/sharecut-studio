@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
@@ -69,17 +70,24 @@ def _pick_text_match_winner(
     return pair["track_a"]
 
 
-def suppress_overlap_text_matches(
+def overlap_text_match_losers(
     project: EpisodeProject,
     *,
     policy: AnalysisPolicy,
-    apply: bool,
     track_id: str | None = None,
     start_sec: float | None = None,
     end_sec: float | None = None,
     progress: ProgressReporter | None = None,
+    audibility: list[dict[str, Any]] | None = None,
+    is_suppressed: Callable[[str, int], bool] | None = None,
 ) -> list[dict[str, Any]]:
-    """Suppress loser words when identical text overlaps across tracks."""
+    """The loser of each identical-text overlap across tracks, as a ``bleed`` verdict.
+
+    Pure: nothing is written; reconcile folds each entry into that word's target.
+    ``audibility`` and ``is_suppressed`` are those of ``overlap_duplicate_report``;
+    ``is_suppressed`` also rules a word out as a loser, so with reconcile's acoustic
+    verdict a stored-suppressed word it is about to unsuppress can still lose here.
+    """
     if not policy.bleed_text_match_enabled:
         return []
 
@@ -91,10 +99,13 @@ def suppress_overlap_text_matches(
         end_sec=end_sec,
         policy=policy,
         progress=progress,
+        audibility=audibility,
+        is_suppressed=is_suppressed,
     )
     min_overlap = policy.bleed_text_match_min_overlap_sec
     min_dom = policy.bleed_text_match_min_dominance_db
-    suppressed: list[dict[str, Any]] = []
+    losers: list[dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
 
     for pair in report.get("pairs", []):
         if not pair.get("text_match"):
@@ -134,31 +145,28 @@ def suppress_overlap_text_matches(
         if not tr or loser_idx >= len(tr.words):
             continue
         w = tr.words[loser_idx]
-        if w.suppressed or w.audibility_locked:
+        suppressed = (
+            w.suppressed if is_suppressed is None else is_suppressed(loser_track, loser_idx)
+        )
+        if suppressed or w.audibility_locked or (loser_track, loser_idx) in seen:
             continue
         if start_sec is not None and w.start < start_sec:
             continue
         if end_sec is not None and w.start >= end_sec:
             continue
 
-        entry = {
-            "track_id": loser_track,
-            "word_index": loser_idx,
-            "text": w.text,
-            "start": w.start,
-            "end": w.end,
-            "audibility_status": "bleed",
-            "dominant_track": dominant,
-            "reason": "text_match_overlap",
-        }
-        suppressed.append(entry)
-        if apply:
-            tr.words[loser_idx] = w.model_copy(
-                update={
-                    "suppressed": True,
-                    "audibility_status": "bleed",
-                    "dominant_track": dominant,
-                }
-            )
+        seen.add((loser_track, loser_idx))
+        losers.append(
+            {
+                "track_id": loser_track,
+                "word_index": loser_idx,
+                "text": w.text,
+                "start": w.start,
+                "end": w.end,
+                "audibility_status": "bleed",
+                "dominant_track": dominant,
+                "reason": "text_match_overlap",
+            }
+        )
 
-    return suppressed
+    return losers

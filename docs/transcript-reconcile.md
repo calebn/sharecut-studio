@@ -12,7 +12,7 @@ For each word window, reconciliation compares RMS on the word's own track agains
 
 **Zero-duration / sub-5ms words** (ASR junk with `start == end`) cannot be RMS-measured. Isolated ones are tagged **`inaudible`** with `reason: zero_duration_word` so reconcile can suppress them out of `combined.json`. When the same track has **normal-duration neighbors** on both sides, the token is tagged **`deferred`** (`sandwiched_zero_duration_word`) and is **not** auto-suppressed — keeps glue words like `what` between `know` and `I'm`.
 
-**Anomalously long words** (duration &gt; `max_word_audibility_sec`, default **2.0 s**) skip full-span mean RMS. Stretched Whisper tokens that cover speech + silence + peer talk would otherwise look like bleed/inaudible. They are tagged **`deferred`** with `reason: anomalous_word_duration` and are **not** auto-suppressed — neither mean-RMS nor identical-text overlap (`suppress_overlap_text_matches`).
+**Anomalously long words** (duration &gt; `max_word_audibility_sec`, default **2.0 s**) skip full-span mean RMS. Stretched Whisper tokens that cover speech + silence + peer talk would otherwise look like bleed/inaudible. They are tagged **`deferred`** with `reason: anomalous_word_duration` and are **not** auto-suppressed — neither mean-RMS nor identical-text overlap (`overlap_text_match_losers`).
 
 A word is tagged **`bleed`** when another track's RMS exceeds the own-track RMS by at least **`bleed_dominance_db`** (default **6.0 dB**) and the dominant track is above **`bleed_min_other_rms_db`** (default **−50 dB**).
 
@@ -25,11 +25,13 @@ A word is tagged **`bleed`** when another track's RMS exceeds the own-track RMS 
 
 Bleed uses **acoustic dominance**, not identical ASR text. Overlapping words with different transcripts are still bleed candidates when the other mic is louder.
 
-When two tracks have **identical overlapping text** but dominance is below `bleed_dominance_db`, reconcile also runs **text-match suppression** (`suppress_overlap_text_matches`): the weaker mic’s word is marked `suppressed` with `reason: text_match_overlap`. Winner selection uses audibility status, ASR confidence, then own-track RMS. Pairs where either word exceeds `max_word_audibility_sec` are skipped — a stretched token’s overlap is not a reliable duplicate.
+When two tracks have **identical overlapping text** but dominance is below `bleed_dominance_db`, reconcile also applies **text-match suppression** (`overlap_text_match_losers` in `edits/bleed_text_match.py`): the weaker mic’s word is marked `suppressed` with `reason: text_match_overlap`. Winner selection uses audibility status, ASR confidence, then own-track RMS. Pairs where either word exceeds `max_word_audibility_sec` are skipped — a stretched token’s overlap is not a reliable duplicate.
+
+**One target per word (#782).** Reconcile does not write the acoustic verdict and then the text-match verdict in turn. It computes one target per word — the acoustic verdict, overridden by `bleed` + the winner's track where the word loses an identical-text overlap — and `_reconcile_word` writes and reports only the fields that differ from the stored word. The text-match candidates are the words the acoustic verdict leaves unsuppressed, not the words currently stored as unsuppressed, so both verdicts derive from the audio and the text alone. A repeat run on unchanged audio and transcript therefore reports `0 suppressed, 0 unsuppressed, 0 reattributed, 0 status updates`; a non-zero count on a re-run means something upstream changed. `ignored` and `audibility_locked` words are outside both verdicts. The read-only `overlap_duplicates_tool` still excludes words by their stored `suppressed` flag.
 
 | Heuristic | Default | Meaning |
 |-----------|---------|---------|
-| `bleed_text_match_enabled` | true | Suppress identical overlap dupes after acoustic pass |
+| `bleed_text_match_enabled` | true | Suppress identical overlap dupes (loser verdict overrides the acoustic one) |
 | `bleed_text_match_min_overlap_sec` | 0.02 | Minimum timeline overlap for text-match rule |
 
 Configure under `analysis.heuristics` in pipeline defaults (workspace `pipeline.yaml` or `PODCAST_MCP_PIPELINE_DEFAULTS`).

@@ -72,7 +72,7 @@ Bleed requires the **other track's RMS to exceed own-track RMS by ≥ `bleed_dom
 
 **Zero-duration ASR junk** (`start == end` / sub-5ms) cannot be RMS-measured and is tagged `inaudible` (`reason: zero_duration_word`) so reconcile suppresses it out of `combined.json`. If ghost fragments like `much, Victoria` remain after a prior reconcile, re-run `reconcile_transcript_tool` (or scoped CLI) after this classification is available.
 
-**Identical overlap text:** when both tracks transcribe the same word in an overlap window but dominance is below threshold, reconcile also suppresses the loser via `bleed_text_match_enabled` (winner: audibility + confidence + RMS), except when either word exceeds `max_word_audibility_sec`. **Success gate:** `text_match_count == 0` after reconcile in scope (stretched ASR pairs may remain).
+**Identical overlap text:** when both tracks transcribe the same word in an overlap window but dominance is below threshold, reconcile also suppresses the loser via `bleed_text_match_enabled` (winner: audibility + confidence + RMS), except when either word exceeds `max_word_audibility_sec`. The loser verdict overrides the acoustic verdict for that word, so the two never fight: a repeat reconcile on an unchanged project reports `0 suppressed, 0 unsuppressed, 0 reattributed, 0 status updates` (#782); non-zero counts on a re-run mean audio, text, or clips changed. **Success gate:** `text_match_count == 0` after reconcile in scope (stretched ASR pairs may remain).
 
 **If bleed count is zero during known cross-talk:**
 

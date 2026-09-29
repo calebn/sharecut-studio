@@ -7,7 +7,7 @@ from podcast_mcp.edits.bleed_text_match import (
     _audibility_score,
     _pick_text_match_winner,
     _word_confidence,
-    suppress_overlap_text_matches,
+    overlap_text_match_losers,
 )
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report, run_reconciliation
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
@@ -85,11 +85,8 @@ def test_text_match_track_id_scopes_suppression(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True, track_id="host")
-    assert suppressed == []
-    guest = project.transcript_for_track("guest")
-    assert guest is not None
-    assert guest.words[0].suppressed is False
+        losers = overlap_text_match_losers(project, policy=pol, track_id="host")
+    assert losers == []
 
 
 def test_pick_text_match_winner_audibility_margin() -> None:
@@ -147,25 +144,63 @@ def test_text_match_min_dominance_skips_close_rms(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=close_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
-    assert suppressed == []
+        losers = overlap_text_match_losers(project, policy=pol)
+    assert losers == []
 
 
-def test_text_match_overlap_suppresses_loser(tmp_path: Path) -> None:
+def test_text_match_overlap_names_loser_without_writing(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
     pol = AnalysisPolicy(bleed_text_match_enabled=True)
     with patch(
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
+        losers = overlap_text_match_losers(project, policy=pol)
 
-    assert len(suppressed) == 1
-    assert suppressed[0]["track_id"] == "guest"
+    assert losers == [
+        {
+            "track_id": "guest",
+            "word_index": 0,
+            "text": "world",
+            "start": 1.0,
+            "end": 1.5,
+            "audibility_status": "bleed",
+            "dominant_track": "host",
+            "reason": "text_match_overlap",
+        }
+    ]
     guest = project.transcript_for_track("guest")
     assert guest is not None
-    assert guest.words[0].suppressed is True
-    assert overlap_duplicate_report(project)["text_match_count"] == 0
+    assert guest.words[0].suppressed is False
+    assert guest.words[0].audibility_status is None
+
+
+def test_text_match_loser_follows_the_callers_suppression_verdict(tmp_path: Path) -> None:
+    """Reconcile passes its acoustic verdict: a stored-suppressed word it is about to
+    unsuppress can still lose, and a word it is about to suppress drops out of the pairs."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words[0] = guest.words[0].model_copy(update={"suppressed": True})
+    pol = AnalysisPolicy(bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        side_effect=_equal_rms,
+    ):
+        stored = overlap_text_match_losers(project, policy=pol)
+        by_verdict = overlap_text_match_losers(
+            project, policy=pol, is_suppressed=lambda tid, i: False
+        )
+        host_gone = overlap_text_match_losers(
+            project, policy=pol, is_suppressed=lambda tid, i: tid == "host"
+        )
+
+    assert stored == []
+    assert [(e["track_id"], e["word_index"], e["dominant_track"]) for e in by_verdict] == [
+        ("guest", 0, "host")
+    ]
+    assert host_gone == []
 
 
 def test_text_match_skips_locked_loser(tmp_path: Path) -> None:
@@ -180,12 +215,9 @@ def test_text_match_skips_locked_loser(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
+        losers = overlap_text_match_losers(project, policy=pol)
 
-    assert suppressed == []
-    guest = project.transcript_for_track("guest")
-    assert guest is not None
-    assert guest.words[0].suppressed is False
+    assert losers == []
 
 
 def test_text_match_guest_wins_when_louder(tmp_path: Path) -> None:
@@ -199,14 +231,11 @@ def test_text_match_guest_wins_when_louder(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=guest_louder,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
+        losers = overlap_text_match_losers(project, policy=pol)
 
-    assert len(suppressed) == 1
-    assert suppressed[0]["track_id"] == "host"
-    assert suppressed[0]["dominant_track"] == "guest"
-    host = project.transcript_for_track("host")
-    assert host is not None
-    assert host.words[1].suppressed is True
+    assert [(e["track_id"], e["word_index"], e["dominant_track"]) for e in losers] == [
+        ("host", 1, "guest")
+    ]
 
 
 def test_text_match_min_overlap_and_track_scope(tmp_path: Path) -> None:
@@ -222,10 +251,8 @@ def test_text_match_min_overlap_and_track_scope(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(
-            project, policy=pol, apply=True, track_id="guest"
-        )
-    assert suppressed == []
+        losers = overlap_text_match_losers(project, policy=pol, track_id="guest")
+    assert losers == []
 
 
 def test_word_confidence_defaults_when_missing(tmp_path: Path) -> None:
@@ -241,8 +268,8 @@ def test_text_match_end_sec_skips_out_of_window_loser(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True, end_sec=0.5)
-    assert suppressed == []
+        losers = overlap_text_match_losers(project, policy=pol, end_sec=0.5)
+    assert losers == []
 
 
 def test_text_match_start_sec_skips_out_of_window_loser(tmp_path: Path) -> None:
@@ -252,8 +279,8 @@ def test_text_match_start_sec_skips_out_of_window_loser(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True, start_sec=1.6)
-    assert suppressed == []
+        losers = overlap_text_match_losers(project, policy=pol, start_sec=1.6)
+    assert losers == []
 
 
 def test_text_match_min_dominance_ignored_when_rms_missing(tmp_path: Path) -> None:
@@ -270,22 +297,8 @@ def test_text_match_min_dominance_ignored_when_rms_missing(tmp_path: Path) -> No
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=no_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
-    assert len(suppressed) == 1
-
-
-def test_text_match_dry_run_does_not_mutate(tmp_path: Path) -> None:
-    project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(bleed_text_match_enabled=True)
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=_equal_rms,
-    ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=False)
-    assert len(suppressed) == 1
-    guest = project.transcript_for_track("guest")
-    assert guest is not None
-    assert guest.words[0].suppressed is False
+        losers = overlap_text_match_losers(project, policy=pol)
+    assert len(losers) == 1
 
 
 def test_text_match_skips_anomalous_word_duration(tmp_path: Path) -> None:
@@ -299,10 +312,8 @@ def test_text_match_skips_anomalous_word_duration(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
-    assert suppressed == []
-    assert host.words[1].suppressed is False
-    assert guest.words[0].suppressed is False
+        losers = overlap_text_match_losers(project, policy=pol)
+    assert losers == []
 
 
 def test_text_match_disabled_skips_suppression(tmp_path: Path) -> None:
@@ -312,8 +323,8 @@ def test_text_match_disabled_skips_suppression(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        suppressed = suppress_overlap_text_matches(project, policy=pol, apply=True)
-    assert suppressed == []
+        losers = overlap_text_match_losers(project, policy=pol)
+    assert losers == []
     report = overlap_duplicate_report(project)
     assert report["text_match_count"] == 1
 

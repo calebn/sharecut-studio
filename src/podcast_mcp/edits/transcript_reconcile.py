@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from bisect import bisect_left
+from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.edits.audio_quality import _filter_rows_by_time
@@ -46,18 +47,29 @@ def overlap_duplicate_report(
     end_sec: float | None = None,
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
+    audibility: list[dict[str, Any]] | None = None,
+    is_suppressed: Callable[[str, int], bool] | None = None,
 ) -> dict[str, Any]:
-    """Read-only: time-overlapping word pairs across tracks with text match hints."""
+    """Read-only: time-overlapping word pairs across tracks with text match hints.
+
+    ``audibility`` is this project's ``compute_word_audibility_map`` when the caller already
+    has it. ``is_suppressed(track_id, word_index)`` says which words to leave out of the
+    pairs; the default reads each word's stored ``suppressed`` flag, and reconcile passes
+    its own acoustic verdict so the pairs reflect the state it is about to write.
+    """
     pol = policy or AnalysisPolicy.from_defaults()
-    audibility = {
-        (row["track_id"], row["word_index"]): row
-        for row in compute_word_audibility_map(project, policy=pol, progress=progress)
-    }
+    rows = (
+        compute_word_audibility_map(project, policy=pol, progress=progress)
+        if audibility is None
+        else audibility
+    )
+    audibility_by_key = {(row["track_id"], row["word_index"]): row for row in rows}
     by_track: dict[str, list[tuple[int, Any]]] = {}
     for tr in project.transcripts:
         words = []
         for i, w in enumerate(tr.words):
-            if w.suppressed:
+            suppressed = w.suppressed if is_suppressed is None else is_suppressed(tr.track_id, i)
+            if suppressed:
                 continue
             if start_sec is not None and w.start < start_sec:
                 continue
@@ -105,8 +117,8 @@ def overlap_duplicate_report(
                     tok_a = normalize_token(w_a.text)
                     tok_b = normalize_token(w_b.text)
                     text_match = tok_a == tok_b and bool(tok_a)
-                    row_a = audibility.get((tid_a, i_a), {})
-                    row_b = audibility.get((tid_b, i_b), {})
+                    row_a = audibility_by_key.get((tid_a, i_a), {})
+                    row_b = audibility_by_key.get((tid_b, i_b), {})
                     pairs.append(
                         {
                             "track_a": tid_a,
