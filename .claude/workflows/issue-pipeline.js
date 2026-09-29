@@ -522,6 +522,7 @@ const S_PACKET = {
     path: { type: 'string', description: 'absolute path of the packet file, exactly as the script printed it' },
     chars: { type: 'integer' },
     docs: { type: 'integer', description: 'N from the "docs=N" the script printed: Markdown docs changed in the range' },
+    printed: { type: 'string', description: 'the whole line the script printed, copied verbatim' },
   },
   required: ['path', 'chars'],
 }
@@ -537,7 +538,7 @@ function reviewPacket(issue, pr, branch, round, since) {
   return stage(
     `Build the review packet for ${REPO} PR #${pr} by running one script; do not write or edit it yourself.
 \`cd "$(git rev-parse --show-toplevel)" && git fetch -q origin --prune && python3 <(git show origin/main:scripts/review_packet.py) --ref origin/${branch} --range ${diff} --out "$(cd "$(git rev-parse --git-common-dir)" && pwd)/pipeline-packets/pr${pr}-r${round}.md"\`
-It prints "<path> <chars> docs=<N>". Return exactly that path, char count and N (as docs). If the command fails, return path "" and chars 0.`,
+It prints "<path> <chars> docs=<N>". Return exactly that path, char count and N (as docs), plus the whole printed line verbatim (as printed). If the command fails, return path "" and chars 0.`,
     { label: `packet:${tag(issue)}:r${round}`, phase: 'Review', model: M.cheap, effort: 'low', schema: S_PACKET },
   ).then((p) => (p && PACKET_PATH_RE.test(p.path) && p.chars > 0 ? p : null))
 }
@@ -562,8 +563,9 @@ The packet is a starting point, not the boundary: complete your required reading
 
 async function review(issue, pr, branch, round, since) {
   const packet = await reviewPacket(issue, pr, branch, round, since)
-  // The docs lens runs only when this round's diff changes a doc; with no count it runs anyway.
-  const docsChanged = !packet || !Number.isInteger(packet.docs) || packet.docs > 0
+  // The docs lens is skipped only when the returned count and the verbatim printed line both
+  // say docs=0: a cheap model copies both, so one misread cannot drop the lens. No packet runs it.
+  const docsChanged = !packet || !(packet.docs === 0 && /\sdocs=0$/.test((packet.printed || '').trim()))
   const lenses = (round > 1 ? LENSES.filter((l) => FOLLOWUP_LENSES.includes(l.key)) : LENSES)
     .filter((l) => l.key !== 'docs' || docsChanged)
   if (!packet) log(`${tag(issue)} review r${round}: packet unavailable; lenses gather context themselves`)
