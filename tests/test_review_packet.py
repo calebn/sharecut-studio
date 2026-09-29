@@ -132,6 +132,21 @@ def test_diff_is_capped_with_a_pointer(repo: Path, monkeypatch: pytest.MonkeyPat
     assert "[diff truncated at 50 chars; run `git diff base..HEAD` for the rest]" in packet
 
 
+def test_diff_cut_counts_its_notice_even_for_a_long_range(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 300 chars overall, but split across path segments to stay under the 255-char
+    # per-component filename limit that a single long segment would hit.
+    branch = "feature/" + "/".join("x" * 50 for _ in range(6))
+    _git(repo, "branch", branch)
+    monkeypatch.setattr(review_packet, "DIFF_CAP", 2_000)
+    packet = review_packet.build("HEAD", f"base..{branch}")
+    header = "## Diff (with 30 lines of context)\n"
+    body = packet[packet.index(header) + len(header) : packet.index("\n## Callers and references")]
+    assert body.endswith(f"run `git diff base..{branch}` for the rest]\n")
+    assert len(body) <= 2_000
+
+
 def test_cut_notice_is_the_one_notice_shape() -> None:
     assert (
         review_packet.cut_notice("diff truncated at 5 chars", "git diff a..b")
@@ -144,24 +159,29 @@ def test_cut_notice_is_the_one_notice_shape() -> None:
 
 def test_take_within_keeps_whole_items_and_stops_lazily() -> None:
     def notice(kept: int) -> str:
-        return f"[kept {kept}]"
+        return f"[kept {kept}]"  # 9 chars with its newline
 
-    items = ["aaaa", "bbbb", "cccc"]  # 5 chars each, newline included
-    assert review_packet.take_within(items, 15, notice) == items
-    assert review_packet.take_within(items, 14, notice) == ["aaaa", "bbbb", "[kept 2]"]
+    items = ["aaaa", "bbbb", "cccc", "dddd"]  # 5 chars each, newline included
+    assert review_packet.take_within(items, 20, notice) == items
+    # cccc fits on its own but leaves no room for the notice, so it is dropped for it.
+    assert review_packet.take_within(items, 19, notice) == ["aaaa", "bbbb", "[kept 2]"]
     assert review_packet.take_within(items, 4, notice) == ["[kept 0]"]
+    for budget in range(9, 21):  # the notice alone fits from 9 chars up
+        kept = review_packet.take_within(items, budget, notice)
+        assert sum(len(line) + 1 for line in kept) <= budget, budget
 
     def lazy() -> Iterator[str]:
         yield "aaaa"
         yield "bbbb"
+        yield "cccc"
         raise AssertionError("computed an item after the first misfit")
 
-    assert review_packet.take_within(lazy(), 5, notice) == ["aaaa", "[kept 1]"]
+    assert review_packet.take_within(lazy(), 14, notice) == ["aaaa", "[kept 1]"]
 
 
 def test_packet_caps_leave_room_for_the_diff() -> None:
-    # The capped sections ahead of the diff plus the capped diff must fit under the cut,
-    # with room for headers and notices, or the MAX_CHARS cut could reach the diff.
+    # Each capped section's notice counts toward its cap (take_within, and the diff cut), so
+    # the capped sections plus the capped diff need only room for their headers under the cut.
     rp = review_packet
     assert rp.STAT_CAP + rp.DOCS_SYNC_CAP + rp.DOCS_CAP + rp.DIFF_CAP + 1_000 <= rp.MAX_CHARS
 
@@ -210,9 +230,10 @@ def test_wide_pr_docs_sync_section_is_bounded(repo: Path, monkeypatch: pytest.Mo
         and line.endswith(" (+50 more)")
         for line in findings
     )
-    monkeypatch.setattr(review_packet, "DOCS_SYNC_CAP", 100)
+    monkeypatch.setattr(review_packet, "DOCS_SYNC_CAP", 300)
     capped = review_packet.docs_sync_findings("HEAD", "base..HEAD")
-    assert len("\n".join(capped[:-1])) < 100
+    assert len(capped) > 1
+    assert sum(len(line) + 1 for line in capped) <= 300  # notice included
     assert capped[-1].endswith(
         "more docs-sync lines not listed; run "
         "`python3 scripts/docs_sync.py check --range base..HEAD` for the rest]"
