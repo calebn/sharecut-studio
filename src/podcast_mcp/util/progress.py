@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Protocol, TextIO, TypeVar, runtime_checkable
 
+from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
+
 F = TypeVar("F", bound=Callable[..., Any])
 
 PROGRESS_LAZY_CHIP_SEC = 1.0
@@ -1377,24 +1379,18 @@ def install_mcp_progress(server: Any) -> None:
             structured_output=structured_output,
         )
 
-    original_call_tool = server.call_tool
-
-    async def call_tool(
-        name: str,
-        arguments: dict[str, Any],
-        context: Any = None,
-        *args: Any,
-        **kwargs: Any,
+    async def around_call(
+        name: str, arguments: dict[str, Any], context: Any, call_next: CallNext
     ) -> Any:
         reporter = compose_progress(
             mcp_progress_sink(context),
             *adapter_progress_sinks(),
         )
         with bind_progress(reporter), progress_task(name, name, reporter=reporter, mark_id=name):
-            return await original_call_tool(name, arguments, context, *args, **kwargs)
+            return await call_next(arguments)
 
     server.add_tool = add_tool  # type: ignore[method-assign]
-    server.call_tool = call_tool  # type: ignore[method-assign]
+    wrap_call_tool(server, around_call)
     server._podcast_progress_installed = True
 
 

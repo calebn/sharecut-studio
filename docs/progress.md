@@ -83,7 +83,7 @@ Wrap **before** registrars run — do not copy opt-in decorators like `notify_af
 
 | Surface | Install |
 |---------|---------|
-| Host MCP | `install_mcp_progress(mcp)` before `register_all` ([mcp/server.py](../src/podcast_mcp/mcp/server.py)) — wraps `add_tool` + `call_tool` (MCP notifications when Context exists) |
+| Host MCP | `install_mcp_progress(mcp)` before `register_all` ([mcp/server.py](../src/podcast_mcp/mcp/server.py)) — wraps `add_tool` + `call_tool` (the `call_tool` wrap goes through the shared `util/mcp_call_tool.py::wrap_call_tool`, also used by `install_busy_errors` and host MCP project injection) (MCP notifications when Context exists) |
 | CLI | `install_cli_progress(app)` after `apply_cli_extensions` ([cli/main.py](../src/podcast_mcp/cli/main.py)) |
 | Pipeline | Runner opens parent `progress_task("pipeline")` + per-step children ([pipeline/runner.py](../src/podcast_mcp/pipeline/runner.py)) |
 | GUI jobs | `_JobProgressReporter` + `bind_progress` ([gui/jobs.py](../src/podcast_mcp/gui/jobs.py)) |
