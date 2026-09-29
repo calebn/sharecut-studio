@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import click
 import pytest
 from typer.testing import CliRunner
 
@@ -318,6 +319,53 @@ def test_transcript_export_srt_caption_limit_options(tmp_path):
     for block in text.strip().split("\n\n"):
         line = block.splitlines()[2]
         assert len(line) <= 8
+
+
+def test_transcript_export_srt_rejects_non_positive_max_duration_sec(tmp_path):
+    project = _init_project(tmp_path)
+    result = runner.invoke(
+        transcript_app,
+        ["export-srt", "--project", str(project), "--max-duration-sec", "0"],
+    )
+    assert result.exit_code == 2
+    assert "--max-duration-sec" in click.unstyle(result.output)
+
+
+def test_transcript_export_vtt_rejects_max_lines_below_one(tmp_path):
+    project = _init_project(tmp_path)
+    result = runner.invoke(
+        transcript_app,
+        ["export-vtt", "--project", str(project), "--max-lines", "0"],
+    )
+    assert result.exit_code == 2
+    assert "--max-lines" in click.unstyle(result.output)
+
+
+def test_transcript_export_srt_rejects_bad_captions_yaml_as_domain_error(tmp_path, monkeypatch):
+    """An invalid ``export.captions`` value in the pipeline defaults yaml (not a CLI
+    flag) is a domain error: exit 1, not the CLI usage exit 2 (#790)."""
+    project = _init_project(tmp_path)
+    cfg = tmp_path / "pipeline.yaml"
+    cfg.write_text("export:\n  captions:\n    max_lines: 0\n", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(cfg))
+    result = runner.invoke(app, ["transcript", "export-srt", "--project", str(project)])
+    assert result.exit_code == 1
+    assert "export.captions.max_lines must be >= 1" in click.unstyle(result.output)
+
+
+def test_transcript_export_srt_rejects_max_duration_sec_below_configured_min(tmp_path):
+    """``--max-duration-sec`` below the (untouched) default ``min_duration_sec`` is
+    still the user's flag being wrong: a CLI usage error (exit 2) naming the flag they
+    passed, not a domain error about a yaml key they never set (#816)."""
+    project = _init_project(tmp_path)
+    result = runner.invoke(
+        transcript_app,
+        ["export-srt", "--project", str(project), "--max-duration-sec", "0.5"],
+    )
+    assert result.exit_code == 2
+    output = click.unstyle(result.output)
+    assert "--max-duration-sec" in output
+    assert "min_duration_sec" in output
 
 
 def test_transcript_context_show_and_set(tmp_path):

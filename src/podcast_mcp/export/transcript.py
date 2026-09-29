@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,11 @@ from podcast_mcp.util.timebase import SourceSec
 DEFAULT_CAPTION_MAX_DURATION_SEC = 7.0
 DEFAULT_CAPTION_MAX_CHARS_PER_LINE = 42
 DEFAULT_CAPTION_MAX_LINES = 2
+# Minimum on-screen time (#790): a cue under this is merged into a same-track neighbour
+# (see DEFAULT_CAPTION_MERGE_MAX_GAP_SEC), else held to this duration.
+DEFAULT_CAPTION_MIN_DURATION_SEC = 1.0
+# Largest gap to a same-track neighbour a sub-minimum cue may still merge across.
+DEFAULT_CAPTION_MERGE_MAX_GAP_SEC = 1.5
 
 _SENTENCE_END_PUNCT = (".", "!", "?", "…")
 _PHRASE_END_PUNCT = (",", ";", ":")
@@ -28,15 +33,44 @@ class CaptionLimits:
     max_duration_sec: float = DEFAULT_CAPTION_MAX_DURATION_SEC
     max_chars_per_line: int = DEFAULT_CAPTION_MAX_CHARS_PER_LINE
     max_lines: int = DEFAULT_CAPTION_MAX_LINES
+    min_duration_sec: float = DEFAULT_CAPTION_MIN_DURATION_SEC
+    merge_max_gap_sec: float = DEFAULT_CAPTION_MERGE_MAX_GAP_SEC
+
+    def __post_init__(self) -> None:
+        if self.max_lines < 1:
+            raise ValueError(f"export.captions.max_lines must be >= 1, got {self.max_lines}")
+        if self.max_duration_sec <= 0:
+            raise ValueError(
+                f"export.captions.max_duration_sec must be > 0, got {self.max_duration_sec}"
+            )
+        if self.min_duration_sec <= 0:
+            raise ValueError(
+                f"export.captions.min_duration_sec must be > 0, got {self.min_duration_sec}"
+            )
+        if self.min_duration_sec > self.max_duration_sec:
+            raise ValueError(
+                "export.captions.min_duration_sec must be <= max_duration_sec, got "
+                f"{self.min_duration_sec} > {self.max_duration_sec}"
+            )
+        if self.merge_max_gap_sec < 0:
+            raise ValueError(
+                f"export.captions.merge_max_gap_sec must be >= 0, got {self.merge_max_gap_sec}"
+            )
 
 
 def resolve_caption_limits(export_cfg: Mapping[str, Any]) -> CaptionLimits:
-    """Caption limits from pipeline export config's ``captions`` block, else defaults."""
+    """Caption limits from pipeline export config's ``captions`` block, else defaults.
+
+    Raises ``ValueError`` (a domain error, not a CLI usage error: this reads config, not
+    flags) when a configured limit fails ``CaptionLimits``'s own invariants.
+    """
     raw = export_cfg.get("captions") or {}
     return CaptionLimits(
         max_duration_sec=float(raw.get("max_duration_sec", DEFAULT_CAPTION_MAX_DURATION_SEC)),
         max_chars_per_line=int(raw.get("max_chars_per_line", DEFAULT_CAPTION_MAX_CHARS_PER_LINE)),
         max_lines=int(raw.get("max_lines", DEFAULT_CAPTION_MAX_LINES)),
+        min_duration_sec=float(raw.get("min_duration_sec", DEFAULT_CAPTION_MIN_DURATION_SEC)),
+        merge_max_gap_sec=float(raw.get("merge_max_gap_sec", DEFAULT_CAPTION_MERGE_MAX_GAP_SEC)),
     )
 
 
@@ -118,10 +152,12 @@ class _Cue:
     text: str
     start: float
     end: float
+    track_id: str
+    words: tuple[_CueWord, ...]
 
 
-def _timeline_word_runs(project: EpisodeProject) -> list[list[_CueWord]]:
-    """Per-utterance-run lists of timeline-mapped words, sorted, fully-cut words dropped.
+def _timeline_word_runs(project: EpisodeProject) -> list[tuple[str, list[_CueWord]]]:
+    """Per-utterance-run ``(track_id, words)`` pairs, sorted, fully-cut words dropped.
 
     Same clock mapping and drop-if-cut policy as ``_timeline_utterances``, but keeps
     per-word timing (from ``transcript_word_runs``, the shared kept-word grouping
@@ -129,7 +165,7 @@ def _timeline_word_runs(project: EpisodeProject) -> list[list[_CueWord]]:
     inside a whole utterance.
     """
     st = SessionTimeline(project)
-    out: list[tuple[float, list[_CueWord]]] = []
+    out: list[tuple[float, str, list[_CueWord]]] = []
     for run in transcript_word_runs(project):
         mapped = st.map_word_spans(run.track_id, [(w.start, w.end) for w in run.words])
         words = [
@@ -138,9 +174,9 @@ def _timeline_word_runs(project: EpisodeProject) -> list[list[_CueWord]]:
             if spans
         ]
         if words:
-            out.append((words[0].start, words))
+            out.append((words[0].start, run.track_id, words))
     out.sort(key=lambda item: item[0])
-    return [words for _, words in out]
+    return [(track_id, words) for _, track_id, words in out]
 
 
 def _wrap_cue_lines(texts: list[str], limits: CaptionLimits) -> list[str] | None:
@@ -176,13 +212,29 @@ def _cue_fits(candidate: list[_CueWord], limits: CaptionLimits) -> bool:
     return _wrap_cue_lines([w.text for w in candidate], limits) is not None
 
 
-def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_Cue]:
+def _render_cue(words: list[_CueWord], limits: CaptionLimits, track_id: str) -> _Cue:
+    """Build a ``_Cue`` from a word chunk already known to fit (or the hard fallback)."""
+    lines = _wrap_cue_lines([w.text for w in words], limits) or [" ".join(w.text for w in words)]
+    return _Cue(
+        text="\n".join(lines),
+        start=words[0].start,
+        end=words[-1].end,
+        track_id=track_id,
+        words=tuple(words),
+    )
+
+
+def _split_run_into_cues(
+    words: list[_CueWord], limits: CaptionLimits, track_id: str = ""
+) -> list[_Cue]:
     """Greedily fill each cue to the limits.
 
     A break at sentence/phrase punctuation (the latest one found before the limits
-    force a stop) is used only when the rest of the run does not fit in one cue.
-    When everything remaining fits, it stays one cue even if it contains internal
-    punctuation: `` "Yeah, totally." `` is one cue, not two.
+    force a stop) is used only when the rest of the run does not fit in one cue, and
+    only when it leaves at least two words before the break: a break candidate of a
+    single word (e.g. "Anyway," alone) is skipped so a phrase break never strands a
+    one-word lead cue (#790). When everything remaining fits, it stays one cue even if
+    it contains internal punctuation: `` "Yeah, totally." `` is one cue, not two.
     """
     cues: list[_Cue] = []
     i, total = 0, len(words)
@@ -198,7 +250,7 @@ def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_
                 truncated = True
                 break
             last_good = j
-            if j < total:
+            if j < total and j - i >= 2:
                 last_text = candidate[-1].text
                 if last_text.endswith(_SENTENCE_END_PUNCT):
                     sentence_break = j
@@ -206,21 +258,115 @@ def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_
                     phrase_break = j
             j += 1
         end = (sentence_break or phrase_break or last_good) if truncated else last_good
-        chunk = words[i:end]
-        lines = _wrap_cue_lines([w.text for w in chunk], limits) or [
-            " ".join(w.text for w in chunk)
-        ]
-        cues.append(_Cue(text="\n".join(lines), start=chunk[0].start, end=chunk[-1].end))
+        cues.append(_render_cue(words[i:end], limits, track_id))
         i = end
     return cues
+
+
+def _by_track(cues: list[_Cue]) -> list[list[_Cue]]:
+    """Group cues by track, keeping each group's relative (start-sorted) order."""
+    groups: dict[str, list[_Cue]] = {}
+    for cue in cues:
+        groups.setdefault(cue.track_id, []).append(cue)
+    return list(groups.values())
+
+
+def _gap_has_other_track_word(
+    other_words: list[tuple[str, float, float]], track_id: str, gap_start: float, gap_end: float
+) -> bool:
+    """Whether a word on a different track overlaps ``[gap_start, gap_end)``.
+
+    Checked at word granularity, not cue granularity: another track's cue can start
+    before ``gap_start`` and still have a word land inside the gap (an interjection
+    mid-utterance), which a cue-start-only check would miss (#816).
+    """
+    return any(
+        tid != track_id and start < gap_end and end > gap_start for tid, start, end in other_words
+    )
+
+
+def _merge_short_cues(
+    track_cues: list[_Cue], limits: CaptionLimits, other_words: list[tuple[str, float, float]]
+) -> list[_Cue]:
+    """Merge a cue under ``min_duration_sec`` into its nearest same-track neighbour
+    (smaller gap first) when the gap is at most ``merge_max_gap_sec``, no other track
+    has a word inside the gap being bridged (#816), and the merged cue still fits the
+    limits. Repeats until no more merges apply."""
+    cues = list(track_cues)
+    changed = True
+    while changed:
+        changed = False
+        for i, cue in enumerate(cues):
+            if cue.end - cue.start >= limits.min_duration_sec:
+                continue
+            neighbours: list[tuple[float, int, int]] = []
+            if i > 0:
+                neighbours.append((cue.start - cues[i - 1].end, i - 1, i))
+            if i + 1 < len(cues):
+                neighbours.append((cues[i + 1].start - cue.end, i, i + 1))
+            for gap, lo, hi in sorted(neighbours, key=lambda n: n[0]):
+                if gap > limits.merge_max_gap_sec:
+                    continue
+                if _gap_has_other_track_word(
+                    other_words, cue.track_id, cues[lo].end, cues[hi].start
+                ):
+                    continue
+                merged_words = list(cues[lo].words) + list(cues[hi].words)
+                if not _cue_fits(merged_words, limits):
+                    continue
+                cues[lo : hi + 1] = [_render_cue(merged_words, limits, cue.track_id)]
+                changed = True
+                break
+            if changed:
+                break
+    return cues
+
+
+def _extend_short_cues(
+    track_cues: list[_Cue], limits: CaptionLimits, other_starts: list[tuple[str, float]]
+) -> list[_Cue]:
+    """Hold any cue still under ``min_duration_sec`` to that duration, never past the
+    start of the next cue on the same track, nor past the start of the next cue on any
+    other track that begins at or after this cue's own (pre-hold) end (#816): a track
+    already mid-utterance when this cue starts isn't a "next" cue to cap against, but
+    one that starts once this cue is naturally done is."""
+    cues = list(track_cues)
+    for i, cue in enumerate(cues):
+        if cue.end - cue.start >= limits.min_duration_sec:
+            continue
+        cap = cues[i + 1].start if i + 1 < len(cues) else float("inf")
+        other_next = [s for tid, s in other_starts if tid != cue.track_id and s >= cue.end]
+        if other_next:
+            cap = min(cap, min(other_next))
+        new_end = min(cue.start + limits.min_duration_sec, cap)
+        if new_end > cue.end:
+            cues[i] = replace(cue, end=new_end)
+    return cues
+
+
+def _apply_min_duration(cues: list[_Cue], limits: CaptionLimits) -> list[_Cue]:
+    """Minimum on-screen time (#790): merge sub-minimum cues into a same-track
+    neighbour where that still fits without covering another track's word (#816),
+    then hold any cue still under the minimum, capped by any track's next cue."""
+    other_words = [(cue.track_id, w.start, w.end) for cue in cues for w in cue.words]
+    merged = [
+        cue for group in _by_track(cues) for cue in _merge_short_cues(group, limits, other_words)
+    ]
+    other_starts = [(cue.track_id, cue.start) for cue in merged]
+    return [
+        cue
+        for group in _by_track(merged)
+        for cue in _extend_short_cues(group, limits, other_starts)
+    ]
 
 
 def _timeline_cues(project: EpisodeProject, limits: CaptionLimits) -> list[_Cue]:
     """All cues, ordered by start (stable): a run's cues can interleave with another
     track's run that starts partway through it."""
     cues: list[_Cue] = []
-    for words in _timeline_word_runs(project):
-        cues.extend(_split_run_into_cues(words, limits))
+    for track_id, words in _timeline_word_runs(project):
+        cues.extend(_split_run_into_cues(words, limits, track_id))
+    cues = _apply_min_duration(cues, limits)
     cues.sort(key=lambda cue: cue.start)
     return cues
 

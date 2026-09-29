@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
@@ -18,6 +20,7 @@ from podcast_mcp.engines.audio_audit import (
     compute_word_audibility_map,
     list_flagged_words,
 )
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.reconciliation_state import (
     audio_state_fingerprint,
     mark_reconciliation_fresh,
@@ -46,6 +49,32 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline.runner import STEP_NAMES
 from podcast_mcp.services import EditService, PipelineService, ProjectWorkspace
+
+
+def _room_path(source: str, bleed: str) -> EchoPairProfile:
+    return EchoPairProfile(
+        source_track_id=source,
+        bleed_track_id=bleed,
+        span_start=0.0,
+        span_end=10.0,
+        dominated_frames=100,
+        copy_frames=40,
+        consistent_frames=30,
+        lag_ms=3.0,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+
+
+# The identical-text loudness rule applies only where bleed is measured; these tests
+# pin that rule, so they run on a room pair with bleed both ways (#774).
+_ROOM_PAIR_MEASURED = patch(
+    "podcast_mcp.engines.transcript_reconcile.measured_echo_pairs",
+    new=lambda caches: [_room_path("host", "guest"), _room_path("guest", "host")],
+)
 
 
 def _two_track_project(tmp_path: Path) -> EpisodeProject:
@@ -387,6 +416,30 @@ def test_reconcile_transcript_skips_text_match_when_disabled(tmp_path: Path):
     assert not any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
 
+def test_reconcile_keeps_identical_words_on_a_pair_with_no_bleed_path(tmp_path: Path):
+    """No measured path, same word at the same time on both mics: both stay (#774)."""
+    project = _two_track_project(tmp_path)
+    guest = project.transcript_for_track("guest")
+    assert guest is not None
+    guest.words.append(TranscriptWord(text="bleed", start=1.0, end=1.5, confidence=0.85))
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    with patch(
+        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
+        return_value=-35.0,
+    ):
+        result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+
+    assert _word_state(project) == {
+        ("host", 0): (False, "audible", None),
+        ("host", 1): (False, "audible", None),
+        ("guest", 0): (False, "audible", None),
+        ("guest", 1): (False, "audible", None),
+    }
+    assert result.suppress == []
+
+
+@_ROOM_PAIR_MEASURED
 def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
     project = _two_track_project(tmp_path)
     guest = project.transcript_for_track("guest")
@@ -407,6 +460,7 @@ def test_reconcile_transcript_text_match_overlap(tmp_path: Path):
     assert any(s.get("reason") == "text_match_overlap" for s in result.suppress)
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_false(
     tmp_path: Path,
 ):
@@ -433,6 +487,7 @@ def test_reconcile_apply_writes_status_for_text_match_loser_with_update_status_f
     assert guest.words[1].dominant_track == "host"
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_flag_mode_tags_text_match_loser_without_suppressing(tmp_path: Path):
     """flag mode (update_status without apply_suppression) must tag a text-match loser's
     audibility_status/dominant_track as bleed/the winner's track without suppressing it
@@ -514,6 +569,7 @@ def _word_state(
     }
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_second_pass_on_unchanged_project_is_a_no_op(tmp_path: Path):
     """Reconcile converges: the acoustic verdict and the text-match verdict agree on one
     target per word, so a repeat run on unchanged audio and text changes nothing (#782)."""
@@ -570,6 +626,7 @@ def _diff_keys(entries: list[dict]) -> set[tuple[str, int]]:
     return {(e["track_id"], e["word_index"]) for e in entries}
 
 
+@_ROOM_PAIR_MEASURED
 def test_reconcile_dry_run_preview_matches_apply_with_text_match_overlap(tmp_path: Path):
     """A dry-run preview must report the same per-word target an apply writes, including
     the text-match override, both on a fresh project and a converged one (#791).
@@ -654,6 +711,7 @@ _SIGN_OFF_CHAIN_CONVERGED = {
 }
 
 
+@_ROOM_PAIR_MEASURED
 def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path):
     """A track- or window-scoped pass reads out-of-scope words by their computed target,
     not their stored flags, so it reaches the full pass's target for the words it writes.
@@ -696,6 +754,7 @@ def test_scoped_and_full_passes_alternate_without_flipping_a_word(tmp_path: Path
     assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
 
 
+@_ROOM_PAIR_MEASURED
 def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
     """A host-scoped pass leaves guest words untouched but writes host words at the target
     a full pass would reach, even when host:0's winner (guest:0) is already stored
@@ -727,6 +786,7 @@ def test_scoped_pass_writes_only_its_scope_at_the_full_target(tmp_path: Path):
     assert _word_state(project) == _SIGN_OFF_CHAIN_CONVERGED
 
 
+@_ROOM_PAIR_MEASURED
 def test_window_pass_leaves_text_match_losers_outside_the_window_alone(tmp_path: Path):
     """A start_sec/end_sec pass writes the in-window text-match loser at its target and
     never suppresses or re-tags the losers just outside the window on either side; the
@@ -940,3 +1000,129 @@ def test_overlap_report_matches_pairwise_for_unsorted_and_long_words(tmp_path: P
     ):
         rows = overlap_duplicate_report(project)["pairs"]
     assert [(row["word_index_a"], row["word_index_b"]) for row in rows] == expected
+
+
+_STEM_RATE = 8000
+
+
+def _voice(seconds: float, *, seed: int) -> np.ndarray:
+    """Continuous wideband speech-like noise with syllable-rate bursts."""
+    rng = np.random.default_rng(seed)
+    n = int(seconds * _STEM_RATE)
+    noise = np.convolve(rng.normal(0, 1.0, n), np.ones(2) / 2.0, mode="same")
+    t = np.arange(n) / _STEM_RATE
+    out = noise * (0.5 + 0.5 * np.sin(2 * np.pi * 4.0 * t + rng.uniform(0, 2 * np.pi)))
+    return (0.2 * out / np.max(np.abs(out))).astype(np.float32)
+
+
+def _zoom_host_stem(guest: np.ndarray) -> np.ndarray:
+    """The guest's voice on the host mic: 3 ms late, 18 dB down for the first half of the
+    tape and 1 dB *up* for the second, as Zoom's gain does when the host is silent."""
+    copy = np.zeros_like(guest)
+    copy[24:] = guest[:-24]
+    half = guest.size // 2
+    copy[:half] *= 10 ** (-18 / 20)
+    copy[half:] *= 10 ** (1 / 20)
+    return copy
+
+
+def _write_stem(path: Path, samples: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(_STEM_RATE)
+        handle.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+
+
+def _echo_stem_project(tmp_path: Path) -> EpisodeProject:
+    guest = _voice(20.0, seed=3)
+    stems = {"guest": guest, "host": _zoom_host_stem(guest)}
+    project = EpisodeProject.create("echo", str(tmp_path))
+    project.ensure_dirs()
+    for tid, samples in stems.items():
+        _write_stem(tmp_path / "raw" / f"{tid}.wav", samples)
+        _write_stem(project.artifacts_dir() / "tracks" / f"{tid}.wav", samples)
+        project.timeline.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=20.0),
+            )
+        )
+        project.timeline.clips.append(
+            Clip(id=f"c_{tid}", track_id=tid, source_start=0.0, source_end=20.0, timeline_start=0.0)
+        )
+    guest_words = [
+        ("one", 11.0),
+        ("two", 12.0),
+        ("three", 13.0),
+        ("four", 14.0),
+        ("five", 15.0),
+        ("six", 16.0),
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="guest",
+            words=[
+                TranscriptWord(text=t, start=s, end=s + 0.3, confidence=0.9) for t, s in guest_words
+            ]
+            + [TranscriptWord(text="bye", start=18.0, end=18.4, confidence=0.9)],
+        ),
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text=t, start=s - 0.14, end=s + 0.16, confidence=1.0)
+                for t, s in guest_words
+            ]
+            + [TranscriptWord(text="bye", start=18.3, end=18.7, confidence=1.0)],
+        ),
+    ]
+    project.combined_transcript = TranscriptionEngine().merge_transcripts(project)
+    return project
+
+
+def test_reconcile_picks_the_source_mic_on_a_measured_bleed_pair(tmp_path: Path) -> None:
+    """End to end on synthetic stems, no mocks: the host mic carries the guest 3 ms late, at
+    -18 dB early on (which is what flags the pair) and 1 dB louder later (Zoom's gain).
+    Whisper put the host copies 140 ms before the guest words. Every copy loses to the
+    guest word, the two "bye"s 300 ms apart both stay, and a second pass changes nothing."""
+    project = _echo_stem_project(tmp_path)
+    pol = AnalysisPolicy(transcript_mode="reconcile", bleed_text_match_enabled=True)
+
+    result = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+
+    host = project.transcript_for_track("host")
+    guest = project.transcript_for_track("guest")
+    assert host is not None and guest is not None
+    assert [(w.text, w.suppressed, w.audibility_status, w.dominant_track) for w in host.words] == [
+        ("one", True, "bleed", "guest"),
+        ("two", True, "bleed", "guest"),
+        ("three", True, "bleed", "guest"),
+        ("four", True, "bleed", "guest"),
+        ("five", True, "bleed", "guest"),
+        ("six", True, "bleed", "guest"),
+        ("bye", False, "audible", None),
+    ]
+    assert [(w.text, w.suppressed, w.audibility_status) for w in guest.words] == [
+        ("one", False, "audible"),
+        ("two", False, "audible"),
+        ("three", False, "audible"),
+        ("four", False, "audible"),
+        ("five", False, "audible"),
+        ("six", False, "audible"),
+        ("bye", False, "audible"),
+    ]
+    assert [(e["track_id"], e["text"], e["reason"]) for e in result.suppress] == [
+        ("host", t, "echo_twin") for t in ("one", "two", "three", "four", "five", "six")
+    ]
+    assert result.unsuppress == []
+
+    again = reconcile_transcript(project, policy=pol, dry_run=False, update_status=True)
+    assert (again.suppress, again.unsuppress, again.reattribute, again.status_updates) == (
+        [],
+        [],
+        [],
+        0,
+    )

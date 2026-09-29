@@ -398,6 +398,32 @@ def test_export_deliverables_with_chapters(minimal_project, sample_wav, tmp_work
     assert (proj.export_dir() / f"{proj.name}.srt").is_file()
 
 
+def test_export_deliverables_validates_captions_before_writing_audio(
+    minimal_project, sample_wav, tmp_workspace
+):
+    """A bad export.captions value fails before any file lands in export/ (#816): audio
+    formats used to write first, with only the later SRT step catching a bad config."""
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    steps.mix_with_music(proj, defaults)
+    steps.master_loudness(proj, defaults)
+    bad_defaults = {
+        **defaults,
+        "export": {
+            **defaults.get("export", {}),
+            "captions": {"max_duration_sec": 7.0, "min_duration_sec": 9.0},
+        },
+    }
+    with pytest.raises(ValueError, match="min_duration_sec"):
+        steps.export_deliverables(proj, bad_defaults)
+    assert list(proj.export_dir().glob("*")) == []
+
+
 @pytest.mark.parametrize("with_music", [False, True])
 def test_export_qc_ok_on_clean_run(minimal_project, sample_wav, tmp_workspace, with_music):
     """Reconcile pass 2 then mix -> master -> export stays ok, with or without a bed (#621)."""

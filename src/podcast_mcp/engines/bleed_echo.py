@@ -4,10 +4,11 @@ Two people in one room each reach the other's mic a few milliseconds late and
 some decibels down. Per-word bleed classification (``audio_audit``) says which
 *words* are on the wrong mic; this module measures the *acoustic path*: in frames
 where speaker A dominates and mic B is open but quieter, is B's audio a delayed
-copy of A, at one consistent lag, and far more often than chance? It runs on fresh
-timeline stems (the audio the listener hears, on one clock for every track) over a
-bounded span around the audition window, and the result is cached in-process by
-stem revision.
+copy of A, at one consistent lag, and far more often than chance? For the audition
+context it runs on fresh timeline stems (the audio the listener hears, on one clock
+for every track) over a bounded span around the audition window, cached in-process
+by stem revision; reconcile runs the same statistic over whole tracks it has already
+decoded (``echo_risk_pairs``) to know which mic pairs carry bleed (#774).
 
 Design measured on the lab tape (#775): one correlation function summed over all
 co-open frames did not separate the same-room pair from a remote one, because
@@ -27,6 +28,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from itertools import permutations
@@ -386,18 +388,44 @@ def _cached_profiles(
             1,
         )
         audio[tid] = block[:, 0] if block.ndim == 2 else block.reshape(-1)
+    return _profile_pairs(audio, sample_rate=cfg.sample_rate, t0=span_start, cfg=cfg)
+
+
+def _profile_pairs(
+    audio: Mapping[str, np.ndarray], *, sample_rate: int, t0: float, cfg: EchoConfig
+) -> tuple[EchoPairProfile, ...]:
     return tuple(
         echo_pair_profile(
             audio[a],
             audio[b],
-            sample_rate=cfg.sample_rate,
-            t0=span_start,
+            sample_rate=sample_rate,
+            t0=t0,
             source_track_id=a,
             bleed_track_id=b,
             config=cfg,
         )
         for a, b in permutations(audio, 2)
     )
+
+
+def echo_risk_pairs(
+    audio: Mapping[str, np.ndarray],
+    *,
+    sample_rate: int,
+    config: EchoConfig | None = None,
+) -> list[EchoPairProfile]:
+    """Directed pairs with a measured bleed path, over whole timeline-clock tracks.
+
+    ``audio`` is one decoded mono track per id on the timeline clock, such as the RMS
+    caches reconcile already holds, so nothing is decoded again. The profile spans the
+    whole track; the null shifts wrap inside it as in :func:`echo_profiles`.
+    """
+    cfg = config or EchoConfig()
+    return [
+        p
+        for p in _profile_pairs(audio, sample_rate=sample_rate, t0=0.0, cfg=cfg)
+        if p.echo_risk(cfg)
+    ]
 
 
 def echo_profiles(

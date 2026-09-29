@@ -978,7 +978,7 @@ def analyze_cleanup(
 
         from podcast_mcp.engines.transcript_reconcile import word_targets
 
-        targets = word_targets(project, policy=pol, audibility_map=audibility_map)
+        targets = word_targets(project, policy=pol, audibility_map=audibility_map, caches=caches)
 
     with resolve_progress_task(
         "analyze-cleanup",

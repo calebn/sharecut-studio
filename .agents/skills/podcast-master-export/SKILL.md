@@ -97,7 +97,8 @@ Outputs in episode `export/`:
 - Encoded files from `export.formats` (default: `{name}.mp3` at 128 kbps)
 - `{name}.md` combined transcript (whole utterances)
 - `{name}.srt` captions: word-timed cues split to `export.captions` limits (default ≤7s,
-  ≤42 chars/line, ≤2 lines) — see [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt)
+  ≤42 chars/line, ≤2 lines, ≥1s on screen) — see
+  [docs/transcript-workflow.md § Captions](../../docs/transcript-workflow.md#captions-srtvtt)
 
 `{name}` is a portable sanitized filename stem, not the project title verbatim:
 `My Episode: Part 1/2` exports as `My_Episode_Part_1_2.wav`. Dot-path names,
