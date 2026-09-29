@@ -177,7 +177,13 @@ def _cue_fits(candidate: list[_CueWord], limits: CaptionLimits) -> bool:
 
 
 def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_Cue]:
-    """Greedily fill each cue to the limits, preferring to break at sentence/phrase punctuation."""
+    """Greedily fill each cue to the limits.
+
+    A break at sentence/phrase punctuation (the latest one found before the limits
+    force a stop) is used only when the rest of the run does not fit in one cue.
+    When everything remaining fits, it stays one cue even if it contains internal
+    punctuation: `` "Yeah, totally." `` is one cue, not two.
+    """
     cues: list[_Cue] = []
     i, total = 0, len(words)
     while i < total:
@@ -185,9 +191,11 @@ def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_
         sentence_break: int | None = None
         phrase_break: int | None = None
         j = i + 1
+        truncated = False
         while j <= total:
             candidate = words[i:j]
             if not _cue_fits(candidate, limits):
+                truncated = True
                 break
             last_good = j
             if j < total:
@@ -197,7 +205,7 @@ def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_
                 elif last_text.endswith(_PHRASE_END_PUNCT):
                     phrase_break = j
             j += 1
-        end = sentence_break or phrase_break or last_good
+        end = (sentence_break or phrase_break or last_good) if truncated else last_good
         chunk = words[i:end]
         lines = _wrap_cue_lines([w.text for w in chunk], limits) or [
             " ".join(w.text for w in chunk)
@@ -208,9 +216,12 @@ def _split_run_into_cues(words: list[_CueWord], limits: CaptionLimits) -> list[_
 
 
 def _timeline_cues(project: EpisodeProject, limits: CaptionLimits) -> list[_Cue]:
+    """All cues, ordered by start (stable): a run's cues can interleave with another
+    track's run that starts partway through it."""
     cues: list[_Cue] = []
     for words in _timeline_word_runs(project):
         cues.extend(_split_run_into_cues(words, limits))
+    cues.sort(key=lambda cue: cue.start)
     return cues
 
 

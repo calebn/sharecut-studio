@@ -294,3 +294,88 @@ def test_phrase_punctuation_is_a_weaker_break_preference_than_sentence():
     for b in blocks:
         text = b.splitlines()[2]
         assert text.rstrip().endswith((",", "."))
+
+
+def test_run_that_fits_whole_stays_one_cue_despite_internal_comma():
+    """A run that fits the limits whole is not split at an internal comma (#770 follow-up:
+    the splitter must only prefer a punctuation break when the remainder doesn't fit)."""
+    words = [
+        TranscriptWord(text="Yeah,", start=0.0, end=0.3),
+        TranscriptWord(text="totally.", start=0.4, end=0.9),
+    ]
+    project = EpisodeProject.create("fits-whole", "/tmp/ws")
+    project.transcripts = [Transcript(track_id="host", words=words)]
+
+    srt = utterances_to_srt(project)
+    assert srt == "1\n00:00:00,000 --> 00:00:00,900\nYeah, totally.\n"
+
+
+def test_sentence_break_beats_earlier_phrase_break():
+    """When the remainder doesn't fit, a sentence-ending break is preferred over a
+    comma break, even one that occurred earlier in the same growth window."""
+    tokens = ["Well,", "that's", "true.", "Anyway,", "let's", "keep", "going", "more."]
+    project = EpisodeProject.create("sentence-vs-phrase", "/tmp/ws")
+    project.transcripts = [Transcript(track_id="host", words=_timed_words(tokens))]
+
+    srt = utterances_to_srt(
+        project, limits=CaptionLimits(max_duration_sec=100.0, max_chars_per_line=20, max_lines=1)
+    )
+    assert srt == (
+        "1\n"
+        "00:00:00,000 --> 00:00:00,980\n"
+        "Well, that's true.\n"
+        "\n"
+        "2\n"
+        "00:00:01,050 --> 00:00:01,330\n"
+        "Anyway,\n"
+        "\n"
+        "3\n"
+        "00:00:01,399 --> 00:00:02,379\n"
+        "let's keep going\n"
+        "\n"
+        "4\n"
+        "00:00:02,450 --> 00:00:02,730\n"
+        "more.\n"
+    )
+
+
+def test_overlapping_speakers_give_start_ordered_cues():
+    """Cues are ordered by start across tracks, even when a run splits into several
+    cues that straddle another track's shorter, overlapping run (#770 follow-up)."""
+    host_words = [
+        TranscriptWord(text="ana", start=0.0, end=0.3),
+        TranscriptWord(text="bob", start=0.4, end=0.7),
+        TranscriptWord(text="cid", start=0.8, end=1.1),
+        TranscriptWord(text="dan", start=1.2, end=1.5),
+    ]
+    guest_words = [TranscriptWord(text="Yes?", start=0.9, end=1.0)]
+    project = EpisodeProject.create("overlap", "/tmp/ws")
+    project.transcripts = [
+        Transcript(track_id="host", words=host_words),
+        Transcript(track_id="guest", words=guest_words),
+    ]
+
+    srt = utterances_to_srt(
+        project, limits=CaptionLimits(max_duration_sec=0.5, max_chars_per_line=42, max_lines=2)
+    )
+    assert srt == (
+        "1\n00:00:00,000 --> 00:00:00,300\nana\n"
+        "\n"
+        "2\n00:00:00,400 --> 00:00:00,700\nbob\n"
+        "\n"
+        "3\n00:00:00,800 --> 00:00:01,100\ncid\n"
+        "\n"
+        "4\n00:00:00,900 --> 00:00:01,000\nYes?\n"
+        "\n"
+        "5\n00:00:01,199 --> 00:00:01,500\ndan\n"
+    )
+    starts = [_srt_start_seconds(block) for block in srt.strip().split("\n\n") if block.strip()]
+    assert starts == sorted(starts)
+
+
+def _srt_start_seconds(block: str) -> float:
+    time_line = block.splitlines()[1]
+    start = time_line.split(" --> ")[0]
+    h, m, rest = start.split(":")
+    s, ms = rest.split(",")
+    return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000
