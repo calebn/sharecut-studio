@@ -19,7 +19,7 @@ import tempfile
 import wave
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -99,6 +99,10 @@ class JoinContinuityConfig:
     # Both splice sides below this RMS (dBFS) cannot be heard: room tone against
     # gated digital silence passes as "inaudible splice" instead of scoring a level jump.
     inaudible_floor_db: float = -60.0
+    # Spectral-shape detectors compare level-normalised spectra, which read as a
+    # mismatch between any two windows of quiet air. Their weight ramps from 0 at
+    # inaudible_floor_db to full this many dB above it (louder side); 0 disables.
+    spectral_audibility_db: float = 30.0
 
     @classmethod
     def from_defaults(cls, defaults: dict[str, Any] | None = None) -> JoinContinuityConfig:
@@ -130,6 +134,7 @@ class JoinContinuityConfig:
             weight_nisqa=float(cfg.get("weight_nisqa", 1.4)),
             weight_wavlm=float(cfg.get("weight_wavlm", 1.4)),
             inaudible_floor_db=float(cfg.get("inaudible_floor_db", -60.0)),
+            spectral_audibility_db=float(cfg.get("spectral_audibility_db", 30.0)),
         )
 
 
@@ -386,9 +391,37 @@ def score_splice_samples(
         )
     )
 
+    audibility = _spectral_audibility(left, right, config)
+    if audibility < 1.0:
+        hits = [
+            replace(h, weight=h.weight * audibility) if h.name in _SHAPE_DETECTORS else h
+            for h in hits
+        ]
     wsum = sum(h.weight for h in hits) or 1.0
     risk = sum(h.score * h.weight for h in hits) / wsum
     return float(risk), hits
+
+
+_SHAPE_DETECTORS = frozenset(
+    {
+        "spectral_flux",
+        "mfcc_join_cost",
+        "lsf_mahalanobis",
+        "mca_join_cost",
+        "weighted_spectral_join",
+        "f0_jump",
+        "bicoherence_proxy",
+    }
+)
+
+
+def _spectral_audibility(left: np.ndarray, right: np.ndarray, cfg: JoinContinuityConfig) -> float:
+    """How much the splice's spectral shape can be heard: 1 when its louder side is
+    ``spectral_audibility_db`` or more above the inaudible floor, 0 at the floor."""
+    if cfg.spectral_audibility_db <= 0:
+        return 1.0
+    loud = max(rms_db(left, floor_db=_SILENT_DB), rms_db(right, floor_db=_SILENT_DB))
+    return _clamp01((loud - cfg.inaudible_floor_db) / cfg.spectral_audibility_db)
 
 
 def _inaudible_splice(

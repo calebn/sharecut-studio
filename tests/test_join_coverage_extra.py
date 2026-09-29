@@ -468,6 +468,13 @@ def test_config_from_defaults() -> None:
     assert cfg.neural is False
     assert cfg.edge_tolerance_ms == 0.0
     assert JoinContinuityConfig.from_defaults({}).edge_tolerance_ms == 3.0
+    assert JoinContinuityConfig.from_defaults({}).spectral_audibility_db == 30.0
+    assert (
+        JoinContinuityConfig.from_defaults(
+            {"join_continuity": {"spectral_audibility_db": 0}}
+        ).spectral_audibility_db
+        == 0.0
+    )
 
 
 def test_model_assets_nisqa_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
