@@ -482,10 +482,14 @@
 
 /* Audibility lock (#768/#781): a person or agent set `suppressed` directly, not a
    heuristic pass. Independent of the .suppressed/.ignored text-decoration strikes
-   so a locked-unsuppressed word (no strike) still reads as pinned. */
+   so a locked-unsuppressed word (no strike) still reads as pinned. A box-shadow,
+   not `outline`: `outline` is the native `:focus-visible` ring, and an always-on
+   outline here made a focused locked chip look identical to an unfocused one
+   (WCAG 2.4.7, #802 review). --color-text-secondary, not --border-strong: it
+   clears 3:1 (WCAG 1.4.11) on the plain, active-turn and active-segment surfaces,
+   which --border-strong does not (test_locked_word_shadow_meets_non_text_contrast). */
 .utterance-word.locked {
-  outline: 1px dashed var(--border-strong);
-  outline-offset: 1px;
+  box-shadow: inset 0 0 0 1px var(--color-text-secondary);
 }
 
 .utterance-word.low-confidence {
