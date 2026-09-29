@@ -35,7 +35,7 @@ Do **not** run focus, tighten, or narrative cuts until refine status is **done**
 
 ## What reconcile does / does not
 
-- **Does:** Hide bleed/inaudible words from `combined.json` (metadata only; audio unchanged). Identical overlap dupes → `text_match_count == 0` after reconcile.
+- **Does:** Hide bleed/inaudible words from `combined.json` (metadata only; audio unchanged). Identical overlap dupes → `text_match_count == 0` after reconcile, except co-speech on a measured bleed pair, where the source mic wins by lag and identical words at another spacing both stay (#774).
 - **Silence hallucinations:** ASR uses VAD; words over digital silence carry `suspect_hallucination` (with the opt-in forced aligner, also words it places with no acoustic evidence, i.e. `alignment_score` below `transcribe.forced_alignment.min_word_score`); flag only; nothing filters on it. Find them in `transcript_refine_brief_tool` (`suspect_hallucination_open_words` / `suspect_hallucination_sample`) or Studio Annotate, and suppress real hallucinations with `set_word_suppressed_tool`.
 - **Does not:** Fix ASR text on audible words — use precorrect + refine.
 - **Audio follow-up:** After transcript is clean, **podcast-mute-bleed** gates stems from non-suppressed intervals.
