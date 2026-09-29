@@ -56,7 +56,10 @@ SAMPLE_RATE = 16_000
 DEFAULT_LAB = Path("~/projects/ShareCut_Podcast_Test")
 DEFAULT_LAB_GLOB = "source/zoom_excerpt_pan/audio*.m4a"
 TARGETS = ("librispeech", "aligned_dialogue", "lab")
-PIPELINE_TARGETS = ("librispeech", "lab")  # aligned_dialogue has zero native words (#715)
+PIPELINE_TARGETS = (
+    "librispeech",
+    "lab",
+)  # aligned_dialogue: agreement-only (no gold boundaries; #715, #801)
 
 # #715: how long prepare_items waits for another pass's <id>.native.lock (held
 # across one item's cache check, Whisper run and write): long enough for a slow

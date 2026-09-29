@@ -237,7 +237,7 @@ def test_whisper_cpp_fixture_roundtrip() -> None:
     if not audio.is_file():
         pytest.skip("aligned_dialogue fixture missing")
     tr = transcribe_file_whisper_cpp(audio, language="en")
-    assert tr.words  # fixture may be sparse (humming/music)
+    assert tr.words  # TTS speech (#801)
 
 
 def test_benchmark_report_fixture_exists() -> None:
