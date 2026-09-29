@@ -12,12 +12,12 @@ Plan for expanding end-to-end coverage beyond `aligned_dialogue` (synthetic/cann
 
 | Test | Fixture | Real speech? | Gold labels? |
 |------|---------|--------------|--------------|
-| `test_fixture_smoke` | `aligned_dialogue` | Partial (humming/chimes) | No |
-| `test_fixture_play` | `aligned_dialogue` | Partial | No |
-| `test_fixture_edits` | `aligned_dialogue` + canned seed | No (text ≠ audio) | Canned only |
-| `test_fixture_pipeline` | `aligned_dialogue` + canned | No | Canned only |
-| `test_fixture_social` | `aligned_dialogue` + canned | No | Canned only |
-| `test_fixture_transcribe_slow` | `aligned_dialogue` | Partial | No |
+| `test_fixture_smoke` | `aligned_dialogue` | TTS (Piper) | No |
+| `test_fixture_play` | `aligned_dialogue` | TTS (Piper) | No |
+| `test_fixture_edits` | `aligned_dialogue` + canned seed | TTS (Piper) | Canned = audio |
+| `test_fixture_pipeline` | `aligned_dialogue` + canned | TTS (Piper) | Canned = audio |
+| `test_fixture_social` | `aligned_dialogue` + canned | TTS (Piper) | Canned = audio |
+| `test_fixture_transcribe_slow` | `aligned_dialogue` | TTS (Piper) | Canned = audio |
 | `PODCAST_E2E_PROJECT` override | e.g. `test_fixture_5min` | Yes | Weak (prior ASR) |
 
 `aligned_dialogue` is excellent for **pipeline wiring, MCP/CLI smoke, and NL edit mechanics** but cannot validate transcription accuracy, bleed suppression, or precorrect against truth.
@@ -180,7 +180,7 @@ Add checklist rows for AMI bleed window and `test_fixture_5min` intro bleed (~20
 1. Speaker attribution e2e on AMI when bleed gate opens
 2. `podcast ingest align` on multichannel-meetings clip
 3. Audio cleanup A/B harness on AMI (gate overreach regression)
-4. Optional: synthetic `aligned_dialogue_speech` (TTS + controlled bleed) to replace text≠audio mismatch
+4. Optional: synthetic `aligned_dialogue_speech` (TTS + controlled bleed) to replace text≠audio mismatch — done for `aligned_dialogue` in #801 (no bleed)
 
 ### Phase 4 — CI topology
 
@@ -211,7 +211,7 @@ whisper.cpp remains **benchmark-only** until WER on `asr_gold` and `test_fixture
 ## Open decisions
 
 1. **Commit AMI/LibriSpeech audio to git** vs download-only — recommend commit 60s AMI + 20 LibriSpeech utterances (&lt;25 MB total).
-2. **Replace or supplement `aligned_dialogue`** with TTS-generated speech matching canned text.
+2. **Replace or supplement `aligned_dialogue`** with TTS-generated speech matching canned text. — resolved: replaced in place (#801)
 3. **Whether `test_fixture_5min` becomes a submodule** or stays `PODCAST_E2E_PROJECT` local path for nightly only.
 4. **Fixture write guard** (`PODCAST_ALLOW_FIXTURE_WRITE`) before expanding committed fixtures.
 

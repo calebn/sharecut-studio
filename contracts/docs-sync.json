@@ -966,7 +966,8 @@
           "src/podcast_mcp/cli/fixture.py",
           "src/podcast_mcp/cli/play.py",
           "scripts/bootstrap_fixture_5min.sh",
-          "scripts/run_e2e_battery.sh"
+          "scripts/run_e2e_battery.sh",
+          "scripts/build_aligned_dialogue_audio.py"
         ]
       }
     },
