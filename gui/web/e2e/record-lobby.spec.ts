@@ -466,7 +466,7 @@ test.describe("record lobby", () => {
           };
         });
         await openRecordLink(guest, room.guest.token);
-        await guest.getByLabel("Display name").fill("Ava");
+        await fillGuestDisplayName(guest, "Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await guest.getByRole("button", { name: "Allow microphone" }).click();
         await expect(guest.getByLabel("Level")).toBeVisible();
@@ -863,7 +863,7 @@ test.describe("record lobby", () => {
           ).toBeVisible({ timeout: 15_000 });
         });
         await test.step("show the denied microphone recovery", async () => {
-          await guest.getByLabel("Display name").fill("Ava");
+          await fillGuestDisplayName(guest, "Ava");
           await guest.getByLabel("I am wearing headphones").check();
           await guest
             .getByRole("button", { name: "Allow microphone" })
@@ -965,7 +965,7 @@ test.describe("record lobby", () => {
         await markSharecutE2e(guest);
         await enableRoomTonePcmHarness(guest);
         await openRecordLink(guest, room.guest.token);
-        await guest.getByLabel("Display name").fill("Ava");
+        await fillGuestDisplayName(guest, "Ava");
         await guest.getByLabel("I am wearing headphones").check();
         await expect(
           guest.getByRole("button", { name: "Accept" }),
