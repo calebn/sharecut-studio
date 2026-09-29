@@ -639,10 +639,6 @@ def _write_tone_with_click(raw: Path, *, click_at_sec: float) -> None:
 
 
 def test_verdict_holds_when_an_edge_moves_within_the_tolerance(minimal_project: Path) -> None:
-    """A click 4 ms after the resume point: scored at one placement the verdict depends
-    on whether the 2 ms click window happens to cover it, so a 3 ms edge move flips
-    review to fail. Scoring every placement within the tolerance and keeping the worst
-    reads fail either way (#822)."""
     project = load_project(minimal_project)
     _write_tone_with_click(project.workspace_path() / "raw" / "host.wav", click_at_sec=1.004)
     project.tracks = [
@@ -707,8 +703,6 @@ def test_proposed_cut_reports_the_highest_tolerated_placement_risk(
 def test_join_verdicts_and_risks_are_the_same_on_every_run(
     minimal_project: Path, sample_wav: Path
 ) -> None:
-    """The natural-join baseline samples fixed points, so a calibrated sweep repeated
-    over the same project reads the same verdicts and risks (#812)."""
     from podcast_mcp.edits.join_continuity import assess_existing_join
 
     project = _tiny_project(minimal_project, sample_wav)
@@ -725,11 +719,6 @@ def test_join_verdicts_and_risks_are_the_same_on_every_run(
 
 
 def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path) -> None:
-    """A cut whose two sides are both below the -60 dBFS floor at the proposed edges
-    passes as an inaudible splice even when a placement 3 ms away would read over the
-    floor: the floor is a hard threshold, so taking the worst placement across it
-    would fail a clean quiet-air cut (PR #826 review). Scored at that placement
-    itself, the same audio is not inaudible and the detectors run."""
     project = load_project(minimal_project)
     sr = 16000
     side = int(0.045 * sr)
@@ -778,11 +767,6 @@ def by_name(hits: list, name: str):
 
 
 def test_spectral_shape_detectors_lose_weight_on_quiet_air() -> None:
-    """Two windows of room tone with different spectral shapes read as a full MFCC /
-    LSF / MCA mismatch, since those costs compare level-normalised spectra. Nobody
-    hears the shape of air at -50 dBFS, so the shape detectors' weight ramps down
-    from 30 dB above the inaudible floor; the same shapes at -25 dBFS keep full weight
-    and the level and floor detectors are untouched either way (PR #826 review)."""
     sr = 16000
     n = int(0.045 * sr)
     rng = np.random.default_rng(11)
