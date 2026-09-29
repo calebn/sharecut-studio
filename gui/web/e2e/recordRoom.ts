@@ -182,14 +182,24 @@ export async function joinAsGuest(
   ).toBeVisible();
 }
 
-/** Join a record link as a listen-only producer. */
+/**
+ * Join a record link as a listen-only producer.
+ *
+ * Unlike a guest (`fillGuestDisplayName`), a producer's record socket opens
+ * only after Join (`!!bootstrap && (!producer || producerJoined)` in
+ * `src/record/RecordApp.tsx`), so nothing re-renders under the fill and the
+ * socket joins with the typed name. Checking the field before Join keeps that
+ * assumption explicit: the room then registers the producer as `name`.
+ */
 export async function joinAsProducer(
   page: Page,
   token: string,
   name: string,
 ): Promise<void> {
   await openRecordLink(page, token);
-  await page.getByLabel("Display name").fill(name);
+  const field = page.getByLabel("Display name");
+  await field.fill(name);
+  await expect(field).toHaveValue(name);
   await page.getByRole("button", { name: "Join" }).click();
   await expect(page.getByText("Waiting for host")).toBeVisible();
 }
