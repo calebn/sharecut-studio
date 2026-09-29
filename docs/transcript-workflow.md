@@ -183,12 +183,17 @@ step summary "low punctuation rate on `<track>`"), catching a case the primer
 does not fully fix without needing a redecode to notice.
 
 The primer is never cut mid-word to fit `transcribe.initial_prompt_max_chars`:
-below the primer's own length (currently 28 characters), the prompt falls
-back to vocabulary alone (still comma-truncated to fit), never a partial
-primer sentence; above it, vocabulary is truncated (or dropped entirely if
-none fits) to leave the primer whole. A vocabulary already saved close to the
-400-character default can now lose its last term to the added primer even
-though it fit before #769; `run_transcribe_plan` logs a warning
+below the primer's own length (27 characters), the prompt falls back to
+vocabulary alone (still comma-truncated to fit at a term boundary, dropped
+entirely rather than split mid-word if not even the first term fits), never a
+partial primer sentence; above it, vocabulary is truncated the same way (or
+dropped entirely if none fits) to leave the primer whole. Saving vocabulary is
+rejected only when the prompt actually has to cut some of it to fit — never
+merely because the limit is below the primer's length, which just drops an
+empty or already-cut vocabulary and sends the primer alone (#804). A
+vocabulary already saved close to the 400-character default can now lose its
+last term to the added primer even though it fit before #769;
+`run_transcribe_plan` logs a warning
 (`TranscriptContext.initial_prompt_vocabulary_truncated()`) the next time that
 project transcribes, rather than failing silently — shorten the saved terms
 or guest names, or raise `transcribe.initial_prompt_max_chars`, to clear it.
@@ -199,10 +204,15 @@ prompt first; a track whose transcript predates this change has its cache keyed
 by the older, unprimed prompt (`full_prompt_text() or None`) instead, so that
 lookup misses. `plan_retime` retries with that fallback prompt before giving up,
 and records which jobs needed it (`TranscribePlan.retime_fallback`) so
-`run_transcribe_plan` sends them that same fallback prompt on the real run —
-not the current primed one, which would miss again and re-run Whisper instead
-of just re-aligning the cached words. Re-time only reuses cached words, so which
-prompt produced them does not matter as long as the audio and model still match.
+`run_transcribe_plan` tries them under that same fallback prompt on the real
+run. Because the cache file it found could be evicted or cleaned up between
+planning and running, `run_transcribe_plan` re-checks each of those jobs'
+cache under the fallback prompt again at run time (`#804`): a job whose cache
+still hits reuses the fallback prompt as before; a job whose cache no longer
+exists falls through to the current primed prompt instead, so a real Whisper
+decode never runs unprimed (which would recreate #769 for that track). Re-time
+only reuses cached words, so which prompt produced them does not matter as
+long as the audio and model still match.
 
 ASR also reads an older
 `transcripts/{track}_{audio}.json` cache (which does not encode model, prompt or

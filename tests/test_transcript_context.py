@@ -44,6 +44,47 @@ def test_vocabulary_rejects_terms_outside_whisper_prompt(minimal_project: Path) 
     assert svc.get_vocabulary()["terms"] == []
 
 
+def test_vocabulary_save_allowed_below_primer_length_when_it_fits(
+    minimal_project: Path,
+) -> None:
+    """A limit under the primer's 27 chars must not reject every save (#804 item 3)."""
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    TranscriptContext(transcribe={"initial_prompt_max_chars": 10}).save(ws.project.workspace_path())
+    svc = TranscriptPrecorrectService(ws)
+    result = svc.set_vocabulary(
+        terms=["Alpha"], guest_names=[], base_revision=svc.get_vocabulary()["revision"]
+    )
+    assert result["terms"] == ["Alpha"]
+
+
+def test_vocabulary_save_allowed_with_empty_vocabulary_below_primer_length(
+    minimal_project: Path,
+) -> None:
+    """An empty vocabulary always fits (nothing to truncate) regardless of the limit."""
+    from podcast_mcp.services.transcript_precorrect import _ensure_prompt_covers_vocabulary
+
+    ctx = TranscriptContext(transcribe={"initial_prompt_max_chars": 5})
+    _ensure_prompt_covers_vocabulary(ctx)  # must not raise
+
+
+def test_vocabulary_save_still_rejected_when_it_actually_overflows_a_low_limit(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    ws = ProjectWorkspace.open(minimal_project)
+    TranscriptContext(transcribe={"initial_prompt_max_chars": 5}).save(ws.project.workspace_path())
+    svc = TranscriptPrecorrectService(ws)
+    with pytest.raises(ValueError, match="prompt limit"):
+        svc.set_vocabulary(
+            terms=["Kaczynski"], guest_names=[], base_revision=svc.get_vocabulary()["revision"]
+        )
+
+
 def test_context_update_merges_latest_vocabulary(minimal_project: Path) -> None:
     from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
     from podcast_mcp.services.workspace import ProjectWorkspace
@@ -170,6 +211,55 @@ def test_initial_prompt_vocabulary_truncated_flag() -> None:
         terms=["a" * 380], transcribe={"initial_prompt": False, "initial_prompt_max_chars": 400}
     )
     assert disabled.initial_prompt_vocabulary_truncated() is False
+
+
+def test_default_prompt_primer_is_27_characters() -> None:
+    """Pins the length docs/transcript-workflow.md cites (#804: it was documented as 28)."""
+    assert len(DEFAULT_PROMPT_PRIMER) == 27
+
+
+@pytest.mark.parametrize(
+    ("limit", "expected_prompt", "expected_truncated"),
+    [
+        (0, None, True),
+        (10, "Alpha", True),
+        # The primer alone (27 chars) does not fit at 26, so vocabulary is sent on its
+        # own; "Alpha, Beta" (11 chars) fits whole here and must not be cut (#804 item 2).
+        (26, "Alpha, Beta", False),
+        # room == max_chars - len(primer) - 1 == -1: the old code sliced with a negative
+        # index and cut the last character of the last term instead of dropping it (#804
+        # item 1).
+        (27, DEFAULT_PROMPT_PRIMER, True),
+        # room == 0: no vocabulary character fits alongside the primer.
+        (28, DEFAULT_PROMPT_PRIMER, True),
+        (400, f"{DEFAULT_PROMPT_PRIMER} Alpha, Beta", False),
+    ],
+)
+def test_initial_prompt_fit_matrix(limit, expected_prompt, expected_truncated) -> None:
+    ctx = TranscriptContext(terms=["Alpha", "Beta"], transcribe={"initial_prompt_max_chars": limit})
+    assert ctx.initial_prompt_text() == expected_prompt
+    assert ctx.initial_prompt_vocabulary_truncated() is expected_truncated
+
+
+def test_initial_prompt_drops_a_term_longer_than_the_room_entirely() -> None:
+    """No comma to cut at: the term must be dropped whole, never cut mid-word (#804)."""
+    term = "Supercalifragilisticexpialidocious"
+    ctx = TranscriptContext(terms=[term], transcribe={"initial_prompt_max_chars": 35})
+    assert ctx.initial_prompt_text() == DEFAULT_PROMPT_PRIMER
+    assert ctx.initial_prompt_vocabulary_truncated() is True
+
+
+def test_initial_prompt_empty_vocabulary_is_never_reported_truncated() -> None:
+    ctx = TranscriptContext(transcribe={"initial_prompt_max_chars": 27})
+    assert ctx.initial_prompt_text() == DEFAULT_PROMPT_PRIMER
+    assert ctx.initial_prompt_vocabulary_truncated() is False
+
+
+def test_initial_prompt_vocabulary_that_fits_exactly_is_sent_whole() -> None:
+    # room == len("Alpha, Beta") == 11 exactly, at max_chars 27 + 1 + 11.
+    ctx = TranscriptContext(terms=["Alpha", "Beta"], transcribe={"initial_prompt_max_chars": 39})
+    assert ctx.initial_prompt_text() == f"{DEFAULT_PROMPT_PRIMER} Alpha, Beta"
+    assert ctx.initial_prompt_vocabulary_truncated() is False
 
 
 def test_parse_replacements_and_skip_spans_skips_invalid() -> None:

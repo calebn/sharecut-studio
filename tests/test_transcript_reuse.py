@@ -405,6 +405,66 @@ def test_plan_retime_never_probes_jobs_that_do_not_need_it(job):
         assert plan.run == []
 
 
+def test_run_transcribe_plan_reuses_fallback_prompt_when_cache_still_present(job, tmp_path):
+    """A fallback job whose cache is still on disk at run time keeps the old prompt (#769)."""
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+
+    p = _project(workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    TranscriptContext(terms=["Kaczynski"]).save(p.workspace_path())
+    plan = TranscribePlan(
+        overwrite=False,
+        run=[job],
+        retime_fallback=[job],
+        audio_hashes={job.key: "sha"},
+        audio_stats={job.key: (0, 0)},
+    )
+    engine = MagicMock()
+    engine.read_asr_cache.return_value = (job.audio, object())
+    engine.transcribe_all_dialogue.return_value = []
+
+    run_transcribe_plan(p, plan, lambda: engine, use_cache=True, language="en")
+
+    assert engine.read_asr_cache.call_args.kwargs["initial_prompt"] == "Kaczynski"
+    engine.transcribe_all_dialogue.assert_called_once()
+    kwargs = engine.transcribe_all_dialogue.call_args.kwargs
+    assert kwargs["jobs"] == [job]
+    assert kwargs["initial_prompt"] == "Kaczynski"
+    assert DEFAULT_PROMPT_PRIMER not in kwargs["initial_prompt"]
+
+
+def test_run_transcribe_plan_falls_back_to_primed_prompt_when_cache_evicted(job, tmp_path):
+    """A fallback job whose cache disappeared between planning and running (#804): a real
+    decode must use the current primed prompt, not the pre-primer one (would recreate #769).
+    """
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+
+    p = _project(workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    TranscriptContext(terms=["Kaczynski"]).save(p.workspace_path())
+    plan = TranscribePlan(
+        overwrite=False,
+        run=[job],
+        retime_fallback=[job],
+        audio_hashes={job.key: "sha"},
+        audio_stats={job.key: (0, 0)},
+    )
+    engine = MagicMock()
+    engine.read_asr_cache.return_value = (job.audio, None)  # evicted since plan_retime ran
+    engine.transcribe_all_dialogue.return_value = []
+
+    run_transcribe_plan(p, plan, lambda: engine, use_cache=True, language="en")
+
+    engine.transcribe_all_dialogue.assert_called_once()
+    kwargs = engine.transcribe_all_dialogue.call_args.kwargs
+    assert kwargs["jobs"] == [job]
+    assert kwargs["initial_prompt"] == f"{DEFAULT_PROMPT_PRIMER} Kaczynski"
+
+
 def test_plan_retime_context_is_reused_by_run_transcribe_plan(job, monkeypatch):
     from unittest.mock import MagicMock
 

@@ -26,6 +26,21 @@ _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_gloss
 DEFAULT_PROMPT_PRIMER = "Podcast episode transcript."
 
 
+def _truncate_vocabulary(vocabulary: str, limit: int) -> str:
+    """``vocabulary`` cut at a comma boundary to fit ``limit`` characters.
+
+    Never a partial term: when even the first term does not fit (or ``limit`` leaves
+    no room at all, e.g. a negative budget), the vocabulary is dropped entirely rather
+    than cut mid-word (#804).
+    """
+    if limit <= 0:
+        return ""
+    if not vocabulary or len(vocabulary) <= limit:
+        return vocabulary
+    candidate = vocabulary[:limit]
+    return candidate.rsplit(",", 1)[0] if "," in candidate else ""
+
+
 @dataclass(frozen=True)
 class ReplacementRule:
     match: str
@@ -111,17 +126,16 @@ class TranscriptContext:
         The primer is never split mid-word: when it alone is longer than the budget,
         vocabulary is sent by itself (truncated to fit) instead of a partial primer
         sentence. Otherwise vocabulary is truncated at a comma boundary to leave the
-        full primer intact, and dropped entirely if none of it fits alongside the primer.
+        full primer intact, and dropped entirely if none of it fits alongside the primer
+        (including when there is no room left for it at all, #804).
         """
         vocabulary = self.full_prompt_text()
         primer = DEFAULT_PROMPT_PRIMER
         if len(primer) > max_chars:
-            fitted = vocabulary[:max_chars].rsplit(",", 1)[0] if vocabulary else ""
+            fitted = _truncate_vocabulary(vocabulary, max_chars)
             return fitted, fitted != vocabulary
         room = max_chars - len(primer) - (1 if vocabulary else 0)
-        fitted_vocabulary = (
-            vocabulary if len(vocabulary) <= room else vocabulary[:room].rsplit(",", 1)[0]
-        )
+        fitted_vocabulary = _truncate_vocabulary(vocabulary, room)
         text = f"{primer} {fitted_vocabulary}" if fitted_vocabulary else primer
         return text, fitted_vocabulary != vocabulary
 
