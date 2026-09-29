@@ -155,12 +155,12 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             language=language,
             allow_edited=bool(cfg.get("overwrite_edited", False)),
         )
-        if plan.run:
-            # Fail fast before any transcript changes: without the aligner a re-time would
-            # only replace stored transcripts with Whisper's cached words (raises
-            # WordAlignerMissingError with the bootstrap hint). A re-time with nothing to
-            # run skips the load and its ~360 MB pin hash.
-            engine.load_word_aligner()
+    if options.forced_alignment.requested is True and plan.run:
+        # Explicitly on: a model that cannot load (missing, corrupt, an override dir without
+        # one) fails the run before any transcript changes instead of keeping Whisper's times
+        # per job; a re-time would otherwise only replace stored transcripts with Whisper's
+        # cached words. Nothing to run skips the load and its ~360 MB pin hash.
+        make_engine().load_word_aligner()
 
     transcripts = run_transcribe_plan(
         project,

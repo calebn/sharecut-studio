@@ -40,6 +40,8 @@ from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError, SequentialWindowReader
 from podcast_mcp.word_aligner_models import (
     DEFAULT_WORD_ALIGNER,
+    WordAlignerLoadError,
+    WordAlignerMissingError,
     WordAlignerModel,
     resolve_word_aligner_dir,
     verify_word_aligner_snapshot,
@@ -51,12 +53,16 @@ from podcast_mcp.word_aligner_models import (
 DEFAULT_ALIGNER_THREADS = 4
 
 
+class OnnxRuntimeMissingError(RuntimeError):
+    """onnxruntime is not importable: an install problem, not a snapshot problem."""
+
+
 class OnnxCtcBackend:
     def __init__(self, model_path: Path, *, threads: int = DEFAULT_ALIGNER_THREADS) -> None:
         try:
             import onnxruntime as ort
         except ImportError as exc:
-            raise RuntimeError(
+            raise OnnxRuntimeMissingError(
                 "word alignment needs onnxruntime (a core dependency): run uv sync"
             ) from exc
 
@@ -117,13 +123,20 @@ class WordAligner:
             # User-supplied override dirs are not the pinned bytes; only the pinned
             # snapshot is verified, every file (#728).
             verify_word_aligner_snapshot(model_dir, model)
-        vocab = CtcVocab.from_token_map(
-            json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
-        )
-        backend = OnnxCtcBackend(
-            onnx_path,
-            threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),
-        )
+        try:
+            vocab = CtcVocab.from_token_map(
+                json.loads((model_dir / "vocab.json").read_text(encoding="utf-8"))
+            )
+            backend = OnnxCtcBackend(
+                onnx_path,
+                threads=threads or min(DEFAULT_ALIGNER_THREADS, os.cpu_count() or 1),
+            )
+        except (WordAlignerMissingError, OnnxRuntimeMissingError):
+            raise
+        except Exception as exc:
+            # A present snapshot whose files do not parse (an override dir with a stray
+            # ONNX, a torn write): name the dir and the fix instead of a raw runtime error.
+            raise WordAlignerLoadError(model.id, model_dir, exc) from exc
         return cls(model, backend, vocab, local_source=local_source)
 
     def supports_language(self, language: str | None) -> bool:
