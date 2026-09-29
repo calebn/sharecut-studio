@@ -2088,6 +2088,40 @@ def test_transcribe_tracks_explicit_true_without_the_word_aligner_fails_before_a
     assert not (proj.artifacts_dir() / "transcript_timing.json").exists()
 
 
+def test_transcribe_tracks_explicit_true_with_a_corrupt_snapshot_fails_before_asr(
+    minimal_project, sample_wav, tmp_workspace, aligner_installed
+):
+    """#780: `true` with a present model that cannot load fails the run; the default reports."""
+    import copy
+
+    from podcast_mcp.engines import TranscriptionEngine as Engine
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = copy.deepcopy(load_defaults())
+    defaults["transcribe"]["forced_alignment"]["enabled"] = True
+    # The planted snapshot's vocab.json is not JSON, so the real load fails.
+    with (
+        patch.object(Engine, "transcribe_file", side_effect=AssertionError("Whisper must not run")),
+        pytest.raises(WordAlignerMissingError) as excinfo,
+    ):
+        steps.transcribe_tracks(proj, defaults)
+    assert "failed to load" in str(excinfo.value)
+    assert "podcast bootstrap --component word-aligner --upgrade" in str(excinfo.value)
+    assert proj.transcripts == []
+
+    with patch.object(Engine, "transcribe_file", return_value=_asr_result()):
+        summary = steps.transcribe_tracks(proj, load_defaults())
+    assert proj.transcripts[0].word_aligner is None
+    assert "forced alignment kept Whisper timestamps on 1 track(s)" in summary
+    timing = json.loads(
+        (proj.artifacts_dir() / "transcript_timing.json").read_text(encoding="utf-8")
+    )
+    assert timing["forced_alignment"]["enabled"] is True
+    assert timing["forced_alignment"]["jobs"][0]["status"] == "failed"
+    assert "failed to load" in timing["forced_alignment"]["jobs"][0]["reason"]
+
+
 def test_transcribe_tracks_retime_words_reports_alignment_failure_as_not_retimed(
     minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):

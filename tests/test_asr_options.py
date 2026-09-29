@@ -77,6 +77,23 @@ def test_forced_alignment_explicit_true_with_the_model(monkeypatch, tmp_path):
     assert _requested(False).forced_alignment.report()["model"] is None
 
 
+def test_forced_alignment_explicit_true_fails_on_a_corrupt_snapshot(monkeypatch, tmp_path):
+    """#780: `true` with a present-but-corrupt model must fail the run, with the --upgrade hint."""
+    from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
+
+    snap = plant_pinned_word_aligner(monkeypatch, tmp_path)
+    (snap / "onnx" / "model.onnx").write_bytes(b"not an onnx model")
+    corrupt = _requested(True).forced_alignment
+    assert corrupt.installed is True
+    assert corrupt.enabled is True
+    with pytest.raises(WordAlignerPinMismatchError) as excinfo:
+        corrupt.require()
+    assert "podcast bootstrap --component word-aligner --upgrade" in str(excinfo.value)
+    # The default keeps the presence check: no hash, no raise; the load reports the failure.
+    _requested(None).forced_alignment.require()
+    _requested(False).forced_alignment.require()
+
+
 def test_forced_alignment_is_not_a_decode_key(monkeypatch, tmp_path):
     hidden_key = AsrOptions().decode_key()
     plant_pinned_word_aligner(monkeypatch, tmp_path)

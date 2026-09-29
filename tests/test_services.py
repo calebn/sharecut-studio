@@ -281,6 +281,32 @@ def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_th
         store.put(ws.path, reset=True)
 
 
+def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
+    minimal_project, monkeypatch, tmp_path
+):
+    from model_pin_helpers import plant_pinned_word_aligner
+    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.word_aligner_models import WordAlignerMissingError
+
+    plant_pinned_word_aligner(monkeypatch, tmp_path)
+    ws = ProjectWorkspace.open(minimal_project)
+    store = config_store()
+    store.put(ws.path, config={"transcribe": {"forced_alignment": {"enabled": True}}})
+    try:
+        svc = TranscriptService(ws)
+        with (
+            patch(
+                "podcast_mcp.services.transcript.run_transcribe_plan",
+                side_effect=AssertionError("ASR must not start"),
+            ),
+            pytest.raises(WordAlignerMissingError) as excinfo,
+        ):
+            svc.transcribe()
+        assert "failed to load" in str(excinfo.value)
+    finally:
+        store.put(ws.path, reset=True)
+
+
 def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_project):
     from podcast_mcp.services.pipeline_config import config_store
 

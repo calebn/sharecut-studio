@@ -114,6 +114,26 @@ class WordAlignerPinMismatchError(WordAlignerMissingError):
         )
 
 
+class WordAlignerLoadError(WordAlignerMissingError):
+    """A snapshot that is present but cannot be loaded (a broken file, or an override dir).
+
+    The pinned snapshot's fix is a re-download; an override dir is the user's own files,
+    so the hint names the variable instead.
+    """
+
+    def __init__(self, model_id: str, model_dir: Path, cause: Exception) -> None:
+        if word_aligner_override_dir() is not None:
+            fix = f"fix the files or unset {WORD_ALIGNER_ENV}"
+        else:
+            fix = f"{WORD_ALIGNER_BOOTSTRAP} --upgrade"
+        super().__init__(
+            model_id,
+            f"{type(cause).__name__}: {cause}",
+            problem=f"failed to load from {model_dir}",
+            fix=fix,
+        )
+
+
 def word_aligner_model(model_id: str = DEFAULT_WORD_ALIGNER) -> WordAlignerModel:
     for model in WORD_ALIGNER_CATALOG:
         if model.id == model_id:
