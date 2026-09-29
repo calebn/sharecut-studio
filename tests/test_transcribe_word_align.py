@@ -314,17 +314,19 @@ def test_align_error_keeps_whisper_times_and_writes_no_alignment_cache(minimal_p
 
 
 def _host_track_with_tone_then_silence(proj, wav):
-    """The project's host track is `wav`: a 440 Hz tone for 0.5 s, then digital silence."""
+    """The project's host track is `wav`: a 440 Hz tone for 0.5 s over a -70 dBFS noise
+    bed, then the bed alone (below the silence filter's -60 dBFS peak floor)."""
     from podcast_mcp.models import MediaAsset, Track, TrackRole
 
     n = 16000
-    t = np.arange(n // 2) / 16000
-    tone = np.round(0.3 * 32767 * np.sin(2 * np.pi * 440 * t)).astype("<i2")
+    t = np.arange(n) / 16000
+    samples = np.random.default_rng(780).normal(0.0, 10 ** (-70 / 20), n)
+    samples[: n // 2] += 0.3 * np.sin(2 * np.pi * 440 * t[: n // 2])
     with wave.open(str(wav), "wb") as f:
         f.setnchannels(1)
         f.setsampwidth(2)
         f.setframerate(16000)
-        f.writeframes(tone.tobytes() + np.zeros(n - n // 2, dtype="<i2").tobytes())
+        f.writeframes(np.round(np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
     proj.tracks = [
         Track(
             id="host",

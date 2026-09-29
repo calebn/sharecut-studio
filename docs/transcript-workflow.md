@@ -278,9 +278,18 @@ places gets `alignment_score`, the mean posterior of the frames it used. A score
 `suspect_hallucination`, but only when the audio agrees (#780): the word's own track is
 quieter than its noise floor plus `evidence_speech_margin_db` (12) over the aligned span, or
 another dialogue track is `evidence_bleed_margin_db` (3) louder over the same session-clock
-span (`engines/asr_silence.SpeechLevels`, the same track RMS and gain rule reconcile's
-audibility uses, decoded once per run; a track that cannot be decoded, a span cut from the
-timeline, or an extra-source transcript counts as evidence). The score alone never flags: it
+span (`engines/asr_silence.SpeechLevels`: each dialogue track's primary media streamed once
+into 10 ms frame levels at 8 kHz, about 0.7 MB per half hour, plus the track gain, the same
+level rule reconcile's audibility uses; a track that cannot be decoded, a span cut from the
+timeline, or an extra-source transcript counts as evidence). The two halves run at different
+times, because the other-track half reads the session placement and `transcribe_tracks` runs
+before `align_tracks`: transcription and the reused-transcript re-flag apply the own-track half
+only (`bleed_check` off, so a wrong ingest offset can never flag a real word), and
+`reconcile_transcript` (after `align_tracks`, on both passes) re-flags every stored dialogue
+transcript under the full gate (`refresh_settled_silence_flags`, "aligner evidence re-flagged on
+N track(s)" in its summary). The `silence_filter_fingerprint` records which scope produced the
+flags and a digest of the dialogue clips' placement (`evidence_term`), so a placement change
+re-flags once and a later `transcribe_tracks` run leaves reconcile's bleed flags alone. The score alone never flags: it
 is a mean over emitting frames and is low by construction on one-to-four-frame words such as
 "um", "uh" and "to" (on the lab tape the ungated flag marked 97 of the speaker's own words per
 episode; the gate keeps the 64 bleed and 3 silent flags and none of those). It is flag-only,

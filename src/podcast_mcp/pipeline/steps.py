@@ -303,18 +303,30 @@ def require_transcript_refine(project: EpisodeProject, defaults: dict[str, Any])
 
 def reconcile_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.transcript_reconcile import run_reconciliation
+    from podcast_mcp.edits.transcript_reuse import refresh_settled_silence_flags
+    from podcast_mcp.engines.asr_options import AsrOptions
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
 
     pol = AnalysisPolicy.from_defaults(defaults)
     if pol.transcript_mode == "off":
         return "skipped (transcript_mode=off)"
+    # Placement is settled here (after align_tracks), so the aligner evidence gate's bleed
+    # half can read the other tracks; a changed placement re-flags (#780).
+    evidence_skipped, reflagged = refresh_settled_silence_flags(
+        project, AsrOptions.from_defaults(defaults)
+    )
     result = run_reconciliation(project, policy=pol, dry_run=None)
-    return (
+    summary = (
         f"{result.get('suppress_count', 0)} suppressed, "
         f"{result.get('unsuppress_count', 0)} unsuppressed, "
         f"{result.get('reattribute_count', 0)} reattributed, "
         f"{result.get('status_updates', 0)} status updates"
     )
+    if reflagged:
+        summary += f", aligner evidence re-flagged on {reflagged} track(s)"
+    if evidence_skipped:
+        summary += f", evidence re-flag skipped on {len(evidence_skipped)} track(s)"
+    return summary
 
 
 def merge_transcript(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

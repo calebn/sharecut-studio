@@ -262,8 +262,10 @@ transcribe:
     # Aligned words whose mean character posterior is below this get
     # suspect_hallucination (flag only, never deleted; #195), but only when the
     # audio agrees (#780): the word's own track is quieter than its noise floor
-    # + evidence_speech_margin_db over the aligned span, or another dialogue
-    # track is evidence_bleed_margin_db louder there. The score alone is low by
+    # + evidence_speech_margin_db over the aligned span (checked at transcribe
+    # time), or another dialogue track is evidence_bleed_margin_db louder there
+    # (checked by reconcile_transcript, once align_tracks has placed the tracks
+    # on one clock; a placement change re-flags). The score alone is low by
     # construction on one-to-four-frame words ("um", "to"), so it never flags on
     # its own. Stored scores keep flagging when enabled is turned off; 0 = off.
     min_word_score: 0.01

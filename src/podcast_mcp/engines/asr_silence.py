@@ -18,7 +18,11 @@ min_word_score` is flagged too, but only when the audio agrees (#780): the word'
 track carries no speech over the aligned span, or another dialogue track is louder
 there (``SpeechLevels``). The score alone never flags: it is a mean character posterior
 over emitting frames, low by construction on one-to-four-frame words such as "um" and
-"to". It is still flag-only and never retimed.
+"to". The other-track half reads the session placement, which ``align_tracks`` settles
+after ASR, so ``transcribe_tracks`` applies the own-track half only (``bleed_check``
+off) and ``reconcile_transcript`` re-flags with the full gate; the fingerprint carries
+that scope and a digest of the dialogue clips' placement, so a placement change
+re-flags once. It is still flag-only and never retimed.
 """
 
 from __future__ import annotations
@@ -41,19 +45,32 @@ from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
 if TYPE_CHECKING:
-    from podcast_mcp.engines.audio_audit import TrackRmsCache
     from podcast_mcp.engines.session_timeline import SessionTimeline
 
 log = logging.getLogger(__name__)
 
 PEAK_BLOCK_SEC = 0.01
 MIN_SPAN_SEC = 0.05
+# The evidence gate's level resolution: 10 ms frames at 8 kHz, about 80x smaller than samples.
+LEVEL_FRAME_SEC = 0.01
+LEVEL_SAMPLE_RATE = 8000
+# A frame at or below this is digital silence: it never counts toward a track's noise floor.
+SILENT_FRAME_DB = -80.0
 
 
 def silence_filter_fingerprint(
-    words: Sequence[TranscriptWord], audio_sha256: str, options: AsrOptions
+    words: Sequence[TranscriptWord],
+    audio_sha256: str,
+    options: AsrOptions,
+    *,
+    evidence: str = "own",
 ) -> str:
-    """Identify the media, filter policy, spans and stored flag state."""
+    """Identify the media, filter policy, spans, stored flag state and evidence scope.
+
+    ``evidence`` is ``SpeechLevels.fingerprint_term()``: ``"own"`` when only the own-track
+    half of the aligner gate applied, ``"bleed:<placement digest>"`` after the full gate ran
+    on a settled placement. It only counts once a word carries a score.
+    """
     digest = sha256()
     digest.update(f"v2:{audio_sha256}:{options.silence_filter_enabled}:".encode())
     if options.silence_filter_enabled:
@@ -66,12 +83,35 @@ def silence_filter_fingerprint(
     # stored before it stay valid and unchanged reused transcripts are not re-decoded.
     if any(w.alignment_score is not None for w in words):
         digest.update(
-            "ctc2:"
+            "ctc3:"
             f"{float(options.forced_alignment_min_word_score).hex()}:"
             f"{float(options.forced_alignment_speech_margin_db).hex()}:"
-            f"{float(options.forced_alignment_bleed_margin_db).hex()}:".encode()
+            f"{float(options.forced_alignment_bleed_margin_db).hex()}:"
+            f"{evidence}:".encode()
         )
     return digest.hexdigest()
+
+
+def placement_digest(project: EpisodeProject) -> str:
+    """A digest of where every dialogue clip sits (source range and timeline start).
+
+    The bleed half of the evidence gate compares tracks on the session clock, so its
+    flags are only as good as this placement; a change to it re-flags.
+    """
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    dialogue = set(dialogue_track_ids(project))
+    rows = sorted(
+        (c.track_id, c.source_id or "", c.source_start, c.source_end, c.timeline_start)
+        for c in project.clips
+        if c.track_id in dialogue
+    )
+    return sha256(repr(rows).encode()).hexdigest()[:16]
+
+
+def evidence_term(project: EpisodeProject, *, bleed_check: bool) -> str:
+    """The fingerprint's evidence scope without decoding any audio."""
+    return f"bleed:{placement_digest(project)}" if bleed_check else "own"
 
 
 def flag_words_over_silence(
@@ -115,62 +155,113 @@ class SpeechEvidence(Protocol):
 
 
 @dataclass
+class TrackEnergy:
+    """One dialogue track as 10 ms frame levels (dBFS, float32) and its noise floor.
+
+    The gate only reads span RMS, so frames replace samples: a 28-minute track is 0.7 MB
+    instead of 54 MB, and the decode streams so nothing larger than one chunk is resident.
+    """
+
+    frames_db: np.ndarray
+    floor_db: float
+
+    @classmethod
+    def decode(cls, path: Path, *, floor_percentile: float = 5.0) -> TrackEnergy:
+        from podcast_mcp.engines.ffmpeg import FFmpegEngine
+        from podcast_mcp.util.dsp import frame_rms_db_stream
+
+        frame = round(LEVEL_SAMPLE_RATE * LEVEL_FRAME_SEC)
+        chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=LEVEL_SAMPLE_RATE)
+        frames_db = frame_rms_db_stream(chunks, frame, frame, floor_db=SILENT_FRAME_DB).astype(
+            np.float32
+        )
+        if frames_db.size == 0:
+            raise NoAudioDecodedError(path)
+        heard = frames_db[frames_db > SILENT_FRAME_DB]
+        floor = float(np.percentile(heard, floor_percentile)) if heard.size else SILENT_FRAME_DB
+        return cls(frames_db=frames_db, floor_db=floor)
+
+    def level_db(self, start: float, end: float) -> float | None:
+        """RMS over ``[start, end)`` source seconds from the frames it covers; None past the end."""
+        i0 = max(0, int(start / LEVEL_FRAME_SEC))
+        i1 = max(i0 + 1, int(np.ceil(end / LEVEL_FRAME_SEC)))
+        if i0 >= self.frames_db.size:
+            return None
+        seg = self.frames_db[i0 : min(i1, self.frames_db.size)].astype(np.float64)
+        power = float(np.mean(10.0 ** (seg / 10.0)))
+        return 10.0 * np.log10(power) if power > 0.0 else SILENT_FRAME_DB
+
+
+@dataclass
 class SpeechLevels:
     """Dialogue-track levels for the aligner evidence gate (#780).
 
-    A word has speech evidence when its own track's RMS over the aligned span (the
+    A word has speech evidence when its own track's level over the aligned span (the
     recording's level plus the track gain, the same rule reconcile's audibility uses) sits
-    at least ``speech_margin_db`` above that track's noise floor and no other dialogue
-    track is ``bleed_margin_db`` louder over the same session-clock span. Spans are widened
-    to ``MIN_SPAN_SEC`` like the silence filter, so a one-frame aligned word still measures
-    something. A track that could not be decoded, or a span cut from the timeline, counts
-    as evidence: the flag never fires on the score alone.
+    at least ``speech_margin_db`` above that track's noise floor and, with ``bleed_check``,
+    no other dialogue track is ``bleed_margin_db`` louder over the same session-clock span.
+    ``bleed_check`` is off at transcribe time, before ``align_tracks`` has placed the tracks
+    against each other, and on when ``reconcile_transcript`` re-flags afterwards; the
+    ``placement`` digest ties those flags to the placement they were read from. Spans are
+    widened to ``MIN_SPAN_SEC`` like the silence filter, so a one-frame aligned word still
+    measures something. A track that could not be decoded, or a span cut from the
+    timeline, counts as evidence: the flag never fires on the score alone.
     """
 
     timeline: SessionTimeline
-    caches: dict[str, TrackRmsCache]
-    floors_db: dict[str, float]
+    tracks: dict[str, TrackEnergy]
     gains_db: dict[str, float]
     speech_margin_db: float
     bleed_margin_db: float
+    bleed_check: bool
+    placement: str
     skipped: list[str] = field(default_factory=list)
 
     @classmethod
-    def for_project(cls, project: EpisodeProject, options: AsrOptions) -> SpeechLevels:
-        """Decode every dialogue track's primary media once (about 1 s per hour)."""
-        from podcast_mcp.engines.audio_audit import TrackRmsCache
+    def for_project(
+        cls, project: EpisodeProject, options: AsrOptions, *, bleed_check: bool
+    ) -> SpeechLevels:
+        """Decode every dialogue track's primary media once (a few seconds per hour)."""
         from podcast_mcp.engines.session_timeline import SessionTimeline
         from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
         levels = cls(
             timeline=SessionTimeline(project),
-            caches={},
-            floors_db={},
+            tracks={},
             gains_db={},
             speech_margin_db=options.forced_alignment_speech_margin_db,
             bleed_margin_db=options.forced_alignment_bleed_margin_db,
+            bleed_check=bleed_check,
+            placement=placement_digest(project),
         )
         for tid in dialogue_track_ids(project):
             try:
-                cache = TrackRmsCache.from_timeline_stem(track_audio_path(project, tid))
+                energy = TrackEnergy.decode(track_audio_path(project, tid))
             except Exception as exc:
                 log.warning("aligner evidence levels skipped for track %s: %s", tid, exc)
                 levels.skipped.append(tid)
                 continue
             track = project.track_by_id(tid)
-            levels.caches[tid] = cache
-            levels.floors_db[tid] = cache.noise_floor_db()
+            levels.tracks[tid] = energy
             levels.gains_db[tid] = float(track.gain_db) if track else 0.0
         return levels
 
+    @property
+    def floors_db(self) -> dict[str, float]:
+        return {tid: energy.floor_db for tid, energy in self.tracks.items()}
+
+    def fingerprint_term(self) -> str:
+        """What ``silence_filter_fingerprint`` records about the gate these flags came from."""
+        return f"bleed:{self.placement}" if self.bleed_check else "own"
+
     def _level_db(self, track_id: str, start: float, end: float) -> float | None:
-        cache = self.caches.get(track_id)
-        if cache is None:
+        energy = self.tracks.get(track_id)
+        if energy is None:
             return None
         centre = (start + end) / 2.0
         half = max(end - start, MIN_SPAN_SEC) / 2.0
-        rms = cache.rms_db(max(0.0, centre - half), centre + half)
-        return None if rms is None else rms + self.gains_db[track_id]
+        level = energy.level_db(max(0.0, centre - half), centre + half)
+        return None if level is None else level + self.gains_db[track_id]
 
     def has_speech(self, track_id: str, start: float, end: float) -> bool:
         from podcast_mcp.util.source_spans import source_span_timeline_bounds
@@ -179,12 +270,14 @@ class SpeechLevels:
         own = self._level_db(track_id, start, end)
         if own is None:
             return True
-        if own < self.floors_db[track_id] + self.speech_margin_db:
+        if own < self.tracks[track_id].floor_db + self.speech_margin_db:
             return False
+        if not self.bleed_check:
+            return True
         tl_start, tl_end = source_span_timeline_bounds(self.timeline, track_id, start, end)
         if tl_start is None or tl_end is None:
             return True
-        for other_id in self.caches:
+        for other_id in self.tracks:
             if other_id == track_id:
                 continue
             src_start = self.timeline.timeline_to_source(other_id, TimelineSec(tl_start))

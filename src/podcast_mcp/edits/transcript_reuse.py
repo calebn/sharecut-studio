@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
+    evidence_term,
     refresh_silence_flags,
     silence_filter_fingerprint,
 )
@@ -346,6 +347,67 @@ def run_transcribe_plan(
     return transcripts
 
 
+def _refresh_silence_flags(
+    project: EpisodeProject,
+    jobs: Iterable[TranscribeJob],
+    audio_hash_for: Callable[[TranscribeJob], str | None],
+    options: AsrOptions,
+    *,
+    bleed_check: bool,
+) -> tuple[list[str], int]:
+    """Re-flag stored transcripts whose fingerprint no longer matches; see the two callers.
+
+    The evidence scope is part of the fingerprint. Before placement is settled
+    (``bleed_check`` off) a transcript already flagged under the full gate on the current
+    placement is left alone, so a later ``transcribe_tracks`` run does not undo reconcile's
+    bleed flags; with ``bleed_check`` on only that full-gate fingerprint counts, so flags
+    read from an older placement, or from the own-track half alone, are recomputed.
+    Returns (labels whose audio could not be decoded, transcripts re-flagged).
+    """
+    stored = {t.key: t for t in project.transcripts}
+    skipped: list[str] = []
+    refreshed = 0
+    levels: SpeechLevels | None = None
+    settled = evidence_term(project, bleed_check=True)
+    accepted = [settled] if bleed_check else ["own", settled]
+    for job in jobs:
+        transcript = stored.get(job.key)
+        if transcript is None:
+            continue
+        audio_hash = audio_hash_for(job)
+        if audio_hash is None:
+            continue
+        current = transcript.silence_filter_fingerprint
+        if current is not None and any(
+            current == silence_filter_fingerprint(transcript.words, audio_hash, options, evidence=t)
+            for t in accepted
+        ):
+            continue
+        evidence: SpeechLevels | None = None
+        term = "own"
+        if (
+            options.forced_alignment_min_word_score > 0
+            and job.source_id is None
+            and any(w.alignment_score is not None for w in transcript.words)
+        ):
+            if levels is None:
+                levels = SpeechLevels.for_project(project, options, bleed_check=bleed_check)
+            evidence = levels
+            term = levels.fingerprint_term()
+        refreshed += 1
+        flagged = refresh_silence_flags(
+            transcript.words, job.audio, options, evidence=evidence, track_id=job.track_id
+        )
+        if flagged is None:
+            skipped.append(job.label)
+            transcript.silence_filter_fingerprint = None
+        else:
+            transcript.silence_filter_fingerprint = silence_filter_fingerprint(
+                transcript.words, audio_hash, options, evidence=term
+            )
+    return skipped, refreshed
+
+
 def refresh_reused_silence_flags(
     project: EpisodeProject, plan: TranscribePlan, options: AsrOptions
 ) -> list[str]:
@@ -353,39 +415,38 @@ def refresh_reused_silence_flags(
 
     Reused transcripts skip ASR. Decode an envelope only when their stored flags do not
     match the current media, settings, word spans and flag state. Legacy transcripts
-    have no fingerprint and are checked once. Returns labels whose audio could not be
-    decoded; their fingerprint is cleared so the next run retries (their evidence flags
-    still apply).
+    have no fingerprint and are checked once. Placement is not settled yet, so the aligner
+    gate applies its own-track half only. Returns labels whose audio could not be decoded;
+    their fingerprint is cleared so the next run retries (their evidence flags still apply).
     """
-    stored = {t.key: t for t in project.transcripts}
-    skipped: list[str] = []
-    levels: SpeechLevels | None = None
-    for job in plan.reused:
-        transcript = stored.get(job.key)
-        if transcript is None:
-            continue
-        audio_hash = plan.audio_hashes[job.key]
-        if transcript.silence_filter_fingerprint == silence_filter_fingerprint(
-            transcript.words, audio_hash, options
-        ):
-            continue
-        evidence: SpeechLevels | None = None
-        if (
-            options.forced_alignment_min_word_score > 0
-            and job.source_id is None
-            and any(w.alignment_score is not None for w in transcript.words)
-        ):
-            if levels is None:
-                levels = SpeechLevels.for_project(project, options)
-            evidence = levels
-        refreshed = refresh_silence_flags(
-            transcript.words, job.audio, options, evidence=evidence, track_id=job.track_id
-        )
-        if refreshed is None:
-            skipped.append(job.label)
-            transcript.silence_filter_fingerprint = None
-        else:
-            transcript.silence_filter_fingerprint = silence_filter_fingerprint(
-                transcript.words, audio_hash, options
-            )
+    skipped, _ = _refresh_silence_flags(
+        project,
+        plan.reused,
+        lambda job: plan.audio_hashes.get(job.key),
+        options,
+        bleed_check=False,
+    )
     return skipped
+
+
+def refresh_settled_silence_flags(
+    project: EpisodeProject, options: AsrOptions
+) -> tuple[list[str], int]:
+    """Re-flag every stored dialogue transcript under the full aligner gate (#780).
+
+    Called by ``reconcile_transcript``, after ``align_tracks`` has placed the tracks on one
+    session clock, so the bleed half of the gate reads a settled placement. Transcripts
+    already flagged under the current placement are left alone (their fingerprint matches).
+    Returns (labels whose audio could not be decoded, transcripts re-flagged).
+    """
+    from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs
+
+    stored = {t.key: t for t in project.transcripts}
+
+    def audio_hash_for(job: TranscribeJob) -> str | None:
+        transcript = stored.get(job.key)
+        return transcript.audio_sha256 if transcript is not None else None
+
+    return _refresh_silence_flags(
+        project, dialogue_transcribe_jobs(project), audio_hash_for, options, bleed_check=True
+    )
