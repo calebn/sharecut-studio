@@ -37,39 +37,45 @@ VOICED_PEAK = 0.55
 _MIN_VOICED_FRAMES = 3
 
 
-def voiced_runs(
+def audible_runs(
     cache: TrackAudioCache, start: float, end: float, *, floor_db: float
 ) -> list[VoicedRun]:
-    """Voiced speech runs inside ``[start, end)``.
+    """Runs of frames at or above ``floor_db`` inside ``[start, end)``, voiced or not.
 
     Frames start on the absolute 10 ms grid, so a run's bounds depend only on the
     audio, not on the window the caller asked for. A run edge is exact to one frame:
-    voice surely fills ``(run.start + FRAME_SEC, run.end - FRAME_SEC)`` and is surely
-    absent outside ``[run.start, run.end]``.
+    the level surely holds over ``(run.start + FRAME_SEC, run.end - FRAME_SEC)`` and
+    surely drops outside ``[run.start, run.end]``. Dips shorter than a stop closure
+    do not end a run.
     """
     sr = int(cache.waveform.sample_rate)
     frame = max(1, round(sr * FRAME_SEC))
     hop = max(1, round(sr * HOP_SEC))
     t0 = math.floor(max(0.0, start) / HOP_SEC) * HOP_SEC
-    samples = cache.window(t0, end)
-    levels = frame_rms_db(samples, frame, hop)
+    levels = frame_rms_db(cache.window(t0, end), frame, hop)
     if levels.size == 0:
         return []
     active = bridge_short_dips(levels >= floor_db, max(1, round(_BRIDGE_SEC / HOP_SEC)))
+    return [(t0 + i * hop / sr, t0 + ((j - 1) * hop + frame) / sr) for i, j in bool_runs(active)]
+
+
+def voiced_runs(
+    cache: TrackAudioCache, start: float, end: float, *, floor_db: float
+) -> list[VoicedRun]:
+    """The :func:`audible_runs` that carry a clear speech-pitch peak in three probes."""
+    sr = int(cache.waveform.sample_rate)
     runs: list[VoicedRun] = []
-    for i, j in bool_runs(active):
-        lo, hi = i * hop, (j - 1) * hop + frame
+    for run in audible_runs(cache, start, end, floor_db=floor_db):
         probes = voicing_probes(
-            samples[lo:hi],
+            cache.window(*run),
             sr,
             probe_sec=_PROBE_SEC,
             hop_sec=HOP_SEC,
             fmin=_F0_MIN_HZ,
             fmax=_F0_MAX_HZ,
         )
-        if int(np.count_nonzero(probes >= VOICED_PEAK)) < _MIN_VOICED_FRAMES:
-            continue
-        runs.append((t0 + lo / sr, t0 + hi / sr))
+        if int(np.count_nonzero(probes >= VOICED_PEAK)) >= _MIN_VOICED_FRAMES:
+            runs.append(run)
     return runs
 
 

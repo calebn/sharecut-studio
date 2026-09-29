@@ -4,7 +4,7 @@ import logging
 import math
 import re
 from bisect import bisect_left
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
@@ -27,6 +27,7 @@ from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
+    audible_runs,
     run_straddling,
     voiced_runs,
     voiced_sec_inside,
@@ -41,6 +42,7 @@ from podcast_mcp.models import (
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.text import normalize_text
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
 
@@ -1185,8 +1187,10 @@ _MIN_NUDGED_CUT_SEC = 0.1
 class _VoicedSpeechCheck:
     start: float
     end: float
-    # ``interior_speech``: a pause span holds voice the transcript missed.
-    # ``voiced_edge``: an edge sits in a word's voice and no in-bounds nudge frees it.
+    # ``interior_speech``: the span holds voice the ripple would delete (a pause's
+    # own track, or any track a session cut removes the window from).
+    # ``interior_audio``: a pause span is not dead air on every track it ripples.
+    # ``voiced_edge``: an edge sits in kept voice and no in-bounds nudge frees it.
     flag: str | None = None
 
 
@@ -1213,8 +1217,9 @@ def _check_voiced_speech(
     audio_cache: TrackAudioCache,
     word_index: CutWordIndex,
     defaults: dict[str, Any],
+    peer_caches: Sequence[TrackAudioCache] = (),
 ) -> _VoicedSpeechCheck:
-    """Move each cut edge out of a word's voice; flag speech a pause would swallow.
+    """Move each cut edge out of kept voice; flag speech the cut would swallow.
 
     An edge inside a voiced run is nudged to the run's edge: past the run (plus a
     little air) when the run belongs to a word that stays, so the word keeps its
@@ -1223,15 +1228,21 @@ def _check_voiced_speech(
     on the lab tape aligned and Whisper ends both sit 120-270 ms inside the voice.
     A kept-word nudge the candidate's bounds or coverage rule refuse leaves the
     edge where it is and marks the cut for review.
+
+    ``peer_caches`` are the other dialogue tracks a session ripple removes the
+    same window from. Everything on a peer stays, so a peer run at an edge is
+    always a kept-word nudge, and a peer run inside the span is speech the ripple
+    deletes whatever the cut's kind. A pause must also be dead air on every track
+    it ripples: audible frames the pitch probe cannot vouch for (a fricative, a
+    click, a laugh) still make it a review.
     """
     floor = float(
         defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0)
     )
     reach = _EDGE_NUDGE_MAX_SEC + _VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
-    runs = voiced_runs(audio_cache, window_lo, window_hi, floor_db=floor)
-    if not runs:
-        return _VoicedSpeechCheck(cut_start, cut_end)
+    own_runs = voiced_runs(audio_cache, window_lo, window_hi, floor_db=floor)
+    peer_runs = [voiced_runs(c, window_lo, window_hi, floor_db=floor) for c in peer_caches]
     span_lo = min(candidate.start, cut_start)
     span_hi = max(candidate.end, cut_end)
 
@@ -1246,29 +1257,36 @@ def _check_voiced_speech(
     # Only a refused kept-word shrink is a defect worth a reviewer's ear; a cut word
     # whose own voice runs past its transcript time keeps the status quo edge.
     stuck = False
-    run = run_straddling(runs, cut_start)
-    if run is not None:
-        kept = kept_word_in(run[0], cut_start)
-        target = run[1] + _VOICE_EDGE_PAD_SEC if kept else run[0]
-        nudged = _accept_nudge(candidate, (cut_start, cut_end), target, cut_end)
-        if nudged is not None:
-            cut_start = nudged[0]
-        elif kept:
-            stuck = True
-    run = run_straddling(runs, cut_end)
-    if run is not None:
-        kept = kept_word_in(cut_end, run[1])
-        target = run[0] - _VOICE_EDGE_PAD_SEC if kept else run[1]
-        nudged = _accept_nudge(candidate, (cut_start, cut_end), cut_start, target)
-        if nudged is not None:
-            cut_end = nudged[1]
-        elif kept:
-            stuck = True
-    if (
-        candidate.cut_kind == "pause"
-        and voiced_sec_inside(runs, cut_start, cut_end) >= _INTERIOR_SPEECH_MIN_SEC
+    for runs, own in ((own_runs, True), *((runs, False) for runs in peer_runs)):
+        run = run_straddling(runs, cut_start)
+        if run is not None:
+            kept = not own or kept_word_in(run[0], cut_start)
+            target = run[1] + _VOICE_EDGE_PAD_SEC if kept else run[0]
+            nudged = _accept_nudge(candidate, (cut_start, cut_end), target, cut_end)
+            if nudged is not None:
+                cut_start = nudged[0]
+            elif kept:
+                stuck = True
+        run = run_straddling(runs, cut_end)
+        if run is not None:
+            kept = not own or kept_word_in(cut_end, run[1])
+            target = run[0] - _VOICE_EDGE_PAD_SEC if kept else run[1]
+            nudged = _accept_nudge(candidate, (cut_start, cut_end), cut_start, target)
+            if nudged is not None:
+                cut_end = nudged[1]
+            elif kept:
+                stuck = True
+    deleted = [*peer_runs, *([own_runs] if candidate.cut_kind == "pause" else [])]
+    if any(
+        voiced_sec_inside(runs, cut_start, cut_end) >= _INTERIOR_SPEECH_MIN_SEC for runs in deleted
     ):
         return _VoicedSpeechCheck(cut_start, cut_end, "interior_speech")
+    if candidate.cut_kind == "pause" and any(
+        voiced_sec_inside(audible_runs(c, cut_start, cut_end, floor_db=floor), cut_start, cut_end)
+        >= _INTERIOR_SPEECH_MIN_SEC
+        for c in (audio_cache, *peer_caches)
+    ):
+        return _VoicedSpeechCheck(cut_start, cut_end, "interior_audio")
     return _VoicedSpeechCheck(cut_start, cut_end, "voiced_edge" if stuck else None)
 
 
@@ -1281,11 +1299,14 @@ def _analyze_candidate(
     speaker_context: _SpeakerCutContext | None = None,
     word_index: CutWordIndex | None = None,
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
+    audio_caches: Mapping[str, TrackAudioCache] | None = None,
 ) -> _AnalyzedCut | None:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
     (one per track, decoded once) is read-only and safe to share across threads.
+    ``audio_caches`` holds the other dialogue tracks' decodes for the voiced-speech
+    check of a session ripple; a track absent from it is not checked.
     """
     tighten = defaults.get("tighten", {})
     leave_in = bool(tighten.get("leave_in_if_risky", True))
@@ -1356,8 +1377,35 @@ def _analyze_candidate(
     if paced_span is None:
         return None
     cut_start, cut_end = paced_span
+    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
+
+    try:
+        scope, guard = resolve_cut_scope(
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            defaults=defaults,
+        )
+    except ValueError:
+        return None
+    if guard is not None and guard.blocked and candidate.cut_kind == "pause":
+        # A peer is audibly speaking over this gap, so the guard forces a
+        # track-local punch instead of a session ripple. A punch leaves a
+        # silent hole on this track only -- the peer's track still spans
+        # the same window, so the timeline does not get any shorter. A
+        # pause proposal exists only to shorten the timeline, so it is
+        # useless (and confusing to review) once it can't.
+        return None
     voiced_flag: str | None = None
     if audio_cache is not None:
+        peer_caches: list[TrackAudioCache] = []
+        if scope == "session" and audio_caches:
+            peer_caches = [
+                audio_caches[tid]
+                for tid in dialogue_track_ids(project)
+                if tid != track_id and tid in audio_caches
+            ]
         voiced = _check_voiced_speech(
             candidate,
             cut_start,
@@ -1365,6 +1413,7 @@ def _analyze_candidate(
             audio_cache=audio_cache,
             word_index=word_index or CutWordIndex.build(project, track_id),
             defaults=defaults,
+            peer_caches=peer_caches,
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     if candidate.cut_kind in ("repeat", "restart") and not _cut_covers_reparandum(
@@ -1423,28 +1472,7 @@ def _analyze_candidate(
             shortfall = floor - contiguous
             if shortfall > 0.05:
                 replace_gap = shortfall
-    scope = "session"
-    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
-
-    try:
-        scope, guard = resolve_cut_scope(
-            project,
-            track_id,
-            cut_start,
-            cut_end,
-            defaults=defaults,
-        )
-    except ValueError:
-        return None
     if guard is not None and guard.blocked:
-        if candidate.cut_kind == "pause":
-            # A peer is audibly speaking over this gap, so the guard forces a
-            # track-local punch instead of a session ripple. A punch leaves a
-            # silent hole on this track only -- the peer's track still spans
-            # the same window, so the timeline does not get any shorter. A
-            # pause proposal exists only to shorten the timeline, so it is
-            # useless (and confusing to review) once it can't.
-            return None
         peers = ",".join(guard.blocking_track_ids)
         if guard.action == "review":
             review_required = True
@@ -1573,8 +1601,12 @@ def analyze_fillers_and_pauses(
         peer_indexes=peer_indexes,
     )
     acoustic_enabled = AcousticGapConfig.from_tighten(defaults.get("tighten")).enabled
+    # Peers too: a session ripple removes the same window from every dialogue
+    # track, and the voiced-speech check reads each one it can.
     audio_caches = (
-        build_track_audio_caches(project, [transcript.track_id])
+        build_track_audio_caches(
+            project, dict.fromkeys([transcript.track_id, *dialogue_track_ids(project)])
+        )
         if candidates or acoustic_enabled
         else {}
     )
@@ -1599,6 +1631,7 @@ def analyze_fillers_and_pauses(
             speaker_context=speaker_context,
             word_index=word_index,
             peer_indexes=peer_indexes,
+            audio_caches=audio_caches,
         )
         for candidate in candidates
     ]
