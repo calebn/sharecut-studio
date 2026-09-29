@@ -88,6 +88,47 @@ def test_focus_from_transcript_auto_apply(minimal_project, sample_wav, tmp_works
     steps.focus_from_transcript(proj, defaults)
 
 
+def test_reconcile_transcript_reflags_aligner_evidence_on_the_settled_placement(
+    minimal_project, tmp_workspace
+):
+    """#780: reconcile runs after align_tracks, so it applies the full evidence gate and
+    reports the tracks it re-flagged."""
+    from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
+    from podcast_mcp.models import Transcript, TranscriptWord
+    from podcast_mcp.util.hashing import sha256_file
+    from two_mic_project import two_mic_project
+
+    proj = two_mic_project(tmp_workspace)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="um", start=0.70, end=0.72, alignment_score=0.0),
+                TranscriptWord(text="yeah", start=1.6, end=1.9, alignment_score=0.003),
+            ],
+            word_aligner="onnx-base",
+            alignment_score_method=ALIGNMENT_SCORE_METHOD,
+            audio_sha256=sha256_file(tmp_workspace / "raw" / "host.wav"),
+        )
+    ]
+    defaults = load_defaults()
+    defaults["transcribe"]["silence_filter"]["enabled"] = False
+    with patch(
+        "podcast_mcp.edits.transcript_reconcile.run_reconciliation",
+        return_value={"suppress_count": 0},
+    ):
+        summary = steps.reconcile_transcript(proj, defaults)
+    assert summary.endswith("0 status updates, aligner evidence re-flagged on 1 track(s)")
+    assert [w.suspect_hallucination for w in proj.transcripts[0].words] == [False, True]
+
+    with patch(
+        "podcast_mcp.edits.transcript_reconcile.run_reconciliation",
+        return_value={"suppress_count": 0},
+    ):
+        again = steps.reconcile_transcript(proj, defaults)
+    assert "re-flagged" not in again
+
+
 def test_reconcile_transcript_off_mode(minimal_project):
     proj = load_project(minimal_project)
     defaults = {"analysis": {"transcript_mode": "off"}}

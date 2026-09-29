@@ -487,9 +487,13 @@ class TranscriptionEngine:
         return _cache_file(project, cache_id, f"{asr_cache.stem}.word_align_{key}.json")
 
     def speech_levels(self, project: EpisodeProject) -> SpeechLevels:
-        """The evidence gate's track levels, built once per engine (one run or request)."""
+        """The evidence gate's track levels, built once per engine (one run or request).
+
+        Transcription runs before ``align_tracks``, so only the own-track half of the gate
+        applies here; ``reconcile_transcript`` re-flags with the full gate.
+        """
         if self._speech_levels is None:
-            self._speech_levels = SpeechLevels.for_project(project, self.options)
+            self._speech_levels = SpeechLevels.for_project(project, self.options, bleed_check=False)
         return self._speech_levels
 
     def _align_words(
@@ -683,11 +687,12 @@ class TranscriptionEngine:
         flag_anomalous_asr_durations(
             transcript.words, max_word_sec=max_word_sec, track_id=job.track_id
         )
+        evidence = self._evidence_for(project, job, transcript)
         n = refresh_silence_flags(
             transcript.words,
             job.audio,
             self.options,
-            evidence=self._evidence_for(project, job, transcript),
+            evidence=evidence,
             track_id=job.track_id,
         )
         min_score = self.options.forced_alignment_min_word_score
@@ -702,7 +707,10 @@ class TranscriptionEngine:
             transcript.silence_filter_fingerprint = None
         else:
             transcript.silence_filter_fingerprint = silence_filter_fingerprint(
-                transcript.words, sha, self.options
+                transcript.words,
+                sha,
+                self.options,
+                evidence=evidence.fingerprint_term() if evidence is not None else "own",
             )
         if n:
             log.info(

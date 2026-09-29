@@ -18,6 +18,7 @@ from podcast_mcp.engines.asr_silence import (
     silent_fraction,
 )
 from podcast_mcp.models import TranscriptWord
+from two_mic_project import two_mic_project
 
 SR = 8000
 
@@ -367,68 +368,17 @@ def test_fingerprint_unchanged_without_scores_and_tracks_min_score_with_scores()
     )
 
 
-def _write_wav(path, samples: np.ndarray, sample_rate: int = SR) -> None:
-    pcm = np.round(np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
-    with wave.open(str(path), "wb") as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(sample_rate)
-        f.writeframes(pcm.tobytes())
-
-
-def _two_mic_project(tmp_workspace, *, host_gain_db: float = 0.0):
-    """host: tone 0.5-1.0 s at -30 dBFS, silence elsewhere; guest: tone 1.5-2.0 s at -12 dBFS.
-
-    Both tracks sit at session offset 0, with a faint noise bed so the noise floor is real.
-    Words on host at 1.5-2.0 s are heard only on guest's mic (bleed); host's own 0.5-1.0 s
-    tone is host's own speech; 2.5-2.6 s is silent on both.
-    """
-    from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
-
-    rng = np.random.default_rng(780)
-    t = np.arange(3 * SR) / SR
-    bed = rng.normal(0.0, 10 ** (-70 / 20), 3 * SR)
-    host = bed.copy()
-    host[SR // 2 : SR] += 10 ** (-30 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 220 * t[SR // 2 : SR])
-    # The guest's voice reaches the host mic 20 dB down: bleed, not host speech.
-    host[3 * SR // 2 : 2 * SR] += (
-        10 ** (-32 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t[3 * SR // 2 : 2 * SR])
-    )
-    guest = bed.copy()
-    guest[3 * SR // 2 : 2 * SR] += (
-        10 ** (-12 / 20) * np.sqrt(2) * np.sin(2 * np.pi * 330 * t[3 * SR // 2 : 2 * SR])
-    )
-    raw = tmp_workspace / "raw"
-    raw.mkdir(exist_ok=True)
-    _write_wav(raw / "host.wav", host)
-    _write_wav(raw / "guest.wav", guest)
-    project = EpisodeProject.create("gate", str(tmp_workspace))
-    project.tracks = [
-        Track(
-            id=tid,
-            label=tid,
-            role=TrackRole.DIALOGUE,
-            media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=3.0),
-            gain_db=host_gain_db if tid == "host" else 0.0,
-        )
-        for tid in ("host", "guest")
-    ]
-    project.clips = [
-        Clip(id=f"c_{tid}", track_id=tid, source_start=0.0, source_end=3.0, timeline_start=0.0)
-        for tid in ("host", "guest")
-    ]
-    return project
-
-
 def test_speech_levels_gate_flags_bleed_and_silence_but_not_a_short_real_word(tmp_workspace):
     """#780: literal outcomes for the three word classes the lab tape showed."""
     from podcast_mcp.engines.asr_silence import SpeechLevels
 
-    project = _two_mic_project(tmp_workspace)
-    levels = SpeechLevels.for_project(project, AsrOptions())
-    assert set(levels.caches) == {"host", "guest"}
+    project = two_mic_project(tmp_workspace)
+    levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+    assert set(levels.tracks) == {"host", "guest"}
     assert levels.skipped == []
     assert levels.floors_db["host"] == pytest.approx(-70.0, abs=2.0)
+    assert levels.tracks["host"].frames_db.dtype == np.float32
+    assert levels.tracks["host"].frames_db.size == 300
 
     real = _w(0.70, 0.72)  # a one-frame "um" inside host's own tone
     real.alignment_score = 0.0
@@ -462,25 +412,91 @@ def test_speech_levels_apply_the_track_gain_and_the_bleed_margin(tmp_workspace):
 
     # +15 dB on host lifts its -32 dBFS bleed to -17 dBFS against the guest's -12 dBFS:
     # still bleed at the 3 dB default, the host's own speech at a 6 dB margin.
-    project = _two_mic_project(tmp_workspace, host_gain_db=15.0)
-    assert SpeechLevels.for_project(project, AsrOptions()).has_speech("host", 1.6, 1.9) is False
-    lenient = SpeechLevels.for_project(project, AsrOptions(forced_alignment_bleed_margin_db=6.0))
+    project = two_mic_project(tmp_workspace, host_gain_db=15.0)
+    strict = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
+    assert strict.has_speech("host", 1.6, 1.9) is False
+    lenient = SpeechLevels.for_project(
+        project, AsrOptions(forced_alignment_bleed_margin_db=6.0), bleed_check=True
+    )
     assert lenient.has_speech("host", 1.6, 1.9) is True
 
 
 def test_speech_levels_treat_an_undecodable_track_as_evidence(tmp_workspace, caplog):
     from podcast_mcp.engines.asr_silence import SpeechLevels
 
-    project = _two_mic_project(tmp_workspace)
+    project = two_mic_project(tmp_workspace)
     (tmp_workspace / "raw" / "guest.wav").write_bytes(b"not audio")
     with caplog.at_level("WARNING"):
-        levels = SpeechLevels.for_project(project, AsrOptions())
+        levels = SpeechLevels.for_project(project, AsrOptions(), bleed_check=True)
     assert levels.skipped == ["guest"]
     assert "aligner evidence levels skipped for track guest" in caplog.text
     # No guest levels: host's bleed span cannot be called bleed, so it is not flagged.
     assert levels.has_speech("host", 1.6, 1.9) is True
     # A track with no levels at all is never flagged on the score.
     assert levels.has_speech("guest", 1.6, 1.9) is True
+
+
+def test_own_scope_ignores_the_other_tracks_and_their_placement(tmp_workspace):
+    """#780: before align_tracks the gate reads the own track only, so a wrong placement
+    cannot flag a real word; it also cannot see bleed, which reconcile handles later."""
+    from podcast_mcp.engines.asr_silence import SpeechLevels
+
+    # Host placed 1.0 s late: its own -30 dBFS word now sits under the guest's -12 dBFS line.
+    misplaced = two_mic_project(tmp_workspace, host_timeline_start=1.0)
+    own = SpeechLevels.for_project(misplaced, AsrOptions(), bleed_check=False)
+    assert own.fingerprint_term() == "own"
+    assert own.has_speech("host", 0.70, 0.72) is True
+    assert own.has_speech("host", 1.6, 1.9) is True
+    assert own.has_speech("host", 2.5, 2.6) is False
+
+    # The full gate on that wrong placement is exactly the defect: the real word is flagged.
+    full = SpeechLevels.for_project(misplaced, AsrOptions(), bleed_check=True)
+    assert full.has_speech("host", 0.70, 0.72) is False
+    assert full.fingerprint_term().startswith("bleed:")
+
+    # With the placement fixed the full gate flags the bleed span and not the real word,
+    # and the fingerprint term changes with the placement.
+    fixed = two_mic_project(tmp_workspace, host_timeline_start=0.0)
+    settled = SpeechLevels.for_project(fixed, AsrOptions(), bleed_check=True)
+    assert settled.has_speech("host", 0.70, 0.72) is True
+    assert settled.has_speech("host", 1.6, 1.9) is False
+    assert settled.fingerprint_term() != full.fingerprint_term()
+
+
+def test_fingerprint_carries_the_evidence_scope_only_for_scored_words():
+    from podcast_mcp.engines.asr_silence import evidence_term
+    from podcast_mcp.models import Clip, EpisodeProject, Track, TrackRole
+
+    project = EpisodeProject.create("fp", "/tmp")
+    project.tracks = [Track(id="host", label="host", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="c", track_id="host", source_start=0.0, source_end=3.0, timeline_start=0.0)
+    ]
+    settled = evidence_term(project, bleed_check=True)
+    assert evidence_term(project, bleed_check=False) == "own"
+    assert settled.startswith("bleed:") and len(settled) == len("bleed:") + 16
+    project.clips[0].timeline_start = 0.5
+    assert evidence_term(project, bleed_check=True) != settled
+
+    words = [_w(0.0, 0.5)]
+    unscored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence="own")
+    assert silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=settled) == unscored_own
+    words[0].alignment_score = 0.9
+    scored_own = silence_filter_fingerprint(words, "sha", AsrOptions(), evidence="own")
+    assert silence_filter_fingerprint(words, "sha", AsrOptions(), evidence=settled) != scored_own
+    assert silence_filter_fingerprint(words, "sha", AsrOptions()) == scored_own
+
+
+def test_track_energy_levels_match_the_tone_and_stream_in_frames(tmp_workspace):
+    from podcast_mcp.engines.asr_silence import LEVEL_FRAME_SEC, TrackEnergy
+
+    two_mic_project(tmp_workspace)
+    energy = TrackEnergy.decode(tmp_workspace / "raw" / "guest.wav")
+    assert energy.frames_db.size == round(3.0 / LEVEL_FRAME_SEC)
+    assert energy.level_db(1.6, 1.9) == pytest.approx(-12.0, abs=1.0)
+    assert energy.level_db(0.1, 0.4) == pytest.approx(-70.0, abs=2.0)
+    assert energy.level_db(2.99, 3.05) is not None
+    assert energy.level_db(3.5, 3.6) is None
 
 
 def test_whisper_audio_decoder_reads_pcm_without_loading_a_model(tmp_path):

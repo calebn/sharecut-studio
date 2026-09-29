@@ -14,6 +14,7 @@ from podcast_mcp.edits.transcript_reuse import (
     plan_retime,
     plan_transcription,
     refresh_reused_silence_flags,
+    refresh_settled_silence_flags,
     run_transcribe_plan,
     stamp_audio_identity,
 )
@@ -289,6 +290,9 @@ class _FixedEvidence:
     def has_speech(self, track_id: str, start: float, end: float) -> bool:
         return self.speech
 
+    def fingerprint_term(self) -> str:
+        return "own"
+
 
 @pytest.mark.parametrize("speech", [False, True])
 def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch, speech):
@@ -304,7 +308,8 @@ def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch, spe
     monkeypatch.setattr(asr_silence, "flag_silent_words_in_file", lambda *a, **k: 0)
     evidence = _FixedEvidence(speech)
 
-    def build(cls, project, options):
+    def build(cls, project, options, *, bleed_check):
+        assert bleed_check is False
         evidence.builds += 1
         return evidence
 
@@ -316,6 +321,96 @@ def test_refresh_reused_silence_flags_keeps_evidence_flags(job, monkeypatch, spe
     assert evidence.builds == 1
     assert transcript.words[0].suspect_hallucination is (not speech)
     assert transcript.silence_filter_fingerprint is not None
+
+
+def _scored_two_mic(tmp_workspace, *, host_timeline_start: float = 0.0):
+    """The two-mic project with a stored, aligner-scored host transcript: a real word
+    (0.70-0.72 s), the guest's bleed (1.6-1.9 s) and a silent span (2.5-2.6 s), all
+    scoring below the evidence floor."""
+    from two_mic_project import two_mic_project
+
+    project = two_mic_project(tmp_workspace, host_timeline_start=host_timeline_start)
+    words = [
+        TranscriptWord(text="um", start=0.70, end=0.72, alignment_score=0.0),
+        TranscriptWord(text="yeah", start=1.6, end=1.9, alignment_score=0.003),
+        TranscriptWord(text="so", start=2.5, end=2.6, alignment_score=0.0),
+    ]
+    host = Transcript(
+        track_id="host",
+        words=words,
+        word_aligner="onnx-base",
+        alignment_score_method=ALIGNMENT_SCORE_METHOD,
+        audio_sha256=sha256_file(tmp_workspace / "raw" / "host.wav"),
+    )
+    project.transcripts = [host]
+    return project, host
+
+
+def _flags(transcript):
+    return [w.suspect_hallucination for w in transcript.words]
+
+
+def test_transcribe_time_reflag_does_not_flag_a_real_word_under_a_wrong_placement(
+    tmp_workspace,
+):
+    """#780 lane (c): host placed 1.0 s late so its real word sits under the guest's line."""
+    project, host = _scored_two_mic(tmp_workspace, host_timeline_start=1.0)
+    job = TranscribeJob("host", None, tmp_workspace / "raw" / "host.wav")
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: host.audio_sha256})
+    options = AsrOptions(silence_filter_enabled=False)
+
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert _flags(host) == [False, False, True]
+    own_fp = host.silence_filter_fingerprint
+    assert own_fp == silence_filter_fingerprint(host.words, host.audio_sha256, options)
+
+    # The same run again is a no-op: the own-scope fingerprint matches.
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert host.silence_filter_fingerprint == own_fp
+
+
+def test_settled_reflag_reads_placement_and_fixing_it_reflags(tmp_workspace):
+    """#780 lane (c): the full gate on a wrong placement flags the real word; fixing the
+    placement re-flags and clears it, and a correct placement gives the true bleed flags."""
+    from podcast_mcp.engines.asr_silence import evidence_term
+
+    project, host = _scored_two_mic(tmp_workspace, host_timeline_start=1.0)
+    options = AsrOptions(silence_filter_enabled=False)
+
+    skipped, reflagged = refresh_settled_silence_flags(project, options)
+    assert (skipped, reflagged) == ([], 1)
+    assert _flags(host) == [True, False, True]
+    wrong_fp = host.silence_filter_fingerprint
+    assert wrong_fp == silence_filter_fingerprint(
+        host.words, host.audio_sha256, options, evidence=evidence_term(project, bleed_check=True)
+    )
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+    project.clips[0].timeline_start = 0.0
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [False, True, True]
+    assert host.silence_filter_fingerprint != wrong_fp
+
+    # A later transcribe-time refresh keeps reconcile's bleed flag: the settled fingerprint
+    # on the current placement is accepted there too.
+    job = TranscribeJob("host", None, tmp_workspace / "raw" / "host.wav")
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: host.audio_sha256})
+    assert refresh_reused_silence_flags(project, plan, options) == []
+    assert _flags(host) == [False, True, True]
+
+
+def test_settled_reflag_skips_unscored_and_hashless_transcripts(tmp_workspace):
+    project, host = _scored_two_mic(tmp_workspace)
+    for w in host.words:
+        w.alignment_score = None
+    options = AsrOptions(silence_filter_enabled=False)
+    assert refresh_settled_silence_flags(project, options) == ([], 1)
+    assert _flags(host) == [False, False, False]
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
+
+    host.audio_sha256 = None
+    host.silence_filter_fingerprint = None
+    assert refresh_settled_silence_flags(project, options) == ([], 0)
 
 
 def test_corrected_silence_flag_is_rechecked_via_fingerprint(job, monkeypatch):
