@@ -38,7 +38,12 @@ def pipeline_run(
     only (not persisted). ``retime_words=true`` re-times stored transcripts with the forced
     aligner from their ASR cache for this run only (no Whisper; hand-edited transcripts are
     skipped); check ``transcript_timing.json`` → ``forced_alignment.retime`` for skipped and
-    failed tracks; not with ``force_transcribe``. Replacing edited transcripts is refused when
+    failed tracks; not with ``force_transcribe``. It fails before changing any transcript
+    when the word aligner is not downloaded (the error names
+    ``podcast bootstrap --component word-aligner``). Forced alignment is otherwise on by
+    default whenever that model is installed (``transcribe.forced_alignment.enabled`` unset);
+    ``forced_alignment.reason`` in ``transcript_timing.json`` says what a run resolved to.
+    Replacing edited transcripts is refused when
     ``unattended``; run attended, or the user confirms with Studio Re-transcribe.
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
@@ -111,7 +116,12 @@ def pipeline_run(
 
 
 def pipeline_get_config_tool(project_path: str) -> str:
-    """Return effective pipeline config, step metadata, and param schema (same as GUI)."""
+    """Return effective pipeline config, step metadata, and param schema (same as GUI).
+
+    ``forced_alignment`` is the resolved Precise word boundaries state (``enabled``,
+    ``requested``, ``installed``, ``blocked``, ``reason``): on by default when the word
+    aligner is downloaded, unavailable until then (#780).
+    """
     from podcast_mcp.services.pipeline_config import build_config_payload
 
     ws = ProjectWorkspace.open(project_path)
