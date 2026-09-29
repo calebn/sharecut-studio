@@ -127,6 +127,20 @@ export interface WhisperModelCatalogRow {
   cached: boolean;
 }
 
+/**
+ * `transcribe.forced_alignment.enabled` resolved against the installed word aligner (#780).
+ * `requested` is the raw config value (null = follow the model); `enabled` is what a run does.
+ * `blocked` = explicitly on without the model, which a run refuses.
+ */
+export interface PipelineForcedAlignment {
+  enabled: boolean;
+  model: string | null;
+  requested: boolean | null;
+  installed: boolean;
+  blocked: boolean;
+  reason: string;
+}
+
 export interface PipelineConfigResponse {
   defaults: Record<string, unknown>;
   config: Record<string, unknown>;
@@ -135,6 +149,8 @@ export interface PipelineConfigResponse {
   steps: PipelineStepMeta[];
   params: PipelineParamField[];
   components: Record<string, PipelineComponentStatus>;
+  /** Drives the Precise word boundaries toggle; absent only from older hosts. */
+  forced_alignment?: PipelineForcedAlignment;
   step_names: string[];
   /** Catalog for Pipeline Whisper picker (Downloaded / Needs download). */
   whisper_models?: WhisperModelCatalogRow[];

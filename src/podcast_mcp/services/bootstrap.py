@@ -126,8 +126,9 @@ def word_aligner_component() -> dict[str, Any]:
         WordAlignerPinMismatchError,
         base,
         missing_hint=(
-            f"{model.label} ({model.size}) is not downloaded; Precise word boundaries keeps "
-            "Whisper's times until it is. Download it next to that field in the Pipeline tab"
+            f"{model.label} ({model.size}) is not downloaded; Precise word boundaries is "
+            "unavailable and words keep Whisper's times until it is. Download it next to "
+            "that field in the Pipeline tab"
         ),
         bootstrap=WORD_ALIGNER_BOOTSTRAP,
         upgrade_bootstrap=f"{WORD_ALIGNER_BOOTSTRAP} --upgrade",
