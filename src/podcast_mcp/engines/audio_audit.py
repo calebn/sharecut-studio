@@ -18,7 +18,6 @@ from podcast_mcp.engines.asr_timing import (
     word_duration_is_anomalous,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
-from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -296,7 +295,7 @@ class TrackRmsCacheSet:
         return self.caches.get(track_id)
 
     def echo_pairs(self) -> list[EchoPairProfile]:
-        """Directed mic pairs with a measured bleed path, from the stems already decoded.
+        """Directed mic pairs with a measured bleed path, from cached timeline audio.
 
         ``echo_risk_pairs`` over the whole timeline-clock tracks, measured once per cache
         set: the acoustic verdict and the text-match rule both read it (#774).
@@ -319,6 +318,8 @@ class TrackRmsCacheSet:
 
 
 def build_track_rms_caches(project: EpisodeProject) -> TrackRmsCacheSet:
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+
     caches: dict[str, TrackRmsCache] = {}
     sources: dict[Path, np.ndarray] = {}
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
