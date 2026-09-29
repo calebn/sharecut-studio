@@ -88,7 +88,8 @@ class ProjectWorkspace:
         file changed since this workspace loaded or committed it (unsaved edits are then
         dropped); nested ones reuse the state already read. Commit only through this
         workspace inside it. Other processes' commits wait up to
-        ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``, then raise ``filelock.Timeout``.
+        ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``, then raise ``ProjectBusyError`` (a
+        ``filelock.Timeout`` subclass, #488).
 
         Adopting replaces whole sections of ``self.project`` in place (as ``save_merged``
         does): re-fetch sub-objects inside the transaction instead of keeping references

@@ -24,7 +24,14 @@ from podcast_mcp.services.document_sync.service import (
 )
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
-from podcast_mcp.util.project_state import project_commit_lock, project_commit_lock_path
+from podcast_mcp.util.project_state import (
+    LOCK_BUSY_MESSAGE,
+    ProjectBusyError,
+    RenderBusyError,
+    busy_message,
+    project_commit_lock,
+    project_commit_lock_path,
+)
 from process_helpers import reap
 from review_platform import requires_safe_failed_cleanup
 from review_platform import (
@@ -85,6 +92,85 @@ def test_lock_is_reentrant_and_shared_per_workspace(minimal_project):
         assert project_commit_lock_path(project).is_file()
     assert project_commit_lock_path(project).parent.name == "artifacts"
     assert "history" not in project_commit_lock_path(project).parts
+
+
+def test_commit_lock_acquire_timeout_raises_project_busy_error(minimal_project, monkeypatch):
+    """Only the acquire is rewrapped (#488): a busy lock raises ``ProjectBusyError``."""
+    project = load_project(minimal_project)
+    lock_path = project_commit_lock_path(project)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    ready, release = _CTX.Event(), _CTX.Event()
+    proc = _CTX.Process(target=_hold_lock, args=(str(lock_path), ready, release))
+    proc.start()
+    assert ready.wait(30)
+    monkeypatch.setattr(project_state, "PROJECT_COMMIT_LOCK_TIMEOUT_SEC", 0.3)
+    try:
+        with pytest.raises(ProjectBusyError) as excinfo:
+            with project_commit_lock(project):
+                pass
+    finally:
+        release.set()
+        reap(proc, 30)
+    # Never names the lock path.
+    assert str(lock_path) not in str(excinfo.value)
+
+
+def test_commit_lock_does_not_rewrap_a_timeout_raised_in_the_held_body(minimal_project):
+    """A ``Timeout`` raised once the lock is held (e.g. a nested lock) is not rewrapped."""
+    project = load_project(minimal_project)
+    inner = Timeout(str(project_commit_lock_path(project).with_name("other.lock")))
+    with pytest.raises(Timeout) as excinfo:
+        with project_commit_lock(project):
+            raise inner
+    assert excinfo.value is inner
+    assert type(excinfo.value) is Timeout
+
+
+def test_busy_message_never_leaks_the_lock_path():
+    secret_path = "/workspace/artifacts/episode.project.json.lock"
+    assert secret_path not in busy_message(ProjectBusyError(secret_path))
+    assert secret_path not in busy_message(RenderBusyError(secret_path))
+    generic = busy_message(Timeout(secret_path))
+    assert secret_path not in generic
+    assert generic == LOCK_BUSY_MESSAGE
+
+
+def test_busy_message_distinguishes_project_and_render_busy():
+    assert busy_message(ProjectBusyError("x")) != busy_message(RenderBusyError("x"))
+    assert "render" in busy_message(RenderBusyError("x"))
+
+
+def _child_cli_undo(project_path: str, out_queue) -> None:
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.util import project_state as ps
+
+    ps.PROJECT_COMMIT_LOCK_TIMEOUT_SEC = 0.3
+    result = CliRunner().invoke(app, ["undo", "--project", project_path])
+    out_queue.put((result.exit_code, result.output))
+
+
+def test_cli_undo_reports_busy_project_across_real_processes(minimal_project):
+    """A real, separate CLI process reports the busy lock cleanly, not a traceback (#488)."""
+    project = load_project(minimal_project)
+    lock_path = project_commit_lock_path(project)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    ready, release = _CTX.Event(), _CTX.Event()
+    holder = _CTX.Process(target=_hold_lock, args=(str(lock_path), ready, release))
+    holder.start()
+    out_queue = _CTX.Queue()
+    try:
+        assert ready.wait(30)
+        child = _CTX.Process(target=_child_cli_undo, args=(str(minimal_project), out_queue))
+        child.start()
+        exit_code, output = out_queue.get(timeout=30)
+        reap(child, 30)
+    finally:
+        release.set()
+        reap(holder, 30)
+    assert exit_code == 1
+    assert "busy" in output.lower()
 
 
 def test_unmarked_tests_run_with_publication_support_forced_off():
