@@ -689,3 +689,52 @@ def test_join_verdicts_and_risks_are_the_same_on_every_run(
     single = assess_existing_join(project, "host", 0.5, config=cfg)
     assert row["natural_p95"] == round(single.natural_p95, 4)
     assert row["risk"] == round(single.risk, 4)
+
+
+def test_inaudible_splice_is_decided_at_the_proposed_edges(minimal_project: Path) -> None:
+    """A cut whose two sides are both below the -60 dBFS floor at the proposed edges
+    passes as an inaudible splice even when a placement 3 ms away would read over the
+    floor: the floor is a hard threshold, so taking the worst placement across it
+    would fail a clean quiet-air cut (PR #826 review). Scored at that placement
+    itself, the same audio is not inaudible and the detectors run."""
+    project = load_project(minimal_project)
+    sr = 16000
+    side = int(0.045 * sr)
+    i0 = int(1.0 * sr)
+    rng = np.random.default_rng(7)
+    samples = np.zeros(2 * sr, dtype=np.float32)
+    # Room tone at -62 dBFS before the cut, with 3 ms of -50 dBFS air just outside the
+    # 45 ms left window, so the window at L-3 ms reads about -59 dBFS.
+    samples[i0 - side : i0] = rng.normal(0, 10 ** (-62 / 20), side)
+    samples[i0 - side - 48 : i0 - side] = rng.normal(0, 10 ** (-50 / 20), 48)
+    with wave.open(str(project.workspace_path() / "raw" / "host.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes((samples * 32767).astype("<i2").tobytes())
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project = load_project(save_project(project, minimal_project))
+    cfg = _cfg(edge_tolerance_ms=3.0)
+
+    rep = assess_proposed_cut(project, "host", 1.0, 1.5, timebase="source", config=cfg)
+    assert rep.verdict == "pass"
+    assert rep.risk == 0.0
+    assert [h.name for h in rep.detectors] == ["inaudible_splice"]
+    assert -63.0 < rep.detectors[0].detail["left_db"] < -60.0
+    assert rep.reasons == [
+        "cut 1.000->1.500 (source)",
+        "inaudible splice: both sides below -60 dBFS",
+    ]
+
+    moved = assess_proposed_cut(project, "host", 0.997, 1.5, timebase="source", config=cfg)
+    assert moved.verdict == "fail"
+    level = next(h for h in moved.detectors if h.name == "level_jump")
+    assert -60.0 < level.detail["pre_db"] < -58.0
+    assert level.detail["post_db"] < -100.0
