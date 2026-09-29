@@ -211,7 +211,7 @@ export interface TranscriptWordView {
 }
 
 /**
- * Word fields that a late Suppress / Ignore failure records and reads back
+ * Word fields that a late suppression, ignore, or unlock failure records and reads back
  * with `Boolean()` (transcript/detachedWordFailure.ts). A field drops out of
  * this union once it is no longer `boolean | undefined`, which breaks the
  * build at those call sites instead of quietly merging states.
@@ -223,7 +223,7 @@ export type TranscriptWordBooleanFlag = {
     ? K
     : never;
 }[keyof TranscriptWordView] &
-  ("suppressed" | "ignored");
+  ("suppressed" | "ignored" | "audibility_locked");
 
 export interface CombinedUtterance {
   track_id: string;
@@ -241,6 +241,8 @@ export interface CombinedUtterance {
   ignored_word_indices?: number[];
   /** Sorted per-track `word_index` of each edge-suppressed word the mapper attached to this row (outside its own window), only present when non-empty (#752). */
   edge_suppressed_word_indices?: number[];
+  /** Sorted indices of locked words, including attached edge words. */
+  locked_word_indices?: number[];
   /** View-only row for a track whose words are all suppressed (#758): words[] are those suppressed chips, text their joined text. Not in combined.json. */
   suppressed_only?: boolean;
 }

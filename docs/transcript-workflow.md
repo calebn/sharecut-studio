@@ -295,14 +295,14 @@ already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe
 CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; forcing skips
 the ASR disk cache (both cache names) and re-runs Whisper. Changed
 media re-transcribes automatically. Transcripts edited through `correct_word`,
-`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript` or transcript
+`correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript` or transcript
 cleanup are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before
 any ASR, both when overwrite was requested and when its audio changed (its word
 times are stale); the error names each track and reason. Run attended to replace
 them with a warning, or use Studio Re-transcribe, which names the edited tracks and asks before replacing them.
 
 **What counts as an edit:** `user_edited` is set by `EditService` (`correct_word`,
-`correct_phrase`, `set_word_suppressed`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
+`correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript`, transcript cleanup),
 which MCP tools, CLI (`podcast transcript correct`, `correct-phrase`, `suppress-word`,
 `cleanup-batch`) and Studio document commands all
 use, and only when the words actually changed. Automated passes stay unmarked on

@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import {
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
@@ -92,6 +92,7 @@ export function TranscriptWordInspector({
   const wordSpanText = spanTextFromIndex(wordTexts, wordIndex, wordIndex);
   const { busy, error, setError, run } = useProjectMutation();
   const mountedRef = useMountedRef();
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Seed the draft once, when the word first loads: on mount, or on
   // hydration if the words were not loaded yet. Never on a text change, so a
@@ -164,7 +165,12 @@ export function TranscriptWordInspector({
     action: DetachedWordAction,
     fn: () => Promise<unknown>,
   ): Promise<{ failed: boolean; failure: unknown }> => {
-    const before = { text: word?.text ?? "", suppressed, ignored };
+    const before = {
+      text: word?.text ?? "",
+      suppressed,
+      ignored,
+      audibility_locked: locked,
+    };
     let failure: unknown;
     let failed = false;
     await run(async () => {
@@ -270,9 +276,12 @@ export function TranscriptWordInspector({
   };
 
   const returnToAutomatic = async () => {
-    await runForWord("suppressed", () =>
+    const { failed } = await runForWord("audibility_locked", () =>
       setTranscriptWordAutomatic(projectPath, trackId, wordIndex, wordSpanText),
     );
+    if (!failed) {
+      headingRef.current?.focus();
+    }
   };
 
   const toggleIgnored = async () => {
@@ -318,6 +327,7 @@ export function TranscriptWordInspector({
 
   return (
     <ModifierInspector
+      ref={headingRef}
       badge="Word"
       title={word.text}
       subtitle={`${trackId} · index ${wordIndex}`}

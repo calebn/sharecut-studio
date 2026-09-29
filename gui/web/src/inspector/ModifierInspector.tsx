@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { Button } from "../ui/Button";
 import { InlineError } from "../ui/InlineError";
@@ -21,16 +21,22 @@ type Props = {
   error?: string | null;
 };
 
-export function ModifierInspector({
-  badge,
-  title,
-  subtitle,
-  primaryActions,
-  children,
-  footer,
-  error,
-  embedded = false,
-}: Props & { embedded?: boolean }) {
+export const ModifierInspector = forwardRef<
+  HTMLHeadingElement,
+  Props & { embedded?: boolean }
+>(function ModifierInspector(
+  {
+    badge,
+    title,
+    subtitle,
+    primaryActions,
+    children,
+    footer,
+    error,
+    embedded = false,
+  },
+  headingRef,
+) {
   const Tag = embedded ? "div" : "aside";
   return (
     <Tag
@@ -40,7 +46,9 @@ export function ModifierInspector({
       <header className="modifier-header">
         <span className="modifier-badge">{badge}</span>
         <div className="modifier-titles">
-          <h2>{title}</h2>
+          <h2 ref={headingRef} tabIndex={-1}>
+            {title}
+          </h2>
           {subtitle ? <p className="modifier-subtitle">{subtitle}</p> : null}
         </div>
       </header>
@@ -68,4 +76,4 @@ export function ModifierInspector({
       {footer ? <footer className="modifier-footer">{footer}</footer> : null}
     </Tag>
   );
-}
+});
