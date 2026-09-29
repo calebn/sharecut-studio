@@ -574,6 +574,7 @@ def format_report(report: Report) -> str:
 
     review_packet.clip_paths shortens the triggered by / satisfied / advisory path lists
     by splitting on ", ", so keep that separator.
+    tests/test_review_packet.py::test_clip_paths_clips_every_path_list_docs_sync_prints pins this.
     """
     counts = {outcome: 0 for outcome in _OUTCOME_ORDER}
     for finding in report.findings:
