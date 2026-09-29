@@ -152,6 +152,32 @@ def voicing_probes(
     return np.asarray(scores, dtype=np.float64)
 
 
+def high_band_energy_fraction(
+    samples: np.ndarray,
+    sample_rate: int,
+    *,
+    split_hz: float,
+    lo_hz: float,
+    hi_hz: float,
+) -> float:
+    """Share of the ``[lo_hz, hi_hz]`` spectral energy that lies at or above ``split_hz``.
+
+    One Hann-windowed spectrum over the whole input; silent or too-short input
+    scores 0.0.
+    """
+    if samples.size < 2:
+        return 0.0
+    x = samples.astype(np.float64, copy=True)
+    x -= np.mean(x)
+    power = np.abs(np.fft.rfft(x * np.hanning(x.size))) ** 2
+    freqs = np.fft.rfftfreq(x.size, d=1.0 / sample_rate)
+    band = (freqs >= lo_hz) & (freqs <= hi_hz)
+    total = float(np.sum(power[band]))
+    if total <= 1e-20:
+        return 0.0
+    return float(np.sum(power[band & (freqs >= split_hz)]) / total)
+
+
 def bool_runs(mask: np.ndarray) -> list[tuple[int, int]]:
     """Half-open ``(start, end)`` index spans of contiguous ``True`` values."""
     flags = np.asarray(mask, dtype=bool)

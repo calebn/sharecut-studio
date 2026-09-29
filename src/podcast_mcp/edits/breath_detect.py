@@ -11,7 +11,12 @@ import numpy as np
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.util.dsp import bool_runs, db_to_amplitude, voicing_probes
+from podcast_mcp.util.dsp import (
+    bool_runs,
+    db_to_amplitude,
+    high_band_energy_fraction,
+    voicing_probes,
+)
 from podcast_mcp.util.tracks import track_audio_path
 
 if TYPE_CHECKING:
@@ -29,6 +34,12 @@ _PITCH_FRAME_SEC = 0.04
 _PITCH_HOP_SEC = 0.01
 _PITCH_FMIN_HZ = 70.0
 _PITCH_FMAX_HZ = 350.0
+# Sibilants are unvoiced too, but their energy sits above 4 kHz where a breath's
+# does not: on the lab tape the `s` of a kept "let's" or "just" next to a cut
+# carries 54-100% of its 100 Hz-8 kHz energy above the split, real breaths 1-24%.
+_SIBILANT_SPLIT_HZ = 4000.0
+_SIBILANT_HIGH_BAND_FRACTION = 0.5
+_BREATH_BAND_HZ = (100.0, 8000.0)
 
 
 @dataclass(frozen=True)
@@ -80,18 +91,49 @@ def _is_unvoiced(samples: np.ndarray, sample_rate: int) -> bool:
     return probes.size == 0 or float(probes.max()) < _CLEAR_PITCH_PEAK
 
 
+def _is_sibilant(samples: np.ndarray, sample_rate: int) -> bool:
+    lo_hz, hi_hz = _BREATH_BAND_HZ
+    fraction = high_band_energy_fraction(
+        samples,
+        sample_rate,
+        split_hz=_SIBILANT_SPLIT_HZ,
+        lo_hz=lo_hz,
+        hi_hz=min(hi_hz, sample_rate / 2),
+    )
+    return fraction >= _SIBILANT_HIGH_BAND_FRACTION
+
+
+def _breath_run_predicate(
+    samples: np.ndarray, sample_rate: int, frame_size: int, cut_edge: str | None
+) -> Callable[[int, int], bool]:
+    """Predicate over frame runs: the run is breath-shaped and unvoiced all the way to the cut.
+
+    ``cut_edge`` is the window edge the cut touches: ``"end"`` for a window before
+    the cut, ``"start"`` for one after it, ``None`` when the window is the candidate
+    itself. The cut is extended out to the run, so audio between them is removed too.
+    """
+
+    def accept(start: int, end: int) -> bool:
+        run = samples[start * frame_size : end * frame_size]
+        lo = 0 if cut_edge == "start" else start * frame_size
+        hi = samples.size if cut_edge == "end" else end * frame_size
+        return not _is_sibilant(run, sample_rate) and _is_unvoiced(samples[lo:hi], sample_rate)
+
+    return accept
+
+
 def _first_breath_span(
     active: np.ndarray,
     window_start: float,
     frame_duration: float,
     min_duration_sec: float,
     max_duration_sec: float,
-    unvoiced: Callable[[int, int], bool],
+    accept: Callable[[int, int], bool],
 ) -> BreathSpan | None:
-    """First active run of breath length whose frames ``unvoiced(start, end)`` accepts."""
+    """First active run of breath length that ``accept(start_frame, end_frame)`` passes."""
     for start, end in bool_runs(active):
         duration = (end - start) * frame_duration
-        if min_duration_sec <= duration <= max_duration_sec and unvoiced(start, end):
+        if min_duration_sec <= duration <= max_duration_sec and accept(start, end):
             return BreathSpan(
                 start=window_start + start * frame_duration,
                 end=window_start + end * frame_duration,
@@ -110,6 +152,7 @@ def _find_breath_in_window(
     min_duration_sec: float,
     max_duration_sec: float,
     percentile: float = 25.0,
+    cut_edge: str | None = None,
 ) -> BreathSpan | None:
     frame_size = max(1, int(sample_rate * 0.01))
     if samples.size < frame_size * 3:
@@ -125,17 +168,13 @@ def _find_breath_in_window(
         hi = lo * 4
 
     active = np.asarray([lo <= rms <= hi for rms in rms_values], dtype=bool)
-
-    def unvoiced(start: int, end: int) -> bool:
-        return _is_unvoiced(samples[start * frame_size : end * frame_size], sample_rate)
-
     return _first_breath_span(
         active,
         window_start,
         frame_size / sample_rate,
         min_duration_sec,
         max_duration_sec,
-        unvoiced,
+        _breath_run_predicate(samples, sample_rate, frame_size, cut_edge),
     )
 
 
@@ -146,6 +185,7 @@ def _find_breath_in_window_silero(
     min_duration_sec: float,
     max_duration_sec: float,
     vad: SileroVAD | None = None,
+    cut_edge: str | None = None,
 ) -> BreathSpan | None:
     """Locate a breath as a dip in Silero VAD speech-probability.
 
@@ -167,17 +207,13 @@ def _find_breath_in_window_silero(
     lo, hi = 0.05, 0.5
 
     active = (lo <= probs) & (probs <= hi)
-
-    def unvoiced(start: int, end: int) -> bool:
-        return _is_unvoiced(samples[start * window : end * window], SileroVAD.SAMPLE_RATE)
-
     return _first_breath_span(
         active,
         window_start,
         window / SileroVAD.SAMPLE_RATE,
         min_duration_sec,
         max_duration_sec,
-        unvoiced,
+        _breath_run_predicate(samples, SileroVAD.SAMPLE_RATE, window, cut_edge),
     )
 
 
@@ -192,11 +228,15 @@ def classify_breath_samples(
     max_duration_sec: float = 0.45,
     candidate_run: bool = False,
     speech_reference_rms: float | None = None,
+    cut_edge: str | None = None,
 ) -> BreathSpan | None:
     """Classify a bounded sample window using the shared breath detectors.
 
     Callers choose the window: a hit outside that window cannot classify it.
-    Silero is only used at its required 16 kHz rate with its model available.
+    ``cut_edge`` names the window edge that touches the cut being extended
+    (``"end"`` before it, ``"start"`` after it); a hit then also needs unvoiced
+    audio all the way to that edge. Silero is only used at its required 16 kHz
+    rate with its model available.
     """
     if vad_backend == "silero" and sample_rate == 16000:
         from podcast_mcp.engines.vad_silero import get_shared_vad
@@ -211,6 +251,7 @@ def classify_breath_samples(
                     min_duration_sec=min_duration_sec,
                     max_duration_sec=max_duration_sec,
                     vad=vad,
+                    cut_edge=cut_edge,
                 )
         except Exception:
             log.debug("Silero breath inference failed; using RMS heuristic", exc_info=True)
@@ -251,6 +292,7 @@ def classify_breath_samples(
         min_duration_sec=min_duration_sec,
         max_duration_sec=max_duration_sec,
         percentile=10.0 if candidate_run else 25.0,
+        cut_edge=cut_edge,
     )
 
 
@@ -271,7 +313,7 @@ def detect_adjacent_breath(
     min_dur = cfg["min_duration_ms"] / 1000.0
     max_dur = cfg["max_duration_ms"] / 1000.0
 
-    def _find(samples: np.ndarray, window_start: float) -> BreathSpan | None:
+    def _find(samples: np.ndarray, window_start: float, cut_edge: str) -> BreathSpan | None:
         return classify_breath_samples(
             samples,
             window_start,
@@ -280,6 +322,7 @@ def detect_adjacent_breath(
             defaults=defaults,
             min_duration_sec=min_dur,
             max_duration_sec=max_dur,
+            cut_edge=cut_edge,
         )
 
     use_cache = audio_cache is not None and audio_cache.waveform.sample_rate == sample_rate
@@ -307,14 +350,14 @@ def detect_adjacent_breath(
     before_dur = cut_start - before_start
     if before_dur > min_dur:
         samples = _read(before_start, before_dur)
-        hit = _find(samples, before_start)
+        hit = _find(samples, before_start, "end")
         if hit:
             spans.append(BreathSpan(start=hit.start, end=hit.end, side="before"))
 
     after_dur = after_sec
     if after_dur > min_dur:
         samples = _read(cut_end, after_dur)
-        hit = _find(samples, cut_end)
+        hit = _find(samples, cut_end, "start")
         if hit:
             spans.append(BreathSpan(start=hit.start, end=hit.end, side="after"))
 
