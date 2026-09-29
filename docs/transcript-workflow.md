@@ -113,8 +113,9 @@ WhisperX-style torch wav2vec2-large) over the same fixtures and the lab tape.
 [#641](https://github.com/calebn/sharecut-studio/issues/641) measured them and
 recommends `onnx-base`: 42.98 ms MAE and 4.8% of matched words over 150 ms on
 LibriSpeech, against native's 82.3 ms / 35.7%, at an RTF of 0.044.
-`transcribe.forced_alignment.enabled` runs it in the pipeline (opt-in,
-[#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
+`transcribe.forced_alignment.enabled` runs it in the pipeline (on by default once
+the model is downloaded, [#780](https://github.com/calebn/sharecut-studio/issues/780);
+shipped as an opt-in pass in [#714](https://github.com/calebn/sharecut-studio/issues/714)); measured
 pipeline results are [#715](https://github.com/calebn/sharecut-studio/issues/715).
 See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alignment-testing-grounds).
 
@@ -231,6 +232,19 @@ stores per-word `scores` alongside the aligned spans, and the aligner identity i
 the score method, so older sidecars miss once. The cache write is
 best-effort: a failed write logs a warning and keeps the aligned spans. Writing a new
 alignment cache deletes older ones for the same ASR cache.
+
+**Default (#780).** `transcribe.forced_alignment.enabled` is a tri-state resolved once at the
+options boundary (`engines/asr_options.ForcedAlignment`, from `word_aligner_installed()`, a
+presence check that does not hash the snapshot): unset follows the installed model (on when
+the snapshot is downloaded, otherwise unavailable), `false` always keeps Whisper's times, and
+`true` requires the model. `transcribe_tracks` and `podcast transcribe` raise
+`WordAlignerMissingError` with the download command before changing any transcript when the
+flag is `true` and the model is missing; they never fall back silently. The resolved state and
+its reason go to `transcript_timing.json` → `forced_alignment` (`enabled`, `requested`,
+`installed`, `blocked`, `reason`) and, when off, to the step summary ("forced alignment
+unavailable: …" / "forced alignment off: …"). A transcript whose `word_aligner` is `null`
+still carries Whisper's own word times; `audition_context_tool` lists `whisper_word_times`
+in `limits` for such windows so an agent double-checks cut points.
 
 The run-only `retime_words` flag (Studio **Re-time words** next to the Pipeline tab's
 Precise word boundaries field, CLI `pipeline run --retime-words`, MCP

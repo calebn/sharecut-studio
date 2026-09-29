@@ -36,7 +36,7 @@ Do **not** run focus, tighten, or narrative cuts until refine status is **done**
 ## What reconcile does / does not
 
 - **Does:** Hide bleed/inaudible words from `combined.json` (metadata only; audio unchanged). Identical overlap dupes on a measured bleed pair → `text_match_count == 0` there after reconcile; the source mic wins by lag, identical words at another spacing both stay, and pairs with no measured path are never text-matched (#774).
-- **Silence hallucinations:** ASR uses VAD; words over digital silence carry `suspect_hallucination` (with the opt-in forced aligner, also words it places with no acoustic evidence, i.e. `alignment_score` below `transcribe.forced_alignment.min_word_score`); flag only; nothing filters on it. Find them in `transcript_refine_brief_tool` (`suspect_hallucination_open_words` / `suspect_hallucination_sample`) or Studio Annotate, and suppress real hallucinations with `set_word_suppressed_tool`.
+- **Silence hallucinations:** ASR uses VAD; words over digital silence carry `suspect_hallucination` (with the forced aligner, on by default once downloaded, also words it places with no acoustic evidence, i.e. `alignment_score` below `transcribe.forced_alignment.min_word_score`); flag only; nothing filters on it. Find them in `transcript_refine_brief_tool` (`suspect_hallucination_open_words` / `suspect_hallucination_sample`) or Studio Annotate, and suppress real hallucinations with `set_word_suppressed_tool`.
 - **Does not:** Fix ASR text on audible words — use precorrect + refine.
 - **Audio follow-up:** After transcript is clean, **podcast-mute-bleed** gates stems from non-suppressed intervals.
 
@@ -54,7 +54,8 @@ Add `{workspace}/show_glossary.yaml` for show-specific replacements (see doc exa
 |---------|-------|
 | Bleed / wrong track audible | reconcile → audition if ambiguous |
 | Cross-track word mismatch | precorrect report → refine |
-| Stretched ASR token / missing words in a long span | `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times) (with `transcribe.forced_alignment.enabled` most words are re-timed; the deferred flag remains the backstop on what the aligner leaves) |
+| Stretched ASR token / missing words in a long span | `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times) (with the word aligner installed most words are re-timed by default; the deferred flag remains the backstop on what the aligner leaves) |
+| Word times are Whisper-only (`transcripts[].word_aligner: null`; `audition_context_tool` `limits` has `whisper_word_times`; summary says "forced alignment unavailable") | `podcast bootstrap --component word-aligner`, then Studio **Re-time words** / `pipeline run --retime-words`; until then treat word edges as approximate (measured 120 ms early at a lab cut, #775) and audition cut points (#780) |
 | Episode name / Spanish garble | show_glossary → precorrect → refine |
 | Low-confidence / grammar | refine → audition |
 | One unclear span | audition only |
