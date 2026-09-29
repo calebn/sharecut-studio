@@ -64,7 +64,9 @@ def git(*args: str) -> str:
 
 def cut_notice(what: str, command: str | None = None) -> str:
     """The packet's one truncation-notice shape: what was cut, then the command that shows
-    the rest (when there is one). Every cut in this module ends in one of these."""
+    the rest. Every per-section cut passes a command; the packet-level cut (cap_packet)
+    passes none and names the sections it cut instead. Every cut in this module ends in
+    one of these."""
     return f"[{what}; run `{command}` for the rest]" if command else f"[{what}]"
 
 
