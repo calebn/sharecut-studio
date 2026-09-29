@@ -132,7 +132,12 @@ where the left clip's source stopped) reads the source before the left clip's
 `source_end` and after the right clip's `source_start` (`SplicePoints`); any
 other instant reads both sides of that one point. Before #775 the sweep mapped
 the join to the resume point alone and scored raw source continuity there, which
-passed a cut that resumed inside a phrase. Each sweep row also carries `speech`
+passed a cut that resumed inside a phrase. A splice whose two sides are both below
+`join_continuity.inaudible_floor_db` (-60 dBFS RMS over the 45 ms side windows, e.g.
+room tone against Zoom's gated digital silence) is an **inaudible splice**: risk 0,
+verdict `pass`, one `inaudible_splice` detector carrying both levels, instead of a
+level-jump `fail` nobody can hear. On the lab tape that turned 7 of 8 sweep fails
+into passes and left the one real clipped onset. Each sweep row also carries `speech`
 (`edits/join_speech.py` crossings at that join: clipped onset or tail, voice
 edge, `removed_ms`, `suggested_source_sec`, `asr_disagrees`) and the report a
 `speech_cross_count`; the audition context raises the same crossings as
@@ -162,7 +167,7 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 - `preview_inaudible_cut_tool` — dry-run: shifted boundaries, mode, confidence.
 - `suggest_handoff_cut_tool` — retain ~1s on each keep, snap to quiet, for narrative handoffs (timeline clock); prefer with `use_inaudible_opt=false`.
 - `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep every splice (default timebase `timeline`); sweep rows carry `speech` (voiced speech cut through at the join) and the report `speech_cross_count`.
-- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk`; `trim_clip_edge_tool` moves the flagged clip edge to its `suggested_source_sec`.
+- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk` and `clip_skew`; its `evidence.fix` names the `trim_clip_edge_tool` call (`all_tracks=true` for a session-wide cut, so every track's edge moves and the episode stays in sync; a track-local punch trims one clip).
 - `join_label_tool` — record explicit pass/fail A/B labels into `artifacts/join_labels.jsonl`.
 - `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (Sharecut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
 - Cut tools accept optional `use_inaudible_opt=false` to skip optimization for one call.

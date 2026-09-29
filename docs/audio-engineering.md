@@ -297,7 +297,7 @@ the span (same numbers as `audio_diagnostics_tool` with a window) and emits
 attach PNGs. Windowed extract uses a fresh timeline stem or `SessionTimeline`
 source mapping — never timeline seconds on raw/stale files.
 
-Two checks make the context an agent's ears at edit boundaries (#775):
+Three checks make the context an agent's ears at edit boundaries (#775):
 
 - **`speech_crosses_cut`** — for every splice whose join instant lies in the window
   (`clips_ops.splice_joins`, on every dialogue track), `edits/join_speech.py` reads
@@ -314,26 +314,56 @@ Two checks make the context an agent's ears at edit boundaries (#775):
   the transcript words either side of the cut and `asr_disagrees` (no word covers
   the cut although the voice does). This is why the check works from audio energy
   and not word times: Whisper placed the lab's `Um,` 490 ms after the voice onset,
-  the forced aligner 850 ms after it. Fix: `trim_clip_edge_tool` at
-  `suggested_source_sec`, or `suggest_handoff_cut_tool` to move the cut to a silence.
+  the forced aligner 850 ms after it. `evidence.session_join` says whether every
+  dialogue track has a clip edge at that instant (a ripple) or only this track (a
+  punch), and `evidence.fix` is the one command that restores the audio without
+  desyncing the episode: `trim_clip_edge_tool(clip_id, edge, source_sec,
+  all_tracks=session_join)`. A session-wide cut trimmed on one track alone leaves that
+  track's later clips out of step with the others (see `clip_skew`). The other fix is
+  `suggest_handoff_cut_tool` to move the cut to a silence.
 - **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
   mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
   the listener hears, one clock for every track). In 50 ms frames where speaker A is
   above -40 dBFS, mic B is open (above -60 dBFS) and at least 6 dB quieter, the
   normalised cross-correlation peak over ±40 ms marks B as carrying a copy of A when
-  it reaches 0.25; the copies' lags are clustered in half-millisecond bins and a
-  pair is `echo_risk` when at least 20 copy frames exist, at least 12 of them share
-  one lag within ±1.5 ms and those are at least 12 % of the copies. Evidence carries
-  the pair, `lag_ms` (positive = B lags A), `level_db` (B relative to A), the frame
-  counts, the thresholds, the analysed span and the strongest `examples` (timeline
-  seconds); `suggested_listen` composes the pair at the first example. A stale or
-  missing stem skips the pair and adds `echo_check_needs_fresh_stems` to `limits`
-  (`stale_render` already says to render first). Profiles are cached in-process by
-  stem `file_revision`. One summed correlation function over all co-open frames was
-  measured and rejected: on the lab tape it did not separate the same-room pair from
-  the remote one. Fix: gate the bleed mic to its own words
-  ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)), or mic
-  placement for the next session.
+  it reaches 0.25; the copies' lags are clustered in half-millisecond bins and the
+  copies within ±1.5 ms of the most common lag are the *consistent* ones. Chance
+  peaks between independent voices also cluster near 0 ms (full overlap gives the
+  normalised correlation its largest variance at small lags), which is where a
+  same-room path sits, so every pair is scored against its own **null**: the same
+  two mics with B shifted by ±7.3, ±13.1, ±23.3 and ±31.7 s (independent by
+  construction), sampled on up to 400 dominated frames per shift and pooled into one
+  consistent-copy rate per dominated frame. A pair is `echo_risk` when it has at
+  least 20 copy frames, at least 12 consistent ones, and its consistent rate is at
+  least 2× the pooled null rate (`null_margin`). Measured on the lab tape: the
+  same-room pair audra→caleb is 3 to 6× its null over the 220 s agent timeline and
+  over every 600 s span of the unedited run; caleb↔lana and audra↔lana never exceed
+  1.3×; 16 time-shifted audra/caleb controls and six synthetic cases (independent
+  harmonic voices, an open noise floor, same-pitch voices, delayed copies at -15 and
+  -24 dB) all classify correctly. A stationary periodic voice correlates with itself
+  at any shift, but at lags spread over its period multiples, so the null rises with
+  it and the one-lag cluster is what a real acoustic path adds. Evidence carries the
+  pair, `lag_ms` (positive = B lags A), `level_db` (B relative to A), the frame
+  counts, `copy_rate` / `consistent_rate`, `null_copy_rate` / `null_consistent_rate`
+  and `null_runs`, the thresholds, the analysed span and the strongest `examples`
+  (timeline seconds); `suggested_listen` composes the pair at the first example. A
+  stale or missing stem skips the pair and adds `echo_check_needs_fresh_stems` to
+  `limits` (`stale_render` already says to render first). Profiles are cached
+  in-process by stem `file_revision`. One summed correlation function over all
+  co-open frames was measured and rejected: on the lab tape it did not separate the
+  same-room pair from the remote one. Act on it by listening to the compose entry
+  or reading the per-pair evidence, then gate the bleed mic to its own words
+  ([podcast-mute-bleed](../.agents/skills/podcast-mute-bleed/SKILL.md)) or fix mic
+  placement for the next session; never gate a track on the code alone.
+- **`clip_skew`** — `clip_skew.pairs[]` has always carried `source_delta_sec` (the
+  two tracks' source clocks at the window mid); that alone is not desync, because
+  tracks aligned with different offsets differ by design and a track-local punch
+  keeps later clips in place. Each track's shift at mid (timeline minus source) is
+  now compared with its own first clip's shift (its alignment); a session ripple
+  moves every track alike and a punch moves none, so a pair whose shifts moved apart
+  by more than `skew_warn_sec` (50 ms) was rippled on one track only. Such a pair is
+  `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line and a `clip_skew`
+  hypothesis (`history_undo`, or `trim_clip_edge_tool` with `all_tracks=true`).
 
 `clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
 (`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).

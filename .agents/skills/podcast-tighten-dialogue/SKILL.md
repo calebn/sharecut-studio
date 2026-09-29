@@ -101,8 +101,9 @@ separately (“N acoustic, review each”).
    whole batch — not as the default on a real episode.
    After approving, `render_preview` and run **`audition_context_tool` on every
    applied join** (or one `join_qa_sweep_tool`; **podcast-play-audition** § Ears)
-   before export: fix each `speech_crosses_cut` with `trim_clip_edge_tool` at its
-   `suggested_source_sec`, hand each `echo_risk` to **podcast-mute-bleed**.
+   before export: fix each `speech_crosses_cut` with the `trim_clip_edge_tool` call in
+   its `evidence.fix` (`all_tracks=true` on a session-wide cut), and confirm each
+   `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed**.
 6. For NL cuts by topic, use skill **podcast-edit-natural-language**.
 7. Do **not** run pipeline from `tighten_from_transcript` on production while
    `tighten.enabled` is false / the golden-ear bar is unmet.

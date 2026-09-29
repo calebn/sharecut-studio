@@ -206,7 +206,7 @@ Session without duration goal:
 2. Write `focus_brief.md` with theme + core/support/divert map.
 3. Propose 4–8 REVIEW/DIVERT cuts (repeats, travel digressions that don't pay off).
 4. User: “Keep the Facebook-group safety story” → reclassify that segment as CORE.
-5. Approve → assemble → `audition_context_tool` on every applied join (or one `join_qa_sweep_tool`), fix each `speech_crosses_cut` (`trim_clip_edge_tool`) and route each `echo_risk` to **podcast-mute-bleed** → premix audition at act boundaries → export.
+5. Approve → assemble → `audition_context_tool` on every applied join (or one `join_qa_sweep_tool`), fix each `speech_crosses_cut` with its `evidence.fix` (`trim_clip_edge_tool`, `all_tracks=true` on a session-wide cut), confirm each `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed** → premix audition at act boundaries → export.
 
 **Alignment:** if audition text ≠ audio, fix transcript source times before bulk cuts.
 
