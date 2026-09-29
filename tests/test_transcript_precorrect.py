@@ -18,6 +18,7 @@ from podcast_mcp.edits.transcript_precorrect import (
     run_glossary_pass,
     run_precorrect_transcript,
 )
+from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
 from podcast_mcp.transcript_context import (
     CrossTrackConfig,
@@ -71,6 +72,32 @@ class RecordingProgress:
 
     def cancel(self, task_id: str, *, message: str | None = None) -> None:
         self.events.append({"kind": "cancel", "task_id": task_id, "message": message})
+
+
+def _bleed_path(source: str, bleed: str) -> EchoPairProfile:
+    return EchoPairProfile(
+        source_track_id=source,
+        bleed_track_id=bleed,
+        span_start=0.0,
+        span_end=10.0,
+        dominated_frames=100,
+        copy_frames=40,
+        consistent_frames=30,
+        lag_ms=3.0,
+        level_db=-18.0,
+        examples=(1.0,),
+        null_runs=8,
+        null_copy_rate=0.05,
+        null_consistent_rate=0.02,
+    )
+
+
+# Cross-track sync judges only pairs on a measured bleed pair (#774); the host/guest
+# pairs these tests hand it sit on one.
+_HOST_GUEST_MEASURED = patch(
+    "podcast_mcp.engines.audio_audit.TrackRmsCacheSet.echo_pairs",
+    new=lambda self: [_bleed_path("guest", "host")],
+)
 
 
 def _ctx(**kwargs) -> TranscriptContext:
@@ -198,7 +225,9 @@ def test_text_similarity_rejects_short_char_substring() -> None:
 
 
 def test_cross_track_sync_rejects_talking_to_i_lab_pair() -> None:
-    """Regression: stretched guest 'talking' must not sync from host 'I'."""
+    """Regression: stretched guest 'talking' must not sync from host 'I'. The lab's
+    caleb/lana pair has no measured bleed path, so the pair is two people talking:
+    neither rewritten nor queued for review (#774)."""
     p = EpisodeProject.create("precorrect", "/tmp")
     p.transcripts = [
         Transcript(
@@ -251,8 +280,7 @@ def test_cross_track_sync_rejects_talking_to_i_lab_pair() -> None:
 
     assert report["count"] == 0
     assert p.transcripts[1].words[0].text == "talking"
-    reasons = {d["reason"] for d in report["deferred_low_similarity"]}
-    assert reasons & {"duration_mismatch", "low_similarity"}
+    assert report["deferred_low_similarity"] == []
 
 
 def test_speaker_gate_never() -> None:
@@ -473,6 +501,7 @@ def _two_track_words() -> tuple[EpisodeProject, TranscriptContext]:
     return p, ctx
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_applies_winner_text() -> None:
     p, ctx = _two_track_words()
     pair = {
@@ -500,6 +529,7 @@ def test_cross_track_sync_applies_winner_text() -> None:
     assert report["fixes"][0]["winner_track"] == "host"
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_keeps_loser_evidence() -> None:
     p, ctx = _two_track_words()
     p.transcripts[1].words[0].alignment_score = 0.004
@@ -553,6 +583,7 @@ def test_glossary_apply_keeps_evidence() -> None:
     assert word.suspect_hallucination is True
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_defers_low_similarity_bleed() -> None:
     p, ctx = _two_track_words()
     pair = {
@@ -580,6 +611,7 @@ def test_cross_track_sync_defers_low_similarity_bleed() -> None:
     assert report["deferred_low_similarity"][0]["reason"] == "low_similarity"
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_defers_ambiguous_winner() -> None:
     p, ctx = _two_track_words()
     p.transcripts[0].words[0].confidence = 0.9
@@ -609,6 +641,7 @@ def test_cross_track_sync_defers_ambiguous_winner() -> None:
     assert report["deferred_low_similarity"][0]["reason"] == "ambiguous_audibility"
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_skips_filler_word() -> None:
     p, ctx = _two_track_words()
     p.transcripts[1].words[0].text = "um"
@@ -980,6 +1013,7 @@ def test_cross_track_sync_low_similarity_without_bleed_not_deferred() -> None:
     assert report["deferred_low_similarity"] == []
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_guest_wins_and_mutates_host() -> None:
     p, ctx = _two_track_words()
     p.transcripts[0].words[0].text = "trooth"
@@ -1037,6 +1071,7 @@ def test_cross_track_sync_skips_invalid_loser_index() -> None:
     assert report["count"] == 0
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_reads_word_confidence_defaults() -> None:
     p, ctx = _two_track_words()
     p.transcripts[0].words[0].confidence = None
@@ -1088,6 +1123,7 @@ def _overlap_pair(idx: int, *, low_sim: bool = False, ambiguous: bool = False) -
     }
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_reports_progress_every_50_pairs() -> None:
     p, ctx = _two_track_words()
     pairs = [_overlap_pair(i) for i in range(50)]
@@ -1106,6 +1142,7 @@ def test_cross_track_sync_reports_progress_every_50_pairs() -> None:
     assert any(e["current"] == 50 for e in updates)
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_progress_on_low_similarity_batch() -> None:
     p, ctx = _two_track_words()
     pairs = [_overlap_pair(i, low_sim=True) for i in range(50)]
@@ -1150,6 +1187,7 @@ def test_cross_track_sync_missing_track_skips_confidence() -> None:
     assert report["count"] == 0
 
 
+@_HOST_GUEST_MEASURED
 def test_cross_track_sync_progress_on_ambiguous_batch() -> None:
     p, ctx = _two_track_words()
     p.transcripts[0].words[0].confidence = 0.9
@@ -1198,3 +1236,110 @@ def test_glossary_homophone_mismatch_skipped() -> None:
     rule = ReplacementRule("goodbye earth", "farewell", "homophone")
     hits = _find_glossary_phrase_matches(words, rule, set())
     assert hits == []
+
+
+def _stretched_pair() -> dict:
+    """Host 'I' (0.58 s) under a 10 s guest token: a duration mismatch with a stretched side."""
+    return {
+        "track_a": "host",
+        "word_index_a": 0,
+        "text_a": "I",
+        "start_a": 1606.74,
+        "end_a": 1607.32,
+        "status_a": "audible",
+        "track_b": "guest",
+        "word_index_b": 0,
+        "text_b": "talking",
+        "start_b": 1595.94,
+        "end_b": 1606.16,
+        "status_b": "audible",
+        "overlap_sec": 0.58,
+        "text_match": False,
+    }
+
+
+def test_cross_track_sync_ignores_pairs_with_no_bleed_path() -> None:
+    """The host/guest pair `test_cross_track_sync_applies_winner_text` fixes is left alone
+    when no bleed path is measured between the two mics (#774)."""
+    p, ctx = _two_track_words()
+    pair = {
+        "track_a": "host",
+        "word_index_a": 0,
+        "text_a": "truth",
+        "start_a": 1.0,
+        "status_a": "audible",
+        "track_b": "guest",
+        "word_index_b": 0,
+        "text_b": "trooth",
+        "start_b": 1.1,
+        "status_b": "bleed",
+        "overlap_sec": 0.4,
+        "text_match": False,
+    }
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
+        return_value={"pairs": [pair]},
+    ):
+        report = run_cross_track_sync(p, ctx, dry_run=False)
+
+    assert report == {"count": 0, "fixes": [], "deferred_low_similarity": []}
+    assert p.transcripts[1].words[0].text == "trooth"
+
+
+@_HOST_GUEST_MEASURED
+def test_cross_track_sync_queues_a_stretched_word_once() -> None:
+    """On a measured pair a stretched token is neither rewritten nor deferred per partner:
+    `run_precorrect_transcript` queues it once as `anomalous_word_duration` (#774). A
+    duration mismatch between two normal-length words is still deferred."""
+    p, ctx = _two_track_words()
+    normal = {
+        **_stretched_pair(),
+        "start_a": 1.0,
+        "end_a": 2.2,
+        "start_b": 1.9,
+        "end_b": 2.1,
+        "overlap_sec": 0.2,
+    }
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
+        return_value={"pairs": [_stretched_pair(), normal]},
+    ):
+        report = run_cross_track_sync(p, ctx, dry_run=True)
+
+    assert report["count"] == 0
+    assert [(d["reason"], d["start_a"]) for d in report["deferred_low_similarity"]] == [
+        ("duration_mismatch", 1.0)
+    ]
+
+
+@_HOST_GUEST_MEASURED
+def test_precorrect_queues_the_stretched_word_not_its_pairs(tmp_path) -> None:
+    p = EpisodeProject.create("precorrect", str(tmp_path))
+    p.ensure_dirs()
+    p.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[TranscriptWord(text="I", start=1606.74, end=1607.32, confidence=0.97)],
+        ),
+        Transcript(
+            track_id="guest",
+            words=[TranscriptWord(text="talking", start=1595.94, end=1606.16, confidence=0.36)],
+        ),
+    ]
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.overlap_duplicate_report",
+        return_value={"pairs": [_stretched_pair()]},
+    ):
+        result = run_precorrect_transcript(p, dry_run=True, context=_ctx())
+
+    assert result.report["deferred_queue"] == [
+        {
+            "kind": "anomalous_word_duration",
+            "track_id": "guest",
+            "word_index": 0,
+            "text": "talking",
+            "start": 1595.94,
+            "end": 1606.16,
+            "duration_sec": 10.22,
+        }
+    ]

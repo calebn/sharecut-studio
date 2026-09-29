@@ -8,7 +8,12 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_correct import apply_transcript_corrections
 from podcast_mcp.edits.transcript_reconcile import overlap_duplicate_report
-from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.asr_timing import word_duration_is_anomalous
+from podcast_mcp.engines.audio_audit import (
+    AnalysisPolicy,
+    build_track_rms_caches,
+    compute_word_audibility_map,
+)
 from podcast_mcp.engines.transcribe import collect_anomalous_asr_duration_flags
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 from podcast_mcp.transcript_context import (
@@ -87,6 +92,18 @@ def _duration_mismatch(
     return not both_well_covered and (
         max(dur_a, dur_b) / min(dur_a, dur_b) > cfg.max_duration_ratio
         or max(dur_a, dur_b) > cfg.max_word_duration_sec
+    )
+
+
+def _has_stretched_word(pair: dict[str, Any], max_word_sec: float) -> bool:
+    """Either word is a stretched ASR token, which the queue already carries once as
+    ``anomalous_word_duration``; its overlap pairs add nothing to review."""
+    return any(
+        word_duration_is_anomalous(
+            float(pair.get(f"end_{side}", 0)) - float(pair.get(f"start_{side}", 0)),
+            max_word_sec,
+        )
+        for side in ("a", "b")
     )
 
 
@@ -263,15 +280,25 @@ def run_cross_track_sync(
     policy: AnalysisPolicy | None = None,
     progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
+    """Rewrite a garbled word on one mic from its clearer copy on the other.
+
+    Two mics carry one utterance only on a pair with a measured bleed path
+    (``TrackRmsCacheSet.echo_pairs``), so only those pairs are candidates: a text mismatch
+    on any other pair is two people talking, neither fixed nor deferred (#774).
+    """
     pol = policy or AnalysisPolicy.from_defaults()
-    report = overlap_duplicate_report(project, policy=pol, progress=progress)
-    pairs = report.get("pairs", [])
+    caches = build_track_rms_caches(project)
+    rows = compute_word_audibility_map(project, policy=pol, progress=progress, caches=caches)
+    report = overlap_duplicate_report(project, policy=pol, audibility=rows)
+    bleed_pairs = {frozenset((p.source_track_id, p.bleed_track_id)) for p in caches.echo_pairs()}
     cfg = ctx.cross_track
 
     candidates = [
         p
-        for p in pairs
-        if not p.get("text_match") and float(p.get("overlap_sec", 0)) >= cfg.min_overlap_sec
+        for p in report.get("pairs", [])
+        if not p.get("text_match")
+        and float(p.get("overlap_sec", 0)) >= cfg.min_overlap_sec
+        and frozenset((p["track_a"], p["track_b"])) in bleed_pairs
     ]
 
     applied: list[dict[str, Any]] = []
@@ -304,7 +331,8 @@ def run_cross_track_sync(
                 min_substring_len_ratio=cfg.min_substring_len_ratio,
             )
             if _duration_mismatch(pair, cfg):
-                deferred.append({**pair, "reason": "duration_mismatch", "similarity": sim})
+                if not _has_stretched_word(pair, pol.max_word_audibility_sec):
+                    deferred.append({**pair, "reason": "duration_mismatch", "similarity": sim})
                 if (idx + 1) % 50 == 0:
                     task.advance_to(idx + 1)
                 continue
