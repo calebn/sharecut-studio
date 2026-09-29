@@ -453,6 +453,9 @@ describe("PipelinePanel", () => {
     const toggle = await screen.findByLabelText(/Precise word boundaries/i);
     expect(toggle).toBeDisabled();
     expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(
+      /Precise word boundaries unavailable: word aligner 'onnx-base' is not downloaded \(podcast bootstrap --component word-aligner\)\./,
+    );
     expect(
       screen.getByText(
         /Precise word boundaries unavailable: word aligner 'onnx-base' is not downloaded \(podcast bootstrap --component word-aligner\)/i,
@@ -483,6 +486,9 @@ describe("PipelinePanel", () => {
     const toggle = await screen.findByLabelText(/Precise word boundaries/i);
     expect(toggle).toBeEnabled();
     expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(
+      /Precise word boundaries on by default: word aligner 'onnx-base' is installed\./,
+    );
     expect(
       screen.getByText(
         /Precise word boundaries on by default: word aligner 'onnx-base' is installed/i,

@@ -29,6 +29,7 @@ function readinessMessage(
 export function WordAlignerStatus({
   status,
   alignment,
+  reasonId,
   disabled,
   retiming,
   onDownloaded,
@@ -37,6 +38,8 @@ export function WordAlignerStatus({
   status: PipelineComponentStatus | undefined;
   /** Resolved state from the config payload; omitted by callers that only know readiness. */
   alignment?: PipelineForcedAlignment;
+  /** Id for the status text, so the Precise word boundaries checkbox can be described by it. */
+  reasonId?: string;
   disabled: boolean;
   /** True while a Re-time words request is starting (busy label + aria-busy, like the download). */
   retiming: boolean;
@@ -80,7 +83,7 @@ export function WordAlignerStatus({
 
   return (
     <div className="pipeline-aligner">
-      <span className="pipeline-param-help" role="status">
+      <span className="pipeline-param-help" role="status" id={reasonId}>
         {readinessMessage(status, size)}
         {alignment?.reason
           ? ` Precise word boundaries ${alignment.reason}.`
