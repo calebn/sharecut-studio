@@ -521,6 +521,78 @@ def test_transcript_suppress_word_cmd(minimal_project):
     assert unsuppressed_word.audibility_locked is True
 
 
+def test_transcript_suppress_word_cmd_automatic(minimal_project, monkeypatch):
+    """--automatic clears the lock without touching suppressed (#824)."""
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    project = _setup_edit_project(minimal_project)
+    suppress = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+        ],
+    )
+    assert suppress.exit_code == 0
+    locked_word = load_project(project).transcripts[0].words[0]
+    assert locked_word.suppressed is True
+    assert locked_word.audibility_locked is True
+
+    automatic = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+            "--automatic",
+        ],
+    )
+    assert automatic.exit_code == 0
+    unlocked_word = load_project(project).transcripts[0].words[0]
+    # suppressed is untouched by the unlock; only the reconcile pass changes it.
+    assert unlocked_word.suppressed is True
+    assert unlocked_word.audibility_locked is False
+    payload = json.loads(click.unstyle(automatic.output))
+    assert payload == {
+        "track_id": "host",
+        "word_index": 0,
+        "suppressed": True,
+        "audibility_locked": False,
+        "text": unlocked_word.text,
+    }
+
+
+def test_transcript_suppress_word_cmd_automatic_rejects_suppressed_flag(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+            "--automatic",
+            "--suppressed",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "mutually exclusive" in click.unstyle(result.output).lower()
+
+
 def test_transcript_cleanup_batch_cmd(minimal_project):
     project = _setup_edit_project(minimal_project)
     corrections = json.dumps({"words": [{"word_index": 0, "text": "Hello"}]})

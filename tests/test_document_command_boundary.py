@@ -251,6 +251,16 @@ _GUARDED_COMMANDS = {
         "client_id": "boundary-guest",
         "client_seq": 1,
     },
+    "SetTranscriptWordAutomatic": {
+        "type": "SetTranscriptWordAutomatic",
+        "payload": {
+            "track_id": "host",
+            "word_index": 0,
+            "expected_text": "y",
+        },
+        "client_id": "boundary-guest",
+        "client_seq": 1,
+    },
 }
 
 
@@ -258,7 +268,8 @@ _GUARDED_COMMANDS = {
 def test_guest_http_cannot_submit_guarded_transcript_command(
     command, minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """Corrections and the suppress/ignore toggles stay host-only even with expected_text (#650, #744)."""
+    """Corrections, the suppress/ignore toggles, and the unlock stay host-only even with
+    expected_text (#650, #744, #824)."""
     ws = _seed_premix(minimal_project, sample_wav)
     share = _edit_share(ws, monkeypatch, tmp_workspace)
     before = minimal_project.read_bytes()

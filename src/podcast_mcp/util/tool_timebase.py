@@ -42,6 +42,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "trim_clip_edge_tool": "source",
     "set_effect_bypass_tool": "na",
     "set_word_suppressed_tool": "source",
+    "set_word_automatic_tool": "source",
     "set_words_ignored_tool": "source",
     "fill_with_room_tone_tool": "timeline",
     "strip_silence_tool": "source",

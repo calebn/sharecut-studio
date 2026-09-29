@@ -125,6 +125,30 @@ def test_mcp_suppress_and_ignore_expected_text_guard(tmp_path, sample_wav):
     assert ignored["changed"] == 2
 
 
+def test_mcp_set_word_automatic_clears_lock(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_project(path, sample_wav)
+
+    locked = json.loads(mcp_timeline.set_word_suppressed_tool(path, "host", 0, True))
+    assert locked["suppressed"] is True
+    proj = load_project(Path(path))
+    assert proj.transcripts[0].words[0].audibility_locked is True
+
+    with pytest.raises(ValueError, match="changed since you read it"):
+        mcp_timeline.set_word_automatic_tool(path, "host", 0, expected_text="world")
+    proj = load_project(Path(path))
+    assert proj.transcripts[0].words[0].audibility_locked is True
+
+    unlocked = json.loads(
+        mcp_timeline.set_word_automatic_tool(path, "host", 0, expected_text="hello")
+    )
+    assert unlocked["audibility_locked"] is False
+    assert unlocked["suppressed"] is True
+    proj = load_project(Path(path))
+    assert proj.transcripts[0].words[0].audibility_locked is False
+    assert proj.transcripts[0].words[0].suppressed is True
+
+
 def test_mcp_timeline_move_and_duplicate(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_project(path, sample_wav)
