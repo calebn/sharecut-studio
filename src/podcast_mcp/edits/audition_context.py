@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from podcast_mcp.edits.clips_ops import clips_for_track, is_session_join
 from podcast_mcp.edits.comments import list_comments
 from podcast_mcp.edits.join_speech import SpeechCrossing, speech_crossings_in_window
 from podcast_mcp.edits.tighten_reasons import is_acoustic_filler_reason
@@ -105,6 +106,17 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "skill": "podcast-mute-bleed",
         "tools": ["apply_transcript_gate_tool"],
         "meaning": "This track's words in the window are all suppressed (bleed smell).",
+    },
+    "clip_skew": {
+        "severity": "warn",
+        "confidence": "measured",
+        "autonomy": "needs_approval",
+        "skill": None,
+        "tools": ["history_undo", "trim_clip_edge_tool"],
+        "meaning": (
+            "Dialogue tracks have drifted apart relative to their alignment: a single-track "
+            "ripple (a trim or cut on one track only) moved that track's later clips."
+        ),
     },
     "muted_track_speaking": {
         "severity": "warn",
@@ -342,12 +354,16 @@ def build_audition_context(
     window = _clock_window(timeline_start, timeline_end)
     tracks_out: list[dict[str, Any]] = []
     source_at_mid: dict[str, float | None] = {}
+    alignment_shift: dict[str, float] = {}
     words_timeline: dict[str, list[tuple[float, str]]] = {}
 
     for tid in track_ids:
         spans = st.map_timeline_span(tid, TimelineSec(timeline_start), TimelineSec(timeline_end))
         src_mid = st.timeline_to_source(tid, TimelineSec(mid))
         source_at_mid[tid] = float(src_mid) if src_mid is not None else None
+        first = next(iter(clips_for_track(project, tid)), None)
+        if first is not None:
+            alignment_shift[tid] = float(first.timeline_start) - float(first.source_start)
         words = _words_in_source_spans(project, tid, spans)
         text = " ".join(w.text for w in words).strip()
         mapped_words: list[tuple[float, str]] = []
@@ -374,7 +390,9 @@ def build_audition_context(
             track_info["prosody"] = _prosody_for_track(project, st, tid, spans, prosody_params)
         tracks_out.append(track_info)
 
-    skew = _clip_skew_warnings(source_at_mid, skew_warn_sec=skew_warn_sec)
+    skew = _clip_skew_warnings(
+        source_at_mid, mid=mid, alignment_shift=alignment_shift, skew_warn_sec=skew_warn_sec
+    )
     render = render_status_report(project)
     comments = _comments_in_window(project, timeline_start, timeline_end, full=detail != "summary")
     edits = _edits_in_window(project, st, timeline_start, timeline_end, full=detail != "summary")
@@ -398,6 +416,21 @@ def build_audition_context(
         edits=edits,
         track_ids=track_ids,
     )
+    if skew["any_skewed"]:
+        hypotheses.append(
+            _hypothesis(
+                "clip_skew",
+                tracks=sorted(
+                    {t for p in skew["pairs"] if p["skewed"] for t in (p["track_a"], p["track_b"])}
+                ),
+                window=window,
+                evidence={
+                    "pairs": [p for p in skew["pairs"] if p["skewed"]],
+                    "threshold_sec": skew_warn_sec,
+                },
+                meaning="clip_skew: " + "; ".join(skew["warnings"]),
+            )
+        )
 
     dsp = (
         _diagnostics_for_tracks(
@@ -652,7 +685,18 @@ def _visual_hypotheses(
 JOIN_LISTEN_PAD_SEC = 1.0
 
 
-def _speech_cut_meaning(c: SpeechCrossing) -> str:
+def _speech_cut_fix(c: SpeechCrossing, session_join: bool) -> dict[str, Any]:
+    """The one command that restores the clipped audio, as arguments an agent can pass."""
+    return {
+        "tool": "trim_clip_edge_tool",
+        "clip_id": c.clip_id,
+        "edge": "in" if c.direction == "clipped_onset" else "out",
+        "source_sec": round(c.suggested_source_sec, 3),
+        "all_tracks": session_join,
+    }
+
+
+def _speech_cut_meaning(c: SpeechCrossing, session_join: bool) -> str:
     onset = c.direction == "clipped_onset"
     edge = "starts" if onset else "ends"
     where = (
@@ -674,12 +718,17 @@ def _speech_cut_meaning(c: SpeechCrossing) -> str:
         asr = f"; the transcript puts the cut between words ({'; '.join(words) or 'no word nearby'}{lag}): word times disagree with the audio here"
     else:
         asr = "; a transcript word covers the cut"
-    fix = (
+    move = (
         f"trim the in-point back to {c.suggested_source_sec:.2f}s"
         if onset
         else f"extend the out-point to {c.suggested_source_sec:.2f}s"
     )
-    return f"speech_crosses_cut: {head}{asr}. {fix}, or move the cut to a handoff silence."
+    scope = (
+        " on every track (trim_clip_edge_tool with all_tracks=true; this join is a session-wide cut)"
+        if session_join
+        else f" on clip {c.clip_id} (trim_clip_edge_tool; this edge is track-local)"
+    )
+    return f"speech_crosses_cut: {head}{asr}. {move}{scope}, or move the cut to a handoff silence."
 
 
 def _speech_cut_hypotheses(
@@ -690,6 +739,8 @@ def _speech_cut_hypotheses(
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for c in speech_crossings_in_window(project, track_ids, timeline_start, timeline_end):
+        edge = "in" if c.direction == "clipped_onset" else "out"
+        session_join = is_session_join(project, c.join_timeline_sec, edge)
         out.append(
             _hypothesis(
                 "speech_crosses_cut",
@@ -698,8 +749,12 @@ def _speech_cut_hypotheses(
                     max(0.0, c.join_timeline_sec - JOIN_LISTEN_PAD_SEC),
                     c.join_timeline_sec + JOIN_LISTEN_PAD_SEC,
                 ),
-                evidence=c.to_dict(),
-                meaning=_speech_cut_meaning(c),
+                evidence={
+                    **c.to_dict(),
+                    "session_join": session_join,
+                    "fix": _speech_cut_fix(c, session_join),
+                },
+                meaning=_speech_cut_meaning(c, session_join),
             )
         )
     return out
@@ -1196,30 +1251,52 @@ def _words_in_source_spans(
 def _clip_skew_warnings(
     source_at_mid: dict[str, float | None],
     *,
+    mid: float,
+    alignment_shift: dict[str, float],
     skew_warn_sec: float,
 ) -> dict[str, Any]:
-    """Report source-clock deltas at window mid. Do not flag desync.
+    """Source-clock deltas at window mid, and which pairs have drifted apart.
 
-    Per-track cuts make ``source_at_mid`` diverge; that is remaining-clip math.
+    ``source_delta_sec`` alone is not desync: tracks aligned with different offsets
+    (local recorders) differ by design. Each track's shift at mid (timeline minus
+    source) is compared with its own first clip's shift (its alignment); a session
+    ripple moves every track's shift alike and a track-local punch moves none, so a
+    pair whose shifts moved apart by more than ``skew_warn_sec`` was rippled on one
+    track only (``skewed``).
     """
     pairs: list[dict[str, Any]] = []
+    warnings: list[str] = []
     ids = [tid for tid, src in source_at_mid.items() if src is not None]
+    drift = {
+        tid: (mid - source_at_mid[tid]) - alignment_shift[tid]  # type: ignore[operator]
+        for tid in ids
+        if tid in alignment_shift
+    }
     for i, left in enumerate(ids):
         for right in ids[i + 1 :]:
             delta = abs(source_at_mid[left] - source_at_mid[right])  # type: ignore[operator]
+            skew = abs(drift[left] - drift[right]) if left in drift and right in drift else 0.0
+            skewed = skew > skew_warn_sec
             pairs.append(
                 {
                     "track_a": left,
                     "track_b": right,
                     "source_delta_sec": round(delta, 6),
-                    "skewed": False,
+                    "skew_sec": round(skew, 6),
+                    "skewed": skewed,
                 }
             )
+            if skewed:
+                warnings.append(
+                    f"{left} and {right} are {skew * 1000:.0f} ms out of sync at "
+                    f"{mid:.2f}s relative to their alignment (a single-track ripple moved "
+                    f"one of them); undo it, or trim the join on every track"
+                )
     return {
         "threshold_sec": skew_warn_sec,
         "pairs": pairs,
-        "warnings": [],
-        "any_skewed": False,
+        "warnings": warnings,
+        "any_skewed": bool(warnings),
     }
 
 
