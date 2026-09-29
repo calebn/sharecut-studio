@@ -462,10 +462,12 @@ def test_click_hires_and_maybe_neural(minimal_project: Path, sample_wav: Path) -
 
 def test_config_from_defaults() -> None:
     cfg = JoinContinuityConfig.from_defaults(
-        {"join_continuity": {"pass_below": 0.2, "neural": False}}
+        {"join_continuity": {"pass_below": 0.2, "neural": False, "edge_tolerance_ms": 0}}
     )
     assert cfg.pass_below == 0.2
     assert cfg.neural is False
+    assert cfg.edge_tolerance_ms == 0.0
+    assert JoinContinuityConfig.from_defaults({}).edge_tolerance_ms == 3.0
 
 
 def test_model_assets_nisqa_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

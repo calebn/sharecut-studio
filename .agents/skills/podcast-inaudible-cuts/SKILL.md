@@ -24,7 +24,7 @@ Cuts are optimized by default. Read **`docs/inaudible-cuts.md`** for behavior, c
 
 - `preview_inaudible_cut_tool` — dry-run boundary shift, mode, confidence
 - `suggest_handoff_cut_tool` — silence-island OUT/IN for narrative handoffs (timeline clock); returns `use_inaudible_opt: false`
-- `join_quality_tool` / `join_qa_sweep_tool` — perceptual splice risk (pass/review/fail) scored on the two clip edges the render abuts; each sweep row carries `speech` (voiced speech cut through at the join: `clipped_onset` / `clipped_tail`, `removed_ms`, `suggested_source_sec`); not a human-ear guarantee
+- `join_quality_tool` / `join_qa_sweep_tool` — perceptual splice risk (pass/review/fail) scored on the two clip edges the render abuts, at every edge placement within ±3 ms (`join_continuity.edge_tolerance_ms`); the riskiest placement decides and the reason `worst edge placement +0/+3 ms` names it, so a few-ms nudge cannot flip a verdict and re-running a check gives the same answer; each sweep row carries `speech` (voiced speech cut through at the join: `clipped_onset` / `clipped_tail`, `removed_ms`, `suggested_source_sec`); not a human-ear guarantee
 - `audition_context_tool` — `speech_crosses_cut` for every splice in a window (the same measurement, with the transcript words either side and `asr_disagrees`), plus `echo_risk`; see **podcast-play-audition** § Ears
 - `trim_clip_edge_tool` — move the flagged clip edge to its `suggested_source_sec` (in-point back to restore a clipped onset, out-point forward for a clipped tail); later clips ripple
 - `join_label_tool` — record explicit A/B pass/fail labels for the join ranker

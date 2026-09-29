@@ -622,3 +622,70 @@ def test_assess_proposed_cut_rejects_inverted(minimal_project: Path) -> None:
     project = load_project(minimal_project)
     with pytest.raises(ValueError, match="cut_end"):
         assess_proposed_cut(project, "host", 1.0, 0.5, config=_cfg())
+
+
+def _write_tone_with_click(raw: Path, *, click_at_sec: float) -> None:
+    """2 s of a 220 Hz tone at 16 kHz with one 0.9 FS impulse at ``click_at_sec``."""
+    sr = 16000
+    t = np.arange(2 * sr) / sr
+    samples = (0.1 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
+    samples[int(click_at_sec * sr)] += 0.9
+    with wave.open(str(raw), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(sr)
+        handle.writeframes((samples * 32767).astype("<i2").tobytes())
+
+
+def test_verdict_holds_when_an_edge_moves_within_the_tolerance(minimal_project: Path) -> None:
+    """A click 4 ms after the resume point: scored at one placement the verdict depends
+    on whether the 2 ms click window happens to cover it, so a 3 ms edge move flips
+    review to fail. Scoring every placement within the tolerance and keeping the worst
+    reads fail either way (#822)."""
+    project = load_project(minimal_project)
+    _write_tone_with_click(project.workspace_path() / "raw" / "host.wav", click_at_sec=1.004)
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project = load_project(save_project(project, minimal_project))
+    point = _cfg(edge_tolerance_ms=0.0, force_review_multi_hot=True)
+    tolerant = _cfg(edge_tolerance_ms=3.0, force_review_multi_hot=True)
+
+    at_edge = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=point)
+    moved = assess_proposed_cut(project, "host", 0.5, 1.003, timebase="source", config=point)
+    assert (at_edge.verdict, moved.verdict) == ("review", "fail")
+    assert at_edge.risk < 0.48 < moved.risk
+
+    stable = assess_proposed_cut(project, "host", 0.5, 1.0, timebase="source", config=tolerant)
+    stable_moved = assess_proposed_cut(
+        project, "host", 0.5, 1.003, timebase="source", config=tolerant
+    )
+    assert (stable.verdict, stable_moved.verdict) == ("fail", "fail")
+    assert "worst edge placement +0/+3 ms within +-3 ms" in stable.reasons
+    assert stable.risk > 0.48
+    assert next(h for h in stable.detectors if h.name == "click").score == 1.0
+
+
+def test_join_verdicts_and_risks_are_the_same_on_every_run(
+    minimal_project: Path, sample_wav: Path
+) -> None:
+    """The natural-join baseline samples fixed points, so a calibrated sweep repeated
+    over the same project reads the same verdicts and risks (#812)."""
+    from podcast_mcp.edits.join_continuity import assess_existing_join
+
+    project = _tiny_project(minimal_project, sample_wav)
+    cfg = _cfg(calibrate=True)
+    first = assess_project_joins(project, track_id="host", config=cfg)
+    second = assess_project_joins(project, track_id="host", config=cfg)
+    assert first == second
+    (row,) = first["joins"]
+    assert row["calibrated"] is True
+    assert row["natural_p95"] is not None
+    single = assess_existing_join(project, "host", 0.5, config=cfg)
+    assert row["natural_p95"] == round(single.natural_p95, 4)
+    assert row["risk"] == round(single.risk, 4)
