@@ -10,7 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.engines import audio_audit
+from podcast_mcp.engines import ungated_audio
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.mcp.tools.timeline import audibility_map_tool, reconcile_transcript_tool
 from podcast_mcp.models import (
@@ -29,7 +29,7 @@ runner = CliRunner()
 
 def _raw_only_fixture(tmp_path: Path) -> Path:
     workspace = tmp_path / "synthetic_bleed_60s"
-    shutil.copytree(FIXTURE, workspace)
+    shutil.copytree(FIXTURE, workspace, ignore=shutil.ignore_patterns("artifacts"))
     project_path = workspace / "episode.project.json"
     project = load_project(project_path)
     project.clips = [
@@ -235,13 +235,13 @@ def test_repeated_media_decodes_once_across_lane_placements(
         )
     )
     calls: list[Path] = []
-    decode = audio_audit.load_mono_full
+    decode = ungated_audio.load_mono_full
 
     def record_decode(path: Path, *, sample_rate: int) -> np.ndarray:
         calls.append(path)
         return decode(path, sample_rate=sample_rate)
 
-    monkeypatch.setattr(audio_audit, "load_mono_full", record_decode)
+    monkeypatch.setattr(ungated_audio, "load_mono_full", record_decode)
 
     caches = build_track_rms_caches(project)
     host = caches.get("host")

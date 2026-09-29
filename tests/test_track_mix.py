@@ -676,8 +676,8 @@ def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project:
         path.write_bytes(b"RIFF")
     calls: list[dict[str, float]] = []
 
-    def _render(_stems, _intervals, out, **kw):
-        calls.append(dict(kw["gains_db"]))
+    def _render(stems, out, **kw):
+        calls.append({path.stem: gain for path, gain in stems})
         out.write_bytes(b"RIFF")
         return out
 
@@ -691,11 +691,11 @@ def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project:
     with (
         patch.object(
             PlayService,
-            "_processed_audio",
+            "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
         patch("podcast_mcp.services.play.word_intervals", return_value=[]),
-        patch("podcast_mcp.services.play.render_gated_mix", side_effect=_render),
+        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=_render),
     ):
         _play()
         _play()  # an unchanged mix replays from play_cache
@@ -714,12 +714,12 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
         path.write_bytes(b"RIFF")
     calls: list[tuple[str, float]] = []
 
-    def _track(seg, _iv, out, **kw):
-        calls.append((seg.name, kw["gain_db"]))
+    def _track(seg, out, gain_db):
+        calls.append((seg.name, gain_db))
         out.write_bytes(b"RIFF")
         return out
 
-    def _mix(_segs, _iv, out, **_kw):
+    def _mix(_segs, out, **_kw):
         out.write_bytes(b"RIFF")
         return out
 
@@ -733,13 +733,13 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
     with (
         patch.object(
             PlayService,
-            "_processed_audio",
+            "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
         patch("podcast_mcp.services.play.word_intervals", return_value=[]),
         patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host", "guest"]),
-        patch("podcast_mcp.services.play.render_gated_track", side_effect=_track),
-        patch("podcast_mcp.services.play.render_gated_mix", side_effect=_mix),
+        patch("podcast_mcp.services.play.FFmpegEngine.apply_gain", side_effect=_track),
+        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=_mix),
     ):
         _play(source="premix", compare=True)
         assert sorted(calls) == [("guest.wav", -3.0), ("host.wav", -2.0)]

@@ -362,7 +362,7 @@ def test_enroll_track_sets_audio_source_processed(tmp_path, sample_wav) -> None:
     assert prof.audio_source == "processed"
 
 
-def test_bleed_mute_reports_speaker_extension_errors(tmp_path, sample_wav) -> None:
+def test_bleed_mute_does_not_depend_on_speaker_extension(tmp_path, sample_wav) -> None:
     from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
     from podcast_mcp.models import (
         Clip,
@@ -419,14 +419,17 @@ def test_bleed_mute_reports_speaker_extension_errors(tmp_path, sample_wav) -> No
                     home_track_id="host",
                 )
             },
-        ),
+        ) as profiles,
         patch(
             "podcast_mcp.engines.speaker_id.extend_intervals_with_speaker_gaps",
             side_effect=RuntimeError("speaker boom"),
-        ),
+        ) as extension,
     ):
         out = apply_transcript_bleed_mute(proj, dry_run=True)
-    assert out["speaker_errors"] is not None
+    profiles.assert_not_called()
+    extension.assert_not_called()
+    assert out["speaker_errors"] is None
+    assert out["candidates"][0]["attenuation_count"] == 0
 
 
 def test_profile_stem_invalid_when_track_missing_media(tmp_path) -> None:
