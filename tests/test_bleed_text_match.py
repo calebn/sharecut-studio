@@ -78,17 +78,6 @@ def test_audibility_score_ranks_statuses() -> None:
     assert _audibility_score(None) == 1
 
 
-def test_text_match_track_id_scopes_suppression(tmp_path: Path) -> None:
-    project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(bleed_text_match_enabled=True)
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=_equal_rms,
-    ):
-        losers = overlap_text_match_losers(project, policy=pol, track_id="host")
-    assert losers == []
-
-
 def test_pick_text_match_winner_audibility_margin() -> None:
     pair = {
         "track_a": "host",
@@ -238,7 +227,7 @@ def test_text_match_guest_wins_when_louder(tmp_path: Path) -> None:
     ]
 
 
-def test_text_match_min_overlap_and_track_scope(tmp_path: Path) -> None:
+def test_text_match_min_overlap_skips_short_overlap(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
     guest = project.transcript_for_track("guest")
     assert guest is not None
@@ -251,7 +240,7 @@ def test_text_match_min_overlap_and_track_scope(tmp_path: Path) -> None:
         "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
         side_effect=_equal_rms,
     ):
-        losers = overlap_text_match_losers(project, policy=pol, track_id="guest")
+        losers = overlap_text_match_losers(project, policy=pol)
     assert losers == []
 
 
@@ -259,28 +248,6 @@ def test_word_confidence_defaults_when_missing(tmp_path: Path) -> None:
     project = _two_track_project(tmp_path)
     assert _word_confidence(project, "missing", 0) == 1.0
     assert _word_confidence(project, "host", 99) == 1.0
-
-
-def test_text_match_end_sec_skips_out_of_window_loser(tmp_path: Path) -> None:
-    project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(bleed_text_match_enabled=True)
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=_equal_rms,
-    ):
-        losers = overlap_text_match_losers(project, policy=pol, end_sec=0.5)
-    assert losers == []
-
-
-def test_text_match_start_sec_skips_out_of_window_loser(tmp_path: Path) -> None:
-    project = _two_track_project(tmp_path)
-    pol = AnalysisPolicy(bleed_text_match_enabled=True)
-    with patch(
-        "podcast_mcp.engines.audio_audit._rms_for_track_at_timeline",
-        side_effect=_equal_rms,
-    ):
-        losers = overlap_text_match_losers(project, policy=pol, start_sec=1.6)
-    assert losers == []
 
 
 def test_text_match_min_dominance_ignored_when_rms_missing(tmp_path: Path) -> None:

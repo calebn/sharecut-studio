@@ -74,19 +74,18 @@ def overlap_text_match_losers(
     project: EpisodeProject,
     *,
     policy: AnalysisPolicy,
-    track_id: str | None = None,
-    start_sec: float | None = None,
-    end_sec: float | None = None,
     progress: ProgressReporter | None = None,
     audibility: list[dict[str, Any]] | None = None,
     is_suppressed: Callable[[str, int], bool] | None = None,
 ) -> list[dict[str, Any]]:
     """The loser of each identical-text overlap across tracks, as a ``bleed`` verdict.
 
-    Pure: nothing is written; reconcile folds each entry into that word's target.
-    ``audibility`` and ``is_suppressed`` are those of ``overlap_duplicate_report``;
-    ``is_suppressed`` also rules a word out as a loser, so with reconcile's acoustic
-    verdict a stored-suppressed word it is about to unsuppress can still lose here.
+    Pure: nothing is written; reconcile folds each entry into that word's target. Always
+    project-wide: a pass's track or window scope bounds what it writes, never which
+    partners a word is judged against (#805). ``audibility`` and ``is_suppressed`` are
+    those of ``overlap_duplicate_report``; ``is_suppressed`` also rules a word out as a
+    loser, so with reconcile's acoustic verdict a stored-suppressed word it is about to
+    unsuppress can still lose here.
     """
     if not policy.bleed_text_match_enabled:
         return []
@@ -95,8 +94,6 @@ def overlap_text_match_losers(
 
     report = overlap_duplicate_report(
         project,
-        start_sec=start_sec,
-        end_sec=end_sec,
         policy=policy,
         progress=progress,
         audibility=audibility,
@@ -138,9 +135,6 @@ def overlap_text_match_losers(
             loser_track, loser_idx = pair["track_a"], pair["word_index_a"]
             dominant = pair["track_b"]
 
-        if track_id and loser_track != track_id:
-            continue
-
         tr = project.transcript_for_track(loser_track)
         if not tr or loser_idx >= len(tr.words):
             continue
@@ -149,10 +143,6 @@ def overlap_text_match_losers(
             w.suppressed if is_suppressed is None else is_suppressed(loser_track, loser_idx)
         )
         if suppressed or w.audibility_locked or (loser_track, loser_idx) in seen:
-            continue
-        if start_sec is not None and w.start < start_sec:
-            continue
-        if end_sec is not None and w.start >= end_sec:
             continue
 
         seen.add((loser_track, loser_idx))
