@@ -480,6 +480,14 @@
   pointer-events: auto;
 }
 
+/* Audibility lock (#768/#781): a person or agent set `suppressed` directly, not a
+   heuristic pass. Independent of the .suppressed/.ignored text-decoration strikes
+   so a locked-unsuppressed word (no strike) still reads as pinned. */
+.utterance-word.locked {
+  outline: 1px dashed var(--border-strong);
+  outline-offset: 1px;
+}
+
 .utterance-word.low-confidence {
   box-shadow: inset 0 -0.125rem 0 var(--color-warning-underline);
 }

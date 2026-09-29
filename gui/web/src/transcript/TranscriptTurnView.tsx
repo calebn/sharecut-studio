@@ -123,6 +123,7 @@ export function TranscriptTurnView({
               item.unmapped ? "unmapped" : "",
               item.word.suppressed ? "suppressed" : "",
               item.word.ignored ? "ignored" : "",
+              item.word.audibility_locked ? "locked" : "",
               item.lowConfidence ? "low-confidence" : "",
               item.reviewCurrent ? "review-current" : "",
               item.suspectHallucination ? "suspect-hallucination" : "",
