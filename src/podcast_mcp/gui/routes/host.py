@@ -250,7 +250,7 @@ async def host_ws(
                     raw = await websocket.receive()
                     if raw["type"] == "websocket.disconnect":
                         break
-                    if not guard.share_ok_on_frame():
+                    if not await guard.share_ok_on_frame():
                         await guard.close(4403, "authorization revoked")
                         break
                     try:
