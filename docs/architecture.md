@@ -277,6 +277,8 @@ Document ownership uses ctime-inclusive file certificates and can force a worksp
 
 The frontend document authority owns the immutable server view and project generation. Pending command drafts produce the displayed view and cannot become the next delta basis. All server document input uses that authority, including detail hydration and HTTP recovery. See [session-sync.md](session-sync.md#document-plane) for recovery and retry semantics.
 
+Lightweight review comments use `services/review_comments.py` for locked current comment reads and one per-connection ordered replica. The existing review progress socket shares its guarded writer with that replica and holds a cross-process watcher lease. Its comments producer also reads every 30 seconds, without assembling project views, history, or document certificates. Client REST fallback display remains separate from the socket revision basis.
+
 ## Testing
 
 Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.ini_options]` / `[tool.coverage.report]`). See [testing.md](testing.md).

@@ -58,6 +58,11 @@ from podcast_mcp.services.remote_mcp.limits import (
     rate_limit_detail,
     ws_roster_request_allowed,
 )
+from podcast_mcp.services.review_comments import (
+    COMMENTS_SANITY_S,
+    ReviewCommentsReplica,
+    review_comments_locked,
+)
 from podcast_mcp.services.review_media import media_type_for_path
 from podcast_mcp.services.session_sync.authz import authorize_share_token
 from podcast_mcp.services.session_sync.commands import (
@@ -73,6 +78,7 @@ from podcast_mcp.services.session_sync.presence_delta import (
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.share import (
     lookup_share,
+    open_share_workspace,
     require_share_cap,
     resolve_share_audio_redirect,
     sanitize_guest_document_event,
@@ -102,6 +108,7 @@ from podcast_mcp.services.share import (
     share_upload_media,
 )
 from podcast_mcp.services.share_auth.access import access_required
+from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -830,38 +837,80 @@ async def _admit_review_ws(websocket: WebSocket, token: str) -> bool | None:
     return restricted
 
 
+async def _pump_review_comments(
+    ws: ProjectWorkspace,
+    guard: GuestWsGuard,
+    q: asyncio.Queue[dict[str, Any]],
+    replica: ReviewCommentsReplica,
+) -> None:
+    try:
+        while True:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(q.get(), timeout=COMMENTS_SANITY_S)
+            while not q.empty():
+                q.get_nowait()
+            comments = await asyncio.to_thread(review_comments_locked, ws)
+            frame = replica.update(comments)
+            if frame is not None:
+                await guard.send_json(frame)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception("review comments pump failed")
+        await guard.close(1011, "comments stream failed")
+
+
 @router.websocket("/api/review/{token}/progress/ws")
 async def progress_ws(websocket: WebSocket, token: str) -> None:
-    """Progress plane only — valid review token, no ``view`` capability required."""
+    """Review-safe comments and token-owned progress, without a view capability."""
     restricted = await _admit_review_ws(websocket, token)
     if restricted is None:
+        return
+    try:
+        _row, ws = await asyncio.to_thread(open_share_workspace, token)
+    except (KeyError, PermissionError, FileNotFoundError):
+        await guest_ws_reject(websocket, 4403, "share not found")
         return
     conn = await admit_guest_ws(websocket, token, log_label="guest progress ws")
     if conn is None:
         return
-    hub = guest_progress_hub()
-    q: asyncio.Queue[dict[str, Any]] | None = None
+    progress_hub = guest_progress_hub()
+    hub = get_hub()
+    q_progress = None
+    q_comments = None
+    key = document_hub_key(ws.project)
     try:
         guard = await conn.start(
             lambda: _share_progress_still_valid(token, restricted=restricted, websocket=websocket)
         )
-        q = hub.subscribe(token, asyncio.get_running_loop())
-        conn.spawn(_pump_guest_progress(token, guard, q))
-        while True:
-            try:
-                text = await websocket.receive_text()
-            except WebSocketDisconnect:
-                break
-            if len(text) > GUEST_FRAME_MAX_BYTES:
-                await guard.close(4400, "frame too large")
-                break
-            if not guard.share_ok_on_frame():
-                await guard.close(4403, "share revoked or expired")
-                break
+        loop = asyncio.get_running_loop()
+        q_progress = progress_hub.subscribe(token, loop)
+        q_comments = hub.subscribe(key, loop)
+        async with cross_process_lease(ws):
+            replica = ReviewCommentsReplica()
+            comments = await asyncio.to_thread(review_comments_locked, ws)
+            frame = replica.update(comments)
+            assert frame is not None
+            await guard.send_json(frame)
+            conn.spawn(_pump_guest_progress(token, guard, q_progress))
+            conn.spawn(_pump_review_comments(ws, guard, q_comments, replica))
+            while True:
+                try:
+                    text = await websocket.receive_text()
+                except WebSocketDisconnect:
+                    break
+                if len(text) > GUEST_FRAME_MAX_BYTES:
+                    await guard.close(4400, "frame too large")
+                    break
+                if not guard.share_ok_on_frame():
+                    await guard.close(4403, "share revoked or expired")
+                    break
     finally:
         try:
-            if q is not None:
-                hub.unsubscribe(token, q)
+            if q_progress is not None:
+                progress_hub.unsubscribe(token, q_progress)
+            if q_comments is not None:
+                hub.unsubscribe(key, q_comments)
             await conn.stop_tasks()
         finally:
             conn.release()

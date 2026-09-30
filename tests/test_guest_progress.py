@@ -385,6 +385,7 @@ def test_progress_ws_commenter_without_view_receives_own_events(
 
     wrapped = install_guest_tool_progress(impl)
     with client.websocket_connect(f"/api/review/{token}/progress/ws") as guest_ws:
+        assert guest_ws.receive_json()["plane"] == "comments"
         set_guest_progress_context(token=token)
         try:
             wrapped("guest_render_preview", {})
@@ -646,6 +647,8 @@ def test_progress_ws_isolates_two_share_tokens(
 
     with client.websocket_connect(f"/api/review/{tok_a}/progress/ws") as ws_a:
         with client.websocket_connect(f"/api/review/{tok_b}/progress/ws") as ws_b:
+            assert ws_a.receive_json()["plane"] == "comments"
+            assert ws_b.receive_json()["plane"] == "comments"
             set_guest_progress_context(token=tok_a)
             try:
                 install_guest_tool_progress(impl_a)("guest_render_preview", {})
