@@ -229,3 +229,95 @@ def test_close_reason_replaces_json_lone_surrogates():
 
     reason = json.loads('"\\ud800"')
     assert ws_close_details(1013, reason) == (1013, "?")
+
+
+@pytest.mark.asyncio
+async def test_concurrent_close_waits_for_one_delivery():
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    closes = []
+    writes = []
+
+    async def write(value):
+        writes.append(value)
+
+    async def close(code, reason):
+        closes.append((code, reason))
+        entered.set()
+        await release.wait()
+
+    writer = SerializedWsWriter(write, close)
+    first = asyncio.create_task(writer.close(4403, "revoked"))
+    await entered.wait()
+    second = asyncio.create_task(writer.close(1011, "pump failed"))
+    completed = asyncio.create_task(writer.wait_closed())
+    await writer.send("late")
+    await asyncio.sleep(0)
+    assert writer.closed
+    assert not second.done()
+    assert not completed.done()
+    release.set()
+    await asyncio.wait_for(asyncio.gather(first, second, completed), 0.2)
+    assert closes == [(4403, "revoked")]
+    assert writes == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["timeout", "cancel", "error"])
+async def test_close_waiters_finish_when_delivery_does_not(outcome):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def write(value):
+        raise AssertionError("closed connection wrote")
+
+    async def close(code, reason):
+        entered.set()
+        await release.wait()
+        raise RuntimeError("socket gone")
+
+    writer = SerializedWsWriter(write, close, timeout=0.02)
+    closing = asyncio.create_task(writer.close(1011, "failed"))
+    await entered.wait()
+    waiter = asyncio.create_task(writer.wait_closed())
+    if outcome == "cancel":
+        closing.cancel()
+    elif outcome == "error":
+        release.set()
+    result, _ = await asyncio.wait_for(asyncio.gather(closing, waiter, return_exceptions=True), 0.2)
+    if outcome == "cancel":
+        assert isinstance(result, asyncio.CancelledError)
+    elif outcome == "error":
+        assert isinstance(result, RuntimeError)
+    else:
+        assert result is None
+    await asyncio.wait_for(writer.close(1000, "later"), 0.2)
+    assert writer.closed
+
+
+@pytest.mark.asyncio
+async def test_cancelled_close_waiter_does_not_cancel_delivery():
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    delivered = []
+
+    async def write(value):
+        raise AssertionError("closed connection wrote")
+
+    async def close(code, reason):
+        entered.set()
+        await release.wait()
+        delivered.append(code)
+
+    writer = SerializedWsWriter(write, close)
+    closing = asyncio.create_task(writer.close(4403, "revoked"))
+    await entered.wait()
+    waiter = asyncio.create_task(writer.close(1000, "later"))
+    await asyncio.sleep(0)
+    waiter.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await waiter
+    assert not closing.done()
+    release.set()
+    await asyncio.wait_for(closing, 0.2)
+    assert delivered == [4403]
