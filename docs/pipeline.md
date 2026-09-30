@@ -396,3 +396,10 @@ thread-pool overhead and the cache's one-time decode cost roughly cancel out
 further concurrency gains for this step. Parallelism still matters more for
 `assemble_timeline` (real per-track rendering work, not just tiny reads) and for
 episodes with more dialogue tracks.
+
+
+### Conservative bleed planning cost
+
+The first acoustic gate plan decodes selected source evidence. Owner activity uses streamed RMS batches, and interval indexes restrict protection and output envelopes to relevant spans. Up to 16 immutable plans are reused while selected media revisions, transcript metadata, placements, and policy remain unchanged. The cache holds serialized metadata and plans, not decoded PCM. An uncached short audition can still require whole-source evidence; reuse avoids repeating that work for later windows.
+
+Gate-overreach reports separate noise and transcript components when both gates exist on one track. Noise-gate tuning uses the noise component only. A gated Refresh reconciles against current evidence before transcript gating and retains a fresh status only if the rendered audio fingerprint still matches the measured state.

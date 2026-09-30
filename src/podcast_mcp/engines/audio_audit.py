@@ -305,7 +305,7 @@ def build_track_rms_caches(
     timeline = SessionTimeline(project)
     for tid in dialogue_track_ids(project):
         track = project.track_by_id(tid)
-        if before_transcript_gate and track is not None and track.transcript_gate:
+        if before_transcript_gate and track is not None:
             caches[tid] = _pre_transcript_gate_cache(project, tid)
             continue
         proc = _processed_track_path(project, tid)
@@ -756,11 +756,70 @@ def analyze_gate_overreach(
     progress: ProgressReporter | None = None,
     caches: TrackRmsCacheSet | None = None,
 ) -> dict[str, Any]:
-    """Detect likely gate clipping on syllable onsets/offsets."""
+    """Attribute transcript and noise-gate loss to separate audio comparisons."""
     pol = policy or AnalysisPolicy.from_defaults()
     track = project.track_by_id(track_id)
-    if track is not None and track.transcript_gate:
+    if track is None or not track.transcript_gate:
+        return _noise_gate_overreach(
+            project, track_id, policy=pol, progress=progress, caches=caches
+        )
+    noise_project = project.model_copy(deep=True)
+    noise_track = noise_project.track_by_id(track_id)
+    assert noise_track is not None
+    noise_track.transcript_gate = False
+    if not _track_has_gate(noise_project, track_id):
         return _transcript_gate_overreach(project, track_id, pol, progress=progress)
+    try:
+        before = _pre_transcript_gate_cache(project, track_id)
+    except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
+        return {
+            "track_id": track_id,
+            "gate_present": True,
+            "gate_type": "combined",
+            "risk": "unknown",
+            "issue_count": 0,
+            "issues": [],
+            "components": [],
+            "advice": "Evidence before transcript gating is unavailable; neither gate is verified safe.",
+        }
+    transcript = _transcript_gate_overreach(
+        project, track_id, pol, progress=progress, before=before
+    )
+    noise = _noise_gate_overreach(
+        noise_project,
+        track_id,
+        policy=pol,
+        progress=progress,
+        caches=TrackRmsCacheSet(caches={track_id: before}),
+    )
+    noise["gate_type"] = "noise"
+    components = [noise, transcript]
+    issues = [
+        dict(issue, gate_type=part["gate_type"]) for part in components for issue in part["issues"]
+    ]
+    rank = {"none": 0, "unknown": 1, "moderate": 2, "high": 3}
+    return {
+        "track_id": track_id,
+        "gate_present": True,
+        "gate_type": "combined",
+        "risk": max((part["risk"] for part in components), key=lambda risk: rank[risk]),
+        "issue_count": len(issues),
+        "issues": issues[:30],
+        "components": components,
+        "advice": "Review each gate separately; noise-gate tuning only uses the noise component.",
+    }
+
+
+def _noise_gate_overreach(
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    policy: AnalysisPolicy | None = None,
+    progress: ProgressReporter | None = None,
+    caches: TrackRmsCacheSet | None = None,
+) -> dict[str, Any]:
+    """Detect likely gate clipping on syllable onsets/offsets."""
+    pol = policy or AnalysisPolicy.from_defaults()
     if not _track_has_gate(project, track_id):
         return {
             "track_id": track_id,
@@ -900,9 +959,8 @@ def _transcript_gate_overreach(
     policy: AnalysisPolicy,
     *,
     progress: ProgressReporter | None,
+    before: TrackRmsCache | None = None,
 ) -> dict[str, Any]:
-    from podcast_mcp.engines.ungated_audio import raw_timeline_samples
-
     transcript = project.transcript_for_track(track_id)
     processed = _processed_track_path(project, track_id)
     result: dict[str, Any] = {
@@ -918,7 +976,7 @@ def _transcript_gate_overreach(
     if transcript is None or not transcript.words or processed is None:
         return result
     try:
-        raw = TrackRmsCache(samples=raw_timeline_samples(project, track_id))
+        raw = before if before is not None else _pre_transcript_gate_cache(project, track_id)
         final = TrackRmsCache.from_timeline_stem(processed)
     except (OSError, CalledProcessError, NoAudioDecodedError, ValueError):
         return result
@@ -946,7 +1004,7 @@ def _transcript_gate_overreach(
             if raw_body is None or final_body is None or raw_body < -60:
                 continue
             result["analyzed_words"] += 1
-            if final_body < -80 and raw_body - final_body >= policy.gate_onset_drop_db:
+            if final_body <= -80 and raw_body - final_body >= policy.gate_onset_drop_db:
                 issues.append(
                     {
                         "word_index": word_index,

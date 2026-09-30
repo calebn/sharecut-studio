@@ -38,6 +38,11 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.engines.align import xcorr_lag_window
+from podcast_mcp.engines.bleed_delay import (
+    LongDelayConfig,
+    LongDelayEvidence,
+    measure_long_delay_regions,
+)
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import stem_is_fresh
 from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -77,6 +82,8 @@ class EchoConfig:
     # Timeline seconds analysed, centred on the audition window.
     analysis_span_sec: float = 600.0
     max_examples: int = 3
+    measure_long_delays: bool = False
+    long_delay_max_windows: int = 24
 
 
 @dataclass(frozen=True)
@@ -96,6 +103,7 @@ class EchoPairProfile:
     null_runs: int
     null_copy_rate: float | None
     null_consistent_rate: float | None
+    long_delay_regions: tuple[LongDelayEvidence, ...] = ()
 
     @property
     def copy_rate(self) -> float:
@@ -150,6 +158,14 @@ class EchoPairProfile:
             "lag_tolerance_ms": config.lag_tolerance_ms,
             "null_p_max": config.null_p_max,
             "null_margin": config.null_margin,
+        }
+        supported = [row for row in self.long_delay_regions if row.supported]
+        d["long_delay_regions"] = [row.to_dict() for row in supported[: config.max_examples]]
+        d["long_delay_summary"] = {
+            "measured_windows": len(self.long_delay_regions),
+            "supported_windows": len(supported),
+            "lag_ms": float(np.median([row.lag_ms for row in supported])) if supported else None,
+            "owner_absence_proven": False,
         }
         return d
 
@@ -314,6 +330,19 @@ def echo_pair_profile(
         source, bleed, src_db, bld_db, sample_rate=sample_rate, frame=frame, cfg=cfg
     )
     span_end = t0 + n / sample_rate
+    long_regions = (
+        measure_long_delay_regions(
+            source,
+            bleed,
+            sample_rate=sample_rate,
+            t0=t0,
+            source_track_id=source_track_id,
+            bleed_track_id=bleed_track_id,
+            config=LongDelayConfig(max_windows=cfg.long_delay_max_windows),
+        )
+        if cfg.measure_long_delays
+        else ()
+    )
     if not copies:
         return EchoPairProfile(
             source_track_id,
@@ -329,6 +358,7 @@ def echo_pair_profile(
             null_runs,
             null_copy,
             null_consistent,
+            long_regions,
         )
     # The most common lag is the candidate acoustic path.
     consistent = _consistent(copies, cfg)
@@ -350,6 +380,7 @@ def echo_pair_profile(
         null_runs,
         null_copy,
         null_consistent,
+        long_regions,
     )
 
 

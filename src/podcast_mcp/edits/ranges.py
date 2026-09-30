@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from podcast_mcp.util.intervals import merge_intervals as merge_intervals
+from podcast_mcp.util.intervals import subtract_intervals
 
 # Tolerance (seconds) for span edge comparisons: touching spans do not overlap.
 SPAN_EPS_S = 1e-9
@@ -19,20 +20,7 @@ def subtract_ranges_from_intervals(
     removes: list[tuple[float, float]],
 ) -> list[tuple[float, float]]:
     """Return timeline intervals remaining after subtracting remove ranges."""
-    for rs, re in removes:
-        if re <= rs:
-            continue
-        next_segments: list[tuple[float, float]] = []
-        for s, e in segments:
-            if re <= s + SPAN_EPS_S or rs >= e - SPAN_EPS_S:
-                next_segments.append((s, e))
-            else:
-                if s < rs - SPAN_EPS_S:
-                    next_segments.append((s, min(rs, e)))
-                if re < e - SPAN_EPS_S:
-                    next_segments.append((max(re, s), e))
-        segments = next_segments
-    return segments
+    return subtract_intervals(segments, removes, epsilon=SPAN_EPS_S)
 
 
 def overlaps_remove_range(

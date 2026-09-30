@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -336,6 +337,82 @@ def test_render_track_segment_nonzero_source_start(sample_wav: Path, tmp_path: P
     assert out.is_file()
     dur = eng.probe(out).duration_sec
     assert 0.4 < dur < 0.8
+
+
+def test_render_track_segment_uses_each_clip_source_and_keeps_timeline_hole(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+
+    from podcast_mcp.models import SourceRecording
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+
+    ws = tmp_path / "ws_segment_sources"
+    raw = ws / "raw"
+    raw.mkdir(parents=True)
+
+    def write_constant(path: Path, amplitude: float) -> None:
+        samples = np.full(4 * 48_000, amplitude, dtype=np.float32)
+        pcm16 = np.round(samples * 32767).astype("<i2")
+        with wave.open(str(path), "wb") as audio_file:
+            audio_file.setnchannels(1)
+            audio_file.setsampwidth(2)
+            audio_file.setframerate(48_000)
+            audio_file.writeframes(pcm16.tobytes())
+
+    write_constant(raw / "primary.wav", 0.05)
+    write_constant(raw / "source-a.wav", 0.25)
+    write_constant(raw / "source-b.wav", 0.5)
+    project = EpisodeProject.create("segment_sources", str(ws))
+    project.sources.extend(
+        [
+            SourceRecording(id="a", path="raw/source-a.wav", speaker="Host"),
+            SourceRecording(id="b", path="raw/source-b.wav", speaker="Host"),
+        ]
+    )
+    track = Track(
+        id="host",
+        label="Host",
+        role=TrackRole.DIALOGUE,
+        media=MediaAsset(path="raw/primary.wav", duration_sec=4.0),
+        transcript_gate=True,
+    )
+    project.timeline.tracks.append(track)
+    project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=1.0,
+            source_id="a",
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=2.25,
+            source_id="b",
+        ),
+    ]
+
+    out = ws / "artifacts" / "segment_sources.wav"
+    with patch("podcast_mcp.engines.transcript_gated_play.apply_track_transcript_gate") as gate:
+        render_track_segment(project, "host", 1.0, 3.0, out, {}, engine=eng)
+    assert gate.call_args.kwargs["timeline_start"] == 1.0
+    assert gate.call_args.kwargs["timeline_end"] == 3.0
+    with wave.open(str(out), "rb") as rendered:
+        audio = np.frombuffer(rendered.readframes(rendered.getnframes()), dtype="<i2")
+        sample_rate = rendered.getframerate()
+    assert sample_rate == 48_000
+    assert len(audio) == 2 * sample_rate
+    assert float(np.abs(audio[:12_000]).mean()) / 32768 == pytest.approx(0.25, abs=0.01)
+    assert float(np.abs(audio[36_000:48_000]).mean()) / 32768 == pytest.approx(0.0, abs=0.002)
+    assert float(np.abs(audio[60_000:72_000]).mean()) / 32768 == pytest.approx(0.5, abs=0.01)
 
 
 def _many_gapless_clips_project(

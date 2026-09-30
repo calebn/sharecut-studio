@@ -294,3 +294,29 @@ def test_echo_risk_pairs_flags_only_the_measured_direction() -> None:
     assert flagged[0].span_start == 0.0
     assert flagged[0].span_end == pytest.approx(20.0, abs=0.01)
     assert echo_risk_pairs({"host": host, "remote": remote}, sample_rate=RATE) == []
+
+
+def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_path, monkeypatch):
+    from podcast_mcp.edits.audition_context import build_audition_context
+
+    host = _speech_like(20.0, seed=23)
+    guest = (
+        _delayed_copy(host, delay_samples=1200, gain_db=-14) + _speech_like(20.0, seed=27) * 0.03
+    )
+    project = _stem_project(tmp_path, {"host": host, "guest": guest})
+    monkeypatch.setattr(bleed_echo, "stem_is_fresh", lambda _p, _tid: True)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.audio_quality.audio_diagnostics_report",
+        lambda *_a, **_k: {"astats": {}, "hum": {}},
+    )
+    bleed_echo._cached_profiles.cache_clear()
+    context = build_audition_context(project, 1, 5, include_prosody=False)
+    hypothesis = next(
+        h
+        for h in context["hypotheses"]
+        if h["code"] == "retained_bleed_misalignment" and h["tracks"] == ["host", "guest"]
+    )
+    assert hypothesis["evidence"]["long_delay_summary"]["owner_absence_proven"] is False
+    assert hypothesis["evidence"]["long_delay_summary"]["lag_ms"] == pytest.approx(150, abs=1)
+    assert hypothesis["next"]["fix"]["skill"] == "podcast-mute-bleed"
+    assert "align_retained_bleed_tool" in hypothesis["next"]["tools"]

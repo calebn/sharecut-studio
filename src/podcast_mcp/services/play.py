@@ -799,12 +799,21 @@ class PlayService:
         intervals = word_intervals(self.project, track_id, start, end)
         fp = transcript_gate_fingerprint(self.project, [track_id], start, end)
         out = self._cache_path(
-            f"follow_{track_id}_{fp}", start, end, segment, extra=f"gain={gain_db}"
+            f"follow_{track_id}_{fp}",
+            start,
+            end,
+            segment,
+            extra=(
+                f"mix{MIX_SEMANTICS_REV}:tp{mix_peak_ceiling_db(self._defaults):g}:gain={gain_db}"
+            ),
         )
         if not out.is_file():
+            ceiling = mix_peak_ceiling_db(self._defaults)
             render_atomic(
                 out,
-                lambda tmp: FFmpegEngine().apply_gain(segment, tmp, gain_db),
+                lambda tmp: FFmpegEngine().mix_tracks(
+                    [(segment, gain_db)], tmp, peak_ceiling_db=ceiling
+                ),
             )
         self._mark_play_cache_used(out)
         cmd = None if dry_run else self._player_command(player, out)
@@ -854,12 +863,16 @@ class PlayService:
         }
         fp = transcript_gate_fingerprint(self.project, track_ids, start, end)
         label = f"follow_mix_{fp}"
+        ceiling = mix_peak_ceiling_db(self._defaults)
         out = self._cache_path(
             label,
             start,
             end,
             segments[0][1],
-            extra=_mix_cache_extra([(seg, gains_db[tid]) for tid, seg in segments]),
+            extra=(
+                f"mix{MIX_SEMANTICS_REV}:tp{ceiling:g}:"
+                f"{_mix_cache_extra([(seg, gains_db[tid]) for tid, seg in segments])}"
+            ),
         )
         if not out.is_file():
             render_atomic(
@@ -867,7 +880,7 @@ class PlayService:
                 lambda tmp: FFmpegEngine().mix_tracks(
                     [(segment, gains_db[tid]) for tid, segment in segments],
                     tmp,
-                    peak_ceiling_db=mix_peak_ceiling_db(self._defaults),
+                    peak_ceiling_db=ceiling,
                 ),
             )
         self._mark_play_cache_used(out)

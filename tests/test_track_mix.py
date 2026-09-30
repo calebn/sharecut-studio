@@ -712,14 +712,10 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
     audio = {"host": (cache / "host.wav", "stem"), "guest": (cache / "guest.wav", "segment_render")}
     for path, _tier in audio.values():
         path.write_bytes(b"RIFF")
-    calls: list[tuple[str, float]] = []
+    calls: list[tuple[tuple[tuple[str, float], ...], float | None]] = []
 
-    def _track(seg, out, gain_db):
-        calls.append((seg.name, gain_db))
-        out.write_bytes(b"RIFF")
-        return out
-
-    def _mix(_segs, out, **_kw):
+    def _mix(segs, out, *, peak_ceiling_db=None):
+        calls.append((tuple((path.name, gain) for path, gain in segs), peak_ceiling_db))
         out.write_bytes(b"RIFF")
         return out
 
@@ -738,15 +734,15 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
         ),
         patch("podcast_mcp.services.play.word_intervals", return_value=[]),
         patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host", "guest"]),
-        patch("podcast_mcp.services.play.FFmpegEngine.apply_gain", side_effect=_track),
         patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=_mix),
     ):
         _play(source="premix", compare=True)
-        assert sorted(calls) == [("guest.wav", -3.0), ("host.wav", -2.0)]
+        single_track_calls = [call[0][0] for call in calls if len(call[0]) == 1]
+        assert sorted(single_track_calls) == [("guest.wav", -3.0), ("host.wav", -2.0)]
         calls.clear()
         ws.project.track_by_id("guest").fader_db = -6.0
         _play(source="processed:guest")
-        assert calls == [("guest.wav", -6.0)]
+        assert calls == [((("guest.wav", -6.0),), -1.0)]
 
 
 def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> None:

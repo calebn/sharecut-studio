@@ -91,3 +91,26 @@ def intersect_intervals(
         else:
             j += 1
     return out
+
+
+def subtract_intervals(
+    segments: list[tuple[float, float]],
+    removes: Iterable[tuple[float, float]],
+    *,
+    epsilon: float = 0.0,
+) -> list[tuple[float, float]]:
+    """Keep the interval difference, with the caller's boundary tolerance."""
+    for remove_start, remove_end in removes:
+        if remove_end <= remove_start:
+            continue
+        remaining = []
+        for start, end in segments:
+            if remove_end <= start + epsilon or remove_start >= end - epsilon:
+                remaining.append((start, end))
+            else:
+                if start < remove_start - epsilon:
+                    remaining.append((start, min(remove_start, end)))
+                if remove_end < end - epsilon:
+                    remaining.append((max(remove_end, start), end))
+        segments = remaining
+    return segments

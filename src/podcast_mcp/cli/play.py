@@ -50,7 +50,10 @@ def play_cmd(
     follow_transcript: bool = typer.Option(
         False,
         "--follow-transcript",
-        help="Unmute each track only when that speaker has attributed (non-suppressed) words",
+        help=(
+            "Conservatively attenuate measured directed bleed; retain uncertain and "
+            "untranscribed audio, and trim measured peaks above the configured ceiling"
+        ),
     ),
 ) -> None:
     if ctx.invoked_subcommand is not None:

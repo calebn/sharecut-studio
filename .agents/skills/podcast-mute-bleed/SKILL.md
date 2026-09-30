@@ -2,7 +2,7 @@
 name: podcast-mute-bleed
 description: >-
   After transcript reconcile, reduce independently verified foreign-only audio
-  while preserving owner and uncertain speech. Use when transcript bleed is fixed but wrong-mic
+  while preserving overlapping owner speech and uncertain audio, with local retained-bleed alignment. Use when transcript bleed is fixed but wrong-mic
   audio is still audible in stems or premix — not for changing suppression flags
   (podcast-transcript-reconcile).
 ---
@@ -28,6 +28,8 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Applyin
 | Tool | Use |
 |------|-----|
 | `apply_transcript_gate_tool` | Dry-run shows per-track interval counts; apply sets `transcript_gate` + rewrites stems (windowed when start/end given) |
+| `align_retained_bleed_tool` | Preview or apply supported local corrections for retained bleed; select the bleed lane and timeline window |
+| `set_retained_bleed_alignment_mode_tool` | Persist manual/declined timing decisions, including preview proposals; auto resets a decision |
 | `overlap_duplicates_tool` | Confirm transcript bleed is already zero before muting audio |
 | `play_audio_tool` | Audition gated vs raw in the bleed window |
 | `play_compose_tool` | Hear the two-mic relationship at once (no music / extra mics) |
@@ -40,15 +42,18 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Applyin
 2. Ensure stems are fresh **and not longer than the session timeline** (`render_dialogue_stems` or `assemble_timeline`). Bleed mute skips stems that fail `stem_is_fresh` (hash or overlong duration).
 3. `apply_transcript_gate_tool` with `dry_run=true` — review `attenuation_count` and `gate_reasons` per track; check `skipped` for stale stems. `interval_count` is a compatibility count of retained transcript spans, not a measure of justified acoustic removal.
    If apply fails with "another render of this project is in progress", an export or Refresh holds the render lock: retry when it finishes.
-4. Apply on one track or both; audition with `play_compose_tool` (both mics at once) or `play --compare` in the bleed window.
-5. Re-run mix/premix after gating (never pad gates to a longer source-length file).
+4. Inspect the default `alignment` preview. Preserve both speakers during overlap. Only supported complete direct phrases move; uncertain mixed audio stays intact. Unsupported regions remain in `skipped`. Do not describe them as aligned. Save a different user choice with `set_retained_bleed_alignment_mode_tool`, using the proposal's decision ID and the same window. Saved manual/declined choices survive reopening and take priority; `auto` releases the saved timing hold for future planning; it does not undo an applied move. An explicit scoped `override_placement_lock` permits correction past a legacy recorder lock but does not override a saved choice.
+5. Apply on one track or both; audition with `play_compose_tool` (both mics at once) or `play --compare` in the bleed window.
+6. Re-run mix/premix after gating (never pad gates to a longer source-length file).
 
 ## Design
 
 - The acoustic gate defaults to unity gain. Retained owner words protect connected raw activity; missing transcript words and unresolved audio remain audible. Suppression alone never authorizes acoustic removal. Automatic candidates must be suppressed `bleed` words with another dominant track, independently supported by matching ungated raw audio and an absolute PCM16 residual guard.
-- Coarse evidence uses 8 kHz raw media; bounded 48 kHz window reads protect activity outside that evidence band. Automatic verification currently supports mono PCM16 WAV sources at up to 48 kHz. Unavailable or unsupported evidence causes abstention, reported in `gate_reasons`.
+- Coarse evidence uses 8 kHz raw media; bounded 48 kHz window reads verify the proposed copy residual across the wider band; they do not independently detect owner activity. Automatic verification currently supports mono PCM16 WAV sources at up to 48 kHz. Unavailable or unsupported evidence causes abstention, reported in `gate_reasons`.
 - Apply sets `track.transcript_gate = true` and persists `transcript_gate_scope` in project history. Optional `start_sec`/`end_sec` selections map through `SessionTimeline` into source ranges and identities, follow selected media after edits, and survive reopening. Repeated applies rebuild from ungated media; they do not multiply an existing fade.
 - The same absolute attenuation envelope drives full and segment renders. Fades lie inside verified foreign regions, so a segment boundary does not introduce a new fade. Source proxies abstain when the lane selects other media than its primary raw source.
+- Crossfade layouts abstain from gate reconstruction and alignment when raw placements and rendered clocks can diverge. Inspect their explicit skip reason.
+- Local correction requires independent, consistent delay probes and quiet phrase boundaries. It never shifts a whole track to resolve one section or stretches voiced audio. Sampled residual agreement does not prove samplewise perfect alignment or a unique room path.
 - Room coloration and network delays may prevent every candidate from passing verification. A successful apply or enabled flag does not prove useful bleed reduction. Check `attenuation_count`, compare actual audio before/after, and report an unchanged result honestly.
 - Do **not** run before reconcile — without suppression metadata, there are no justified automatic candidates.
 

@@ -59,6 +59,14 @@ def test_parse_time_sec_invalid() -> None:
         parse_time_sec("not-a-time")
 
 
+def test_follow_transcript_cli_help_describes_conservative_audio_behavior() -> None:
+    result = runner.invoke(app, ["play", "--help"], env={"COLUMNS": "160"})
+    help_text = " ".join(result.output.split())
+    assert result.exit_code == 0
+    assert "retain uncertain and untranscribed audio" in help_text
+    assert "only when that speaker has attributed" not in help_text
+
+
 def test_play_cache_eviction_keeps_recent_and_skips_other_files(
     minimal_project, tmp_workspace, monkeypatch
 ) -> None:

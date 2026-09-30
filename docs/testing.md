@@ -1224,3 +1224,43 @@ default floor. Branch 1 (lower the default) and branch 2 (turn the signal
 off) do not apply; the shipped default stays **`min_word_score: 0.01`** in
 `.agents/defaults/pipeline.yaml`, `AsrOptions.forced_alignment_min_word_score`
 and the `transcribe.forced_alignment.min_word_score` `ParamField`.
+
+
+### Retained mixed bleed and local phrase alignment
+
+`test_bleed_delay_evidence.py` covers signed 150–350 ms recorded copies with
+extended reference context, EQ/noise/gain variations, shifted-null and periodic
+controls, independent co-speech, changing local delays, and numerical stability
+near silent references. Long-delay profile evidence is opt-in and bounded; the
+existing short-delay echo rates and threshold contract are unchanged.
+
+`test_retained_bleed_alignment.py` renders literal PCM to check complete direct
+phrase preservation, byte-identical mixed speech, unchanged audio outside the
+requested region, quiet slack in every channel (including anti-phase activity
+and short bursts), crossfade-clock abstention for each participant, independent
+held-out delay stability, supported copy endpoints (interior-only evidence
+abstains), agreement across all known retained peers, original outer fade preservation, stale-plan rejection,
+repeat/reopen convergence, history restoration of timing choices, source-scoped
+quiet-overlap provenance, no stacked-media QC issues, and saved mix mutes. It
+includes comparable broadband and narrowband overlapping-owner cases. A louder-owner case
+currently abstains because evidence is weak; amplitude alone does not establish
+that delay is unidentifiable.
+
+The local planner uses NCC >= 0.25 plus >= 0.2 shifted-null margin, >= 0.05
+competing-peak margin, at least three disjoint supported windows, and <= 2 ms
+held-out residual. Supported probes must also cover both inferred copy phrase
+endpoints. This bounds measured lag consistency; it does not establish samplewise
+perfect alignment between probes. General long-delay profiling retains NCC >= 0.5.
+Independent held-out calibration (20 seeds per condition) accepted 100/100 clean, EQ, room,
+noise, and equal-RMS overlapping-owner cases, 1/20 owner-at-+10-dB cases, and
+0/60 drift, periodic, and unrelated controls. Multipath can select the dominant
+audible copy rather than first arrival. These synthetic controls are finite
+validation, not a guarantee for every room or speaker. The investigated private
+episode still had zero complete phrases meeting all automatic guards; isolated
+copy evidence must not be reported as a successful correction.
+
+Full-band seam reads are restricted to complete phrase candidates (maximum
+30 seconds plus boundary context); plans examine at most 64 candidate phrases
+and at most 10 independent delay windows per relevant lane pair/phrase. The
+coarse evidence runs at 8 kHz and source-decode temporaries are released after
+lane mapping. Default echo profiling does not invoke long-delay measurement.

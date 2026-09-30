@@ -23,6 +23,7 @@ from podcast_mcp.engines.play_audit import (
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.transcript_gated_play import gate_stem_window, word_intervals
+from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
 from podcast_mcp.util.project_state import render_lock_held
@@ -122,6 +123,10 @@ def apply_transcript_bleed_mute(
                 track = project.track_by_id(tid)
                 if not track or track.role != TrackRole.DIALOGUE:
                     continue
+                layout_reason = raw_evidence_layout_reason(project, tid)
+                if layout_reason is not None:
+                    skipped.append({"track_id": tid, "reason": layout_reason})
+                    continue
                 stem = _stem_path(project, tid)
                 if stem is None:
                     skipped.append({"track_id": tid, "reason": "missing_stem"})
@@ -149,7 +154,21 @@ def apply_transcript_bleed_mute(
                 if win_end <= win_start:
                     continue
 
-                plan = build_bleed_gate_plan(project, tid, ignore_scope=True)
+                was_gated = track.transcript_gate
+                previous_scope = track.transcript_gate_scope
+                scope = gate_scope_for_window(project, tid, win_start, min(win_end, dur))
+                full_scope = start_sec is None and end_sec is None
+                effective_scope = (
+                    None
+                    if full_scope or (was_gated and previous_scope is None)
+                    else merge_gate_scopes((previous_scope or []) + scope)
+                )
+                proposed = project.model_copy(deep=True)
+                proposed_track = proposed.track_by_id(tid)
+                assert proposed_track is not None
+                proposed_track.transcript_gate = True
+                proposed_track.transcript_gate_scope = effective_scope
+                plan = build_bleed_gate_plan(proposed, tid)
                 intervals = word_intervals(project, tid, win_start, win_end)
                 tr = project.transcript_for_track(tid)
                 word_count = len(tr.words) if tr else 0
@@ -169,15 +188,7 @@ def apply_transcript_bleed_mute(
                 candidates.append(entry)
 
                 if not dry_run:
-                    was_gated = track.transcript_gate
-                    previous_scope = track.transcript_gate_scope
-                    scope = gate_scope_for_window(project, tid, win_start, min(win_end, dur))
-                    full_scope = start_sec is None and end_sec is None
-                    track.transcript_gate_scope = (
-                        None
-                        if full_scope or (was_gated and previous_scope is None)
-                        else merge_gate_scopes((previous_scope or []) + scope)
-                    )
+                    track.transcript_gate_scope = effective_scope
                     track.transcript_gate = True
                     try:
                         with tempfile.TemporaryDirectory(dir=stem.parent) as temporary:
@@ -189,7 +200,7 @@ def apply_transcript_bleed_mute(
                             render_track_from_timeline(
                                 ungated_project, ungated_track, ungated, load_defaults()
                             )
-                            scoped_plan = build_bleed_gate_plan(project, tid)
+                            scoped_plan = plan
                             publish_stem(
                                 project,
                                 tid,

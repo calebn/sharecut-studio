@@ -467,3 +467,16 @@ review-window twin).
   (see `ROADMAP.md`; distinct from shipped joinqc NISQA).
 - Kitchen-sink audition payload, extra MOS, hypothetical FX A/B without mutate,
   share-host context parity, and stacked mix PNGs in `audition_context` visuals.
+
+
+## Retained bleed during overlapping speech
+
+If a dialogue mic contains both its owner and another speaker, removing that bleed can remove the owner too. The default is to preserve uncertain audio and attempt local alignment of the other speaker's complete direct phrase. `apply_transcript_gate_tool` and `podcast edit apply-bleed-mute` include this check. Alignment does not move the uncertain mixed lane, ripple other material, or stretch voiced audio.
+
+Preview with `align_retained_bleed_tool(apply=False)` or `podcast edit align-retained-bleed --dry-run`. Supply a timeline window and select the lane carrying the bleed. Proposals require quiet boundary space, independent delay evidence, consistent held-out probes, and agreement from other known retained copies. The evidence reports sampled residuals; it does not certify every sample or exclude competing room reflections. Unsupported or inconsistent regions remain unchanged and appear in `skipped`. An applied gate flag or successful command does not mean those regions are aligned.
+
+Users can save `manual` or `declined` timing decisions with `set_retained_bleed_alignment_mode_tool` or `podcast edit bleed-alignment-choice`. For a preview proposal, pass its decision ID and the same track/window. Choices survive reopening and take priority over automatic correction across retained peers. Set the mode to `auto` to release a saved timing hold for future planning; this does not undo an applied move. A legacy recorder placement lock requires an explicit scoped `override_placement_lock`; this does not override saved manual or declined choices. `align_retained_bleed=False` disables the alignment check for one gate call.
+
+Crossfade layouts currently skip automatic acoustic gating and local alignment because their rendered sample clock can differ from raw clip placements. Gate apply also skips their ungated reconstruction, so a nondefault crossfade recipe cannot change audio outside a selected window. These skips require review, not a clean safety verdict.
+
+Audition context reports `retained_bleed_misalignment` when supported local long-delay evidence exists. It names `podcast-mute-bleed` and the alignment tools. A delay measurement does not prove that owner speech is absent or authorize muting it.

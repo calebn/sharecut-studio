@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal, cast
 
 import typer
 
@@ -838,6 +839,10 @@ def edit_apply_bleed_mute_cmd(
     speaker: str | None = typer.Option(None, "--speaker"),
     start: float | None = typer.Option(None, "--start"),
     end: float | None = typer.Option(None, "--end"),
+    align_retained_bleed: bool = typer.Option(
+        True, "--align-retained-bleed/--no-align-retained-bleed"
+    ),
+    override_placement_lock: bool = typer.Option(False, "--override-placement-lock"),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -853,6 +858,8 @@ def edit_apply_bleed_mute_cmd(
                 start_sec=start,
                 end_sec=end,
                 apply=not dry_run,
+                align_retained_bleed=align_retained_bleed,
+                override_placement_lock=override_placement_lock,
                 progress=get_progress(),
             ),
             indent=2,
@@ -877,3 +884,49 @@ def edit_overlap_duplicates_cmd(
             indent=2,
         )
     )
+
+
+@edit_app.command("align-retained-bleed")
+def edit_align_retained_bleed_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str | None = typer.Option(None, "--track"),
+    start: float | None = typer.Option(None, "--start"),
+    end: float | None = typer.Option(None, "--end"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    override_placement_lock: bool = typer.Option(False, "--override-placement-lock"),
+) -> None:
+    """Align supported complete phrases only where uncertain bleed remains."""
+    ws = ProjectWorkspace.open(project)
+    result = EditService(ws).align_retained_bleed(
+        track_id=track,
+        start_sec=start,
+        end_sec=end,
+        apply=not dry_run,
+        override_placement_lock=override_placement_lock,
+    )
+    typer.echo(json.dumps(result, indent=2))
+
+
+@edit_app.command("bleed-alignment-choice")
+def edit_bleed_alignment_choice_cmd(
+    project: Path = typer.Option(..., "--project"),
+    decision: str = typer.Option(..., "--decision"),
+    mode: str = typer.Option(..., "--mode", help="auto, manual, or declined"),
+    track: str | None = typer.Option(None, "--track"),
+    start: float | None = typer.Option(None, "--start"),
+    end: float | None = typer.Option(None, "--end"),
+    override_placement_lock: bool = typer.Option(False, "--override-placement-lock"),
+) -> None:
+    """Save or reset a source-scoped timing choice, including a preview proposal."""
+    if mode not in ("auto", "manual", "declined"):
+        raise typer.BadParameter("mode must be auto, manual, or declined", param_hint="--mode")
+    ws = ProjectWorkspace.open(project)
+    result = EditService(ws).set_bleed_alignment_mode(
+        decision,
+        cast(Literal["auto", "manual", "declined"], mode),
+        track_id=track,
+        start_sec=start,
+        end_sec=end,
+        override_placement_lock=override_placement_lock,
+    )
+    typer.echo(json.dumps(result, indent=2))

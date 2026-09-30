@@ -79,6 +79,21 @@ A word's `audibility_locked: true` (#768) records that a person or agent set `su
 
 ## Timebase invariant
 
+`editorial.retained_bleed_alignments` stores local direct-phrase timing decisions.
+Each `RetainedBleedAlignmentDecision` names the direct and retained-bleed track,
+selected `source_id`, and source-clock phrase bounds `start_s` / `end_s`. It records
+`mode` (`auto`, `manual`, or `declined`), signed `offset_sec`, the isolated clip's
+previous/current timeline start, provenance (`automatic` or
+`requested_scoped_override`), and evidence revision. Declining a preview records
+zero applied offset and leaves clip geometry unchanged. Manual/declined choices
+protect that direct source phrase across peers until explicitly reset to auto.
+Applied corrections alter ordinary clip placement, not source samples or word
+times; there is no voiced time warp. Full editorial snapshots include the choices.
+Applied move records add
+`params.quiet_trim`: reason `verified_quiet_destination_overlap` and selected
+source ranges for the geometry-only quiet overlap trim; transcript metadata is
+preserved and any reduction of retained-word source coverage blocks planning.
+
 **All stored times (`TranscriptWord`, `EditDecision` remove/mute, `CombinedUtterance`) are source-media seconds; blade `EditDecision` with `type: split` and `timebase: timeline` stores the cut as timeline seconds (`start == end`); `timeline.clips` is the only bridge; anything that touches rendered audio (stems, premix, mastered, export) must map through `SessionTimeline`.**
 
 Two clocks exist:

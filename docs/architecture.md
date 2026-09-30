@@ -2,15 +2,39 @@
 
 ## Layers
 
+Retained mixed bleed has a separate, conservative local alignment path.
+`engines/bleed_delay.py` measures signed copy delays with extended reference
+context and shifted null controls; it never claims that the lane owner is absent.
+`edits/retained_bleed_alignment.py` plans immutable complete direct-source phrase
+moves, validates quiet seams in every source channel, and applies existing split
+and move operations on a working copy. Services own workspace history and render
+publication. The mixed lane is unchanged. Declared crossfade joins abstain with
+`unsupported_crossfade_evidence_clock`, because their rendered clock can differ
+from raw clip placement. Supported windows must cover the inferred copy phrase
+endpoints as well as independent interior probes. All known retained-copy peers in
+the region must corroborate one offset; uncertain or conflicting evidence abstains.
+Source-scoped user choices live in `editorial.retained_bleed_alignments`.
+Destination overlap is removed only from verified quiet source material using
+existing clip geometry, with source ranges and reason in the move edit log.
+Any reduction of retained-word source coverage abstains. Saved mix-muted lanes
+are excluded from automatic alignment; muted secondary copies cannot veto it.
+
 Transcript bleed gating plans bounded foreign attenuation in
 `engines/bleed_gate.py` from ungated selected media, mapped by
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
 verified attenuation spans, and abstention reasons. The PCM gate in
+The old whitelist helpers `render_gated_track`, `render_gated_mix`, and
+`gate_rendered_wav` remain deprecated direct-import compatibility utilities.
+Project playback and rendering use conservative plans instead.
+
 `engines/transcript_gated_play.py` uses absolute transition positions so segment
 requests add no word-edge fades. `edits/transcript_bleed_mute.py` persists the
 track's source selection and publishes a fresh source render through the existing
 render lock and history mutation path. ASR coverage is not an exhaustive audio
-whitelist. Owner phrases and unresolved activity retain full gain.
+whitelist. A process-local LRU retains at most 16 immutable gate plans keyed by
+serialized relevant metadata, selected media revisions, and policy; it retains
+neither live projects nor PCM. Initial evidence still decodes selected sources.
+Owner phrases and unresolved activity retain full gain.
 
 ```text
 Adapters     CLI (Typer)    MCP (MCPServer)  GUI (FastAPI viewer)

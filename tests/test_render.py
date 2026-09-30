@@ -29,7 +29,7 @@ def test_rerender_preview_ok(tmp_path):
     assert info["ok"] is True
     assert info["path"] == str(premix)
     auto_rec.assert_called_once()
-    assert info["reconciliation"] == {"status_updates": 0}
+    assert info["reconciliation"] == {"status_updates": 0, "stale": False}
 
 
 def test_rerender_preview_nested_reconcile_does_not_blow_total(tmp_path):
@@ -120,4 +120,4 @@ def test_rerender_preview_missing_premix_keeps_reconciliation(tmp_path):
         info = rerender_preview(proj, reconcile=True)
 
     assert info["ok"] is False
-    assert info["reconciliation"] == {"status_updates": 2}
+    assert info["reconciliation"] == {"status_updates": 2, "stale": False}

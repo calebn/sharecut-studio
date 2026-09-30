@@ -1,5 +1,3 @@
-"""Long recorded-path delay evidence; these measurements never authorize a speech edit."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -59,7 +57,7 @@ def test_network_scale_copies_have_signed_local_evidence(delay_ms: float) -> Non
 def test_existing_profile_surfaces_long_delay_without_changing_short_scale_rates() -> None:
     source = _voice(12)
     target = _copy(source, 150.0, 0.15)
-    cfg = EchoConfig()
+    cfg = EchoConfig(measure_long_delays=True)
     profile = echo_pair_profile(
         source,
         target,
@@ -72,7 +70,8 @@ def test_existing_profile_surfaces_long_delay_without_changing_short_scale_rates
     assert profile.copy_frames == 0
     assert profile.echo_risk(cfg) is False
     evidence = profile.to_dict(cfg)["long_delay_regions"]
-    assert len([row for row in evidence if row["supported"]]) >= 10
+    assert profile.to_dict(cfg)["long_delay_summary"]["supported_windows"] >= 10
+    assert len(evidence) <= cfg.max_examples
     assert np.median([row["lag_ms"] for row in evidence if row["supported"]]) == pytest.approx(
         150.0, abs=0.5
     )
@@ -132,3 +131,31 @@ def test_short_or_silent_input_has_no_supported_delay() -> None:
     assert not any(row.supported for row in _measure(short, short))
     silent = np.zeros(24 * RATE, dtype=np.float32)
     assert not any(row.supported for row in _measure(silent, silent))
+
+
+def test_nearly_silent_reference_nulls_cannot_amplify_roundoff_into_copy_evidence() -> None:
+    source = _voice(25)
+    target = _copy(source, 150.0, 0.15)
+    source[7 * RATE : 10 * RATE] *= 1e-7
+    rows = _measure(source, target)
+    assert all(0 <= row.peak_ncc <= 1 for row in rows)
+    assert all(0 <= row.null_ncc <= 1 for row in rows)
+    assert len([row for row in rows if row.supported]) >= 10
+
+
+def test_default_short_delay_profile_never_eagerly_measures_long_delays(monkeypatch) -> None:
+    def unexpected(*args, **kwargs):
+        raise AssertionError("long-delay analysis must be opt-in")
+
+    monkeypatch.setattr(bleed_echo, "measure_long_delay_regions", unexpected)
+    source = _voice(26)
+    profile = echo_pair_profile(
+        source,
+        _copy(source, 8.0, 0.15),
+        sample_rate=RATE,
+        t0=0,
+        source_track_id="direct",
+        bleed_track_id="retained",
+    )
+    assert profile.echo_risk(EchoConfig())
+    assert profile.long_delay_regions == ()

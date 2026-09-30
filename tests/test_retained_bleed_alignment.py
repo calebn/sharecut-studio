@@ -1,5 +1,3 @@
-"""Complete direct phrases may move locally; uncertain mixed audio stays untouched."""
-
 from __future__ import annotations
 
 import wave
@@ -34,7 +32,7 @@ def _read(path: Path) -> np.ndarray:
         return np.frombuffer(source.readframes(source.getnframes()), dtype="<i2")
 
 
-def _episode(tmp_path: Path) -> EpisodeProject:
+def _episode(tmp_path: Path, owner_amplitude: float = 0.003) -> EpisodeProject:
     p = EpisodeProject.create("retained copy", str(tmp_path))
     p.ensure_dirs()
     rng = np.random.default_rng(19)
@@ -44,7 +42,7 @@ def _episode(tmp_path: Path) -> EpisodeProject:
     mixed = np.zeros_like(direct)
     mixed[: -int(0.15 * RATE)] = direct[int(0.15 * RATE) :] * 0.2
     lo, hi = int(1.05 * RATE), int(3.05 * RATE)
-    mixed[lo:hi] += 0.003 * np.sin(2 * np.pi * 183 * np.arange(hi - lo) / RATE)
+    mixed[lo:hi] += owner_amplitude * np.sin(2 * np.pi * 183 * np.arange(hi - lo) / RATE)
     for tid, samples in (("direct", direct), ("uncertain", mixed)):
         _write(tmp_path / "raw" / f"{tid}.wav", samples)
         p.tracks.append(
@@ -181,3 +179,324 @@ def test_stale_plan_cannot_overwrite_a_user_clip_move(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="stale"):
         api.apply_retained_bleed_alignment(p, plan)
     assert p.model_dump(by_alias=True) == before
+
+
+def test_preview_can_be_declined_before_apply_and_survives_reopen(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    before_clips = [c.model_dump() for c in p.clips]
+    proposal = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5).proposals[0]
+    api.set_retained_bleed_alignment_mode(p, proposal.decision_id, "declined", proposal=proposal)
+    assert [c.model_dump() for c in p.clips] == before_clips
+    reopened = EpisodeProject.model_validate(p.model_dump(by_alias=True))
+    plan = api.plan_retained_bleed_alignment(reopened, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "saved_declined_decision"} in plan.skipped
+
+
+def test_legacy_manual_placement_requires_scoped_override_with_provenance(tmp_path: Path) -> None:
+    from podcast_mcp.models import SpeakerIngestAlignment
+
+    p = _episode(tmp_path)
+    p.meta.ingest_alignment = {"direct": SpeakerIngestAlignment(align_method="manual")}
+    api = _api()
+    held = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert held.proposals == ()
+    assert {"track_id": "direct", "reason": "manual_recorder_placement"} in held.skipped
+    plan = api.plan_retained_bleed_alignment(
+        p, start_sec=0.8, end_sec=3.5, override_placement_lock=True
+    )
+    assert len(plan.proposals) == 1
+    api.apply_retained_bleed_alignment(p, plan)
+    assert p.editorial.retained_bleed_alignments[0].provenance == "requested_scoped_override"
+
+
+def test_stereo_antiphase_owner_cannot_be_mistaken_for_quiet_slack(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    path = tmp_path / "raw" / "direct.wav"
+    mono = _read(path)
+    stereo = np.column_stack([mono, mono])
+    before = int(1.2 * RATE)
+    owner = np.round(np.random.default_rng(43).normal(0, 0.08, before) * 32767).astype("<i2")
+    stereo[:before, 0] = owner
+    stereo[:before, 1] = -owner
+    with wave.open(str(path), "wb") as out:
+        out.setparams((2, 2, RATE, 0, "NONE", "not compressed"))
+        out.writeframes(stereo.astype("<i2").tobytes())
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "unsafe_phrase_boundaries"} in plan.skipped
+
+
+@pytest.mark.parametrize("other_delay", [0.15, 0.21])
+def test_all_retained_copy_peers_must_agree_before_direct_phrase_moves(
+    tmp_path: Path, other_delay: float
+) -> None:
+    p = _episode(tmp_path)
+    direct = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    copy = np.zeros_like(direct)
+    count = int(other_delay * RATE)
+    copy[:-count] = direct[count:] * 0.2
+    _write(tmp_path / "raw" / "another.wav", copy)
+    p.tracks.append(
+        Track(
+            id="another",
+            label="another",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/another.wav", duration_sec=6),
+        )
+    )
+    p.clips.append(
+        Clip(id="clip-another", track_id="another", source_start=0, source_end=6, timeline_start=0)
+    )
+    p.transcripts.append(
+        Transcript(
+            track_id="another",
+            words=[
+                TranscriptWord(
+                    text="whole phrase",
+                    start=1.15,
+                    end=2.95,
+                    suppressed=True,
+                    audibility_status="bleed",
+                    dominant_track="direct",
+                )
+            ],
+        )
+    )
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5, track_id="uncertain")
+    if other_delay == 0.15:
+        assert len(plan.proposals) == 1
+    else:
+        assert plan.proposals == ()
+        assert {"track_id": "direct", "reason": "conflicting_retained_bleed_delays"} in plan.skipped
+
+
+@pytest.mark.parametrize("owner_amplitude", [0.025, 0.08])
+def test_comparable_or_louder_overlapping_owner_stays_intact(
+    tmp_path: Path, owner_amplitude: float
+) -> None:
+    p = _episode(tmp_path, owner_amplitude)
+    api = _api()
+    original_clips = [c.model_dump() for c in p.clips if c.track_id == "uncertain"]
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    if owner_amplitude == 0.025:
+        assert len(plan.proposals) == 1
+    else:
+        assert plan.proposals == ()
+    api.apply_retained_bleed_alignment(p, plan)
+    assert [c.model_dump() for c in p.clips if c.track_id == "uncertain"] == original_clips
+    out = tmp_path / "uncertain-after.wav"
+    render_track_from_timeline(p, p.track_by_id("uncertain"), out, {})
+    np.testing.assert_array_equal(_read(out), _read(tmp_path / "raw" / "uncertain.wav"))
+
+
+def test_existing_outer_clip_fades_are_not_copied_onto_moved_phrase(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    p.clips[0].fade_in_ms = p.clips[0].fade_out_ms = 500
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    api.apply_retained_bleed_alignment(p, plan)
+    output = tmp_path / "faded-outer.wav"
+    render_track_from_timeline(p, p.track_by_id("direct"), output, {})
+    np.testing.assert_allclose(
+        _read(output)[int(1.05 * RATE) : int(3.05 * RATE)],
+        _read(tmp_path / "raw" / "direct.wav")[int(1.2 * RATE) : int(3.2 * RATE)],
+        atol=1,
+    )
+
+
+def test_comparable_broadband_overlapping_owner_can_align_without_touching_mixture(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path, owner_amplitude=0)
+    path = tmp_path / "raw" / "uncertain.wav"
+    mixed = _read(path).astype(float) / 32767
+    lo, hi = int(1.05 * RATE), int(3.05 * RATE)
+    owner = np.random.default_rng(17049).normal(0, 0.016, hi - lo)
+    mixed[lo:hi] += owner
+    _write(path, mixed)
+    original = _read(path).copy()
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].offset_sec == pytest.approx(-0.15, abs=0.002)
+    api.apply_retained_bleed_alignment(p, plan)
+    out = tmp_path / "broad-owner-after.wav"
+    render_track_from_timeline(p, p.track_by_id("uncertain"), out, {})
+    np.testing.assert_array_equal(_read(out), original)
+
+
+def test_declining_direct_phrase_also_prevents_retiming_against_another_peer(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    proposal = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5).proposals[0]
+    api.set_retained_bleed_alignment_mode(p, proposal.decision_id, "declined", proposal=proposal)
+    p.tracks.append(p.tracks[1].model_copy(update={"id": "another"}))
+    p.clips.append(p.clips[1].model_copy(update={"id": "clip-another", "track_id": "another"}))
+    p.transcripts.append(p.transcripts[1].model_copy(update={"track_id": "another"}))
+    reopened = EpisodeProject.model_validate(p.model_dump(by_alias=True))
+    plan = api.plan_retained_bleed_alignment(
+        reopened, start_sec=0.8, end_sec=3.5, track_id="another"
+    )
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "saved_declined_decision"} in plan.skipped
+
+
+def test_alignment_geometry_and_choice_restore_together_from_history_snapshot(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.models.project_format import apply_editable_snapshot, snapshot_editable_state
+
+    p = _episode(tmp_path)
+    api = _api()
+    before = snapshot_editable_state(p)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    api.apply_retained_bleed_alignment(p, plan)
+    api.set_retained_bleed_alignment_mode(p, plan.proposals[0].decision_id, "manual")
+    after = snapshot_editable_state(p)
+    apply_editable_snapshot(p, before)
+    assert snapshot_editable_state(p) == before
+    apply_editable_snapshot(p, after)
+    assert snapshot_editable_state(p) == after
+    assert p.editorial.retained_bleed_alignments[0].mode == "manual"
+
+
+def test_short_fullband_burst_in_shift_slack_is_not_averaged_into_silence(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    path = tmp_path / "raw" / "direct.wav"
+    samples = _read(path).astype(float) / 32767
+    samples[int(1.12 * RATE)] = 0.003
+    _write(path, samples)
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "unsafe_phrase_boundaries"} in plan.skipped
+
+
+def test_foreign_copy_fully_covered_by_safe_gate_does_not_retime_direct_phrase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    p = _episode(tmp_path, owner_amplitude=0)
+    direct = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    _write(tmp_path / "raw" / "uncertain.wav", direct * 0.2)
+    word = p.transcripts[1].words[0]
+    word.start, word.end = 1.2, 3.2
+    api = _api()
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("hard-eliminable copy should never trigger local retiming")
+
+    monkeypatch.setattr(api, "_local_delay", unexpected)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+
+
+@pytest.mark.parametrize("participant", ["direct", "uncertain", "another"])
+def test_crossfade_clock_in_any_retained_participant_prevents_phrase_retiming(
+    tmp_path: Path, participant: str
+) -> None:
+    from podcast_mcp.models import ClipJoinMode
+
+    p = _episode(tmp_path)
+    if participant == "another":
+        p.tracks.append(p.tracks[1].model_copy(update={"id": "another"}))
+        p.clips.append(p.clips[1].model_copy(update={"id": "clip-another", "track_id": "another"}))
+        p.transcripts.append(p.transcripts[1].model_copy(update={"track_id": "another"}))
+    clip = next(c for c in p.clips if c.track_id == participant)
+    clip.join_in_mode, clip.fade_in_ms = ClipJoinMode.CROSSFADE, 10
+    before = p.model_dump(by_alias=True)
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5, track_id="uncertain")
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "unsupported_crossfade_evidence_clock"} in plan.skipped
+    api.apply_retained_bleed_alignment(p, plan)
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_only_interior_copy_probes_do_not_authorize_whole_phrase_move(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    p = _episode(tmp_path)
+    api = _api()
+    original = api.measure_long_delay_regions
+
+    def interior_only(*args, **kwargs):
+        rows = original(*args, **kwargs)
+        assert len(rows) == 5
+        assert sum(row.supported for row in rows[1:-1]) == 3
+        return tuple(
+            replace(row, reason="weak_copy") if index in (0, len(rows) - 1) else row
+            for index, row in enumerate(rows)
+        )
+
+    monkeypatch.setattr(api, "measure_long_delay_regions", interior_only)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "insufficient_endpoint_evidence"} in plan.skipped
+
+
+def test_local_phrase_move_does_not_create_stacked_same_media_qc_issue(tmp_path: Path) -> None:
+    from podcast_mcp.engines.session_timeline import same_source_timeline_overlaps
+
+    p = _episode(tmp_path)
+    api = _api()
+    api.apply_retained_bleed_alignment(
+        p, api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    )
+    assert same_source_timeline_overlaps(p) == []
+
+
+@pytest.mark.parametrize("muted_track", ["direct", "uncertain"])
+def test_saved_mix_mute_prevents_automatic_phrase_retiming(
+    tmp_path: Path, muted_track: str
+) -> None:
+    p = _episode(tmp_path)
+    p.track_by_id(muted_track).muted = True
+    before = p.model_dump(by_alias=True)
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": muted_track, "reason": "saved_mix_mute"} in plan.skipped
+    api.apply_retained_bleed_alignment(p, plan)
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_muted_conflicting_copy_peer_does_not_block_audible_pair_alignment(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    p.tracks.append(p.tracks[1].model_copy(update={"id": "another", "muted": True}))
+    p.clips.append(
+        p.clips[1].model_copy(
+            update={"id": "clip-another", "track_id": "another", "timeline_start": 0.06}
+        )
+    )
+    p.transcripts.append(p.transcripts[1].model_copy(update={"track_id": "another"}))
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5, track_id="uncertain")
+    assert len(plan.proposals) == 1
+
+
+def test_quiet_destination_trim_cannot_remove_retained_word_source_coverage(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    p.transcripts[0].words.insert(0, TranscriptWord(text="quiet label", start=1.07, end=1.1))
+    before = p.model_dump(by_alias=True)
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "quiet_trim_would_remove_retained_word"} in plan.skipped
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_verified_quiet_overlap_trim_has_source_scoped_provenance(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    api.apply_retained_bleed_alignment(
+        p, api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    )
+    trim = p.editorial.edit_log[-1].params["quiet_trim"]
+    assert trim["reason"] == "verified_quiet_destination_overlap"
+    assert trim["source_ranges"] == [
+        {"source_id": None, "start_s": pytest.approx(1.03), "end_s": pytest.approx(1.18)}
+    ]
