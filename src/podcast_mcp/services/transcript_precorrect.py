@@ -11,6 +11,7 @@ from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.transcript_context import (
+    DEFAULT_PROMPT_PRIMER,
     VOCABULARY_MAX_ENTRIES,
     VOCABULARY_MAX_ENTRY_CHARS,
     TranscriptContext,
@@ -105,6 +106,9 @@ class TranscriptPrecorrectService:
         return {
             "terms": ctx.terms,
             "guest_names": ctx.guest_names,
+            "show_title": ctx.show_title,
+            "prompt_limit": ctx.initial_prompt_limit() if ctx.initial_prompt_enabled() else None,
+            "prompt_primer": DEFAULT_PROMPT_PRIMER,
             "revision": ctx.vocabulary_revision,
             # No transcripts means nothing to re-transcribe; otherwise any row
             # produced with another revision (or before revisions) is stale.

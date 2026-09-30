@@ -25,6 +25,9 @@ function vocabulary(
   overrides: Partial<TranscriptVocabulary> = {},
 ): TranscriptVocabulary {
   return {
+    show_title: null,
+    prompt_limit: 400,
+    prompt_primer: "Podcast episode transcript.",
     terms: [],
     guest_names: [],
     revision: "r1",
@@ -126,6 +129,125 @@ describe("TranscriptVocabularyEditor", () => {
         needs_retranscription: true,
       }),
     );
+  });
+
+  it.each([
+    [
+      {
+        show_title: " Alpha ",
+        terms: ["Alpha", "Beta", "  "],
+        guest_names: ["Beta", "Bea"],
+      },
+      44,
+      400,
+    ],
+    [{ terms: ["😀"] }, 29, 400],
+    [{ terms: ["Alpha"], prompt_limit: 10 }, 5, 10],
+    [{ prompt_limit: 0 }, 0, 0],
+  ] satisfies [Partial<TranscriptVocabulary>, number, number][])(
+    "counts the server prompt for %j",
+    async (value, used, limit) => {
+      loadTranscriptVocabulary.mockResolvedValue(vocabulary(value));
+      renderEditor();
+      expect(
+        await screen.findByText(
+          `Whisper prompt: ${used} of ${limit} characters.`,
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("disables overflow saves and recovers at the exact limit", async () => {
+    const user = userEvent.setup();
+    loadTranscriptVocabulary.mockResolvedValue(
+      vocabulary({ prompt_limit: 33 }),
+    );
+    const { container } = renderEditor();
+    await user.type(await termsInput(), "Alpha{Enter}");
+    const save = screen.getByRole("button", { name: "Save vocabulary" });
+    expect(save).toBeEnabled();
+    expect(
+      screen.getByText("Whisper prompt: 33 of 33 characters."),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Guest names"), "Bea{Enter}");
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleDescription(
+      /38 of 33 characters.*Remove terms or guest names/,
+    );
+    await user.click(save);
+    expect(saveTranscriptVocabulary).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+    await user.click(screen.getByRole("button", { name: "Remove Bea" }));
+    expect(save).toBeEnabled();
+  });
+
+  it("allows saves when prompting is disabled", async () => {
+    const user = userEvent.setup();
+    loadTranscriptVocabulary.mockResolvedValue(
+      vocabulary({ prompt_limit: null }),
+    );
+    renderEditor();
+    await user.type(await termsInput(), "Alpha{Enter}");
+    expect(screen.getByText(/Whisper prompt is disabled/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save vocabulary" }),
+    ).toBeEnabled();
+  });
+
+  it("uses refreshed prompt metadata while preserving a dirty draft", async () => {
+    const user = userEvent.setup();
+    const { props, rerender } = renderEditor();
+    await user.type(await termsInput(), "Alpha{Enter}");
+    loadTranscriptVocabulary.mockResolvedValue(
+      vocabulary({ show_title: "Show", prompt_limit: 35 }),
+    );
+    rerender(
+      <TranscriptVocabularyEditor {...props} refreshKey="new-context" />,
+    );
+    await screen.findByText(/Whisper prompt: 39 of 35 characters/);
+    expect(savedTerms().getByText("Alpha")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save vocabulary" }),
+    ).toBeDisabled();
+  });
+
+  it("clears a failed refresh after a successful refresh", async () => {
+    const { props, rerender } = renderEditor();
+    await termsInput();
+    loadTranscriptVocabulary.mockRejectedValueOnce(
+      new Error("Refresh unavailable"),
+    );
+    rerender(<TranscriptVocabularyEditor {...props} refreshKey="failed" />);
+    await screen.findByText("Refresh unavailable");
+    rerender(<TranscriptVocabularyEditor {...props} refreshKey="recovered" />);
+    await waitFor(() =>
+      expect(screen.queryByText("Refresh unavailable")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("clears a 503 save error after reload and keeps the draft", async () => {
+    const user = userEvent.setup();
+    let resolveReload!: (value: TranscriptVocabulary) => void;
+    loadTranscriptVocabulary
+      .mockResolvedValueOnce(vocabulary())
+      .mockImplementationOnce(
+        () =>
+          new Promise<TranscriptVocabulary>((resolve) => {
+            resolveReload = resolve;
+          }),
+      );
+    saveTranscriptVocabulary.mockRejectedValueOnce(
+      new ApiError("Project busy", null, 503),
+    );
+    renderEditor();
+    await user.type(await termsInput(), "Alpha{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save vocabulary" }));
+    await screen.findByText("Project busy");
+    await act(async () => {
+      resolveReload(vocabulary());
+    });
+    expect(screen.queryByText("Project busy")).not.toBeInTheDocument();
+    expect(savedTerms().getByText("Alpha")).toBeInTheDocument();
   });
 
   it("keeps unsaved vocabulary when a refresh lands", async () => {

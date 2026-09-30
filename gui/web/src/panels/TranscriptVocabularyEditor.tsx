@@ -9,6 +9,10 @@ import { ApiError, errorMessage } from "../utils/apiError";
 import { confirmReplaceEdited } from "./confirmReplaceEdited";
 
 type VocabularyField = "terms" | "guest_names";
+type VocabularyError = {
+  source: "load" | "save-keep" | "save-transient";
+  message: string;
+};
 
 /** Mirrors VOCABULARY_MAX_ENTRIES in transcript_context.py. */
 export const VOCABULARY_MAX_ENTRIES = 100;
@@ -77,7 +81,7 @@ export function TranscriptVocabularyEditor({
     guest_names: "",
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<VocabularyError | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
   // refreshKey (terminal pipeline job) and reloadTick (retry or post-failure
@@ -101,13 +105,15 @@ export function TranscriptVocabularyEditor({
         );
         savedRef.current = value;
         setSaved(value);
-        if (previous === null) setError(null);
+        setError((current) =>
+          current?.source === "save-keep" ? current : null,
+        );
       })
       .catch((reason) => {
         if (!active || seq !== requestSeq.current) return;
         // A failed reload must not leave a pending 409 replace armed for a later load.
         replaceDraftOnLoad.current = false;
-        setError(errorMessage(reason));
+        setError({ source: "load", message: errorMessage(reason) });
       });
     return () => {
       active = false;
@@ -149,8 +155,26 @@ export function TranscriptVocabularyEditor({
   const changed =
     saved != null && draft != null && vocabularyChanged(saved, draft);
 
+  const vocabularyText = draft
+    ? [
+        ...new Set(
+          [saved?.show_title ?? "", ...draft.terms, ...draft.guest_names]
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
+      ].join(", ")
+    : "";
+  const promptLimit = saved?.prompt_limit ?? null;
+  const primer = saved?.prompt_primer ?? "";
+  const promptText =
+    promptLimit !== null && Array.from(primer).length <= promptLimit
+      ? primer + (vocabularyText ? ` ${vocabularyText}` : "")
+      : vocabularyText;
+  const promptChars = Array.from(promptText).length;
+  const promptOverflow = promptLimit !== null && promptChars > promptLimit;
+
   const save = async () => {
-    if (!draft || !saved) return;
+    if (!draft || !saved || promptOverflow) return;
     ++requestSeq.current;
     setSaving(true);
     setError(null);
@@ -171,9 +195,15 @@ export function TranscriptVocabularyEditor({
         replaceDraftOnLoad.current = true;
         // The reload drops unsaved entries, so stop announcing them as pending.
         setAnnouncement("");
-        setError(VOCABULARY_CONFLICT_MESSAGE);
+        setError({ source: "save-keep", message: VOCABULARY_CONFLICT_MESSAGE });
       } else {
-        setError(errorMessage(reason));
+        setError({
+          source:
+            reason instanceof ApiError && reason.status === 400
+              ? "save-keep"
+              : "save-transient",
+          message: errorMessage(reason),
+        });
       }
       // Re-issue the refresh this save superseded so saved state is not stale.
       reload();
@@ -254,7 +284,24 @@ export function TranscriptVocabularyEditor({
           </Field>
         );
       })}
-      <Button disabled={!changed || saving} onClick={() => void save()}>
+      {saved && (
+        <p
+          id="vocabulary-prompt-budget"
+          className="pipeline-hint"
+          aria-live="polite"
+        >
+          {promptLimit === null
+            ? "Whisper prompt is disabled. Vocabulary still helps transcript refinement."
+            : `Whisper prompt: ${promptChars} of ${promptLimit} characters.`}
+          {promptOverflow &&
+            " Remove terms or guest names before saving vocabulary."}
+        </p>
+      )}
+      <Button
+        disabled={!changed || saving || promptOverflow}
+        aria-describedby="vocabulary-prompt-budget"
+        onClick={() => void save()}
+      >
         {saving ? "Saving…" : "Save vocabulary"}
       </Button>
       {busy && changed && (
@@ -273,7 +320,7 @@ export function TranscriptVocabularyEditor({
           </Button>
         </p>
       )}
-      {error && <InlineError message={error} />}
+      {error && <InlineError message={error.message} />}
       {error && !saved && <Button onClick={reload}>Retry</Button>}
     </section>
   );
