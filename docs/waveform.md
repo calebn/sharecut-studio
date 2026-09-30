@@ -137,8 +137,9 @@ hits EOF.
   (`(v−128)/128`), and 24-bit samples are unpacked by hand.
   The header's data size must fit the file; a WAV that declares 0, `0xFFFFFFFF`
   or more bytes than it holds (streamed or truncated) goes to the ffmpeg path
-  instead. An empty `data` chunk followed only by whole RIFF chunks (`LIST`, `id3 `)
-  is still read on the fast path.
+  instead. An empty `data` chunk followed only by known RIFF metadata chunks
+  (`LIST`, `id3 `, `ID3 `, `JUNK`, `bext`, `iXML`, `cue `, `smpl`, `PAD `) is still
+  read on the fast path. Unknown printable chunk IDs take the ffmpeg path.
 - **ffmpeg fallback:** anything `wave` rejects (float or `WAVE_FORMAT_EXTENSIBLE`
   WAVs on Python 3.11, compressed media) streams through
   `FFmpegEngine.stream_pcm_f32`. That method probes with
@@ -156,6 +157,17 @@ hits EOF.
   2 KB of ffmpeg's stderr and says whether the watchdog fired. Because the command
   passes `-ac <ch>`, ffmpeg remaps inputs with more than two channels whose
   layout is not its default for that count; mono and stereo are unchanged.
+  A complete whole-file decode counts emitted frames. If ffprobe gives a
+  reliable audio-stream duration, a successful ffmpeg exit that ends more than
+  0.25 s short fails the build before the pyramid is published. The allowance
+  covers observed MP3 encoder padding at 8 kHz (0.152 s). The format
+  duration remains `AudioProbe.duration_sec` for existing callers; the audio
+  stream's duration is carried separately for this check. An ffprobe bitrate
+  estimate, multiple audio streams, or a missing audio-stream duration makes
+  the comparison uncertain, so those decodes are accepted on successful
+  ffmpeg exit. Container duration alone is not evidence of decoded audio
+  length: it can include video or an audio start offset. Window and mono decode
+  do not use this whole-file check.
 
 `read_pcm_minmax(path, start_frame, frames)` returns int16 `(n, 2)` per-frame
 min/max across channels, for host deep zoom. `n` is clipped at the end of the
@@ -172,9 +184,11 @@ only the ffmpeg path).
 ### Keys, files and jobs
 
 - **Key:** `media_key(rel_posix, size, mtime_ns)` is
-  `sha256("{format_version}|{rel}|{size}|{mtime_ns}")[:20]`, where `rel` is
-  the workspace-relative POSIX path. When the media changes, the key changes,
-  so a pyramid is never stale. Device and inode (`file_revision`) are left out
+  `sha256("{format_version}|{build_revision}|{rel}|{size}|{mtime_ns}")[:20]`, where `rel` is
+  the workspace-relative POSIX path. A change to any keyed attribute gives a
+  new key. Build revision 2 invalidates earlier pyramids
+  that could contain a short decode while keeping `.wfpk` format version 1.
+  Device and inode (`file_revision`) are left out
   on purpose, so the key survives a copied or restored workspace.
 - **File:** `pyramid_path(peaks_dir, slug, key)` is
   `artifacts/peaks/{slug}.{key}.wfpk`, resolved with `resolve_within`.
@@ -186,9 +200,17 @@ only the ffmpeg path).
   linking fails. An existing target that fails `read_meta` is never deleted: a
   valid candidate is copied over it, or the caller's rebuild replaces it, both
   through an atomic `os.replace`, so a valid file that another build publishes
-  meanwhile is never removed. A corrupt candidate is skipped.
-- **Prune:** after a build, `prune_ref_pyramids` keeps the live key plus the
+  meanwhile is never removed. A corrupt candidate is skipped. Reuse,
+  publication, pruning, and GC share the directory lock
+  `artifacts/peaks/.waveform.lock` across threads and processes; PCM decoding
+  runs outside it. A build rechecks reuse before publishing after its decode.
+- **Prune:** when a fresh ref lookup confirms the completing key is current,
+  `prune_ref_pyramids` keeps that key plus the
   newest other key for the slug, and deletes `.tmp` files older than one day.
+  Production callers supply a fresh current-media-key callback. An older job
+  that finishes after the media changes skips pruning; a direct build without
+  current-key authority also skips it. File mtime does not decide which key is
+  current, including when a result was hard-linked from another ref.
 - **Jobs:** `schedule_pyramid_build(ref, key, audio, out)` queues a build on a
   two-worker pool (`waveform` threads). It dedupes pending `(slug, key)` jobs,
   and it refuses a key whose build failed in this process while that key's
@@ -196,7 +218,9 @@ only the ffmpeg path).
   (ffmpeg missing until bootstrap, a full disk, a watchdog kill). The window
   starts at `FAILED_RETRY_SEC` (300 s) and doubles with each consecutive
   failure of the key, up to `FAILED_RETRY_MAX_SEC` (1 h), so media that never
-  decodes stops costing a decode every few minutes. A key's first failure is
+  decodes stops costing a decode every few minutes. If the previous retry
+  deadline passed by more than its window, the next failure starts again at
+  300 s. A key's first failure is
   logged at WARNING and repeats at DEBUG; a successful build forgets the key. Failed-key memory is an LRU of 4,096 keys; changed media
   gets a new key and is retried at once. A job
   leaves the pending set only after `os.replace`, so a key that is not pending
@@ -333,8 +357,8 @@ Guest routes (`gui/routes/review_share.py`, services
   Like the host status, it queues missing pyramids. It is the only builder for
   media that predates the eager hooks, and the viewer polls it. The build pool
   dedupes by `(slug, key)` with two workers, so a guest can cause at most one
-  build per missing ref. A failed key reports `decode-failed` and is not retried
-  in that process. GC runs once per process per project and deletes only
+  build per missing ref. A failed key reports `decode-failed` until its retry
+  window ends. GC runs once per process per project and deletes only
   week-old orphans.
 - `GET /api/review/{token}/daw/waveform/tiles/{key}?ref=&level=&start=&count=`:
   only `track:` / `source:` refs, and only the ref's live key (404 otherwise).

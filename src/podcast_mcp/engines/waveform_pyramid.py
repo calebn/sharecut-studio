@@ -43,6 +43,7 @@ import numpy as np
 
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.ffmpeg import PCM_STREAM_CHUNK_FRAMES, FFmpegEngine
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
@@ -61,6 +62,8 @@ LEVEL_ENTRY_BYTES = 16
 BIN_BYTES = 6
 INT16_FULL_SCALE = 32767
 TMP_MAX_AGE_SEC = 86_400.0
+PYRAMID_LOCK_TIMEOUT_SEC = 30.0
+_BUILD_REVISION = 2
 # read_pcm_minmax windows are capped at this many contract PCM blocks.
 PCM_WINDOW_MAX_BLOCKS = 4
 
@@ -438,8 +441,17 @@ class _WavInfo:
     frames: int
 
 
-# Trailing RIFF chunks (``LIST``, ``id3 ``...) after an empty ``data`` chunk.
-_RIFF_CHUNK_ID = re.compile(rb"[\x20-\x7e]{4}")
+_RIFF_METADATA_IDS = {
+    b"LIST",
+    b"id3 ",
+    b"ID3 ",
+    b"JUNK",
+    b"bext",
+    b"iXML",
+    b"cue ",
+    b"smpl",
+    b"PAD ",
+}
 _MAX_TRAILING_CHUNKS = 16
 
 
@@ -456,7 +468,7 @@ def _only_riff_chunks(path: Path, offset: int, size: int) -> bool:
                 break
             fh.seek(pos)
             head = fh.read(8)
-            if _RIFF_CHUNK_ID.fullmatch(head[:4]) is None:
+            if head[:4] not in _RIFF_METADATA_IDS:
                 return False
             chunk_size = int.from_bytes(head[4:8], "little")
             pos += 8 + chunk_size + (chunk_size & 1)
@@ -638,9 +650,10 @@ def media_key(rel_posix: str, size: int, mtime_ns: int) -> str:
     Deliberately not ``util.project_state.file_revision``: that includes device
     and inode, which change when a workspace is copied or restored, while this
     key is persisted in ``.wfpk`` file names and must survive both. The format
-    version is hashed in, so a format bump never reuses old files.
+    version and build revision are hashed in. A decode-policy change can
+    invalidate old results without changing the reader's file format.
     """
-    raw = f"{waveform_format_version()}|{rel_posix}|{size}|{mtime_ns}"
+    raw = f"{waveform_format_version()}|{_BUILD_REVISION}|{rel_posix}|{size}|{mtime_ns}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
 
@@ -793,7 +806,24 @@ def write_synthetic_pyramid(
     )
 
 
-def build_pyramid(ref: str, key: str, audio: Path, out: Path) -> Path:
+def _prune_if_current(
+    peaks_dir: Path, slug: str, key: str, current_key: Callable[[], str | None] | None
+) -> None:
+    if current_key is None:
+        return
+    with contextlib.suppress(OSError, ValueError):
+        if current_key() == key:
+            prune_ref_pyramids(peaks_dir, slug, key)
+
+
+def build_pyramid(
+    ref: str,
+    key: str,
+    audio: Path,
+    out: Path,
+    *,
+    current_key: Callable[[], str | None] | None = None,
+) -> Path:
     """Synchronously build (or reuse) the pyramid for *audio* at *out*, then prune.
 
     *out* must be ``pyramid_path(peaks_dir, slug, key)``. Reports progress as
@@ -801,19 +831,26 @@ def build_pyramid(ref: str, key: str, audio: Path, out: Path) -> Path:
     """
     slug = _slug_from_out(out, key)
     peaks_dir = out.parent
+    lock_path = peaks_dir / ".waveform.lock"
     with progress_task("waveform.build", f"Waveform {ref}", total=1) as prog:
-        if not reuse_existing_pyramid(peaks_dir, key, out):
+        with hold_shared_file_lock(lock_path, timeout=PYRAMID_LOCK_TIMEOUT_SEC):
+            reused = reuse_existing_pyramid(peaks_dir, key, out)
+            if reused:
+                _prune_if_current(peaks_dir, slug, key, current_key)
+        if not reused:
             sample_rate, channels, chunks = decode_media(audio)
             with contextlib.closing(chunks):
                 total, levels = build_levels(chunks, sample_rate=sample_rate, channels=channels)
-            write_pyramid(
-                out,
-                sample_rate=sample_rate,
-                channels=channels,
-                total_frames=total,
-                levels=levels,
-            )
-        prune_ref_pyramids(peaks_dir, slug, key)
+            with hold_shared_file_lock(lock_path, timeout=PYRAMID_LOCK_TIMEOUT_SEC):
+                if not reuse_existing_pyramid(peaks_dir, key, out):
+                    write_pyramid(
+                        out,
+                        sample_rate=sample_rate,
+                        channels=channels,
+                        total_frames=total,
+                        levels=levels,
+                    )
+                _prune_if_current(peaks_dir, slug, key, current_key)
         prog.advance(1)
     with _JOBS_LOCK:
         _FAILED.pop(key, None)
@@ -889,9 +926,16 @@ def _remember_failed(key: str) -> tuple[int, float]:
     ``FAILED_RETRY_MAX_SEC``.
     """
     with _JOBS_LOCK:
-        failures = _FAILED.get(key, (0.0, 0))[1] + 1
+        previous = _FAILED.get(key)
+        now = time.monotonic()
+        prior_window = (
+            min(FAILED_RETRY_SEC * 2 ** min(previous[1] - 1, 16), FAILED_RETRY_MAX_SEC)
+            if previous is not None
+            else 0.0
+        )
+        failures = 1 if previous is None or now - previous[0] > prior_window else previous[1] + 1
         window = min(FAILED_RETRY_SEC * 2 ** min(failures - 1, 16), FAILED_RETRY_MAX_SEC)
-        _FAILED[key] = (time.monotonic() + window, failures)
+        _FAILED[key] = (now + window, failures)
         _FAILED.move_to_end(key)
         while len(_FAILED) > _FAILED_MAX:
             _FAILED.popitem(last=False)
@@ -899,11 +943,7 @@ def _remember_failed(key: str) -> tuple[int, float]:
 
 
 def _failed_locked(key: str) -> bool:
-    """True while *key* is inside its retry window. Hold ``_JOBS_LOCK``.
-
-    An expired entry is kept, so its failure count sets the next (longer)
-    window, until a build of *key* succeeds or the LRU evicts it.
-    """
+    """True while *key* is inside its retry window. Hold ``_JOBS_LOCK``."""
     entry = _FAILED.get(key)
     return entry is not None and time.monotonic() < entry[0]
 
@@ -920,9 +960,16 @@ def pyramid_build_failed(key: str) -> bool:
         return _failed_locked(key)
 
 
-def _run_pyramid_job(ref: str, slug: str, key: str, audio: Path, out: Path) -> None:
+def _run_pyramid_job(
+    ref: str,
+    slug: str,
+    key: str,
+    audio: Path,
+    out: Path,
+    current_key: Callable[[], str | None] | None,
+) -> None:
     try:
-        build_pyramid(ref, key, audio, out)
+        build_pyramid(ref, key, audio, out, current_key=current_key)
     except Exception as exc:
         failures, window = _remember_failed(key)
         # Only a key's first failure is a WARNING; repeats back off quietly.
@@ -940,7 +987,14 @@ def _run_pyramid_job(ref: str, slug: str, key: str, audio: Path, out: Path) -> N
             _PENDING.discard((slug, key))
 
 
-def schedule_pyramid_build(ref: str, key: str, audio: Path, out: Path) -> bool:
+def schedule_pyramid_build(
+    ref: str,
+    key: str,
+    audio: Path,
+    out: Path,
+    *,
+    current_key: Callable[[], str | None] | None = None,
+) -> bool:
     """Queue a background build of *audio* into *out* (2 workers).
 
     Returns ``True`` when a build is pending or was just queued, and ``False``
@@ -956,7 +1010,7 @@ def schedule_pyramid_build(ref: str, key: str, audio: Path, out: Path) -> bool:
             return False
         _PENDING.add(job)
     try:
-        fut = _pyramid_pool().submit(_run_pyramid_job, ref, slug, key, audio, out)
+        fut = _pyramid_pool().submit(_run_pyramid_job, ref, slug, key, audio, out, current_key)
     except BaseException:
         with _JOBS_LOCK:
             _PENDING.discard(job)

@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.engines import waveform_pyramid as wp
 from podcast_mcp.engines.ffmpeg import (
@@ -698,6 +699,106 @@ def test_estimated_vbr_mp3_remains_buildable(tmp_path):
     assert 3.9 < meta.total_frames / meta.sample_rate < 4.2
 
 
+@needs_ffmpeg
+def test_audio_shorter_than_video_uses_audio_duration_for_decode_check(tmp_path):
+    eng = FFmpegEngine()
+    audio = tmp_path / "video-with-short-audio.mp4"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=16x16:r=1:d=8",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            "-y",
+            str(audio),
+        ],
+        check=True,
+        timeout=60,
+    )
+    probe = eng.probe(audio)
+    assert probe.duration_sec > 7.9
+    assert probe.audio_duration_sec is not None
+    assert 3.9 < probe.audio_duration_sec < 4.2
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-video", key)
+    build_pyramid("track:video", key, audio, out)
+    assert 3.9 < read_meta(out).total_frames / read_meta(out).sample_rate < 4.2
+
+
+@needs_ffmpeg
+def test_low_rate_mp3_encoder_padding_is_not_a_short_decode(tmp_path):
+    eng = FFmpegEngine()
+    audio = tmp_path / "low-rate.mp3"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-ar",
+            "8000",
+            "-q:a",
+            "4",
+            "-y",
+            str(audio),
+        ],
+        check=True,
+        timeout=60,
+    )
+    probe = eng.probe(audio)
+    assert probe.duration_sec > 1.1
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-low", key)
+    build_pyramid("track:low", key, audio, out)
+    assert 0.98 < read_meta(out).total_frames / read_meta(out).sample_rate < 1.02
+
+
+@needs_ffmpeg
+def test_audio_start_offset_without_stream_duration_is_accepted(tmp_path):
+    eng = FFmpegEngine()
+    audio = tmp_path / "offset.mka"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-af",
+            "asetpts=PTS+3/TB",
+            "-c:a",
+            "flac",
+            "-y",
+            str(audio),
+        ],
+        check=True,
+        timeout=60,
+    )
+    probe = eng.probe(audio)
+    assert probe.duration_sec > 6.9
+    assert probe.audio_duration_sec is None
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-offset", key)
+    build_pyramid("track:offset", key, audio, out)
+    assert 3.9 < read_meta(out).total_frames / read_meta(out).sample_rate < 4.1
+
+
 # --- read_pcm_minmax -----------------------------------------------------------------------
 
 
@@ -797,7 +898,7 @@ class _ImmediateTimer:
 
 
 def _probe(*_a, **_k):
-    return AudioProbe(duration_sec=1.0, sample_rate=8000, channels=1)
+    return AudioProbe(duration_sec=0.0, sample_rate=8000, channels=1)
 
 
 def test_stream_timer_kills_stuck_process(tmp_path):
@@ -1019,7 +1120,10 @@ def test_media_key_is_20_hex_and_tracks_path_size_mtime():
 
 def test_media_key_invalidates_pyramids_from_the_old_build_policy():
     old = wp.hashlib.sha256(b"1|raw/host.wav|100|5").hexdigest()[:20]
-    assert media_key("raw/host.wav", 100, 5) != old
+    key = media_key("raw/host.wav", 100, 5)
+    assert len(key) == 20
+    assert int(key, 16) >= 0
+    assert key != old
 
 
 def test_ref_slug_and_pyramid_path(tmp_path):
@@ -1238,7 +1342,7 @@ def test_stale_finisher_preserves_current_key_even_with_older_hardlink_mtime(tmp
     assert read_meta(out).total_frames == 64 * 300
 
 
-def test_build_waits_for_another_process_before_reusing_and_publishing(tmp_path):
+def test_build_uses_the_cross_process_lock_before_reusing(tmp_path, monkeypatch):
     audio = _wav_media(tmp_path)
     peaks = tmp_path / "artifacts" / "peaks"
     key = _key()
@@ -1257,30 +1361,18 @@ def test_build_waits_for_another_process_before_reusing_and_publishing(tmp_path)
         stdout=subprocess.PIPE,
         text=True,
     )
-    done = threading.Event()
-    errors: list[BaseException] = []
-
-    def build() -> None:
-        try:
-            build_pyramid("source:host", key, audio, out)
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            done.set()
-
-    worker = threading.Thread(target=build)
     try:
         assert proc.stdout is not None and proc.stdout.readline().strip() == "held"
-        worker.start()
-        assert not done.wait(0.5)
+        monkeypatch.setattr(wp, "PYRAMID_LOCK_TIMEOUT_SEC", 0)
+        with pytest.raises(FileLockTimeout):
+            build_pyramid("source:host", key, audio, out)
         assert not out.exists()
     finally:
         assert proc.stdin is not None
         proc.stdin.write("release\n")
         proc.stdin.flush()
         proc.wait(timeout=5)
-        worker.join(timeout=5)
-    assert not errors
+    build_pyramid("source:host", key, audio, out)
     assert read_meta(out).total_frames == 8000
 
 
@@ -1395,7 +1487,7 @@ def test_repeated_failures_back_off_and_log_at_debug(tmp_path, caplog):
             assert failures == n
             assert pyramid_build_failed(key) is True
             windows.append(retry_at - before)
-            wp._FAILED[key] = (0.0, failures)  # window elapsed
+            wp._FAILED[key] = (time.monotonic() - 1, failures)
     for got, want in zip(windows, [300, 600, 1200, 2400, 3600, 3600], strict=True):
         assert want <= got < want + 5
     records = [r for r in caplog.records if "waveform pyramid build failed" in r.getMessage()]

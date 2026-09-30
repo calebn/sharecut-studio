@@ -74,6 +74,21 @@ def test_probe_untrusted_adds_protocol_whitelist(tmp_path: Path):
     assert "file,crypto,data" in cmd
 
 
+def test_probe_keeps_container_duration_when_audio_duration_is_unknown(tmp_path: Path):
+    eng = FFmpegEngine(ffprobe="ffprobe")
+    fake = {
+        "streams": [
+            {"codec_type": "audio", "sample_rate": "8000", "channels": 1, "duration": "N/A"}
+        ],
+        "format": {"duration": "7.0"},
+    }
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        run.return_value = MagicMock(stdout=json.dumps(fake), stderr="", returncode=0)
+        probe = eng.probe(tmp_path / "offset.mka")
+    assert probe.duration_sec == 7.0
+    assert probe.audio_duration_sec is None
+
+
 def test_build_track_filter_highpass_and_compressor():
     eng = FFmpegEngine()
     chain = ProcessingChain(
