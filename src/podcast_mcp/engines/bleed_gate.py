@@ -32,6 +32,7 @@ from podcast_mcp.util.intervals import (
     subtract_intervals,
 )
 from podcast_mcp.util.process import CalledProcessError
+from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -451,10 +452,7 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
         media: list[dict[str, Any]] = []
         for path in sorted(set(paths)):
             try:
-                stat = path.stat()
-                media.append(
-                    {"path": str(path), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
-                )
+                media.append({"path": str(path), "revision": file_revision(path)})
             except OSError:
                 media.append({"path": str(path), "unavailable": True})
         words = project.transcript_for_track(tid)
