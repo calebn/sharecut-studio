@@ -62,7 +62,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     isPlaying: s.isPlaying,
     applyAgentSession: s.applyAgentSession,
     buildViewerSnapshot: s.buildViewerSnapshot,
-    suppressPublish: s.suppressPublish,
+    suppressPublish: s.suppressPublish || s.sourcePreview !== null,
     lastAppliedRevision: s.lastAppliedRevision,
     lastAppliedCommandId: s.lastAppliedCommandId,
     pipelineJob: s.pipelineJob,

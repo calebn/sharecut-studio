@@ -33,6 +33,7 @@ export function audioUrl(
   kind: "premix" | "stem" | "raw" | "processed" | "review",
   trackId?: string,
   opts?: {
+    sourceId?: string;
     rerender?: boolean;
     cacheKey?: string;
   },
@@ -56,6 +57,7 @@ export function audioUrl(
   if (trackId) {
     params.set("track_id", trackId);
   }
+  if (opts?.sourceId) params.set("source_id", opts.sourceId);
   if (opts?.rerender) {
     params.set("rerender", "true");
   }

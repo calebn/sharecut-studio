@@ -162,3 +162,7 @@ Agent entry points: [.agents/INSTRUCTIONS.md](../.agents/INSTRUCTIONS.md), [.age
 ## Transcript replacement pass
 
 Studio find-and-replace validates its reviewed, source-keyed match set before one `ProjectWorkspace.mutate()` call. Every replacement across primary and extra recordings shares that history action, so one Undo restores all affected text, word timing, flags, and source identities. No matches or a stale preview produce no history entry. The adjacent result Undo is available while its project view and document sequence remain current; use History after newer changes.
+
+## Word timing adjustments
+
+`SetTranscriptWordTiming` checks the exact raw transcript, word sequence and recording revision in a `ProjectWorkspace.transaction()` before one `mutate()` call. A pointer gesture saves only on release; numeric and keyboard drafts require Apply. A no-op or stale draft creates no history action. Undo restores the exact timing, automatic evidence, suppression choices, user-edited flag and silence-filter fingerprint. Render freshness follows the restored ignored-word or transcript-gate intervals. The adjacent Wordbar Undo validates the current project snapshot and document sequence again at click time, then closes the editor before invoking the shared history command.

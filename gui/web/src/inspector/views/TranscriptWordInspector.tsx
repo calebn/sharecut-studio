@@ -15,6 +15,7 @@ import {
   reportDetachedWordFailure,
 } from "../../transcript/detachedWordFailure";
 import { isLowConfidenceWord } from "../../transcript/lowConfidence";
+import { TranscriptWordbar } from "../../transcript/TranscriptWordbar";
 import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CORRECT_CONFLICT_NOTE,
@@ -420,6 +421,13 @@ export function TranscriptWordInspector({
           </>
         ) : null}
       </DefinitionList>
+      {editable && (
+        <TranscriptWordbar
+          word={word}
+          trackId={trackId}
+          wordIndex={wordIndex}
+        />
+      )}
       {locked ? (
         <>
           <p className="ui-field-hint">{TRANSCRIPT_AUDIBILITY_LOCKED_TIP}</p>

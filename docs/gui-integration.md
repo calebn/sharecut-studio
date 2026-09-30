@@ -489,3 +489,28 @@ from the word views.
 ### Transcript find and replace
 
 The host Transcript toolbar and command palette open a form to review literal replacements across source recordings. `POST /api/transcript/replacement-preview` delegates to `EditService`; the `ReplaceTranscriptMatches` document command revalidates the preview and applies the complete set as one Undo action. See [the find-and-replace guide](daw-editing.md#transcript-find-and-replace) for matching rules, source scope, timing warnings, and queued delivery.
+
+### Exact-source word timing adapters
+
+Host transcript word views include `timing_target` with the stored transcript's
+`track_id`, nullable `source_id`, and `word_index`. This target identifies the
+transcript that supplied the word, including suppressed-only rows. It does not
+infer a recording from clip placement or word time.
+
+`POST /api/transcript/word-timing-context` accepts `{path, target, expected_word}`.
+`expected_word` contains the displayed `text`, `start`, and `end`. The host-only
+route delegates to `EditService.word_timing_context` and returns authoritative raw
+media, neighboring words, a source-clock window, and a stale dependency token.
+A changed word returns 409. Missing raw media returns 404. Existing finite import
+timings may be negative or reversed so the host can open their repair context.
+
+`SetTranscriptWordTiming` accepts `{target, expected_token, start, end}` and saves
+through `EditService.set_word_timing`. Its Applied patch includes transcript words,
+tracks, and render status through `TRANSCRIPT_AUDIO`. Stale timing dependencies
+become document conflicts. Guest shares cannot submit this command.
+
+`GET /api/audio` accepts optional `source_id` only for `kind=raw` or `kind=track`.
+`PlayService.resolve_transport_path` resolves that exact recording through
+`recording_audio_path`, with workspace containment. Omitting `source_id` selects
+the track's primary media. Host authorization and HTTP Range streaming remain
+part of the existing route.

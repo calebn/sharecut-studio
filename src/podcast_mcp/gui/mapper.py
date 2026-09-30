@@ -124,7 +124,7 @@ def _mapped_word_index(
     words = tr.words if tr is not None else []
     mapped = timeline.map_word_spans(track_id, [(w.start, w.end) for w in words])
     views = [
-        _word_view(timeline, track_id, i, w, spans)
+        _word_view(timeline, track_id, i, w, spans, source_id=tr.source_id if tr else None)
         for i, (w, spans) in enumerate(zip(words, mapped, strict=True))
     ]
     intervals = _raw_word_intervals(words)
@@ -383,6 +383,8 @@ def _word_view(
     word_index: int,
     word: Any,
     spans: list[tuple[Any, Any]] | None = None,
+    *,
+    source_id: str | None,
 ) -> dict[str, Any]:
     src_end = float(word_source_span(word.start, word.end)[1])
     if spans is None:
@@ -401,6 +403,7 @@ def _word_view(
         "timeline_end": tl_end,
         "mappable": mappable,
         "word_index": word_index,
+        "timing_target": {"track_id": track_id, "source_id": source_id, "word_index": word_index},
         "confidence": word.confidence,
         "suppressed": bool(word.suppressed),
         "ignored": bool(word.ignored),

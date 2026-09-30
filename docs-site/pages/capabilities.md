@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**103** capabilities · **87** Sharecut Studio commands · **52** keyed · **170** MCP tools · **17** skills on rows (+ **18** hub skills).
+**104** capabilities · **88** Sharecut Studio commands · **52** keyed · **170** MCP tools · **17** skills on rows (+ **18** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -101,6 +101,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Import audio | `media.import` | `Mod+I` | `transport.menu`, `editingToolRail`, `drop` | `track_set_media_tool` | — | — | — | none · none |
 | Annotate transcript | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | `transcript.annotate` | — | — | — | — | none · none |
 | Correct transcript | `transcript.correctIntent` | — (toolbar toggle; inline correction uses F2) | `transcript.correct`, `mobileShell.gesture.doubleTapWord`, `transcript.inlineEdit` | — | — | — | — | anchor · look |
+| Adjust word timing | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | `transcript.wordbar` | — | — | — | — | anchor · none |
 | Edit focused transcript word | `transcript.editWordInline` | `F2` | — | — | — | — | — | anchor · none |
 | Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | `transcript.select` | — | — | — | — | anchor · look |
 | Ignore / restore transcript words | `transcript.ignoreWords` | — (no industry-standard key (#649)) | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore` | — | — | — | — | anchor · look |

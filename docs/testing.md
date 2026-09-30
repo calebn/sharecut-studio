@@ -1287,3 +1287,7 @@ relative/absolute primary aliases and exact secondary transcripts remain usable.
 Secondary transcript suppression and dominant-source changes invalidate the gate
 payload and rendered-stem hash; all consumed source identities and word evidence
 are fingerprinted.
+
+### Wordbar timing regression coverage
+
+`test_transcript_timing.py` covers exact primary/extra source keys, primary aliases, unplaced words, no-op history, stale sequence/flags/neighbors/media, measured waveform duration, automatic evidence versus locked choices, and exact Undo. `test_word_timing_adapters.py` covers the host adapter and source audio boundary. Frontend Wordbar tests exercise one save per pointer release, cancellation, explicit keyboard/numeric Apply, exact raw preview identity, local waveform viewport, stale recovery and axe. Transport/session tests cover ownership, unchanged timeline position, player reuse and suppression of pending WebSocket fallback writes. Browser checks must verify actual saved timing and Undo, source URLs/clocks and populated local waveforms; an artifact trace does not certify perceptual listening.

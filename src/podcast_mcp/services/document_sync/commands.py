@@ -35,6 +35,7 @@ DocumentCommandType = Literal[
     "SetTranscriptWordSuppressed",
     "SetTranscriptWordAutomatic",
     "SetTranscriptWordsIgnored",
+    "SetTranscriptWordTiming",
     "AddChapter",
     "UpdateChapter",
     "DeleteChapter",

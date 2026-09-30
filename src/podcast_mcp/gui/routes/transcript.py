@@ -4,11 +4,13 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
+from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.gui.routes.deps import project_busy_error, require_host, resolve_project
 from podcast_mcp.gui.schemas import (
     TranscriptRefineWaiveRequest,
     TranscriptReplacementPreviewRequest,
     TranscriptVocabularyPutRequest,
+    TranscriptWordTimingContextRequest,
 )
 from podcast_mcp.services import (
     EditService,
@@ -90,5 +92,29 @@ def transcript_replacement_preview(
         return EditService(ProjectWorkspace.open(project_path)).preview_transcript_replacement(
             req.search, req.replacement, match_case=req.match_case
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/transcript/word-timing-context")
+def transcript_word_timing_context(
+    req: TranscriptWordTimingContextRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(req.path, request)
+    try:
+        return EditService(ProjectWorkspace.open(project_path)).word_timing_context(
+            WordTimingTarget(**req.target.model_dump()),
+            expected_text=req.expected_word.text,
+            expected_start=req.expected_word.start,
+            expected_end=req.expected_word.end,
+        )
+    except TranscriptTimingChangedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (KeyError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

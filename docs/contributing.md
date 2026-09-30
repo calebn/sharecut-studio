@@ -269,3 +269,7 @@ Operations that change audible output (gain, mute, FX, cuts, clips, envelopes, b
 Undo behavior: `tests/test_history.py`, `tests/test_history_session.py`, and feature-specific tests (e.g. `tests/test_transcript_cleanup_history.py`).
 
 Operator docs: [history.md](history.md). Agent bundle: [.agents/INSTRUCTIONS.md](../.agents/INSTRUCTIONS.md), [engineering-standards.md](../.agents/rules/engineering-standards.md).
+
+### Word timing controls
+
+Wordbar timing uses the stored `(track_id, source_id, word_index)`, never a displayed clip placement as the mutation identity. Source seconds and current raw media duration are validated server-side; unrelated timeline geometry is not a save dependency. Keep drag drafts local and save once on release (or explicit keyboard/numeric Apply) through the document command and `ProjectWorkspace.mutate()`. Reuse the existing transport's owned source preview and the shared waveform's explicit viewport; do not add another player or renderer.

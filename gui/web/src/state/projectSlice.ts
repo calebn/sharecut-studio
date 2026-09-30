@@ -71,6 +71,7 @@ export const createProjectSlice: StateCreator<
       followingClientId: samePath ? get().followingClientId : null,
       localClientId: samePath ? get().localClientId : null,
       followDegraded: samePath ? get().followDegraded : {},
+      transcriptTimingRequest: samePath ? get().transcriptTimingRequest : null,
       transcriptInlineEditRequest: null,
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
@@ -86,6 +87,9 @@ export const createProjectSlice: StateCreator<
       ...(samePath
         ? {}
         : {
+            sourcePreview: null,
+            sourcePreviewPositionSec: null,
+            sourcePreviewError: null,
             audioError: null,
             isPlaying: false,
             playheadSec: 0,

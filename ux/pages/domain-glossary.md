@@ -259,3 +259,5 @@ Do **not** rename MCP tool IDs lightly; UI labels can diverge.
 - Python package layout — unless designing CLI flows  
 
 Link out when a designer needs depth; keep **Partner terms** as the default handout.
+
+**Wordbar:** the host's source-clock word timing editor. Its handles and numeric fields adjust a stored word's start and end against the original recording waveform. Drag release or Apply creates one undoable change; raw preview has its own local playhead.

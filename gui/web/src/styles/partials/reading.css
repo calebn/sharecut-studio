@@ -50,3 +50,101 @@
 .home-screen .ui-field {
   margin-bottom: 0;
 }
+
+.transcript-wordbar {
+  container-type: inline-size;
+  container-name: wordbar;
+}
+.wordbar-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+.wordbar-waveform {
+  position: relative;
+  height: var(--wordbar-waveform-height);
+  margin-inline: calc(var(--wordbar-handle-size) / 2);
+  overflow: hidden;
+}
+.wordbar-neighbors {
+  position: relative;
+  height: var(--wordbar-label-height);
+  margin-inline: calc(var(--wordbar-handle-size) / 2);
+  overflow: hidden;
+}
+.wordbar-neighbors > span {
+  position: absolute;
+  left: var(--wordbar-position);
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+}
+.wordbar-progress {
+  position: absolute;
+  inset-block: 0;
+  left: var(--wordbar-position);
+  border-inline-start: var(--focus-ring-width) solid var(--text);
+  pointer-events: none;
+}
+.wordbar-boundary {
+  display: grid;
+  gap: var(--space-1);
+}
+.wordbar-boundary input[type="range"] {
+  width: 100%;
+  margin-inline: 0;
+}
+.wordbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+@container wordbar (min-width: 28rem) {
+  .wordbar-boundary {
+    grid-template-columns: 1fr 7rem;
+    align-items: center;
+  }
+  .wordbar-boundary input[type="range"] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.wordbar-boundary-mark {
+  position: absolute;
+  inset-block: 0;
+  left: var(--wordbar-position);
+  border-inline-start: var(--focus-ring-width) solid var(--accent);
+  pointer-events: none;
+}
+.wordbar-boundary input[type="range"] {
+  appearance: none;
+  background: transparent;
+}
+.wordbar-boundary input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--space-1);
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.wordbar-boundary input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--wordbar-handle-size);
+  height: var(--wordbar-handle-size);
+  margin-block-start: calc((var(--space-1) - var(--wordbar-handle-size)) / 2);
+  background: var(--accent-solid);
+  border-radius: 50%;
+}
+.wordbar-boundary input[type="range"]::-moz-range-track {
+  height: var(--space-1);
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.wordbar-boundary input[type="range"]::-moz-range-thumb {
+  width: var(--wordbar-handle-size);
+  height: var(--wordbar-handle-size);
+  border: 0;
+  background: var(--accent-solid);
+  border-radius: 50%;
+}
+
+.wordbar-waveform .clip-waveform {
+  inset: 0;
+}

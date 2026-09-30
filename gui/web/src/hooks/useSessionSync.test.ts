@@ -332,6 +332,63 @@ describe("useSessionSync presence", () => {
     }
   });
 
+  it("cancels pending ViewerState fallback during source preview and recovers afterward", async () => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    try {
+      const { postSessionState } = await import("../api");
+      const { rerender } = renderHook(
+        ({ suppressed }) =>
+          useSessionSync(
+            "/tmp/ep.project.json",
+            vi.fn(),
+            () => ({ playhead_sec: 42, is_playing: false }),
+            suppressed,
+            0,
+            null,
+            false,
+            "k",
+            true,
+          ),
+        { initialProps: { suppressed: false } },
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60);
+      });
+      const socket = FakeWebSocket.instances[0];
+      expect(
+        socket.sent.filter((frame) => frame.includes('"ViewerState"')),
+      ).toHaveLength(1);
+      rerender({ suppressed: true });
+      await act(async () => {
+        socket.emit({
+          type: "Error",
+          code: "invalid_viewer_state",
+          detail: "bad",
+        });
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(postSessionState).not.toHaveBeenCalled();
+      expect(
+        socket.sent.filter((frame) => frame.includes('"ViewerState"')),
+      ).toHaveLength(1);
+      rerender({ suppressed: false });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1660);
+      });
+      expect(
+        socket.sent.filter((frame) => frame.includes('"ViewerState"')),
+      ).toHaveLength(2);
+      expect(postSessionState).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("republishes over HTTP when an open socket never echoes a ViewerState", async () => {
     vi.useFakeTimers({
       toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],

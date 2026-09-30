@@ -200,6 +200,8 @@ Required for v1 credibility with video-first creators — not just audio post.
 | **Destructive-tool policy hardening** | Beyond current guest allowlists. [docs/host-online-relay.md](docs/host-online-relay.md). |
 | **Opt-in diagnostics filing** | Help / `podcast doctor --bundle` may offer an explicit action to open a GitHub issue with the sanitized bundle. No crash-time upload. |
 
+Word timing correction (#637) is available in the host word inspector through **Adjust timing**: source waveform handles, numeric boundaries, local raw preview and one-step Undo. The existing transcript selection scope remains; a separate recording browser is not part of this control.
+
 ### Waveforms
 
 Follow-ups from the pyramid rewrite ([#429](https://github.com/calebn/sharecut-studio/issues/429); [docs/waveform.md](docs/waveform.md)).

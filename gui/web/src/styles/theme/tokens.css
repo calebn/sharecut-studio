@@ -6,6 +6,10 @@
  */
 
 :root {
+  --wordbar-waveform-height: 6rem;
+  --wordbar-handle-size: 1rem;
+  --wordbar-label-height: 2rem;
+
   /* Typography (Sharecut Studio density) */
   --font-size-micro: 0.625rem;
   --font-size-caption: 0.6875rem;

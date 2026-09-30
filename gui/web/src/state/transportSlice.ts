@@ -6,6 +6,13 @@ import type { DawStore, PlayAbFollowup } from "./types";
 
 type TransportSlice = Pick<
   DawStore,
+  | "sourcePreviewGeneration"
+  | "sourcePreview"
+  | "sourcePreviewPositionSec"
+  | "sourcePreviewError"
+  | "beginSourcePreview"
+  | "updateSourcePreview"
+  | "releaseSourcePreview"
   | "playheadSec"
   | "isPlaying"
   | "playStartSec"
@@ -73,6 +80,54 @@ export const createTransportSlice: StateCreator<
   [],
   TransportSlice
 > = (set) => ({
+  sourcePreviewGeneration: 0,
+  sourcePreview: null,
+  sourcePreviewPositionSec: null,
+  sourcePreviewError: null,
+  beginSourcePreview: (request) =>
+    set((s) => ({
+      sourcePreview: {
+        ...request,
+        projectEpoch: s.projectEpoch,
+        generation: s.sourcePreviewGeneration + 1,
+        playing: true,
+      },
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
+      sourcePreviewPositionSec: request.startSec,
+      sourcePreviewError: null,
+    })),
+  updateSourcePreview: (
+    ownerId,
+    generation,
+    positionSec,
+    stopped = false,
+    error,
+  ) =>
+    set((s) => {
+      if (
+        s.sourcePreview?.ownerId !== ownerId ||
+        s.sourcePreview.generation !== generation
+      )
+        return {};
+      return {
+        sourcePreviewPositionSec: positionSec,
+        ...(stopped
+          ? { sourcePreview: { ...s.sourcePreview, playing: false } }
+          : {}),
+        ...(error ? { sourcePreviewError: error } : {}),
+      };
+    }),
+  releaseSourcePreview: (ownerId) =>
+    set((s) =>
+      s.sourcePreview?.ownerId === ownerId
+        ? {
+            sourcePreview: null,
+            sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
+            sourcePreviewPositionSec: null,
+            sourcePreviewError: null,
+          }
+        : {},
+    ),
   playheadSec: 0,
   isPlaying: false,
   playStartSec: null as number | null,
@@ -89,11 +144,15 @@ export const createTransportSlice: StateCreator<
   audioError: null as string | null,
   setPlayheadSec: (playheadSec) =>
     set((s) => ({
+      sourcePreview: null,
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       playheadSec,
       ...playStartPatch(s, s.isPlaying, playheadSec),
     })),
   setIsPlaying: (isPlaying) =>
     set((s) => ({
+      sourcePreview: null,
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying,
       ...playStartPatch(s, isPlaying, s.playheadSec),
       // Local transport owns the clock — clear agent audition auto-stop.
@@ -106,6 +165,8 @@ export const createTransportSlice: StateCreator<
     set((s) => {
       const next = !s.isPlaying;
       return {
+        sourcePreview: null,
+        sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
         isPlaying: next,
         ...playStartPatch(s, next, s.playheadSec),
         playUntilSec: next ? null : s.playUntilSec,
@@ -116,12 +177,16 @@ export const createTransportSlice: StateCreator<
     }),
   stopPlayback: () =>
     set((s) => ({
+      sourcePreview: null,
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying: false,
       playheadSec: stopTargetSec(s),
       playStartSec: null,
     })),
   setAuditionMode: (auditionMode) =>
     set((s) => ({
+      sourcePreview: null,
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       auditionMode: guestHearsMixOnly(s.guestMode) ? "mix" : auditionMode,
     })),
   setViewerMuteMap: (viewerMute) => set({ viewerMute }),
@@ -137,6 +202,8 @@ export const createTransportSlice: StateCreator<
   setPlayUntilSec: (playUntilSec) => set({ playUntilSec }),
   beginAudition: ({ playheadSec, untilSec, skip, abFollowup }) =>
     set((s) => ({
+      sourcePreview: null,
+      sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       playheadSec,
       isPlaying: true,
       playStartSec: playheadSec,

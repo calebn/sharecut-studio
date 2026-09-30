@@ -4801,6 +4801,126 @@
         "title": "SetTranscriptWordSuppressedPayload",
         "type": "object"
       },
+      "SetTranscriptWordTimingCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetTranscriptWordTimingPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetTranscriptWordTiming",
+            "default": "SetTranscriptWordTiming",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetTranscriptWordTimingCommand",
+        "type": "object"
+      },
+      "SetTranscriptWordTimingPayload": {
+        "properties": {
+          "end": {
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "type": "number"
+          },
+          "expected_token": {
+            "minLength": 1,
+            "title": "Expected Token",
+            "type": "string"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          },
+          "target": {
+            "$ref": "#/components/schemas/WordTimingTargetPayload"
+          }
+        },
+        "required": [
+          "target",
+          "expected_token",
+          "start",
+          "end"
+        ],
+        "title": "SetTranscriptWordTimingPayload",
+        "type": "object"
+      },
       "SetTranscriptWordsIgnoredCommand": {
         "properties": {
           "causation_id": {
@@ -6083,6 +6203,39 @@
         ],
         "title": "ViewProjection",
         "type": "string"
+      },
+      "WordTimingTargetPayload": {
+        "properties": {
+          "source_id": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "track_id": {
+            "minLength": 1,
+            "title": "Track Id",
+            "type": "string"
+          },
+          "word_index": {
+            "minimum": 0.0,
+            "title": "Word Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "track_id",
+          "source_id",
+          "word_index"
+        ],
+        "title": "WordTimingTargetPayload",
+        "type": "object"
       }
     }
   },
@@ -6984,6 +7137,7 @@
                     "SetTrackMute": "#/components/schemas/SetTrackMuteCommand",
                     "SetTranscriptWordAutomatic": "#/components/schemas/SetTranscriptWordAutomaticCommand",
                     "SetTranscriptWordSuppressed": "#/components/schemas/SetTranscriptWordSuppressedCommand",
+                    "SetTranscriptWordTiming": "#/components/schemas/SetTranscriptWordTimingCommand",
                     "SetTranscriptWordsIgnored": "#/components/schemas/SetTranscriptWordsIgnoredCommand",
                     "SplitAtTime": "#/components/schemas/SplitAtTimeCommand",
                     "SuggestPendingEdit": "#/components/schemas/SuggestPendingEditCommand",
@@ -7074,6 +7228,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetTranscriptWordsIgnoredCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetTranscriptWordTimingCommand"
                   },
                   {
                     "$ref": "#/components/schemas/AddChapterCommand"

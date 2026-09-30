@@ -141,6 +141,14 @@ from podcast_mcp.edits.transcript_replace import (
     apply_transcript_replacement,
     plan_transcript_replacement,
 )
+from podcast_mcp.edits.transcript_timing import (
+    TranscriptTimingChangedError,
+    WordTimingTarget,
+    apply_word_timing,
+    timing_transcript,
+    validate_word_timing,
+    word_timing_context,
+)
 from podcast_mcp.effects.presets import (
     add_effect,
     apply_preset_to_chain,
@@ -152,6 +160,7 @@ from podcast_mcp.effects.presets import (
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.render import rerender_preview
+from podcast_mcp.services.transcript_timing import word_timing_media
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
@@ -1137,6 +1146,43 @@ class EditService:
             return self.ws.mutate(
                 f"before {label}", f"after {label}", _user_transcript_edit(track_id, edit)
             )
+
+    def word_timing_context(
+        self,
+        target: WordTimingTarget,
+        *,
+        expected_text: str,
+        expected_start: float,
+        expected_end: float,
+    ) -> dict[str, Any]:
+        with self.ws.transaction() as project:
+            transcript = timing_transcript(project, target)
+            word = transcript.words[target.word_index]
+            if (word.text, word.start, word.end) != (expected_text, expected_start, expected_end):
+                raise TranscriptTimingChangedError(
+                    "This word changed. Select it again before adjusting timing."
+                )
+            return word_timing_context(project, target, word_timing_media(project, target))
+
+    def set_word_timing(
+        self, target: WordTimingTarget, expected_token: str, start: float, end: float
+    ) -> dict[str, Any]:
+        with self.ws.transaction() as project:
+            timing_transcript(project, target)
+            try:
+                media = word_timing_media(project, target)
+            except (OSError, KeyError) as exc:
+                raise TranscriptTimingChangedError(
+                    "This recording is unavailable. Reopen Adjust timing."
+                ) from exc
+            changed = validate_word_timing(project, target, media, expected_token, start, end)
+            if changed:
+                self.ws.mutate(
+                    "before adjust word timing",
+                    "after adjust word timing",
+                    lambda p: apply_word_timing(p, target, start, end),
+                )
+            return {"changed": changed, "context": word_timing_context(project, target, media)}
 
     def preview_transcript_replacement(
         self, search: str, replacement: str, *, match_case: bool = False

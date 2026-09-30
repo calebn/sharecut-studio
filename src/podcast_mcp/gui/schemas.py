@@ -8,6 +8,7 @@ from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
     TranscriptReplacementOptions,
+    WordTimingTargetPayload,
 )
 from podcast_mcp.transcript_context import VOCABULARY_MAX_ENTRIES
 
@@ -230,3 +231,15 @@ class RecordRoomRevokeRequest(BaseModel):
 
 class TranscriptReplacementPreviewRequest(TranscriptReplacementOptions):
     path: str
+
+
+class ExpectedTimingWord(BaseModel):
+    text: str
+    start: float = Field(allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+
+
+class TranscriptWordTimingContextRequest(BaseModel):
+    path: str
+    target: WordTimingTargetPayload
+    expected_word: ExpectedTimingWord
