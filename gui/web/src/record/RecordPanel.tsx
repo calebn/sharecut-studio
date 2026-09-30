@@ -201,6 +201,7 @@ export function RecordPanel({
     participantId: "p_host",
     takeIndex: snapshot?.take_index ?? null,
     recoverAllowed: state === "stopped" && captureSettled,
+    uploadAvailable: uploadTransport !== null,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
   const roomToneEnabled =

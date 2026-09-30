@@ -131,7 +131,7 @@ export function HomeScreen() {
 
   return (
     <main className="cover home-screen">
-      <div className="cover-center center stack">
+      <div className="cover-center center stack" data-daw-app-chrome>
         <header className="stack">
           <h1 className="wordmark">Sharecut Studio</h1>
           <p className="lede">

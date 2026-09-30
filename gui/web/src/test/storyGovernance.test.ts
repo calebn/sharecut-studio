@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SRC_ROOT, srcRelative, walkTsFiles } from "./sourceFiles";
 import {
+  CATALOG_ONLY_MODULES,
   globPatterns,
   importsStorybook,
   isStoryOrTestFile,
@@ -14,6 +15,7 @@ import {
 describe("storyLeaks", () => {
   it.each([
     ["App.tsx", 'import * as s from "./ui/Button.stories";', 1],
+    ["App.tsx", 'import { StyleGuide } from "./storybook/StyleGuide";', 1],
     ["App.tsx", 'const m = await import("./ui/Button.stories.tsx");', 1],
     ["App.tsx", 'export { default } from "./ui/Menu.stories";', 1],
     ["App.tsx", 'import { fn } from "storybook/test";', 1],
@@ -170,7 +172,11 @@ describe("stories stay out of the production bundle", () => {
     const offenders: string[] = [];
     for (const file of walkTsFiles(SRC_ROOT)) {
       const rel = srcRelative(file);
-      if (isStoryOrTestFile(rel) || STORY_SUPPORT_MODULES.has(rel)) {
+      if (
+        isStoryOrTestFile(rel) ||
+        STORY_SUPPORT_MODULES.has(rel) ||
+        CATALOG_ONLY_MODULES.has(rel)
+      ) {
         continue;
       }
       offenders.push(...storyLeaks(rel, readFileSync(file, "utf8")));
@@ -183,6 +189,15 @@ describe("stories stay out of the production bundle", () => {
       expect(existsSync(join(SRC_ROOT, rel))).toBe(true);
       expect(importsStorybook(readFileSync(join(SRC_ROOT, rel), "utf8"))).toBe(
         true,
+      );
+    }
+  });
+
+  it("keeps catalog-only modules real and independent of Storybook", () => {
+    for (const rel of CATALOG_ONLY_MODULES) {
+      expect(existsSync(join(SRC_ROOT, rel))).toBe(true);
+      expect(importsStorybook(readFileSync(join(SRC_ROOT, rel), "utf8"))).toBe(
+        false,
       );
     }
   });

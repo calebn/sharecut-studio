@@ -27,6 +27,7 @@ describe("production build story guard", () => {
     ["/app/node_modules/@storybook/react-vite/dist/index.js", true],
     ["/app/node_modules/storybook/test/index.js", true],
     ["/app/src/storybook/docsTheme.ts", true],
+    ["/app/src/storybook/StyleGuide.tsx", true],
     ["/app/src/record/recordStoryDecorator.tsx", true],
     ["/app/src/ui/Button.tsx", false],
     ["/app/src/ui/StorybookLink.tsx", false],

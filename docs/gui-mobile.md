@@ -6,6 +6,14 @@ Phone- and tablet-first shells for Sharecut Studio, plus desktop polish shared w
 
 Canonical strategy and feature map for agents/contributors. Implementation lives under `gui/web/`.
 
+Reading-room actions and Share dialog actions/checkbox labels use the shared
+`--touch-min` target floor. Dialog and sheet close buttons use the same square
+target. Reading form labels, hints, and errors use `--font-size-body`, while
+actions use reading-body type. Compact timeline/inspector controls retain their
+editor density. See the [component recipes](../gui/web/docs/ui-library.md#composition-recipes)
+and [consistency audit](design-system-audit.md) for checked examples and remaining
+phone coverage.
+
 ## Breakpoints
 
 | Shell | Width | Root class | Layout |
@@ -44,6 +52,10 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
+
+On phones, Pipeline step parameters open in the shared modal Dialog. Escape and
+Close dismiss it and return focus to the selected step; Tab stays inside the
+dialog. Tablet and desktop keep the parameter form inline.
 
 ### Selection sheet: three zones
 

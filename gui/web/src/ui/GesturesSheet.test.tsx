@@ -30,7 +30,7 @@ describe("GesturesSheet", () => {
   });
 
   it("does not render when closed", () => {
-    const { container } = render(
+    const { baseElement: container } = render(
       <GesturesSheet
         open={false}
         onClose={() => {}}
@@ -54,7 +54,7 @@ describe("GesturesSheet", () => {
   });
 
   it("is axe-clean", async () => {
-    const { container } = render(
+    const { baseElement: container } = render(
       <GesturesSheet
         open={true}
         onClose={() => {}}

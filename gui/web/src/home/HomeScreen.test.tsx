@@ -80,6 +80,21 @@ describe("HomeScreen", () => {
     window.localStorage.clear();
   });
 
+  it("makes home content inert while Help is open and restores it on close", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<HomeScreen />);
+    const content = container.querySelector<HTMLElement>(
+      "[data-daw-app-chrome]",
+    );
+    expect(content).toBeTruthy();
+    const trigger = screen.getByRole("button", { name: /^Help$/ });
+    await user.click(trigger);
+    expect(content?.inert).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(content?.inert).toBe(false);
+    expect(trigger).toHaveFocus();
+  });
+
   it("creates a project from New → Create", async () => {
     const user = userEvent.setup();
     createMock.mockResolvedValue({

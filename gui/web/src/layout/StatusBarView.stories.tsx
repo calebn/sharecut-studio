@@ -71,6 +71,7 @@ const meta: Meta<typeof StatusBarView> = {
             containerType: "inline-size",
             containerName: "app",
             width: phone ? "360px" : undefined,
+            maxWidth: "100%",
           }}
         >
           <main

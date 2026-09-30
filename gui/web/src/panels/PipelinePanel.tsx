@@ -31,7 +31,7 @@ import type {
   PipelineParamField,
   PipelineStepMeta,
 } from "../types/pipeline";
-import { Button, EmptyState, InlineError } from "../ui";
+import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { getByPath, setByPath } from "../utils/configPath";
 import {
@@ -286,6 +286,7 @@ function forcedAlignment(cfg: PipelineConfigResponse): PipelineForcedAlignment {
 export function PipelinePanel() {
   const {
     projectPath,
+    shellBreakpoint,
     pipelineJob,
     activityJob,
     setPipelineJob,
@@ -293,6 +294,7 @@ export function PipelinePanel() {
     setActiveTab,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
+    shellBreakpoint: s.shellBreakpoint,
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
     setPipelineJob: s.setPipelineJob,
@@ -834,6 +836,122 @@ export function PipelinePanel() {
     setDetailOpen(true);
   };
 
+  const stepParameters = (
+    <div
+      className={`pipeline-step-detail${detailOpen ? " open" : ""}`}
+      aria-label="Step parameters"
+    >
+      {selectedMeta && cfg ? (
+        <>
+          <h2 className="pipeline-step-detail-title">{selectedMeta.title}</h2>
+          <p className="pipeline-step-summary-text">{selectedMeta.summary}</p>
+          {selectedMeta.depends_on.length > 0 && (
+            <p className="pipeline-hint">
+              Depends on: {selectedMeta.depends_on.join(", ")}
+            </p>
+          )}
+          <div className="pipeline-param-list">
+            {paramsForStep
+              .filter((p) => showAdvanced || p.group === "common")
+              .map((field) => {
+                if (field.path === TRANSCRIBE_MODEL_PATH) {
+                  const models = (cfg.whisper_models ?? []).map((m) => ({
+                    id: m.id,
+                    label: m.label,
+                    size: m.size,
+                    description: m.description,
+                    cached: m.cached,
+                  }));
+                  const currentId = whisperModelId(cfg);
+                  const displayId =
+                    whisperPending?.reason === "select"
+                      ? whisperPending.modelId
+                      : currentId;
+                  const defaultId = formatUnknown(
+                    getByPath(cfg.defaults, field.path) ?? "large-v3-turbo",
+                  );
+                  return (
+                    <WhisperModelPicker
+                      key={field.path}
+                      fieldLabel={field.label}
+                      fieldDescription={field.description}
+                      value={displayId}
+                      defaultValue={defaultId}
+                      models={models}
+                      disabled={running || starting}
+                      highlighted={highlightPaths.has(field.path)}
+                      onSelectCached={(modelId) =>
+                        void onParamChange(field.path, modelId)
+                      }
+                      onSelectMissing={(modelId, previousId) => {
+                        setWhisperPending({
+                          modelId,
+                          previousId,
+                          reason: "select",
+                        });
+                      }}
+                    />
+                  );
+                }
+                if (field.path === FORCED_ALIGNMENT_PATH) {
+                  const alignment = forcedAlignment(cfg);
+                  return (
+                    <Fragment key={field.path}>
+                      <ParamControl
+                        field={field}
+                        value={alignment.requested ?? alignment.enabled}
+                        defaultValue={alignment.installed}
+                        disabled={
+                          running ||
+                          starting ||
+                          (!alignment.installed && alignment.requested !== true)
+                        }
+                        highlighted={highlightPaths.has(field.path)}
+                        onChange={(v) => void onParamChange(field.path, v)}
+                        describedBy={alignerReasonId}
+                      />
+                      <WordAlignerStatus
+                        status={cfg.components[WORD_ALIGNER_COMPONENT]}
+                        alignment={alignment}
+                        reasonId={alignerReasonId}
+                        disabled={running || starting || retiming}
+                        retiming={retiming}
+                        onDownloaded={() =>
+                          void refreshConfig().catch((e: unknown) =>
+                            setError(errorMessage(e)),
+                          )
+                        }
+                        onRetime={() => void onRetime()}
+                      />
+                    </Fragment>
+                  );
+                }
+                return (
+                  <ParamControl
+                    key={field.path}
+                    field={field}
+                    value={getByPath(cfg.config, field.path)}
+                    defaultValue={getByPath(cfg.defaults, field.path)}
+                    disabled={running || starting}
+                    highlighted={highlightPaths.has(field.path)}
+                    onChange={(v) => void onParamChange(field.path, v)}
+                  />
+                );
+              })}
+          </div>
+          <Button
+            className="pipeline-secondary-btn"
+            onClick={() => setShowAdvanced((v) => !v)}
+          >
+            {showAdvanced ? "Hide advanced" : "Show advanced"}
+          </Button>
+        </>
+      ) : (
+        <p className="pipeline-hint">Select a step to edit its parameters.</p>
+      )}
+    </div>
+  );
+
   return (
     <div className="pipeline-panel">
       <div className="pipeline-toolbar">
@@ -1041,6 +1159,12 @@ export function PipelinePanel() {
                     <button
                       type="button"
                       className="pipeline-step-select"
+                      aria-pressed={selectedStep === s.id}
+                      aria-expanded={
+                        shellBreakpoint === "phone"
+                          ? detailOpen && selectedStep === s.id
+                          : undefined
+                      }
                       onClick={() => openStep(s.id)}
                     >
                       <span>{s.title}</span>
@@ -1058,133 +1182,17 @@ export function PipelinePanel() {
           ))}
         </div>
 
-        <div
-          className={`pipeline-step-detail${detailOpen ? " open" : ""}`}
-          aria-label="Step parameters"
-        >
-          <button
-            type="button"
-            className="pipeline-detail-close"
-            onClick={() => setDetailOpen(false)}
+        {shellBreakpoint === "phone" ? (
+          <Dialog
+            open={detailOpen && !whisperPending}
+            onClose={() => setDetailOpen(false)}
+            title="Step parameters"
           >
-            Close
-          </button>
-          {selectedMeta && cfg ? (
-            <>
-              <h2 className="pipeline-step-detail-title">
-                {selectedMeta.title}
-              </h2>
-              <p className="pipeline-step-summary-text">
-                {selectedMeta.summary}
-              </p>
-              {selectedMeta.depends_on.length > 0 && (
-                <p className="pipeline-hint">
-                  Depends on: {selectedMeta.depends_on.join(", ")}
-                </p>
-              )}
-              <div className="pipeline-param-list">
-                {paramsForStep
-                  .filter((p) => showAdvanced || p.group === "common")
-                  .map((field) => {
-                    if (field.path === TRANSCRIBE_MODEL_PATH) {
-                      const models = (cfg.whisper_models ?? []).map((m) => ({
-                        id: m.id,
-                        label: m.label,
-                        size: m.size,
-                        description: m.description,
-                        cached: m.cached,
-                      }));
-                      const currentId = whisperModelId(cfg);
-                      const displayId =
-                        whisperPending?.reason === "select"
-                          ? whisperPending.modelId
-                          : currentId;
-                      const defaultId = formatUnknown(
-                        getByPath(cfg.defaults, field.path) ?? "large-v3-turbo",
-                      );
-                      return (
-                        <WhisperModelPicker
-                          key={field.path}
-                          fieldLabel={field.label}
-                          fieldDescription={field.description}
-                          value={displayId}
-                          defaultValue={defaultId}
-                          models={models}
-                          disabled={running || starting}
-                          highlighted={highlightPaths.has(field.path)}
-                          onSelectCached={(modelId) =>
-                            void onParamChange(field.path, modelId)
-                          }
-                          onSelectMissing={(modelId, previousId) => {
-                            setWhisperPending({
-                              modelId,
-                              previousId,
-                              reason: "select",
-                            });
-                          }}
-                        />
-                      );
-                    }
-                    if (field.path === FORCED_ALIGNMENT_PATH) {
-                      const alignment = forcedAlignment(cfg);
-                      return (
-                        <Fragment key={field.path}>
-                          <ParamControl
-                            field={field}
-                            value={alignment.requested ?? alignment.enabled}
-                            defaultValue={alignment.installed}
-                            disabled={
-                              running ||
-                              starting ||
-                              (!alignment.installed &&
-                                alignment.requested !== true)
-                            }
-                            highlighted={highlightPaths.has(field.path)}
-                            onChange={(v) => void onParamChange(field.path, v)}
-                            describedBy={alignerReasonId}
-                          />
-                          <WordAlignerStatus
-                            status={cfg.components[WORD_ALIGNER_COMPONENT]}
-                            alignment={alignment}
-                            reasonId={alignerReasonId}
-                            disabled={running || starting || retiming}
-                            retiming={retiming}
-                            onDownloaded={() =>
-                              void refreshConfig().catch((e: unknown) =>
-                                setError(errorMessage(e)),
-                              )
-                            }
-                            onRetime={() => void onRetime()}
-                          />
-                        </Fragment>
-                      );
-                    }
-                    return (
-                      <ParamControl
-                        key={field.path}
-                        field={field}
-                        value={getByPath(cfg.config, field.path)}
-                        defaultValue={getByPath(cfg.defaults, field.path)}
-                        disabled={running || starting}
-                        highlighted={highlightPaths.has(field.path)}
-                        onChange={(v) => void onParamChange(field.path, v)}
-                      />
-                    );
-                  })}
-              </div>
-              <Button
-                className="pipeline-secondary-btn"
-                onClick={() => setShowAdvanced((v) => !v)}
-              >
-                {showAdvanced ? "Hide advanced" : "Show advanced"}
-              </Button>
-            </>
-          ) : (
-            <p className="pipeline-hint">
-              Select a step to edit its parameters.
-            </p>
-          )}
-        </div>
+            {stepParameters}
+          </Dialog>
+        ) : (
+          stepParameters
+        )}
       </div>
 
       <details

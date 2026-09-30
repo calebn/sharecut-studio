@@ -36,6 +36,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
 
   return (
     <StatusBarView
+      guestShare={guestShare}
       summary={project ? statusBarSummary(project, render) : null}
       narrow={narrow}
       presence={<PresenceStatus narrow={narrow} />}

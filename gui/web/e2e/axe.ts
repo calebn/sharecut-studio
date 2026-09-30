@@ -27,9 +27,8 @@ export async function expectPageAxeClean(
 }
 
 /**
- * Reading surfaces covered by expectReadingSurfaceAxeClean today:
- * Home (Sharecut Studio) and static marketing HTML. Keep color-contrast and
- * landmark region rules on for those. ReviewApp is not in that suite yet.
+ * Reading surfaces include Home, recording lobbies, guest review, and static
+ * marketing HTML. Keep color-contrast and landmark region rules on for those.
  */
 export async function expectReadingSurfaceAxeClean(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page }).analyze();

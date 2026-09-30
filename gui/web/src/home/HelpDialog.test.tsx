@@ -60,7 +60,9 @@ describe("HelpDialog", () => {
       app_version: "1.0",
       created_at: "2026-09-26T00:00:00Z",
     });
-    const { container } = render(<HelpDialog open onClose={() => undefined} />);
+    const { baseElement: container } = render(
+      <HelpDialog open onClose={() => undefined} />,
+    );
     await waitFor(() => {
       expect(metaMock).toHaveBeenCalled();
     });

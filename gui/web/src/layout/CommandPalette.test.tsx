@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { COMMANDS } from "../commands/catalog";
 import { registerDawCommands } from "../commands/register";
 import { getKeymapOverride } from "../keymap/remaps";
@@ -10,17 +10,13 @@ import { minimalProject } from "../test/fixtures";
 import { CommandPalette } from "./CommandPalette";
 
 describe("CommandPalette", () => {
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
   beforeEach(() => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
   });
 
-  it("shows category tabs and shortcut rows", () => {
+  it("shows category filters and shortcut rows", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <CommandPalette />
@@ -29,19 +25,19 @@ describe("CommandPalette", () => {
     expect(
       screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
     ).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "All keys" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "tools" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "All keys" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "tools" })).toBeTruthy();
     expect(screen.getByText("Select tool")).toBeTruthy();
     expect(screen.getByText("V")).toBeTruthy();
   });
 
-  it("filters to one category tab", async () => {
+  it("filters to one category filter", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <CommandPalette />
       </DawProvider>,
     );
-    await userEvent.click(screen.getByRole("tab", { name: "tools" }));
+    await userEvent.click(screen.getByRole("button", { name: "tools" }));
     expect(screen.getByText("Select tool")).toBeTruthy();
     expect(screen.getByText("Blade tool")).toBeTruthy();
     expect(screen.queryByText("Play / pause")).toBeNull();
@@ -53,7 +49,7 @@ describe("CommandPalette", () => {
         <CommandPalette />
       </DawProvider>,
     );
-    await userEvent.click(screen.getByRole("tab", { name: "Actions" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
     for (const label of [
       "Seek playhead",
       COMMANDS["transport.audition"].label,

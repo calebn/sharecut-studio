@@ -367,6 +367,23 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
 | US-9 | #8 | Partial | `gui/web/src/panels/PipelinePanel.test.tsx`, `gui/web/e2e/pipeline-warning-layout.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
 
+### GUI surface regressions
+
+`gui/web/e2e/gui-surfaces.spec.ts` checks five editor panels and chapter inspectors
+at desktop, tablet and phone widths in both themes with WCAG A/AA contrast
+checks. It also covers long comments and vocabulary announcements, phone
+Pipeline parameters/model-download focus handoff, and repeated menu-trigger
+clicks. `gui/web/e2e/review-surface.spec.ts` exercises real guest comment/reply
+persistence, audio readiness, overflow and contrast in both themes.
+`gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
+at narrow and wide sizes. These browser checks do not validate packaged WebViews
+or physical microphone behavior.
+
+Run browser wrappers sequentially with fixture/environment unit tests. Their
+workspace-marker lifecycle must not overlap. See the
+[GUI surface audit](gui-surface-audit.md) for the complete source/render/live
+coverage map and platform limits.
+
 ### Committed fixtures (Tier A)
 
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript; Piper TTS speech at the canned word times, so live transcribe hears the known phrases)

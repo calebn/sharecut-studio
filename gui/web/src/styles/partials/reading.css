@@ -20,14 +20,25 @@
   padding-inline: var(--s1);
 }
 
+:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
+  .ui-control:not(.dialog-close) {
+  min-block-size: var(--touch-min);
+  font-size: var(--font-size-review);
+}
+
+:is(.home-screen, .review-shell, .record-shell, .bootstrap-wizard)
+  :is(.ui-field-label, .ui-field-hint, .inline-error) {
+  font-size: var(--font-size-body);
+}
+
 .home-screen-error {
   color: var(--color-danger);
   margin: 0;
 }
 
-.home-screen input,
+.home-screen input:not([type="checkbox"], [type="radio"], [type="range"]),
 .home-screen select,
-.record-shell input,
+.record-shell input:not([type="checkbox"], [type="radio"], [type="range"]),
 .record-shell select,
 .bootstrap-wizard select {
   font: inherit;
@@ -49,6 +60,11 @@
 
 .home-screen .ui-field {
   margin-bottom: 0;
+}
+
+:is(.home-screen, .record-shell, .bootstrap-wizard)
+  label:has(input[type="checkbox"], input[type="radio"]) {
+  min-block-size: var(--touch-min);
 }
 
 .transcript-wordbar {

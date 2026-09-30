@@ -144,7 +144,7 @@ export function Menu({
         return;
       }
       const panel = panelRef.current;
-      if (!panel) {
+      if (!panel || !panel.contains(document.activeElement)) {
         return;
       }
       const items = menuItems(panel);
@@ -187,7 +187,18 @@ export function Menu({
   useOutsidePointerDown([panelRef, triggerRef], close, open);
 
   return (
-    <div className={className ?? "ui-menu-root"}>
+    <div
+      className={className ?? "ui-menu-root"}
+      onPointerDown={(event) => {
+        if (
+          open &&
+          event.target instanceof Node &&
+          triggerRef.current?.contains(event.target)
+        ) {
+          event.preventDefault();
+        }
+      }}
+    >
       {trigger({
         "aria-expanded": open,
         "aria-haspopup": "menu",
@@ -202,6 +213,11 @@ export function Menu({
           className="ui-menu-panel transport-overflow-menu"
           role="menu"
           aria-label={label}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              close();
+            }
+          }}
         >
           {children}
         </div>
@@ -246,6 +262,7 @@ export function MenuItem({
     <button
       type="button"
       role="menuitem"
+      tabIndex={-1}
       className={classes}
       title={title}
       aria-keyshortcuts={keyShortcuts}

@@ -253,4 +253,30 @@ describe("CommentsPanel", () => {
       "Comment reopened",
     );
   });
+  it("names action items while composing and includes them in the post", async () => {
+    const user = userEvent.setup();
+    act(() => {
+      useDawStore.getState().setCommentMode(true);
+      useDawStore.getState().setCommentDraft({ startSec: 3, endSec: null });
+    });
+    createComment.mockResolvedValueOnce(sampleComment());
+    const { container } = render(<CommentsPanel />);
+    const actions = screen.getByRole("textbox", {
+      name: "Action items (one per line, optional)",
+    });
+    await user.type(
+      screen.getByRole("textbox", { name: "Comment" }),
+      "Review the opening",
+    );
+    await user.type(actions, "Trim pause{Enter}Check spelling");
+    await expectNoA11yViolations(container);
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    expect(createComment).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      expect.objectContaining({
+        body: "Review the opening",
+        actionTexts: ["Trim pause", "Check spelling"],
+      }),
+    );
+  });
 });

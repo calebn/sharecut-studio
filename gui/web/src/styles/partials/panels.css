@@ -128,8 +128,8 @@
   color: var(--color-chip-selected-fg);
 }
 
-.comment-card.resolved {
-  opacity: 0.65;
+.comment-card.resolved:not(.selected) {
+  background: var(--color-bg-sunken);
 }
 
 /* Swipe-to-resolve cue: overlays the card end when motion is reduced. */
@@ -198,6 +198,7 @@
 
 .comment-card-author {
   color: var(--text-dim);
+  overflow-wrap: anywhere;
 }
 
 .comment-card-status {
@@ -207,6 +208,8 @@
 
 .comment-card-body {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-inline-size: 0;
 }
 
 .comment-card-tracks {
@@ -547,6 +550,8 @@
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-1);
+  flex-wrap: wrap;
+  max-inline-size: 100%;
 }
 
 .transcript-speaker-editor {
@@ -563,6 +568,8 @@
 }
 
 .transcript-inline-input {
+  min-inline-size: 0;
+  max-inline-size: 100%;
   margin: 0;
   padding: 0 var(--space-0);
   border: 1px solid var(--accent);
@@ -613,7 +620,7 @@
   background: var(--color-overlay-white-10);
   color: var(--accent-fg);
   cursor: ew-resize;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-emphasis);
   line-height: 1;
   vertical-align: middle;
@@ -903,12 +910,13 @@ button.history-row {
 
 .pipeline-vocabulary {
   display: grid;
+  overflow-wrap: anywhere;
   gap: var(--space-3);
   padding: var(--space-4);
   border-bottom: 1px solid var(--border);
 }
 
-.pipeline-vocabulary h3,
+.pipeline-vocabulary h2,
 .pipeline-vocabulary p {
   margin: 0;
 }
@@ -953,6 +961,17 @@ button.history-row {
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.pipeline-vocabulary-field li > span {
+  min-inline-size: 0;
+}
+
+.pipeline-vocabulary-field li > button {
+  flex-shrink: 0;
 }
 
 .pipeline-components,
@@ -1206,33 +1225,6 @@ button.history-row {
     grid-template-columns: 1fr;
   }
 
-  .pipeline-step-detail {
-    display: none;
-  }
-
-  .pipeline-step-detail.open {
-    display: block;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: 20%;
-    z-index: 40;
-    background: var(--color-bg-overlay);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    box-shadow: var(--shadow-floating-up);
-  }
-
-  .pipeline-detail-close {
-    display: inline-block;
-    margin-bottom: var(--space-3);
-    background: var(--color-bg-sunken);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-1) var(--space-4);
-    cursor: pointer;
-  }
-
   .pipeline-run-btn {
     margin-left: 0;
     width: 100%;
@@ -1427,7 +1419,7 @@ button.history-row {
 .activity-count-badge {
   font-size: var(--font-size-small);
   font-weight: 500;
-  opacity: 0.85;
+  color: var(--color-text-secondary);
   text-decoration: none;
 }
 

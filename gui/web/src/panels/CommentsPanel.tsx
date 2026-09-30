@@ -253,6 +253,7 @@ export function CommentsPanel({
           {!guestShare && (
             <>
               <textarea
+                aria-label="Action items (one per line, optional)"
                 value={actionLine}
                 onChange={(e) => setActionLine(e.target.value)}
                 placeholder="Action items (one per line, optional)"

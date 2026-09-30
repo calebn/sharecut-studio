@@ -16,7 +16,10 @@ const meta: Meta<typeof InspectorSeekFooterView> = {
     (Story, context) => (
       <div
         className="inspector modifier-inspector modifier-inspector--embedded"
-        style={{ width: context.parameters.footerPhone ? "360px" : "22rem" }}
+        style={{
+          width: context.parameters.footerPhone ? "360px" : "22rem",
+          maxWidth: "100%",
+        }}
       >
         <div className="modifier-footer">
           <Story />
@@ -119,9 +122,13 @@ export const PhoneWidth: Story = {
   args: { previewMode: "suggested", onPreviewModeChange: fn() },
   render: (args) => <PreviewModesPreview {...args} />,
   play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".modifier-inspector"),
-    ).toHaveStyle({ width: "360px" });
+    const inspector = canvasElement.querySelector(".modifier-inspector");
+    await expect(inspector).toHaveStyle({ width: "360px", maxWidth: "100%" });
+    if (inspector instanceof HTMLElement) {
+      await expect(inspector.scrollWidth).toBeLessThanOrEqual(
+        inspector.clientWidth,
+      );
+    }
     await expect(
       within(canvasElement).getByRole("group", { name: "Preview mode" }),
     ).toBeVisible();

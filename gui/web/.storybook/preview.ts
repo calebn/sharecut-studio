@@ -25,7 +25,9 @@ import.meta.hot?.dispose(() => channel.off(GLOBALS_UPDATED, onGlobalsUpdated));
 const preview: Preview = {
   parameters: {
     options: {
-      storySort: { order: ["Atoms", "Molecules", "Organisms", "Templates"] },
+      storySort: {
+        order: ["Style guide", "Atoms", "Molecules", "Organisms", "Templates"],
+      },
     },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
     backgrounds: { disable: true },

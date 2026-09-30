@@ -157,7 +157,7 @@ describe("RecordPanel", () => {
 
   it("disables Start with the no-one-joined reason", async () => {
     useRecordHostStore.getState().setSnapshot(lobby);
-    const { container } = render(<RecordPanel />);
+    const { baseElement: container } = render(<RecordPanel />);
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
     expect(await screen.findByText("No one has joined")).toBeInTheDocument();
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("RecordPanel", () => {
 
   it("shows host microphone recovery and retries it", async () => {
     const onRetryMic = vi.fn();
-    const { container } = render(
+    const { baseElement: container } = render(
       <RecordPanel
         micError="permission blocked"
         micStatus="denied"
@@ -312,7 +312,7 @@ describe("RecordPanel", () => {
     });
 
     try {
-      const { container } = render(
+      const { baseElement: container } = render(
         <RecordPanel micStatus="denied" onRetryMic={() => undefined} />,
       );
       expect(screen.getByText(MIC_DESKTOP_DENIED_COPY)).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe("RecordPanel", () => {
       start_blockers: [],
       participants: [avaGuest()],
     });
-    const { container } = render(<RecordPanel />);
+    const { baseElement: container } = render(<RecordPanel />);
     await waitFor(() =>
       expect(screen.getByText(storageLowCopy(0))).toBeVisible(),
     );
@@ -489,7 +489,7 @@ describe("RecordPanel", () => {
       start_blockers: [],
     });
     const retry = vi.fn();
-    const { container } = render(
+    const { baseElement: container } = render(
       <RecordPanel
         recordingLocally
         hearing
@@ -557,7 +557,7 @@ describe("RecordPanel", () => {
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
     useDawStore.setState({ recordPanelOpen: false });
     useRecordHostStore.getState().setCaptureHealth("silent");
-    const { container, rerender } = render(
+    const { baseElement: container, rerender } = render(
       <RecordPanel
         micStatus="granted"
         stream={{} as MediaStream}
@@ -605,7 +605,7 @@ describe("RecordPanel", () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    const { container } = render(
+    const { baseElement: container } = render(
       <RecordPanel
         micLost
         micError="Permission denied"
@@ -629,7 +629,9 @@ describe("RecordPanel", () => {
       start_blockers: [],
     });
     useDawStore.setState({ recordPanelOpen: false });
-    const { container } = render(<RecordPanel micLost onRetryMic={vi.fn()} />);
+    const { baseElement: container } = render(
+      <RecordPanel micLost onRetryMic={vi.fn()} />,
+    );
     await waitFor(() => {
       expect(useDawStore.getState().recordPanelOpen).toBe(true);
       expect(
@@ -755,7 +757,7 @@ describe("RecordPanel", () => {
       });
       vi.mocked(createOpfsSink).mockResolvedValue(sink);
       useRecordHostStore.getState().setSnapshot(stopped);
-      const { container } = render(<RecordPanel />);
+      const { baseElement: container } = render(<RecordPanel />);
       const recover = await screen.findByRole("button", {
         name: "Recover partial take",
       });
@@ -773,6 +775,44 @@ describe("RecordPanel", () => {
         ).toBeNull(),
       );
       await expectNoA11yViolations(container);
+    });
+
+    it("offers download advice if the upload transport disappears during recovery", async () => {
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_host",
+      });
+      const rewriteHeader = sink.rewriteHeader.bind(sink);
+      let release: () => void = () => undefined;
+      const pendingWrite = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let writing = false;
+      sink.rewriteHeader = async (path, header, byteLength) => {
+        writing = true;
+        await pendingWrite;
+        await rewriteHeader(path, header, byteLength);
+      };
+      vi.mocked(createOpfsSink).mockResolvedValue(sink);
+      useRecordHostStore.getState().setSnapshot(stopped);
+      render(<RecordPanel />);
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Recover partial take" }),
+      );
+      await waitFor(() => expect(writing).toBe(true));
+      act(() => useDawStore.setState({ projectPath: "" }));
+      await act(async () => release());
+      expect(
+        await screen.findByText(
+          "Recovered 1 partial segment. Download your local recording to keep a copy.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
+      ).toBe(true);
+      expect(screen.queryByText(/Upload will resume/)).toBeNull();
     });
 
     it("shows a failed recovery beside upload status, not as a storage error", async () => {
@@ -985,7 +1025,7 @@ describe("RecordPanel", () => {
         }),
       ],
     });
-    const { container } = render(<RecordPanel />);
+    const { baseElement: container } = render(<RecordPanel />);
     expect(
       screen.getByText(
         "Paused: the host was offline for 15s. Resume when everyone is ready.",

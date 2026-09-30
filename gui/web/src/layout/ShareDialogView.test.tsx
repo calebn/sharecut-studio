@@ -63,7 +63,7 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
 describe("ShareDialogView", () => {
   it("lists usable review links and record rooms; axe-clean", async () => {
     const props = baseProps();
-    const { container } = render(<ShareDialogView {...props} />);
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
     expect(screen.getByText("sample-review-link")).toBeInTheDocument();
     expect(screen.getByText("sample-agent-link")).toBeInTheDocument();
     expect(screen.queryByText("sample-stale-link")).not.toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("ShareDialogView", () => {
   it("shows empty states; axe-clean", async () => {
     const props = baseProps();
     props.rows = [];
-    const { container } = render(<ShareDialogView {...props} />);
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
     expect(screen.getByText("No live review links.")).toBeInTheDocument();
     expect(screen.getByText("No live record rooms.")).toBeInTheDocument();
     await expectNoA11yViolations(container);

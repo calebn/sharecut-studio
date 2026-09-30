@@ -3,7 +3,10 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
-import { STORY_SUPPORT_MODULES } from "../src/test/storyGovernance.ts";
+import {
+  CATALOG_ONLY_MODULES,
+  STORY_SUPPORT_MODULES,
+} from "../src/test/storyGovernance.ts";
 
 function uninspectedPublicAssets(dir: string): string[] {
   if (!existsSync(dir)) return [];
@@ -21,7 +24,9 @@ export function forbiddenStoryModule(id: string): boolean {
   return (
     /\.stories\.[cm]?[jt]sx?$/.test(path) ||
     /(?:^|\/)node_modules\/(?:@storybook|storybook)\//.test(path) ||
-    (srcRelative !== undefined && STORY_SUPPORT_MODULES.has(srcRelative))
+    (srcRelative !== undefined &&
+      (STORY_SUPPORT_MODULES.has(srcRelative) ||
+        CATALOG_ONLY_MODULES.has(srcRelative)))
   );
 }
 

@@ -227,10 +227,25 @@ test.describe("record lobby", () => {
               };
             }
           });
+          await guest.setViewportSize({ width: 360, height: 740 });
           await openRecordLink(guest, room.guest.token);
           await expect(
             guest.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible();
+          const readingControls = await guest
+            .locator(".record-shell .ui-control")
+            .evaluateAll((elements) =>
+              elements.map((element) => element.getBoundingClientRect().height),
+            );
+          expect(readingControls.length).toBeGreaterThan(0);
+          for (const height of readingControls)
+            expect(height).toBeGreaterThanOrEqual(44);
+          expect(
+            await guest
+              .locator(".ui-field-label")
+              .first()
+              .evaluate((element) => getComputedStyle(element).fontSize),
+          ).toBe("14px");
           await fillGuestDisplayName(guest, "Ava");
           await guest.getByLabel("I am wearing headphones").check();
           await expect(

@@ -18,7 +18,50 @@ read-only token for building and grants Pages deployment permission only to its
 `main` deploy job. After merging, check the `storybook` workflow's deploy job
 and open the URL it reports.
 
+## Interaction quality requirements
+
+These requirements define the intended experience. They do not claim that every
+existing control meets it. Track gaps in the [editor interaction review](https://github.com/calebn/sharecut-studio/issues/878).
+
+- Keep the original grab point attached to the pointer throughout a drag.
+  Preview labels and restored words must not shift the handle's layout origin.
+  Explain legal limits and snapping without unexplained jumps.
+- Provide accurate values, fine adjustment, and keyboard and click/tap
+  alternatives for precision edits. Let editors audition audio consequences
+  through existing playback commands where relevant.
+- Distinguish preview, pending, committed, and failed state. A completed gesture
+  commits once. Cancellation discards the preview, and a no-op creates no edit.
+  Preserve undo and give a clear recovery action after failure.
+- Test intermediate gesture geometry, reversals, scrolling, wrapping, pointer
+  cancellation, and cleanup. Final callback assertions alone do not establish
+  a smooth interaction. Cover supported input methods, shells, and themes.
+- Measure latency and rendering cost before optimizing. Respect reduced motion
+  and use motion to communicate state. Do not add decorative delays to direct
+  manipulation.
+
+The [UI philosophy](ui-philosophy.md) remains the product requirement source.
+The [boundary drag defect](https://github.com/calebn/sharecut-studio/issues/877)
+is a known gap in the current implementation.
+
 ## What's in it
+
+Start at **Style guide → Start here** for a task-oriented map of the catalog,
+live typography and spacing samples, and interactive action/selection examples.
+The [component consistency audit](design-system-audit.md) records reviewed coverage,
+fixed mismatches, and the remaining work. The [full GUI audit](gui-surface-audit.md)
+records final verification and tracked follow-ups.
+
+The standalone MDX page uses the current theme tokens and production controls;
+it links to component docs rather than reproducing their state galleries.
+The theme toolbar applies to this page in both light and dark modes.
+
+| You need to… | Start with… |
+| --- | --- |
+| Choose colors, space, or type | The visual starting page, then [token ownership](design-tokens.md) |
+| Compose controls or overlays | Component stories, then the [library contract](../gui/web/docs/ui-library.md) |
+| Match the product's voice and density | [Brand guidance](../ux/pages/brand.md) |
+| Plan beta behavior | [UI philosophy](ui-philosophy.md), which distinguishes requirements from shipped behavior |
+| Add or change a story | [Adding a story](#adding-a-story) and [Governance](#governance) |
 
 Stories live next to their components and are organized by Atomic Design
 level. Library stories (`src/ui/*.stories.tsx`) are atoms, molecules or
@@ -370,7 +413,9 @@ unchanged for callers and continue to read DAW state and dispatch through
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
    library, the feature folder for domain surfaces).
 2. Title every story by Atomic Design level:
-   `Atoms|Molecules|Organisms|Templates/<Name>`. Library components use the
+   `Atoms|Molecules|Organisms|Templates/<Name>`. Standalone orientation docs
+   live under `Style guide/` as MDX pages, before the component catalog.
+   Library components use the
    first three; **Organisms** are generic and reusable anywhere (Dialog,
    BottomSheet) and carry no domain-specific fixtures or copy. State-local
    domain screens use `Templates/<Name>`. No per-feature top-level categories
@@ -437,7 +482,10 @@ unchanged for callers and continue to read DAW state and dispatch through
   enforces all of this for `src/` and for the root build configs
   (`gui/web/*.config.*`); only `.storybook/` may glob stories. New
   story-support modules must be added to `STORY_SUPPORT_MODULES` in
-  `gui/web/src/test/storyGovernance.ts`. The check parses TypeScript and JSX
+  `gui/web/src/test/storyGovernance.ts`. Catalog-only components without
+  Storybook imports (such as `storybook/StyleGuide.tsx`) belong in
+  `CATALOG_ONLY_MODULES`; both registries are rejected by the production build.
+  The check parses TypeScript and JSX
   syntax for literal `import`, `export … from`, `import()`, and `require()`
   specifiers and real `import.meta.glob` calls, so comments and ordinary
   strings cannot look like imports or glob calls. Literal glob arguments may

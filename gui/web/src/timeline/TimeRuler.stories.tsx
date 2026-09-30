@@ -9,6 +9,13 @@ const meta: Meta<typeof TimeRulerView> = {
   component: TimeRulerView,
   tags: ["autodocs"],
   parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <div className="timeline-scroll">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     durationSec: 30,
     sessionDurationSec: 25,

@@ -1,11 +1,17 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { partial, rule } from "../test/cssRules";
 import { sampleComment } from "../test/fixtures";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 
 describe("timeline range overlays", () => {
+  it("uses readable text ink for the audition label over its tinted range", () => {
+    expect(rule(partial("layout.css"), ".audition-overlay-label")).toMatch(
+      /color:\s*var\(--color-text-secondary\)/,
+    );
+  });
   it("positions an audition range and keeps a short range visible", async () => {
     const { container } = render(
       <main>

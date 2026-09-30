@@ -10,6 +10,7 @@ export type { StatusBarSummary } from "./statusBarSummary";
 export type StatusBarTab = "impact" | "pipeline" | "comments";
 
 type Props = {
+  guestShare?: boolean;
   summary: StatusBarSummary | null;
   narrow: boolean;
   presence?: ReactNode;
@@ -24,6 +25,7 @@ type Props = {
 
 /** Props-only status bar footer, shared by the live adapter and its stories. */
 export function StatusBarView({
+  guestShare = false,
   summary,
   narrow,
   presence,
@@ -68,22 +70,29 @@ export function StatusBarView({
   return (
     <footer className="status-bar">
       {presence}
-      <button
-        type="button"
-        className="ui-control status-chip"
-        onClick={() => onOpenTab("impact")}
-      >
-        Pending: {pendingReviewCount}
-      </button>
-      {unmappedCount > 0 && (
+      {guestShare ? (
+        <span>Pending: {pendingReviewCount}</span>
+      ) : (
         <button
           type="button"
           className="ui-control status-chip"
           onClick={() => onOpenTab("impact")}
         >
-          {unmappedPendingLabel(unmappedCount)}
+          Pending: {pendingReviewCount}
         </button>
       )}
+      {unmappedCount > 0 &&
+        (guestShare ? (
+          <span>{unmappedPendingLabel(unmappedCount)}</span>
+        ) : (
+          <button
+            type="button"
+            className="ui-control status-chip"
+            onClick={() => onOpenTab("impact")}
+          >
+            {unmappedPendingLabel(unmappedCount)}
+          </button>
+        ))}
       {cut && (
         <span
           className={narrow ? "status-bar-secondary" : undefined}
@@ -97,14 +106,20 @@ export function StatusBarView({
           Social: {socialClipCount}
         </span>
       )}
-      <button
-        type="button"
-        className="ui-control status-chip"
-        title={renderSummary}
-        onClick={() => onOpenTab("pipeline")}
-      >
-        {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
-      </button>
+      {guestShare ? (
+        <span title={renderSummary}>
+          {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="ui-control status-chip"
+          title={renderSummary}
+          onClick={() => onOpenTab("pipeline")}
+        >
+          {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
+        </button>
+      )}
       {transcriptNeedsSync ? (
         <span className={reconcileHighlight ? "stale-highlight" : undefined}>
           Transcript: needs sync

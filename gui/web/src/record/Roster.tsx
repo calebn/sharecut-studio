@@ -13,25 +13,28 @@ export function Roster({ participants }: Props) {
   const prev = useRef<Set<string>>(new Set());
   const names = useRef<Map<string, string>>(new Map());
   const [announcement, setAnnouncement] = useState("");
+  const initialized = useRef(false);
 
   useEffect(() => {
     const ids = new Set(liveKey ? liveKey.split(",") : []);
     for (const p of participants) {
       names.current.set(p.participant_id, p.display_name);
     }
-    const seeded = prev.current.size > 0 || ids.size === 0;
-    if (seeded) {
+    const changes: string[] = [];
+    if (initialized.current) {
       for (const id of ids) {
         if (!prev.current.has(id)) {
-          setAnnouncement(`${names.current.get(id) || "Someone"} joined`);
+          changes.push(`${names.current.get(id) || "Someone"} joined`);
         }
       }
       for (const id of prev.current) {
         if (!ids.has(id)) {
-          setAnnouncement(`${names.current.get(id) || "Someone"} left`);
+          changes.push(`${names.current.get(id) || "Someone"} left`);
         }
       }
     }
+    if (changes.length) setAnnouncement(changes.join(". "));
+    initialized.current = true;
     prev.current = ids;
   }, [liveKey, participants]);
 

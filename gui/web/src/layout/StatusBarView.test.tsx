@@ -217,4 +217,36 @@ describe("StatusBarView", () => {
     expect(chip.getAttribute("title")).toBe("Ada (guest)");
     expect(chip.className).toBe("status-bar-secondary");
   });
+  it("keeps host-only guest summaries static while comments remain reachable", async () => {
+    const user = userEvent.setup();
+    const onOpenTab = vi.fn();
+    const { container } = render(
+      <StatusBarView
+        guestShare
+        summary={{
+          ...summaryOf(minimalProject()),
+          pendingReviewCount: 2,
+          unmappedCount: 1,
+        }}
+        narrow={false}
+        statusAnnouncement=""
+        onOpenTab={onOpenTab}
+      />,
+    );
+    expect(screen.getByText("Pending: 2").tagName).toBe("SPAN");
+    expect(screen.getByText(/^Edits in removed audio/).tagName).toBe("SPAN");
+    expect(screen.getByText(/^Mix /i).tagName).toBe("SPAN");
+    expect(
+      screen.queryByRole("button", {
+        name: /^Pending:|^Edits in removed audio|^Mix /i,
+      }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByText("Pending: 2"));
+    await user.click(screen.getByText(/^Edits in removed audio/));
+    await user.click(screen.getByText(/^Mix /i));
+    expect(onOpenTab).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Open comments" }));
+    expect(onOpenTab.mock.calls).toEqual([["comments"]]);
+    await expectNoA11yViolations(container);
+  });
 });

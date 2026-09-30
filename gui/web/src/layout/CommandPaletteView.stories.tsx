@@ -135,10 +135,12 @@ export const CategoryTab: Story = {
       "Open keyboard shortcuts",
       "Keyboard shortcuts",
     );
-    await userEvent.click(within(dialog).getByRole("tab", { name: "tools" }));
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "tools" }),
+    );
     await expect(
-      within(dialog).getByRole("tab", { name: "tools" }),
-    ).toHaveAttribute("aria-selected", "true");
+      within(dialog).getByRole("button", { name: "tools" }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(within(dialog).getByText("Blade tool")).toBeVisible();
     await expect(within(dialog).queryByText("Play / pause")).toBeNull();
     await expect(
@@ -155,7 +157,9 @@ export const ActionsTab: Story = {
       "Open keyboard shortcuts",
       "Keyboard shortcuts",
     );
-    await userEvent.click(within(dialog).getByRole("tab", { name: "Actions" }));
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Actions" }),
+    );
     await expect(within(dialog).queryByText("Select tool")).toBeNull();
     await userEvent.click(
       within(dialog).getByRole("button", {

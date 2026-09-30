@@ -28,6 +28,7 @@ export function TranscriptRefineRecovery({
   const [formError, setFormError] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
   const reasonId = useId();
+  const hintId = useId();
   const errorId = useId();
 
   if (errorCode !== TRANSCRIPT_REFINE_REQUIRED_CODE) {
@@ -70,6 +71,7 @@ export function TranscriptRefineRecovery({
       <Field
         label="Waiver reason"
         htmlFor={reasonId}
+        hintId={hintId}
         hint="This reason is saved with the transcript-refine status."
       >
         <textarea
@@ -78,7 +80,7 @@ export function TranscriptRefineRecovery({
           rows={3}
           disabled={busy}
           aria-invalid={Boolean(formError)}
-          aria-describedby={formError ? errorId : undefined}
+          aria-describedby={formError ? `${hintId} ${errorId}` : hintId}
           onChange={(event) => setReason(event.target.value)}
         />
       </Field>

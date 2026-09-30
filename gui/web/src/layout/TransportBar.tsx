@@ -302,6 +302,7 @@ export function TransportBar({
                 key={m.id}
                 quiet
                 role="menuitemradio"
+                tabIndex={-1}
                 pressed={layoutMode === m.id}
                 aria-checked={layoutMode === m.id}
                 title={titleWithShortcut(m.menuLabel, m.command)}
@@ -327,6 +328,7 @@ export function TransportBar({
               key={t.id}
               quiet
               role="menuitemradio"
+              tabIndex={-1}
               pressed={preference === t.id}
               aria-checked={preference === t.id}
               onClick={() => setPreference(t.id)}

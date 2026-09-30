@@ -30,6 +30,8 @@ Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
 the GitHub Pages publishing setup. Pull requests build the catalog without
 deploying it.
+Begin with **Style guide → Start here** for live type/spacing samples,
+interactive control states, and links to the component docs and design rules.
 The `Templates/TimelineRange` story shows the production audition and comment
 selection overlays with the prop-only `PlayheadNeedle` in a 360px timeline
 well. The live `Playhead` keeps the DAW store subscription and moves its needle
@@ -310,3 +312,12 @@ Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentAc
 `utils/layout.ts` holds the default layout dims (`--ruler-height`, `--marker-lane-height`, lane height). At runtime `TimelineView` measures the stage and provides the live lane and marker-lane heights through `timeline/timelineMetrics.ts` (`useTimelineMetrics`), and sets `--lane-height` / `--marker-lane-height` on `.timeline-area`; overlays and headers read the context, never the constants. Presence `lane_pos` stays in lane units so viewers with different lane heights agree.
 
 The Wordbar (`transcript/TranscriptWordbar.tsx`) edits exact source-word timing through the document command bus. It uses native range/number controls, the shared waveform with an explicit local viewport, and an owned source-preview descriptor consumed by the existing audio transport. Draft pointer movement does not publish session state or write document commands.
+
+## GUI surface verification
+
+The [full GUI audit](../../docs/gui-surface-audit.md) separates source, catalog
+and live-route coverage. `e2e/gui-surfaces.spec.ts` checks responsive panels,
+long content and modal/menu keyboard behavior with contrast enabled. Recording
+room and upload/recovery states are available in Storybook as prop-driven
+examples. Run browser wrappers sequentially with fixture/environment unit tests
+so their shared workspace-marker lifecycle does not overlap.

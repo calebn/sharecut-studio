@@ -23,7 +23,14 @@ export const WithHint: Story = {
     label: "Export filename",
     htmlFor: "sb-filename",
     hint: "Used for the downloadable file; spaces become dashes.",
-    children: <input id="sb-filename" defaultValue="episode-12" />,
+    hintId: "sb-filename-hint",
+    children: (
+      <input
+        id="sb-filename"
+        aria-describedby="sb-filename-hint"
+        defaultValue="episode-12"
+      />
+    ),
   },
 };
 
@@ -32,6 +39,14 @@ export const WithError: Story = {
     label: "Share link expiry",
     htmlFor: "sb-expiry",
     error: "Expiry must be a future date.",
-    children: <input id="sb-expiry" aria-invalid defaultValue="2020-01-01" />,
+    errorId: "sb-expiry-error",
+    children: (
+      <input
+        id="sb-expiry"
+        aria-describedby="sb-expiry-error"
+        aria-invalid
+        defaultValue="2020-01-01"
+      />
+    ),
   },
 };

@@ -852,4 +852,19 @@ describe("StatusBar cut chip", () => {
     renderWith(minimalProject());
     expect(screen.queryByText(/^Cut /)).toBeNull();
   });
+  it("passes guest restrictions to summary controls and still opens comments", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject();
+    useDawStore.getState().hydrate("share:token", project, "view", ["view"]);
+    useDawStore.setState({ activeTab: "transcript", layoutMode: "default" });
+    render(<StatusBar guestShare />);
+    expect(
+      screen.queryByRole("button", { name: /^Pending:|^Mix /i }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByText(/^Pending:/));
+    await user.click(screen.getByText(/^Mix /i));
+    expect(useDawStore.getState().activeTab).toBe("transcript");
+    await user.click(screen.getByRole("button", { name: "Open comments" }));
+    expect(useDawStore.getState().activeTab).toBe("comments");
+  });
 });

@@ -227,7 +227,7 @@ export function TranscriptVocabularyEditor({
       className="pipeline-vocabulary"
       aria-label="Transcription vocabulary"
     >
-      <h3>Transcription vocabulary</h3>
+      <h2>Transcription vocabulary</h2>
       <p>
         Names and terms help Whisper recognize spellings during transcription.
       </p>
@@ -269,7 +269,7 @@ export function TranscriptVocabularyEditor({
             <ul aria-label={copy.list}>
               {draft?.[field].map((value) => (
                 <li key={value}>
-                  {value}
+                  <span>{value}</span>
                   <Button
                     className="ui-control--compact"
                     aria-label={`Remove ${value}`}

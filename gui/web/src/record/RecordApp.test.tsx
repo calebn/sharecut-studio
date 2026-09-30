@@ -772,6 +772,36 @@ describe("RecordApp", () => {
       await waitFor(() => expect(puts.length).toBeGreaterThan(0));
     });
 
+    it("recovers a removed guest's local audio and offers download without uploading", async () => {
+      const puts = stubUploadFetch();
+      const sink = new MemorySink();
+      const wavPath = await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      await renderStoppedRoom(sink);
+      await screen.findByRole("button", { name: "Recover partial take" });
+      sockets[0]?.onclose?.({ code: 4403 });
+      await screen.findByText("Your access to this recording room has ended.");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Recover local recording" }),
+      );
+      expect(
+        await screen.findByText(
+          "Recovered 1 partial segment. Download your local recording to keep a copy.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
+      ).toBe(true);
+      expect(
+        screen.getByRole("button", { name: "Download local recording" }),
+      ).toBeEnabled();
+      expect(screen.queryByText(/Upload will resume/)).toBeNull();
+      expect(puts).toEqual([]);
+    });
+
     it("keeps a failed recovery out of the storage error channel", async () => {
       stubUploadFetch();
       const sink = new MemorySink();
