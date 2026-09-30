@@ -24,7 +24,7 @@ describe("revertOptimisticIfUnchanged", () => {
       ],
     });
     useDawStore.getState().hydrate("/tmp/p.json", optimistic);
-    revertOptimisticIfUnchanged(previous, 0);
+    revertOptimisticIfUnchanged(previous, 0, "/tmp/p.json", optimistic);
     expect(useDawStore.getState().project?.tracks).toHaveLength(0);
   });
 
@@ -48,7 +48,7 @@ describe("revertOptimisticIfUnchanged", () => {
     });
     useDawStore.getState().hydrate("/tmp/p.json", peer);
     noteDocumentSeq(4);
-    revertOptimisticIfUnchanged(previous, 3);
+    revertOptimisticIfUnchanged(previous, 3, "/tmp/p.json", peer);
     expect(useDawStore.getState().project?.tracks[0]?.id).toBe("peer");
   });
 });

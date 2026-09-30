@@ -87,13 +87,19 @@ async function applyTrackReorder(
   }
   const previous = s.project;
   const seqAtStart = currentDocumentSeq();
-  s.setProject(patchTracksOrder(previous, trackId, index));
+  const optimistic = patchTracksOrder(previous, trackId, index);
+  s.setProject(optimistic);
   try {
     await reorderTrackCommand(s.projectPath, trackId, index);
     useDawStore.getState().announceStatus("Reordered track");
     return { status: "ok" };
   } catch (e) {
-    revertOptimisticIfUnchanged(previous, seqAtStart);
+    revertOptimisticIfUnchanged(
+      previous,
+      seqAtStart,
+      s.projectPath,
+      optimistic,
+    );
     const msg = errorMessage(e);
     useDawStore.getState().announceStatus(`Reorder failed: ${msg}`);
     return { status: "disabled", reason: msg };

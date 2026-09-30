@@ -123,10 +123,13 @@ describe("TranscriptSpeakerEditor", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save speaker" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Track metadata change queued. Still sending.",
+    );
     expect(
       useDawStore
         .getState()
-        .project?.transcript.utterances.map((row) => row.speaker),
+        .project?.transcript?.utterances.map((row) => row.speaker),
     ).toEqual(["Mira", "Guest"]);
   });
   it.each(["project switch", "sequenced peer", "unsequenced peer"])(
