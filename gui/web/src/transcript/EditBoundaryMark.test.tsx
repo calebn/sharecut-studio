@@ -253,6 +253,28 @@ describe("EditBoundaryMarkView", () => {
     );
   });
 
+  it("discards a cancelled gesture without creating an edit", () => {
+    const onTrim = vi.fn();
+    const { getByRole } = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={clip({ id: "left", source_end: 20 })}
+        rightClip={null}
+        getRollBounds={getRollBounds}
+        onRoll={vi.fn()}
+        onTrim={onTrim}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    fireEvent.pointerCancel(window, { pointerId: 1, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    expect(onTrim).not.toHaveBeenCalled();
+    expect(mark).toHaveAttribute("aria-grabbed", "false");
+    expect(document.body).not.toHaveClass("is-boundary-dragging");
+  });
+
   it("trims through onTrim with only a left clip", async () => {
     const left = clip({ id: "left", source_end: 20 });
     const onRoll = vi.fn();
