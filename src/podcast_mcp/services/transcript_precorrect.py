@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any
+
+from filelock import Timeout
 
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.transcript_context import (
+    VOCABULARY_MAX_ENTRIES,
+    VOCABULARY_MAX_ENTRY_CHARS,
     TranscriptContext,
     context_from_dict,
     context_lock,
@@ -15,18 +21,28 @@ from podcast_mcp.transcript_context import (
     new_vocabulary_revision,
 )
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
-
-VOCABULARY_MAX_ENTRIES = 100
-VOCABULARY_MAX_ENTRY_CHARS = 100
+from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 
 class VocabularyConflictError(RuntimeError):
     """Saved vocabulary changed after the caller read it (stale base_revision)."""
 
 
+class TranscriptContextBusyError(RuntimeError):
+    """Another writer holds the transcript context lock."""
+
+
 class TranscriptPrecorrectService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
+
+    @contextmanager
+    def _context_lock(self) -> Iterator[None]:
+        try:
+            with context_lock(self.ws.project.workspace_path()):
+                yield
+        except Timeout as exc:
+            raise TranscriptContextBusyError(TRANSCRIPT_CONTEXT_BUSY_MESSAGE) from exc
 
     def load_context(self) -> TranscriptContext:
         return load_transcript_context(self.ws.project.workspace_path())
@@ -38,10 +54,10 @@ class TranscriptPrecorrectService:
         """Replace transcript_context.yaml with ``ctx`` under the context lock.
 
         Raises ValueError when changed vocabulary would be truncated in the Whisper prompt,
-        and filelock.Timeout when another writer holds the lock.
+        and TranscriptContextBusyError when another writer holds the lock.
         """
         workspace = self.ws.project.workspace_path()
-        with context_lock(workspace):
+        with self._context_lock():
             current = load_transcript_context(workspace)
             return self._save_context_locked(ctx, current)
 
@@ -67,11 +83,11 @@ class TranscriptPrecorrectService:
         """Merge values into transcript_context.yaml under the context lock.
 
         Raises ValueError when changed vocabulary would be truncated in the Whisper prompt,
-        or when changed terms or guest names break the entry limits, and filelock.Timeout
+        or when changed terms or guest names break the entry limits, and TranscriptContextBusyError
         when another writer holds the lock.
         """
         workspace = self.ws.project.workspace_path()
-        with context_lock(workspace):
+        with self._context_lock():
             current = load_transcript_context(workspace)
             merged = {**context_to_dict(current), **(values or {})}
             if terms:
@@ -112,13 +128,13 @@ class TranscriptPrecorrectService:
         """Save terms and guest names.
 
         Raises ValueError for invalid or prompt-overflowing vocabulary,
-        VocabularyConflictError when ``base_revision`` is stale, and filelock.Timeout
+        VocabularyConflictError when ``base_revision`` is stale, and TranscriptContextBusyError
         when the lock is busy.
         """
         cleaned_terms = _clean_vocabulary(terms)
         cleaned_names = _clean_vocabulary(guest_names)
         workspace = self.ws.project.workspace_path()
-        with context_lock(workspace):
+        with self._context_lock():
             current = load_transcript_context(workspace)
             if base_revision != current.vocabulary_revision:
                 raise VocabularyConflictError(

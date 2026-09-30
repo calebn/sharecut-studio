@@ -733,3 +733,23 @@ def test_plan_retime_context_is_reused_by_run_transcribe_plan(job, monkeypatch):
         stub.transcribe_all_dialogue.call_args.kwargs["initial_prompt"]
         == plan.context.initial_prompt_text()
     )
+
+
+def test_transcribe_run_keeps_prompt_revision_snapshot_during_vocabulary_save(job, tmp_path):
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.transcript_context import DEFAULT_PROMPT_PRIMER, TranscriptContext
+
+    project = _project(workspace=str(tmp_path))
+    TranscriptContext(terms=["Original"], vocabulary_revision="old").save(tmp_path)
+    plan = plan_transcription(project, [job], overwrite=True, unattended=False)
+    engine = MagicMock()
+
+    def decode(*args, **kwargs):
+        TranscriptContext(terms=["Changed"], vocabulary_revision="new").save(tmp_path)
+        assert kwargs["initial_prompt"] == f"{DEFAULT_PROMPT_PRIMER} Original"
+        return [Transcript(track_id="host", words=[])]
+
+    engine.transcribe_all_dialogue.side_effect = decode
+    result = run_transcribe_plan(project, plan, lambda: engine, use_cache=True, language="en")
+    assert result[0].vocabulary_revision == "old"

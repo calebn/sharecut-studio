@@ -205,3 +205,10 @@ def test_transcribe_kwargs_are_accepted_by_installed_faster_whisper():
     params = set(inspect.signature(fw.WhisperModel.transcribe).parameters)
     for opts in (AsrOptions(), AsrOptions(condition_on_previous_text=False)):
         assert set(opts.transcribe_kwargs("vocab")) <= params
+
+
+@pytest.mark.parametrize("language", ["en", "es", None])
+def test_asr_options_resolve_transcription_language(language):
+    options = AsrOptions.from_defaults({"transcribe": {"language": language}})
+    assert options.language == language
+    assert options.decode_key() == AsrOptions().decode_key()

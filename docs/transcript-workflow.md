@@ -155,6 +155,20 @@ has a 400-character limit by default (shared with the punctuation primer below),
 and Studio rejects terms that would be truncated. This changes future ASR
 output, not existing transcript words.
 
+Pipeline transcription, MCP `transcribe_track`, and CLI `podcast transcribe`
+resolve `transcribe.language` from the same pipeline configuration. The staged
+working set takes precedence over shipped defaults. The default is `en`, so
+MCP and CLI no longer auto-detect the language by default. Set
+`transcribe.language: null` to use Whisper auto-detection. Auto-detection and
+English remain distinct cache inputs.
+
+`TranscriptContext.transcription_vocabulary()` captures the prompt and revision
+together. A vocabulary save during ASR leaves that run stamped with its original
+revision, so Studio can still report it as stale. Vocabulary limits live in
+`transcript_context.py`. Context writers raise `TranscriptContextBusyError`
+from the service when the lock times out. Studio reports HTTP 503 and CLI context
+updates exit with code 1 without exposing the lock path.
+
 **Punctuation priming (#769).** A project with no show title, terms or guest
 names used to send Whisper no prompt at all. For some tracks (rambling,
 filler-heavy speech Whisper finds ambiguous) that let its first decode window

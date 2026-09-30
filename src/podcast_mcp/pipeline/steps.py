@@ -143,7 +143,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
             )
         return engines[0]
 
-    language = cfg.get("language", "en")
+    language = options.language
     # Run-only (Studio Re-time words, CLI --retime-words, MCP retime_words); never in yaml.
     retime = options.forced_alignment_enabled and bool(cfg.get("retime_words", False))
     if retime:

@@ -447,3 +447,46 @@ def test_context_lock_times_out_after_context_lock_timeout(
     finally:
         release.set()
         thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_transcription_vocabulary_snapshot(enabled):
+    ctx = TranscriptContext(
+        terms=["Kaczynski"],
+        vocabulary_revision="revision-one",
+        transcribe={"initial_prompt": enabled},
+    )
+    snapshot = ctx.transcription_vocabulary()
+    ctx.terms = ["Changed"]
+    ctx.vocabulary_revision = "revision-two"
+    assert snapshot.initial_prompt == (f"{DEFAULT_PROMPT_PRIMER} Kaczynski" if enabled else None)
+    assert snapshot.revision == "revision-one"
+
+
+@pytest.mark.parametrize("method", ["set_context", "update_context", "set_vocabulary"])
+def test_context_service_wraps_busy_lock(minimal_project, monkeypatch, method):
+    from contextlib import contextmanager
+
+    from filelock import Timeout
+
+    import podcast_mcp.services.transcript_precorrect as module
+    from podcast_mcp.services.workspace import ProjectWorkspace
+    from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
+
+    @contextmanager
+    def busy(_workspace):
+        raise Timeout("/secret/transcript_context.yaml.lock")
+        yield
+
+    monkeypatch.setattr(module, "context_lock", busy)
+    service = module.TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
+    kwargs = {
+        "set_context": {"ctx": TranscriptContext()},
+        "update_context": {"terms": ["A"]},
+        "set_vocabulary": {"terms": ["A"], "guest_names": [], "base_revision": None},
+    }[method]
+    with pytest.raises(module.TranscriptContextBusyError) as error:
+        getattr(service, method)(**kwargs)
+    assert str(error.value) == TRANSCRIPT_CONTEXT_BUSY_MESSAGE
+    assert isinstance(error.value.__cause__, Timeout)
+    assert not service.load_context().terms

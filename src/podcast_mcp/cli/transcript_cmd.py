@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 import yaml
-from filelock import Timeout
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
@@ -14,6 +13,7 @@ from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services import (
     EditService,
     ProjectWorkspace,
+    TranscriptContextBusyError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     TranscriptService,
@@ -328,7 +328,7 @@ def transcript_context_set_cmd(
             )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-    except Timeout as exc:
+    except TranscriptContextBusyError as exc:
         typer.echo(f"Error: {TRANSCRIPT_CONTEXT_BUSY_MESSAGE}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Wrote {path}")

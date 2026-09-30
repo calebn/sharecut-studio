@@ -129,6 +129,12 @@ Episode workspaces live outside this repo; the CLI accepts `--project path/to/ep
 
 ## Design decisions
 
+Transcript context owns vocabulary limits and the immutable prompt/revision
+snapshot returned by `TranscriptContext.transcription_vocabulary()`.
+`AsrOptions.language` resolves `transcribe.language` for both the pipeline and
+`TranscriptService`. `TranscriptPrecorrectService` converts context writer lock
+timeouts to `TranscriptContextBusyError`; adapters handle the service error.
+
 ### Timebase: source vs timeline clock
 
 **All stored times (`TranscriptWord`, `EditDecision`, `CombinedUtterance`) are source-media seconds; `timeline.clips` is the only bridge; anything that touches rendered audio (stems, premix, mastered, export) must map through [`SessionTimeline`](../src/podcast_mcp/engines/session_timeline.py).**

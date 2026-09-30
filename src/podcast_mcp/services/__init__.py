@@ -20,6 +20,7 @@ from podcast_mcp.services.share import ShareService
 from podcast_mcp.services.speaker import SpeakerService
 from podcast_mcp.services.transcript import TranscriptService
 from podcast_mcp.services.transcript_precorrect import (
+    TranscriptContextBusyError,
     TranscriptPrecorrectService,
     VocabularyConflictError,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "SessionControlService",
     "ShareService",
     "SpeakerService",
+    "TranscriptContextBusyError",
     "TranscriptPrecorrectService",
     "TranscriptRefineService",
     "TranscriptService",

@@ -119,6 +119,8 @@ def _temperatures(value: Any, default: tuple[float, ...]) -> tuple[float, ...]:
 
 @dataclass(frozen=True)
 class AsrOptions:
+    # Language has its own ASR cache-key field, separate from decode_key().
+    language: str | None = "en"
     vad_enabled: bool = True
     vad_threshold: float = 0.4
     vad_min_silence_ms: int = 500
@@ -159,6 +161,7 @@ class AsrOptions:
         fa = _section(defaults, "transcribe.forced_alignment")
         hst = dec.get("hallucination_silence_threshold", base.hallucination_silence_threshold)
         return cls(
+            language=_section(defaults, "transcribe").get("language", base.language),
             vad_enabled=bool(vad.get("enabled", base.vad_enabled)),
             vad_threshold=bounded_float(vad.get("threshold"), base.vad_threshold, 0.0, 1.0),
             vad_min_silence_ms=int(

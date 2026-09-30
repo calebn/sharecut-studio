@@ -25,6 +25,9 @@ _GLOBAL_DEFAULTS_PATH = repo_root() / ".agents" / "defaults" / "transcript_gloss
 # rest of the file (#769). Always prepended, even with no vocabulary set.
 DEFAULT_PROMPT_PRIMER = "Podcast episode transcript."
 
+VOCABULARY_MAX_ENTRIES = 100
+VOCABULARY_MAX_ENTRY_CHARS = 100
+
 
 def _truncate_vocabulary(vocabulary: str, limit: int) -> str:
     """``vocabulary`` cut at a comma boundary to fit ``limit`` characters.
@@ -86,6 +89,14 @@ class SpeakerIdConfig:
     gate_hop_sec: float = 0.25
 
 
+@dataclass(frozen=True)
+class TranscriptionVocabulary:
+    """Prompt and revision from one transcript context snapshot."""
+
+    initial_prompt: str | None
+    revision: str | None
+
+
 @dataclass
 class TranscriptContext:
     show_title: str | None = None
@@ -101,6 +112,9 @@ class TranscriptContext:
     transcribe: dict[str, Any] = field(default_factory=dict)
     speaker_id: SpeakerIdConfig = field(default_factory=SpeakerIdConfig)
     garble_patterns: list[str] = field(default_factory=list)
+
+    def transcription_vocabulary(self) -> TranscriptionVocabulary:
+        return TranscriptionVocabulary(self.initial_prompt_text(), self.vocabulary_revision)
 
     def initial_prompt_enabled(self) -> bool:
         return bool((self.transcribe or {}).get("initial_prompt", True))
