@@ -1255,6 +1255,170 @@ def test_render_overlapping_multi_source_clips_mixes(sample_wav: Path, tmp_path:
     assert 1.2 < dur < 1.5
 
 
+def test_multi_source_segment_applies_transcript_gate_once_to_pcm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import numpy as np
+
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
+    from podcast_mcp.models import SourceRecording
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+
+    ws = tmp_path / "ws_multi_source_gate_once"
+    raw = ws / "raw"
+    raw.mkdir(parents=True)
+    samples = np.full(2 * 48_000, round(0.4 * 32767), dtype="<i2")
+    for name in ("a.wav", "b.wav"):
+        with wave.open(str(raw / name), "wb") as audio_file:
+            audio_file.setnchannels(1)
+            audio_file.setsampwidth(2)
+            audio_file.setframerate(48_000)
+            audio_file.writeframes(samples.tobytes())
+
+    project = EpisodeProject.create("multi_source_gate_once", str(ws))
+    project.sources.extend(
+        [
+            SourceRecording(id="a", path="raw/a.wav", speaker="Host"),
+            SourceRecording(id="b", path="raw/b.wav", speaker="Host"),
+        ]
+    )
+    track = Track(
+        id="host",
+        label="Host",
+        role=TrackRole.DIALOGUE,
+        media=MediaAsset(path="raw/a.wav", duration_sec=2.0),
+        transcript_gate=True,
+    )
+    project.timeline.tracks.append(track)
+    project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            source_id="a",
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=1.0,
+            source_id="b",
+        ),
+    ]
+    plan = BleedGatePlan(attenuation_spans=((0.2, 0.8),), fade_sec=0.1)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.transcript_gated_play.build_bleed_gate_plan",
+        lambda *_args, **_kwargs: plan,
+    )
+
+    full = ws / "artifacts" / "full.wav"
+    segment = ws / "artifacts" / "segment.wav"
+    render_track_from_timeline(project, track, full, {}, engine=eng)
+    render_track_segment(project, "host", 0.0, 2.0, segment, {}, engine=eng)
+
+    def read_pcm(path: Path) -> np.ndarray:
+        with wave.open(str(path), "rb") as audio_file:
+            return np.frombuffer(audio_file.readframes(audio_file.getnframes()), dtype="<i2")
+
+    full_pcm = read_pcm(full)
+    segment_pcm = read_pcm(segment)
+    assert segment_pcm.shape == full_pcm.shape
+    np.testing.assert_allclose(segment_pcm, full_pcm, atol=2)
+
+
+def test_multi_source_segment_fades_only_at_real_clip_edges(tmp_path: Path) -> None:
+    import numpy as np
+
+    from podcast_mcp.models import SourceRecording
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+
+    ws = tmp_path / "ws_multi_source_fades"
+    raw = ws / "raw"
+    raw.mkdir(parents=True)
+    samples = np.full(2 * 48_000, round(0.4 * 32767), dtype="<i2")
+    for name in ("a.wav", "b.wav"):
+        with wave.open(str(raw / name), "wb") as audio_file:
+            audio_file.setnchannels(1)
+            audio_file.setsampwidth(2)
+            audio_file.setframerate(48_000)
+            audio_file.writeframes(samples.tobytes())
+
+    project = EpisodeProject.create("multi_source_fades", str(ws))
+    project.sources.extend(
+        [
+            SourceRecording(id="a", path="raw/a.wav", speaker="Host"),
+            SourceRecording(id="b", path="raw/b.wav", speaker="Host"),
+        ]
+    )
+    project.timeline.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/a.wav", duration_sec=2.0),
+        )
+    )
+    project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            source_id="a",
+            fade_in_ms=100,
+            fade_out_ms=100,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=1.5,
+            source_id="b",
+            fade_in_ms=100,
+            fade_out_ms=100,
+        ),
+    ]
+    full = ws / "artifacts" / "full.wav"
+    seek = ws / "artifacts" / "seek.wav"
+    render_track_segment(project, "host", 0.0, 2.5, full, {}, engine=eng)
+    render_track_segment(project, "host", 0.25, 2.25, seek, {}, engine=eng)
+
+    def read_pcm(path: Path) -> np.ndarray:
+        with wave.open(str(path), "rb") as audio_file:
+            return np.frombuffer(audio_file.readframes(audio_file.getnframes()), dtype="<i2")
+
+    full_pcm = read_pcm(full).astype(np.float32)
+    seek_pcm = read_pcm(seek).astype(np.float32)
+    rate = 48_000
+
+    def mean_abs(
+        pcm: np.ndarray, start_sec: float, end_sec: float, *, origin: float = 0.0
+    ) -> float:
+        first = round((start_sec - origin) * rate)
+        last = round((end_sec - origin) * rate)
+        return float(np.abs(pcm[first:last]).mean())
+
+    first_clip_level = mean_abs(full_pcm, 0.3, 0.5)
+    second_clip_level = mean_abs(full_pcm, 1.8, 2.0)
+    assert mean_abs(full_pcm, 0.0, 0.02) < first_clip_level * 0.25
+    assert mean_abs(full_pcm, 0.98, 1.0) < first_clip_level * 0.25
+    assert mean_abs(full_pcm, 1.5, 1.52) < second_clip_level * 0.25
+    assert mean_abs(full_pcm, 2.48, 2.5) < second_clip_level * 0.25
+    assert mean_abs(seek_pcm, 0.25, 0.27, origin=0.25) > first_clip_level * 0.8
+    assert mean_abs(seek_pcm, 2.23, 2.25, origin=0.25) > second_clip_level * 0.8
+
+
 def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
     project = EpisodeProject.create("cutfades", str(tmp_path))
     project.timeline.tracks = [
