@@ -5,6 +5,8 @@ import os
 import secrets
 import shutil
 import struct
+import subprocess
+import sys
 import threading
 import time
 import wave
@@ -527,6 +529,14 @@ def test_wav_info_sends_an_empty_header_with_non_chunk_bytes_to_ffmpeg(tmp_path,
     assert wp._wav_info(path) is None
 
 
+def test_wav_info_rejects_unknown_printable_chunk_after_empty_data(tmp_path):
+    path = tmp_path / "false-metadata.wav"
+    _write_int_wav(path, np.zeros((0, 1), dtype=np.int64), width=2)
+    with path.open("ab") as fh:
+        fh.write(b"ABCD" + struct.pack("<I", 4) + b"1234")
+    assert wp._wav_info(path) is None
+
+
 @needs_ffmpeg
 def test_decode_media_extensible_wav_falls_back_to_ffmpeg(tmp_path):
     # Python 3.12+ ``wave`` reads extensible *PCM*, so use the float subformat,
@@ -614,6 +624,78 @@ def test_decode_and_build_mp3(tmp_path):
     assert 44100 <= total <= 44100 + 4096
     assert levels[0][:, 1].max() > 0.05 * FULL
     assert levels[0][:, 0].min() < -0.05 * FULL
+
+
+@needs_ffmpeg
+def test_truncated_mp3_does_not_publish_a_short_pyramid(tmp_path):
+    eng = FFmpegEngine()
+    full = tmp_path / "full.mp3"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-q:a",
+            "4",
+            "-y",
+            str(full),
+        ],
+        check=True,
+        timeout=60,
+    )
+    truncated = tmp_path / "truncated.mp3"
+    data = full.read_bytes()
+    truncated.write_bytes(data[: len(data) // 2])
+    probe = eng.probe(truncated)
+    assert probe.duration_sec > 3.9
+    key = media_key(truncated.name, truncated.stat().st_size, truncated.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-short", key)
+    with pytest.raises(RuntimeError, match="short"):
+        build_pyramid("track:short", key, truncated, out)
+    assert not out.exists()
+
+
+@needs_ffmpeg
+def test_estimated_vbr_mp3_remains_buildable(tmp_path):
+    eng = FFmpegEngine()
+    audio = tmp_path / "estimated.mp3"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=mono:d=3",
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=1:r=44100:seed=3",
+            "-filter_complex",
+            "[0:a][1:a]concat=n=2:v=0:a=1",
+            "-q:a",
+            "4",
+            "-write_xing",
+            "0",
+            "-y",
+            str(audio),
+        ],
+        check=True,
+        timeout=60,
+    )
+    probe = eng.probe(audio)
+    assert probe.duration_estimated is True
+    assert probe.duration_sec > 5
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-estimated", key)
+    build_pyramid("track:estimated", key, audio, out)
+    meta = read_meta(out)
+    assert 3.9 < meta.total_frames / meta.sample_rate < 4.2
 
 
 # --- read_pcm_minmax -----------------------------------------------------------------------
@@ -935,6 +1017,11 @@ def test_media_key_is_20_hex_and_tracks_path_size_mtime():
     assert key != media_key("raw/guest.wav", 100, 5)
 
 
+def test_media_key_invalidates_pyramids_from_the_old_build_policy():
+    old = wp.hashlib.sha256(b"1|raw/host.wav|100|5").hexdigest()[:20]
+    assert media_key("raw/host.wav", 100, 5) != old
+
+
 def test_ref_slug_and_pyramid_path(tmp_path):
     assert ref_slug("track", "host_1") == "track-host_1"
     hashed = ref_slug("source", "../weird id")
@@ -1124,6 +1211,79 @@ def test_build_pyramid_writes_prunes_and_reuses(tmp_path):
         build_pyramid("track:host", key, audio, peaks / "wrong-name.wfpk")
 
 
+def test_stale_finisher_preserves_current_key_even_with_older_hardlink_mtime(tmp_path):
+    from podcast_mcp.engines.waveform_media import MediaEntry, current_key
+
+    audio = _wav_media(tmp_path)
+    entry = MediaEntry("raw", audio, "raw/host.wav")
+    old = current_key(entry)
+    st = audio.stat()
+    os.utime(audio, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+    live = current_key(entry)
+    peaks = tmp_path / "artifacts" / "peaks"
+    source = write_synthetic_pyramid(
+        peaks / "source.wfpk", sample_rate=8000, total_frames=8000, seed=1
+    )
+    current = pyramid_path(peaks, "track-host", live)
+    os.link(source, current)
+    other = pyramid_path(peaks, "track-host", _key())
+    write_synthetic_pyramid(other, sample_rate=8000, total_frames=8000, seed=2)
+    os.utime(current, (10, 10))
+    os.utime(other, (30, 30))
+    out = pyramid_path(peaks, "track-host", old)
+
+    build_pyramid("track:host", old, audio, out, current_key=lambda: current_key(entry))
+
+    assert read_meta(current).total_frames == 8000
+    assert read_meta(out).total_frames == 64 * 300
+
+
+def test_build_waits_for_another_process_before_reusing_and_publishing(tmp_path):
+    audio = _wav_media(tmp_path)
+    peaks = tmp_path / "artifacts" / "peaks"
+    key = _key()
+    source = pyramid_path(peaks, "track-host", key)
+    write_synthetic_pyramid(source, sample_rate=8000, total_frames=8000, seed=1)
+    out = pyramid_path(peaks, "source-host", key)
+    script = (
+        "import sys; from filelock import FileLock; "
+        "lock = FileLock(sys.argv[1]); "
+        "lock.acquire(); print('held', flush=True); "
+        "sys.stdin.readline(); lock.release()"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", script, str(peaks / ".waveform.lock")],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    done = threading.Event()
+    errors: list[BaseException] = []
+
+    def build() -> None:
+        try:
+            build_pyramid("source:host", key, audio, out)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            done.set()
+
+    worker = threading.Thread(target=build)
+    try:
+        assert proc.stdout is not None and proc.stdout.readline().strip() == "held"
+        worker.start()
+        assert not done.wait(0.5)
+        assert not out.exists()
+    finally:
+        assert proc.stdin is not None
+        proc.stdin.write("release\n")
+        proc.stdin.flush()
+        proc.wait(timeout=5)
+        worker.join(timeout=5)
+    assert not errors
+    assert read_meta(out).total_frames == 8000
+
+
 def test_schedule_dedupes_pending_jobs(tmp_path):
     audio = _wav_media(tmp_path)
     peaks = tmp_path / "peaks"
@@ -1180,6 +1340,16 @@ def test_failed_key_memory_is_bounded(monkeypatch):
         wp._remember_failed(key)
     assert [pyramid_build_failed(k) for k in keys] == [False, False, True, True, True]
     for key in keys:
+        wp._FAILED.pop(key, None)
+
+
+def test_failure_count_resets_after_a_long_idle_period():
+    key = _key()
+    wp._FAILED[key] = (time.monotonic() - 7200, 5)
+    try:
+        failures, window = wp._remember_failed(key)
+        assert (failures, window) == (1, 300.0)
+    finally:
         wp._FAILED.pop(key, None)
 
 
