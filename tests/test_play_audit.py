@@ -35,6 +35,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
 )
@@ -93,6 +94,30 @@ def test_track_render_hash_changes_with_edit(tmp_path) -> None:
     )
     h2 = track_render_hash(project, "host")
     assert h1 != h2
+
+
+def test_track_render_hash_changes_with_selected_source(tmp_path) -> None:
+    project = EpisodeProject.create("source", str(tmp_path))
+    project.tracks = [
+        Track(id="music", label="Music", role=TrackRole.MUSIC, media=MediaAsset(path="a.wav"))
+    ]
+    project.sources = [
+        SourceRecording(id="a", path="a.wav"),
+        SourceRecording(id="b", path="b.wav"),
+    ]
+    project.clips = [
+        Clip(
+            id="c",
+            track_id="music",
+            source_start=0.0,
+            source_end=2.0,
+            timeline_start=0.0,
+            source_id="a",
+        )
+    ]
+    before = track_render_hash(project, "music")
+    project.clips[0].source_id = "b"
+    assert track_render_hash(project, "music") != before
 
 
 def test_track_render_hash_changes_with_join_mode(tmp_path) -> None:
