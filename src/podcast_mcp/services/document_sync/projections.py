@@ -11,7 +11,6 @@ COMMENT_COMMANDS: frozenset[str] = frozenset(COMMENT_HANDLERS)
 TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
     {
         "ReorderTrack",
-        "SetTrackMeta",
     }
 )
 

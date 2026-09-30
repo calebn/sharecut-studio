@@ -923,3 +923,46 @@ def test_transcript_service_defaults_to_english(minimal_project):
         ]
         TranscriptService(ws).transcribe()
         assert engine.return_value.transcribe_all_dialogue.call_args.kwargs["language"] == "en"
+
+
+@pytest.mark.parametrize("speaker", ["Mira", "Guest", ""])
+def test_speaker_meta_updates_all_track_turns_and_undo_preserves_sources(
+    minimal_project, sample_wav, speaker
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
+    ws.project.tracks.append(Track(id="guest", label="Guest", role="dialogue", speaker="Guest"))
+    ws.project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hello", start=0.0, end=0.5)])
+    ]
+    ws.project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(track_id="host", speaker="Host", start=0, end=1, text="hello"),
+            CombinedUtterance(track_id="guest", speaker="Guest", start=1, end=2, text="reply"),
+            CombinedUtterance(track_id="host", speaker="Host", start=2, end=3, text="again"),
+        ]
+    )
+    ws.save()
+    before_transcripts = [
+        transcript.model_dump(mode="json") for transcript in ws.project.transcripts
+    ]
+    before_sources = [source.model_dump(mode="json") for source in ws.project.sources]
+    before_media = ws.project.tracks[0].media.model_dump(mode="json")
+    EpisodeService(ws).set_track_meta("host", speaker=speaker)
+    assert [row.speaker for row in ws.project.combined_transcript.utterances] == [
+        speaker or "host",
+        "Guest",
+        speaker or "host",
+    ]
+    assert [
+        transcript.model_dump(mode="json") for transcript in ws.project.transcripts
+    ] == before_transcripts
+    assert [source.model_dump(mode="json") for source in ws.project.sources] == before_sources
+    assert ws.project.tracks[0].media.model_dump(mode="json") == before_media
+    HistoryService(ws).undo(rerender=False)
+    assert ws.project.tracks[0].speaker == "Host"
+    assert [row.speaker for row in ws.project.combined_transcript.utterances] == [
+        "Host",
+        "Guest",
+        "Host",
+    ]

@@ -249,3 +249,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.
+
+### Transcript speaker editing
+
+Tap a speaker label to rename or reassign every turn on that track. The editor wraps its input, scope hint, and Save and Cancel controls within the transcript panel. On coarse pointers, speaker labels and the name input use the shared `--touch-min` target size. Hosts and guests with the `edit` capability can save speaker names.

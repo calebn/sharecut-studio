@@ -549,6 +549,19 @@
   gap: var(--space-1);
 }
 
+.transcript-speaker-editor {
+  flex-wrap: wrap;
+  max-inline-size: 100%;
+}
+
+@media (pointer: coarse) {
+  button.utterance-speaker,
+  .transcript-speaker-editor .transcript-inline-input {
+    min-block-size: var(--touch-min);
+    min-inline-size: var(--touch-min);
+  }
+}
+
 .transcript-inline-input {
   margin: 0;
   padding: 0 var(--space-0);

@@ -44,6 +44,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/EnvelopeOverlayView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
   "transcript/InlineWordEditor.tsx",
+  "transcript/TranscriptSpeakerEditor.tsx",
   "layout/BottomTabsSplitterView.tsx",
   "tracks/TrackHeaderView.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",

@@ -144,6 +144,10 @@ class EpisodeService:
                 track.role = TrackRole(role)
             if speaker is not None:
                 track.speaker = speaker
+                if p.combined_transcript is not None:
+                    for utterance in p.combined_transcript.utterances:
+                        if utterance.track_id == track_id:
+                            utterance.speaker = speaker or track_id
 
         self.ws.mutate(
             f"before set track meta {track_id}",
