@@ -377,3 +377,58 @@ def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_pa
     assert plan.attenuation_spans == ((2.0, 2.6),)
     assert any(start <= 0.55 and end >= 1.0 for start, end in plan.protected_spans)
     assert project.model_dump(mode="json") == before
+
+
+@pytest.mark.parametrize(
+    ("source_start", "source_end", "timeline_start", "foreign_probe"),
+    [
+        pytest.param(0.0, 4.0, 0.0, None, id="full-overlap"),
+        pytest.param(2.2, 2.4, 2.2, (2.04, 2.12), id="partial-overlap"),
+        pytest.param(2.0, 2.6, 4.4, (2.1, 2.5), id="disjoint-unknown"),
+    ],
+)
+def test_untranscribed_placement_is_preserved_without_blocking_disjoint_bleed(
+    tmp_path: Path,
+    source_start: float,
+    source_end: float,
+    timeline_start: float,
+    foreign_probe: tuple[float, float] | None,
+) -> None:
+    from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+    from podcast_mcp.engines.transcript_gated_play import apply_bleed_gate_plan
+    from podcast_mcp.engines.ungated_audio import raw_timeline_samples
+
+    project = _episode(tmp_path)
+    unknown_path = tmp_path / "raw" / "unknown.wav"
+    _write_pcm(unknown_path, _read_pcm(tmp_path / "raw" / "guest.wav") / 32767 * 0.1)
+    project.sources.append(SourceRecording(id="unknown", path="raw/unknown.wav"))
+    project.timeline.clips.append(
+        Clip(
+            id="unknown-placement",
+            track_id="host",
+            source_id="unknown",
+            source_start=source_start,
+            source_end=source_end,
+            timeline_start=timeline_start,
+        )
+    )
+    assert project.transcript_for_source("host", "unknown") is None
+    output = tmp_path / "summed-lane.wav"
+    _write_pcm(output, raw_timeline_samples(project, "host", sample_rate=RATE))
+    before = _read_pcm(output).copy()
+    plan = build_bleed_gate_plan(project, "host")
+    apply_bleed_gate_plan(output, plan, timeline_start=0, timeline_end=len(before) / RATE)
+    after = _read_pcm(output)
+    unknown_end = timeline_start + source_end - source_start
+    unknown = slice(round(timeline_start * RATE), round(unknown_end * RATE))
+    assert np.any(before[unknown])
+    np.testing.assert_array_equal(after[unknown], before[unknown])
+    if foreign_probe is not None:
+        foreign = slice(round(foreign_probe[0] * RATE), round(foreign_probe[1] * RATE))
+        assert np.any(before[foreign])
+        assert np.max(np.abs(after[foreign].astype(float))) <= 1
+        assert plan.attenuation_spans
+    else:
+        assert not plan.attenuation_spans
+    assert "untranscribed_source_protected" in plan.reasons
+    assert any(lo <= timeline_start and hi >= unknown_end for lo, hi in plan.protected_spans)
