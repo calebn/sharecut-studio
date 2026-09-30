@@ -12,13 +12,10 @@ test.describe("Chrome-first bootstrap", () => {
     });
     const phases: string[] = [];
 
-    // Hello Snapshot on /api/document/ws is a shell ProjectView and hydrates
-    // independently of GET /api/project. Mock the socket so chrome-null stays
-    // on screen while HTTP shell is held.
     await page.routeWebSocket(/\/api\/document\/ws/, () => undefined);
 
     await page.route(
-      (url) => new URL(url).pathname === "/api/project",
+      (url) => new URL(url).pathname === "/api/document/state",
       async (route) => {
         const phase =
           new URL(route.request().url()).searchParams.get("phase") ?? "shell";
