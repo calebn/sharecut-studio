@@ -35,7 +35,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
-BLEED_GATE_REV = 4
+BLEED_GATE_REV = 5
 EVIDENCE_RATE = 8000
 VERIFICATION_RATE = 48_000
 GATE_FADE_SEC = 0.012
@@ -341,7 +341,14 @@ def _compute_bleed_gate_plan(
     transcripts = project.selected_source_transcripts(track_id)
     if not transcripts:
         return BleedGatePlan(reasons=("missing_transcript",))
-    explicit_placements = bool(timeline.lane_clip_spans(track_id))
+    placements = timeline.lane_clip_spans(track_id)
+    explicit_placements = bool(placements)
+    transcribed_sources = {source_id for source_id, _ in transcripts}
+    untranscribed_spans = [
+        (float(span.timeline_start), float(span.timeline_end))
+        for span in placements
+        if span.clip.source_id not in transcribed_sources
+    ]
     word_spans: list[tuple[TranscriptWord, list[tuple[TimelineSec, TimelineSec]]]] = []
     for source_id, transcript in transcripts:
         bounds = [(SourceSec(word.start), SourceSec(word.end)) for word in transcript.words]
@@ -383,10 +390,10 @@ def _compute_bleed_gate_plan(
         if not word.suppressed
         for start, end in spans
     ]
-    protected = _owner_protection(own, seeds)
+    protected = merge_intervals([*_owner_protection(own, seeds), *untranscribed_spans])
     peers: dict[str, np.ndarray] = {}
     attenuation: list[tuple[float, float]] = []
-    reasons: set[str] = set()
+    reasons = {"untranscribed_source_protected"} if untranscribed_spans else set()
     for word, spans in candidates:
         peer_id = word.dominant_track
         if peer_id is None or peer_id == track_id:
