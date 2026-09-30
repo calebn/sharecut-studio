@@ -99,15 +99,24 @@ The initial component pass is preserved in [design-system-audit.md](design-syste
 
 ## Known interaction gap and follow-ups
 
-After this audit, review of EditBoundaryMark identified cursor drift and bouncing
-while dragging. [Issue #877](https://github.com/calebn/sharecut-studio/issues/877)
-tracks the defect, preview layout, cancellation semantics, and intermediate
-geometry regressions. The audit's drag completion checks did not measure the
-pointer-to-handle offset throughout the gesture. Source and catalog coverage do
-not establish that every interaction meets the quality requirements.
+Review of EditBoundaryMark identified cursor drift and bouncing while dragging
+in [#877](https://github.com/calebn/sharecut-studio/issues/877). Inline preview
+words changed the handle's layout origin. The fix keeps the glyph size stable
+and places feedback in a bounded body portal. The original +80px Storybook drag
+measured 118.906px of drift before the fix and 0.000px afterward.
+
+Validation passed 54 focused frontend tests and 25 CSS policy tests. Ten Chromium
+Storybook cases cover word-bearing roll and trim, both directions and reversals,
+wrapped phone text, both themes, focus cancellation, and short-viewport error
+recovery. Five live-project Chromium cases cover no-word geometry, legal limits,
+Escape without edit commands, and a two-finger touch commit. Frontend lint,
+format, typecheck, and the app build passed. These checks cover this boundary
+interaction, not every interaction in the editor.
 
 Follow-up work is scoped separately from this consistency patch:
 
+- [#883](https://github.com/calebn/sharecut-studio/issues/883) retains archived
+  word references so real ripple cuts can supply restored-word previews.
 - [#878](https://github.com/calebn/sharecut-studio/issues/878) reviews precision,
   feedback, snapping, cancellation, and recovery across editor interactions.
 - [#879](https://github.com/calebn/sharecut-studio/issues/879) measures large-project

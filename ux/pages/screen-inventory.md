@@ -218,6 +218,14 @@ Lane identity is a slim sticky gutter in the same scroller as the waveforms. Tap
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 
+Annotate boundary handles keep a fixed size during a roll or trim. A floating
+preview shows the time change, restored-word side, and legal limits. Escape or
+an interrupted gesture discards the preview. Saving blocks another drag on that
+handle; a failed save displays an error. Boundary audition and alternatives to
+dragging remain part of the editor interaction review in issue #878. Ripple cuts
+currently remove the word references needed for restored-word previews; issue
+#883 tracks that separate limitation.
+
 Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
 through its native button action. F2 opens inline correction for a hydrated
 host project. F2 does nothing in Correct or Select mode, on guest shares, or

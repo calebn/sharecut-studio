@@ -1575,3 +1575,50 @@ button.history-row {
   align-items: center;
   gap: var(--space-3);
 }
+
+.edit-boundary-preview {
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  position: fixed;
+  z-index: var(--z-menu);
+  pointer-events: none;
+  padding: var(--space-3);
+  background: var(--color-bg-raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.edit-boundary-preview .edit-boundary-delta {
+  display: block;
+  font-size: var(--font-size-caption);
+}
+
+.edit-boundary-restored-side {
+  display: block;
+  font-size: var(--font-size-caption);
+}
+
+.edit-boundary-preview-error {
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.edit-boundary-error-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.edit-boundary-error-body {
+  min-height: 0;
+  overflow: auto;
+}

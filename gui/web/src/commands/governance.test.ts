@@ -40,6 +40,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
+  "transcript/EditBoundaryMarkView.tsx",
   "timeline/TimeRulerView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
