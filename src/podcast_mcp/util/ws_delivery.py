@@ -13,7 +13,9 @@ T = TypeVar("T")
 
 def ws_close_details(code: object, reason: object) -> tuple[int, str]:
     valid = {1000, 1001, 1002, 1003, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014}
-    text = str(reason or "").encode("utf-8")[:120].decode("utf-8", errors="ignore")
+    text = (
+        str(reason or "").encode("utf-8", errors="replace")[:120].decode("utf-8", errors="ignore")
+    )
     if isinstance(code, int) and (code in valid or 3000 <= code <= 4999):
         return code, text
     return 1000, text

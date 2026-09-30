@@ -220,3 +220,12 @@ def test_reserved_or_invalid_close_codes_use_normal_close(code):
     from podcast_mcp.util.ws_delivery import ws_close_details
 
     assert ws_close_details(code, "reason") == (1000, "reason")
+
+
+def test_close_reason_replaces_json_lone_surrogates():
+    import json
+
+    from podcast_mcp.util.ws_delivery import ws_close_details
+
+    reason = json.loads('"\\ud800"')
+    assert ws_close_details(1013, reason) == (1013, "?")
