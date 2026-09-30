@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.edits.timeline_ops import ripple_delete, trim_clip_edge
+from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.gui.mapper import map_edit_boundaries
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     Transcript,
@@ -62,7 +63,52 @@ def test_map_edit_boundaries_includes_cutaway_words(minimal_project):
     assert join["cutaway_source_end"] == 15.0
     assert join["timeline_join_sec"] == 5.0
     assert any(w["text"] == "gone" for w in join["cutaway_word_ids"])
+    assert all(w["word_index"] < 0 for w in join["cutaway_word_ids"])
     assert not any(w["text"] == "keep" for w in join["cutaway_word_ids"])
+
+
+def test_boundary_keeps_source_gap_without_transcript(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.clips = [
+        Clip(id="left", track_id="host", source_start=0, source_end=5, timeline_start=0),
+        Clip(id="right", track_id="host", source_start=15, source_end=20, timeline_start=5),
+    ]
+    ws.project.transcripts = []
+    (join,) = map_edit_boundaries(ws.project)
+    assert join["has_cutaway"] is True
+    assert join["cutaway_source_start"] == 5
+    assert join["cutaway_source_end"] == 15
+    assert join["cutaway_word_ids"] == []
+
+
+def test_boundary_does_not_invent_gap_between_untranscribed_recordings(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.sources = [
+        SourceRecording(id="a", path="raw/a.wav", duration_sec=20),
+        SourceRecording(id="b", path="raw/b.wav", duration_sec=20),
+    ]
+    ws.project.clips = [
+        Clip(
+            id="left",
+            track_id="host",
+            source_id="a",
+            source_start=0,
+            source_end=5,
+            timeline_start=0,
+        ),
+        Clip(
+            id="right",
+            track_id="host",
+            source_id="b",
+            source_start=15,
+            source_end=20,
+            timeline_start=5,
+        ),
+    ]
+    ws.project.transcripts = []
+    (join,) = map_edit_boundaries(ws.project)
+    assert join["has_cutaway"] is False
+    assert join["cutaway_word_ids"] == []
 
 
 def test_ripple_cut_boundary_previews_removed_word_and_trim_restores_it(minimal_project):
@@ -130,8 +176,54 @@ def test_map_edit_boundaries_keeps_zero_length_word_at_left_clip_end(minimal_pro
     assert [w["text"] for w in join["cutaway_word_ids"]] == ["gone"]
 
 
+def test_zero_length_boundary_ignores_unrelated_source_placement(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.sources = [
+        SourceRecording(id="a", path="raw/a.wav", duration_sec=20),
+        SourceRecording(id="b", path="raw/b.wav", duration_sec=20),
+    ]
+    ws.project.clips = [
+        Clip(
+            id="left",
+            track_id="host",
+            source_id="a",
+            source_start=0,
+            source_end=5,
+            timeline_start=0,
+        ),
+        Clip(
+            id="right",
+            track_id="host",
+            source_id="a",
+            source_start=15,
+            source_end=20,
+            timeline_start=5,
+        ),
+        Clip(
+            id="other",
+            track_id="host",
+            source_id="b",
+            source_start=5,
+            source_end=6,
+            timeline_start=10,
+        ),
+    ]
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            source_id="a",
+            words=[
+                TranscriptWord(text="edge", start=5, end=5),
+                TranscriptWord(text="gone", start=8, end=8),
+            ],
+        )
+    ]
+    join = next(row for row in map_edit_boundaries(ws.project) if row["left_clip_id"] == "left")
+    assert [word["text"] for word in join["cutaway_word_ids"]] == ["gone"]
+
+
 def test_map_edit_boundaries_asks_the_timeline_for_zero_length_words(minimal_project, monkeypatch):
-    """Cutaway membership follows ``SessionTimeline.map_word_spans``, not a local copy."""
+    """Cutaway membership follows the selected word mapper, not a local copy."""
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
         Track(
@@ -155,11 +247,11 @@ def test_map_edit_boundaries_asks_the_timeline_for_zero_length_words(minimal_pro
         )
     ]
 
-    def fake_map_word_spans(self, track_id, words):
+    def fake_map_word_spans(self, track_id, source_id, words):
         # Pretend the timeline rule changed: "gone" now lands on c1, "edge" does not.
         return [[] if start == 5.0 else [(4.999, 5.0)] for start, _end in words]
 
-    monkeypatch.setattr(SessionTimeline, "map_word_spans", fake_map_word_spans)
+    monkeypatch.setattr(SessionTimeline, "map_selected_word_spans", fake_map_word_spans)
     (join,) = map_edit_boundaries(ws.project)
     assert [w["text"] for w in join["cutaway_word_ids"]] == ["edge"]
 
