@@ -35,6 +35,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Literal, TypeVar, cast
 
+from filelock import Timeout as FileLockTimeout
+
 from podcast_mcp.engines.ffmpeg import PCM_WINDOW_TIMEOUT_SEC
 from podcast_mcp.engines.waveform_media import (
     REASON_DECODE_FAILED,
@@ -258,11 +260,16 @@ def _meta(path: Path, key: str) -> PyramidMeta:
 
 
 def _drop_pyramid(path: Path, key: str) -> None:
-    """Delete a corrupt pyramid and its cached header so the next status call rebuilds it."""
     with _META_LOCK:
         _META.pop((str(path), key), None)
-    with contextlib.suppress(OSError):
-        path.unlink()
+    with (
+        contextlib.suppress(OSError, FileLockTimeout),
+        hold_shared_file_lock(path.parent / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC),
+    ):
+        try:
+            read_meta(path)
+        except ValueError:
+            path.unlink(missing_ok=True)
 
 
 def _served_meta(path: Path, key: str) -> PyramidMeta:

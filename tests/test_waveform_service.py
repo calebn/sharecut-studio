@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from filelock import Timeout as FileLockTimeout
 
 from podcast_mcp.engines import waveform_media as wm
 from podcast_mcp.engines import waveform_pyramid as wm_pyramid
@@ -315,12 +316,15 @@ def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monke
         svc._META.clear()
     observed = threading.Event()
     replaced = threading.Event()
+    cleanup_started = threading.Event()
+    finished = threading.Event()
     errors = []
     real_drop = svc._drop_pyramid
 
     def delayed_drop(path, observed_key):
         observed.set()
         assert replaced.wait(5)
+        cleanup_started.set()
         real_drop(path, observed_key)
 
     def read():
@@ -335,6 +339,8 @@ def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monke
             pass
         except BaseException as exc:
             errors.append(exc)
+        finally:
+            finished.set()
 
     monkeypatch.setattr(svc, "_drop_pyramid", delayed_drop)
     monkeypatch.setattr(svc, "schedule_pyramid_build", lambda *args, **kwargs: False)
@@ -345,6 +351,8 @@ def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monke
         with hold_shared_file_lock(out.parent / ".waveform.lock", timeout=5):
             write_synthetic_pyramid(out, sample_rate=SR, total_frames=64 * 300, seed=7)
             replaced.set()
+            assert cleanup_started.wait(5)
+            assert not finished.wait(0.1)
     finally:
         replaced.set()
         reader.join(5)
@@ -361,10 +369,26 @@ def test_drop_pyramid_unlinks_and_evicts_the_cached_header(tmp_path):
     key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
     out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
     assert (str(out), key) in svc._META
+    out.write_bytes(b"garbage")
     svc._drop_pyramid(out, key)
     assert not out.exists()
     assert (str(out), key) not in svc._META
     svc._drop_pyramid(out, key)  # already gone: no error
+
+
+@pytest.mark.parametrize("error", [OSError("unreadable"), FileLockTimeout("waveform.lock")])
+def test_corruption_cleanup_failure_keeps_the_file_and_evicts_the_header(tmp_path, error):
+    project_path = waveform_project(tmp_path)
+    waveform_status(project_path, "raw")
+    wait_pyramid_jobs()
+    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
+    assert (str(out), key) in svc._META
+    out.write_bytes(b"garbage")
+    with patch.object(svc, "hold_shared_file_lock", side_effect=error):
+        svc._drop_pyramid(out, key)
+    assert out.read_bytes() == b"garbage"
+    assert (str(out), key) not in svc._META
 
 
 def test_tile_bytes_short_read_under_a_cached_header_is_corrupt(tmp_path):

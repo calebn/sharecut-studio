@@ -157,16 +157,23 @@ hits EOF.
   2 KB of ffmpeg's stderr and says whether the watchdog fired. Because the command
   passes `-ac <ch>`, ffmpeg remaps inputs with more than two channels whose
   layout is not its default for that count; mono and stereo are unchanged.
-  A complete whole-file decode counts emitted frames. If ffprobe gives a
-  reliable audio-stream duration, a successful ffmpeg exit that ends more than
-  0.25 s short fails the build before the pyramid is published. The allowance
-  covers observed MP3 encoder padding at 8 kHz (0.152 s). The format
-  duration remains `AudioProbe.duration_sec` for existing callers; the audio
-  stream's duration is carried separately for this check. An ffprobe bitrate
-  estimate, multiple audio streams, or a missing audio-stream duration makes
-  the comparison uncertain, so those decodes are accepted on successful
-  ffmpeg exit. Container duration alone is not evidence of decoded audio
-  length: it can include video or an audio start offset. Window and mono decode
+  A complete whole-file decode compares ffmpeg's final output timestamp with
+  a declared positive audio-stream duration when ffprobe reports one audio
+  stream and no bitrate estimate. `asetpts=PTS-STARTPTS` resets that stream's
+  origin before the check, so an audio offset relative to video cannot hide
+  a short decode. Timestamp gaps remain, and the emitted PCM stays packed
+  with no inserted silence. A successful ffmpeg exit that ends more than
+  0.25 s short fails the build before publication. The allowance covers
+  observed MP3 encoder padding at 8 kHz (0.152 s). Missing or malformed final
+  progress evidence also fails. Progress shares the decoder's existing stderr
+  temporary file, and the check reads only its last 2 KB.
+  The format duration remains `AudioProbe.duration_sec` for existing callers.
+  The audio stream's duration is carried separately for this check. An ffprobe
+  bitrate estimate, multiple audio streams, or a missing audio-stream duration
+  makes the comparison uncertain, so those decodes are accepted on successful
+  ffmpeg exit. Container duration alone can include video or an audio start
+  offset. The check detects short tails, but does not detect interior damage
+  when decoding still reaches the declared endpoint. Window and mono decode
   do not use this whole-file check.
 
 `read_pcm_minmax(path, start_frame, frames)` returns int16 `(n, 2)` per-frame
@@ -201,7 +208,7 @@ only the ffmpeg path).
   valid candidate is copied over it, or the caller's rebuild replaces it, both
   through an atomic `os.replace`, so a valid file that another build publishes
   meanwhile is never removed. A corrupt candidate is skipped. Reuse,
-  publication, pruning, and GC share the directory lock
+  publication, corruption cleanup, pruning, and GC share the directory lock
   `artifacts/peaks/.waveform.lock` across threads and processes; PCM decoding
   runs outside it. A build rechecks reuse before publishing after its decode.
 - **Prune:** when a fresh ref lookup confirms the completing key is current,
@@ -269,12 +276,14 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   | Building | `{"status": "generating"}` (a missing pyramid that is not pending is queued) |
   | Failed | `{"status": "unavailable", "reason": "no-media" \| "decode-failed" \| "unsafe-id"}` |
 
-  A pending build is checked before the file (#421). A pyramid that fails
-  `read_meta` is deleted and rebuilt. `read_meta` results are cached per
-  pyramid file. A tile read shorter than the cached header promises (the file
-  changed under the cache) counts as corrupt too: the file and its cached
-  header are dropped, the request gets a 404 with `no-store`, and the next
-  status call rebuilds it.
+  A pending build is checked before the file (#421). `read_meta` results are
+  cached per pyramid file. A failed metadata read or a tile read shorter than
+  the cached header promises evicts that header. Cleanup takes the directory
+  build lock and validates the current file again. It deletes only a file that
+  is still corrupt, preserving a valid concurrent replacement. Lock timeout
+  or file I/O failure leaves cleanup for a later request. An affected tile or
+  PCM request gets a 404 with `no-store`. The next status call rebuilds a
+  missing file or serves a valid replacement.
 - **Hooks** (engine functions, re-exported by the service):
   `schedule_track_waveforms(project, track)` queues the track ref plus the
   source refs of that track's clips; `ensure_track_waveforms(project, track)`

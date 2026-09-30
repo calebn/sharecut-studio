@@ -374,41 +374,29 @@ class FFmpegEngine:
         when the generator closes, or when one chunk waits on ffmpeg longer than
         ``PCM_STREAM_TIMEOUT_SEC`` (the consumer's time between chunks does not
         count). A non-zero exit raises ``RuntimeError`` with the tail of ffmpeg's
-        stderr. A successful whole-file exit also raises when decoded audio is
-        materially shorter than a reliable audio-stream duration.
+        stderr. A successful whole-file exit also raises when the normalized
+        final output timestamp is materially short of the declared audio-stream
+        duration. Timestamp gaps retain the decoder's packed PCM samples.
         """
         if chunk_frames < 1:
             raise ValueError("chunk_frames must be >= 1")
         info = self.probe(path, untrusted=True)
         sample_rate, channels = info.sample_rate, max(1, info.channels)
         argv = self._pcm_f32_argv(path, sample_rate, channels)
-        chunks = self._read_pcm_f32(
-            argv, channels, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
-        )
-        return sample_rate, channels, self._checked_pcm_chunks(chunks, info)
-
-    @staticmethod
-    def _checked_pcm_chunks(
-        chunks: Generator[np.ndarray, None, None], info: AudioProbe
-    ) -> Generator[np.ndarray, None, None]:
-        frames = 0
         expected_duration = info.audio_duration_sec
-        try:
-            for chunk in chunks:
-                frames += len(chunk)
-                yield chunk
-            if (
-                expected_duration is not None
-                and expected_duration > 0
-                and not info.duration_estimated
-                and frames / info.sample_rate + 0.25 < expected_duration
-            ):
-                raise RuntimeError(
-                    f"ffmpeg PCM decode ended short: {frames / info.sample_rate:.3f} s "
-                    f"of {expected_duration:.3f} s"
-                )
-        finally:
-            chunks.close()
+        if info.duration_estimated or expected_duration is None or expected_duration <= 0:
+            expected_duration = None
+        return (
+            sample_rate,
+            channels,
+            self._read_pcm_f32(
+                argv,
+                channels,
+                chunk_frames=chunk_frames,
+                timeout_sec=PCM_STREAM_TIMEOUT_SEC,
+                expected_duration_sec=expected_duration,
+            ),
+        )
 
     def stream_mono_f32(
         self, path: Path, *, sample_rate: int, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
@@ -499,7 +487,18 @@ class FFmpegEngine:
         chunk_frames: int,
         timeout_sec: float,
         max_frames: int | None = None,
+        expected_duration_sec: float | None = None,
     ) -> Generator[np.ndarray, None, None]:
+        if expected_duration_sec is not None:
+            argv = [
+                argv[0],
+                "-progress",
+                "pipe:2",
+                *argv[1:-1],
+                "-af",
+                "asetpts=PTS-STARTPTS",
+                argv[-1],
+            ]
         with tempfile.TemporaryFile() as err:
             proc = popen(argv, stdout=PIPE, stderr=err)
             timed_out = threading.Event()
@@ -554,6 +553,30 @@ class FFmpegEngine:
                             raise RuntimeError(
                                 _pcm_decode_error(code, timed_out.is_set(), timeout_sec, err)
                             )
+                        if expected_duration_sec is not None:
+                            err.seek(0, 2)
+                            err.seek(max(0, err.tell() - PCM_STDERR_TAIL_BYTES))
+                            records = err.read().decode("utf-8", "replace").split("progress=")
+                            final = (
+                                records[-2]
+                                if len(records) > 1 and records[-1].strip() == "end"
+                                else ""
+                            )
+                            done_sec = next(
+                                (
+                                    seconds
+                                    for line in reversed(final.splitlines())
+                                    if (seconds := _progress_seconds(line)) is not None
+                                ),
+                                None,
+                            )
+                            if done_sec is None:
+                                raise RuntimeError("ffmpeg PCM decode has no final timestamp")
+                            if done_sec + 0.25 < expected_duration_sec:
+                                raise RuntimeError(
+                                    f"ffmpeg PCM decode ended short: {done_sec:.3f} s "
+                                    f"of {expected_duration_sec:.3f} s"
+                                )
                         return
             finally:
                 if timer is not None:
