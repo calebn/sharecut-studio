@@ -357,7 +357,24 @@ export function patchTrackMeta(
   trackId: string,
   fields: Partial<Pick<TrackView, "label" | "role" | "speaker">>,
 ): ProjectView {
-  return patchTrack(project, trackId, fields);
+  const next = patchTrack(project, trackId, fields);
+  if (
+    fields.speaker === undefined ||
+    !next.transcript ||
+    !next.tracks.some((track) => track.id === trackId)
+  )
+    return next;
+  const speaker = fields.speaker || trackId;
+  const utterances = next.transcript.utterances.map((row) =>
+    row.track_id === trackId && row.speaker !== speaker
+      ? { ...row, speaker }
+      : row,
+  );
+  if (
+    utterances.every((row, index) => row === next.transcript?.utterances[index])
+  )
+    return next;
+  return { ...next, transcript: { ...next.transcript, utterances } };
 }
 
 /** Optimistic splice for SetTrackFader / SetTrackMute. */

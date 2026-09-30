@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { minimalProject, sampleComment } from "../test/fixtures";
+import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
 import { transcriptSpanText } from "../utils/transcript";
 import {
@@ -132,6 +132,35 @@ describe("patchTracksOrder / patchTrackMeta", () => {
     expect(next.tracks[1]?.label).toBe("Guest");
     expect(next.tracks[2]).toBe(prev.tracks[2]);
   });
+  it.each(["Mira", null])(
+    "updates speaker rows and preserves their source data for %s",
+    (speaker) => {
+      const words = [{ text: "hello", start: 0, end: 1 }];
+      const source = {
+        track_id: "host",
+        speaker: "Host",
+        text: "hello",
+        start: 0,
+        end: 1,
+        words,
+      };
+      const other = { ...source, track_id: "guest", speaker: "Guest" };
+      const previous = minimalProject({
+        tracks: [sampleTrack({ speaker: "Host" })],
+        transcript: { utterances: [source, other] },
+      });
+      const next = patchTrackMeta(previous, "host", { speaker });
+      expect(next.transcript?.utterances[0]).toEqual({
+        ...source,
+        speaker: speaker ?? "host",
+      });
+      expect(next.transcript?.utterances[0].words).toBe(words);
+      expect(next.transcript?.utterances[1]).toBe(other);
+      expect(previous.transcript?.utterances[0].speaker).toBe("Host");
+      expect(patchTrackMeta(next, "host", { speaker })).toBe(next);
+      expect(patchTrackMeta(previous, "missing", { speaker })).toBe(previous);
+    },
+  );
 });
 
 describe("projectFromDocumentSnapshot", () => {

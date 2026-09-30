@@ -82,3 +82,40 @@ test("rename and reassign a transcript speaker updates all track turns and Undo 
     ).toHaveCount(count);
   });
 });
+
+test("queued speaker save stays visible and reports pending delivery", async ({
+  page,
+}) => {
+  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+  const list = await openTranscriptPanel(page);
+  await page.route("**/api/document/command?**", async (route) => {
+    if (route.request().postDataJSON()?.type === "SetTrackMeta")
+      await route.abort("failed");
+    else await route.continue();
+  });
+  await list
+    .getByRole("button", { name: /^Change speaker/ })
+    .first()
+    .click();
+  await list
+    .getByRole("combobox", { name: "Speaker name" })
+    .fill("Queued speaker");
+  await list.getByRole("combobox", { name: "Speaker name" }).press("Enter");
+  await expect(
+    list.getByRole("combobox", { name: "Speaker name" }),
+  ).toHaveCount(0);
+  await expect(
+    list
+      .getByRole("button", {
+        name: "Change speaker Queued speaker",
+        exact: true,
+      })
+      .first(),
+  ).toBeVisible();
+  await expect(page.locator(".guest-attention")).toContainText("1 pending");
+  await expect(
+    page.getByText("Track metadata change queued. Still sending.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});

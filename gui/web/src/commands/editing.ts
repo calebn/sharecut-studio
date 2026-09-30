@@ -370,7 +370,8 @@ export function registerClipMoveCommands(): void {
       }
       const previous = s.project;
       const seqAtStart = currentDocumentSeq();
-      s.setProject(patchClipsMove(previous, clips));
+      const optimistic = patchClipsMove(previous, clips);
+      s.setProject(optimistic);
       const sel = s.selection;
       if (sel?.kind === "clip") {
         const moved = clips.find((c) => c.clip_id === sel.id);
@@ -383,7 +384,12 @@ export function registerClipMoveCommands(): void {
         useDawStore.getState().announceStatus("Moved clips");
         return { status: "ok" };
       } catch (e) {
-        revertOptimisticIfUnchanged(previous, seqAtStart);
+        revertOptimisticIfUnchanged(
+          previous,
+          seqAtStart,
+          s.projectPath,
+          optimistic,
+        );
         const msg = errorMessage(e);
         useDawStore.getState().announceStatus(`Move failed: ${msg}`);
         return { status: "disabled", reason: msg };

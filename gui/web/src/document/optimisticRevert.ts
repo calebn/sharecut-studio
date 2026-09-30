@@ -2,13 +2,19 @@ import { useDawStore } from "../state/dawStore";
 import type { ProjectView } from "../types/project";
 import { currentDocumentSeq } from "./cursor";
 
-/** Revert an optimistic splice only when hub seq has not already advanced. */
 export function revertOptimisticIfUnchanged(
   previous: ProjectView,
   seqAtStart: number,
+  projectPath: string,
+  optimistic: ProjectView,
 ): void {
-  if (currentDocumentSeq() > seqAtStart) {
+  const state = useDawStore.getState();
+  if (
+    state.projectPath !== projectPath ||
+    state.project !== optimistic ||
+    currentDocumentSeq() > seqAtStart
+  ) {
     return;
   }
-  useDawStore.getState().setProject(previous);
+  state.setProject(previous);
 }
