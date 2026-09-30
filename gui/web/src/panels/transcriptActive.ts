@@ -3,6 +3,7 @@ import {
   INSTANT_WORD_SEC,
   isUtteranceActive,
   isWordActive,
+  utteranceTimelineSpans,
   wordsForUtterance,
 } from "../utils/transcript";
 
@@ -12,6 +13,9 @@ type IndexedUtterance = {
   /** Time range any of its words can be active in (empty when none can). */
   wordLo: number;
   wordHi: number;
+  rowIndex: number;
+  start: number;
+  maxEnd: number;
 };
 
 /** Per-utterance words and word-time bounds, built once per utterance list. */
@@ -38,7 +42,11 @@ export function activeWordId(
 export function buildTranscriptActiveIndex(
   utterances: readonly CombinedUtterance[],
 ): TranscriptActiveIndex {
-  return utterances.map((utterance) => {
+  const entries: IndexedUtterance[] = [];
+  utterances.forEach((utterance, rowIndex) => {
+    if (utterance.suppressed_only) {
+      return;
+    }
     const words = wordsForUtterance(utterance);
     let wordLo = Number.POSITIVE_INFINITY;
     let wordHi = Number.NEGATIVE_INFINITY;
@@ -50,8 +58,31 @@ export function buildTranscriptActiveIndex(
       wordLo = Math.min(wordLo, w.timeline_start - INSTANT_WORD_SEC);
       wordHi = Math.max(wordHi, end, w.timeline_start + INSTANT_WORD_SEC);
     }
-    return { utterance, words, wordLo, wordHi };
+    let start = wordLo;
+    let end = wordHi;
+    for (const span of utteranceTimelineSpans(utterance)) {
+      start = Math.min(start, span.start);
+      end = Math.max(end, span.end);
+    }
+    if (start <= end) {
+      entries.push({
+        utterance,
+        words,
+        wordLo,
+        wordHi,
+        rowIndex,
+        start,
+        maxEnd: end,
+      });
+    }
   });
+  entries.sort((a, b) => a.start - b.start);
+  let maxEnd = Number.NEGATIVE_INFINITY;
+  for (const entry of entries) {
+    maxEnd = Math.max(maxEnd, entry.maxEnd);
+    entry.maxEnd = maxEnd;
+  }
+  return entries;
 }
 
 /**
@@ -63,25 +94,44 @@ export function transcriptActiveKey(
   index: TranscriptActiveIndex,
   sec: number,
 ): string {
+  let lo = 0;
+  let hi = index.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (index[mid]!.maxEnd < sec) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  const first = lo;
+  hi = index.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (index[mid]!.start <= sec) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  const candidates = index
+    .slice(first, lo)
+    .sort((a, b) => a.rowIndex - b.rowIndex);
   const utterances: number[] = [];
   const words: string[] = [];
-  index.forEach(({ utterance, words: uw, wordLo, wordHi }, i) => {
-    if (utterance.suppressed_only) {
-      // A suppressed-only row (#758) is never highlighted and never drives follow.
-      return;
-    }
+  for (const { utterance, words: uw, wordLo, wordHi, rowIndex } of candidates) {
     if (isUtteranceActive(utterance, sec)) {
-      utterances.push(i);
+      utterances.push(rowIndex);
     }
     if (sec < wordLo || sec > wordHi) {
-      return;
+      continue;
     }
     uw.forEach((w, wi) => {
       if (isWordActive(w, sec)) {
-        words.push(activeWordId(i, wi));
+        words.push(activeWordId(rowIndex, wi));
       }
     });
-  });
+  }
   return `${utterances.join(",")}|${words.join(",")}`;
 }
 
