@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1242,3 +1243,54 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
     assert "[0:a]asplit=3" in filter_complex
     assert "[1:a]asplit=2" in filter_complex
     assert filter_complex.count("atrim=") == len(placed)
+    for path, expected_start, expected_duration in (
+        (sample_wav.resolve(), 0.0, 0.5),
+        (other.resolve(), 0.1, 0.3),
+    ):
+        input_index = input_paths.index(path)
+        input_position = [i for i, token in enumerate(command) if token == "-i"][input_index]
+        assert command[input_position - 4] == "-ss"
+        assert float(command[input_position - 3]) == pytest.approx(expected_start)
+        assert command[input_position - 2] == "-t"
+        assert float(command[input_position - 1]) == pytest.approx(expected_duration)
+
+
+def test_render_timeline_bounded_seek_keeps_nonzero_source_ranges(tmp_path: Path) -> None:
+    import numpy as np
+
+    engine = FFmpegEngine()
+    if not engine.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    source = tmp_path / "bounded-source.wav"
+    rate = 48_000
+    samples = np.concatenate(
+        [
+            np.full(rate, round(amplitude * 32767), dtype="<i2")
+            for amplitude in (0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35)
+        ]
+    )
+    with wave.open(str(source), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes(samples.tobytes())
+
+    from podcast_mcp.engines.ffmpeg import PlacedSegment
+
+    output = tmp_path / "bounded-output.wav"
+    engine.render_timeline(
+        source,
+        output,
+        [
+            PlacedSegment(1.0, 1.25, source_path=source),
+            PlacedSegment(2.5, 2.75, gap_before_sec=1.25, source_path=source),
+        ],
+        "anull",
+    )
+    with wave.open(str(output), "rb") as handle:
+        rendered = np.frombuffer(handle.readframes(handle.getnframes()), dtype="<i2")
+        assert handle.getframerate() == rate
+    assert rendered.shape == (round(1.75 * rate),)
+    assert np.mean(np.abs(rendered[: round(0.2 * rate)])) == pytest.approx(0.1 * 32767, abs=2)
+    second = rendered[round(1.5 * rate) : round(1.7 * rate)]
+    assert np.mean(np.abs(second)) == pytest.approx(0.15 * 32767, abs=2)

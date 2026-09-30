@@ -23,7 +23,9 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 #    own cut join no longer drops its fade-out).
 # 5: segment renders resolve the selected source media for each clip.
 # 6: multi-source renders preserve per-clip fades and apply the transcript gate once.
-RENDER_SEMANTICS_REV = 6
+# 7: multi-source placement follows the accumulated render clock and preserves
+#    full-lane join context in segment renders.
+RENDER_SEMANTICS_REV = 7
 
 
 def resolve_clip_audio_path(
@@ -233,12 +235,21 @@ def _render_multi_source_track(
     timeline_edits: list,
     crossfade_curve: str = "tri",
     window: tuple[float, float] | None = None,
+    context_clips: list[Clip] | None = None,
+    clip_indices: list[int] | None = None,
 ) -> Path:
     placed: list[PlacedSegment] = []
     ignored_lookup = IgnoredWordRegions(project)
-    timeline_cursor = window[0] if window is not None else 0.0
+    lane_clips = context_clips if context_clips is not None else sorted_clips
+    lane_indices = clip_indices if clip_indices is not None else list(range(len(sorted_clips)))
+    if len(lane_indices) != len(sorted_clips):
+        raise ValueError("clip_indices must align with sorted_clips")
+    running_end: float | None = None
+    authored_frontier = 0.0
+    clock_shift = 0.0
+    clock_origin = window[0] if window is not None else 0.0
 
-    for i, (clip, src) in enumerate(zip(sorted_clips, paths, strict=True)):
+    for clip_i, (clip, src) in enumerate(zip(sorted_clips, paths, strict=True)):
         timeline_start = clip.timeline_start
         timeline_end = clip.timeline_end
         source_start = clip.source_start
@@ -260,24 +271,21 @@ def _render_multi_source_track(
             mapped,
             track.id,
         )
-        prev = sorted_clips[i - 1] if i > 0 else None
-        nxt = sorted_clips[i + 1] if i + 1 < len(sorted_clips) else None
+        lane_i = lane_indices[clip_i]
+        prev = lane_clips[lane_i - 1] if lane_i > 0 else None
+        nxt = lane_clips[lane_i + 1] if lane_i + 1 < len(lane_clips) else None
         crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
-
-        if window is None:
-            gap_before = 0.0
-            overlap_prev = 0.0
-            if prev is not None and crossfade_prev <= 0:
-                gap = clip.timeline_start - prev.timeline_end
-                if gap > JOIN_GAP_TOLERANCE_SEC:
-                    gap_before = gap
-                elif gap < -JOIN_GAP_TOLERANCE_SEC:
-                    overlap_prev = -gap
-        else:
-            gap_before = timeline_start - timeline_cursor
-            overlap_prev = 0.0
-            if gap_before <= JOIN_GAP_TOLERANCE_SEC or crossfade_prev > 0:
-                gap_before = 0.0
+        effective_start = timeline_start - clock_origin - clock_shift
+        gap_before = 0.0
+        overlap_prev = 0.0
+        if running_end is None:
+            gap_before = max(0.0, effective_start)
+        elif crossfade_prev <= 0:
+            delta = effective_start - running_end
+            if delta > JOIN_GAP_TOLERANCE_SEC:
+                gap_before = delta
+            elif delta < -JOIN_GAP_TOLERANCE_SEC:
+                overlap_prev = -delta
 
         at_clip_start = timeline_start <= clip.timeline_start + 1e-4
         at_clip_end = timeline_end >= clip.timeline_end - 1e-4
@@ -310,9 +318,24 @@ def _render_multi_source_track(
                     source_path=src,
                 )
             )
+            duration = src_end - src_start
+            if running_end is None:
+                running_end = gap_before + duration
+            elif first and crossfade_prev > 0:
+                actual_crossfade = max(0.001, min(crossfade_prev, duration * 0.5))
+                running_end += duration - actual_crossfade
+            elif first and overlap_prev > 0:
+                delay = max(0.0, running_end - min(overlap_prev, running_end))
+                running_end = max(running_end, delay + duration)
+            elif first and gap_before > 0:
+                running_end += gap_before + duration
+            else:
+                running_end += duration
             gap_before = 0.0
 
-        timeline_cursor = timeline_end
+        if contributing and running_end is not None:
+            authored_frontier = max(authored_frontier, timeline_end - clock_origin)
+            clock_shift = authored_frontier - running_end
 
     if not placed:
         raise ValueError(f"no clips to render for track {track.id}")
@@ -474,6 +497,8 @@ def render_track_segment(
             timeline_edits=timeline_edits,
             crossfade_curve=crossfade_curve,
             window=(timeline_start, timeline_end),
+            context_clips=track_clips,
+            clip_indices=[clip_i for clip_i, _, _, _ in overlapping],
         )
         placed: list[PlacedSegment] = []
     else:
