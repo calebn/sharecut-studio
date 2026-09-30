@@ -3,7 +3,7 @@ export type TranscriptIntent = "navigate" | "correct" | "select";
 /** Toolbar hint: what the active transcript intent does to text vs audio. */
 export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
   navigate:
-    "Double-click a word to fix its text: Enter saves, Esc cancels. Text fixes never move or cut audio.",
+    "Double-click a word or focus it and press F2 to fix its text: Enter saves, Esc cancels. Text fixes never move or cut audio.",
   correct:
     "Correct: click a word, then Apply fixes its text or Suppress drops it from the transcript (text only; audio and timing stay as recorded). Ignore strikes it through and mutes its audio at render, without a cut.",
   select:

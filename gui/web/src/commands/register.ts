@@ -13,6 +13,7 @@ import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 import { registerTranscriptReviewCommands } from "./transcriptReview";
+import { registerTranscriptWordCommands } from "./transcriptWord";
 import {
   registerPaletteCommands,
   registerTranscriptViewCommands,
@@ -39,5 +40,6 @@ export function registerDawCommands(): void {
   registerTrackMixCommands();
   registerTranscriptIgnoreCommands();
   registerTranscriptReviewCommands();
+  registerTranscriptWordCommands();
   registerChapterCommands();
 }

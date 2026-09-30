@@ -1604,7 +1604,7 @@
     },
     {
       "id": "daw.export.deliverables",
-      "label": "Export deliverables…",
+      "label": "Export deliverables\u2026",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1625,7 +1625,7 @@
       "omit": {
         "guest": true
       },
-      "tooltip": "Export deliverables…",
+      "tooltip": "Export deliverables\u2026",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -2202,12 +2202,31 @@
           "transcript.inlineEdit"
         ]
       },
-      "omit": {
-        "keyboard_reason": "toolbar toggle; no industry-standard key"
-      },
       "presence": {
         "cursor": "anchor",
         "follow": "look",
+        "anchor": "transcript:word:<track>:<i>"
+      },
+      "omit": {
+        "keyboard_reason": "toolbar toggle; inline correction uses F2"
+      }
+    },
+    {
+      "id": "daw.transcript.editWordInline",
+      "label": "Edit focused transcript word",
+      "tooltip": "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",
+      "service": "Sharecut Studio UI",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "transcript.editWordInline",
+        "keyboard": "F2"
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "none",
         "anchor": "transcript:word:<track>:<i>"
       }
     },
@@ -2242,7 +2261,7 @@
       "label": "Ignore / restore transcript words",
       "tooltip": "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
       "tooltip_pressed": "Restore: un-mute the selection and remove its strikethrough",
-      "service": "Sharecut Studio command bus → services/document",
+      "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -2396,8 +2415,8 @@
     {
       "id": "daw.edit.addChapter",
       "label": "Add chapter at playhead",
-      "tooltip": "Add a chapter marker at the playhead · turns Markers on",
-      "service": "Sharecut Studio → AddChapter document command",
+      "tooltip": "Add a chapter marker at the playhead \u00b7 turns Markers on",
+      "service": "Sharecut Studio \u2192 AddChapter document command",
       "industry_standard_key": false,
       "gates": [
         "hostProjectLoaded"
@@ -2410,7 +2429,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "no default shortcut; Menu › Markers or the phone More action",
+        "keyboard_reason": "no default shortcut; Menu \u203a Markers or the phone More action",
         "guest": true
       },
       "presence": {

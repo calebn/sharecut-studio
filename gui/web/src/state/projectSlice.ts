@@ -71,6 +71,7 @@ export const createProjectSlice: StateCreator<
       followingClientId: samePath ? get().followingClientId : null,
       localClientId: samePath ? get().localClientId : null,
       followDegraded: samePath ? get().followDegraded : {},
+      transcriptInlineEditRequest: null,
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
       transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,

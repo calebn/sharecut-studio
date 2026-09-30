@@ -46,6 +46,7 @@ import type {
   ShellBreakpoint,
   ToolMode,
   TranscriptInlineEditFailure,
+  TranscriptInlineEditRequest,
   TranscriptReviewCursor,
 } from "./types";
 
@@ -144,6 +145,8 @@ type UiSlice = Pick<
   | "commentMode"
   | "commentDraft"
   | "transcriptFollowPlayhead"
+  | "transcriptInlineEditRequest"
+  | "setTranscriptInlineEditRequest"
   | "transcriptInlineCommitPending"
   | "transcriptInlineEditFailure"
   | "transcriptReviewCursor"
@@ -327,6 +330,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     commentMode: false,
     commentDraft: null as CommentDraft | null,
     transcriptFollowPlayhead: true,
+    transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     transcriptReviewCursor: null as TranscriptReviewCursor | null,
@@ -439,6 +443,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
+    setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>
+      set({ transcriptInlineEditRequest }),
     setTranscriptInlineCommitPending: (transcriptInlineCommitPending) =>
       set({ transcriptInlineCommitPending }),
     setTranscriptInlineEditFailure: (transcriptInlineEditFailure) =>

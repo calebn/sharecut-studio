@@ -2,6 +2,7 @@ import { act, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { correctTranscriptWord } from "../api";
 import { execute } from "../commands/execute";
+import { registerTranscriptWordCommands } from "../commands/transcriptWord";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -22,7 +23,8 @@ vi.mock("../utils/transcript", async (importOriginal) => {
   };
 });
 
-vi.mock("../commands/execute", () => ({
+vi.mock("../commands/execute", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../commands/execute")>()),
   execute: vi.fn(async () => ({ status: "ok" })),
 }));
 
@@ -131,6 +133,7 @@ describe("TranscriptPanel", () => {
       transcriptFollowPlayhead: false,
       layoutMode: "default",
       pointerKind: "fine",
+      transcriptInlineEditRequest: null,
       transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
       transcriptAnnotate: false,
@@ -448,6 +451,107 @@ describe("TranscriptPanel", () => {
   });
 
   describe("inline word edit", () => {
+    const executeWordCommand = async () => {
+      const actual = await vi.importActual<
+        typeof import("../commands/execute")
+      >("../commands/execute");
+      return actual.execute("transcript.editWordInline");
+    };
+    it("bus keyboard request opens an accessible editor and Escape restores focus", async () => {
+      registerTranscriptWordCommands();
+      const { container } = render(<TranscriptPanel />);
+      const hello = within(container).getByRole("button", { name: "hello" });
+      hello.focus();
+      await act(async () => {
+        expect(await executeWordCommand()).toEqual({
+          status: "ok",
+        });
+      });
+      const input = within(container).getByRole("textbox", {
+        name: /Correct word/,
+      });
+      expect(input).toHaveFocus();
+      await expectNoA11yViolations(container);
+      fireEvent.keyDown(input, { key: "Escape" });
+      expect(
+        within(container).getByRole("button", { name: "hello" }),
+      ).toHaveFocus();
+      expect(useDawStore.getState().transcriptInlineEditRequest).toBeNull();
+    });
+
+    it.each(["correct", "select"])(
+      "keyboard request does nothing in %s mode",
+      async (mode) => {
+        registerTranscriptWordCommands();
+        const { container } = render(<TranscriptPanel />);
+        fireEvent.click(
+          within(container).getByRole("button", {
+            name: mode === "correct" ? /^Correct:/ : /^Select:/,
+          }),
+        );
+        within(container).getByRole("button", { name: "hello" }).focus();
+        await act(async () => {
+          expect((await executeWordCommand()).status).toBe("disabled");
+        });
+        expect(
+          within(container).queryByRole("textbox", { name: /Correct word/ }),
+        ).toBeNull();
+      },
+    );
+
+    it.each(["guest", "unhydrated", "pending", "missing", "untimed"])(
+      "keyboard correction is unavailable for %s",
+      async (condition) => {
+        registerTranscriptWordCommands();
+        if (condition === "guest")
+          useDawStore.setState({ projectPath: "share:tok" });
+        if (condition === "unhydrated") {
+          const base = project();
+          useDawStore.setState({
+            project: {
+              ...base,
+              meta: {
+                ...base.meta,
+                hydration: { transcript_words: false, history_groups: false },
+              },
+            },
+          });
+        }
+        if (condition === "pending")
+          useDawStore.setState({ transcriptInlineCommitPending: true });
+        const { container } = render(<TranscriptPanel />);
+        const chip = within(container).getByRole("button", { name: "hello" });
+        chip.focus();
+        if (condition === "missing") chip.dataset.wordIndex = "999";
+        if (condition === "untimed") {
+          const base = project();
+          base.transcript!.utterances[0].words![0].mappable = false;
+          act(() => useDawStore.setState({ project: base }));
+        }
+        await act(async () => {
+          expect((await executeWordCommand()).status).toBe("disabled");
+        });
+        expect(
+          within(container).queryByRole("textbox", { name: /Correct word/ }),
+        ).toBeNull();
+      },
+    );
+
+    it("drops a request for another project", () => {
+      useDawStore.setState({
+        transcriptInlineEditRequest: {
+          projectPath: "/tmp/other",
+          trackId: "host",
+          wordIndex: 0,
+        },
+      });
+      const { container } = render(<TranscriptPanel />);
+      expect(
+        within(container).queryByRole("textbox", { name: /Correct word/ }),
+      ).toBeNull();
+      expect(useDawStore.getState().transcriptInlineEditRequest).toBeNull();
+    });
+
     it("double-click opens a focused textbox with the word's text", () => {
       const { container } = render(<TranscriptPanel />);
       const hello = within(container).getByRole("button", { name: "hello" });
@@ -703,7 +807,7 @@ describe("TranscriptPanel", () => {
       );
       expect(
         container.querySelector(".transcript-mode-hint"),
-      ).toHaveTextContent(/Double-click a word to fix its text/);
+      ).toHaveTextContent(/Double-click a word or focus it and press F2/);
       fireEvent.doubleClick(q.getByRole("button", { name: "there" }));
       expect(q.getByRole("textbox", { name: /there/ })).toHaveFocus();
     });
@@ -1765,6 +1869,7 @@ describe("TranscriptPanel prosody emphasis (#719)", () => {
       transcriptFollowPlayhead: false,
       layoutMode: "default",
       pointerKind: "fine",
+      transcriptInlineEditRequest: null,
       transcriptInlineCommitPending: false,
       transcriptInlineEditFailure: null,
       transcriptAnnotate: false,

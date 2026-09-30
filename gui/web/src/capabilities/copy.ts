@@ -354,6 +354,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip_pressed: "Exit Correct (restore seek-on-click)",
     toggle: true,
   },
+  "daw.transcript.editWordInline": {
+    label: "Edit focused transcript word",
+    tooltip:
+      "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",
+  },
   "daw.transcript.select": {
     label: "Select transcript range",
     tooltip:

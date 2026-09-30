@@ -468,6 +468,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Annotate transcript",
     when: "always",
   },
+  "transcript.editWordInline": {
+    id: "transcript.editWordInline",
+    category: "edit",
+    label: "Edit focused transcript word",
+    when: "hostProjectLoaded",
+    paletteRunnable: false,
+    notes: "F2: focused timed word in Navigate mode; hydrated host only",
+  },
   "transcript.correctIntent": {
     id: "transcript.correctIntent",
     category: "edit",

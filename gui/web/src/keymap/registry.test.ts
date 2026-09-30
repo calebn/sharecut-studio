@@ -35,6 +35,16 @@ function keyEvent(
 }
 
 describe("keymap registry", () => {
+  it("F2 edits a focused word while Enter has no global transcript binding", () => {
+    expect(matchKeymapCommand(keyEvent({ key: "F2" }))?.id).toBe(
+      "transcript.editWordInline",
+    );
+    expect(
+      matchKeymapCommands(keyEvent({ key: "Enter" })).some((cmd) =>
+        cmd.id.startsWith("transcript."),
+      ),
+    ).toBe(false);
+  });
   it("includes stable command ids for tools and transport", () => {
     const ids = KEYMAP_COMMANDS.map((c) => c.id);
     expect(ids).toContain("tool.select");

@@ -73,6 +73,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
+| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; does not clear track targeting |
 | `Mod+C` | Copy (`edit.copy`) | Project loaded | Mod+C |
 | `Mod+X` | Cut (`edit.cut`) | Host or shared edit mode | Mod+X |
