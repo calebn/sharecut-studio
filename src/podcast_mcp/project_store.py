@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import OrderedDict
 from collections.abc import Collection, Iterable
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from podcast_mcp.models import (
@@ -23,6 +26,41 @@ from podcast_mcp.util.project_state import FileRevision, project_commit_lock, pr
 log = logging.getLogger(__name__)
 HISTORY_ENTRY_LIMIT = 400
 _GENERATED_SNAPSHOT_ID = re.compile(r"[0-9a-f]{12}\Z")
+
+
+@dataclass(frozen=True)
+class TranscriptVocabularyRow:
+    track_id: str
+    vocabulary_revision: str | None
+    user_edited: bool
+
+
+@dataclass(frozen=True)
+class TranscriptVocabularyState:
+    workspace: Path
+    transcripts: tuple[TranscriptVocabularyRow, ...]
+
+    @classmethod
+    def from_project(cls, project: EpisodeProject) -> TranscriptVocabularyState:
+        return cls(
+            workspace=project.workspace_path(),
+            transcripts=tuple(
+                TranscriptVocabularyRow(t.track_id, t.vocabulary_revision, t.user_edited)
+                for t in project.transcripts
+            ),
+        )
+
+
+_FileSignature = tuple[int, int, int, int, int]
+_VocabularyCacheKey = tuple[Path, _FileSignature, _FileSignature | None]
+_VOCABULARY_CACHE_LIMIT = 16
+_VOCABULARY_CACHE: OrderedDict[_VocabularyCacheKey, TranscriptVocabularyState] = OrderedDict()
+_VOCABULARY_CACHE_LOCK = Lock()
+
+
+def _file_signature(path: Path) -> _FileSignature:
+    stat = path.stat()
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
 
 
 def history_index_path(project: EpisodeProject) -> Path:
@@ -237,6 +275,39 @@ class ProjectStore:
         self.adopt_history_index(project)
         return project
 
+    def transcript_vocabulary_state(self) -> TranscriptVocabularyState:
+        """Validated transcript metadata, cached for at most 16 saved file revisions.
+
+        Context YAML is deliberately outside this cache. A changed file still goes
+        through the complete project/history loader, so validation errors are preserved.
+        """
+        before = self._vocabulary_cache_key()
+        with _VOCABULARY_CACHE_LOCK:
+            hit = _VOCABULARY_CACHE.get(before)
+            if hit is not None:
+                _VOCABULARY_CACHE.move_to_end(before)
+                return hit
+        state = TranscriptVocabularyState.from_project(self.load())
+        try:
+            after = self._vocabulary_cache_key()
+        except OSError:
+            return state
+        if after == before:
+            with _VOCABULARY_CACHE_LOCK:
+                _VOCABULARY_CACHE[before] = state
+                _VOCABULARY_CACHE.move_to_end(before)
+                while len(_VOCABULARY_CACHE) > _VOCABULARY_CACHE_LIMIT:
+                    _VOCABULARY_CACHE.popitem(last=False)
+        return state
+
+    def _vocabulary_cache_key(self) -> _VocabularyCacheKey:
+        project_signature = _file_signature(self.project_path)
+        try:
+            history_signature = _file_signature(self.project_path.parent / "history" / "index.json")
+        except FileNotFoundError:
+            history_signature = None
+        return self.project_path, project_signature, history_signature
+
     def commit(self, project: EpisodeProject) -> Path:
         with project_commit_lock(project):
             try:
@@ -365,16 +436,9 @@ class ProjectStore:
         signatures: dict[Path, tuple[int, ...]] = {}
         for path in paths:
             try:
-                stat = path.stat()
+                signatures[path] = _file_signature(path)
             except OSError:
                 return None
-            signatures[path] = (
-                stat.st_dev,
-                stat.st_ino,
-                stat.st_size,
-                stat.st_mtime_ns,
-                stat.st_ctime_ns,
-            )
         return signatures
 
     def _mirror_transcript_cache(self, project: EpisodeProject) -> None:

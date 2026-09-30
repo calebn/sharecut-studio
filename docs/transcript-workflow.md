@@ -145,7 +145,15 @@ prompt but has no caller in the transcribe pipeline today — tests and
 `scripts/benchmark_transcribe_backends.py` are the only callers, and neither
 passes one). Saving a change marks the vocabulary as needing transcription;
 **Re-transcribe** runs the pipeline from `transcribe_tracks` through downstream
-steps. Each transcript stores the vocabulary revision it was produced with. Studio
+steps.
+
+Vocabulary status avoids another full project load on an unchanged saved-file
+revision after its first validated read. It caches only immutable transcript revision
+and hand-edit metadata, up to 16 file revisions per process. It always reloads the
+layered glossary/context YAML, so titles, prompt budgets and vocabulary edits appear
+immediately. Cold reads and changed files still validate the full project.
+
+Each transcript stores the vocabulary revision it was produced with. Studio
 asks for re-transcription when any transcript differs from the revision in
 `transcript_context.yaml`: single-track runs update only that track, a concurrent
 edit stays stale, and a project without transcripts never asks. ASR caches
