@@ -39,17 +39,12 @@ def apply_source_transcript_removes(
         if not tr or not ranges:
             continue
         sorted_removes = sorted(ranges, key=lambda r: r[0])
-        archived_ordinals = {entry.ordinal for entry in tr.archived_words}
-        ordinal = 0
         kept = []
-        for word in tr.words:
-            while ordinal in archived_ordinals:
-                ordinal += 1
+        for ordinal, word in tr.active_words_with_ordinals():
             if overlaps_remove_range(word.start, word.end, sorted_removes):
                 tr.archived_words.append(ArchivedTranscriptWord(ordinal=ordinal, word=word))
             else:
                 kept.append(word)
-            ordinal += 1
         tr.words = kept
     if rebuild:
         rebuild_combined(project)
@@ -110,18 +105,13 @@ def restore_archived_words(project: EpisodeProject, track_ids: set[str]) -> None
             else:
                 remaining.append(archived)
         if restored:
-            occupied = {entry.ordinal for entry in transcript.archived_words}
-            active_with_order = []
-            ordinal = 0
-            for word in transcript.words:
-                while ordinal in occupied:
-                    ordinal += 1
-                active_with_order.append((ordinal, word))
-                ordinal += 1
             transcript.words = [
                 word
                 for _, word in sorted(
-                    [*active_with_order, *((entry.ordinal, entry.word) for entry in restored)],
+                    [
+                        *transcript.active_words_with_ordinals(),
+                        *((entry.ordinal, entry.word) for entry in restored),
+                    ],
                     key=lambda item: (item[1].start, item[0]),
                 )
             ]
