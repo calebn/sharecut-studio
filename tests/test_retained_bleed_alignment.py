@@ -1219,3 +1219,38 @@ def test_gate_cannot_project_primary_foreign_verdict_onto_untranscribed_recordin
     else:
         assert plan.attenuation_spans
     assert p.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("change", ["suppression", "dominant_source"])
+def test_selected_secondary_transcript_changes_invalidate_gate_payload_and_render_hash(
+    tmp_path: Path, change: str
+) -> None:
+    from podcast_mcp.engines.bleed_gate import bleed_gate_payload
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    p.track_by_id("direct").transcript_gate = True
+    selected = Transcript(
+        track_id="direct",
+        source_id="secondary",
+        words=[
+            TranscriptWord(
+                text="selected foreign word",
+                start=1.3,
+                end=3.1,
+                suppressed=True,
+                audibility_status="bleed",
+                dominant_track="uncertain",
+            )
+        ],
+    )
+    p.transcripts.append(selected)
+    before_payload = bleed_gate_payload(p, "direct")
+    before_hash = track_render_hash(p, "direct")
+    if change == "suppression":
+        selected.words[0].suppressed = False
+    else:
+        selected.words[0].dominant_track = "different-reference"
+    assert bleed_gate_payload(p, "direct") != before_payload
+    assert track_render_hash(p, "direct") != before_hash
