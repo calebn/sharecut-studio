@@ -27,7 +27,7 @@ def transcript_vocabulary_get(
 ) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
-    return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).get_vocabulary()
+    return TranscriptPrecorrectService.vocabulary_status(project_path)
 
 
 @router.put("/api/transcript/vocabulary")

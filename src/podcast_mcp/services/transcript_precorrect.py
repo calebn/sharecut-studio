@@ -3,12 +3,15 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 from filelock import Timeout
 
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.project_io import resolve_project_path
+from podcast_mcp.project_store import ProjectStore, TranscriptVocabularyState
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.transcript_context import (
     DEFAULT_PROMPT_PRIMER,
@@ -111,25 +114,14 @@ class TranscriptPrecorrectService:
             return self._save_context_locked(next_ctx, current)
 
     def get_vocabulary(self) -> dict[str, Any]:
-        ctx = self.load_context()
-        return {
-            "terms": ctx.terms,
-            "guest_names": ctx.guest_names,
-            "show_title": ctx.show_title,
-            "prompt_limit": ctx.initial_prompt_limit() if ctx.initial_prompt_enabled() else None,
-            "prompt_primer": DEFAULT_PROMPT_PRIMER,
-            "revision": ctx.vocabulary_revision,
-            # No transcripts means nothing to re-transcribe; otherwise any row
-            # produced with another revision (or before revisions) is stale.
-            "needs_retranscription": any(
-                t.vocabulary_revision != ctx.vocabulary_revision
-                for t in self.ws.project.transcripts
-            ),
-            # Studio Re-transcribe names these and asks before replacing their hand edits.
-            "edited_tracks": list(
-                dict.fromkeys(t.track_id for t in self.ws.project.transcripts if t.user_edited)
-            ),
-        }
+        return _vocabulary_response(
+            self.load_context(), TranscriptVocabularyState.from_project(self.ws.project)
+        )
+
+    @staticmethod
+    def vocabulary_status(project_path: Path | str) -> dict[str, Any]:
+        state = ProjectStore(resolve_project_path(project_path)).transcript_vocabulary_state()
+        return _vocabulary_response(load_transcript_context(state.workspace), state)
 
     def set_vocabulary(
         self,
@@ -230,3 +222,25 @@ def _ensure_prompt_covers_vocabulary(ctx: TranscriptContext) -> None:
         f"{limit}; remove terms or guest names, or raise "
         "transcribe.initial_prompt_max_chars"
     )
+
+
+def _vocabulary_response(
+    ctx: TranscriptContext, state: TranscriptVocabularyState
+) -> dict[str, Any]:
+    return {
+        "terms": ctx.terms,
+        "guest_names": ctx.guest_names,
+        "show_title": ctx.show_title,
+        "prompt_limit": ctx.initial_prompt_limit() if ctx.initial_prompt_enabled() else None,
+        "prompt_primer": DEFAULT_PROMPT_PRIMER,
+        "revision": ctx.vocabulary_revision,
+        # No transcripts means nothing to re-transcribe; otherwise any row
+        # produced with another revision (or before revisions) is stale.
+        "needs_retranscription": any(
+            t.vocabulary_revision != ctx.vocabulary_revision for t in state.transcripts
+        ),
+        # Studio Re-transcribe names these and asks before replacing their hand edits.
+        "edited_tracks": list(
+            dict.fromkeys(t.track_id for t in state.transcripts if t.user_edited)
+        ),
+    }
