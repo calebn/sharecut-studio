@@ -1934,3 +1934,68 @@ def test_pure_single_source_segment_preserves_internal_timeline_hole_pcm(
     assert segment.shape == full.shape == (round(1.5 * 48_000),)
     np.testing.assert_array_equal(segment, full)
     assert np.max(np.abs(segment[round(0.5 * 48_000) : round(1.0 * 48_000)])) == 0
+
+
+@pytest.mark.parametrize("sample_rate", [44_100, 48_000])
+@pytest.mark.parametrize("gap_before_sec", [0.0, 0.5])
+def test_render_timeline_resets_mixed_sample_clock_before_concat(
+    tmp_path: Path,
+    sample_rate: int,
+    gap_before_sec: float,
+) -> None:
+    import numpy as np
+
+    engine = FFmpegEngine()
+    if not engine.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    source = tmp_path / f"repeated-{sample_rate}.wav"
+    following = tmp_path / f"following-{sample_rate}.wav"
+    _write_constant_pcm_wav(
+        source,
+        duration_sec=1.0,
+        amplitude=0.1,
+        sample_rate=sample_rate,
+    )
+    _write_constant_pcm_wav(
+        following,
+        duration_sec=1.0,
+        amplitude=0.3,
+        sample_rate=sample_rate,
+    )
+
+    output = tmp_path / f"overlap-then-concat-{sample_rate}-{gap_before_sec}.wav"
+    engine.render_timeline(
+        source,
+        output,
+        [
+            PlacedSegment(0.0, 1.0, source_path=source),
+            PlacedSegment(0.0, 1.0, overlap_prev_sec=0.5, source_path=source),
+            PlacedSegment(
+                0.0,
+                1.0,
+                gap_before_sec=gap_before_sec,
+                source_path=following,
+            ),
+        ],
+        "anull",
+    )
+
+    pcm = _read_pcm(output).astype(np.float32)
+    expected_duration = 2.5 + gap_before_sec
+    assert pcm.shape == (round(expected_duration * sample_rate),)
+
+    def mean_abs(start_sec: float, end_sec: float) -> float:
+        window = pcm[round(start_sec * sample_rate) : round(end_sec * sample_rate)]
+        assert window.size > 0
+        return float(np.mean(np.abs(window)))
+
+    assert mean_abs(0.1, 0.4) == pytest.approx(0.1 * 32767, abs=2)
+    assert mean_abs(0.6, 0.9) == pytest.approx(0.2 * 32767, abs=2)
+    assert mean_abs(1.1, 1.4) == pytest.approx(0.1 * 32767, abs=2)
+    if gap_before_sec:
+        gap = pcm[round(1.5 * sample_rate) : round(2.0 * sample_rate)]
+        assert np.max(np.abs(gap)) == 0
+    assert mean_abs(1.6 + gap_before_sec, 1.9 + gap_before_sec) == pytest.approx(
+        0.3 * 32767,
+        abs=2,
+    )
