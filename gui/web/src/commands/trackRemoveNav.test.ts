@@ -12,12 +12,6 @@ import {
 
 vi.mock("../api", () => ({
   removeTrackCommand: vi.fn(async () => undefined),
-  refreshProject: vi.fn(async () =>
-    minimalProject({
-      tracks: [],
-      timeline_duration_sec: 20,
-    }),
-  ),
   deleteClips: vi.fn(async () => undefined),
   rippleDeleteClips: vi.fn(async () => undefined),
   pasteSegment: vi.fn(),
@@ -118,7 +112,6 @@ describe("track.remove / nav / Escape fall-through", () => {
     registerDawCommands();
     _resetTrackMutateChainForTests();
     vi.mocked(api.removeTrackCommand).mockClear();
-    vi.mocked(api.refreshProject).mockClear();
     vi.mocked(api.deleteClips).mockClear();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     useDawStore.setState({

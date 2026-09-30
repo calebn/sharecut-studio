@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
-import { refreshProject } from "../api";
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
@@ -28,8 +27,7 @@ export function useProjectMutation(): {
   }, []);
 
   const refresh = useCallback(async () => {
-    const next = await refreshProject(projectPath);
-    applyDocumentSnapshot({ project: next }, { force: true });
+    const next = await refreshDocumentProject(projectPath);
     return next;
   }, [projectPath]);
 

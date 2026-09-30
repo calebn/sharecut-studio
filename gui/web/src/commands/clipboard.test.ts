@@ -11,29 +11,6 @@ vi.mock("../api", () => ({
   rippleDeleteRange: vi.fn(async () => undefined),
   rippleDeleteClips: vi.fn(async () => undefined),
   deleteClips: vi.fn(async () => undefined),
-  refreshProject: vi.fn(async () =>
-    minimalProject({
-      clips: {
-        tracks: {
-          host: [
-            {
-              id: "c1",
-              track_id: "host",
-              source_start: 0,
-              source_end: 5,
-              timeline_start: 0,
-              timeline_end: 5,
-              fade_in_ms: 0,
-              fade_out_ms: 0,
-              join_in_mode: "fade",
-              source_id: null,
-            },
-          ],
-        },
-        clip_count: 1,
-      },
-    }),
-  ),
   duplicateSegment: vi.fn(async () => undefined),
   setTrackMuteCommand: vi.fn(async () => ({})),
   undoHistory: vi.fn(),
@@ -89,7 +66,6 @@ describe("edit.copy/cut/paste", () => {
     vi.mocked(api.pasteSegment).mockClear();
     vi.mocked(api.rippleDeleteRange).mockClear();
     vi.mocked(api.rippleDeleteClips).mockClear();
-    vi.mocked(api.refreshProject).mockClear();
     vi.mocked(api.duplicateSegment).mockClear();
     useDawStore.setState({
       projectPath: "/tmp/ep",
@@ -131,7 +107,6 @@ describe("phase-2 P0 edit/view/track commands", () => {
     registerDawCommands();
     vi.mocked(api.deleteClips).mockClear();
     vi.mocked(api.rippleDeleteClips).mockClear();
-    vi.mocked(api.refreshProject).mockClear();
     useDawStore.setState({
       projectPath: "/tmp/ep",
       guestMode: null,

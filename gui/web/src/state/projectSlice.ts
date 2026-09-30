@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { resetDocumentAuthority } from "../document/authorityState";
 import { resetServerClock } from "../presence/clock";
 import { EMPTY_ROSTER } from "../presence/roster";
 import type { PipelineJobSnapshot } from "../types/pipeline";
@@ -58,6 +59,7 @@ export const createProjectSlice: StateCreator<
   ) => {
     const samePath = get().projectPath === projectPath;
     if (!samePath) {
+      resetDocumentAuthority(projectPath);
       resetServerClock();
     }
     set({

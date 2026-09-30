@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { ingestFiles } from "./ingestFiles";
@@ -9,19 +10,18 @@ vi.mock("../api", async (importOriginal) => {
   return {
     ...actual,
     addTrackCommand: vi.fn(),
-    refreshProject: vi.fn(),
     setTrackMediaCommand: vi.fn(),
     uploadMediaFile: vi.fn(),
   };
 });
 
 vi.mock("../document/applyDocumentUpdate", () => ({
-  applyDocumentSnapshot: vi.fn(),
+  refreshDocumentProject: vi.fn(),
 }));
 
 const uploadMock = vi.mocked(api.uploadMediaFile);
 const addTrackMock = vi.mocked(api.addTrackCommand);
-const refreshMock = vi.mocked(api.refreshProject);
+const refreshMock = vi.mocked(refreshDocumentProject);
 
 describe("ingestFiles", () => {
   beforeEach(() => {

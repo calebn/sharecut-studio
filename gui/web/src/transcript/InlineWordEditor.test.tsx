@@ -16,7 +16,6 @@ vi.mock("../api", async (orig) => ({
   ...(await orig<typeof import("../api")>()),
   correctTranscriptWord: vi.fn(async () => {}),
   correctTranscriptPhrase: vi.fn(async () => {}),
-  refreshProject: vi.fn(),
 }));
 
 import { correctTranscriptWord } from "../api";

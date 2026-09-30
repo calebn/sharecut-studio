@@ -1,25 +1,25 @@
+import { documentAuthority, resetDocumentAuthority } from "./authorityState";
+
+export type { DocumentFileSignature } from "./authorityState";
+
 import { documentClientId } from "../utils/documentClient";
 import { jsonEqual } from "../utils/jsonEqual";
+import type { DocumentFileSignature } from "./authorityState";
 
 /** Identity of the episode.project.json a document snapshot was built from (#657). */
-export type DocumentFileSignature = { mtime_ns: number; size: number };
-
-let appliedSeq = 0;
-let appliedFile: DocumentFileSignature | null = null;
 
 export function noteDocumentSeq(seq: number): void {
-  if (seq > appliedSeq) {
-    appliedSeq = seq;
+  if (seq > documentAuthority.seq) {
+    documentAuthority.seq = seq;
   }
 }
 
 export function currentDocumentSeq(): number {
-  return appliedSeq;
+  return documentAuthority.seq;
 }
 
 export function resetDocumentSeq(): void {
-  appliedSeq = 0;
-  appliedFile = null;
+  resetDocumentAuthority();
 }
 
 export function resetDocumentSeqForTests(): void {
@@ -47,11 +47,16 @@ export function shouldApplyDocumentEvent(msg: {
     return true;
   }
   const seq = eventServerSeq(msg);
-  if (seq > 0 && seq < appliedSeq) {
+  if (seq > 0 && seq < documentAuthority.seq) {
     return false;
   }
   const ownId = msg.command?.client_id;
-  if (ownId && seq > 0 && seq <= appliedSeq && ownId === documentClientId()) {
+  if (
+    ownId &&
+    seq > 0 &&
+    seq <= documentAuthority.seq &&
+    ownId === documentClientId()
+  ) {
     return false;
   }
   return true;
@@ -107,20 +112,22 @@ export function noteDocumentFile(snap: {
 }): void {
   const file = wireFile(snap.file);
   if (snap.resync || !file) {
-    appliedFile = null;
+    documentAuthority.file = null;
     return;
   }
-  if (sameFile(file, appliedFile)) {
+  if (sameFile(file, documentAuthority.file)) {
     // The same file announced again (own HTTP result and its WS echo, in either
     // order, or an idempotent retry): already held.
     return;
   }
   if (snap.project) {
-    appliedFile = file;
+    documentAuthority.file = file;
     return;
   }
   const before = wireFile(snap.file_before);
-  appliedFile = sameFile(before, appliedFile) ? file : null;
+  documentAuthority.file = sameFile(before, documentAuthority.file)
+    ? file
+    : null;
 }
 
 /** Record the file identity a poll GET was applied at (#657). */
@@ -128,7 +135,7 @@ export function notePolledDocumentFile(meta: {
   mtime_ns: number;
   size?: number;
 }): void {
-  appliedFile =
+  documentAuthority.file =
     meta.size === undefined
       ? null
       : { mtime_ns: meta.mtime_ns, size: meta.size };
@@ -145,8 +152,8 @@ export function pollSnapshotAlreadyApplied(meta: {
   server_seq?: number;
 }): boolean {
   return (
-    appliedFile !== null &&
-    (meta.server_seq ?? 0) <= appliedSeq &&
-    sameFile(appliedFile, wireFile(meta))
+    documentAuthority.file !== null &&
+    (meta.server_seq ?? 0) <= documentAuthority.seq &&
+    sameFile(documentAuthority.file, wireFile(meta))
   );
 }

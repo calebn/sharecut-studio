@@ -206,6 +206,7 @@ describe("projectFromDocumentSnapshot", () => {
             text: "hello world",
             timeline_start: 0,
             timeline_end: 0.8,
+            mappable: true,
             words,
           },
         ],

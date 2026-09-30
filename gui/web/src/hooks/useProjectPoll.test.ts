@@ -15,8 +15,11 @@ const loadProjectMeta = vi.fn();
 const applyDocumentSnapshot = vi.fn();
 
 vi.mock("../api", () => ({
-  loadProject: (...args: unknown[]) => loadProject(...args),
   loadProjectMeta: (...args: unknown[]) => loadProjectMeta(...args),
+}));
+
+vi.mock("../api/project", () => ({
+  loadDocumentState: (...args: unknown[]) => loadProject(...args),
 }));
 
 vi.mock("../document/applyDocumentUpdate", () => ({
@@ -29,7 +32,11 @@ describe("useProjectPoll", () => {
     loadProject.mockReset();
     loadProjectMeta.mockReset();
     applyDocumentSnapshot.mockReset();
-    loadProject.mockResolvedValue(minimalProject());
+    loadProject.mockResolvedValue({
+      server_seq: 3,
+      project: minimalProject(),
+      file: { mtime_ns: 3, size: 5 },
+    });
     vi.useFakeTimers();
   });
 
@@ -112,6 +119,7 @@ describe("useProjectPoll", () => {
     await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
     expect(loadProject).toHaveBeenCalledTimes(1);
 
+    noteDocumentFile({ project: {}, file: { mtime_ns: 3, size: 5 } });
     noteDocumentSeq(4);
     noteDocumentFile({
       file_before: { mtime_ns: 3, size: 5 },

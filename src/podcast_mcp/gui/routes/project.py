@@ -53,7 +53,7 @@ def _peer_may_switch_project(request: Request) -> bool:
     return host is None or is_loopback_host(host)
 
 
-def _pin_served_if_allowed(request: Request, project_path: Path) -> None:
+def pin_served_if_allowed(request: Request, project_path: Path) -> None:
     if not _peer_may_switch_project(request):
         return
     served = project_path.resolve()
@@ -101,7 +101,7 @@ def create_project(
         ws = ProjectWorkspace.create(body.workspace_dir, name=body.name.strip() or "episode")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    _pin_served_if_allowed(request, ws.path)
+    pin_served_if_allowed(request, ws.path)
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
@@ -152,7 +152,7 @@ def open_project_path(
             status_code=403, detail="project open/switch not allowed from this client"
         )
     ws = _open_validated(body.path)
-    _pin_served_if_allowed(request, ws.path)
+    pin_served_if_allowed(request, ws.path)
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
@@ -192,7 +192,7 @@ def get_project(
 ):
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
-    _pin_served_if_allowed(request, project_path)
+    pin_served_if_allowed(request, project_path)
     try:
         projection = parse_view_projection(phase)
     except ValueError as exc:

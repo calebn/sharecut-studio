@@ -15,6 +15,8 @@ export type ProjectHydration = {
 
 export type DocumentSnapshot = {
   server_seq?: number;
+  delta?: unknown;
+  state_token?: string;
   comments?: TimelineComment[];
   project?: ProjectView;
   patch?: Partial<ProjectView>;
@@ -163,6 +165,22 @@ function sameLockedWords(a: CombinedUtterance, b: CombinedUtterance): boolean {
   return sameItems(a.locked_word_indices ?? [], b.locked_word_indices ?? []);
 }
 
+function samePlacementTranslation(
+  previous: CombinedUtterance,
+  incoming: CombinedUtterance,
+): boolean {
+  if (previous.mappable !== incoming.mappable) return false;
+  const before = previous.timeline_spans ?? [];
+  const after = incoming.timeline_spans ?? [];
+  if (before.length !== after.length) return false;
+  const delta = (incoming.timeline_start ?? 0) - (previous.timeline_start ?? 0);
+  return before.every(
+    (span, index) =>
+      Math.abs(span.start + delta - after[index].start) < 1e-7 &&
+      Math.abs(span.end + delta - after[index].end) < 1e-7,
+  );
+}
+
 function overlayTranscriptWords(
   previous: ProjectView["transcript"],
   incoming: ProjectView["transcript"],
@@ -170,10 +188,13 @@ function overlayTranscriptWords(
   if (!incoming) {
     return { transcript: incoming, complete: false };
   }
-  const previousBySource = new Map<string, CombinedUtterance>();
+  const previousBySource = new Map<string, CombinedUtterance[]>();
   for (const utterance of previous?.utterances ?? []) {
     if (utterance.words) {
-      previousBySource.set(utteranceSourceKey(utterance), utterance);
+      const key = utteranceSourceKey(utterance);
+      const candidates = previousBySource.get(key) ?? [];
+      candidates.push(utterance);
+      previousBySource.set(key, candidates);
     }
   }
   let complete = true;
@@ -181,10 +202,11 @@ function overlayTranscriptWords(
     if (utterance.words) {
       return utterance;
     }
-    const prior = previousBySource.get(utteranceSourceKey(utterance));
+    const prior = previousBySource.get(utteranceSourceKey(utterance))?.shift();
     if (
       !prior?.words ||
       prior.text !== utterance.text ||
+      !samePlacementTranslation(prior, utterance) ||
       !sameIgnoredWords(prior, utterance) ||
       !sameEdgeSuppressedWords(prior, utterance) ||
       !sameSuppressedOnly(prior, utterance) ||

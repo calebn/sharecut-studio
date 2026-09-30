@@ -21,13 +21,14 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
+from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
 from podcast_mcp.services import ProjectWorkspace
 from podcast_mcp.services.cross_process_sync import cross_process_lease
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import document_command_from_body
-from podcast_mcp.services.document_sync.service import document_hub_key
+from podcast_mcp.services.document_sync.service import document_hub_key, host_document_event
 from podcast_mcp.services.session_sync.authz import AuthzDecision, authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.proxy_paths import is_relayed_request
@@ -59,6 +60,26 @@ def get_document_comments(
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
     return svc.comments_snapshot()
+
+
+@router.get("/api/document/state")
+def get_document_state(
+    request: Request,
+    path: str = Query(...),
+    phase: str = Query("shell", pattern="^(shell|detail|full)$"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_authz(
+        client_id="viewer",
+        role="viewer",
+        peer_host=peer_host(request),
+        token=token or x_podcast_token,
+        relayed=is_relayed_request(request.headers),
+    )
+    project_path = resolve_project(path, request)
+    pin_served_if_allowed(request, project_path)
+    return DocumentSyncService.open(project_path).document_snapshot(projection=phase)
 
 
 @router.post("/api/document/command")
@@ -180,7 +201,7 @@ async def document_ws(
                 try:
                     while True:
                         event = await queue.get()
-                        await guard.send_json(event)
+                        await guard.send_json(host_document_event(event))
                 except asyncio.CancelledError:
                     raise
                 except Exception:

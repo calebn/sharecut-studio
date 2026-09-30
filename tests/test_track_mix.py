@@ -762,7 +762,7 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
         assert calls == [((("guest.wav", -6.0),), -1.0)]
 
 
-def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> None:
+def test_document_commands_apply_and_send_a_mix_delta(minimal_project: Path) -> None:
     _two_tracks(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
     fader = svc.submit(
@@ -775,7 +775,8 @@ def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> 
         )
     )
     assert fader["ok"]
-    patch_body = fader["snapshot"]["patch"]
+    assert fader["snapshot"]["delta"]["projection"] == "mix"
+    patch_body = svc.document_snapshot(projection="mix")["patch"]
     assert set(patch_body) == {"tracks", "render_status"}
     host = next(t for t in patch_body["tracks"] if t["id"] == "host")
     assert host["fader_db"] == -4.5
@@ -790,7 +791,9 @@ def test_document_commands_apply_and_send_a_mix_patch(minimal_project: Path) -> 
         )
     )
     assert mute["ok"]
-    guest = next(t for t in mute["snapshot"]["patch"]["tracks"] if t["id"] == "guest")
+    guest = next(
+        t for t in svc.document_snapshot(projection="mix")["patch"]["tracks"] if t["id"] == "guest"
+    )
     assert guest["muted"] is True
     assert projection_for_command("SetTrackFader") is ViewProjection.MIX
     assert projection_for_command("SetTrackMute") is ViewProjection.MIX

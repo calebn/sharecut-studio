@@ -20,9 +20,16 @@ from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
+from podcast_mcp.services.document_sync.projection_delta import diff_projection
 from podcast_mcp.services.document_sync.projection_types import (
     ViewProjection,
     parse_view_projection,
+)
+from podcast_mcp.services.document_sync.snapshot_cache import (
+    SnapshotKey,
+    file_certificate,
+    snapshot_cache,
+    state_token,
 )
 from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
@@ -258,6 +265,41 @@ def log_if_saved_command_dropped(project: EpisodeProject, command_id: str) -> No
         )
 
 
+def _projected_state(snapshot: dict[str, Any]) -> dict[str, Any]:
+    view = dict(snapshot.get("project") or snapshot.get("patch") or {})
+    for key in ("comments", "history"):
+        if key in snapshot:
+            view[key] = snapshot[key]
+    return view
+
+
+def _delta_snapshot(
+    before: dict[str, Any], after: dict[str, Any], projection: str, *, audience: str = "host"
+) -> dict[str, Any]:
+    operations = diff_projection(_projected_state(before), _projected_state(after))
+    envelope: dict[str, Any] = {
+        key: after[key]
+        for key in ("server_seq", "file", "file_before", "active_version_id", "state_token")
+        if key in after
+    }
+    if len(json.dumps(operations, separators=(",", ":")).encode()) > 256 * 1024:
+        return {"server_seq": after["server_seq"], "resync": True}
+    return {
+        **envelope,
+        "delta": {
+            "base_seq": before["server_seq"],
+            "base_token": before["state_token"],
+            "audience": audience,
+            "projection": projection,
+            "operations": operations,
+        },
+    }
+
+
+def host_document_event(event: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in event.items() if key != "_guest_snapshot"}
+
+
 class DocumentSyncService:
     """Submit → handler registry → append document log → fanout Applied."""
 
@@ -265,21 +307,62 @@ class DocumentSyncService:
         self.ws = ws
         self.project = ws.project
         self._project_key = document_hub_key(ws.project)
+        self._certificate: tuple[int, int, int, int, int] | None = None
+        self._pending_cache: tuple[SnapshotKey, dict[str, Any]] | None = None
+        self._writing = False
 
     @classmethod
     def open(cls, project_path: str | Path) -> DocumentSyncService:
-        return cls(ProjectWorkspace.open(project_path))
+        from podcast_mcp.project_io import resolve_project_path
+
+        path = resolve_project_path(project_path)
+        before = file_certificate(path)
+        service = cls(ProjectWorkspace.open(path))
+        after = file_certificate(path)
+        if before == after and after is not None and service.ws.loaded_file_revision == after[:4]:
+            service._certificate = after
+        return service
 
     @property
     def store(self) -> SyncStore:
         return _store_for(self.project)
 
+    @contextmanager
+    def _project_ownership(self) -> Iterator[None]:
+        with self.ws.transaction(
+            force_reload_if=lambda: file_certificate(self.ws.path) != self._certificate
+        ):
+            self.project = self.ws.project
+            adopted = file_certificate(self.ws.path)
+            try:
+                yield
+            finally:
+                self._certificate = adopted if file_certificate(self.ws.path) == adopted else None
+
+    def _snapshot_key(self, projection: str) -> SnapshotKey:
+        from podcast_mcp.gui.assembler import projection_dependencies
+
+        return SnapshotKey(
+            str(self.ws.path.resolve()),
+            file_certificate(self.ws.path),
+            _journal_server_seq(self.store),
+            projection,
+            projection_dependencies(self.ws),
+        )
+
+    def _before_snapshot(self, projection: str) -> dict[str, Any]:
+        key = self._snapshot_key(projection)
+        cached = snapshot_cache.get(key)
+        return cached if cached is not None else self.document_snapshot(projection=projection)
+
     def document_snapshot(self, *, projection: str = "shell") -> dict[str, Any]:
         """Comments + history groups + projected ProjectView / patch for peer DAW merge."""
         from podcast_mcp.gui.assembler import dump_project_projection
 
-        with document_submit_lock(self.project):
-            self.project = self.ws.reload()
+        with self._project_ownership():
+            if not self._writing:
+                journal_saved_command(self.store, self.project)
+            certificate = self._snapshot_key(projection)
             server_seq = _journal_server_seq(self.store)
             hist = HistoryService(self.ws).list_entries()
             proj = parse_view_projection(str(projection), default=ViewProjection.SHELL)
@@ -293,10 +376,12 @@ class DocumentSyncService:
             if file_wire is not None:
                 api_snap["file"] = file_wire
             if proj is ViewProjection.COMMENTS:
+                self._stage_snapshot(certificate, api_snap)
                 return api_snap
             dumped = dump_project_projection(self.ws, projection=proj, history=hist)
             if proj in (ViewProjection.FULL, ViewProjection.SHELL):
                 api_snap["project"] = dumped
+                self._stage_snapshot(certificate, api_snap)
                 return api_snap
             if proj in (
                 ViewProjection.DETAIL,
@@ -304,7 +389,20 @@ class DocumentSyncService:
             ) and isinstance(dumped.get("history"), dict):
                 dumped = {**dumped, "history": _history_wire(hist)}
             api_snap["patch"] = dumped
+            self._stage_snapshot(certificate, api_snap)
             return api_snap
+
+    def _stage_snapshot(self, key: SnapshotKey, snapshot: dict[str, Any]) -> None:
+        if key != self._snapshot_key(key.projection):
+            head = snapshot["server_seq"]
+            snapshot.clear()
+            snapshot.update(server_seq=head, resync=True)
+            return
+        snapshot["state_token"] = state_token(key)
+        if self._writing:
+            self._pending_cache = key, snapshot
+        else:
+            snapshot_cache.put(key, snapshot)
 
     def comments_snapshot(self) -> dict[str, Any]:
         """Comments + history groups without a ProjectView dump."""
@@ -332,7 +430,12 @@ class DocumentSyncService:
                 return {"server_seq": server_seq, "resync": True}
 
     def _publish_applied(
-        self, row: dict[str, Any], api_snap: dict[str, Any], *, server_seq: int | None = None
+        self,
+        row: dict[str, Any],
+        api_snap: dict[str, Any],
+        *,
+        server_seq: int | None = None,
+        guest_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Fan out ``Applied`` for journal ``row``. Call under the project lock (and, for a
         write, the journal write lock) so in-process subscribers see events in
@@ -345,7 +448,10 @@ class DocumentSyncService:
             "snapshot": api_snap,
             "server_seq": row["server_seq"] if server_seq is None else server_seq,
         }
-        get_hub().publish(self._project_key, event)
+        published = (
+            {**event, "_guest_snapshot": guest_snapshot} if guest_snapshot is not None else event
+        )
+        get_hub().publish(self._project_key, published)
         return event
 
     @contextmanager
@@ -358,11 +464,20 @@ class DocumentSyncService:
         (BEGIN IMMEDIATE). Never take the sqlite write lock first. Yields the store;
         ``self.project`` is the adopted project."""
         store = self.store
-        with self.ws.transaction():
-            self.project = self.ws.project
+        with self._project_ownership():
             journal_saved_command(store, self.project)
-            with store.write_transaction():
-                yield store
+            self._pending_cache = None
+            self._writing = True
+            try:
+                with store.write_transaction():
+                    yield store
+                if self._pending_cache:
+                    key, snapshot = self._pending_cache
+                    if key == self._snapshot_key(key.projection):
+                        snapshot_cache.put(key, snapshot)
+            finally:
+                self._writing = False
+                self._pending_cache = None
 
     def submit(
         self,
@@ -370,6 +485,7 @@ class DocumentSyncService:
         *,
         capabilities: list[str] | None = None,
         structural_mode: str | None = None,
+        audience: str = "host",
     ) -> dict[str, Any]:
         if capabilities is not None:
             from podcast_mcp.services.document_sync.capabilities import (
@@ -408,12 +524,12 @@ class DocumentSyncService:
             file_before = _file_wire(self.ws.loaded_file_revision)
             existing = existing_document_command(store, command)
             if existing is not None:
-                retry_snap = self.document_snapshot(projection=snap_proj)
+                retry_snap = self.document_snapshot(projection="shell")
                 # Nothing applied: file_before is the current file, so a client
                 # holding it keeps it and any other client marks it unknown (#657).
                 if file_before is not None:
                     retry_snap["file_before"] = file_before
-                return {
+                reply = {
                     "ok": True,
                     "type": "Applied",
                     "command": existing,
@@ -421,7 +537,21 @@ class DocumentSyncService:
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
                 }
+                if audience == "guest":
+                    from podcast_mcp.services.share import sanitize_guest_document_event
 
+                    return sanitize_guest_document_event(reply)
+                return reply
+
+            before = None
+            if command.type not in {"UndoHistory", "RedoHistory", "GotoHistory"}:
+                try:
+                    before = self._before_snapshot(snap_proj)
+                except Exception:
+                    log.warning(
+                        "Document predecessor projection failed; falling back to shell",
+                        exc_info=True,
+                    )
             result_payload = self._apply_saving_command(
                 command,
                 store,
@@ -445,10 +575,45 @@ class DocumentSyncService:
                 raise RuntimeError(
                     "document journal row was claimed outside the project transaction"
                 )
-            api_snap = self._snapshot_or_resync(snap_proj, int(row["server_seq"]))
+            api_snap = self._snapshot_or_resync(
+                snap_proj if before is not None else "shell", int(row["server_seq"])
+            )
             if file_before is not None and not api_snap.get("resync"):
                 api_snap["file_before"] = file_before
-            event = self._publish_applied(row, api_snap)
+            guest_snapshot = None
+            if before is not None and not api_snap.get("resync"):
+                from podcast_mcp.services.share import sanitize_guest_document_event
+
+                guest_before = sanitize_guest_document_event({"snapshot": before})["snapshot"]
+                guest_after = sanitize_guest_document_event({"snapshot": api_snap})["snapshot"]
+                try:
+                    guest_snapshot = _delta_snapshot(
+                        guest_before, guest_after, snap_proj, audience="guest"
+                    )
+                    api_snap = _delta_snapshot(before, api_snap, snap_proj)
+                except (KeyError, TypeError, ValueError):
+                    log.warning(
+                        "Document delta construction failed; requesting recovery", exc_info=True
+                    )
+                    api_snap = {"server_seq": row["server_seq"], "resync": True}
+                    guest_snapshot = api_snap
+            event = self._publish_applied(row, api_snap, guest_snapshot=guest_snapshot)
+        if audience == "guest":
+            from podcast_mcp.services.share import sanitize_guest_document_event
+
+            return {
+                "ok": True,
+                **sanitize_guest_document_event(
+                    {
+                        **event,
+                        **(
+                            {"_guest_snapshot": guest_snapshot}
+                            if guest_snapshot is not None
+                            else {}
+                        ),
+                    }
+                ),
+            }
         return {"ok": True, **event}
 
     def publish_document_changed(
@@ -501,7 +666,7 @@ class DocumentSyncService:
         snapshot, because a narrower projection would drop earlier rows' changes. Returns
         the event or ``None``.
         """
-        with document_submit_lock(self.project):
+        with self._project_ownership():
             store = _existing_store_at(document_db_path(self.project))
             if store is None:
                 return None

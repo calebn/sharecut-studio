@@ -212,7 +212,8 @@ def test_document_command_applies_and_undoes(minimal_project):
         )
     )
     assert res["ok"]
-    row = res["snapshot"]["patch"]["clips"]["tracks"]["host"][1]
+    assert res["snapshot"]["delta"]["projection"] == "clips"
+    row = svc.document_snapshot(projection="clips")["patch"]["clips"]["tracks"]["host"][1]
     assert row["join_in_mode"] == "crossfade"
     assert row["fade_in_ms"] == 25
     assert row["join_crossfade_ms"] == 25

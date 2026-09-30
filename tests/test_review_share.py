@@ -1099,8 +1099,14 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
         assert doc_evt is not None
         assert doc_evt["command"] == {"type": "AddComment"}
         assert "project" not in doc_evt["snapshot"]
-        bodies = [c.get("body") for c in doc_evt["snapshot"].get("comments") or []]
-        assert "live note" in bodies
+        delta = doc_evt["snapshot"]["delta"]
+        assert delta["audience"] == "guest"
+        assert delta["base_token"] == doc_snap["state_token"]
+        state = client.get(f"/api/review/{token}/daw/document/state").json()
+        assert state["server_seq"] == doc_evt["snapshot"]["server_seq"]
+        assert state["state_token"] == doc_evt["snapshot"]["state_token"]
+        assert "live note" in [c["body"] for c in state["project"]["comments"]]
+        assert "workspace_dir" not in state["project"]["meta"]
         blob = str(doc_evt)
         assert "workspace_dir" not in blob
         assert "/Users/" not in blob

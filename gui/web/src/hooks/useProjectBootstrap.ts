@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { loadProject, loadProjectDetail } from "../api";
-import { resetDocumentSeq } from "../document/cursor";
-import { fetchWhileSeqStable } from "../document/fetchWhileSeqStable";
-import { mergeProjectPatch } from "../document/projectPatch";
-import { isShareProjectKey } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
+import { loadDocumentState } from "../api/project";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import {
+  activateDocumentScope,
+  isCurrentDocumentScope,
+  resetDocumentAuthority,
+} from "../document/authorityState";
 import { errorMessage, isAbortError } from "../utils/apiError";
 
 /**
@@ -26,38 +27,26 @@ export function useProjectBootstrap(
   }, []);
 
   useEffect(() => {
+    if (!enabled || !projectPath) return;
+    const scope = activateDocumentScope(projectPath);
+    return () => {
+      if (isCurrentDocumentScope(scope)) resetDocumentAuthority();
+    };
+  }, [enabled, projectPath]);
+
+  useEffect(() => {
     if (!enabled || !projectPath) {
       return;
     }
     const ac = new AbortController();
     let cancelled = false;
-    resetDocumentSeq();
+    const scope = activateDocumentScope(projectPath);
     setError(null);
     void (async () => {
       try {
-        const shell = await loadProject(projectPath, { signal: ac.signal });
-        if (cancelled) {
-          return;
-        }
-        useDawStore.getState().setProject(shell);
-        if (isShareProjectKey(projectPath)) {
-          return;
-        }
-        // A WS snapshot or edit that lands during DETAIL retries it against
-        // the current document instead of leaving its transcript unhydrated.
-        const detail = await fetchWhileSeqStable(
-          () => loadProjectDetail(projectPath, { signal: ac.signal }),
-          { delayMs: 150, isCancelled: () => cancelled },
-        );
-        if (!detail) {
-          return;
-        }
-        const prev = useDawStore.getState().project;
-        if (prev) {
-          useDawStore
-            .getState()
-            .setProject(mergeProjectPatch(prev, detail.value));
-        }
+        const shell = await loadDocumentState(projectPath, "shell", ac.signal);
+        if (cancelled || !isCurrentDocumentScope(scope)) return;
+        applyDocumentSnapshot(shell, { scope });
       } catch (e: unknown) {
         if (!cancelled && !isAbortError(e)) {
           setError(errorMessage(e));

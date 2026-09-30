@@ -271,7 +271,7 @@ def test_comments_snapshot_has_no_project(minimal_project) -> None:
     assert "history" in snap
 
 
-def test_reorder_applied_uses_tracks_patch(minimal_project) -> None:
+def test_reorder_applied_uses_tracks_delta(minimal_project) -> None:
     from podcast_mcp.models import MediaAsset, Track, TrackRole
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -302,7 +302,8 @@ def test_reorder_applied_uses_tracks_patch(minimal_project) -> None:
     )
     snap = result["snapshot"]
     assert "project" not in snap
-    assert snap["patch"]["tracks"][0]["id"] == "guest"
+    assert snap["delta"]["projection"] == "tracks"
+    assert svc.document_snapshot(projection="tracks")["patch"]["tracks"][0]["id"] == "guest"
 
 
 def _assert_shell_project_snapshot(snap: dict) -> None:
@@ -313,7 +314,7 @@ def _assert_shell_project_snapshot(snap: dict) -> None:
         assert "words" not in utterance
 
 
-def test_split_applied_uses_shell_snapshot(minimal_project) -> None:
+def test_split_applied_uses_shell_delta(minimal_project) -> None:
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     ws = _with_transcript(minimal_project)
@@ -345,10 +346,13 @@ def test_split_applied_uses_shell_snapshot(minimal_project) -> None:
             client_seq=1,
         )
     )
-    _assert_shell_project_snapshot(result["snapshot"])
+    assert result["snapshot"]["delta"]["projection"] == "shell"
+    snapshot = svc.document_snapshot()
+    assert snapshot["state_token"] == result["snapshot"]["state_token"]
+    _assert_shell_project_snapshot(snapshot)
 
 
-def test_transcript_command_applied_uses_detail_patch(minimal_project) -> None:
+def test_transcript_command_applied_uses_detail_delta(minimal_project) -> None:
     _with_transcript(minimal_project)
     svc = DocumentSyncService.open(minimal_project)
     result = svc.submit(
@@ -362,9 +366,12 @@ def test_transcript_command_applied_uses_detail_patch(minimal_project) -> None:
     )
     snap = result["snapshot"]
     assert "project" not in snap
-    words = snap["patch"]["transcript"]["utterances"][0]["words"]
+    assert snap["delta"]["projection"] == "detail"
+    fresh = svc.document_snapshot(projection="detail")
+    assert fresh["state_token"] == snap["state_token"]
+    words = fresh["patch"]["transcript"]["utterances"][0]["words"]
     assert words[0]["text"] == "Hello"
-    assert snap["patch"]["meta"]["hydration"]["transcript_words"] is True
+    assert fresh["patch"]["meta"]["hydration"]["transcript_words"] is True
 
 
 def test_projection_for_command() -> None:

@@ -152,3 +152,7 @@ capped backoff. Both status
 and public ZIP access expire after 30 days, and the publisher deletes expired
 rows/files. Keep the volume private and durable; only opaque ZIP links are
 public. The GitHub token stays in the relay environment, never in report rows.
+
+## Ephemeral document projection cache
+
+Document deltas add no durable store. `services/document_sync/snapshot_cache.py` holds at most four immutable serialized projections and 16 MiB per process. Cache keys certify project file revision, journal head, projection, and dependencies enumerated by the existing assembler. Certificates include ctime to detect in-place writes with restored mtime. Cold or mismatched entries reconstruct the projection. Command results enter the cache after journal commit under project ownership. Recovery state and pending display drafts are process-local frontend state; the existing IndexedDB command outbox remains the durable retry owner.

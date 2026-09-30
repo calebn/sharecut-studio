@@ -18,45 +18,6 @@ import {
 
 vi.mock("../api", () => ({
   reorderTrackCommand: vi.fn(async () => undefined),
-  refreshProject: vi.fn(async () =>
-    minimalProject({
-      tracks: [
-        {
-          id: "b",
-          label: "B",
-          role: "dialogue",
-          speaker: null,
-          gain_db: 0,
-          muted: false,
-          duration_sec: 10,
-          fx_count: 0,
-          stem_is_fresh: true,
-        },
-        {
-          id: "a",
-          label: "A",
-          role: "dialogue",
-          speaker: null,
-          gain_db: 0,
-          muted: false,
-          duration_sec: 10,
-          fx_count: 0,
-          stem_is_fresh: true,
-        },
-        {
-          id: "c",
-          label: "C",
-          role: "dialogue",
-          speaker: null,
-          gain_db: 0,
-          muted: false,
-          duration_sec: 10,
-          fx_count: 0,
-          stem_is_fresh: true,
-        },
-      ],
-    }),
-  ),
   removeTrackCommand: vi.fn(),
   deleteClips: vi.fn(),
   rippleDeleteClips: vi.fn(),
@@ -294,7 +255,6 @@ describe("track.reorder / moveUp / moveDown", () => {
       "a",
       "b",
     ]);
-    expect(api.refreshProject).not.toHaveBeenCalled();
     release();
     expect((await pending).status).toBe("ok");
   });

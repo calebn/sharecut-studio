@@ -284,3 +284,33 @@ def dump_project_projection(
             return _freshness_patch(ws, base)
         return base
     return build_project_view(ws, projection=proj, history=history).model_dump()
+
+
+def projection_dependencies(
+    ws: ProjectWorkspace,
+) -> tuple[tuple[str, tuple[int, int, int, int, int] | str | None], ...]:
+    """Certify non-project inputs read by the named projection assemblers."""
+    import hashlib
+    import json
+
+    from podcast_mcp.engines.play_audit import (
+        premix_hash_path,
+        premix_path,
+        stem_hash_path,
+        stem_path,
+    )
+    from podcast_mcp.project_store import history_index_path
+    from podcast_mcp.services.document_sync.snapshot_cache import file_certificate
+
+    project = ws.project
+    paths = {history_index_path(project), premix_path(project), premix_hash_path(project)}
+    for track in project.tracks:
+        paths.update((stem_path(project, track.id), stem_hash_path(project, track.id)))
+        if track.media:
+            paths.add(project.workspace_path() / track.media.path)
+    paths.update(project.workspace_path() / source.path for source in project.sources)
+    defaults = hashlib.sha256(json.dumps(load_defaults(), sort_keys=True).encode()).hexdigest()
+    return (
+        *((str(path), file_certificate(path)) for path in sorted(paths)),
+        ("defaults", defaults),
+    )

@@ -11,7 +11,6 @@ import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
 vi.mock("../api", () => ({
   trimClipEdge: vi.fn(async () => undefined),
   rollClipJoin: vi.fn(async () => undefined),
-  refreshProject: vi.fn(async () => minimalProject()),
 }));
 
 import * as api from "../api";
@@ -62,7 +61,6 @@ describe("EditBoundaryMark", () => {
   beforeEach(() => {
     vi.mocked(api.trimClipEdge).mockClear();
     vi.mocked(api.rollClipJoin).mockClear();
-    vi.mocked(api.refreshProject).mockClear();
     const left = clip({ id: "left", source_end: 20 });
     const right = clip({
       id: "right",

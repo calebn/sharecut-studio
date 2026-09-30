@@ -7333,6 +7333,55 @@
         }
       }
     },
+    "/api/review/{token}/daw/document/state": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "phase",
+            "required": false,
+            "schema": {
+              "default": "shell",
+              "pattern": "^(shell|detail|full)$",
+              "title": "Phase",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
     "/api/review/{token}/daw/media/upload": {
       "post": {
         "description": "Guest ``edit`` only: chunked upload into host ``raw/`` (then SetTrackMedia).",

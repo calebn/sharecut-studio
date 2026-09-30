@@ -1,10 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyDocumentResult } from "../document/applyDocumentUpdate";
+import {
+  applyDocumentResult,
+  applyDocumentSnapshot,
+  refreshDocumentDisplay,
+} from "../document/applyDocumentUpdate";
 import {
   pollSnapshotAlreadyApplied,
   resetDocumentSeqForTests,
 } from "../document/cursor";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { FakeWebSocket } from "../test/fakeWebSocket";
@@ -29,12 +34,36 @@ const track = (id: string, label = id): TrackView => ({
   stem_is_fresh: true,
 });
 
+const token = "a".repeat(64);
+function delta(seq: number, fields: Record<string, unknown>) {
+  return {
+    state_token: token,
+    delta: {
+      base_seq: seq - 1,
+      base_token: token,
+      projection: "tracks",
+      audience: "host",
+      operations: Object.entries(fields).map(([section, value]) => ({
+        type: "replace",
+        section,
+        parent: null,
+        value,
+      })),
+    },
+  };
+}
+
 describe("useDocumentSync", () => {
   beforeEach(() => {
     FakeWebSocket.reset({ autoOpen: false });
     resetDocumentSeqForTests();
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
     useDawStore.getState().hydrate("/tmp/ep.json", minimalProject());
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      project: minimalProject(),
+    });
   });
 
   afterEach(() => {
@@ -51,7 +80,7 @@ describe("useDocumentSync", () => {
         server_seq: 2,
         snapshot: {
           server_seq: 2,
-          patch: { tracks: [track("b"), track("a")] },
+          ...delta(2, { tracks: [track("b"), track("a")] }),
         },
       });
     });
@@ -76,7 +105,7 @@ describe("useDocumentSync", () => {
         server_seq: 3,
         snapshot: {
           server_seq: 3,
-          comments: [{ id: "c1", body: "note" }],
+          ...delta(3, { comments: [{ id: "c1", body: "note" }] }),
         },
       });
     });
@@ -108,7 +137,7 @@ describe("useDocumentSync", () => {
         server_seq: 4,
         snapshot: {
           server_seq: 4,
-          patch: { tracks: [track("real")] },
+          project: minimalProject({ tracks: [track("real")] }),
         },
       });
     });
@@ -163,7 +192,12 @@ describe("useDocumentSync", () => {
       FakeWebSocket.instances[0].emit({
         type: "Snapshot",
         server_seq: 1,
-        snapshot: { server_seq: 1, project: minimalProject(), file: F1 },
+        snapshot: {
+          server_seq: 1,
+          state_token: token,
+          project: minimalProject(),
+          file: F1,
+        },
       });
     });
     await act(async () => {
@@ -173,7 +207,7 @@ describe("useDocumentSync", () => {
         command: { client_id: "someone-else" },
         snapshot: {
           server_seq: 2,
-          patch: { tracks: [track("guest")] },
+          ...delta(2, { tracks: [track("guest")] }),
           file_before: F1,
           file: F2,
         },
@@ -190,7 +224,7 @@ describe("useDocumentSync", () => {
         command: { client_id: "someone-else" },
         snapshot: {
           server_seq: 3,
-          patch: { tracks: [track("guest")] },
+          ...delta(3, { tracks: [track("guest")] }),
           file_before: F9,
           file: F3,
         },
@@ -245,7 +279,7 @@ describe("useDocumentSync", () => {
         FakeWebSocket.instances[0].emit({
           type: "Applied",
           server_seq: 2,
-          snapshot: { server_seq: 2, patch: { tracks: [track("mid")] } },
+          snapshot: { server_seq: 2, ...delta(2, { tracks: [track("mid")] }) },
         });
       });
       expect(useDawStore.getState().project?.tracks.map((t) => t.id)).toEqual([
@@ -295,7 +329,7 @@ describe("useDocumentSync", () => {
           command: { client_id: "peer" },
           snapshot: {
             server_seq: 2,
-            patch: { tracks: [track("peer")] },
+            ...delta(2, { tracks: [track("peer")] }),
           },
         });
       });
@@ -311,7 +345,7 @@ describe("useDocumentSync", () => {
           command: { client_id: documentClientId() },
           snapshot: {
             server_seq: 3,
-            patch: { tracks: [track("peer"), track("own")] },
+            ...delta(3, { tracks: [track("peer"), track("own")] }),
           },
         });
       });
@@ -330,7 +364,7 @@ describe("useDocumentSync", () => {
           command: { client_id: documentClientId() },
           snapshot: {
             server_seq: 3,
-            patch: { tracks: [track("stale-echo")] },
+            ...delta(3, { tracks: [track("stale-echo")] }),
           },
         });
       });
@@ -347,7 +381,7 @@ describe("useDocumentSync", () => {
           command: { client_id: "peer" },
           snapshot: {
             server_seq: 4,
-            patch: { tracks: [track("peer4")] },
+            ...delta(4, { tracks: [track("peer4")] }),
           },
         });
       });
@@ -370,7 +404,7 @@ describe("useDocumentSync", () => {
         server_seq: 2,
         snapshot: {
           server_seq: 2,
-          patch: { tracks: [track("late")] },
+          ...delta(2, { tracks: [track("late")] }),
         },
       });
     });
@@ -394,5 +428,35 @@ describe("useDocumentSync", () => {
     socket.deliver({ type: "Presence", clients: [] });
     socket.deliver({ type: "Applied", server_seq: 3 });
     expect(pendingInboundCount()).toBe(0);
+  });
+  it("removes a pending display draft when its late acknowledgment is older than the installed peer state", async () => {
+    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      project: minimalProject({ tracks: [track("a", "Base")] }),
+    });
+    beginDocumentDraft("mine", "SetTrackMeta", {
+      track_id: "a",
+      label: "Mine",
+    });
+    refreshDocumentDisplay();
+    applyDocumentSnapshot({
+      server_seq: 3,
+      state_token: token,
+      project: minimalProject({ tracks: [track("a", "Newer peer")] }),
+    });
+    expect(useDawStore.getState().project?.tracks[0].label).toBe("Mine");
+    await act(async () =>
+      FakeWebSocket.instances[0].emit({
+        type: "Applied",
+        command: { command_id: "mine" },
+        snapshot: {
+          server_seq: 2,
+          project: minimalProject({ tracks: [track("a", "Mine")] }),
+        },
+      }),
+    );
+    expect(useDawStore.getState().project?.tracks[0].label).toBe("Newer peer");
   });
 });

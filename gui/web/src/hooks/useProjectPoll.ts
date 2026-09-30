@@ -1,10 +1,13 @@
-import { loadProject, loadProjectMeta } from "../api";
+import { loadProjectMeta } from "../api";
+import { loadDocumentState } from "../api/project";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
+  activateDocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
+import {
   currentDocumentSeq,
-  notePolledDocumentFile,
   pollSnapshotAlreadyApplied,
-  shouldApplyPollSnapshot,
 } from "../document/cursor";
 import type { ProjectView } from "../types/project";
 import { useFileMetaPoll } from "./useFileMetaPoll";
@@ -22,25 +25,17 @@ export function useProjectPoll(
     enabled && Boolean(projectPath),
     () => loadProjectMeta(projectPath),
     async (meta) => {
-      // The socket already applied this exact file (#657): no second GET / force-apply.
-      if (pollSnapshotAlreadyApplied(meta)) {
-        return;
-      }
-      const metaSeq = meta.server_seq ?? 0;
-      if (!shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())) {
-        return;
-      }
-      const project = await loadProject(projectPath);
-      // The socket (or this client's own command result) may have delivered this
-      // exact file while the GET was in flight (#657).
       if (
         pollSnapshotAlreadyApplied(meta) ||
-        !shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())
-      ) {
+        ((meta.server_seq ?? 0) > 0 &&
+          (meta.server_seq ?? 0) < currentDocumentSeq())
+      )
         return;
-      }
-      applyDocumentSnapshot({ project, server_seq: metaSeq }, { force: true });
-      notePolledDocumentFile(meta);
+      const scope = activateDocumentScope(projectPath);
+      const snapshot = await loadDocumentState(projectPath);
+      if (!isCurrentDocumentScope(scope) || pollSnapshotAlreadyApplied(meta))
+        return;
+      applyDocumentSnapshot(snapshot, { scope });
     },
   );
 }

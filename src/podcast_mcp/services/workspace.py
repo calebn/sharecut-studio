@@ -80,7 +80,9 @@ class ProjectWorkspace:
         return self._loaded_file_signature
 
     @contextmanager
-    def transaction(self) -> Iterator[EpisodeProject]:
+    def transaction(
+        self, *, force_reload_if: Callable[[], bool] | None = None
+    ) -> Iterator[EpisodeProject]:
         """Serialize reload -> mutate -> commit on this workspace across threads and processes (#213).
 
         Holds ``project_commit_lock`` (in-process state lock, then the per-workspace file
@@ -98,20 +100,23 @@ class ProjectWorkspace:
         """
         with project_commit_lock(self.project):
             if self._transaction_depth == 0:
-                self._adopt_saved_if_changed_locked()
+                if force_reload_if is not None and force_reload_if():
+                    self._adopt_saved_if_changed_locked(force=True)
+                else:
+                    self._adopt_saved_if_changed_locked()
             self._transaction_depth += 1
             try:
                 yield self.project
             finally:
                 self._transaction_depth -= 1
 
-    def _adopt_saved_if_changed_locked(self) -> None:
+    def _adopt_saved_if_changed_locked(self, *, force: bool = False) -> None:
         """Under ``project_commit_lock``: adopt the saved file in place if another writer moved it."""
         try:
             signature = file_revision(self.path)
         except FileNotFoundError:
             return  # nothing saved yet
-        if signature == self._loaded_file_signature:
+        if not force and signature == self._loaded_file_signature:
             return
         adopt_project_state(self.project, self._store.load())
         # Writers are excluded by the lock, so this revision is exact.
