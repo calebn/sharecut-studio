@@ -219,7 +219,7 @@ def test_real_wav_export_refreshes_music_fx_and_media_once(
 
     first = service.export_audio([{"ext": "wav"}])[0].read_bytes()
     first_premix = premix_path(ws.project).read_bytes()
-    EditService(ws).add_effect(track_id="music", effect="volume", params={"volume": "0.2"})
+    EditService(ws).add_effect(track_id="music", effect="highpass", params={"frequency": 3000})
     assert premix_is_stale(ws.project) is True
     assert EditService(ws).render_status()["needs_rerender"] is True
     second = service.export_audio([{"ext": "wav"}])[0].read_bytes()
@@ -294,7 +294,8 @@ def test_a_non_dialogue_stem_behind_its_effects_stales_the_premix(
 
     ws.project.processing_chains.append(
         ProcessingChain(
-            track_id="guest", effects=[ProcessingEffect(effect="volume", params={"volume": "0.2"})]
+            track_id="guest",
+            effects=[ProcessingEffect(effect="highpass", params={"frequency": 3000})],
         )
     )
     assert premix_is_stale(ws.project) is True
@@ -304,7 +305,7 @@ def test_a_non_dialogue_stem_behind_its_effects_stales_the_premix(
     assert premix_is_stale(ws.project) is True
     write_premix_hash(ws.project, mix_gains(ws.project))
     assert premix_is_stale(ws.project) is False
-    ws.project.processing_chains[-1].effects[0].params["volume"] = "0.3"
+    ws.project.processing_chains[-1].effects[0].params["frequency"] = 4000
     assert premix_is_stale(ws.project) is False
 
 

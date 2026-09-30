@@ -359,7 +359,11 @@ def list_chapters_tool(project_path: str) -> str:
 
 
 def check_loudness_tool(project_path: str, audio_path: str | None = None) -> str:
-    """Measure integrated loudness (LUFS) of the mix or an audio file."""
+    """Measure LUFS and report known render staleness without refreshing audio.
+
+    ``pass`` judges loudness; ``stale`` and ``stale_reason`` judge known project
+    artifact age. An explicit unrelated file has ``stale=None``.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).check_loudness(audio_path))
 

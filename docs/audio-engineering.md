@@ -105,7 +105,9 @@ its docstring).
 Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
 `mix_render_hash`.
 
-The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line: render status and review publish have no run config (the GUI Pipeline tab's per-project override lives in the GUI process), so they compare the premix against the ceiling it was mixed under and only a volume, mute or mix-rule change reads as stale.
+The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
+
+`check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
 
 ## Dialogue gain staging (`balance_tracks`)
 

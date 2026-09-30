@@ -120,6 +120,51 @@ def test_track_render_hash_changes_with_selected_source(tmp_path) -> None:
     assert track_render_hash(project, "music") != before
 
 
+def test_track_render_hash_tracks_selected_media_revision_and_missing_source(tmp_path) -> None:
+    project = EpisodeProject.create("media", str(tmp_path))
+    raw_a = tmp_path / "a" / "tone.wav"
+    raw_b = tmp_path / "b" / "tone.wav"
+    raw_a.parent.mkdir()
+    raw_b.parent.mkdir()
+    raw_a.write_bytes(b"first")
+    raw_b.write_bytes(b"second")
+    project.tracks = [
+        Track(id="music", label="Music", role=TrackRole.MUSIC, media=MediaAsset(path="a/tone.wav"))
+    ]
+    project.sources = [
+        SourceRecording(id="a", path="a/tone.wav"),
+        SourceRecording(id="b", path="b/tone.wav"),
+    ]
+    project.clips = [
+        Clip(
+            id="c",
+            track_id="music",
+            source_start=0.0,
+            source_end=2.0,
+            timeline_start=0.0,
+            source_id="a",
+        )
+    ]
+
+    first = track_render_hash(project, "music")
+    raw_a.write_bytes(b"first replacement")
+    replaced = track_render_hash(project, "music")
+    assert replaced != first
+    project.sources[0].path = "b/tone.wav"
+    relocated = track_render_hash(project, "music")
+    assert relocated != replaced
+    project.sources[0].path = "a/tone.wav"
+    project.clips[0].source_id = "b"
+    second = track_render_hash(project, "music")
+    assert second != replaced
+    raw_a.write_bytes(b"unselected change")
+    assert track_render_hash(project, "music") == second
+    raw_b.unlink()
+    missing = track_render_hash(project, "music")
+    assert missing != second
+    assert track_render_hash(project, "music") == missing
+
+
 def test_track_render_hash_changes_with_join_mode(tmp_path) -> None:
     from podcast_mcp.models import ClipJoinMode
 

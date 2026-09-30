@@ -24,6 +24,7 @@ from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
+    premix_path,
     publish_stem,
     stem_fingerprint,
     stem_is_fresh,
@@ -270,7 +271,7 @@ class PlayService:
             if rerender:
                 path, busy = self._ensure_premix(rerender=True)
             else:
-                path = self.project.artifacts_dir() / "premix.wav"
+                path = premix_path(self.project)
                 if not path.is_file():
                     raise FileNotFoundError(
                         "premix.wav not found; run render-preview or pipeline first"
@@ -576,7 +577,7 @@ class PlayService:
 
     def _ensure_premix(self, *, rerender: bool) -> tuple[Path, bool]:
         """The premix path and ``render_busy`` (a rerender lost the render-lock race)."""
-        premix = self.project.artifacts_dir() / "premix.wav"
+        premix = premix_path(self.project)
         busy = False
         if rerender or not premix.is_file():
             try:
@@ -691,7 +692,7 @@ class PlayService:
     def _source_mtime_ns(self, source: str) -> int:
         path: Path | None = None
         if source == "premix":
-            path = self.project.artifacts_dir() / "premix.wav"
+            path = premix_path(self.project)
         elif source == "export":
             try:
                 path = self._latest_export_wav()
@@ -1309,7 +1310,7 @@ class PlayService:
         if kind != "current" and not window.can_skip:
             raise ValueError(window.skip_reason or "suggested preview unavailable")
         if kind == "current":
-            premix = self.project.artifacts_dir() / "premix.wav"
+            premix = premix_path(self.project)
             if not premix.is_file():
                 return None
             path = self._cache_path("premix", window.play_start, window.play_end, premix)

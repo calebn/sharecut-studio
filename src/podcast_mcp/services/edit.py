@@ -1326,18 +1326,55 @@ class EditService:
         return [c.model_dump() for c in list_chapters(self.ws.project)]
 
     def check_loudness(self, audio_path: str | None = None) -> dict:
-        path = Path(audio_path) if audio_path else None
-        if path is None:
-            from podcast_mcp.export.names import sanitize_export_stem
+        """Measure audio and report known project-artifact freshness without rendering.
 
-            mastered = (
-                self.ws.project.export_dir() / f"{sanitize_export_stem(self.ws.project.name)}.wav"
-            )
-            premix = self.ws.project.artifacts_dir() / "premix.wav"
-            path = mastered if mastered.is_file() else premix
+        An explicit unrelated file has no project freshness claim (``stale=None``).
+        The loudness ``pass`` remains the measured level verdict, independent of age.
+        """
+        from podcast_mcp.engines.play_audit import (
+            mastered_is_fresh,
+            mastered_path,
+            premix_is_stale,
+            premix_path,
+            read_premix_hash,
+        )
+        from podcast_mcp.export.names import sanitize_export_stem
+
+        project = self.ws.project
+        export_wav = project.export_dir() / f"{sanitize_export_stem(project.name)}.wav"
+        premix = premix_path(project)
+        path = Path(audio_path) if audio_path else export_wav if export_wav.is_file() else premix
         if not path.is_file():
             raise FileNotFoundError(f"no audio to measure: {path}")
-        return check_loudness(path)
+        report = check_loudness(path)
+        if path.resolve() == premix.resolve():
+            if read_premix_hash(project) is None:
+                reason = "premix_unverified"
+            elif premix_is_stale(project):
+                reason = "premix_stale"
+            else:
+                reason = None
+        elif path.resolve() == export_wav.resolve():
+            master = mastered_path(project)
+            if not premix.is_file():
+                reason = "premix_missing"
+            elif read_premix_hash(project) is None:
+                reason = "premix_unverified"
+            elif premix_is_stale(project):
+                reason = "premix_stale"
+            elif not master.is_file():
+                reason = "master_missing"
+            elif not mastered_is_fresh(project):
+                reason = "master_stale"
+            elif path.stat().st_mtime_ns < master.stat().st_mtime_ns:
+                reason = "export_older_than_master"
+            else:
+                reason = None
+        else:
+            report.update(stale=None, stale_reason="untracked_audio")
+            return report
+        report.update(stale=reason is not None, stale_reason=reason)
+        return report
 
     def add_effect(
         self,

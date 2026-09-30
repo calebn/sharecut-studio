@@ -8,6 +8,7 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_cuts import ensure_combined_transcript
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.waveform_media import track_pyramid
 from podcast_mcp.engines.waveform_pyramid import PyramidMeta, pyramid_peak
@@ -339,7 +340,7 @@ def _source_audio(project: EpisodeProject) -> Path | None:
     from podcast_mcp.export.names import sanitize_export_stem
 
     export_wav = project.export_dir() / f"{sanitize_export_stem(project.name)}.wav"
-    premix = project.artifacts_dir() / "premix.wav"
+    premix = premix_path(project)
     if export_wav.is_file():
         return export_wav
     if premix.is_file():

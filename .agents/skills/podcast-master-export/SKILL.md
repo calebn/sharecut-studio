@@ -85,6 +85,14 @@ From the CLI, `podcast pipeline run` already prints this verdict as an `Export Q
 
 Export re-mixes a stale premix and re-masters when `artifacts/mastered.hash` doesn't match, so no manual Refresh is needed before Export. A `master.*` config change still needs `--only master_loudness` (the hash covers the premix, not the config).
 
+Export checks every unmuted track included in the mix. An edit to music, intro, outro, or
+sound effects, or a selected media change, rebuilds that track's stem before remixing.
+`check_loudness_tool` only measures an existing file. Read its `stale` and `stale_reason`
+separately from `pass`: `pass` is the measured loudness verdict, while `stale: true`
+means the premix, master, or exported WAV has a known freshness problem. An explicit
+unrelated file reports `stale: null`; `stale: false` does not prove that an exported
+file's bytes match the master. Run Export to refresh stale audio.
+
 Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **⋯ → Export deliverables…** / `Mod+Shift+E` and the Pipeline tab’s `export_deliverables` step.
 
 ```bash

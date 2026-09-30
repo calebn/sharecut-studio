@@ -4,6 +4,7 @@ import json
 
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.pipeline import PipelineRunner
@@ -30,7 +31,7 @@ def rerender_preview(
         task.advance(1, message="Assembled timeline", total=3)
         runner.run(project, only_step="mix_with_music", progress=NullProgress())
         task.advance(1, message="Mixed music", total=3)
-        premix = project.artifacts_dir() / "premix.wav"
+        premix = premix_path(project)
         edit_count = sum(1 for e in project.edit_decisions if e.applied)
         policy = AnalysisPolicy.from_defaults()
         should_reconcile = reconcile
@@ -71,7 +72,7 @@ def render_preview_result(project: EpisodeProject, rerender: bool = True) -> str
     if rerender:
         info = rerender_preview(project)
     else:
-        premix = project.artifacts_dir() / "premix.wav"
+        premix = premix_path(project)
         info = {
             "path": str(premix) if premix.is_file() else None,
             "ok": premix.is_file(),

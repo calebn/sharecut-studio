@@ -857,12 +857,12 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
     false-stale a music-only remix, such as a bed fader change (#621).
     """
     from podcast_mcp.engines.play_audit import (
+        mix_gains,
         premix_is_stale,
         premix_path,
         stem_is_fresh,
         stem_path,
     )
-    from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
     if premix_path(project).is_file() and not premix_is_stale(project, defaults):
         return
@@ -871,7 +871,7 @@ def ensure_current_premix(project: EpisodeProject, defaults: dict[str, Any]) -> 
     if premix_is_stale(project, defaults):
         stuck = [
             tid
-            for tid in mixed_dialogue_track_ids(project)
+            for tid in mix_gains(project)
             if stem_path(project, tid).is_file() and not stem_is_fresh(project, tid)
         ]
         log.warning(
