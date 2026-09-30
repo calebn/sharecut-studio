@@ -515,13 +515,15 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
             return 0
         _GC_DONE.add(marker)
     try:
-        index = index if index is not None else media_index(project_path)
-        live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
         cutoff = time.time() - GC_MIN_AGE_SEC
         removed = 0
-        peaks = index.artifacts_dir / "peaks"
+        peaks = (
+            index.artifacts_dir if index is not None else _artifacts_dir(project_path)
+        ) / "peaks"
         live_pyramids: set[str] = set()
         with hold_shared_file_lock(peaks / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC):
+            index = media_index(project_path)
+            live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
             for path in peaks.glob("*.wfpk"):
                 match = _PYRAMID_NAME_RE.fullmatch(path.name)
                 if match is None:
