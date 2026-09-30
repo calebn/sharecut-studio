@@ -923,7 +923,7 @@ class FFmpegEngine:
                     delayed = f"[ov{i}]"
                     filters.append(f"{cur}adelay={round(delay_sec * 1000)}:all=1{delayed}")
                     filters.append(
-                        f"{acc}{delayed}amix=inputs=2:duration=longest:normalize=0{out_label}"
+                        f"{acc}{delayed}amix=inputs=2:duration=longest:normalize=0,asetpts=N/SR/TB{out_label}"
                     )
                     running_end = max(running_end, delay_sec + seg_dur)
                 elif seg.gap_before_sec > 0:
