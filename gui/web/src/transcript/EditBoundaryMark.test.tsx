@@ -578,6 +578,10 @@ describe("boundary gesture lifecycle", () => {
     expect(alert).toHaveTextContent(
       "Detailed server failure ".repeat(200).trim(),
     );
+    expect(
+      getByRole("region", { name: "Boundary edit feedback" }),
+    ).toContainElement(alert);
+    await expectNoA11yViolations(document.body);
     const preview = alert.closest<HTMLElement>(".edit-boundary-preview");
     expect(preview?.style.maxHeight).toBeTruthy();
     expect(preview).toHaveClass("edit-boundary-preview-error");
