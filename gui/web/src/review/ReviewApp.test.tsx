@@ -458,4 +458,174 @@ describe("ReviewApp", () => {
     });
     expect(FakeWebSocket.instances.length).toBe(2);
   });
+  it("suppresses healthy review GETs and uses REST fallback after disconnect", async () => {
+    const intervals = vi.spyOn(window, "setInterval");
+    let body = "REST initial";
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            ...reviewProject,
+            comments: [sampleComment({ body })],
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    render(<ReviewApp token="tok" />);
+    expect(await screen.findByText("REST initial")).toBeInTheDocument();
+    const socket = FakeWebSocket.instances[0];
+    await act(async () => {
+      socket.open();
+      socket.emit({
+        plane: "comments",
+        type: "Snapshot",
+        revision: "a".repeat(32),
+        comments: [sampleComment({ body: "Live" })],
+      });
+    });
+    const tick = intervals.mock.calls.find(
+      ([, delay]) => delay === 15_000,
+    )?.[0];
+    if (typeof tick !== "function") throw new Error("missing fallback timer");
+    await act(async () => {
+      tick();
+      tick();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    body = "REST recovered";
+    await act(async () => socket.close());
+    await act(async () => tick());
+    expect(await screen.findByText("REST recovered")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("keeps a newer socket basis when initial REST completes late", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          }),
+      ),
+    );
+    render(<ReviewApp token="tok" />);
+    const socket = FakeWebSocket.instances[0];
+    await act(async () => {
+      socket.open();
+      socket.emit({
+        plane: "comments",
+        type: "Snapshot",
+        revision: "a".repeat(32),
+        comments: [sampleComment({ body: "Newer live" })],
+      });
+      socket.close();
+    });
+    await act(async () =>
+      finish(
+        new Response(
+          JSON.stringify({
+            ...reviewProject,
+            comments: [sampleComment({ body: "Stale REST" })],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    expect(screen.getByText("Newer live")).toBeInTheDocument();
+    expect(screen.queryByText("Stale REST")).toBeNull();
+  });
+  it("does not refresh or overwrite peer rows when own healthy REST completes after push", async () => {
+    const user = userEvent.setup();
+    let complete!: (response: Response) => void;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST")
+        return new Promise<Response>((resolve) => {
+          complete = resolve;
+        });
+      return Promise.resolve(
+        new Response(JSON.stringify(reviewProject), { status: 200 }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ReviewApp token="tok" />);
+    await screen.findByRole("checkbox", { name: /Trim intro/ });
+    const socket = FakeWebSocket.instances[0];
+    await act(async () => {
+      socket.open();
+      socket.emit({
+        plane: "comments",
+        type: "Snapshot",
+        revision: "a".repeat(32),
+        comments: reviewProject.comments,
+      });
+    });
+    await user.click(screen.getByRole("checkbox", { name: /Trim intro/ }));
+    await act(async () =>
+      socket.emit({
+        plane: "comments",
+        type: "Snapshot",
+        revision: "b".repeat(32),
+        comments: [sampleComment({ body: "Newer peer" })],
+      }),
+    );
+    await act(async () => {
+      complete(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+    expect(screen.getByText("Newer peer")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => init?.method !== "POST"),
+    ).toHaveLength(1);
+  });
+  it("keeps the new token draft when an old token REST edit completes late", async () => {
+    const user = userEvent.setup();
+    let finish!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST")
+          return new Promise<Response>((resolve) => {
+            finish = resolve;
+          });
+        const name = urlOf(input).includes("/B/project")
+          ? "Review B"
+          : "Review A";
+        return Promise.resolve(
+          new Response(JSON.stringify({ ...reviewProject, meta: { name } }), {
+            status: 200,
+          }),
+        );
+      }),
+    );
+    const view = render(<ReviewApp token="A" />);
+    await screen.findByRole("heading", { name: "Review A" });
+    await user.type(
+      screen.getByLabelText("Comment", { exact: true }),
+      "Old request",
+    );
+    await user.click(screen.getByRole("button", { name: "Post comment" }));
+    view.rerender(<ReviewApp token="B" />);
+    await screen.findByRole("heading", { name: "Review B" });
+    await user.type(
+      screen.getByLabelText("Comment", { exact: true }),
+      "New token draft",
+    );
+    await act(async () =>
+      finish(
+        new Response(JSON.stringify({ comment: sampleComment() }), {
+          status: 200,
+        }),
+      ),
+    );
+    expect(screen.getByLabelText("Comment", { exact: true })).toHaveValue(
+      "New token draft",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Review B" }),
+    ).toBeInTheDocument();
+  });
 });

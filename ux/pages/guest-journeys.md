@@ -25,6 +25,8 @@ flowchart TD
 4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. **Open comments only** hides addressed threads; clearing it shows the full conversation. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
 5. If the host laptop sleeps / tunnel drops → offline page (not a broken blank app).
 
+Lightweight review comments update through the review socket while the page is connected. Posting a comment or reply does not reload the full review when that stream is healthy. If the connection drops, the visible page refreshes every 15 seconds and reconnects automatically. An unavailable or revoked link shows an error.
+
 **Success:** First useful comment in under five minutes without explaining “Sharecut Studio.”
 
 ---

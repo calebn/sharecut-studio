@@ -16,6 +16,8 @@ import {
 import { formatTimeShort } from "../utils/time";
 import "../styles/partials/review-entry.css";
 
+const EMPTY_COMMENTS: TimelineComment[] = [];
+
 interface ReviewProject {
   mode: string;
   guest_mode?: string;
@@ -41,18 +43,28 @@ async function loadReview(
 }
 
 export function ReviewApp({ token }: { token: string }) {
-  const progressJob = useGuestProgress(token);
-  const [project, setProject] = useState<ReviewProject | null>(null);
+  const connection = useGuestProgress(token);
+  const progressJob = connection.job;
+  const connectionRef = useRef(connection);
+  connectionRef.current = connection;
+  const [projectState, setProject] = useState<{
+    scope: typeof connection.scope;
+    project: ReviewProject;
+    revision: string | null;
+  } | null>(null);
+  const project =
+    projectState?.scope === connection.scope ? projectState.project : null;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [author, setAuthor] = useState(() => sessionDisplayName("guest"));
   const [body, setBody] = useState("");
   const [startSec, setStartSec] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busyScope, setBusy] = useState<typeof connection.scope | null>(null);
+  const busy = busyScope === connection.scope;
   const [openOnly, setOpenOnly] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const inflightRef = useRef(false);
+  const inflightRef = useRef<typeof connection.scope | null>(null);
   const activeRefreshRef = useRef<AbortController | null>(null);
   const projectKey = shareProjectKey(token);
 
@@ -60,26 +72,30 @@ export function ReviewApp({ token }: { token: string }) {
     () => `/api/review/${encodeURIComponent(token)}/audio`,
     [token],
   );
+  const selectedComments =
+    connection.healthy || connection.revision !== projectState?.revision
+      ? (connection.basisComments ?? project?.comments ?? EMPTY_COMMENTS)
+      : (project?.comments ?? EMPTY_COMMENTS);
   const visibleComments = useMemo(() => {
     if (!project) return [];
     return openOnly
-      ? project.comments.filter((comment) => !comment.resolved)
-      : project.comments;
-  }, [openOnly, project]);
+      ? selectedComments.filter((comment) => !comment.resolved)
+      : selectedComments;
+  }, [openOnly, project, selectedComments]);
 
   const beginInflight = (): boolean => {
-    if (inflightRef.current) {
+    if (inflightRef.current === connection.scope) {
       return false;
     }
-    inflightRef.current = true;
-    setBusy(true);
+    inflightRef.current = connection.scope;
+    setBusy(connection.scope);
     setError(null);
     return true;
   };
 
   const endInflight = () => {
-    inflightRef.current = false;
-    setBusy(false);
+    inflightRef.current = null;
+    setBusy(null);
   };
 
   const refresh = useCallback(
@@ -87,15 +103,30 @@ export function ReviewApp({ token }: { token: string }) {
       if (skipIfPending && activeRefreshRef.current) return;
       activeRefreshRef.current?.abort();
       const controller = new AbortController();
+      const scope = connectionRef.current.scope;
+      const revision = connectionRef.current.revision;
       activeRefreshRef.current = controller;
       try {
         const next = await loadReview(token, controller.signal);
-        if (!controller.signal.aborted) {
-          setProject(next);
+        if (
+          !controller.signal.aborted &&
+          connectionRef.current.scope === scope
+        ) {
+          const current = connectionRef.current;
+          const comments =
+            current.revision !== revision && current.basisComments
+              ? current.basisComments
+              : next.comments;
+          setProject({
+            scope,
+            project: { ...next, comments },
+            revision: current.revision,
+          });
           setLoadError(null);
         }
       } catch (cause) {
-        if (!controller.signal.aborted) throw cause;
+        if (!controller.signal.aborted && connectionRef.current.scope === scope)
+          throw cause;
       } finally {
         if (activeRefreshRef.current === controller) {
           activeRefreshRef.current = null;
@@ -106,8 +137,16 @@ export function ReviewApp({ token }: { token: string }) {
   );
 
   useEffect(() => {
-    void refresh().catch((e: unknown) => setLoadError(errorMessage(e)));
+    let active = true;
+    setBody("");
+    setReplyDrafts({});
+    setError(null);
+    setLoadError(null);
+    void refresh().catch((e: unknown) => {
+      if (active) setLoadError(errorMessage(e));
+    });
     return () => {
+      active = false;
       activeRefreshRef.current?.abort();
       activeRefreshRef.current = null;
     };
@@ -115,10 +154,11 @@ export function ReviewApp({ token }: { token: string }) {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (document.visibilityState !== "hidden") {
-        void refresh(true).catch(() => {
-          // Keep the last loaded review visible; the next poll can recover.
-        });
+      if (
+        document.visibilityState !== "hidden" &&
+        !connectionRef.current.healthy
+      ) {
+        void refresh(true).catch(() => {});
       }
     }, 15_000);
     return () => window.clearInterval(timer);
@@ -134,6 +174,22 @@ export function ReviewApp({ token }: { token: string }) {
       document.title = previous;
     };
   }, [project?.meta?.name]);
+
+  const settleMutation = useCallback(
+    async (scope: typeof connection.scope) => {
+      if (connectionRef.current.scope !== scope) return;
+      if (connectionRef.current.healthy) {
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
+        if (
+          connectionRef.current.scope !== scope ||
+          connectionRef.current.healthy
+        )
+          return;
+      }
+      await refresh();
+    },
+    [refresh],
+  );
 
   const projectReady = Boolean(project);
   const mcpCanComment = hasShareCapability(
@@ -165,15 +221,16 @@ export function ReviewApp({ token }: { token: string }) {
       canComment: mcpCanComment,
       addComment: async (bodyText) => {
         const who = sessionDisplayName("guest");
+        const scope = connectionRef.current.scope;
         await createComment(projectKey, {
           body: bodyText,
           author: who,
           timelineStart: audioRef.current?.currentTime ?? 0,
         });
-        await refresh();
+        await settleMutation(scope);
       },
     });
-  }, [projectReady, mcpCanComment, projectKey, refresh]);
+  }, [projectReady, mcpCanComment, projectKey, settleMutation]);
 
   const onPost = async () => {
     const who = commitCommentActor(author, "guest", setAuthor);
@@ -184,6 +241,7 @@ export function ReviewApp({ token }: { token: string }) {
     if (!beginInflight()) {
       return;
     }
+    const scope = connectionRef.current.scope;
     try {
       await createComment(projectKey, {
         body: body.trim(),
@@ -191,12 +249,13 @@ export function ReviewApp({ token }: { token: string }) {
         timelineStart: startSec,
         timelineEnd: null,
       });
+      if (connectionRef.current.scope !== scope) return;
       setBody("");
-      await refresh();
+      await settleMutation(scope);
     } catch (e) {
-      setError(errorMessage(e));
+      if (connectionRef.current.scope === scope) setError(errorMessage(e));
     } finally {
-      endInflight();
+      if (connectionRef.current.scope === scope) endInflight();
     }
   };
 
@@ -223,17 +282,19 @@ export function ReviewApp({ token }: { token: string }) {
     if (!beginInflight()) {
       return;
     }
+    const scope = connectionRef.current.scope;
     try {
       await addCommentReply(projectKey, commentId, {
         body: text.trim(),
         author: who,
       });
+      if (connectionRef.current.scope !== scope) return;
       setReplyDrafts((prev) => ({ ...prev, [commentId]: "" }));
-      await refresh();
+      await settleMutation(scope);
     } catch (e) {
-      setError(errorMessage(e));
+      if (connectionRef.current.scope === scope) setError(errorMessage(e));
     } finally {
-      endInflight();
+      if (connectionRef.current.scope === scope) endInflight();
     }
   };
 
@@ -246,16 +307,17 @@ export function ReviewApp({ token }: { token: string }) {
       return;
     }
     const who = commitCommentActor(author, "guest", setAuthor);
+    const scope = connectionRef.current.scope;
     try {
       await setCommentActionDone(projectKey, commentId, actionId, {
         done,
         by: who,
       });
-      await refresh();
+      await settleMutation(scope);
     } catch (e) {
-      setError(errorMessage(e));
+      if (connectionRef.current.scope === scope) setError(errorMessage(e));
     } finally {
-      endInflight();
+      if (connectionRef.current.scope === scope) endInflight();
     }
   };
 
@@ -326,7 +388,7 @@ export function ReviewApp({ token }: { token: string }) {
             />
           </>
         )}
-        <InlineError message={error ?? loadError} />
+        <InlineError message={error ?? loadError ?? connection.error} />
         <label className="review-comment-filter">
           <input
             type="checkbox"

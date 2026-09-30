@@ -569,3 +569,16 @@ export function applyProjectionDelta(
   }
   return result as unknown as ProjectView;
 }
+
+export function applyOrderedCommentRows(
+  input: unknown,
+  edits: unknown,
+): unknown[] {
+  safeData(edits);
+  const value = object(edits);
+  fields(value, ["before_count", "splices", "updates"]);
+  return applyRows(input, rows(value, "comments"), {
+    items: 1_000_000,
+    text: 8_000_000,
+  });
+}
