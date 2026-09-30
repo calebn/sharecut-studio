@@ -22,6 +22,7 @@ from podcast_mcp.util.proxy_paths import (
     assert_allowed_local_gui_path,
     assert_safe_proxy_path,
 )
+from podcast_mcp.util.ws_delivery import WS_SEND_TIMEOUT_S, SerializedWsWriter, TextWsStream
 from podcast_relay.protocol import PROTOCOL_VERSION, msg
 
 log = logging.getLogger(__name__)
@@ -328,7 +329,7 @@ class TunnelClient:
         open_data: dict[str, Any],
         *,
         send: Any,
-        streams: dict[str, asyncio.Queue[str | None]],
+        streams: dict[str, TextWsStream],
     ) -> None:
         """Dial the local GUI guest WS and bridge text frames both ways."""
         import websockets  # type: ignore[import-untyped]
@@ -356,8 +357,9 @@ class TunnelClient:
             ws_base = base.replace("http", "ws", 1)
         url = ws_base + local_path
 
-        queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=256)
-        streams[stream_id] = queue
+        stream = TextWsStream()
+        queue = stream.queue
+        streams[stream_id] = stream
         close_code = 1000
         close_reason = ""
         try:
@@ -382,29 +384,46 @@ class TunnelClient:
                     except ConnectionClosed:
                         pass
                     finally:
-                        with contextlib.suppress(Exception):  # pragma: no cover
-                            queue.put_nowait(None)
+                        queue.close()
 
                 async def _to_local() -> None:
                     while True:
                         text = await queue.get()
                         if text is None:
                             break
-                        await local_ws.send(text)
+                        async with asyncio.timeout(WS_SEND_TIMEOUT_S):
+                            await local_ws.send(text)
 
                 up = asyncio.create_task(_to_relay())
                 down = asyncio.create_task(_to_local())
                 try:
                     done, _ = await asyncio.wait({up, down}, return_when=asyncio.FIRST_COMPLETED)
-                    if up in done:
+                    if stream.close_code != 1000:
+                        close_code = stream.close_code
+                        close_reason = stream.close_reason
+                    elif up in done:
                         close_code = int(getattr(local_ws, "close_code", None) or 1000)
                         close_reason = str(getattr(local_ws, "close_reason", None) or "")
+                    else:
+                        try:
+                            down.result()
+                        except TimeoutError:
+                            close_code = 1013
+                            close_reason = "slow consumer"
                 finally:
                     for task in (up, down):
                         if not task.done():
                             task.cancel()
                     await asyncio.gather(up, down, return_exceptions=True)
+                    if close_code != 1000 and up not in done:
+                        async with asyncio.timeout(WS_SEND_TIMEOUT_S):
+                            await local_ws.close(code=close_code, reason=close_reason)
+        except TimeoutError:
+            close_code = 1013
+            close_reason = "slow consumer"
         except Exception as exc:
+            close_code = 1011
+            close_reason = "proxy failed"
             log.warning("Guest WS proxy error for %s: %s", url, exc)
         finally:
             streams.pop(stream_id, None)
@@ -429,11 +448,15 @@ class TunnelClient:
             ping_interval=20.0,
             ping_timeout=120.0,
         ) as ws:
-            send_lock = asyncio.Lock()
 
-            async def send(payload: dict[str, Any]) -> None:
-                async with send_lock:
-                    await ws.send(json.dumps(payload))
+            async def write(payload: dict[str, Any]) -> None:
+                await ws.send(json.dumps(payload))
+
+            async def close(code: int, reason: str) -> None:
+                await ws.close(code=code, reason=reason)
+
+            writer = SerializedWsWriter(write, close)
+            send = writer.send
 
             await self._register(ws, send, shares)
             async with httpx.AsyncClient() as http_client:
@@ -458,7 +481,7 @@ class TunnelClient:
 
     async def _serve_messages(self, ws: Any, http_client: Any, send: Any) -> None:
         tasks: set[asyncio.Task[None]] = set()
-        ws_streams: dict[str, asyncio.Queue[str | None]] = {}
+        ws_streams: dict[str, TextWsStream] = {}
         try:
             while True:
                 raw = json.loads(await ws.recv())
@@ -470,16 +493,19 @@ class TunnelClient:
                     task = asyncio.create_task(self._proxy_ws(raw, send=send, streams=ws_streams))
                 elif mtype in ("ws_data", "ws_close"):
                     stream_id = str(raw.get("id") or "")
-                    q = (
+                    stream = (
                         ws_streams.pop(stream_id, None)
                         if mtype == "ws_close"
                         else ws_streams.get(stream_id)
                     )
-                    if q is not None:
-                        with contextlib.suppress(Exception):  # pragma: no cover
-                            q.put_nowait(
-                                None if mtype == "ws_close" else str(raw.get("text") or "")
-                            )
+                    if stream is not None:
+                        if mtype == "ws_close":
+                            stream.close()
+                        else:
+                            try:
+                                stream.queue.put_nowait(str(raw.get("text") or ""))
+                            except asyncio.QueueFull:
+                                stream.close(1013, "host backlog full", discard=True)
                 elif mtype == "ping":
                     await send(msg("pong"))
                 elif mtype == "error":
@@ -490,10 +516,8 @@ class TunnelClient:
                     tasks.add(task)
                     task.add_done_callback(tasks.discard)
         finally:
-            for queue in ws_streams.values():
-                if queue.full():
-                    queue.get_nowait()
-                queue.put_nowait(None)
+            for stream in ws_streams.values():
+                stream.close(1013, "tunnel disconnected", discard=True)
             ws_streams.clear()
             for task in tasks:
                 task.cancel()

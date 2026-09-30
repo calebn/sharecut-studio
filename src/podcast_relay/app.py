@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import json
 import os
 import time
 from dataclasses import dataclass, field
@@ -29,6 +30,8 @@ from podcast_mcp.util.body_limits import (
     relay_ws_max_size,
 )
 from podcast_mcp.util.proxy_paths import proxy_path_is_safe
+from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue
+from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 from podcast_relay.limits import (
     check_proxy_rpm,
@@ -130,15 +133,6 @@ class PendingHttp:
 
 
 @dataclass
-class GuestWsStream:
-    """One guest↔host WebSocket stream multiplexed on the tunnel."""
-
-    queue: asyncio.Queue[str | None] = field(default_factory=asyncio.Queue)
-    close_code: int = 1000
-    close_reason: str = ""
-
-
-@dataclass
 class TunnelSession:
     host_id: str
     websocket: WebSocket
@@ -150,11 +144,33 @@ class TunnelSession:
     # Guest/HTTP → host frames. A dedicated pump task drains this so guest
     # handlers never await tunnel send_json directly (avoids TestClient nested
     # WebSocket deadlocks and keeps the tunnel receive loop responsive).
-    to_host: asyncio.Queue[dict[str, Any] | None] = field(default_factory=asyncio.Queue)
+    to_host: WsFrameQueue[dict[str, Any]] = field(
+        default_factory=lambda: WsFrameQueue(
+            lambda frame: len(json.dumps(frame).encode("utf-8")),
+            max_bytes=2 * relay_ws_max_size(),
+        )
+    )
+    writer: SerializedWsWriter[dict[str, Any]] = field(init=False, repr=False)
     connected_at: float = field(default_factory=time.time)
 
+    def __post_init__(self) -> None:
+        async def write(payload: dict[str, Any]) -> None:
+            await self.websocket.send_json(payload)
+
+        async def close(code: int, reason: str) -> None:
+            await self.websocket.close(code=code, reason=reason)
+
+        self.writer = SerializedWsWriter(write, close)
+
     async def enqueue_to_host(self, payload: dict[str, Any]) -> None:
-        await self.to_host.put(payload)
+        try:
+            self.to_host.put_nowait(payload)
+        except asyncio.QueueFull:
+            await self.writer.close(1013, "tunnel backlog full")
+            raise
+
+    async def send(self, payload: dict[str, Any]) -> None:
+        await self.writer.send(payload)
 
 
 class RelayState:
@@ -221,21 +237,24 @@ class RelayState:
             for t in session.share_tokens:
                 self.token_to_host[t] = session.host_id
 
-    async def unregister_tunnel(self, host_id: str) -> None:
+    async def unregister_tunnel(
+        self, host_id: str, *, expected_session: TunnelSession | None = None
+    ) -> None:
         async with self._lock:
-            session = self.tunnels.pop(host_id, None)
-            if session is None:
+            session = self.tunnels.get(host_id)
+            if session is None or (
+                expected_session is not None and session is not expected_session
+            ):
                 return
+            self.tunnels.pop(host_id)
             for t in list(session.share_tokens):
                 if self.token_to_host.get(t) == host_id:
                     self.token_to_host.pop(t, None)
             # Keep token_bindings so another host cannot steal after disconnect.
             for stream in list(session.ws_streams.values()):
-                with contextlib.suppress(Exception):
-                    stream.queue.put_nowait(None)
+                stream.close(1013, "host offline", discard=True)
             session.ws_streams.clear()
-            with contextlib.suppress(Exception):
-                session.to_host.put_nowait(None)
+            session.to_host.close(discard=True)
 
     async def update_shares(
         self,
@@ -401,7 +420,7 @@ def create_relay_app() -> FastAPI:
                 host_token=host_token,
             )
             await state.register_tunnel(session)
-            await websocket.send_json(msg("hello", host_id=host_id, ok=True))
+            await session.send(msg("hello", host_id=host_id, ok=True))
 
             async def _pump_to_host() -> None:
                 assert session is not None
@@ -409,7 +428,7 @@ def create_relay_app() -> FastAPI:
                     payload = await session.to_host.get()
                     if payload is None:
                         break
-                    await websocket.send_json(payload)
+                    await session.send(payload)
 
             host_pump = asyncio.create_task(_pump_to_host())
             try:
@@ -419,7 +438,7 @@ def create_relay_app() -> FastAPI:
                     if mtype == "register":
                         reg2 = check_register(host_token)
                         if not reg2.allowed:
-                            await websocket.send_json(
+                            await session.send(
                                 msg(
                                     "error",
                                     detail="rate limit exceeded",
@@ -432,7 +451,7 @@ def create_relay_app() -> FastAPI:
                         if not isinstance(shares, list):
                             shares = []
                         await state.update_shares(host_id, shares)
-                        await websocket.send_json(
+                        await session.send(
                             msg(
                                 "register",
                                 ok=True,
@@ -447,8 +466,18 @@ def create_relay_app() -> FastAPI:
                     elif mtype == "ws_data":
                         stream = session.ws_streams.get(str(data.get("id") or ""))
                         if stream is not None:
-                            with contextlib.suppress(Exception):
+                            try:
                                 stream.queue.put_nowait(str(data.get("text") or ""))
+                            except asyncio.QueueFull:
+                                stream.close(1013, "guest backlog full", discard=True)
+                                await session.enqueue_to_host(
+                                    msg(
+                                        "ws_close",
+                                        id=str(data.get("id") or ""),
+                                        code=1013,
+                                        reason="guest backlog full",
+                                    )
+                                )
                     elif mtype == "ws_close":
                         stream = session.ws_streams.pop(str(data.get("id") or ""), None)
                         if stream is not None:
@@ -465,17 +494,15 @@ def create_relay_app() -> FastAPI:
                             ):
                                 stream.close_code = code
                             stream.close_reason = str(data.get("reason") or "")[:120]
-                            with contextlib.suppress(Exception):
-                                stream.queue.put_nowait(None)
+                            stream.close(stream.close_code, stream.close_reason)
                     elif mtype == "ping":
-                        await websocket.send_json(msg("pong"))
+                        await session.send(msg("pong"))
                     elif mtype == "pong":
                         pass
                     else:
-                        await websocket.send_json(msg("error", detail=f"unknown type {mtype!r}"))
+                        await session.send(msg("error", detail=f"unknown type {mtype!r}"))
             finally:
-                with contextlib.suppress(Exception):
-                    session.to_host.put_nowait(None)
+                session.to_host.close(discard=True)
                 if not host_pump.done():
                     host_pump.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -486,7 +513,7 @@ def create_relay_app() -> FastAPI:
             # host_id is read before auth; only tear down a tunnel this socket registered
             # so a rejected hello cannot evict a live host presenting the same host_id.
             if session is not None:
-                await state.unregister_tunnel(session.host_id)
+                await state.unregister_tunnel(session.host_id, expected_session=session)
 
     async def _proxy(
         request: Request,
@@ -739,6 +766,11 @@ def create_relay_app() -> FastAPI:
         stream_id = new_id()
         stream = GuestWsStream()
         session.ws_streams[stream_id] = stream
+
+        async def close_guest(code: int, reason: str) -> None:
+            await websocket.close(code=code, reason=reason)
+
+        guest_writer = SerializedWsWriter(websocket.send_text, close_guest)
         try:
             await session.enqueue_to_host(
                 msg(
@@ -750,20 +782,31 @@ def create_relay_app() -> FastAPI:
             )
 
             async def _pump_to_guest() -> None:
-                while True:
-                    text = await stream.queue.get()
-                    if text is None:
-                        break
-                    await websocket.send_text(text)
+                try:
+                    while True:
+                        text = await stream.queue.get()
+                        if text is None:
+                            break
+                        await guest_writer.send(text)
+                except TimeoutError:
+                    stream.close(1013, "slow consumer", discard=True)
 
             pump = asyncio.create_task(_pump_to_guest())
             recv = asyncio.create_task(websocket.receive_text())
+
+            async def close_stream() -> None:
+                await stream.closed.wait()
+                if stream.close_code == 1000:
+                    await pump
+                await guest_writer.close(stream.close_code, stream.close_reason)
+
+            closing = asyncio.create_task(close_stream())
             try:
                 while True:
                     done, _pending = await asyncio.wait(
-                        {pump, recv}, return_when=asyncio.FIRST_COMPLETED
+                        {pump, recv, closing}, return_when=asyncio.FIRST_COMPLETED
                     )
-                    if pump in done:
+                    if pump in done or closing in done:
                         break
                     if recv in done:
                         try:
@@ -772,8 +815,8 @@ def create_relay_app() -> FastAPI:
                             break
                         except Exception:
                             break
-                        if len(text) > GUEST_FRAME_MAX_BYTES:
-                            await websocket.close(code=4400, reason="frame too large")
+                        if len(text.encode("utf-8")) > GUEST_FRAME_MAX_BYTES:
+                            await guest_writer.close(4400, "frame too large")
                             break
                         if relay_rate_limit_enabled():
                             lim = get_relay_limiters()
@@ -789,16 +832,26 @@ def create_relay_app() -> FastAPI:
                     pump.cancel()
                 if not recv.done():
                     recv.cancel()
+                if not closing.done():
+                    closing.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await pump
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await recv
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await closing
+        except asyncio.QueueFull:
+            stream.close(1013, "tunnel backlog full", discard=True)
         finally:
             session.ws_streams.pop(stream_id, None)
             with contextlib.suppress(Exception):
-                await session.enqueue_to_host(msg("ws_close", id=stream_id, code=1000, reason=""))
+                await session.enqueue_to_host(
+                    msg(
+                        "ws_close", id=stream_id, code=stream.close_code, reason=stream.close_reason
+                    )
+                )
             with contextlib.suppress(Exception):
-                await websocket.close(code=stream.close_code, reason=stream.close_reason)
+                await guest_writer.close(stream.close_code, stream.close_reason)
             if gate_held:
                 get_relay_limiters().ws_concurrent.exit(token)
 

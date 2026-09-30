@@ -408,3 +408,14 @@ hold token `kind` / `session_id` / role; this DB holds the live room.
 - [Understanding sync engines (Liveblocks)](https://liveblocks.io/blog/understanding-sync-engines-how-figma-linear-and-google-docs-work)
 - [Local-first software (Ink & Switch)](https://www.inkandswitch.com/local-first/)
 - [OT vs CRDT 2026](https://www.taskade.com/blog/ot-vs-crdt)
+
+### Slow WebSocket consumers
+
+`GuestWsGuard` uses `util/ws_delivery.py`'s serialized writer. Its five-second
+send deadline includes lock wait. Revocation closes without waiting for a
+blocked write lock and cancels the active writer. Close itself has a separate
+five-second deadline. A timed-out send closes with `1013` and propagates the
+failure to its pump, so the connection can reconnect and restore state.
+Existing document/roster overflow markers and progress coalescing still apply
+inside their application hubs. Relay stream and shared tunnel queue limits are
+specified in [host-online-relay.md](host-online-relay.md#websocket-backpressure).

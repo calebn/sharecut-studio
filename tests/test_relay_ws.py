@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 import uvicorn
+from fastapi import FastAPI, WebSocket
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from websockets.exceptions import ConnectionClosed
@@ -32,14 +33,16 @@ from podcast_relay.share_claims import attach_share_claims
 
 
 @contextlib.contextmanager
-def _live_relay(monkeypatch: pytest.MonkeyPatch, *, host_token: str = "secret") -> Iterator[str]:
+def _live_relay(
+    monkeypatch: pytest.MonkeyPatch, *, host_token: str = "secret", app: FastAPI | None = None
+) -> Iterator[str]:
     """Run relay on a real uvicorn port.
 
     Nested guest+tunnel WebSockets deadlock under Starlette TestClient's single
     portal; live uvicorn is required for bidirectional bridge coverage.
     """
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", host_token)
-    app = create_relay_app()
+    app = app if app is not None else create_relay_app()
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -943,3 +946,153 @@ def test_restarted_host_readvertises_bound_tokens(monkeypatch):
     assert restarted.host_id == first.host_id
     assert _connect_and_register(restarted, "bound-slug") == 1
     assert state.token_bindings["bound-slug"] == first.host_id
+
+
+@pytest.mark.asyncio
+async def test_tunnel_queue_overflow_closes_and_unregister_releases_backlog():
+    class Socket:
+        def __init__(self):
+            self.closed = []
+
+        async def close(self, code: int, reason: str):
+            self.closed.append((code, reason))
+
+        async def send_json(self, _payload):
+            raise AssertionError("there is no consumer in this test")
+
+    socket = Socket()
+    session = TunnelSession(host_id="bounded", websocket=socket)
+    state = RelayState(set())
+    await state.register_tunnel(session)
+    for index in range(256):
+        await session.enqueue_to_host({"type": "ws_data", "id": "stream", "text": str(index)})
+    with pytest.raises(asyncio.QueueFull):
+        await session.enqueue_to_host({"type": "ws_data", "id": "stream", "text": "overflow"})
+    assert socket.closed == [(1013, "tunnel backlog full")]
+    assert session.to_host.qsize() == 256
+    assert session.to_host.queued_bytes > 0
+    await state.unregister_tunnel("bounded", expected_session=session)
+    assert session.to_host.queued_bytes == 0
+    assert session.to_host.get_nowait() is None
+    assert state.tunnels == {}
+
+
+@pytest.mark.asyncio
+async def test_stale_tunnel_teardown_cannot_remove_replacement():
+    state = RelayState(set())
+    old = TunnelSession(host_id="same", websocket=None)
+    replacement = TunnelSession(host_id="same", websocket=None)
+    await state.register_tunnel(old)
+    await state.register_tunnel(replacement)
+    await state.unregister_tunnel("same", expected_session=old)
+    assert state.tunnels["same"] is replacement
+    await state.unregister_tunnel("same", expected_session=replacement)
+    assert state.tunnels == {}
+
+
+def test_blocked_guest_overflow_preserves_healthy_guest_delivery(monkeypatch):
+    from podcast_mcp.util.ws_delivery import WsFrameQueue
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
+    app = create_relay_app()
+    entered = threading.Event()
+    real_send = WebSocket.send_text
+    real_put = WsFrameQueue.put_nowait
+    high_water = [0, 0]
+
+    async def blocked_send(websocket, text):
+        if websocket.scope.get("path") == "/api/review/slow-bounded/daw/ws":
+            entered.set()
+            await asyncio.Event().wait()
+        await real_send(websocket, text)
+
+    def observe_put(queue, frame):
+        real_put(queue, frame)
+        high_water[0] = max(high_water[0], queue.qsize())
+        high_water[1] = max(high_water[1], queue.queued_bytes)
+
+    monkeypatch.setattr(WebSocket, "send_text", blocked_send)
+    monkeypatch.setattr(WsFrameQueue, "put_nowait", observe_put)
+    with _live_relay(monkeypatch, app=app) as base:
+        with _tunnel_hello_register(
+            base, host_id="bounded-guests", token="slow-bounded", capabilities=["view"]
+        ) as tunnel:
+            shares = attach_share_claims(
+                [
+                    {"token": "slow-bounded", "capabilities": ["view"]},
+                    {"token": "healthy-bounded", "capabilities": ["view"]},
+                ],
+                host_id="bounded-guests",
+                secret="secret",
+            )
+            _ws_send(tunnel, {"type": "register", "shares": shares})
+            assert _ws_recv(tunnel)["ok"]
+            with (
+                ws_connect(f"{base}/api/review/slow-bounded/daw/ws") as slow,
+                ws_connect(f"{base}/api/review/healthy-bounded/daw/ws") as healthy,
+            ):
+                opens = [_ws_recv(tunnel), _ws_recv(tunnel)]
+                ids = {event["share_token"]: event["id"] for event in opens}
+                session = app.state.relay.tunnels["bounded-guests"]
+                slow_stream = session.ws_streams[ids["slow-bounded"]]
+                _ws_send(tunnel, {"type": "ws_data", "id": ids["slow-bounded"], "text": "held"})
+                assert entered.wait(5)
+                _ws_send(
+                    tunnel, {"type": "ws_data", "id": ids["healthy-bounded"], "text": "before"}
+                )
+                assert healthy.recv(timeout=5) == "before"
+                for index in range(300):
+                    _ws_send(
+                        tunnel,
+                        {"type": "ws_data", "id": ids["slow-bounded"], "text": f"queued-{index}"},
+                    )
+                close = _ws_recv(tunnel)
+                assert close["type"] == "ws_close"
+                assert close["id"] == ids["slow-bounded"]
+                assert close["code"] == 1013
+                with pytest.raises(ConnectionClosed) as error:
+                    slow.recv(timeout=5)
+                assert error.value.rcvd.code == 1013
+                _ws_send(tunnel, {"type": "ws_data", "id": ids["healthy-bounded"], "text": "after"})
+                assert healthy.recv(timeout=5) == "after"
+                assert high_water[0] == 256
+                assert high_water[1] <= slow_stream.queue.max_bytes
+                assert slow_stream.queue.queued_bytes == 0
+                assert ids["slow-bounded"] not in session.ws_streams
+
+
+def test_shared_tunnel_send_deadline_closes_and_releases_streams(monkeypatch):
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
+    app = create_relay_app()
+    entered = threading.Event()
+    start = []
+    real_send = WebSocket.send_json
+
+    async def blocked_send(websocket, data, mode="text"):
+        if websocket.scope.get("path") == "/tunnel" and data.get("type") == "ws_data":
+            start.append(time.monotonic())
+            entered.set()
+            await asyncio.Event().wait()
+        await real_send(websocket, data, mode=mode)
+
+    monkeypatch.setattr(WebSocket, "send_json", blocked_send)
+    with _live_relay(monkeypatch, app=app) as base:
+        with _tunnel_hello_register(
+            base, host_id="bounded-tunnel", token="deadline-bounded", capabilities=["view"]
+        ) as tunnel:
+            with ws_connect(f"{base}/api/review/deadline-bounded/daw/ws") as guest:
+                assert _ws_recv(tunnel)["type"] == "ws_open"
+                session = app.state.relay.tunnels["bounded-tunnel"]
+                stream = next(iter(session.ws_streams.values()))
+                guest.send("held")
+                assert entered.wait(5)
+                with pytest.raises(ConnectionClosed) as error:
+                    tunnel.recv(timeout=8)
+                assert error.value.rcvd.code == 1013
+                assert 4.5 <= time.monotonic() - start[0] <= 8
+                with pytest.raises(ConnectionClosed) as error:
+                    guest.recv(timeout=5)
+                assert error.value.rcvd.code == 1013
+                assert session.ws_streams == {}
+                assert session.to_host.queued_bytes == 0
+                assert stream.queue.queued_bytes == 0

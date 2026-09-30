@@ -89,6 +89,11 @@ flowchart TD
 3. Conflicts surface as **Needs attention** (dismissible list, capped at 5 items
    with a trailing "+N more" once more are queued) — not a cryptic error toast.
 
+A guest whose live connection cannot keep up reconnects through the existing
+sync flow. The relay closes that connection instead of silently dropping its
+updates. Other guests continue to receive updates. A blocked shared host tunnel
+can require all of its guests to reconnect.
+
 ---
 
 ## 5. Host offline / revoked link

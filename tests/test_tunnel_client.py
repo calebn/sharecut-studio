@@ -758,8 +758,8 @@ async def test_proxy_ws_successful_bridge():
             if "sid-ok" in streams and any(m.get("type") == "ws_data" for m in sent):
                 break
             await asyncio.sleep(0.01)
-        streams["sid-ok"].put_nowait('{"from":"relay"}')
-        streams["sid-ok"].put_nowait(None)
+        streams["sid-ok"].queue.put_nowait('{"from":"relay"}')
+        streams["sid-ok"].queue.put_nowait(None)
         await asyncio.wait_for(task, timeout=3.0)
 
     texts = [m.get("text") for m in sent if m.get("type") == "ws_data"]
