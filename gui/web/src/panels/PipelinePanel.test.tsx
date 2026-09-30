@@ -529,7 +529,8 @@ describe("PipelinePanel", () => {
 
   it("lets a person turn off a saved blocked alignment request", async () => {
     const user = userEvent.setup();
-    loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
+    const initialConfig = alignerConfig(true, false);
+    loadPipelineConfig.mockResolvedValue(initialConfig);
     putPipelineConfig.mockResolvedValue(alignerConfig(false, false));
     const { baseElement: container } = render(
       <main>
@@ -552,10 +553,18 @@ describe("PipelinePanel", () => {
     toggle.focus();
     await user.keyboard(" ");
     await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
-    const body = putPipelineConfig.mock.calls[0][1] as {
-      config: { transcribe: { forced_alignment: { enabled: unknown } } };
-    };
-    expect(body.config.transcribe.forced_alignment.enabled).toBe(false);
+    expect(putPipelineConfig).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        config: {
+          ...initialConfig.config,
+          transcribe: {
+            model: "small.en",
+            forced_alignment: { enabled: false },
+          },
+        },
+      }),
+    );
 
     await waitFor(() => {
       expect(

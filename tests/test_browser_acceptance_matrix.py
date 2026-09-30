@@ -1,14 +1,16 @@
 """Guard the browser acceptance matrix in docs/testing.md against drift.
 
-A "Pass" cell claims the required `frontend-e2e` job runs that check on that
-engine with no retry and no skip, so a green `main` means it passed; "Not run"
-means no compat project runs it. Rows and cells are derived from the specs in
+A "Pass" cell claims the required `frontend-e2e-suites` matrix runs that check
+on that engine with no retry and no skip; the aggregate `frontend-e2e` gate
+makes a green `main` require both suites to pass. "Not run" means no compat
+project runs it. Rows and cells are derived from the specs in
 gui/web/e2e-compat/, playwright.compat.config.ts and the CI workflow.
 """
 
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -22,7 +24,9 @@ HEADING = "### Browser acceptance matrix"
 COMPAT_DIR = REPO_ROOT / "gui" / "web" / "e2e-compat"
 COMPAT_CONFIG = REPO_ROOT / "gui" / "web" / "playwright.compat.config.ts"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
-CI_JOB = "frontend-e2e"
+CI_SUITES_JOB = "frontend-e2e-suites"
+CI_GATE_JOB = "frontend-e2e"
+MAIN_COMMAND = "npm run test:e2e"
 COMPAT_COMMAND = "npm run test:e2e:compat"
 
 PASS = "Pass"
@@ -162,8 +166,9 @@ def _spec_path(cell: str) -> str:
 
 
 def _frontend_e2e_steps() -> list[dict]:
-    job = load_github_yaml(WORKFLOW)["jobs"][CI_JOB]
-    assert not job.get("continue-on-error"), f"{CI_JOB} must fail the build"
+    job = load_github_yaml(WORKFLOW)["jobs"][CI_SUITES_JOB]
+    assert not job.get("continue-on-error"), f"{CI_SUITES_JOB} must fail the build"
+    assert "if" not in job, f"{CI_SUITES_JOB} must not be conditional"
     return job["steps"]
 
 
@@ -221,15 +226,30 @@ def test_compat_run_has_no_skips_retries_or_filters() -> None:
     )
 
 
-def test_ci_runs_the_compat_matrix_on_every_passing_engine() -> None:
+def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -> None:
+    workflow = load_github_yaml(WORKFLOW)
+    triggers = workflow["on"]
+    for event in ("push", "pull_request"):
+        assert "paths" not in triggers[event], f"{event} must not path-filter browser CI"
+        assert "paths-ignore" not in triggers[event], f"{event} must not path-filter browser CI"
+
+    job = workflow["jobs"][CI_SUITES_JOB]
+    assert job["strategy"]["fail-fast"] is False
+    assert job["strategy"]["matrix"] == {
+        "include": [
+            {"suite": "main", "command": MAIN_COMMAND},
+            {"suite": "compat", "command": COMPAT_COMMAND},
+        ]
+    }
     steps = _frontend_e2e_steps()
-    compat_steps = [step for step in steps if str(step.get("run", "")).strip() == COMPAT_COMMAND]
-    assert len(compat_steps) == 1, (
-        f"expected exactly one {COMPAT_COMMAND!r} step, got {compat_steps}"
-    )
-    step = compat_steps[0]
-    assert not step.get("continue-on-error"), f"{COMPAT_COMMAND} must not continue-on-error"
-    assert "if" not in step, f"{COMPAT_COMMAND} must not be conditional"
+    runner_steps = [
+        step for step in steps if str(step.get("run", "")).strip() == "${{ matrix.command }}"
+    ]
+    assert len(runner_steps) == 1, f"expected one matrix command step, got {runner_steps}"
+    runner = runner_steps[0]
+    assert "if" not in runner, "the browser suite runner must not be conditional"
+    assert not runner.get("continue-on-error"), "the browser suite runner must fail its cell"
+    assert "continue-on-error" not in job, f"{CI_SUITES_JOB} must fail the build"
 
     installed = set().union(*(installed_engines(str(step.get("run", ""))) for step in steps))
     engines_with_pass = {
@@ -239,8 +259,38 @@ def test_ci_runs_the_compat_matrix_on_every_passing_engine() -> None:
         if record[column] == PASS
     }
     assert engines_with_pass <= installed, (
-        f"{engines_with_pass - installed} have a Pass cell but frontend-e2e never installs them"
+        f"{engines_with_pass - installed} have a Pass cell but {CI_SUITES_JOB} never installs them"
     )
+
+
+@pytest.mark.parametrize(
+    ("suite_result", "expected_returncode"),
+    [("success", 0), ("failure", 1), ("cancelled", 1), ("skipped", 1)],
+)
+def test_ci_gate_requires_every_browser_suite_to_succeed(
+    suite_result: str, expected_returncode: int
+) -> None:
+    gate = load_github_yaml(WORKFLOW)["jobs"][CI_GATE_JOB]
+    assert gate["needs"] == CI_SUITES_JOB
+    assert gate["if"] == "always()"
+    assert not gate.get("continue-on-error"), f"{CI_GATE_JOB} must fail the build"
+    steps = gate["steps"]
+    assert len(steps) == 1
+    step = steps[0]
+    assert "if" not in step
+    assert not step.get("continue-on-error")
+
+    expression = "${{ needs.frontend-e2e-suites.result }}"
+    command = str(step["run"])
+    assert command.count(expression) == 1
+    assert command.strip() == f'test "{expression}" = "success"'
+    result = subprocess.run(
+        ["bash", "-c", command.replace(expression, suite_result)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == expected_returncode, result.stderr
 
 
 def test_areas_cover_every_issue_30_concern_on_chromium_and_webkit() -> None:
