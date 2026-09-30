@@ -67,13 +67,17 @@ Run the focused check with
 `.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every
 pull request, every push to `main`, a weekly schedule, and manual dispatch. The workflow has
 read-only repository permission, does not comment, and does not upload a finding artifact.
-The repository intentionally carries no `.gitleaksignore` baseline; test fixtures must use
-values that cannot be mistaken for live credentials.
-`.gitleaks.toml` extends the default rules with one allowlist on `generic-api-key`: lines in
+The repository intentionally carries no `.gitleaksignore` baseline. Test credentials use
+obvious placeholders; public state certificates retain their real digest format.
+`.gitleaks.toml` extends the default rules with scoped allowlists on `generic-api-key`.
+The first matches lines in
 `src/podcast_mcp/whisper_models.py` / `word_aligner_models.py` that pin a model file by sha256
 (`_…_SHA256 = "<64 hex>"` constants and `("<file>", "<64 hex>")` entries). It matches lines,
 not commit fingerprints, so it still holds after a rebase-merge rewrites SHAs;
 `tests/test_secret_scan_workflow.py` checks its scope and that every pin line fits it.
+The second matches only the three exact public `base_token` SHA-256 predecessor
+certificates in the document-delta golden fixtures. These identify state and grant no
+authentication authority. Other fields, files, and digest values remain scanned.
 Do not add inline `# gitleaks:allow` comments to those modules; the same test rejects them.
 The companion public-tree provider/marker test scans blobs in the Git index, not ignored
 cache files or the mutable checkout, so staged public contents are the tested boundary.
