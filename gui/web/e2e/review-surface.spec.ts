@@ -4,7 +4,7 @@ import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
 for (const theme of ["light", "dark"] as const) {
-  for (const width of [1440, 360, 320]) {
+  for (const width of [1440, 320]) {
     test(`guest review supports comments and replies at ${width} in ${theme}`, async ({
       browser,
     }) => {

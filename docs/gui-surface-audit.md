@@ -125,8 +125,9 @@ define the target without implying those follow-ups have shipped.
 The first Linux PR browser run exposed a guest-review column that grew with
 native fields' preferred width. The reading column now stays within its parent,
 and composer fields can shrink. The guest regression matrix includes 320px
-with enlarged native field preferences, as well as the original 360px and
-1440px cases in both themes. These shipping checks supplement the pre-shipping
+with enlarged native field preferences and 1440px cases in both themes. The
+320px regression also covers the reading layout previously tested at 360px,
+so the runtime audit removes the redundant intermediate width. These shipping checks supplement the pre-shipping
 90-case record rather than replacing its evidence with a fresh full local run.
 
 The phone model-confirmation fixture now declares an installed current Whisper

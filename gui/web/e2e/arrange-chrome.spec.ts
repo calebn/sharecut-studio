@@ -65,15 +65,4 @@ test.describe("Arrange chrome", () => {
     await page.keyboard.press("Home");
     expect(Number(await ruler.getAttribute("aria-valuenow"))).toBe(atEnd);
   });
-
-  test("track reorder handles are present for drag", async ({ page }) => {
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /aligned dialogue/i,
-    );
-    const handles = page.getByRole("button", { name: /Reorder track/i });
-    await expect(handles.first()).toBeVisible();
-    const count = await handles.count();
-    expect(count).toBeGreaterThan(1);
-  });
 });

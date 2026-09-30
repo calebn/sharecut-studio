@@ -29,7 +29,9 @@ export default defineConfig({
   workers: 1,
   timeout: 90_000,
   expect: { timeout: 15_000 },
-  reporter: process.env.CI ? "github" : "list",
+  reporter: process.env.CI
+    ? [["github"], ["json", { outputFile: "playwright-report/main.json" }]]
+    : "list",
   use: {
     ...devices["Desktop Chrome"],
     baseURL: e2eBaseURL,

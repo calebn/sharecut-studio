@@ -23,7 +23,7 @@ npm run format:check
 Repo root:
 
 - `make test-web` — lint + format:check + typecheck + vitest + build (CI `frontend` job)
-- `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI `frontend-e2e` job). Ordinary `npm run build` rejects emitted E2E hooks.
+- `make test-web-e2e` — E2E-flagged build + Playwright against `aligned_dialogue`, then the Chromium/WebKit compat matrix (CI runs the suites concurrently on separate runners behind the `frontend-e2e` gate). Ordinary `npm run build` rejects emitted E2E hooks.
 - `npm run test:e2e:compat` — focused Chromium/WebKit compatibility matrix only (`npm run test:e2e:install` installs both engines)
 
 Storybook uses the real `src/ui/` components and theme tokens. See
@@ -169,12 +169,22 @@ alert roles on the caller's content so each screen retains its own semantics.
 | Component + a11y | `src/**/*.test.tsx` | React Testing Library + Deque `axe-core` via `expectNoA11yViolations` |
 | E2E smoke + a11y | `e2e/*.spec.ts` | Playwright + `@axe-core/playwright` via shared `expectPageAxeClean` (dense DAW) or `expectReadingSurfaceAxeClean` (Home / marketing HTML; required for green CI). Timeline helpers: `e2e/timelineZoom.ts` (`zoomTimelineIn`: focus the timeline, then bounded `=` presses; the first press must widen the ruler, optional scroll-range threshold or zoom ceiling) and `e2e/scroll.ts` (`scrollTimelineBy`). |
 | Browser compatibility | `e2e-compat/*.spec.ts` | Cross-browser matrix for playback progress and stable Pause, IndexedDB comment queue persistence and command-identity replay, document update delivery after WebSocket reconnect, phone layout, synthetic-media recording consent, deep-zoom geometry at the 15 M px content ceiling (`e2e/deepZoom.ts`), and a core-flow walk on both engines (`e2e-compat/core-flow.spec.ts`: keeper capture → upload → landing with a non-silent peak, transcript hydrate and word correct/undo, Tighten empty state, viewer-share MP3 proxy playback, host Bounce (full-page axe with the dialog open) to a non-silent WAV; #704 turned WebKit on, via `e2e/keeperContexts.ts`'s `RECORDER_CONTEXT` microphone grant and `keeperContextSource`'s `launchPersistentContext("")` for WebKit's OPFS gap); runs Chromium and Playwright WebKit with zero retries. Shared helpers: `e2e/queuedComment.ts` (comment route interception and host posting), `e2e/recordRoom.ts` (record rooms, E2E flag, record links, `openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`, `landParticipant`, `joinAsGuest`, `fillGuestDisplayName`, `joinAsProducer`, `fillDisplayNameField`), `e2e/keeperContexts.ts` (`RECORDER_CONTEXT`, `keeperContextSource`), `e2e/keeperOpfs.ts` (keeper OPFS inspection), `e2e/wavPeak.ts` (landed and bounced WAV peaks), `e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`), `e2e/transcriptEdit.ts` (`openTranscriptPanel`, `withDocumentCommandTypes`), `e2e/exportFiles.ts` (`bouncedWavs`), `e2e/launchOptions.ts` (`withLaunchArgs` on top of the base launch options; `CHROMIUM_FAKE_MEDIA_ARGS`, the fake-media flags shared by the compat Chromium projects and the main suite's record specs), `e2e/shareNavigation.ts` (`createReviewShare` for guest review shares), `e2e/syntheticMicrophone.ts` (oscillator mic stub) and `e2e/scroll.ts` (`scrollToEnd`, re-applied until the end is reachable; `scrollTimelineBy`, a clamped relative scroll). Set `E2E_BRANDED_CHROME=1` locally to also use installed Chrome. Per-engine results (Chromium, WebKit, Firefox) and what stays manual (Apple Safari and Private Browsing, native microphone prompts, hardware capture): [docs/testing.md § Browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix), guarded by `tests/test_browser_acceptance_matrix.py`. |
+
 | Static a11y | oxlint `jsx-a11y` | Interaction + media rules are **errors** — fix the markup; do not add lint suppressions |
 | TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); type-aware promise + stringification hygiene (`options.typeAware`) |
 | Theme tokens | Stylelint + pytest | Color, padding, margin, gap, font-size, radius outside `src/styles/theme/` must use `var(--…)`; hex only in theme files. Chrome rem (`meowtec/no-px`); canvas `px` needs `-- user-approved:`. Inline JS styles and Python-authored CSS colors: `tests/test_css_policy.py` |
 | Motion | Stylelint + pytest | In partials, `transition*` / `animation*` time with `--motion-*` tokens, never a literal `ms`/`s` (`declaration-property-unit-disallowed-list`; stop motion with `none`); `tests/test_css_policy.py` also requires every one, loops included, inside `@media (prefers-reduced-motion: no-preference)` |
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
 | Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
+
+Keep component state, validation and mocked error recovery in Vitest. Browser
+specs should protect layout/native input/media/storage/network seams or complete
+user outcomes. Before pruning a browser case, name its remaining coverage owner.
+See [Browser test scope and runtime](../../docs/testing.md#browser-test-scope-and-runtime)
+for placement rules and the CI `playwright-reports-main` and
+`playwright-reports-compat` timing artifacts. Each suite's live project is shared,
+so Playwright requires one worker. CI runs the suites on separate runners; the existing `frontend-e2e` check requires both
+to succeed.
 
 Transcript word lookup and inclusive timeline ranges for clipboard, inspector, and
 remote presence live in `src/utils/transcript.ts`. Ranges prefer mapped timeline

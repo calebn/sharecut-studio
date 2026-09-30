@@ -275,6 +275,62 @@ requires HTTP 200 and host setup still waits for `networkidle`.
    - Happy-path test
    - One edge or error case where practical
 
+## Browser test scope and runtime
+
+Use the lowest test layer that can catch the defect. Keep a few complete user
+journeys and focused browser regressions; do not repeat every component state
+through a live GUI server. This follows the [test pyramid](https://martinfowler.com/bliki/TestPyramid.html)
+and [Playwright guidance](https://playwright.dev/docs/best-practices) to test
+observable behavior with isolated state and web-first assertions.
+
+| Test layer | Owns | Examples |
+| --- | --- | --- |
+| Python domain/services and API tests | Edit math, authorization, validation, history, file persistence, pipeline contracts | A rejected command leaves state intact; undo restores an edit |
+| Vitest components, hooks and adapters | Rendering, form validation, state transitions, error recovery and request payloads | A blocked alignment request can be turned off; a refine waiver offers retry without approving |
+| Playwright browser regressions | Behavior requiring browser layout, native input, media, storage or network integration | Clipped dialogs, native keyboard routing, waveform pixels, microphone/OPFS recovery, IndexedDB replay and WebSocket reconnect |
+| Playwright core journeys | A small set of complete outcomes across real services | Capture/upload/landing, transcript correction and undo, review-share playback, non-silent export |
+
+CSS paint, hit testing, viewport geometry and full-page axe checks stay in
+Playwright because jsdom cannot prove them. Keep Chromium/WebKit coverage for
+engine-sensitive behavior in `e2e-compat/`; do not multiply every component case
+across engines. Live ASR and model downloads remain in their separate slow tiers.
+
+Before adding a browser test, name the browser or integration seam it protects.
+When its API responses are mocked and it only checks component state or a payload,
+prefer Vitest. Before removing a case, identify the test that owns its meaningful
+assertions and add any missing assertions there in the same change. A button
+presence check cannot prove drag/reorder behavior. Avoid adding that check as an
+independent browser scenario when component tests already cover the control.
+
+Use one comprehensive browser matrix for a shared layout contract; add focused
+cases for distinct banners, roles or breakpoints only where those change the
+layout. Keep tests independent. Combine related assertions within one journey
+when they share setup, but do not make one test depend on another test's state.
+Use observable readiness rather than fixed sleeps, except when elapsed time is
+the behavior under test, such as a disconnect grace period or long press.
+
+Both browser suites currently run serially against shared live project state.
+Do not raise `workers` or enable `fullyParallel` until each worker owns its GUI
+server, project, share registry and output directory. Retries are failure
+recovery, not a runtime optimization.
+
+CI runs the main and compatibility suites concurrently in separate
+`frontend-e2e-suites` matrix jobs. Each runner owns its checkout, server, project
+and artifacts. The existing required `frontend-e2e` check waits for both and
+fails for any failed, cancelled or skipped suite. `fail-fast: false` lets both
+suites finish and report failures. Local wrappers still run sequentially within
+one checkout.
+
+CI uploads `playwright-reports-main` and `playwright-reports-compat` on successful
+and failed runs. Their `main.json` and `compat.json` include per-test durations,
+retries and errors. The matrix sets `PLAYWRIGHT_JSON_OUTPUT_FILE` for each suite.
+Download both with `gh run download <run-id> --pattern 'playwright-reports-*'`.
+Compare successful runs at the same test scope, and separate browser execution
+from dependency install and server/build setup. A local timing run can use
+`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`.
+Failed-spec traces remain separate `playwright-test-results-main` and
+`playwright-test-results-compat` artifacts.
+
 ## What to test where
 
 | Area | Test file |
@@ -374,8 +430,9 @@ at desktop, tablet and phone widths in both themes with WCAG A/AA contrast
 checks. It also covers long comments and vocabulary announcements, phone
 Pipeline parameters/model-download focus handoff, and repeated menu-trigger
 clicks. `gui/web/e2e/review-surface.spec.ts` exercises real guest comment/reply
-persistence, audio readiness, overflow and contrast in both themes at 1440px,
-360px and 320px. The smallest case enlarges native fields' preferred sizes to
+persistence, audio readiness, overflow and contrast in both themes at 1440px
+and 320px. The intermediate 360px review cases use the same reading layout and
+are omitted. The smallest case enlarges native fields' preferred sizes to
 exercise intrinsic-width overflow across platforms.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at narrow and wide sizes. These browser checks do not validate packaged WebViews
@@ -517,13 +574,14 @@ marker (`make e2e-real`).
 
 ## CI
 
-GitHub Actions workflow `.github/workflows/test.yml` runs three parallel jobs on push and pull requests to `main`. **All three must pass** (including Playwright axe) for a green build:
+GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and
+two browser-suite jobs in parallel on push and pull requests to `main`. **All must pass** (including Playwright axe) for a green build:
 
 | Job | What |
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
 | `frontend` | In `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e` | Build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from the fixture WAVs; the copy keeps nothing under `artifacts/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner's text truncation and Stop following fit (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Then runs the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). When a step fails, the job uploads `gui/web/test-results/` (Playwright traces for failed specs; a WebKit trace records a WebSocket's handshake but not its frames, so read record-room state from DOM snapshots and the host snapshot the failure message prints) as the `playwright-test-results` artifact, kept for 7 days. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
+| `frontend-e2e-suites` → `frontend-e2e` | Separate main/compat matrix runners build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from the fixture WAVs; the copy keeps nothing under `artifacts/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner's text truncation and Stop following fit (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. The compatibility runner executes the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). When a step fails, the job uploads `gui/web/test-results/` (Playwright traces for failed specs; a WebKit trace records a WebSocket's handshake but not its frames, so read record-room state from DOM snapshots and the host snapshot the failure message prints) as the `playwright-test-results-main` or `playwright-test-results-compat` artifact, kept for 7 days. Successful and failed runs also upload per-test JSON timing reports. The required `frontend-e2e` aggregate rejects any failed, cancelled or skipped matrix result. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
 
 The Playwright job and `make test-web-e2e` build with `VITE_SHARECUT_E2E=1` so
 recording test hooks are available. Ordinary `npm run build` omits them; its
@@ -605,7 +663,7 @@ standing in for Chrome (branded Chrome runs only locally, with
 for Safari; it is not Apple's Safari. No compat project runs Firefox, so no
 Firefox result is claimed.
 
-"Pass" means the required `frontend-e2e` job runs the check on that engine
+"Pass" means the required `frontend-e2e` gate includes the check on that engine
 with `retries: 0` and no skip, so a green `main` is a measured pass. "Not run"
 means no compat project runs it. Core-flow rows are the `test.step`s of its one
 test; other rows are whole tests.
@@ -651,8 +709,9 @@ Not covered, so still manual:
 `playwright.compat.config.ts`: a project for that engine that does not
 `testIgnore` the spec means "Pass". It also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, if the compat config's `retries` is not
-0, if the `frontend-e2e` job stops running `npm run test:e2e:compat` or stops
-installing an engine with a Pass cell, or if one of #30's areas (Audio
+0, if the `frontend-e2e-suites` matrix stops running either complete suite or
+installing an engine with a Pass cell, if the `frontend-e2e` aggregate can pass
+without both suites succeeding, or if one of #30's areas (Audio
 playback, getUserMedia, WebSocket, IndexedDB, CSS / layout) loses its last row
 passing on both Chromium and WebKit. It reads the spec and config sources with
 regexes, so it fails loudly on shapes it cannot read: a spec that mixes
@@ -662,9 +721,11 @@ Firefox project fails the guard until this table is updated.
 
 ### Browser compatibility matrix
 
-After the full fast Playwright suite in bundled Chromium, `frontend-e2e` runs
-the focused `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in
-bundled Chromium and Playwright WebKit. It covers fixture Raw audition playback
+The `frontend-e2e-suites` compatibility job runs the focused
+`gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium
+and Playwright WebKit, concurrently with the full main Chromium suite on a
+separate runner. The required `frontend-e2e` check gates both suites. It covers
+fixture Raw audition playback
 time advancing and staying fixed after Pause (the disposable fixture has no premix), a host
 comment queued in IndexedDB across reload and replayed with the original
 command identity until the queue drains, and an update from a second page
