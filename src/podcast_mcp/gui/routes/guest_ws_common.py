@@ -12,6 +12,7 @@ from fastapi import WebSocket
 
 from podcast_mcp.services.remote_mcp.limits import get_host_limiters, host_rate_limit_enabled
 from podcast_mcp.services.share import lookup_share
+from podcast_mcp.util.ws_delivery import SerializedWsWriter
 
 log = logging.getLogger(__name__)
 
@@ -51,28 +52,23 @@ class GuestWsGuard:
         self.malformed_limit = malformed_limit
         self.malformed = 0
         self.last_recheck = time.monotonic()
-        self.write_lock = asyncio.Lock()
-        self._closed = False
+        self._writer = SerializedWsWriter(self._send_json, websocket.close)
 
     @property
     def closed(self) -> bool:
-        return self._closed
+        return self._writer.closed
+
+    async def _send_json(self, payload: dict[str, Any]) -> None:
+        if self._send_gate is not None and not self._send_gate():
+            await self.close(4403, "participant removed")
+            return
+        await self.websocket.send_json(payload)
 
     async def send_json(self, payload: dict[str, Any]) -> None:
-        async with self.write_lock:
-            if self._closed:
-                return
-            if self._send_gate is not None and not self._send_gate():
-                self._closed = True
-                await self.websocket.close(code=4403, reason="participant removed")
-                return
-            await self.websocket.send_json(payload)
+        await self._writer.send(payload)
 
     async def close(self, code: int, reason: str) -> None:
-        async with self.write_lock:
-            if not self._closed:
-                self._closed = True
-                await self.websocket.close(code=code, reason=reason[:120])
+        await self._writer.close(code, reason)
 
     async def recheck_loop(self) -> None:
         while True:

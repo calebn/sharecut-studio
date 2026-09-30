@@ -689,3 +689,28 @@ Compose file trusts Caddy's forwarded client IP so per-IP limits use the real
 source. Do not expose the relay container directly when
 `PODCAST_RELAY_FORWARDED_ALLOW_IPS=*` is set. Without a configured intake, Studio
 Help keeps the local-download/Open support path.
+
+## WebSocket backpressure
+
+Relay guest streams and host-side proxy streams retain at most 256 queued text
+frames and at most `PODCAST_RELAY_WS_MAX_SIZE` encoded UTF-8 bytes per stream.
+The default byte budget is 16 MiB. The shared relay-to-host queue retains at
+most 256 frames and twice that byte budget. Queue admission fails immediately
+when either limit is reached. Normal stream close drains accepted frames;
+overflow discards the backlog and closes the affected stream with `1013` so
+clients reconnect and recover their application state. Generic relay streams
+never receive a fabricated document resync frame.
+
+A shared tunnel backlog closes that tunnel with `1013`. Every guest using it
+then reconnects through the existing host-online flow. A full individual guest
+queue closes that guest without blocking another guest's output. A replacement
+tunnel cannot be removed by the previous tunnel's late teardown.
+
+`util/ws_delivery.py` owns the shared queue accounting and serialized writer.
+Writes have a five-second deadline that includes waiting for another write.
+Terminal close cancels the active write and has its own five-second deadline.
+Host tunnel control replies use the same writer as proxied data. Guest GUI
+sockets also use this writer through `GuestWsGuard`; authorization gates still
+run inside the serialized write. Host-side local stream sends have the same
+five-second deadline. These are delivery limits, not a claim that every
+application event fits in one small frame.

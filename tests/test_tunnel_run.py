@@ -15,6 +15,7 @@ from podcast_mcp.services.tunnel import (
     TunnelClient,
     run_tunnel_sync,
 )
+from podcast_mcp.util.ws_delivery import TextWsStream, WsFrameQueue
 
 
 class _FakeWs:
@@ -118,15 +119,15 @@ async def test_dispatch_cancels_and_awaits_all_proxies_on_disconnect():
 
     async def ws_proxy(_raw, *, send, streams):
         started.add("ws")
-        streams["stream"] = asyncio.Queue(maxsize=1)
-        streams["stream"].put_nowait("old")
+        streams["stream"] = TextWsStream(queue=WsFrameQueue(len, maxsize=1, max_bytes=100))
+        streams["stream"].queue.put_nowait("old")
         nonlocal_streams.append(streams)
         try:
             await asyncio.Event().wait()
         finally:
             stopped.add("ws")
 
-    nonlocal_streams: list[dict[str, asyncio.Queue[str | None]]] = []
+    nonlocal_streams: list[dict[str, TextWsStream]] = []
     client._proxy_http = http_proxy  # type: ignore[method-assign]
     client._proxy_ws = ws_proxy  # type: ignore[method-assign]
 
