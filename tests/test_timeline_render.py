@@ -1789,3 +1789,150 @@ def test_multi_source_nested_overlap_keeps_absolute_timeline_clock(tmp_path: Pat
     assert pcm.shape == (3 * 48_000,)
     c_region = pcm[round(2.2 * 48_000) : round(2.4 * 48_000)]
     assert np.mean(np.abs(c_region)) == pytest.approx(0.4 * 32767, abs=2)
+
+
+def _renderer_final_project(
+    root: Path,
+    sources: list[tuple[str, float, float]],
+    clips: list[tuple[str, str, float, float, float]],
+) -> EpisodeProject:
+    from podcast_mcp.models import SourceRecording
+
+    source_rows = []
+    for source_id, duration, amplitude in sources:
+        relative_path = f"raw/{source_id}.wav"
+        _write_constant_pcm_wav(
+            root / relative_path,
+            duration_sec=duration,
+            amplitude=amplitude,
+        )
+        source_rows.append(
+            SourceRecording(
+                id=source_id,
+                path=relative_path,
+                speaker="Host",
+                duration_sec=duration,
+            )
+        )
+    project = EpisodeProject.create("renderer_final_segment", str(root))
+    project.sources = source_rows
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=source_rows[0].path, duration_sec=max(s[1] for s in sources)),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(
+            id=clip_id,
+            track_id="host",
+            source_id=source_id,
+            source_start=source_start,
+            source_end=source_end,
+            timeline_start=timeline_start,
+        )
+        for clip_id, source_id, source_start, source_end, timeline_start in clips
+    ]
+    return project
+
+
+def test_same_source_overlap_segment_matches_full_window_with_other_recording_outside_window(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    ws = tmp_path / "same_source_overlap"
+    project = _renderer_final_project(
+        ws,
+        [("a", 1.0, 0.1), ("outside", 1.0, 0.3)],
+        [
+            ("a-first", "a", 0.0, 1.0, 0.0),
+            ("a-overlap", "a", 0.0, 1.0, 0.5),
+            ("outside-window", "outside", 0.0, 1.0, 2.0),
+        ],
+    )
+    full_path = ws / "full.wav"
+    segment_path = ws / "segment.wav"
+    render_track_from_timeline(project, project.tracks[0], full_path, {}, engine=eng)
+    expected = _read_pcm(full_path).astype(np.float32)[: round(1.5 * 48_000)]
+    (ws / "raw" / "outside.wav").unlink()
+
+    render_track_segment(project, "host", 0.0, 1.5, segment_path, {}, engine=eng)
+    segment = _read_pcm(segment_path).astype(np.float32)
+    assert segment.shape == expected.shape
+    np.testing.assert_array_equal(segment, expected)
+    overlap = segment[round(0.6 * 48_000) : round(0.9 * 48_000)]
+    assert np.mean(np.abs(overlap)) == pytest.approx(0.2 * 32767, abs=2)
+
+
+def test_one_source_segment_preserves_head_and_tail_holes_with_other_recording_outside_window(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    ws = tmp_path / "one_source_head_tail"
+    project = _renderer_final_project(
+        ws,
+        [("inside", 1.0, 0.2), ("outside", 1.0, 0.3)],
+        [
+            ("inside", "inside", 0.0, 1.0, 2.0),
+            ("outside-window", "outside", 0.0, 1.0, 3.5),
+        ],
+    )
+    full_path = ws / "full.wav"
+    segment_path = ws / "segment.wav"
+    render_track_from_timeline(project, project.tracks[0], full_path, {}, engine=eng)
+    expected = _read_pcm(full_path).astype(np.float32)[round(1.5 * 48_000) : round(3.5 * 48_000)]
+    (ws / "raw" / "outside.wav").unlink()
+
+    render_track_segment(project, "host", 1.5, 3.5, segment_path, {}, engine=eng)
+    segment = _read_pcm(segment_path).astype(np.float32)
+    assert segment.shape == expected.shape == (round(2.0 * 48_000),)
+    np.testing.assert_array_equal(segment, expected)
+    assert np.max(np.abs(segment[: round(0.5 * 48_000)])) == 0
+    assert np.mean(np.abs(segment[round(0.6 * 48_000) : round(1.4 * 48_000)])) == pytest.approx(
+        0.2 * 32767, abs=2
+    )
+    assert np.max(np.abs(segment[round(1.5 * 48_000) :])) == 0
+
+
+def test_pure_single_source_segment_preserves_internal_timeline_hole_pcm(
+    tmp_path: Path,
+) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    ws = tmp_path / "pure_single_source_gap"
+    _write_constant_pcm_wav(ws / "raw" / "host.wav", duration_sec=2.0, amplitude=0.2)
+    project = EpisodeProject.create("pure_single_source_gap", str(ws))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=0.5, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=1.0, source_end=1.5, timeline_start=1.0),
+    ]
+    full_path = ws / "full.wav"
+    segment_path = ws / "segment.wav"
+    render_track_from_timeline(project, project.tracks[0], full_path, {}, engine=eng)
+    render_track_segment(project, "host", 0.0, 1.5, segment_path, {}, engine=eng)
+    full = _read_pcm(full_path)
+    segment = _read_pcm(segment_path)
+    assert segment.shape == full.shape == (round(1.5 * 48_000),)
+    np.testing.assert_array_equal(segment, full)
+    assert np.max(np.abs(segment[round(0.5 * 48_000) : round(1.0 * 48_000)])) == 0
