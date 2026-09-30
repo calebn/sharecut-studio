@@ -211,6 +211,15 @@ When writing new code that deals with time:
 1. **Never inline clip arithmetic** (`source_start + (t - timeline_start)` and friends). Use [`SessionTimeline`](../src/podcast_mcp/engines/session_timeline.py) for project-level mapping, `clip_timeline_overlap_to_source` / `clip_timeline_point_to_source` / `clip_source_to_timeline_shift` for clip-list edit/render code, or the `Clip.timeline_end` property for geometry. `tests/test_timebase_guards.py` fails CI otherwise.
 2. **Touching rendered audio** (stems, premix, mastered, export, captions, chapters, social clips)? Map source→timeline through the mapper first.
    Cross-track audibility and bleed-path checks use rendered stems when available; if stems are absent, project decoded raw samples through `SessionTimeline.lane_clip_spans` before measuring so both tracks share one clock. Resolve each clip through `resolve_clip_audio_path`, including extra source recordings. An unavailable selected source invalidates the whole lane cache.
+   For a selected recording's transcript, reuse `transcript_for_source` and
+   `SessionTimeline.map_selected_source_span(s)` so another recording's same-numbered
+   seconds are not mistaken for this source. Local retained-bleed delay evidence uses
+   bounded raw windows including lag/null context and passes their origin as `t0`.
+   Project-aware clip replacement must use `set_track_clips` to retain manual recorder
+   choices on surviving same-source subclips.
+   Whole-phrase approval must retain unsupported measured interior evidence.
+   Batch corrections must preserve all stationary retained-copy reference regions,
+   including secondary peers, as well as nonconflicting direct-phrase footprints.
 3. **New MCP tool with a seconds parameter?** Add an entry to `TOOL_TIMEBASE` in [`util/tool_timebase.py`](../src/podcast_mcp/util/tool_timebase.py) declaring `"source"` or `"timeline"`; `tests/test_time_conformance.py` fails until you do.
 4. **Search results** carry both clocks via `TranscriptMatch.timeline_start/end` — never re-derive them in a caller.
 

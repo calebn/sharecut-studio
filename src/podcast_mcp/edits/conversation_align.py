@@ -533,7 +533,7 @@ def ingest_alignment_meta_key(
     return ingest_alignment_key(track, clip, per_clip=per_clip)
 
 
-def _ingest_alignment_entry(
+def ingest_alignment_entry(
     project: EpisodeProject, track: Track, clip: Clip
 ) -> SpeakerIngestAlignment | None:
     """This clip's ``meta.ingest_alignment`` entry: its own key, else a unique speaker key."""
@@ -546,7 +546,7 @@ def _ingest_alignment_entry(
 
 def _manifest_pinned(project: EpisodeProject, track: Track, clip: Clip) -> bool:
     """True when ingest pinned this clip's offset (its own key, else a unique speaker key)."""
-    entry = _ingest_alignment_entry(project, track, clip)
+    entry = ingest_alignment_entry(project, track, clip)
     return entry is not None and entry.align_method == "manual"
 
 
@@ -1582,7 +1582,7 @@ def plan_conversation_alignment(
 
 def _at_recorded_placement(project: EpisodeProject, track: Track, clip: Clip) -> bool:
     """True when ``clip`` still sits at the placement ``meta.ingest_alignment`` records."""
-    entry = _ingest_alignment_entry(project, track, clip)
+    entry = ingest_alignment_entry(project, track, clip)
     if entry is None:
         return False
     return (

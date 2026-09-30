@@ -71,7 +71,7 @@ podcast ingest suggest \
 
 ## Rules
 
-1. **One raw file = one clip** — never blade/split for alignment; several files for one speaker move independently.
+1. **Recorder clock alignment** keeps each raw file as one clip; several files for one speaker move independently. After reconcile, use [podcast-mute-bleed](../podcast-mute-bleed/SKILL.md) for scoped retained-bleed corrections. That workflow may isolate complete direct phrases while preserving speech, unrelated audio, and manual placement locks on surviving fragments.
 2. **Bleed is a clock** — same phrase on two tracks ⇒ same moment (before reconcile suppresses it).
 3. **Bleed is not occupancy** — gap scoring uses own-speech / VAD, not raw ASR that includes the other mic.
 4. **Never mark “aligned” from JSON alone** — listen with `play --compare`.
@@ -92,6 +92,7 @@ podcast ingest suggest \
 
 ## Related
 
+- Local retained-bleed alignment: `.agents/skills/podcast-mute-bleed/SKILL.md`
 - Session clock concepts: `.agents/skills/podcast-ingest-align/SKILL.md`
 - Pipeline order: `.agents/skills/podcast-pipeline-run/SKILL.md`
 - Reference: `docs/multitrack-ingest.md`, `docs/pipeline.md`

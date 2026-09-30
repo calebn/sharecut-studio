@@ -529,6 +529,7 @@ class RetainedBleedAlignmentDecision(ClipMuteRegion):
     direct_track_id: str
     bleed_track_id: str
     source_id: str | None = None
+    media_key: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
     start_s: float = Field(ge=0, allow_inf_nan=False)
     end_s: float = Field(gt=0, allow_inf_nan=False)
     mode: Literal["auto", "manual", "declined"] = "auto"

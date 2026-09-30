@@ -12,6 +12,13 @@ restores phrase clip placement and `auto` / `manual` / `declined` choices togeth
 Preview is read-only. Saving a declined preview is an ordinary history mutation
 without a clip move; resetting it to auto permits fresh evidence-based planning.
 Domain application rejects a stale plan before making any edits.
+Conflicting local correction footprints abstain before application. Manual
+per-clip recorder choices are inherited by surviving same-source subclips in
+`meta.ingest_alignment`; editable snapshots restore those locks with the geometry,
+including after an explicit scoped override or ordinary split/punch.
+Saved local choices use an opaque recording digest so pinning the same media
+while moving a clip between lanes cannot release a manual/declined phrase hold.
+Choices and their digest are restored together from editorial snapshots.
 
 ```
 episode/

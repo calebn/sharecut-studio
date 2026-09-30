@@ -197,6 +197,7 @@
         "direct_track_id": { "type": "string" },
         "bleed_track_id": { "type": "string" },
         "source_id": { "type": ["string", "null"], "default": null },
+        "media_key": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$", "default": null },
         "start_s": { "type": "number", "minimum": 0 },
         "end_s": { "type": "number", "exclusiveMinimum": 0 },
         "mode": { "type": "string", "enum": ["auto", "manual", "declined"], "default": "auto" },
