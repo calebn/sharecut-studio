@@ -3,21 +3,13 @@ from __future__ import annotations
 import struct
 import wave
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
 from podcast_mcp.engines.transcript_gated_play import (
-    _apply_gate,
-    _limit_to_full_scale,
-    _load_segment,
-    _normalize_peak,
-    _write_wav,
     dialogue_tracks_for_play,
     gate_stem_window,
-    render_gated_mix,
-    render_gated_track,
     transcript_gate_fingerprint,
     word_intervals,
 )
@@ -74,21 +66,6 @@ def test_transcript_gate_fingerprint_changes_with_suppression(tmp_path: Path) ->
     assert a != b
 
 
-def test_apply_gate_silences_outside_intervals() -> None:
-    sr = 1000
-    samples = np.ones(sr, dtype=np.float32)
-    gated = _apply_gate(
-        samples,
-        [(0.2, 0.5)],
-        timeline_start=0.0,
-        sample_rate=sr,
-        fade_sec=0.0,
-    )
-    assert gated[0] == 0.0
-    assert gated[300] == 1.0
-    assert gated[900] == 0.0
-
-
 def test_word_intervals_missing_track_and_clips(tmp_path: Path) -> None:
     project = _project_with_words(tmp_path)
     assert word_intervals(project, "missing", 0.0, 5.0) == []
@@ -119,57 +96,7 @@ def test_transcript_gate_fingerprint_skips_missing_track(tmp_path: Path) -> None
     assert clipped != transcript_gate_fingerprint(project, ["host"], 0.0, 5.0)
 
 
-def test_apply_gate_empty_and_fade() -> None:
-    assert _apply_gate(np.array([], dtype=np.float32), [(0.0, 1.0)], timeline_start=0.0).size == 0
-    sr = 10
-    tiny = np.ones(sr, dtype=np.float32)
-    outside = _apply_gate(
-        tiny,
-        [(100.0, 101.0)],
-        timeline_start=0.0,
-        sample_rate=sr,
-        fade_sec=0.0,
-    )
-    assert outside.max() == 0.0
-    sr = 1000
-    samples = np.ones(sr, dtype=np.float32)
-    gated = _apply_gate(
-        samples,
-        [(10.0, 11.0)],
-        timeline_start=0.0,
-        sample_rate=sr,
-        fade_sec=0.01,
-    )
-    assert gated.max() == 0.0
-    faded = _apply_gate(
-        samples,
-        [(0.2, 0.5)],
-        timeline_start=0.0,
-        sample_rate=sr,
-        fade_sec=0.05,
-    )
-    assert faded[200] == 0.0
-    assert 0.0 < faded[210] < 1.0
-
-
-def test_apply_gate_matches_sample_clock_reference() -> None:
-    samples = np.ones(2400, dtype=np.float32)
-    intervals = [(0.013, 0.061), (0.084, 0.12)]
-    rate = 12_000
-    start = 0.01
-    actual = _apply_gate(samples, intervals, timeline_start=start, sample_rate=rate)
-    clock = np.arange(samples.size, dtype=np.float64) / rate + start
-    expected = np.zeros_like(samples)
-    for begin, end in intervals:
-        indices = np.where((clock >= begin) & (clock < end))[0]
-        expected[indices] = 1
-        fade = min(int(0.012 * rate), indices.size)
-        expected[indices[:fade]] *= np.linspace(0, 1, fade, dtype=np.float32)
-        expected[indices[-fade:]] *= np.linspace(1, 0, fade, dtype=np.float32)
-    np.testing.assert_array_equal(actual, expected)
-
-
-def test_gate_stem_window_streams_and_preserves_outer_pcm(tmp_path: Path, monkeypatch) -> None:
+def test_gate_stem_window_preserves_outer_pcm(tmp_path: Path) -> None:
     source = tmp_path / "source.wav"
     output = tmp_path / "gated.wav"
     pcm = np.arange(48_000 * 3, dtype=np.int16)
@@ -177,12 +104,6 @@ def test_gate_stem_window_streams_and_preserves_outer_pcm(tmp_path: Path, monkey
         wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
         wav.writeframes(pcm.tobytes())
 
-    def unexpected_decode(*args, **kwargs):
-        raise AssertionError("PCM gate must not decode the full stem")
-
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment", unexpected_decode
-    )
     gate_stem_window(source, [], output, duration_sec=3, win_start=1, win_end=2)
     with wave.open(str(output), "rb") as wav:
         result = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
@@ -207,6 +128,8 @@ def test_gate_stem_window_in_place_is_atomic(tmp_path: Path) -> None:
 
 
 def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> None:
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
+
     source = tmp_path / "source.wav"
     output = tmp_path / "gated.wav"
     pcm = np.full(96_000, 1000, dtype=np.int16)
@@ -214,11 +137,25 @@ def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> No
         wav.setparams((1, 2, 48_000, 0, "NONE", "not compressed"))
         wav.writeframes(pcm.tobytes())
     intervals = [(0.9, 1.1)]
-    gate_stem_window(source, intervals, output, duration_sec=2, win_start=0, win_end=2)
+    plan = BleedGatePlan(attenuation_spans=((0.9, 1.1),))
+    gate_stem_window(
+        source,
+        intervals,
+        output,
+        duration_sec=2,
+        win_start=0,
+        win_end=2,
+        plan=plan,
+    )
     with wave.open(str(output), "rb") as wav:
         actual = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
-    expected = _apply_gate(pcm.astype(np.float32), intervals, timeline_start=0).astype(np.int16)
-    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_array_equal(actual[:43_200], pcm[:43_200])
+    np.testing.assert_array_equal(actual[43_776:52_225], np.zeros(8_449, dtype=np.int16))
+    np.testing.assert_array_equal(actual[52_801:], pcm[52_801:])
+    np.testing.assert_array_equal(
+        actual[[43_200, 43_488, 43_776, 47_999, 48_000, 48_001, 52_224, 52_512, 52_800]],
+        [1000, 500, 0, 0, 0, 0, 0, 500, 1000],
+    )
 
 
 def test_gate_stem_window_queries_only_intervals_near_each_chunk(
@@ -325,35 +262,6 @@ def test_gate_stem_window_preserves_extensible_51_header_and_channels(tmp_path: 
     np.testing.assert_array_equal(result[2400:], pcm[2400:])
 
 
-def test_normalize_peak_handles_silence_and_signal() -> None:
-    silent = np.zeros(8, dtype=np.float32)
-    assert np.array_equal(_normalize_peak(silent), silent)
-    loud = np.array([0.5, -1.0], dtype=np.float32)
-    normalized = _normalize_peak(loud)
-    assert pytest.approx(float(np.max(np.abs(normalized))), rel=1e-3) == 0.95
-
-
-def test_load_segment_and_write_wav(tmp_path: Path) -> None:
-    fake_audio = np.array([0.25, -0.25], dtype=np.float32)
-    with patch(
-        "podcast_mcp.engines.transcript_gated_play.run",
-        return_value=MagicMock(stdout=fake_audio.tobytes()),
-    ) as run:
-        loaded = _load_segment(tmp_path / "stem.wav", 1.0, 0.5)
-    assert loaded.shape == (2,)
-    run.assert_called_once()
-
-    out = tmp_path / "out.wav"
-    with patch(
-        "podcast_mcp.engines.transcript_gated_play.run",
-        return_value=MagicMock(returncode=0),
-    ) as run:
-        written = _write_wav(fake_audio, out, sample_rate=48_000)
-    assert written == out
-    assert out.parent.exists()
-    run.assert_called_once()
-
-
 def test_gate_full_stem(tmp_path: Path) -> None:
     stem = tmp_path / "host.wav"
     out = tmp_path / "gated.wav"
@@ -434,68 +342,6 @@ def test_apply_track_transcript_gate_branches(tmp_path: Path, monkeypatch) -> No
     assert called and called[0][1] is plan
 
 
-def test_gate_rendered_wav_zero_duration(tmp_path: Path) -> None:
-    from podcast_mcp.engines.transcript_gated_play import gate_rendered_wav
-
-    wav = tmp_path / "x.wav"
-    wav.write_bytes(b"ok")
-    assert gate_rendered_wav(wav, [], timeline_start=1.0, timeline_end=1.0) is wav
-
-
-def test_render_gated_track_and_mix(tmp_path: Path, monkeypatch) -> None:
-    seg = np.ones(4800, dtype=np.float32)
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: seg.copy(),
-    )
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav",
-        lambda samples, path, **kwargs: path,
-    )
-    stem = tmp_path / "host.wav"
-    stem.write_bytes(b"x")
-    out = tmp_path / "gated.wav"
-    render_gated_track(stem, [(0.0, 0.05)], out, timeline_start=0.0, timeline_end=0.1)
-    mix_out = tmp_path / "mix.wav"
-    render_gated_mix(
-        [("host", stem), ("guest", stem)],
-        {"host": [(0.0, 0.05)], "guest": []},
-        mix_out,
-        timeline_start=0.0,
-        timeline_end=0.1,
-    )
-    with pytest.raises(ValueError, match="no stems"):
-        render_gated_mix([], {}, mix_out, timeline_start=0.0, timeline_end=0.1)
-
-
-def test_render_gated_mix_plays_each_track_at_its_gain(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._load_segment",
-        lambda *args, **kwargs: np.ones(4800, dtype=np.float32),
-    )
-    written: list[np.ndarray] = []
-    monkeypatch.setattr(
-        "podcast_mcp.engines.transcript_gated_play._write_wav",
-        lambda samples, path, **kwargs: written.append(samples) or path,
-    )
-    stem = tmp_path / "stem.wav"
-    # Host speaks in the first half, guest in the second: each half holds one track.
-    intervals = {"host": [(0.0, 0.05)], "guest": [(0.05, 0.1)]}
-    for gains, host_over_guest in ((None, 1.0), ({"host": 0.0, "guest": -6.0}, 10 ** (6 / 20))):
-        render_gated_mix(
-            [("host", stem), ("guest", stem)],
-            intervals,
-            tmp_path / "mix.wav",
-            timeline_start=0.0,
-            timeline_end=0.1,
-            gains_db=gains,
-        )
-        mix = written[-1]
-        # Samples 1200 and 3600 sit clear of the 12 ms gate fades.
-        assert float(mix[1200] / mix[3600]) == pytest.approx(host_over_guest, rel=1e-4)
-    assert float(np.max(np.abs(written[-1]))) == pytest.approx(0.95, rel=1e-4)
-
-
 def test_dialogue_tracks_for_play(tmp_path: Path) -> None:
     project = EpisodeProject.create("ep", str(tmp_path))
     project.tracks = [
@@ -549,61 +395,3 @@ def test_source_word_intervals_merge_and_window(tmp_path: Path) -> None:
     assert source_word_intervals(project, "host", 10.0, 11.0) == []
     clipped = source_word_intervals(project, "host", 1.2, 2.0)
     assert clipped == [(1.2, 1.4), (1.9, 2.0)]
-
-
-def test_render_gated_track_plays_at_its_gain(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.engines import transcript_gated_play as tgp
-
-    monkeypatch.setattr(
-        tgp, "_load_segment", lambda *_a, **_k: np.full(4800, 0.5, dtype=np.float32)
-    )
-    written: list[np.ndarray] = []
-
-    def _write(samples, path):
-        written.append(samples)
-        return path
-
-    monkeypatch.setattr(tgp, "_write_wav", _write)
-    stem = tmp_path / "s.wav"
-    out = tmp_path / "g.wav"
-    tgp.render_gated_track(stem, [(0.0, 0.1)], out, timeline_start=0.0, timeline_end=0.1)
-    tgp.render_gated_track(
-        stem, [(0.0, 0.1)], out, timeline_start=0.0, timeline_end=0.1, gain_db=-6.0
-    )
-    assert float(written[0][2400]) == pytest.approx(0.5, rel=1e-4)
-    assert float(written[1][2400] / written[0][2400]) == pytest.approx(10 ** (-6 / 20), rel=1e-4)
-
-
-def test_limit_to_full_scale_only_touches_clipping_samples() -> None:
-    quiet = np.array([0.5, -0.9], dtype=np.float32)
-    assert np.array_equal(_limit_to_full_scale(quiet), quiet)
-    empty = np.array([], dtype=np.float32)
-    assert _limit_to_full_scale(empty).size == 0
-    loud = np.array([0.5, -1.6], dtype=np.float32)
-    limited = _limit_to_full_scale(loud)
-    assert float(np.max(np.abs(limited))) == pytest.approx(0.95, rel=1e-4)
-    assert float(limited[0] / limited[1]) == pytest.approx(0.5 / -1.6, rel=1e-4)
-
-
-def test_render_gated_track_does_not_clip_on_positive_gain(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.engines import transcript_gated_play as tgp
-
-    monkeypatch.setattr(
-        tgp, "_load_segment", lambda *_a, **_k: np.full(4800, 0.8, dtype=np.float32)
-    )
-    written: list[np.ndarray] = []
-
-    def _write(samples, path):
-        written.append(samples)
-        return path
-
-    monkeypatch.setattr(tgp, "_write_wav", _write)
-    tgp.render_gated_track(
-        tmp_path / "s.wav",
-        [(0.0, 0.1)],
-        tmp_path / "g.wav",
-        timeline_start=0.0,
-        timeline_end=0.1,
-        gain_db=6.0,
-    )
-    assert float(np.max(np.abs(written[0]))) == pytest.approx(0.95, rel=1e-4)
