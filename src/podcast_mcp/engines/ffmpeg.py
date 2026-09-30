@@ -41,9 +41,8 @@ _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 
 log = logging.getLogger(__name__)
 
-# Bump when mix_tracks' summing changes, so premixes mixed the old way re-mix.
-# 2: amix normalize=0 (unity sum) + optional true-peak headroom trim (#523).
-MIX_SEMANTICS_REV = 2
+# 3: use the completed graph's true-peak summary for headroom trim (#855).
+MIX_SEMANTICS_REV = 3
 
 
 def _escape_filter_value(value: str) -> str:
@@ -1107,8 +1106,9 @@ class FFmpegEngine:
             "-",
         ]
         r = run(cmd, check=True, capture_output=True, text=True)
-        m = _SUMMARY_TRUE_PEAK_RE.search(r.stderr or "")
-        return float(m.group(1)) if m else None
+        # FFmpeg may emit an empty summary while initializing the graph.
+        peaks = _SUMMARY_TRUE_PEAK_RE.findall(r.stderr or "")
+        return float(peaks[-1]) if peaks else None
 
     def mix_tracks(
         self,

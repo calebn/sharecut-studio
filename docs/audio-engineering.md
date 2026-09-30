@@ -97,13 +97,16 @@ into the limiter.
 the float amix graph (`ebur128=peak=true` into a null output, no temp file), then renders
 once with the whole mix trimmed down (never up) so it peaks at or below
 `mix.premix_peak_ceiling_db` (default -1.0 dBTP). `bounce` shares the ceiling.
+The trim uses the last emitted true-peak summary, which describes the completed graph.
+FFmpeg can emit an initial empty summary before it processes the audio.
 `play_compose` uses the same ceiling on its own window, so a hot window is trimmed rather
 than clipped; a window that peaks under the ceiling plays at unity, the same as the premix
 before its whole-mix trim. `audition_eval.inject_hum_span` sums at unity on purpose (see
 its docstring).
 
-Premixes mixed under the old rules re-mix once: `MIX_SEMANTICS_REV` is part of
-`mix_render_hash`.
+`MIX_SEMANTICS_REV` is part of `mix_render_hash` and composed-play cache keys.
+The completed-summary fix advances it to revision 3, so revision 2 premixes and
+composed playback rebuild. Per-track stems remain reusable.
 
 The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
 

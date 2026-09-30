@@ -453,8 +453,8 @@ def mix_render_hash(gains: Mapping[str, float], peak_ceiling_db: float | None = 
     Stem audio is covered by each stem's own hash and the premix-vs-stem mtime
     check. The mix step adds only this, so a volume or mute change stales the
     premix without staling any stem. Includes ``MIX_SEMANTICS_REV``, so premixes
-    summed under older mix rules (1/N amix) re-mix once. Also includes the premix
-    true-peak ceiling (None reads the configured default), so changing
+    made under older summing or peak-measurement rules re-mix once. Also includes
+    the premix true-peak ceiling (None reads the configured default), so changing
     ``mix.premix_peak_ceiling_db`` re-mixes.
     """
     ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
