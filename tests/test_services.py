@@ -891,3 +891,35 @@ def test_edit_service_failed_edit_leaves_transcript_unflagged(minimal_project):
     with pytest.raises(ValueError):
         EditService(ws).correct_word("host", 99, "x")
     assert ws.project.transcripts[0].user_edited is False
+
+
+@pytest.mark.parametrize("language", ["en", "es", None])
+def test_transcript_service_uses_pipeline_language(minimal_project, language):
+    from podcast_mcp.services.pipeline_config import config_store
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
+    store = config_store()
+    store.put(ws.path, config={"transcribe": {"language": language}})
+    try:
+        with patch("podcast_mcp.services.transcript.TranscriptionEngine") as engine:
+            engine.return_value.transcribe_all_dialogue.return_value = [
+                Transcript(track_id="host", words=[])
+            ]
+            TranscriptService(ws).transcribe()
+            assert (
+                engine.return_value.transcribe_all_dialogue.call_args.kwargs["language"] == language
+            )
+    finally:
+        store.put(ws.path, reset=True)
+
+
+def test_transcript_service_defaults_to_english(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _host_dialogue(ws)
+    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as engine:
+        engine.return_value.transcribe_all_dialogue.return_value = [
+            Transcript(track_id="host", words=[])
+        ]
+        TranscriptService(ws).transcribe()
+        assert engine.return_value.transcribe_all_dialogue.call_args.kwargs["language"] == "en"

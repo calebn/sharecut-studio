@@ -8,7 +8,7 @@ from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
 )
-from podcast_mcp.services.transcript_precorrect import VOCABULARY_MAX_ENTRIES
+from podcast_mcp.transcript_context import VOCABULARY_MAX_ENTRIES
 
 # Discriminated union — source of truth in document_sync.payloads.
 DocumentCommandRequest = DocumentCommandBody

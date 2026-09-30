@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from filelock import Timeout
 
 from podcast_mcp.gui.routes.deps import project_busy_error, require_host, resolve_project
 from podcast_mcp.gui.schemas import TranscriptRefineWaiveRequest, TranscriptVocabularyPutRequest
 from podcast_mcp.services import (
     ProjectWorkspace,
+    TranscriptContextBusyError,
     TranscriptPrecorrectService,
     TranscriptRefineService,
     VocabularyConflictError,
@@ -47,7 +47,7 @@ def transcript_vocabulary_put(
         )
     except VocabularyConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except Timeout as exc:
+    except TranscriptContextBusyError as exc:
         raise project_busy_error(TRANSCRIPT_CONTEXT_BUSY_MESSAGE) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

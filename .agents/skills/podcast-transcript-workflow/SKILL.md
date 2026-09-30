@@ -40,6 +40,10 @@ Do **not** run focus, tighten, or narrative cuts until refine status is **done**
 - **Does not:** Fix ASR text on audible words — use precorrect + refine.
 - **Audio follow-up:** After transcript is clean, **podcast-mute-bleed** gates stems from non-suppressed intervals.
 
+Pipeline, CLI `podcast transcribe`, and MCP `transcribe_track` use the same
+`transcribe.language` setting, `en` by default. Set it to YAML `null` in pipeline
+configuration for auto-detection. Language remains part of the ASR cache key.
+
 ## Workspace setup
 
 ```bash

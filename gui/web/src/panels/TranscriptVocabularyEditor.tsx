@@ -10,10 +10,10 @@ import { confirmReplaceEdited } from "./confirmReplaceEdited";
 
 type VocabularyField = "terms" | "guest_names";
 
-/** Mirrors VOCABULARY_MAX_ENTRIES in services/transcript_precorrect.py. */
+/** Mirrors VOCABULARY_MAX_ENTRIES in transcript_context.py. */
 export const VOCABULARY_MAX_ENTRIES = 100;
 /**
- * Mirrors VOCABULARY_MAX_ENTRY_CHARS in services/transcript_precorrect.py.
+ * Mirrors VOCABULARY_MAX_ENTRY_CHARS in transcript_context.py.
  * The browser counts UTF-16 code units (`maxLength`, `.length`) and Python counts
  * code points, so entries with astral characters hit the UI cap first. The UI is
  * only stricter, never looser.

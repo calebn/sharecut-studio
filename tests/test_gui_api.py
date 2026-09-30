@@ -2928,14 +2928,13 @@ def test_api_transcript_vocabulary_busy_lock_is_project_busy_503(
 ) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from filelock import Timeout
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services import TranscriptPrecorrectService
+    from podcast_mcp.services import TranscriptContextBusyError, TranscriptPrecorrectService
     from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
     def busy(self, **kwargs):
-        raise Timeout("/secret/ws/artifacts/transcript_context.yaml.lock")
+        raise TranscriptContextBusyError(TRANSCRIPT_CONTEXT_BUSY_MESSAGE)
 
     monkeypatch.setattr(TranscriptPrecorrectService, "set_vocabulary", busy)
     response = TestClient(create_app()).put(
@@ -4124,12 +4123,12 @@ def test_gui_package_create_app() -> None:
 def test_api_transcript_vocabulary_busy_lock_returns_503(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
-    from filelock import Timeout
 
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services import TranscriptContextBusyError
 
     def busy(self, **_kwargs):
-        raise Timeout("transcript_context.yaml.lock")
+        raise TranscriptContextBusyError("Transcript context is busy; retry")
 
     monkeypatch.setattr(
         "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.set_vocabulary",

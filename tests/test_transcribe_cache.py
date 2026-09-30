@@ -276,3 +276,44 @@ def test_cached_audio_keys_reads_both_names_only_for_that_job(minimal_project):
         (tdir / name).write_text("{}", encoding="utf-8")
     assert cached_audio_keys(proj, "host") == {"1" * 16, "2" * 16}
     assert cached_audio_keys(proj, "host__b") == {"3" * 16}
+
+
+def test_transcript_cache_keeps_auto_detection_separate_from_english(minimal_project, tmp_path):
+    project = load_project(minimal_project)
+    audio = tmp_path / "recording.wav"
+    audio.write_bytes(b"recording")
+    engine = TranscriptionEngine()
+    auto = engine.cache_path(project, "host", audio, language=None)
+    english = engine.cache_path(project, "host", audio, language="en")
+    assert auto != english
+    assert engine.cache_path(project, "host", audio, language=None) == auto
+
+
+def test_pipeline_and_transcript_service_share_default_language_cache(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from unittest.mock import patch
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.pipeline.steps import transcribe_tracks
+    from podcast_mcp.services import ProjectWorkspace, TranscriptService
+    from podcast_mcp.services.pipeline_config import config_store
+
+    project, _audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    defaults = load_defaults()
+    defaults["transcribe"]["forced_alignment"]["enabled"] = False
+    store = config_store()
+    store.put(minimal_project, config=defaults)
+    try:
+        with patch.object(
+            TranscriptionEngine,
+            "transcribe_file",
+            return_value=Transcript(track_id="host", words=[]),
+        ) as decode:
+            transcribe_tracks(project, defaults)
+            workspace = ProjectWorkspace.open(minimal_project)
+            TranscriptService(workspace).transcribe()
+        assert decode.call_count == 1
+        assert decode.call_args.kwargs["language"] == "en"
+    finally:
+        store.put(minimal_project, reset=True)

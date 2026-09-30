@@ -197,7 +197,7 @@ def plan_retime(
     model = word_aligner_model()
     stored = {t.key: t for t in project.transcripts}
     plan.context = load_transcript_context(project.workspace_path())
-    primed_prompt = plan.context.initial_prompt_text()
+    primed_prompt = plan.context.transcription_vocabulary().initial_prompt
     fallback_prompt = plan.context.full_prompt_text() or None
     kept: list[TranscribeJob] = []
     for job in plan.reused:
@@ -294,6 +294,7 @@ def run_transcribe_plan(
     transcripts: list[Transcript] = []
     if plan.run:
         ctx = plan.context or load_transcript_context(project.workspace_path())
+        vocabulary = ctx.transcription_vocabulary()
         engine = make_engine()
         fallback_prompt = ctx.full_prompt_text() or None
         fallback_keys = {job.key for job in plan.retime_fallback}
@@ -323,7 +324,7 @@ def run_transcribe_plan(
                 )
             transcripts += engine.transcribe_all_dialogue(
                 project,
-                initial_prompt=ctx.initial_prompt_text(),
+                initial_prompt=vocabulary.initial_prompt,
                 jobs=primed_jobs,
                 audio_hashes=plan.audio_hashes,
                 use_cache=use_cache,
@@ -339,7 +340,7 @@ def run_transcribe_plan(
                 **asr_options,
             )
         for t in transcripts:
-            t.vocabulary_revision = ctx.vocabulary_revision
+            t.vocabulary_revision = vocabulary.revision
         # A correction saved to one of these transcripts during ASR is not lost: the
         # runner's save_merged merges words as one value, so both changing them conflicts.
         merge_transcripts_by_key(project, transcripts)

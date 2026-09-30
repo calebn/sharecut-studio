@@ -502,12 +502,12 @@ def test_transcript_context_set_reports_prompt_limit_without_traceback(tmp_path)
 
 
 def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
-    from filelock import Timeout
+    from podcast_mcp.services import TranscriptContextBusyError
 
     project = _init_project(tmp_path)
 
     def busy(self, **_kwargs):
-        raise Timeout("/artifacts/transcript_context.yaml.lock")
+        raise TranscriptContextBusyError("Transcript context is busy; retry")
 
     monkeypatch.setattr(
         "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.update_context",

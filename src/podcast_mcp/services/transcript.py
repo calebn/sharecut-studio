@@ -34,7 +34,13 @@ class TranscriptService:
             plan = plan_transcription(p, jobs, overwrite=True, unattended=False)
             # The ASR disk cache still counts (docs/transcript-workflow.md): unchanged
             # audio, model and prompt reuse it.
-            transcripts = run_transcribe_plan(p, plan, lambda: self._engine, use_cache=True)
+            transcripts = run_transcribe_plan(
+                p,
+                plan,
+                lambda: self._engine,
+                use_cache=True,
+                language=self._engine.options.language,
+            )
             return list(dict.fromkeys(t.track_id for t in transcripts))
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)
