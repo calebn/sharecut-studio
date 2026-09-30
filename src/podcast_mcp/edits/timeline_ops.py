@@ -43,9 +43,11 @@ from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
     rebuild_combined,
+    restore_archived_words,
+    timeline_removes_by_transcript,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, origin_track_id_for_clip
-from podcast_mcp.models import Clip, ClipJoinMode, ClipMuteRegion, EpisodeProject
+from podcast_mcp.models import Clip, ClipJoinMode, ClipMuteRegion, EpisodeProject, TranscriptKey
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -156,15 +158,14 @@ def ripple_delete(
             timeline_end,
         )
         set_track_clips(project, tid, updated)
-    from podcast_mcp.edits.transcript_sync import (
-        apply_source_transcript_removes,
-        timeline_removes_to_source_ranges,
-    )
+    from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
 
-    removes_by_track = {
-        tid: timeline_removes_to_source_ranges(clips_before[tid], [(timeline_start, timeline_end)])
-        for tid in tracks
-    }
+    removes_by_track: dict[TranscriptKey, list[tuple[float, float]]] = {}
+    for tid in tracks:
+        for key, ranges in timeline_removes_by_transcript(
+            project, clips_before[tid], [(timeline_start, timeline_end)]
+        ).items():
+            removes_by_track.setdefault(key, []).extend(ranges)
     apply_source_transcript_removes(project, removes_by_track)
     remap_review_anchors_for_cuts(project, [(timeline_start, timeline_end)])
     update_timeline_duration(project)
@@ -223,14 +224,13 @@ def punch_delete(
     clips_before = clips_for_track(project, track_id)
     updated = punch_timeline_range_from_clips(clips_before, timeline_start, timeline_end)
     set_track_clips(project, track_id, updated)
-    from podcast_mcp.edits.transcript_sync import (
-        apply_source_transcript_removes,
-        timeline_removes_to_source_ranges,
-    )
+    from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
 
-    src_ranges = timeline_removes_to_source_ranges(clips_before, [(timeline_start, timeline_end)])
-    if src_ranges:
-        apply_source_transcript_removes(project, {track_id: src_ranges})
+    removes_by_transcript = timeline_removes_by_transcript(
+        project, clips_before, [(timeline_start, timeline_end)]
+    )
+    if removes_by_transcript:
+        apply_source_transcript_removes(project, removes_by_transcript)
     else:
         rebuild_combined(project)
     update_timeline_duration(project)
@@ -780,6 +780,7 @@ def trim_clip_edge(
     }
     for target, target_sec in targets:
         trim_clip_edge_bounds(project, target.id, edge, target_sec, mode=mode)
+    restore_archived_words(project, {target.track_id for target, _ in targets})
     rebuild_combined(project)
     clip = next(c for c in project.clips if c.id == clip_id)
     track_ids = [c.track_id for c, _ in targets]
@@ -879,6 +880,7 @@ def roll_clip_join(
     old_right_start = right.source_start
     old_right_tl = right.timeline_start
     roll_clip_join_bounds(project, left_clip_id, right_clip_id, delta_sec)
+    restore_archived_words(project, {left.track_id})
     rebuild_combined(project)
     left = next(c for c in project.clips if c.id == left_clip_id)
     right = next(c for c in project.clips if c.id == right_clip_id)

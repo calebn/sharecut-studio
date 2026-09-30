@@ -495,15 +495,18 @@ class SessionTimeline:
         self, track_id: str, source_id: str | None, spans: Sequence[tuple[SourceSec, SourceSec]]
     ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
         """Map a recording's word batch against one selected-placement index."""
+        index = self._selected_index(track_id, source_id)
+        if index is None:
+            return [[] for _ in spans]
+        return [self._map_source_span(index, start, end) for start, end in spans]
+
+    def _selected_index(self, track_id: str, source_id: str | None) -> _TrackIndex | None:
         keys = tuple(
             (clip.timeline_start, clip.source_start, clip.source_end)
             for clip in self._project.clips
             if clip.track_id == track_id and clip.source_id == source_id
         )
-        if not keys:
-            return [[] for _ in spans]
-        index = _build_index(keys)
-        return [self._map_source_span(index, start, end) for start, end in spans]
+        return _build_index(keys) if keys else None
 
     def map_word_spans(
         self, track_id: str, words: Sequence[tuple[float, float]]
@@ -516,17 +519,27 @@ class SessionTimeline:
         so a boundary word is not reported unmapped (#621). Shared by export/doctor
         timebase QC and the GUI word views.
         """
-        idx = self._index(track_id)
+        return self._map_word_spans(self._index(track_id), words)
+
+    def map_selected_word_spans(
+        self, track_id: str, source_id: str | None, words: Sequence[tuple[float, float]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        """Map words only through placements of the selected recording."""
+        index = self._selected_index(track_id, source_id)
+        if index is None:
+            return [[] for _ in words]
+        return self._map_word_spans(index, words)
+
+    @classmethod
+    def _map_word_spans(
+        cls, idx: _TrackIndex | None, words: Sequence[tuple[float, float]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
         out: list[list[tuple[TimelineSec, TimelineSec]]] = []
         for start, end in words:
             src_start, src_end = word_source_span(start, end)
-            mapped = self._map_source_span(idx, src_start, src_end)
-            if (
-                not mapped
-                and end <= start
-                and self._source_point(idx, float(src_start)) is not None
-            ):
-                mapped = self._map_source_span(
+            mapped = cls._map_source_span(idx, src_start, src_end)
+            if not mapped and end <= start and cls._source_point(idx, float(src_start)) is not None:
+                mapped = cls._map_source_span(
                     idx, SourceSec(float(src_start) - ZERO_LENGTH_WORD_PAD_SEC), src_start
                 )
             out.append(mapped)

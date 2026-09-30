@@ -278,7 +278,16 @@
           "default": false,
           "description": "True once a user or agent edit (correct, suppress, verify, cleanup) changed the words."
         },
-        "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } }
+        "words": { "type": "array", "items": { "$ref": "#/$defs/TranscriptWord" } },
+        "archived_words": { "type": "array", "items": { "$ref": "#/$defs/ArchivedTranscriptWord" }, "default": [] }
+      }
+    },
+    "ArchivedTranscriptWord": {
+      "type": "object",
+      "required": ["ordinal", "word"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "word": { "$ref": "#/$defs/TranscriptWord" }
       }
     },
     "TranscriptWord": {

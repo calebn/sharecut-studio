@@ -753,7 +753,7 @@ def optimize_timeline_cut_range(
     st = SessionTimeline(project)
     source_start = st.timeline_to_source(track_id, TimelineSec(timeline_start))
     source_end = st.timeline_to_source(track_id, TimelineSec(timeline_end))
-    if source_start is None or source_end is None:
+    if source_start is None or source_end is None or source_end <= source_start:
         track = project.track_by_id(track_id)
         return OptimizedCutRange(
             start=timeline_start,

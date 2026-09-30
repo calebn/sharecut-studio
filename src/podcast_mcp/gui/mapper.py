@@ -609,23 +609,31 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
     track_ids = sorted({c.track_id for c in project.clips})
     for track_id in track_ids:
         clips = clips_for_track(project, track_id)
-        tr = project.transcript_for_track(track_id)
-        word_spans = (
-            timeline.map_word_spans(track_id, [(w.start, w.end) for w in tr.words])
-            if tr is not None and len(clips) > 1
-            else []
-        )
         for i, left in enumerate(clips):
             if i + 1 >= len(clips):
                 continue
             right = clips[i + 1]
+            left_transcript = project.transcript_for_source(track_id, left.source_id)
+            right_transcript = project.transcript_for_source(track_id, right.source_id)
+            same_recording = left.source_id == right.source_id or (
+                left_transcript is not None and left_transcript is right_transcript
+            )
+            shared_transcript = left_transcript is not None and left_transcript is right_transcript
             cutaway_start = float(left.source_end)
             cutaway_end = float(right.source_start)
-            if cutaway_end < cutaway_start:
+            if not same_recording or cutaway_end < cutaway_start:
                 cutaway_end = cutaway_start
             cutaway_word_ids: list[dict[str, Any]] = []
-            if tr is not None and cutaway_end > cutaway_start + 1e-9:
-                for word_index, word in enumerate(tr.words):
+            if shared_transcript and cutaway_end > cutaway_start + 1e-9:
+                assert left_transcript is not None
+                active_words = left_transcript.words
+                archived_words = [entry.word for entry in left_transcript.archived_words]
+                word_spans = timeline.map_selected_word_spans(
+                    track_id,
+                    left.source_id,
+                    [(w.start, w.end) for w in [*active_words, *archived_words]],
+                )
+                for word_index, word in enumerate([*active_words, *archived_words]):
                     w_end = float(word_source_span(word.start, word.end)[1])
                     if w_end <= cutaway_start or float(word.start) >= cutaway_end:
                         continue
@@ -634,7 +642,9 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     cutaway_word_ids.append(
                         {
                             "track_id": track_id,
-                            "word_index": word_index,
+                            "source_id": left.source_id,
+                            # Cutaway references are previews, never active word identities.
+                            "word_index": -1 - word_index,
                             "text": word.text,
                             "start": float(word.start),
                             "end": float(word.end),

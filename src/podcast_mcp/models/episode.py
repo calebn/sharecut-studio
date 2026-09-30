@@ -191,6 +191,13 @@ class TranscriptWord(BaseModel):
             bump_words_revision()
 
 
+class ArchivedTranscriptWord(BaseModel):
+    """A cut word retained with its source-clock position and original order."""
+
+    ordinal: int = Field(ge=0)
+    word: TranscriptWord
+
+
 # One transcript per (track_id, source_id) within a project.
 TranscriptKey = tuple[str, str | None]
 
@@ -258,6 +265,7 @@ class Transcript(BaseModel):
     track_id: str
     language: str = "en"
     words: list[TranscriptWord] = Field(default_factory=TranscriptWords)
+    archived_words: list[ArchivedTranscriptWord] = Field(default_factory=list)
     # When set, words are source-media seconds for that sources[] row (multi-file
     # speaker track). None = whole-track / primary media transcript.
     source_id: str | None = None
