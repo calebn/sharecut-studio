@@ -258,6 +258,10 @@ Three idioms cache a value derived from project data; pick by how the input chan
 
 Never key a cache on object identity (`id()`) of mutable project data.
 
+### Transcript replacement plans
+
+`edits/transcript_replace.py` owns literal whole-token phrase matching and an immutable source-keyed replacement plan. It fingerprints the complete candidate set and reuses `transcript_correct.correct_transcript_word` and the pure `build_phrase_replacement` policy on exact source words. Existing manual track correction keeps its current primary-view resolution. `EditService.preview_transcript_replacement` returns the review data; `replace_transcript_matches` recomputes and validates it under one workspace transaction, assembles each source's replacement word list once without repeated full-list copies, rebuilds the combined transcript once, and records one undo action. The host preview route and document-command handler only parse and delegate.
+
 ## Testing
 
 Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.ini_options]` / `[tool.coverage.report]`). See [testing.md](testing.md).
@@ -269,7 +273,3 @@ All skills and MCP template live under `.agents/`. See [setup.md](setup.md).
 ## Contributing
 
 See [contributing.md](contributing.md) for where to add new operations.
-
-### Transcript replacement plans
-
-`edits/transcript_replace.py` owns literal whole-token phrase matching and an immutable source-keyed replacement plan. It fingerprints the complete candidate set and reuses `transcript_correct.correct_transcript_word` and the pure `build_phrase_replacement` policy on exact source words. Existing manual track correction keeps its current primary-view resolution. `EditService.preview_transcript_replacement` returns the review data; `replace_transcript_matches` recomputes and validates it under one workspace transaction, assembles each source's replacement word list once without repeated full-list copies, rebuilds the combined transcript once, and records one undo action. The host preview route and document-command handler only parse and delegate.
