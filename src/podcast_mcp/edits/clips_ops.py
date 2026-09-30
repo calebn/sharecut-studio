@@ -103,6 +103,27 @@ def is_session_join(project: EpisodeProject, timeline_sec: float, edge: str) -> 
 
 
 def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -> None:
+    from podcast_mcp.edits.conversation_align import ingest_alignment_key
+
+    track = project.track_by_id(track_id)
+    entries = project.meta.ingest_alignment
+    previous = clips_for_track(project, track_id)
+    if track is not None and entries:
+        old_ids = {clip.id for clip in previous}
+        for original in previous:
+            entry = entries.get(ingest_alignment_key(track, original, per_clip=True))
+            if entry is None or entry.align_method != "manual":
+                continue
+            for clip in clips:
+                if (
+                    clip.id not in old_ids
+                    and clip.source_id == original.source_id
+                    and clip.source_start >= original.source_start - 1e-9
+                    and clip.source_end <= original.source_end + 1e-9
+                ):
+                    entries.setdefault(
+                        ingest_alignment_key(track, clip, per_clip=True), entry.model_copy()
+                    )
     project.clips = [c for c in project.clips if c.track_id != track_id] + clips
 
 

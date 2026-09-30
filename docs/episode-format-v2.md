@@ -93,6 +93,18 @@ Applied move records add
 `params.quiet_trim`: reason `verified_quiet_destination_overlap` and selected
 source ranges for the geometry-only quiet overlap trim; transcript metadata is
 preserved and any reduction of retained-word source coverage blocks planning.
+The comparison uses the transcript selected by each clip's `source_id`; another
+recording's coincident source timestamps do not protect or authorize this phrase.
+Conflicting correction footprints abstain before clip edits are published.
+Manual per-clip `meta.ingest_alignment` entries are copied to new surviving
+same-source subclips when project-aware clip replacement splits or trims them.
+Those entries use the existing `track_id:clip_id` keys and editable snapshots.
+Optional `media_key` is a `sha256:` digest of the normalized selected recording
+path, relative to the workspace where possible. It contains no host path and
+keeps a choice stable when primary media is pinned to an equivalent explicit
+source, including relative/absolute aliases. An unrelated selected recording
+does not inherit a newly saved choice. Legacy records without the digest use
+their existing source or primary-media reference for comparison.
 
 **All stored times (`TranscriptWord`, `EditDecision` remove/mute, `CombinedUtterance`) are source-media seconds; blade `EditDecision` with `type: split` and `timebase: timeline` stores the cut as timeline seconds (`start == end`); `timeline.clips` is the only bridge; anything that touches rendered audio (stems, premix, mastered, export) must map through `SessionTimeline`.**
 
@@ -104,6 +116,9 @@ Two clocks exist:
 | **Timeline** (`TimelineSec`) | Seconds on the edited session/deliverable clock | Rendered stems, `artifacts/premix.wav`, mastered WAV, SRT/VTT captions, social clips, chapters, `review.comments` |
 
 `engines/session_timeline.py` (`SessionTimeline`) is the single hub that maps between them, driven by `timeline.clips`. Its `lane_clip_spans` mapping keeps each clip's selected source recording attached to the paired bounds. Raw audibility and directed bleed-path measurement use these current-lane placements when a rendered stem is absent. They omit a lane whose selected source file or required samples are unavailable. Consumers never do clip arithmetic inline — see [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
+`map_selected_source_span` and its batch form map a named recording only through
+placements on the requested lane with the matching `source_id`. Local retained-bleed
+phrase planning and retained-word guards use this source-specific mapping.
 
 ## Timeline and render
 

@@ -485,6 +485,26 @@ class SessionTimeline:
         idx = self._index(track_id)
         return [self._map_source_span(idx, start, end) for start, end in spans]
 
+    def map_selected_source_span(
+        self, track_id: str, source_id: str | None, start: SourceSec, end: SourceSec
+    ) -> list[tuple[TimelineSec, TimelineSec]]:
+        """Map one recording's source clock only through its selected placements."""
+        return self.map_selected_source_spans(track_id, source_id, [(start, end)])[0]
+
+    def map_selected_source_spans(
+        self, track_id: str, source_id: str | None, spans: Sequence[tuple[SourceSec, SourceSec]]
+    ) -> list[list[tuple[TimelineSec, TimelineSec]]]:
+        """Map a recording's word batch against one selected-placement index."""
+        keys = tuple(
+            (clip.timeline_start, clip.source_start, clip.source_end)
+            for clip in self._project.clips
+            if clip.track_id == track_id and clip.source_id == source_id
+        )
+        if not keys:
+            return [[] for _ in spans]
+        index = _build_index(keys)
+        return [self._map_source_span(index, start, end) for start, end in spans]
+
     def map_word_spans(
         self, track_id: str, words: Sequence[tuple[float, float]]
     ) -> list[list[tuple[TimelineSec, TimelineSec]]]:

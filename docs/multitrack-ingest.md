@@ -24,6 +24,18 @@ Existing manual recorder placement and saved local
 manual/declined decisions are honored. Bypassing a recorder lock requires an
 explicit scoped request and records override provenance; saved local choices
 still take precedence. This does not move the whole lane or stretch voiced audio. Declared crossfade joins abstain with `unsupported_crossfade_evidence_clock`, because their rendered clock can differ from raw clip placement.
+Per-clip recorder locks remain attached to surviving same-source material after
+ordinary splits, quiet trimming, and scoped corrections. Phrase selection and
+retained-word checks use the selected recording's transcript. Conflicting batch
+footprints abstain; missing or unmatched direct phrases remain explicitly unresolved.
+Local evidence decodes only its lag and shifted-null context. Projects using the
+renderer's implicit full-media fallback can still apply bleed mute; local retiming
+reports `unsupported_implicit_timeline_alignment` until explicit clips exist.
+Reciprocal corrections and corrections that move any stationary retained-copy
+reference in the same region abstain together. Unsupported measured interior
+probes also abstain; three agreeing survivors cannot authorize unresolved portions
+of a whole phrase. Equivalent primary/explicit references to the same recording
+retain saved local choices through source pinning and reopening.
 
 After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
 

@@ -15,6 +15,15 @@ gate-plan LRU is ephemeral; media, transcript, placement, and policy revisions
 invalidate its key. It stores neither PCM nor live project objects. Initial
 planning can still decode whole selected sources. Derived delay examples are bounded
 profile data, not authoritative timing choices.
+Project-aware clip replacement copies manual per-clip ingest entries onto
+surviving same-source subclips in `meta.ingest_alignment`. No new lineage store is
+introduced; existing editable snapshots restore inherited locks and placements.
+Local alignment reads bounded evidence windows and retains no whole-lane PCM cache.
+Timing decisions optionally persist an opaque normalized-recording digest in
+`media_key`. Equivalent primary/explicit source references retain the choice;
+another selected recording does not inherit it. Legacy decisions use their
+existing source/primary references. The field adds no plaintext host path to
+project metadata or editable snapshots.
 
 ## Inventory
 

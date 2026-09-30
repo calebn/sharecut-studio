@@ -966,7 +966,6 @@ def test_reciprocal_mixed_phrase_corrections_abstain_without_reversing_copy_lag(
 ) -> None:
     p = _reciprocal_episode(tmp_path)
     api = _api()
-    # Each individually measured correction is plausible only with its peer stationary.
     for bleed_lane in ("direct", "uncertain"):
         one = api.plan_retained_bleed_alignment(p, track_id=bleed_lane, start_sec=0.7, end_sec=3.7)
         assert len(one.proposals) == 1
@@ -1068,8 +1067,8 @@ def test_distinct_transcript_seeds_expand_to_one_complete_acoustic_correction(
     direct = np.zeros(6 * RATE)
     first, last = int(1.48 * RATE), int(2.26 * RATE)
     direct[first:last] = np.random.default_rng(2804).normal(0, 0.08, last - first)
-    # Independent later source activity supplies genuine shifted-null context.
-    direct[4 * RATE : 5 * RATE] = np.random.default_rng(2805).normal(0, 0.08, RATE)
+    shifted_null_context = np.random.default_rng(2805).normal(0, 0.08, RATE)
+    direct[4 * RATE : 5 * RATE] = shifted_null_context
     mixed = np.zeros_like(direct)
     lag = int(0.15 * RATE)
     mixed[:-lag] = direct[lag:] * 0.2
@@ -1091,8 +1090,10 @@ def test_distinct_transcript_seeds_expand_to_one_complete_acoustic_correction(
     assert api.plan_retained_bleed_alignment(reopened, start_sec=0.8, end_sec=3.0).proposals == ()
 
 
+@pytest.mark.parametrize("legacy_choice", [False, True])
+@pytest.mark.parametrize("absolute_source_path", [False, True])
 def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reopen(
-    tmp_path: Path,
+    tmp_path: Path, legacy_choice: bool, absolute_source_path: bool
 ) -> None:
     from podcast_mcp.edits.timeline_ops import move_clips
     from podcast_mcp.services import ProjectWorkspace
@@ -1101,10 +1102,21 @@ def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reope
     api = _api()
     proposal = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5).proposals[0]
     api.set_retained_bleed_alignment_mode(p, proposal.decision_id, "declined", proposal=proposal)
+    media_key = p.editorial.retained_bleed_alignments[0].media_key
+    assert media_key.startswith("sha256:")
+    assert str(tmp_path) not in media_key
+    assert "direct.wav" not in media_key
+    if legacy_choice:
+        saved = p.model_dump(by_alias=True)
+        for decision in saved["editorial"]["retained_bleed_alignments"]:
+            decision.pop("media_key", None)
+        p = EpisodeProject.model_validate(saved)
     original = next(clip for clip in p.clips if clip.track_id == "direct")
     move_clips(p, [{"clip_id": original.id, "track_id": "uncertain", "timeline_start": 0}])
     move_clips(p, [{"clip_id": original.id, "track_id": "direct", "timeline_start": 0}])
     assert original.source_id is not None
+    if absolute_source_path:
+        p.source_by_id(original.source_id).path = str(tmp_path / "raw" / "direct.wav")
     ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
     ws.save()
     reopened = ProjectWorkspace.open(ws.path).project
@@ -1113,3 +1125,19 @@ def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reope
     assert plan.proposals == ()
     assert {"track_id": "direct", "reason": "saved_declined_decision"} in plan.skipped
     assert reopened.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("mode", ["manual", "declined"])
+def test_saved_choice_does_not_lock_a_different_selected_recording(
+    tmp_path: Path, mode: str
+) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    proposal = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5).proposals[0]
+    api.set_retained_bleed_alignment_mode(p, proposal.decision_id, mode, proposal=proposal)
+    samples = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    _write(tmp_path / "raw" / "replacement.wav", samples)
+    p.track_by_id("direct").media.path = "raw/replacement.wav"
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert len(plan.proposals) == 1
+    assert {"track_id": "direct", "reason": f"saved_{mode}_decision"} not in plan.skipped

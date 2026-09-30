@@ -18,11 +18,31 @@ Destination overlap is removed only from verified quiet source material using
 existing clip geometry, with source ranges and reason in the move edit log.
 Any reduction of retained-word source coverage abstains. Saved mix-muted lanes
 are excluded from automatic alignment; muted secondary copies cannot veto it.
+Planning and trim guards select each recording's transcript with
+`transcript_for_source` and map it only through that source's placements using
+`SessionTimeline.map_selected_source_span(s)`. Phrase indexes are built once per
+direct lane and traversal stops when the 64-phrase evidence budget is spent.
+Local delay reads include bounded lag and shifted-null context with an explicit
+timeline origin, rather than decoding complete recordings. Overlapping old/new
+correction footprints, including quiet trim and seam fades, abstain as a batch.
+Each immutable proposal records every retained-copy reference lane used in its
+evidence. A batch also abstains when another correction would move a referenced
+copy region. Repeated transcript seeds expanding to identical complete source
+geometry produce one correction. Measured unsupported probes intersecting the
+copy phrase prevent whole-phrase approval, even if endpoints and other probes agree.
+Implicit full-media timelines remain playable but local retiming abstains until
+explicit clip placements exist. Missing or unmatched direct phrases are reported.
+`set_track_clips` carries manual per-clip ingest metadata onto surviving
+same-source subclips, so a split or scoped override preserves other placement locks.
+Saved choices include an optional opaque digest of the normalized recording path;
+primary media and equivalent explicit source references share that identity.
+No host path is added to editorial metadata. Legacy choices resolve through their
+existing source/primary media references.
 
 Transcript bleed gating plans bounded foreign attenuation in
 `engines/bleed_gate.py` from ungated selected media, mapped by
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
-verified attenuation spans, and abstention reasons. The PCM gate in
+verified attenuation spans, and abstention reasons.
 The old whitelist helpers `render_gated_track`, `render_gated_mix`, and
 `gate_rendered_wav` remain deprecated direct-import compatibility utilities.
 Project playback and rendering use conservative plans instead.

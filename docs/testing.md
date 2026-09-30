@@ -1263,4 +1263,20 @@ Full-band seam reads are restricted to complete phrase candidates (maximum
 30 seconds plus boundary context); plans examine at most 64 candidate phrases
 and at most 10 independent delay windows per relevant lane pair/phrase. The
 coarse evidence runs at 8 kHz and source-decode temporaries are released after
-lane mapping. Default echo profiling does not invoke long-delay measurement.
+each local pair measurement. Delay reads include the configured maximum lag and
+shifted-null context, with the window's timeline origin passed to measurement.
+Instrumentation on a two-hour source bounds a three-second local probe to at
+most 32 decoded seconds per lane while checking copy, periodic, and unrelated
+controls. Default echo profiling does not invoke long-delay measurement.
+The alignment suite also checks manual per-clip locks after split/punch and scoped
+override/reopen, competing batch footprints, preservation of both nearby phrases,
+secondary-source transcript selection and word coverage, explicit unresolved
+missing/suppressed/unmatched phrases through the default service, and safe abstention
+on implicit full-media timelines. Operation counts verify one phrase-index build
+per direct lane and termination once the 64-phrase budget is exhausted.
+Additional regressions cover reciprocal and secondary-reference batch dependencies,
+unsupported measured active interiors despite agreeing endpoints, distinct ASR
+seeds expanding to one acoustic phrase, and declined choices after actual
+move-away/back source pinning and workspace reopening. Identity controls cover
+legacy decisions, relative/absolute aliases, another selected recording, and the
+absence of plaintext paths from persisted recording digests.
