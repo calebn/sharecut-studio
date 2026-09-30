@@ -500,3 +500,160 @@ def test_verified_quiet_overlap_trim_has_source_scoped_provenance(tmp_path: Path
     assert trim["source_ranges"] == [
         {"source_id": None, "start_s": pytest.approx(1.03), "end_s": pytest.approx(1.18)}
     ]
+
+
+def _two_phrase_episode(tmp_path: Path, *, competing: bool = False) -> EpisodeProject:
+    p = _episode(tmp_path, owner_amplitude=0)
+    direct = np.zeros(8 * RATE)
+    mixed = np.zeros_like(direct)
+    second_start = 3.85 if competing else 4.2
+    phrases = ((1.2, 0.4 if competing else -0.15), (second_start, -0.4 if competing else -0.15))
+    direct_words = []
+    bleed_words = []
+    rng = np.random.default_rng(9481)
+    for index, (start, offset) in enumerate(phrases):
+        voice = rng.normal(0, 0.08, 2 * RATE)
+        source_start = round(start * RATE)
+        target_start = round((start + offset) * RATE)
+        direct[source_start : source_start + len(voice)] = voice
+        mixed[target_start : target_start + len(voice)] += voice * 0.2
+        mixed[target_start : target_start + len(voice)] += 0.003 * np.sin(
+            2 * np.pi * 183 * np.arange(len(voice)) / RATE
+        )
+        direct_words.extend(
+            [
+                TranscriptWord(text=f"phrase{index} start", start=start + 0.1, end=start + 0.9),
+                TranscriptWord(text=f"phrase{index} end", start=start + 1, end=start + 1.9),
+            ]
+        )
+        bleed_words.append(
+            TranscriptWord(
+                text=f"retained phrase{index}",
+                start=start + offset + 0.1,
+                end=start + offset + 1.9,
+                suppressed=True,
+                audibility_status="bleed",
+                dominant_track="direct",
+            )
+        )
+    for tid, samples in (("direct", direct), ("uncertain", mixed)):
+        _write(tmp_path / "raw" / f"{tid}.wav", samples)
+        p.track_by_id(tid).media.duration_sec = 8
+    for clip in p.clips:
+        clip.source_end = 8
+    p.transcripts[0].words = direct_words
+    p.transcripts[1].words = bleed_words
+    return p
+
+
+def test_scoped_override_preserves_per_clip_manual_lock_on_other_phrase_after_reopen(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.models import SpeakerIngestAlignment
+    from podcast_mcp.services import ProjectWorkspace
+
+    p = _two_phrase_episode(tmp_path)
+    p.meta.ingest_alignment = {"direct:clip-direct": SpeakerIngestAlignment(align_method="manual")}
+    api = _api()
+    later = api.plan_retained_bleed_alignment(p, start_sec=3.8, end_sec=6.5)
+    assert later.proposals == ()
+    assert {"track_id": "direct", "reason": "manual_recorder_placement"} in later.skipped
+    first = api.plan_retained_bleed_alignment(
+        p, start_sec=0.8, end_sec=3.5, override_placement_lock=True
+    )
+    assert len(first.proposals) == 1
+    assert api.apply_retained_bleed_alignment(p, first)["applied_count"] == 1
+    assert p.editorial.retained_bleed_alignments[0].provenance == "requested_scoped_override"
+    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws.save()
+    reopened = ProjectWorkspace.open(ws.path).project
+    snapshot = reopened.model_dump(by_alias=True)
+    later = api.plan_retained_bleed_alignment(reopened, start_sec=3.8, end_sec=6.5)
+    assert later.proposals == ()
+    assert {"track_id": "direct", "reason": "manual_recorder_placement"} in later.skipped
+    api.apply_retained_bleed_alignment(reopened, later)
+    assert reopened.model_dump(by_alias=True) == snapshot
+
+
+def test_competing_local_phrase_moves_abstain_before_unsafe_batch_publication(
+    tmp_path: Path,
+) -> None:
+    p = _two_phrase_episode(tmp_path, competing=True)
+    api = _api()
+    before = p.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.7, end_sec=6.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "conflicting_phrase_corrections"} in plan.skipped
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 0
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_competing_local_moves_preserve_both_phrases_and_retained_word_source_coverage(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.util.timebase import SourceSec
+
+    p = _two_phrase_episode(tmp_path, competing=True)
+    api = _api()
+    mixed_before = [clip.model_dump() for clip in p.clips if clip.track_id == "uncertain"]
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.7, end_sec=6.5)
+    api.apply_retained_bleed_alignment(p, plan)
+    timeline = SessionTimeline(p)
+    for start, end in ((1.2, 3.2), (3.85, 5.85)):
+        spans = timeline.map_source_span("direct", SourceSec(start), SourceSec(end))
+        assert sum(float(hi - lo) for lo, hi in spans) == pytest.approx(end - start)
+    for word in p.transcripts[0].words:
+        spans = timeline.map_source_span("direct", SourceSec(word.start), SourceSec(word.end))
+        assert sum(float(hi - lo) for lo, hi in spans) == pytest.approx(word.end - word.start)
+    assert [clip.model_dump() for clip in p.clips if clip.track_id == "uncertain"] == mixed_before
+
+
+def _remove_matching_direct_phrase(p: EpisodeProject, case: str) -> str:
+    if case == "missing_transcript":
+        p.transcripts = [
+            transcript for transcript in p.transcripts if transcript.track_id != "direct"
+        ]
+    elif case == "suppressed_phrases":
+        for word in p.transcripts[0].words:
+            word.suppressed = True
+    else:
+        p.transcripts[0].words = p.transcripts[0].words[-1:]
+    return (
+        "unmatched_direct_retained_phrase"
+        if case == "unmatched"
+        else "missing_direct_retained_phrase"
+    )
+
+
+@pytest.mark.parametrize("case", ["missing_transcript", "suppressed_phrases", "unmatched"])
+def test_retained_copy_without_matching_direct_phrase_is_explicitly_unresolved(
+    tmp_path: Path, case: str
+) -> None:
+    p = _episode(tmp_path)
+    reason = _remove_matching_direct_phrase(p, case)
+    before = p.model_dump(by_alias=True)
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5, track_id="uncertain")
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": reason} in plan.skipped
+    assert p.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("case", ["missing_transcript", "suppressed_phrases", "unmatched"])
+def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
+    tmp_path: Path, case: str
+) -> None:
+    from podcast_mcp.services import EditService, ProjectWorkspace
+
+    p = _episode(tmp_path)
+    reason = _remove_matching_direct_phrase(p, case)
+    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws.save()
+    before = p.model_dump(by_alias=True)
+    preview = EditService(ws).apply_bleed_mute(
+        track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
+    )
+    assert "alignment" in preview
+    assert preview["alignment"]["proposed_count"] == 0
+    assert {"track_id": "direct", "reason": reason} in preview["alignment"]["skipped"]
+    assert p.model_dump(by_alias=True) == before
