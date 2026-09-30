@@ -9,7 +9,7 @@ describe("getSessionToken", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("caches the first read for the page (useDocumentSync terminal 4403 relies on this)", async () => {
+  it("caches the first read for the page (useHostSync terminal 4403 relies on this)", async () => {
     window.history.replaceState(null, "", "/?session_token=first");
     const { getSessionToken } = await import("./sessionAuth");
     expect(getSessionToken()).toBe("first");
