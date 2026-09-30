@@ -151,6 +151,7 @@ type UiSlice = Pick<
   | "transcriptInlineEditFailure"
   | "transcriptReviewCursor"
   | "chapterAddPending"
+  | "transcriptFindReplaceOpen"
   | "transcriptAnnotate"
   | "showCutAwayUtterances"
   | "timelineFocused"
@@ -335,6 +336,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     transcriptReviewCursor: null as TranscriptReviewCursor | null,
     chapterAddPending: false,
+    transcriptFindReplaceOpen: false,
     transcriptAnnotate: false,
     showCutAwayUtterances: false,
     timelineFocused: true,

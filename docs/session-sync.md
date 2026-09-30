@@ -304,6 +304,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetEffectBypass` | `EditService.set_effect_bypass` | `track_id`, `effect_index`, `bypass` |
 | `SetTrackFader` | `EpisodeService.set_track_volume` | `track_id`, `fader_db` (−60 to +12; saved volume on top of staging `gain_db`) |
 | `SetTrackMute` | `EpisodeService.set_track_mute` | `track_id`, `muted` (saved mix mute) |
+| `ReplaceTranscriptMatches` | `EditService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host-only; full source-keyed preview, one history action) |
 | `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text`, `expected_text?` |
 | `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
 | `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed`, `expected_text?` |

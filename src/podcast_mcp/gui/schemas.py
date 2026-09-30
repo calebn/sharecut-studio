@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
+    TranscriptReplacementOptions,
 )
 from podcast_mcp.transcript_context import VOCABULARY_MAX_ENTRIES
 
@@ -224,4 +225,8 @@ class RecordRoomCreateRequest(BaseModel):
 
 
 class RecordRoomRevokeRequest(BaseModel):
+    path: str
+
+
+class TranscriptReplacementPreviewRequest(TranscriptReplacementOptions):
     path: str

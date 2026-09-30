@@ -29,6 +29,7 @@ DocumentCommandType = Literal[
     "SetClipJoin",
     "ApplyFadeRecommendations",
     "SetEffectBypass",
+    "ReplaceTranscriptMatches",
     "CorrectTranscriptWord",
     "CorrectTranscriptPhrase",
     "SetTranscriptWordSuppressed",

@@ -1552,3 +1552,34 @@ button.history-row {
     max-width: 10rem;
   }
 }
+
+.transcript-find-replace {
+  padding: var(--space-4);
+  border-block-end: var(--space-0) solid var(--border);
+  overflow: auto;
+  max-block-size: 50%;
+}
+
+.transcript-find-replace form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.transcript-replacement-preview {
+  max-block-size: 15rem;
+  overflow: auto;
+  padding-inline-start: var(--space-5);
+}
+
+.transcript-find-replace input:not([type="checkbox"]),
+.transcript-find-replace form > label {
+  min-block-size: var(--touch-min);
+}
+
+.transcript-find-replace form > label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

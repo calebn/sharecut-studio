@@ -16,6 +16,16 @@ def _expected_text(p: dict[str, Any]) -> str | None:
     return None if value is None else str(value)
 
 
+def replace_transcript_matches(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    count = EditService(ws).replace_transcript_matches(
+        str(p["search"]),
+        str(p["replacement"]),
+        str(p["preview_token"]),
+        match_case=bool(p["match_case"]),
+    )
+    return {"replaced": count}
+
+
 def correct_transcript_word(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_id = str(p["track_id"])
     word_index = int(p["word_index"])
@@ -68,6 +78,7 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
 
 
 HANDLERS: dict[str, Handler] = {
+    "ReplaceTranscriptMatches": replace_transcript_matches,
     "CorrectTranscriptWord": correct_transcript_word,
     "CorrectTranscriptPhrase": correct_transcript_phrase,
     "SetTranscriptWordSuppressed": set_transcript_word_suppressed,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
@@ -66,27 +66,30 @@ def require_word_text(
     )
 
 
+def _require_transcript(project: EpisodeProject, track_id: str) -> Transcript:
+    transcript = project.transcript_for_track(track_id)
+    if transcript is None:
+        raise ValueError(f"no transcript for track {track_id!r}")
+    return transcript
+
+
 def correct_word(
     project: EpisodeProject,
     track_id: str,
     word_index: int,
     new_text: str,
 ) -> None:
-    _correct_word(project, track_id, word_index, new_text)
+    correct_transcript_word(_require_transcript(project, track_id), word_index, new_text)
     rebuild_combined(project)
 
 
-def _correct_word(
-    project: EpisodeProject,
-    track_id: str,
+def correct_transcript_word(
+    tr: Transcript,
     word_index: int,
     new_text: str,
     *,
     keep_evidence: bool = False,
 ) -> None:
-    tr = project.transcript_for_track(track_id)
-    if not tr:
-        raise ValueError(f"no transcript for track {track_id!r}")
     if word_index < 0 or word_index >= len(tr.words):
         raise ValueError(f"word_index out of range: {word_index}")
     if not has_meaningful_text(new_text):
@@ -107,35 +110,47 @@ def correct_phrase(
     end_word_index: int,
     new_text: str,
 ) -> None:
-    _correct_phrase(project, track_id, start_word_index, end_word_index, new_text)
+    correct_transcript_phrase(
+        _require_transcript(project, track_id), start_word_index, end_word_index, new_text
+    )
     rebuild_combined(project)
 
 
-def _correct_phrase(
-    project: EpisodeProject,
-    track_id: str,
+def correct_transcript_phrase(
+    tr: Transcript,
     start_word_index: int,
     end_word_index: int,
     new_text: str,
     *,
     keep_evidence: bool = False,
 ) -> None:
-    tr = project.transcript_for_track(track_id)
-    if not tr:
-        raise ValueError(f"no transcript for track {track_id!r}")
     if start_word_index < 0 or end_word_index >= len(tr.words):
         raise ValueError("word index range out of bounds")
     if end_word_index < start_word_index:
         raise ValueError("end_word_index must be >= start_word_index")
 
     old_words = tr.words[start_word_index : end_word_index + 1]
+    replacement = build_phrase_replacement(
+        old_words,
+        new_text,
+        keep_evidence=keep_evidence,
+    )
+    tr.words = tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :]
+
+
+def build_phrase_replacement(
+    old_words: Sequence[TranscriptWord],
+    new_text: str,
+    *,
+    keep_evidence: bool = False,
+    preserve_audibility_lock: bool = False,
+) -> list[TranscriptWord]:
     t0 = old_words[0].start
     t1 = old_words[-1].end
     span = max(1e-6, t1 - t0)
     tokens = new_text.split()
     if not tokens:
-        tr.words = tr.words[:start_word_index] + tr.words[end_word_index + 1 :]
-        return
+        return []
 
     score: float | None = None
     flag = False
@@ -144,6 +159,7 @@ def _correct_phrase(
         score = min(scores) if scores else None
         flag = any(w.suspect_hallucination for w in old_words)
 
+    locked = preserve_audibility_lock and any(word.audibility_locked for word in old_words)
     step = span / len(tokens)
     replacement: list[TranscriptWord] = []
     for i, tok in enumerate(tokens):
@@ -157,9 +173,10 @@ def _correct_phrase(
                 confidence=1.0,
                 alignment_score=score,
                 suspect_hallucination=flag,
+                audibility_locked=locked,
             )
         )
-    tr.words = tr.words[:start_word_index] + replacement + tr.words[end_word_index + 1 :]
+    return replacement
 
 
 def set_word_suppressed(
@@ -338,9 +355,8 @@ def apply_transcript_corrections(
         key=lambda x: int(x["word_index"]),
         reverse=True,
     ):
-        _correct_word(
-            project,
-            track_id,
+        correct_transcript_word(
+            _require_transcript(project, track_id),
             int(item["word_index"]),
             str(item["text"]),
             keep_evidence=keep_evidence,
@@ -351,9 +367,8 @@ def apply_transcript_corrections(
         key=lambda x: int(x["start_word_index"]),
         reverse=True,
     ):
-        _correct_phrase(
-            project,
-            track_id,
+        correct_transcript_phrase(
+            _require_transcript(project, track_id),
             int(item["start_word_index"]),
             int(item["end_word_index"]),
             str(item["text"]),

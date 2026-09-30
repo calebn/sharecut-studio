@@ -34,6 +34,7 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
+import { TranscriptFindReplace } from "../transcript/TranscriptFindReplace";
 import { TranscriptSpeakerEditor } from "../transcript/TranscriptSpeakerEditor";
 import {
   type TranscriptTurnSegment,
@@ -243,6 +244,7 @@ export function TranscriptPanel() {
   const lastTouchTapRef = useRef<(WordRef & { at: number }) | null>(null);
   const correctedTouchAtRef = useRef(-Infinity);
   const pendingCorrectionRef = useRef<WordRef | null>(null);
+  const findReplaceOpen = useDaw((s) => s.transcriptFindReplaceOpen);
   /** Word being edited in place (navigate intent, host, hydrated). */
   const [inlineEdit, setInlineEdit] = useState<WordRef | null>(null);
   /** Word chip to refocus after Enter / Esc closes the inline editor. */
@@ -971,6 +973,14 @@ export function TranscriptPanel() {
               )}
             </div>
           )}
+          {hostEditable && (
+            <CommandButton
+              commandId="transcript.findReplace"
+              aria-pressed={findReplaceOpen}
+            >
+              Find and replace
+            </CommandButton>
+          )}
           <ToggleButton
             pressed={transcriptFollowPlayhead}
             className="transcript-follow-btn"
@@ -1021,6 +1031,9 @@ export function TranscriptPanel() {
           />
         </div>
       ) : null}
+      {hostEditable && findReplaceOpen && (
+        <TranscriptFindReplace key={projectPath} />
+      )}
       <div
         className={`transcript-list${virtualized ? " is-virtualized" : ""}`}
         ref={listRef}

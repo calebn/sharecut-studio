@@ -2513,6 +2513,30 @@
         "cursor": "time",
         "follow": "none"
       }
+    },
+    {
+      "id": "daw.transcript.findReplace",
+      "label": "Find and replace transcript",
+      "tooltip": "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
+      "service": "EditService.replace_transcript_matches",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "transcript.findReplace",
+        "gui": [
+          "transcript.findReplace"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "toolbar and command palette; no shortcut yet",
+        "guest": true
+      },
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
     }
   ]
 }

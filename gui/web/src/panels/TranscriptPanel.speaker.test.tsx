@@ -74,4 +74,19 @@ describe("Transcript speaker control", () => {
     rerender(<TranscriptPanel />);
     expect(screen.queryByRole("combobox")).toBeNull();
   });
+  it("keeps find and replace host-only even for edit-capability shares", () => {
+    useDawStore.setState({
+      projectPath: "share:test",
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+      transcriptFindReplaceOpen: true,
+    });
+    render(<TranscriptPanel />);
+    expect(
+      screen.queryByRole("button", { name: "Find and replace" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("region", { name: "Find and replace transcript" }),
+    ).toBeNull();
+  });
 });

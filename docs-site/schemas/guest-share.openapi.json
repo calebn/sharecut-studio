@@ -2681,6 +2681,129 @@
         "title": "ReorderTrackPayload",
         "type": "object"
       },
+      "ReplaceTranscriptMatchesCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReplaceTranscriptMatchesPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "ReplaceTranscriptMatches",
+            "default": "ReplaceTranscriptMatches",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "ReplaceTranscriptMatchesCommand",
+        "type": "object"
+      },
+      "ReplaceTranscriptMatchesPayload": {
+        "properties": {
+          "match_case": {
+            "default": false,
+            "title": "Match Case",
+            "type": "boolean"
+          },
+          "preview_token": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Preview Token",
+            "type": "string"
+          },
+          "replacement": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Replacement",
+            "type": "string"
+          },
+          "search": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Search",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search",
+          "replacement",
+          "preview_token"
+        ],
+        "title": "ReplaceTranscriptMatchesPayload",
+        "type": "object"
+      },
       "ResolveCommentCommand": {
         "properties": {
           "causation_id": {
@@ -6843,6 +6966,7 @@
                     "RejectEdits": "#/components/schemas/RejectEditsCommand",
                     "RemoveTrack": "#/components/schemas/RemoveTrackCommand",
                     "ReorderTrack": "#/components/schemas/ReorderTrackCommand",
+                    "ReplaceTranscriptMatches": "#/components/schemas/ReplaceTranscriptMatchesCommand",
                     "ResolveComment": "#/components/schemas/ResolveCommentCommand",
                     "RestoreAppliedEdit": "#/components/schemas/RestoreAppliedEditCommand",
                     "RippleDeleteClip": "#/components/schemas/RippleDeleteClipCommand",
@@ -6932,6 +7056,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetEffectBypassCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReplaceTranscriptMatchesCommand"
                   },
                   {
                     "$ref": "#/components/schemas/CorrectTranscriptWordCommand"

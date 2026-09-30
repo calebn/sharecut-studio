@@ -476,6 +476,12 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes: "F2: focused timed word in Navigate mode; hydrated host only",
   },
+  "transcript.findReplace": {
+    id: "transcript.findReplace",
+    category: "edit",
+    label: "Find and replace transcript",
+    when: "hostProjectLoaded",
+  },
   "transcript.correctIntent": {
     id: "transcript.correctIntent",
     category: "edit",

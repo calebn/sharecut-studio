@@ -108,6 +108,7 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.edits.transcript_bleed_mute import apply_transcript_bleed_mute
 from podcast_mcp.edits.transcript_correct import (
     DEFAULT_LOW_CONFIDENCE_THRESHOLD,
+    TranscriptTextChangedError,
     apply_transcript_corrections,
     correct_phrase,
     correct_word,
@@ -136,6 +137,10 @@ from podcast_mcp.edits.transcript_reconcile import (
     run_reconciliation,
 )
 from podcast_mcp.edits.transcript_refine_status import assert_refine_clear
+from podcast_mcp.edits.transcript_replace import (
+    apply_transcript_replacement,
+    plan_transcript_replacement,
+)
 from podcast_mcp.effects.presets import (
     add_effect,
     apply_preset_to_chain,
@@ -1131,6 +1136,31 @@ class EditService:
             require_word_text(project, track_id, start_word_index, end_word_index, expected_text)
             return self.ws.mutate(
                 f"before {label}", f"after {label}", _user_transcript_edit(track_id, edit)
+            )
+
+    def preview_transcript_replacement(
+        self, search: str, replacement: str, *, match_case: bool = False
+    ) -> dict[str, Any]:
+        with self.ws.transaction() as project:
+            return plan_transcript_replacement(
+                project, search, replacement, match_case=match_case
+            ).preview()
+
+    def replace_transcript_matches(
+        self, search: str, replacement: str, preview_token: str, *, match_case: bool = False
+    ) -> int:
+        with self.ws.transaction() as project:
+            plan = plan_transcript_replacement(project, search, replacement, match_case=match_case)
+            if plan.token != preview_token:
+                raise TranscriptTextChangedError(
+                    "Transcript changed since the preview. Preview again before replacing."
+                )
+            if not plan.matches:
+                return 0
+            return self.ws.mutate(
+                "before replace transcript matches",
+                "after replace transcript matches",
+                lambda p: apply_transcript_replacement(p, plan),
             )
 
     def correct_word(

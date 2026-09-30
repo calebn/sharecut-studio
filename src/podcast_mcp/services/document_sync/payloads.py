@@ -171,6 +171,16 @@ _EXPECTED_TEXT_DESCRIPTION = (
 )
 
 
+class TranscriptReplacementOptions(BaseModel):
+    search: str = Field(min_length=1, max_length=500)
+    replacement: str = Field(min_length=1, max_length=500)
+    match_case: bool = False
+
+
+class ReplaceTranscriptMatchesPayload(TranscriptReplacementOptions):
+    preview_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class CorrectTranscriptWordPayload(BaseModel):
     track_id: str
     word_index: int
@@ -503,6 +513,11 @@ class SetEffectBypassCommand(DocumentCommandEnvelope):
     payload: SetEffectBypassPayload
 
 
+class ReplaceTranscriptMatchesCommand(DocumentCommandEnvelope):
+    type: Literal["ReplaceTranscriptMatches"] = "ReplaceTranscriptMatches"
+    payload: ReplaceTranscriptMatchesPayload
+
+
 class CorrectTranscriptWordCommand(DocumentCommandEnvelope):
     type: Literal["CorrectTranscriptWord"] = "CorrectTranscriptWord"
     payload: CorrectTranscriptWordPayload
@@ -664,6 +679,7 @@ DocumentCommandBody = Annotated[
     | SetClipJoinCommand
     | ApplyFadeRecommendationsCommand
     | SetEffectBypassCommand
+    | ReplaceTranscriptMatchesCommand
     | CorrectTranscriptWordCommand
     | CorrectTranscriptPhraseCommand
     | SetTranscriptWordSuppressedCommand
@@ -769,6 +785,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SetClipJoin": SetClipJoinPayload,
     "ApplyFadeRecommendations": ApplyFadeRecommendationsPayload,
     "SetEffectBypass": SetEffectBypassPayload,
+    "ReplaceTranscriptMatches": ReplaceTranscriptMatchesPayload,
     "CorrectTranscriptWord": CorrectTranscriptWordPayload,
     "CorrectTranscriptPhrase": CorrectTranscriptPhrasePayload,
     "SetTranscriptWordSuppressed": SetTranscriptWordSuppressedPayload,

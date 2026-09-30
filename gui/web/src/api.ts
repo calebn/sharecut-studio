@@ -125,6 +125,14 @@ export {
   revokeHostRoom,
   revokeHostShare,
 } from "./api/sharesRecord";
+export type {
+  TranscriptReplacementOptions,
+  TranscriptReplacementPreview,
+} from "./api/transcriptReplace";
+export {
+  previewTranscriptReplacement,
+  replaceTranscriptMatches,
+} from "./api/transcriptReplace";
 export type { WaveformSnapPayload } from "./api/waveform";
 export {
   loadWaveformPcm,

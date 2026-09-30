@@ -416,6 +416,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "How this clip meets the previous one: cut, fade or crossfade, with its length",
   },
+  "daw.transcript.findReplace": {
+    label: "Find and replace transcript",
+    tooltip:
+      "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
+  },
 };
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
@@ -478,6 +483,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "timeline.join.badge": "daw.edit.setClipJoin",
+  "transcript.findReplace": "daw.transcript.findReplace",
 };
 
 export function capabilityTooltip(
