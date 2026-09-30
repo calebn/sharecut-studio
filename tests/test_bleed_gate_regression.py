@@ -432,3 +432,36 @@ def test_untranscribed_placement_is_preserved_without_blocking_disjoint_bleed(
         assert not plan.attenuation_spans
     assert "untranscribed_source_protected" in plan.reasons
     assert any(lo <= timeline_start and hi >= unknown_end for lo, hi in plan.protected_spans)
+
+
+def test_empty_source_transcript_enrollment_invalidates_gated_stem(tmp_path: Path) -> None:
+    from podcast_mcp.engines.bleed_gate import bleed_gate_payload, build_bleed_gate_plan
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    project = _episode(tmp_path)
+    unknown_path = tmp_path / "raw" / "unknown.wav"
+    _write_pcm(unknown_path, _read_pcm(tmp_path / "raw" / "guest.wav") / 32767 * 0.1)
+    project.sources.append(SourceRecording(id="unknown", path="raw/unknown.wav"))
+    project.clips.append(
+        Clip(
+            id="unknown-overlap",
+            track_id="host",
+            source_id="unknown",
+            source_start=0,
+            source_end=4,
+            timeline_start=0,
+        )
+    )
+    protected = build_bleed_gate_plan(project, "host")
+    protected_payload = bleed_gate_payload(project, "host")
+    protected_hash = track_render_hash(project, "host")
+    assert not protected.attenuation_spans
+    project.transcripts.append(Transcript(track_id="host", source_id="unknown", words=[]))
+    enrolled = build_bleed_gate_plan(project, "host")
+    assert enrolled.attenuation_spans
+    assert bleed_gate_payload(project, "host") != protected_payload
+    assert track_render_hash(project, "host") != protected_hash
+    project.transcripts.pop()
+    assert build_bleed_gate_plan(project, "host") == protected
+    assert bleed_gate_payload(project, "host") == protected_payload
+    assert track_render_hash(project, "host") == protected_hash
