@@ -239,8 +239,6 @@ def test_render_applies_transcript_gate_when_flagged(sample_wav: Path, tmp_path:
 def test_render_track_segment_range(sample_wav: Path, tmp_path: Path) -> None:
     eng = FFmpegEngine()
     if not eng.check_available()[0]:
-        import pytest
-
         pytest.skip("ffmpeg not available")
 
     ws = tmp_path / "ws3"
@@ -282,7 +280,7 @@ def test_render_track_segment_range(sample_wav: Path, tmp_path: Path) -> None:
     render_track_segment(project, "host", 0.0, 1.5, out, {})
     assert out.is_file()
     dur = eng.probe(out).duration_sec
-    assert 0.4 < dur < 1.2
+    assert dur == pytest.approx(1.0, abs=1 / 48_000)
 
 
 def test_render_track_segment_preserves_timeline_gap(sample_wav: Path, tmp_path: Path) -> None:
