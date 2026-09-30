@@ -136,6 +136,7 @@ without depending on installed models on the runner. Touch-target assertions
 retain an exact 44px layout-height floor and allow only 0.001px of floating-point
 error in translated bounding rectangles.
 
-Local shipping confirmation passes six guest-review cases and five focused model,
-Share, and Bounce cases. The enlarged-field 320px regression fails against the
+Before the runtime audit, local shipping confirmation passed six guest-review
+cases and five focused model, Share, and Bounce cases. The current review matrix
+has four cases after redundant 360px coverage was removed. The enlarged-field 320px regression fails against the
 old build before the layout fix. Eight beta-story coverage-policy tests pass.
