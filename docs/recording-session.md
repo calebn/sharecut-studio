@@ -1381,3 +1381,7 @@ Shipped in `feat/recording-producer-live-comments`:
 ## Host recording over the shared socket
 
 The host recording plane shares `/api/host/ws` with session presence and document updates. Guest and producer `/api/rec/{token}/ws` connections remain separate. The host subscribes before joining and sends its recording Echo/Snapshot before queued record events. Signals retain participant filtering and lease-key removal. Each socket has a distinct recording connection ID; closing one host tab leaves other host tabs connected. Incoming messages check for a newly active or replaced room, with a one-second retry delay after a failed join. Join, record commands, and disconnect run sequentially off the event loop, and every host frame uses the same bounded writer.
+
+## Guest socket service work
+
+Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot before starting queued fanout. Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.

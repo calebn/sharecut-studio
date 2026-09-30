@@ -12,11 +12,13 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from anyio import CancelScope
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from filelock import Timeout
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
@@ -831,7 +833,7 @@ async def _admit_review_ws(websocket: WebSocket, token: str) -> bool | None:
         if not guest_restricted_origin_allowed(websocket.headers.get("origin")):
             await guest_ws_reject(websocket, 4403, "Origin not allowed")
             return None
-        if not _restricted_principal_ok(websocket, token):
+        if not await run_in_threadpool(_restricted_principal_ok, websocket, token):
             await guest_ws_reject(websocket, 4401, "authentication required")
             return None
     return restricted
@@ -902,18 +904,19 @@ async def progress_ws(websocket: WebSocket, token: str) -> None:
                 if len(text) > GUEST_FRAME_MAX_BYTES:
                     await guard.close(4400, "frame too large")
                     break
-                if not guard.share_ok_on_frame():
+                if not await guard.share_ok_on_frame():
                     await guard.close(4403, "share revoked or expired")
                     break
     finally:
-        try:
-            if q_progress is not None:
-                progress_hub.unsubscribe(token, q_progress)
-            if q_comments is not None:
-                hub.unsubscribe(key, q_comments)
-            await conn.stop_tasks()
-        finally:
-            conn.release()
+        with CancelScope(shield=True):
+            try:
+                if q_progress is not None:
+                    progress_hub.unsubscribe(token, q_progress)
+                if q_comments is not None:
+                    hub.unsubscribe(key, q_comments)
+                await conn.stop_tasks()
+            finally:
+                conn.release()
 
 
 @router.websocket("/api/review/{token}/daw/ws")
@@ -931,7 +934,7 @@ async def daw_ws(
     if not restricted and origin:
         log.debug("guest ws origin token=%s origin=%s", token[:8], origin)
     try:
-        _row, ws_proj = require_share_cap(token, CAP_VIEW)
+        _row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
     except PermissionError as exc:
         await guest_ws_reject(websocket, 4403, str(exc))
         return
@@ -965,12 +968,13 @@ async def daw_ws(
         # After subscribe, before the hello snapshots (#695): a foreign write in between
         # is in the snapshots or published by the watcher.
         async with cross_process_lease(ws_proj):
-            session_svc = SessionSyncService(ws_proj.project)
-            doc_svc = DocumentSyncService(ws_proj)
+            session_svc = await run_in_threadpool(SessionSyncService, ws_proj.project)
+            doc_svc = await run_in_threadpool(DocumentSyncService, ws_proj)
             guest_client_id = _guest_client_id(token, client_id)
-            conn_gen = session_svc.claim_client(guest_client_id)
+            conn_gen = await run_in_threadpool(session_svc.claim_client, guest_client_id)
             label = _guest_label(name, token)
-            session_svc.submit(
+            await run_in_threadpool(
+                session_svc.submit,
                 SyncCommand(
                     type="PresenceHeartbeat",
                     payload={
@@ -981,7 +985,7 @@ async def daw_ws(
                     client_id=guest_client_id,
                     role="viewer",
                     client_seq=1,
-                )
+                ),
             )
             seq = 2
             await guard.send_json(
@@ -989,7 +993,9 @@ async def daw_ws(
                     "type": "Snapshot",
                     "plane": "session",
                     "client_id": guest_client_id,
-                    "snapshot": sanitize_guest_session_snapshot(session_svc.snapshot()),
+                    "snapshot": sanitize_guest_session_snapshot(
+                        await run_in_threadpool(session_svc.snapshot)
+                    ),
                 }
             )
             await guard.send_json(
@@ -997,7 +1003,9 @@ async def daw_ws(
                     {
                         "type": "Snapshot",
                         "plane": "document",
-                        "snapshot": doc_svc.document_snapshot(projection="shell"),
+                        "snapshot": await run_in_threadpool(
+                            doc_svc.document_snapshot, projection="shell"
+                        ),
                     }
                 )
             )
@@ -1042,10 +1050,11 @@ async def daw_ws(
                     text = await websocket.receive_text()
                 except WebSocketDisconnect:
                     break
-                if not guard.share_ok_on_frame():
+                if not await guard.share_ok_on_frame():
                     await guard.close(4403, "share revoked or expired")
                     break
-                result = _handle_guest_presence_frame(
+                result = await run_in_threadpool(
+                    _handle_guest_presence_frame,
                     text,
                     session_svc=session_svc,
                     guest_client_id=guest_client_id,
@@ -1068,17 +1077,24 @@ async def daw_ws(
                     await guard.close(4400, result.close_reason)
                     break
     finally:
-        try:
-            if q_session is not None:
-                hub.unsubscribe(session_key, q_session)
-            if q_doc is not None:
-                hub.unsubscribe(doc_key, q_doc)
-            if q_progress is not None:
-                progress_hub.unsubscribe(token, q_progress)
-            await conn.stop_tasks()
-        finally:
+        with CancelScope(shield=True):
             try:
-                if session_svc is not None and guest_client_id is not None:
-                    session_svc.remove_client(guest_client_id, generation=conn_gen)
+                if q_session is not None:
+                    hub.unsubscribe(session_key, q_session)
+                if q_doc is not None:
+                    hub.unsubscribe(doc_key, q_doc)
+                if q_progress is not None:
+                    progress_hub.unsubscribe(token, q_progress)
+                await conn.stop_tasks()
             finally:
-                conn.release()
+                try:
+                    if (
+                        session_svc is not None
+                        and guest_client_id is not None
+                        and conn_gen is not None
+                    ):
+                        await run_in_threadpool(
+                            session_svc.remove_client, guest_client_id, generation=conn_gen
+                        )
+                finally:
+                    conn.release()

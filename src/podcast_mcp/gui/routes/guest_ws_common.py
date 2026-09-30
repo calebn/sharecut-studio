@@ -9,6 +9,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import WebSocket
+from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.services.remote_mcp.limits import get_host_limiters, host_rate_limit_enabled
 from podcast_mcp.services.share import lookup_share
@@ -52,6 +53,8 @@ class GuestWsGuard:
         self.malformed_limit = malformed_limit
         self.malformed = 0
         self.last_recheck = time.monotonic()
+        self._validation_lock = asyncio.Lock()
+        self._valid = True
         self._writer = SerializedWsWriter(self._send_json, websocket.close)
 
     @property
@@ -73,17 +76,19 @@ class GuestWsGuard:
     async def recheck_loop(self) -> None:
         while True:
             await asyncio.sleep(self.interval)
-            if not self._still_valid():
+            if not await self._validate(force=True):
                 await self.close(4403, self._revoked_reason)
                 return
 
-    def share_ok_on_frame(self) -> bool:
-        now = time.monotonic()
-        if now - self.last_recheck >= self.on_frame:
-            self.last_recheck = now
-            if not self._still_valid():
-                return False
-        return True
+    async def _validate(self, *, force: bool = False) -> bool:
+        async with self._validation_lock:
+            if self._valid and (force or time.monotonic() - self.last_recheck >= self.on_frame):
+                self._valid = await run_in_threadpool(self._still_valid)
+                self.last_recheck = time.monotonic()
+            return self._valid
+
+    async def share_ok_on_frame(self) -> bool:
+        return await self._validate()
 
     def note_malformed(self) -> bool:
         """Increment; return True when the connection should close."""
@@ -100,7 +105,7 @@ async def guest_ws_share_row(
     ``lookup_share``, so every guest socket rejects them identically here.
     """
     try:
-        return lookup_share(token, kind=kind)
+        return await run_in_threadpool(lookup_share, token, kind=kind)
     except KeyError:
         await guest_ws_reject(websocket, 4403, GUEST_WS_INVALID_TOKEN_REASON)
         return None
