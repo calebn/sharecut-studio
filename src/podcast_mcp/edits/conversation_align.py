@@ -211,7 +211,7 @@ def transcript_for_clip(
     track_id: str,
     source_id: str | None,
 ) -> list[WordToken]:
-    """Prefer transcript matching source_id; else track-level transcript."""
+    """Tokens from this recording; primary-media aliases may use track-level words."""
     chosen = project.transcript_for_source(track_id, source_id)
     if chosen is None:
         return []

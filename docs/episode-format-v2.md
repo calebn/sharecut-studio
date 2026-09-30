@@ -93,8 +93,11 @@ Applied move records add
 `params.quiet_trim`: reason `verified_quiet_destination_overlap` and selected
 source ranges for the geometry-only quiet overlap trim; transcript metadata is
 preserved and any reduction of retained-word source coverage blocks planning.
-The comparison uses the transcript selected by each clip's `source_id`; another
-recording's coincident source timestamps do not protect or authorize this phrase.
+The comparison uses the transcript selected by each clip's `source_id`. An exact
+source transcript takes priority. Track-level words apply only to primary media
+and equivalent explicit source aliases, including relative/absolute references
+to that file. Another recording's coincident timestamps cannot supply phrase or
+gate authorization. A quiet trim touching an untranscribed source abstains.
 Conflicting correction footprints abstain before clip edits are published.
 Manual per-clip `meta.ingest_alignment` entries are copied to new surviving
 same-source subclips when project-aware clip replacement splits or trims them.

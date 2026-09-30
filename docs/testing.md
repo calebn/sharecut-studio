@@ -1280,3 +1280,10 @@ seeds expanding to one acoustic phrase, and declined choices after actual
 move-away/back source pinning and workspace reopening. Identity controls cover
 legacy decisions, relative/absolute aliases, another selected recording, and the
 absence of plaintext paths from persisted recording digests.
+Selected-source regressions also cover missing secondary transcripts in phrase
+planning, quiet-trim authorization, ignored-word muting, and conversation tokens.
+Actual gate plans must abstain for an untranscribed secondary recording while
+relative/absolute primary aliases and exact secondary transcripts remain usable.
+Secondary transcript suppression and dominant-source changes invalidate the gate
+payload and rendered-stem hash; all consumed source identities and word evidence
+are fingerprinted.

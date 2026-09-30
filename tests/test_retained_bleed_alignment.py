@@ -1183,7 +1183,9 @@ def test_primary_recording_explicit_alias_keeps_legacy_phrase_authorization(
     assert plan.proposals[0].offset_sec == pytest.approx(-0.15, abs=0.002)
 
 
-@pytest.mark.parametrize("selection", ["secondary", "primary_alias", "absolute_primary_alias"])
+@pytest.mark.parametrize(
+    "selection", ["secondary", "transcribed_secondary", "primary_alias", "absolute_primary_alias"]
+)
 def test_gate_cannot_project_primary_foreign_verdict_onto_untranscribed_recording(
     tmp_path: Path, selection: str
 ) -> None:
@@ -1193,10 +1195,7 @@ def test_gate_cannot_project_primary_foreign_verdict_onto_untranscribed_recordin
     p = _episode(tmp_path)
     reference = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
     _write(tmp_path / "raw" / "uncertain.wav", reference)
-    if selection == "secondary":
-        selected_path = "raw/secondary.wav"
-    else:
-        selected_path = "raw/direct.wav"
+    selected_path = "raw/secondary.wav" if selection.endswith("secondary") else "raw/direct.wav"
     _write(tmp_path / selected_path, reference * 0.12)
     path = str(tmp_path / selected_path) if selection == "absolute_primary_alias" else selected_path
     p.sources.append(SourceRecording(id="selected", path=path, duration_sec=6))
@@ -1212,6 +1211,15 @@ def test_gate_cannot_project_primary_foreign_verdict_onto_untranscribed_recordin
         )
     ]
     p.transcripts[1].words = [TranscriptWord(text="foreign", start=1.3, end=3.1)]
+    if selection == "transcribed_secondary":
+        p.transcripts.append(
+            Transcript(
+                track_id="direct",
+                source_id="selected",
+                words=[word.model_copy() for word in p.transcripts[0].words],
+            )
+        )
+        p.transcripts[0].words = [TranscriptWord(text="primary owner", start=1.3, end=3.1)]
     before = p.model_dump(by_alias=True)
     plan = build_bleed_gate_plan(p, "direct")
     if selection == "secondary":
@@ -1254,3 +1262,34 @@ def test_selected_secondary_transcript_changes_invalidate_gate_payload_and_rende
         selected.words[0].dominant_track = "different-reference"
     assert bleed_gate_payload(p, "direct") != before_payload
     assert track_render_hash(p, "direct") != before_hash
+
+
+def test_unknown_secondary_trim_remains_unsafe_when_primary_is_also_transcribed(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    p.clips.append(
+        Clip(
+            id="primary-elsewhere",
+            track_id="direct",
+            source_start=0,
+            source_end=6,
+            timeline_start=10,
+        )
+    )
+    assert _api()._retained_words_survive_trim(p, "direct", 1.05, 1.18) is False
+
+
+def test_primary_ignored_words_and_conversation_tokens_do_not_project_to_secondary(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.edits.conversation_align import transcript_for_clip
+    from podcast_mcp.edits.mute_regions import IgnoredWordRegions
+
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    p.transcripts[0].words[0].ignored = True
+    secondary = next(clip for clip in p.clips if clip.track_id == "direct")
+    assert transcript_for_clip(p, "direct", "secondary") == []
+    assert IgnoredWordRegions(p).for_clip(secondary) == []

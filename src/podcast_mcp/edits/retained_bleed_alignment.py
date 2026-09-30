@@ -34,7 +34,6 @@ from podcast_mcp.models import (
     Clip,
     EpisodeProject,
     RetainedBleedAlignmentDecision,
-    Transcript,
     TranscriptGateScope,
 )
 from podcast_mcp.models.project_format import snapshot_editable_state
@@ -43,7 +42,7 @@ from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec
 
-EVIDENCE_REVISION = 2
+EVIDENCE_REVISION = 3
 _RATE = 8000
 _FULL_RATE = 48_000
 _QUIET_PEAK = 3 / 32768
@@ -115,7 +114,7 @@ def _recording_key(project: EpisodeProject, track_id: str, source_id: str | None
 def _own_phrases(project: EpisodeProject, track_id: str) -> list[tuple[float, float]]:
     timeline = SessionTimeline(project)
     phrases = []
-    for source_id, transcript in _selected_transcripts(project, track_id):
+    for source_id, transcript in project.selected_source_transcripts(track_id):
         words = [word for word in transcript.words if not word.suppressed and not word.ignored]
         mapped = timeline.map_selected_source_spans(
             track_id, source_id, [(SourceSec(word.start), SourceSec(word.end)) for word in words]
@@ -127,19 +126,6 @@ def _own_phrases(project: EpisodeProject, track_id: str) -> list[tuple[float, fl
             )
         )
     return sorted(phrases)
-
-
-def _selected_transcripts(
-    project: EpisodeProject, track_id: str
-) -> list[tuple[str | None, Transcript]]:
-    source_ids = dict.fromkeys(
-        clip.source_id for clip in project.clips if clip.track_id == track_id
-    )
-    return [
-        (source_id, transcript)
-        for source_id in source_ids
-        if (transcript := project.transcript_for_source(track_id, source_id)) is not None
-    ]
 
 
 def _complete_phrase(
@@ -182,8 +168,12 @@ def _quiet_fringe(start: float, end: float, offset: float) -> tuple[float, float
 def _retained_words_survive_trim(
     project: EpisodeProject, track_id: str, start: float, end: float
 ) -> bool:
-    transcripts = _selected_transcripts(project, track_id)
-    if not transcripts:
+    transcripts = project.selected_source_transcripts(track_id)
+    if not transcripts or any(
+        project.transcript_for_source(track_id, clip.source_id) is None
+        for clip in clips_for_track(project, track_id)
+        if clip_timeline_overlap_to_source(clip, start, end) is not None
+    ):
         return False
     future = project.model_copy()
     future.timeline = project.timeline.model_copy(
@@ -318,7 +308,7 @@ def _retained_peers(
     for peer_track in project.tracks:
         if peer_track.muted:
             continue
-        for source_id, transcript in _selected_transcripts(project, peer_track.id):
+        for source_id, transcript in project.selected_source_transcripts(peer_track.id):
             for word in transcript.words:
                 if (
                     not word.suppressed
@@ -406,7 +396,7 @@ def plan_retained_bleed_alignment(
         if bleed_track.muted:
             skip(bleed_track.id, "saved_mix_mute")
             continue
-        transcripts = _selected_transcripts(project, bleed_track.id)
+        transcripts = project.selected_source_transcripts(bleed_track.id)
         if not transcripts:
             continue
         hard = build_bleed_gate_plan(project, bleed_track.id).attenuation_spans
