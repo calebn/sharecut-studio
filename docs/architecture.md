@@ -22,7 +22,10 @@ Planning, trim guards, and bleed gates share `selected_source_transcripts`.
 `transcript_for_source` prefers an exact recording transcript; track-level words
 apply only to primary media or a physically equivalent explicit source alias.
 An unrelated source without a transcript supplies no phrase or gate authorization,
-and a destination trim touching it abstains. Selected transcript words map only
+and a destination trim touching it abstains. Its complete selected placement is
+protected from lane-wide attenuation, including overlaps with authorized clips;
+the gate reports `untranscribed_source_protected`. Disjoint authorized bleed
+remains eligible for attenuation. Selected transcript words map only
 through that recording's placements using
 `SessionTimeline.map_selected_source_span(s)`. Implicit primary lanes keep the
 identity source-to-timeline clock, independent of copies parked on other lanes.
