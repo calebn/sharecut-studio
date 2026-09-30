@@ -26,7 +26,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 7: multi-source placement follows the accumulated render clock and preserves
 #    full-lane join context in segment renders.
 # 8: every segment window uses the same placement assembly, including one-source windows.
-RENDER_SEMANTICS_REV = 8
+# 9: reset the sample clock after overlap mixing before concatenating later segments.
+RENDER_SEMANTICS_REV = 9
 
 
 def resolve_clip_audio_path(
