@@ -725,6 +725,44 @@ def test_quiet_trim_preserves_retained_words_from_selected_secondary_transcript(
     assert p.model_dump(by_alias=True) == before
 
 
+def test_unselected_primary_transcript_cannot_block_secondary_phrase_correction(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    p.transcripts.append(
+        Transcript(
+            track_id="direct",
+            source_id="secondary",
+            words=[word.model_copy() for word in p.transcripts[0].words],
+        )
+    )
+    p.transcripts[0].words.insert(0, TranscriptWord(text="other recording", start=1.07, end=1.1))
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].source_id == "secondary"
+
+
+def test_independent_two_phrase_batch_applies_without_losing_either_source_span(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.engines.session_timeline import SessionTimeline, same_source_timeline_overlaps
+    from podcast_mcp.util.timebase import SourceSec
+
+    p = _two_phrase_episode(tmp_path)
+    mixed_before = [clip.model_dump() for clip in p.clips if clip.track_id == "uncertain"]
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p)
+    assert len(plan.proposals) == 2
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 2
+    timeline = SessionTimeline(p)
+    for start, end in ((1.2, 3.2), (4.2, 6.2)):
+        spans = timeline.map_selected_source_span("direct", None, SourceSec(start), SourceSec(end))
+        assert sum(float(hi - lo) for lo, hi in spans) == pytest.approx(end - start)
+    assert same_source_timeline_overlaps(p) == []
+    assert [clip.model_dump() for clip in p.clips if clip.track_id == "uncertain"] == mixed_before
+
+
 @pytest.mark.parametrize("signal", ["copy", "periodic", "unrelated"])
 def test_scoped_delay_decodes_bounded_context_on_two_hour_source_with_null_controls(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, signal: str
@@ -809,8 +847,9 @@ def test_ordinary_clip_replacement_preserves_per_clip_manual_recorder_lock(
     assert {"track_id": "direct", "reason": "manual_recorder_placement"} in plan.skipped
 
 
+@pytest.mark.parametrize("phrases_per_source", [32, 40])
 def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budget(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phrases_per_source: int
 ) -> None:
     from podcast_mcp.engines.bleed_gate import BleedGatePlan
     from podcast_mcp.engines.session_timeline import SessionTimeline
@@ -832,7 +871,8 @@ def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budg
     p.clips[1].source_end = 160
     p.sources.append(SourceRecording(id="secondary", path="raw/direct.wav", duration_sec=80))
     p.transcripts[0].words = [
-        TranscriptWord(text=f"first{i}", start=2 * i + 0.1, end=2 * i + 1.1) for i in range(40)
+        TranscriptWord(text=f"first{i}", start=2 * i + 0.1, end=2 * i + 1.1)
+        for i in range(phrases_per_source)
     ]
     p.transcripts.append(
         Transcript(
@@ -840,7 +880,7 @@ def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budg
             source_id="secondary",
             words=[
                 TranscriptWord(text=f"second{i}", start=2 * i + 0.1, end=2 * i + 1.1)
-                for i in range(40)
+                for i in range(phrases_per_source)
             ],
         )
     )
@@ -861,6 +901,7 @@ def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budg
     candidate_mappings = 0
     original_phrases = api._own_phrases
     original_mapping = SessionTimeline.map_source_span
+    original_selected_mapping = SessionTimeline.map_selected_source_span
 
     def counted_phrases(*args, **kwargs):
         nonlocal scans
@@ -873,9 +914,16 @@ def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budg
             candidate_mappings += 1
         return original_mapping(self, track_id, *args, **kwargs)
 
+    def counted_selected_mapping(self, track_id, *args, **kwargs):
+        nonlocal candidate_mappings
+        if track_id == "uncertain":
+            candidate_mappings += 1
+        return original_selected_mapping(self, track_id, *args, **kwargs)
+
     monkeypatch.setattr(api, "_own_phrases", counted_phrases)
     monkeypatch.setattr(api, "build_bleed_gate_plan", lambda *args, **kwargs: BleedGatePlan())
     monkeypatch.setattr(SessionTimeline, "map_source_span", counted_mapping)
+    monkeypatch.setattr(SessionTimeline, "map_selected_source_span", counted_selected_mapping)
     plan = api.plan_retained_bleed_alignment(p)
     assert plan.proposals == ()
     assert {"track_id": "direct", "reason": "alignment_evidence_budget_exhausted"} in plan.skipped
@@ -883,3 +931,185 @@ def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budg
     assert candidate_mappings <= 2, (
         "candidate traversal must stop when the 64-phrase budget is spent"
     )
+
+
+def _reciprocal_episode(tmp_path: Path) -> EpisodeProject:
+    p = _episode(tmp_path)
+    rng = np.random.default_rng(2801)
+    first, second = rng.normal(0, 0.08, (2, 2 * RATE))
+    direct = np.zeros(6 * RATE)
+    mixed = np.zeros_like(direct)
+    direct[int(1.2 * RATE) : int(3.2 * RATE)] = first + second * 0.5
+    mixed[int(1.05 * RATE) : int(3.05 * RATE)] = second + first * 0.5
+    _write(tmp_path / "raw" / "direct.wav", direct)
+    _write(tmp_path / "raw" / "uncertain.wav", mixed)
+    for transcript, start, peer in (
+        (p.transcripts[0], 1.3, "uncertain"),
+        (p.transcripts[1], 1.15, "direct"),
+    ):
+        transcript.words = [
+            TranscriptWord(text="own phrase", start=start, end=start + 1.8),
+            TranscriptWord(
+                text="retained peer phrase",
+                start=start,
+                end=start + 1.8,
+                suppressed=True,
+                audibility_status="bleed",
+                dominant_track=peer,
+            ),
+        ]
+    return p
+
+
+def test_reciprocal_mixed_phrase_corrections_abstain_without_reversing_copy_lag(
+    tmp_path: Path,
+) -> None:
+    p = _reciprocal_episode(tmp_path)
+    api = _api()
+    # Each individually measured correction is plausible only with its peer stationary.
+    for bleed_lane in ("direct", "uncertain"):
+        one = api.plan_retained_bleed_alignment(p, track_id=bleed_lane, start_sec=0.7, end_sec=3.7)
+        assert len(one.proposals) == 1
+        assert abs(one.proposals[0].offset_sec) == pytest.approx(0.15, abs=0.002)
+    before = p.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.7, end_sec=3.7)
+    assert plan.proposals == ()
+    assert {row["reason"] for row in plan.skipped} >= {"conflicting_phrase_dependencies"}
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 0
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_batch_preserves_secondary_retained_peer_used_as_stationary_reference(
+    tmp_path: Path,
+) -> None:
+    p = _reciprocal_episode(tmp_path)
+    p.transcripts[0].words = p.transcripts[0].words[:1]
+    secondary = _read(tmp_path / "raw" / "uncertain.wav").astype(float) / 32767
+    target = np.zeros_like(secondary)
+    lag = int(0.15 * RATE)
+    target[lag:] = secondary[:-lag] * 0.5
+    target[int(1.2 * RATE) : int(3.2 * RATE)] += np.random.default_rng(2802).normal(
+        0, 0.008, 2 * RATE
+    )
+    for tid, samples in (("secondary", secondary), ("target", target)):
+        _write(tmp_path / "raw" / f"{tid}.wav", samples)
+        p.tracks.append(
+            Track(
+                id=tid,
+                label=tid,
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path=f"raw/{tid}.wav", duration_sec=6),
+            )
+        )
+        p.clips.append(
+            Clip(id=f"clip-{tid}", track_id=tid, source_start=0, source_end=6, timeline_start=0)
+        )
+    p.transcripts.append(p.transcripts[1].model_copy(deep=True, update={"track_id": "secondary"}))
+    p.transcripts.append(
+        Transcript(
+            track_id="target",
+            words=[
+                TranscriptWord(text="target owner", start=1.3, end=3.1),
+                TranscriptWord(
+                    text="retained secondary phrase",
+                    start=1.3,
+                    end=3.1,
+                    suppressed=True,
+                    audibility_status="bleed",
+                    dominant_track="secondary",
+                ),
+            ],
+        )
+    )
+    api = _api()
+    for bleed_lane in ("uncertain", "target"):
+        assert len(api.plan_retained_bleed_alignment(p, track_id=bleed_lane).proposals) == 1
+    before = p.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(p)
+    assert plan.proposals == ()
+    assert {row["reason"] for row in plan.skipped} >= {"conflicting_phrase_dependencies"}
+    api.apply_retained_bleed_alignment(p, plan)
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_unsupported_active_interior_probe_blocks_whole_phrase_correction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    p = _episode(tmp_path)
+    path = tmp_path / "raw" / "uncertain.wav"
+    mixed = _read(path).astype(float) / 32767
+    mixed[int(1.7 * RATE) : int(2.2 * RATE)] = np.random.default_rng(2803).normal(
+        0, 0.08, int(0.5 * RATE)
+    )
+    _write(path, mixed)
+    api = _api()
+    measured = []
+    original = api.measure_long_delay_regions
+
+    def record_evidence(*args, **kwargs):
+        rows = original(*args, **kwargs)
+        measured.extend(rows)
+        return rows
+
+    monkeypatch.setattr(api, "measure_long_delay_regions", record_evidence)
+    before = p.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert sum(row.supported for row in measured) >= 3
+    assert any(not row.supported and row.start < 3.05 and row.end > 1.05 for row in measured)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "unsupported_phrase_interior"} in plan.skipped
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_distinct_transcript_seeds_expand_to_one_complete_acoustic_correction(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    direct = np.zeros(6 * RATE)
+    first, last = int(1.48 * RATE), int(2.26 * RATE)
+    direct[first:last] = np.random.default_rng(2804).normal(0, 0.08, last - first)
+    # Independent later source activity supplies genuine shifted-null context.
+    direct[4 * RATE : 5 * RATE] = np.random.default_rng(2805).normal(0, 0.08, RATE)
+    mixed = np.zeros_like(direct)
+    lag = int(0.15 * RATE)
+    mixed[:-lag] = direct[lag:] * 0.2
+    mixed[first - lag : last - lag] += 0.003 * np.sin(
+        2 * np.pi * 183 * np.arange(last - first) / RATE
+    )
+    _write(tmp_path / "raw" / "direct.wav", direct)
+    _write(tmp_path / "raw" / "uncertain.wav", mixed)
+    p.transcripts[0].words = [
+        TranscriptWord(text="first seed", start=1.5, end=1.7),
+        TranscriptWord(text="second seed", start=2.05, end=2.25),
+    ]
+    p.transcripts[1].words[0].start, p.transcripts[1].words[0].end = 1.35, 2.1
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.0)
+    assert len(plan.proposals) == 1
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 1
+    reopened = EpisodeProject.model_validate(p.model_dump(by_alias=True))
+    assert api.plan_retained_bleed_alignment(reopened, start_sec=0.8, end_sec=3.0).proposals == ()
+
+
+def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reopen(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.edits.timeline_ops import move_clips
+    from podcast_mcp.services import ProjectWorkspace
+
+    p = _episode(tmp_path)
+    api = _api()
+    proposal = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5).proposals[0]
+    api.set_retained_bleed_alignment_mode(p, proposal.decision_id, "declined", proposal=proposal)
+    original = next(clip for clip in p.clips if clip.track_id == "direct")
+    move_clips(p, [{"clip_id": original.id, "track_id": "uncertain", "timeline_start": 0}])
+    move_clips(p, [{"clip_id": original.id, "track_id": "direct", "timeline_start": 0}])
+    assert original.source_id is not None
+    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws.save()
+    reopened = ProjectWorkspace.open(ws.path).project
+    before = reopened.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(reopened, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "saved_declined_decision"} in plan.skipped
+    assert reopened.model_dump(by_alias=True) == before
