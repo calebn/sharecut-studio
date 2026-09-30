@@ -599,6 +599,7 @@ test; other rows are whole tests.
 | keeps the listening shell usable on a touch phone | `gui/web/e2e-compat/browser-matrix.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | takes a recording guest from microphone consent to a live level | `gui/web/e2e-compat/browser-matrix.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
 
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
 #747; no test re-checks these figures): the core-flow landed track peaked at

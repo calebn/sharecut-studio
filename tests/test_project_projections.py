@@ -388,9 +388,14 @@ def test_projection_for_command() -> None:
     assert projection_for_command("SetTranscriptWordAutomatic") is ViewProjection.DETAIL
     assert projection_for_command("SetTranscriptWordsIgnored") is ViewProjection.TRANSCRIPT_AUDIO
     from podcast_mcp.services.document_sync.handlers.transcript import HANDLERS
-    from podcast_mcp.services.document_sync.projections import TRANSCRIPT_WORD_COMMANDS
+    from podcast_mcp.services.document_sync.projections import (
+        TRANSCRIPT_AUDIO_COMMANDS,
+        TRANSCRIPT_WORD_COMMANDS,
+    )
 
-    assert frozenset(HANDLERS) == TRANSCRIPT_WORD_COMMANDS
+    assert projection_for_command("SetTranscriptWordTiming") is ViewProjection.TRANSCRIPT_AUDIO
+    assert TRANSCRIPT_AUDIO_COMMANDS.isdisjoint(TRANSCRIPT_WORD_COMMANDS)
+    assert frozenset(HANDLERS) == TRANSCRIPT_WORD_COMMANDS | TRANSCRIPT_AUDIO_COMMANDS
 
 
 def test_http_project_default_is_shell(minimal_project) -> None:
