@@ -357,7 +357,7 @@ describe("useFollowTransport", () => {
     expect(useDawStore.getState().playheadSec).toBe(7);
     expect(useDawStore.getState().playbackRate).toBe(1.2);
   });
-  it("corrects against live audio instead of a stale animation-frame position", () => {
+  it("corrects against live audio instead of a stale animation-frame position", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     let audioPosition = 4;
@@ -384,9 +384,9 @@ describe("useFollowTransport", () => {
     const { unmount } = renderHook(() => useFollowTransport());
     try {
       audioPosition = 4.25;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       audioPosition = 4.4;
-      act(() => {
+      await act(() => {
         useDawStore.getState().setPlayheadSec(0, "playback");
         vi.advanceTimersByTime(250);
       });
@@ -397,7 +397,7 @@ describe("useFollowTransport", () => {
       release();
     }
   });
-  it("aligns delayed playback with rate until phase crossing, then keeps the correction policy", () => {
+  it("aligns delayed playback with rate until phase crossing, then keeps the correction policy", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     let audioPosition: number | null = null;
@@ -423,28 +423,28 @@ describe("useFollowTransport", () => {
     const { unmount } = renderHook(() => useFollowTransport());
     try {
       const waitingRevision = useDawStore.getState().playheadSeekRevision;
-      act(() => vi.advanceTimersByTime(500));
+      await act(() => vi.advanceTimersByTime(500));
       expect(useDawStore.getState().playheadSeekRevision).toBe(waitingRevision);
       expect(useDawStore.getState().playbackRate).toBe(1.5);
       audioPosition = 5.075;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playheadSeekRevision).toBe(waitingRevision);
       expect(useDawStore.getState().playbackRate).toBe(1.545);
       const alignedRevision = useDawStore.getState().playheadSeekRevision;
       audioPosition = 5.51;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playheadSeekRevision).toBe(alignedRevision);
       expect(useDawStore.getState().playbackRate).toBe(1.5);
-      act(() => useDawStore.getState().stopFollow());
+      await act(() => useDawStore.getState().stopFollow());
       audioPosition = 0;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playheadSeekRevision).toBe(alignedRevision);
     } finally {
       unmount();
       release();
     }
   });
-  it("expires startup alignment on its derived deadline and clears waiting on pause/resume", () => {
+  it("expires startup alignment on its derived deadline and clears waiting on pause/resume", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     let ready = true;
@@ -463,30 +463,32 @@ describe("useFollowTransport", () => {
     });
     const { unmount } = renderHook(() => useFollowTransport());
     try {
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
       const revision = useDawStore.getState().playheadSeekRevision;
-      act(() => vi.advanceTimersByTime(2250));
+      await act(() => vi.advanceTimersByTime(2250));
       expect(useDawStore.getState().playbackRate).toBe(1);
       expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
       ready = false;
-      act(() => useDawStore.getState().setSessionClients([peer(false, 8)]));
+      await act(() =>
+        useDawStore.getState().setSessionClients([peer(false, 8)]),
+      );
       expect(useDawStore.getState().isPlaying).toBe(false);
-      act(() => useDawStore.getState().setSessionClients([peer(true)]));
+      await act(() => useDawStore.getState().setSessionClients([peer(true)]));
       const resumedRevision = useDawStore.getState().playheadSeekRevision;
-      act(() => vi.advanceTimersByTime(500));
+      await act(() => vi.advanceTimersByTime(500));
       expect(useDawStore.getState().playheadSeekRevision).toBe(resumedRevision);
       expect(useDawStore.getState().playbackRate).toBe(1);
       ready = true;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      act(() =>
+      await act(() =>
         useDawStore
           .getState()
           .hydrate("/tmp/new-project.json", minimalProject()),
       );
       const switchedRevision = useDawStore.getState().playheadSeekRevision;
-      act(() => vi.advanceTimersByTime(1000));
+      await act(() => vi.advanceTimersByTime(1000));
       expect(useDawStore.getState().followingClientId).toBeNull();
       expect(useDawStore.getState().playheadSeekRevision).toBe(
         switchedRevision,
@@ -496,7 +498,7 @@ describe("useFollowTransport", () => {
       release();
     }
   });
-  it("supersedes startup alignment on leader seek, rate, and target changes", () => {
+  it("supersedes startup alignment on leader seek, rate, and target changes", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(1000);
     let audioPosition = 4.2;
@@ -520,22 +522,24 @@ describe("useFollowTransport", () => {
     });
     const { unmount } = renderHook(() => useFollowTransport());
     try {
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      act(() => useDawStore.getState().setSessionClients([peer("lead", 12)]));
+      await act(() =>
+        useDawStore.getState().setSessionClients([peer("lead", 12)]),
+      );
       expect(useDawStore.getState().playheadSec).toBe(12);
       expect(useDawStore.getState().playbackRate).toBe(1);
       audioPosition = 12.2;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.03);
-      act(() =>
+      await act(() =>
         useDawStore.getState().setSessionClients([peer("lead", 12.25, 1.5)]),
       );
       expect(useDawStore.getState().playbackRate).toBe(1.545);
       audioPosition = 12.64;
-      act(() => vi.advanceTimersByTime(250));
+      await act(() => vi.advanceTimersByTime(250));
       expect(useDawStore.getState().playbackRate).toBe(1.5);
-      act(() => {
+      await act(() => {
         useDawStore.getState().setSessionClients([peer("other", 20)]);
         useDawStore.getState().startFollow("other");
       });
