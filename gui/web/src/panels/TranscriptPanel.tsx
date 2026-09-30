@@ -11,7 +11,7 @@ import {
   resolvePresenceAnchor,
 } from "../presence/anchors";
 import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
-import { isShareProjectKey } from "../shareMode";
+import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { isDetachedWordFailureMoot } from "../transcript/detachedWordFailure";
@@ -34,6 +34,7 @@ import {
   prominentWordKey,
   prominentWordKeys,
 } from "../transcript/prominence";
+import { TranscriptSpeakerEditor } from "../transcript/TranscriptSpeakerEditor";
 import {
   type TranscriptTurnSegment,
   TranscriptTurnView,
@@ -169,6 +170,34 @@ export function TranscriptPanel() {
     transcriptReviewCursor: s.transcriptReviewCursor,
     showProsody: s.layers.showProsody,
   }));
+  const { guestMode, shareCapabilities } = useDaw((s) => ({
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
+  const [speakerEditTurn, setSpeakerEditTurn] = useState<string | null>(null);
+  const [speakerSaving, setSpeakerSaving] = useState(false);
+  const mayChangeSpeaker = canIngestMedia(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+  );
+  const tracksById = useMemo(
+    () => new Map(project?.tracks.map((track) => [track.id, track]) ?? []),
+    [project?.tracks],
+  );
+  const speakerNames = useMemo(
+    () => [
+      ...new Set(
+        project?.tracks.flatMap((track) =>
+          track.role === "dialogue" ? [track.speaker || track.id] : [],
+        ) ?? [],
+      ),
+    ],
+    [project?.tracks],
+  );
+  useEffect(() => {
+    setSpeakerEditTurn(null);
+  }, [projectPath, mayChangeSpeaker]);
   const prosody = useProsodyOverlay(showProsody);
   const prominentKeys = useMemo(() => prominentWordKeys(prosody), [prosody]);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -532,6 +561,9 @@ export function TranscriptPanel() {
       [
         activeTurnIndex,
         focusedTurnIndex,
+        speakerEditTurn
+          ? turns.findIndex((turn) => turnKey(turn) === speakerEditTurn)
+          : -1,
         selectedAnchor ? transcriptAnchorTurnIndex(turns, selectedAnchor) : -1,
         // The inline editor's turn stays mounted so a commit in flight never
         // remounts a second editor for the same word.
@@ -554,6 +586,7 @@ export function TranscriptPanel() {
       activeTurnIndex,
       focusedTurnIndex,
       inlineEdit,
+      speakerEditTurn,
       requestTurnIndex,
       selectedAnchor,
       transcriptScrollRequest,
@@ -1366,10 +1399,49 @@ export function TranscriptPanel() {
               };
             },
           );
+          const speakerTrack = tracksById.get(turn.trackId);
           return (
             <TranscriptTurnView
               key={turnKey(turn)}
               speaker={turn.speaker}
+              speakerControl={
+                mayChangeSpeaker && speakerTrack ? (
+                  speakerEditTurn === turnKey(turn) ? (
+                    <TranscriptSpeakerEditor
+                      track={speakerTrack}
+                      speaker={turn.speaker}
+                      speakers={speakerNames}
+                      onBusyChange={setSpeakerSaving}
+                      onClose={(restoreFocus) => {
+                        setSpeakerEditTurn(null);
+                        if (restoreFocus) {
+                          requestAnimationFrame(() => {
+                            listRef.current
+                              ?.querySelector<HTMLButtonElement>(
+                                `[data-turn-index="${turnIndex}"] .utterance-speaker`,
+                              )
+                              ?.focus();
+                          });
+                        }
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="utterance-seek utterance-speaker"
+                      aria-label={`Change speaker ${turn.speaker}`}
+                      disabled={speakerSaving}
+                      title="Rename or reassign the speaker for all turns on this track"
+                      onClick={() => {
+                        cancelQueuedSeek();
+                        setSpeakerEditTurn(turnKey(turn));
+                      }}
+                    >
+                      {turn.speaker}
+                    </button>
+                  )
+                ) : undefined
+              }
               labelSec={labelSec}
               seekSec={blockSeek}
               onSeek={

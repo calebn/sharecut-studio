@@ -374,7 +374,7 @@ def test_projection_for_command() -> None:
     assert frozenset(COMMENT_HANDLERS) == COMMENT_COMMANDS
     assert projection_for_command("AddComment") is ViewProjection.COMMENTS
     assert projection_for_command("AddReply") is ViewProjection.COMMENTS
-    assert projection_for_command("SetTrackMeta") is ViewProjection.TRACKS
+    assert projection_for_command("SetTrackMeta") is ViewProjection.SHELL
     assert projection_for_command("SplitAtTime") is ViewProjection.SHELL
     assert projection_for_command("SetClipFade") is ViewProjection.CLIPS
     assert projection_for_command("SetJoinMode") is ViewProjection.CLIPS

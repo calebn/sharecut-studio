@@ -48,6 +48,7 @@ export type TranscriptTurnSegment = {
 
 export type TranscriptTurnViewProps = {
   speaker: string;
+  speakerControl?: ReactNode;
   labelSec: number;
   seekSec?: number | null;
   onSeek?: () => void;
@@ -65,6 +66,7 @@ export type TranscriptTurnViewProps = {
 /** Production transcript turn paint; interaction and DAW state stay with the panel. */
 export function TranscriptTurnView({
   speaker,
+  speakerControl,
   labelSec,
   seekSec,
   onSeek,
@@ -84,6 +86,7 @@ export function TranscriptTurnView({
       data-turn-index={turnIndex}
       {...anchorProps}
     >
+      {speakerControl}
       {seekSec != null ? (
         <button
           type="button"
@@ -91,12 +94,16 @@ export function TranscriptTurnView({
           title={`Seek turn (${seekSec.toFixed(1)}s)`}
           onClick={onSeek}
         >
-          <strong className="utterance-speaker">{speaker}</strong>{" "}
+          {!speakerControl && (
+            <strong className="utterance-speaker">{speaker}</strong>
+          )}{" "}
           <span className="utterance-time">[{labelSec.toFixed(1)}s]</span>
         </button>
       ) : (
         <>
-          <strong className="utterance-speaker">{speaker}</strong>{" "}
+          {!speakerControl && (
+            <strong className="utterance-speaker">{speaker}</strong>
+          )}{" "}
           <span className="utterance-time">[{labelSec.toFixed(1)}s]</span>
         </>
       )}{" "}

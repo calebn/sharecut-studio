@@ -408,3 +408,7 @@ Use this when auditing mocks:
 - [ ] Guest capability chrome  
 - [x] Record lobby / room / full / declined (`/rec/{token}`); keepers + mix-minus shipped  
 - [ ] Empty comments / no transcript / no pending  
+
+### Transcript speaker editing
+
+Speaker labels in the transcript open a name editor for hosts and shares with the `edit` capability. Enter a new name or choose an existing speaker, then select **Save speaker** or press Enter. The change applies to every turn on that track through the same `SetTrackMeta` command as the Track inspector. It preserves source audio, word timing, and track identity. **Cancel** or Escape discards the draft. History Undo restores the previous speaker. The adjacent timecode seeks the turn.

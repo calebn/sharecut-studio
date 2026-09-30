@@ -1,21 +1,13 @@
 import { useEffect, useState } from "react";
-import {
-  applyFadeRecommendations,
-  setEffectBypass,
-  setTrackMetaCommand,
-} from "../../api";
+import { applyFadeRecommendations, setEffectBypass } from "../../api";
 import { execute } from "../../commands/execute";
-import { currentDocumentSeq } from "../../document/cursor";
-import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
-import { patchTrackMeta } from "../../document/projectPatch";
-import { useProjectMutation } from "../../hooks/useProjectMutation";
+import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
   canApplyPass12,
   canIngestMedia,
   guestHearsMixOnly,
 } from "../../shareMode";
-import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import { TrackFader } from "../../tracks/TrackFader";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
@@ -49,7 +41,6 @@ export function TrackInspector({
     setPlayheadSec,
     setPlayUntilSec,
     setIsPlaying,
-    setProject,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
     guestMode: s.guestMode,
@@ -57,9 +48,10 @@ export function TrackInspector({
     setPlayheadSec: s.setPlayheadSec,
     setPlayUntilSec: s.setPlayUntilSec,
     setIsPlaying: s.setIsPlaying,
-    setProject: s.setProject,
   }));
-  const { busy, error, setError, run } = useProjectMutation();
+  const { busy, error, setError, run, saveMetaFields } = useTrackMetaMutation(
+    track.id,
+  );
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const mayIngest = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const mixOnly = guestHearsMixOnly(guestMode);
@@ -95,30 +87,6 @@ export function TrackInspector({
       setPlayheadSec,
       setPlayUntilSec,
       setIsPlaying,
-    });
-  };
-
-  const saveMetaFields = async (
-    fields: Partial<{
-      label: string;
-      role: string;
-      speaker: string | undefined;
-    }>,
-  ) => {
-    const prev = useDawStore.getState().project;
-    const seqAtStart = currentDocumentSeq();
-    if (prev) {
-      setProject(patchTrackMeta(prev, track.id, fields));
-    }
-    await run(async () => {
-      try {
-        await setTrackMetaCommand(projectPath, track.id, fields);
-      } catch (e) {
-        if (prev) {
-          revertOptimisticIfUnchanged(prev, seqAtStart);
-        }
-        throw e;
-      }
     });
   };
 

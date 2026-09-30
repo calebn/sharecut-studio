@@ -2290,8 +2290,8 @@ def test_document_set_track_meta_snapshot_includes_history_groups(minimal_projec
         )
     )
     assert result["ok"]
-    assert "project" not in result["snapshot"]
-    assert "tracks" in result["snapshot"]["patch"]
+    assert "tracks" in result["snapshot"]["project"]
+    assert "transcript" in result["snapshot"]["project"]
     hist = result["snapshot"]["history"]
     assert hist["can_undo"] is True
     assert "entries" not in hist
