@@ -287,6 +287,18 @@ class Transcript(BaseModel):
     # True once a user/agent correction, suppression or verify changed the words.
     user_edited: bool = False
 
+    def active_words_with_ordinals(self) -> list[tuple[int, TranscriptWord]]:
+        """Place active words around archive slots without changing their list order."""
+        archived = {entry.ordinal for entry in self.archived_words}
+        ordinal = 0
+        result: list[tuple[int, TranscriptWord]] = []
+        for word in self.words:
+            while ordinal in archived:
+                ordinal += 1
+            result.append((ordinal, word))
+            ordinal += 1
+        return result
+
     @field_validator("words", mode="after")
     @classmethod
     def _tracked_words(cls, words: list[TranscriptWord]) -> list[TranscriptWord]:

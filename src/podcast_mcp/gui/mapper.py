@@ -633,7 +633,19 @@ def map_edit_boundaries(project: EpisodeProject) -> list[dict[str, Any]]:
                     left.source_id,
                     [(w.start, w.end) for w in [*active_words, *archived_words]],
                 )
-                for word_index, word in enumerate([*active_words, *archived_words]):
+                preview_words = [
+                    (index, ordinal, word)
+                    for index, (ordinal, word) in enumerate(
+                        left_transcript.active_words_with_ordinals()
+                    )
+                ]
+                preview_words.extend(
+                    (len(active_words) + index, entry.ordinal, entry.word)
+                    for index, entry in enumerate(left_transcript.archived_words)
+                )
+                for word_index, _ordinal, word in sorted(
+                    preview_words, key=lambda row: (row[2].start, row[1], row[0])
+                ):
                     w_end = float(word_source_span(word.start, word.end)[1])
                     if w_end <= cutaway_start or float(word.start) >= cutaway_end:
                         continue

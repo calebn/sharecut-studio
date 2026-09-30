@@ -149,6 +149,40 @@ def test_ripple_cut_boundary_previews_removed_word_and_trim_restores_it(minimal_
     ]
 
 
+def test_repeated_overlapping_cuts_preview_words_in_source_order(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    project = ws.project
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=30),
+        )
+    ]
+    project.clips = [
+        Clip(id="full", track_id="host", source_start=0, source_end=30, timeline_start=0)
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="nine", start=9, end=9.5),
+                TranscriptWord(text="eleven", start=11, end=11.5),
+                TranscriptWord(text="thirteen", start=13, end=13.5),
+            ],
+        )
+    ]
+
+    ripple_delete(project, 10, 12, use_inaudible_opt=False)
+    ripple_delete(project, 8, 12, use_inaudible_opt=False)
+    (join,) = map_edit_boundaries(project)
+    refs = join["cutaway_word_ids"]
+    assert [ref["text"] for ref in refs] == ["nine", "eleven", "thirteen"]
+    assert len({ref["word_index"] for ref in refs}) == 3
+    assert all(ref["word_index"] < 0 and ref["source_id"] is None for ref in refs)
+
+
 def test_map_edit_boundaries_keeps_zero_length_word_at_left_clip_end(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.timeline.tracks = [
