@@ -139,8 +139,8 @@ export const LongFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
     const mark = within(canvasElement).getByRole("button");
-    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
-    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    await fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
     await waitFor(() =>
       expect(canvas.getByRole("alert")).toHaveTextContent(
         "Detailed server failure",
