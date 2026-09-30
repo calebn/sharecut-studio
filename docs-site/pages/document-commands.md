@@ -47,6 +47,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RejectEdits` | `ids` (array[string]) | — |
 | `RemoveTrack` | `track_id` (string) | — |
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
+| `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
 | `RestoreAppliedEdit` | `id` (string) | — |
 | `RippleDeleteClip` | — | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
@@ -74,7 +75,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 48 command types._
+_Generated 49 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

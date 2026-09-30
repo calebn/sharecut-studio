@@ -5,8 +5,13 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.gui.routes.deps import project_busy_error, require_host, resolve_project
-from podcast_mcp.gui.schemas import TranscriptRefineWaiveRequest, TranscriptVocabularyPutRequest
+from podcast_mcp.gui.schemas import (
+    TranscriptRefineWaiveRequest,
+    TranscriptReplacementPreviewRequest,
+    TranscriptVocabularyPutRequest,
+)
 from podcast_mcp.services import (
+    EditService,
     ProjectWorkspace,
     TranscriptContextBusyError,
     TranscriptPrecorrectService,
@@ -67,6 +72,23 @@ def transcript_refine_waive(
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).waive(
             reason=req.reason,
             source="user",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/transcript/replacement-preview")
+def transcript_replacement_preview(
+    req: TranscriptReplacementPreviewRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(req.path, request)
+    try:
+        return EditService(ProjectWorkspace.open(project_path)).preview_transcript_replacement(
+            req.search, req.replacement, match_case=req.match_case
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

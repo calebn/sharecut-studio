@@ -74,6 +74,9 @@ export const createProjectSlice: StateCreator<
       transcriptInlineEditRequest: null,
       transcriptScrollRequest: samePath ? get().transcriptScrollRequest : null,
       transcriptReviewCursor: samePath ? get().transcriptReviewCursor : null,
+      transcriptFindReplaceOpen: samePath
+        ? get().transcriptFindReplaceOpen
+        : false,
       transcriptViewAnchor: samePath ? get().transcriptViewAnchor : null,
       playbackRate: samePath ? get().playbackRate : 1,
       ingestBusy: false,

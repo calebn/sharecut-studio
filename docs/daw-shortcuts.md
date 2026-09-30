@@ -143,6 +143,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Export diagnostics… | `help.diagnosticsBundle` | Host project management | Host-only sanitized diagnostics zip for bug reports |
 | Reorder track | `track.reorder` | Media ingest allowed | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Annotate transcript | `view.transcriptAnnotate` | Always (when not typing in an input) |  |
+| Find and replace transcript | `transcript.findReplace` | Loaded host project |  |
 | Correct transcript | `transcript.correctIntent` | Project loaded |  |
 | Select transcript range | `transcript.selectIntent` | Project loaded |  |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |

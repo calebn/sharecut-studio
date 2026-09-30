@@ -1,3 +1,4 @@
+import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { DawTab, MobileMode, MoreDestination } from "../state/types";
 import { discreteZoomFactor, formatWaveformAmp } from "../utils/zoom";
@@ -129,6 +130,17 @@ export function registerViewCommands(): void {
 export function registerTranscriptViewCommands(): void {
   registerCommand("view.transcriptAnnotate", () => {
     useDawStore.getState().toggleTranscriptAnnotate();
+    return { status: "ok" };
+  });
+
+  registerCommand("transcript.findReplace", () => {
+    const state = useDawStore.getState();
+    if (!state.project || isShareProjectKey(state.projectPath))
+      return { status: "disabled", reason: "Host project required" };
+    useDawStore.setState({
+      transcriptFindReplaceOpen: !state.transcriptFindReplaceOpen,
+      activeTab: "transcript",
+    });
     return { status: "ok" };
   });
 

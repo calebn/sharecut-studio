@@ -253,3 +253,7 @@ See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-int
 ### Transcript speaker editing
 
 Tap a speaker label to rename or reassign every turn on that track. The editor wraps its input, scope hint, and Save and Cancel controls within the transcript panel. On coarse pointers, speaker labels and the name input use the shared `--touch-min` target size. Hosts and guests with the `edit` capability can save speaker names.
+
+### Transcript find and replace
+
+The host Text/Transcript toolbar exposes **Find and replace** on every shell. The native labeled inputs and preview list wrap within the panel and scroll without replacing the transcript list. Hosts review source-keyed changes and apply the complete set as one Undo action. Different word counts show the source-span timing warning before apply. Shared guests retain the existing text-correction restrictions. See [daw-editing.md](daw-editing.md#transcript-find-and-replace).
