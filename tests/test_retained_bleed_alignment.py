@@ -786,3 +786,100 @@ def test_scoped_delay_decodes_bounded_context_on_two_hour_source_with_null_contr
         assert result.validation_windows >= 3
     else:
         assert result.reason is not None
+
+
+@pytest.mark.parametrize("operation", ["split", "punch"])
+def test_ordinary_clip_replacement_preserves_per_clip_manual_recorder_lock(
+    tmp_path: Path, operation: str
+) -> None:
+    from podcast_mcp.edits.clips_ops import punch_timeline_range_from_clips, set_track_clips
+    from podcast_mcp.edits.timeline_ops import split_clip
+    from podcast_mcp.models import SpeakerIngestAlignment
+
+    p = _two_phrase_episode(tmp_path)
+    p.meta.ingest_alignment = {"direct:clip-direct": SpeakerIngestAlignment(align_method="manual")}
+    if operation == "split":
+        split_clip(p, "direct", 3.5)
+    else:
+        lane = [clip for clip in p.clips if clip.track_id == "direct"]
+        set_track_clips(p, "direct", punch_timeline_range_from_clips(lane, 3.4, 3.6))
+    reopened = EpisodeProject.model_validate(p.model_dump(by_alias=True))
+    plan = _api().plan_retained_bleed_alignment(reopened, start_sec=3.8, end_sec=6.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "manual_recorder_placement"} in plan.skipped
+
+
+def test_phrase_index_scans_each_selected_source_once_and_stops_at_evidence_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
+    from podcast_mcp.engines.session_timeline import SessionTimeline
+    from podcast_mcp.models import SourceRecording, SpeakerIngestAlignment
+
+    p = _episode(tmp_path)
+    direct_clip = p.clips[0]
+    direct_clip.source_end = 80
+    p.clips.append(
+        Clip(
+            id="clip-secondary",
+            track_id="direct",
+            source_id="secondary",
+            source_start=0,
+            source_end=80,
+            timeline_start=80,
+        )
+    )
+    p.clips[1].source_end = 160
+    p.sources.append(SourceRecording(id="secondary", path="raw/direct.wav", duration_sec=80))
+    p.transcripts[0].words = [
+        TranscriptWord(text=f"first{i}", start=2 * i + 0.1, end=2 * i + 1.1) for i in range(40)
+    ]
+    p.transcripts.append(
+        Transcript(
+            track_id="direct",
+            source_id="secondary",
+            words=[
+                TranscriptWord(text=f"second{i}", start=2 * i + 0.1, end=2 * i + 1.1)
+                for i in range(40)
+            ],
+        )
+    )
+    p.transcripts[1].words = [
+        TranscriptWord(
+            text=f"candidate{i}",
+            start=i / 10000,
+            end=160,
+            suppressed=True,
+            audibility_status="bleed",
+            dominant_track="direct",
+        )
+        for i in range(1000)
+    ]
+    p.meta.ingest_alignment = {"direct": SpeakerIngestAlignment(align_method="manual")}
+    api = _api()
+    scans = 0
+    candidate_mappings = 0
+    original_phrases = api._own_phrases
+    original_mapping = SessionTimeline.map_source_span
+
+    def counted_phrases(*args, **kwargs):
+        nonlocal scans
+        scans += 1
+        return original_phrases(*args, **kwargs)
+
+    def counted_mapping(self, track_id, *args, **kwargs):
+        nonlocal candidate_mappings
+        if track_id == "uncertain":
+            candidate_mappings += 1
+        return original_mapping(self, track_id, *args, **kwargs)
+
+    monkeypatch.setattr(api, "_own_phrases", counted_phrases)
+    monkeypatch.setattr(api, "build_bleed_gate_plan", lambda *args, **kwargs: BleedGatePlan())
+    monkeypatch.setattr(SessionTimeline, "map_source_span", counted_mapping)
+    plan = api.plan_retained_bleed_alignment(p)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "alignment_evidence_budget_exhausted"} in plan.skipped
+    assert scans == 1, "a direct lane's selected-source phrase index must be built once"
+    assert candidate_mappings <= 2, (
+        "candidate traversal must stop when the 64-phrase budget is spent"
+    )

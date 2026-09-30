@@ -99,3 +99,41 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
     shutil.copyfile(source, output)
     apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
     np.testing.assert_array_equal(_read_pcm(output), _read_pcm(source))
+
+
+@pytest.mark.parametrize("state", ["fresh", "stale", "gated"])
+def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch, state):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.engines import timeline_render
+    from podcast_mcp.engines.audio_audit import TrackRmsCache, build_track_rms_caches
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    project = _episode(tmp_path)
+    project.tracks = [project.track_by_id("guest")]
+    project.clips = [clip for clip in project.clips if clip.track_id == "guest"]
+    project.transcripts = [project.transcript_for_track("guest")]
+    track = project.track_by_id("guest")
+    stem = project.artifacts_dir() / "tracks" / "guest.wav"
+    timeline_render.render_track_from_timeline(project, track, stem, load_defaults())
+    write_stem_hash(project, "guest")
+    baseline_rms = TrackRmsCache.from_timeline_stem(stem).rms_db(2.1, 2.5)
+    assert baseline_rms is not None
+    if state == "stale":
+        source = tmp_path / "raw" / "guest.wav"
+        _write_pcm(source, _read_pcm(source).astype(float) / 32767 * 10 ** (-12 / 20))
+    elif state == "gated":
+        track.transcript_gate = True
+    renders = []
+    original = timeline_render.render_track_from_timeline
+
+    def measured(*args, **kwargs):
+        renders.append(args[1].id)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(timeline_render, "render_track_from_timeline", measured)
+    caches = build_track_rms_caches(project, before_transcript_gate=True)
+    assert set(caches.caches) == {"guest"}
+    assert renders == ([] if state == "fresh" else ["guest"])
+    measured_rms = caches.caches["guest"].rms_db(2.1, 2.5)
+    assert measured_rms is not None
+    assert measured_rms == pytest.approx(baseline_rms - (12 if state == "stale" else 0), abs=0.01)
