@@ -100,8 +100,14 @@ def test_gate_overreach_reports_added_tail_loss(tmp_path: Path) -> None:
     assert any(issue["kind"] == "processed_offset_chop" for issue in report["issues"])
 
 
-def test_reconcile_does_not_treat_gate_created_silence_as_source_evidence(tmp_path: Path) -> None:
+@pytest.mark.parametrize("previously_suppressed", [False, True])
+def test_reconcile_does_not_treat_gate_created_silence_as_source_evidence(
+    tmp_path: Path, previously_suppressed: bool
+) -> None:
     project = audio_project(tmp_path)
+    if previously_suppressed:
+        project.transcripts[0].words[0].suppressed = True
+        project.transcripts[0].words[0].audibility_status = "inaudible"
     stem = project.artifacts_dir() / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(stem), "wb") as stream:
