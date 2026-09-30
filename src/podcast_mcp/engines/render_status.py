@@ -3,6 +3,7 @@ from __future__ import annotations
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
     expected_stem_duration_sec,
+    premix_is_stale,
     premix_path,
     premix_stale_vs_mix,
     premix_stale_vs_stems,
@@ -65,10 +66,5 @@ def render_status_report(project: EpisodeProject) -> dict:
         "premix": premix_info,
         "reconciliation": reconciliation,
         "invalidations": invalidations_as_dicts(project),
-        "needs_rerender": (
-            any_stale_stem
-            or not premix.is_file()
-            or bool(premix_info.get("stale_vs_stems"))
-            or bool(premix_info.get("stale_vs_mix"))
-        ),
+        "needs_rerender": (any_stale_stem or not premix.is_file() or premix_is_stale(project)),
     }

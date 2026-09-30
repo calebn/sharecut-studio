@@ -41,6 +41,7 @@ from podcast_mcp.edits.share_registry import (
     share_hard_expired,
     share_is_usable,
 )
+from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
 from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.document_sync.projection_types import parse_view_projection
@@ -941,7 +942,7 @@ def share_pending_preview_wav(
 
     kind = _normalize_pending_preview_mode(mode)
     _, ws = _require_pending_preview_caps(token)
-    premix = ws.project.artifacts_dir() / "premix.wav"
+    premix = premix_path(ws.project)
     if not premix.is_file():
         raise FileNotFoundError("premix.wav not found")
     result = PlayService(ws).play_pending_preview(

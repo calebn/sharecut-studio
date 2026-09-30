@@ -308,6 +308,13 @@ by the snapshot's own hash (#358). A warm decision hashes only that track's own 
 stats its files; it makes no deep copy of every track's transcript and the history, so its
 cost no longer grows with the project's history.
 
+`track_render_hash` includes each clip's selected `source_id`, resolved media path, and
+file revision (device, inode, size, and nanosecond mtime). A track without clips uses its
+primary media. Missing media gives a stable identity for diagnostic reads; rendering
+still rejects missing media. Replacing selected media or changing a
+clip's source therefore rebuilds its stem before export remixes the premix. An in-place
+rewrite that preserves all four stat fields is not detected by this check.
+
 Tighten proposal snapshots speaker profiles and speaker-ID settings once before
 parallel candidate analysis. The read-only snapshot gives every candidate the
 same bleed decision inputs and avoids repeated profile file reads.

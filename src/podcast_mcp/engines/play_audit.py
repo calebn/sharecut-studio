@@ -14,11 +14,11 @@ from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
-from podcast_mcp.models import AutomationEnvelope, EpisodeProject
+from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
-from podcast_mcp.util.tracks import dialogue_track_ids, mixed_dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
 
 log = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def envelope_audio_payload(envelope: AutomationEnvelope | None) -> dict[str, Any
 
 
 def track_render_hash(project: EpisodeProject, track_id: str) -> str:
-    """Fingerprint what a track's stem and segment renders bake in (edits, clips, FX).
+    """Fingerprint selected media, edits, clips, and FX baked into a track render.
 
     Includes ``RENDER_SEMANTICS_REV`` so stems and play segments rendered under
     older renderer rules are treated as stale after a semantics change.
@@ -62,6 +62,8 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     ignored_lookup = IgnoredWordRegions(project)
     for c in clips_for_track(project, track_id):
         clip_payload: dict[str, Any] = {
+            "source_id": c.source_id,
+            "media": _selected_media_identity(project, track, c),
             "source_start": c.source_start,
             "source_end": c.source_end,
             "timeline_start": c.timeline_start,
@@ -84,11 +86,35 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         "transcript_gate": bool(track.transcript_gate) if track else False,
         "edits": edits,
         "clips": clips,
+        "media": _selected_media_identity(project, track) if not clips else None,
         "chain": chain.model_dump() if chain else None,
         "envelope": envelope_audio_payload(env),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _selected_media_identity(
+    project: EpisodeProject, track: Track | None, clip: Clip | None = None
+) -> dict[str, Any]:
+    from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
+    from podcast_mcp.util.tracks import track_audio_path
+
+    if track is None:
+        return {"path": None, "revision": None}
+    try:
+        path = (
+            resolve_clip_audio_path(project, track, clip)
+            if clip is not None
+            else track_audio_path(project, track.id)
+        )
+        try:
+            revision = file_revision(path)
+        except OSError:
+            revision = None
+        return {"path": str(path), "revision": revision}
+    except (ValueError, OSError) as exc:
+        return {"unresolved": type(exc).__name__, "source_id": getattr(clip, "source_id", None)}
 
 
 def dialogue_render_hashes(project: EpisodeProject) -> dict[str, str]:
@@ -527,17 +553,15 @@ def premix_stale_vs_stems(project: EpisodeProject) -> bool:
     premix_mtime = _mtime(premix_path(project))
     if premix_mtime is None:
         return False
-    return any(
-        _stem_newer_than(project, tid, premix_mtime) for tid in mixed_dialogue_track_ids(project)
-    )
+    return any(_stem_newer_than(project, tid, premix_mtime) for tid in mix_gains(project))
 
 
 def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None = None) -> bool:
     """True when ``premix.wav`` no longer matches what the mix would play now.
 
     Covers the saved mix (volume, mute), a stem rendered after the premix, and a
-    rendered stem the mix plays that's behind its edits, clips or FX, in one pass
-    over the mixed stems. A missing stem is unknown rather than stale, and no
+    rendered stem the mix plays that's behind its media, edits, clips, or FX, in one pass
+    over all included stems. A missing stem is unknown rather than stale, and no
     premix is not stale: callers check that it exists. ``defaults`` works as in
     ``premix_stale_vs_mix``.
     """
@@ -546,7 +570,7 @@ def premix_is_stale(project: EpisodeProject, defaults: Mapping[str, Any] | None 
         return False
     if premix_stale_vs_mix(project, defaults):
         return True
-    for tid in mixed_dialogue_track_ids(project):
+    for tid in mix_gains(project):
         newer = _stem_newer_than(project, tid, premix_mtime)
         if newer is None:
             continue  # a missing stem is unknown, not stale
