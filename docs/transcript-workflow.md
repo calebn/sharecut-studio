@@ -462,6 +462,22 @@ podcast transcript context set --project episode.project.json \
   --show-title "Shot of Truth Podcast" --guest-name "Olga Araceli" --term "Puro Pinché Party"
 ```
 
+CLI `context set` accepts repeatable `--remove-term` and `--remove-guest-name`.
+When combined with `--file`, file fields are merged first, term/name flags append entries, and the title
+flag overrides the file title. Removals apply last. Matching is case-sensitive after trimming spaces;
+removal wins over adding the same entry. Removing an absent entry preserves the
+vocabulary revision. These edits change future prompts, not existing words.
+
+Host agents can call `get_transcript_vocabulary_tool(project_path)` to read the
+terms, guest names, revision, and re-transcription status. Pass that exact
+`revision` as the required `base_revision` to
+`set_transcript_vocabulary_tool(project_path, terms, guest_names, base_revision)`.
+Both lists replace the saved lists; empty lists clear them. Pass `null` only if
+the read returned a null revision. A stale revision rejects the entire save;
+reload and review the current values before retrying. Show title and other
+context settings are preserved. The tools use the same prompt-budget and
+entry-limit validation as Studio.
+
 ### Example `show_glossary.yaml`
 
 ```yaml

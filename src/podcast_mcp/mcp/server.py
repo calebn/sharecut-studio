@@ -202,7 +202,9 @@ from podcast_mcp.mcp.tools.timeline import (  # noqa: E402, F401
 from podcast_mcp.mcp.tools.transcript import (  # noqa: E402, F401
     export_transcript,
     get_transcript,
+    get_transcript_vocabulary_tool,
     precorrect_transcript_tool,
+    set_transcript_vocabulary_tool,
     transcribe_track,
     transcript_refine_brief_tool,
     transcript_refine_done_tool,

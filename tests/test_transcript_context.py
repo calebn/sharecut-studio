@@ -490,3 +490,24 @@ def test_context_service_wraps_busy_lock(minimal_project, monkeypatch, method):
     assert str(error.value) == TRANSCRIPT_CONTEXT_BUSY_MESSAGE
     assert isinstance(error.value.__cause__, Timeout)
     assert not service.load_context().terms
+
+
+def test_context_vocabulary_removal_merges_then_adds_then_removes(minimal_project):
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.workspace import ProjectWorkspace
+
+    svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
+    svc.update_context(terms=["Old"], guest_names=["Ada"])
+    svc.update_context(
+        values={"terms": ["File"], "show_title": "Show"},
+        terms=["New", "File"],
+        remove_terms=[" File "],
+        remove_guest_names=["Ada"],
+    )
+    ctx = svc.get_context()
+    assert ctx["terms"] == ["New"]
+    assert ctx["guest_names"] == []
+    assert ctx["show_title"] == "Show"
+    revision = svc.get_vocabulary()["revision"]
+    svc.update_context(remove_terms=["Absent"])
+    assert svc.get_vocabulary()["revision"] == revision

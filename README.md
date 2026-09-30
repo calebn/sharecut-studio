@@ -98,6 +98,11 @@ Runtime secrets belong in environment variables or
 `~/.config/podcast_mcp/relay.yaml`; public desktop identity belongs in a validated
 distribution profile. See [docs/setup.md](docs/setup.md#configuration-boundary).
 
+Edit transcription vocabulary with `podcast transcript context set`: pass
+`--project PATH --term NAME` or remove entries with `--remove-term NAME` / `--remove-guest-name NAME`.
+Host MCP agents can read and replace it with revision checks. See the
+[transcript workflow](docs/transcript-workflow.md).
+
 ## Documentation
 
 - [Sharecut Studio Extensions](docs/extensions.md) — public plugin SPI (absent = no render); [seams](docs/extension-seams.md)

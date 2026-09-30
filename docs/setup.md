@@ -313,6 +313,13 @@ Claude Desktop, Cursor, Windsurf, and Cline: [mcp-setup.md](mcp-setup.md).
 
 **Local GUI URL (recommended when the DAW is open):** run `podcast gui`, open an episode (or **Connect agent…** on home to copy the URL first), **Menu → Connect agent…**, and paste `http://127.0.0.1:8765/mcp` as a stateless Streamable HTTP MCP URL (same shape as Figma desktop). Keep the GUI running. Host MCP is loopback-only, accepts POST (GET/HEAD return 405), and does not use a sticky `Mcp-Session-Id` header; stdio and guest/share-token MCP are unchanged. Details: [gui-integration.md](gui-integration.md) § Local host MCP.
 
+### Transcription vocabulary
+
+Use `podcast transcript context show --project PATH` to read context. `context set` adds entries with `--term` / `--guest-name` and removes them with
+`--remove-term` / `--remove-guest-name`. Host MCP vocabulary tools provide the
+same limits with revision-checked replacement writes; see
+[transcript-workflow.md](transcript-workflow.md).
+
 ## Global skills (optional)
 
 ```bash

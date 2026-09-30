@@ -42,6 +42,34 @@ def export_transcript(project_path: str) -> str:
     return str(TranscriptService(ws).export_markdown())
 
 
+def get_transcript_vocabulary_tool(project_path: str) -> str:
+    """Read project terms, guest names, revision, and re-transcription status."""
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(TranscriptPrecorrectService(ws).get_vocabulary())
+
+
+def set_transcript_vocabulary_tool(
+    project_path: str,
+    terms: list[str],
+    guest_names: list[str],
+    base_revision: str | None,
+) -> str:
+    """Replace vocabulary using the revision returned by get_transcript_vocabulary_tool.
+
+    Pass null only when that read returned a null revision. A stale revision rejects
+    the write; the existing show title and other transcript context stay unchanged.
+    This changes future transcription prompts, not existing transcript words.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        TranscriptPrecorrectService(ws).set_vocabulary(
+            terms=terms,
+            guest_names=guest_names,
+            base_revision=base_revision,
+        )
+    )
+
+
 def precorrect_transcript_tool(
     project_path: str,
     dry_run: bool = True,
@@ -87,6 +115,8 @@ def register(mcp: MCPServer) -> None:
     """Register transcript tools on the MCP server."""
     mcp.tool()(transcribe_track)
     mcp.tool()(get_transcript)
+    mcp.tool()(get_transcript_vocabulary_tool)
+    mcp.tool()(set_transcript_vocabulary_tool)
     mcp.tool()(export_transcript)
     mcp.tool()(precorrect_transcript_tool)
     mcp.tool()(transcript_refine_status_tool)

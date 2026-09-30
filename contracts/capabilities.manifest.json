@@ -1767,6 +1767,8 @@
         "mcp": [
           "transcribe_track",
           "get_transcript",
+          "get_transcript_vocabulary_tool",
+          "set_transcript_vocabulary_tool",
           "export_transcript",
           "precorrect_transcript_tool",
           "transcript_refine_status_tool",

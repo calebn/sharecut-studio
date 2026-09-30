@@ -26,6 +26,15 @@ podcast transcript precorrect --project PATH --apply
 
 Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). Spec: [docs/progress.md](../../docs/progress.md). Long CLI runs: `--json-progress` ([cli-progress.md](../../docs/cli-progress.md)).
 
+Vocabulary edits are available through CLI `context set --remove-term NAME`
+(and `--remove-guest-name NAME`) or host MCP `get_transcript_vocabulary_tool` /
+`set_transcript_vocabulary_tool`. Read first and pass its exact revision as the
+required `base_revision`; null is valid only when the read revision is null.
+The MCP setter replaces both lists and preserves other context. Reload and
+review after a revision conflict. With CLI `--file`, flags add to merged values
+and removals apply last; absent removals are harmless. These edits affect future
+ASR prompts and leave existing words unchanged.
+
 ## Pipeline
 
 `precorrect_transcript` runs once in full pipeline — after pass 1 `reconcile_transcript`, before `require_transcript_refine`. Apply resets refine status to **pending**.
