@@ -22,7 +22,7 @@ export const VOLUME_SAVE_DELAY_MS = 300;
 
 /**
  * How long a value the host queued behind another command stays shown over
- * server snapshots. The host drain timer in `useDocumentSync` runs every
+ * server snapshots. The host drain timer in `useHostSync` runs every
  * `SANITY_POLL_MS` (30 s, #662), and the drained command's reply then carries
  * the value; the extra 5 s covers that reply's round trip.
  */
