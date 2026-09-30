@@ -24,7 +24,10 @@ apply only to primary media or a physically equivalent explicit source alias.
 An unrelated source without a transcript supplies no phrase or gate authorization,
 and a destination trim touching it abstains. Its complete selected placement is
 protected from lane-wide attenuation, including overlaps with authorized clips;
-the gate reports `untranscribed_source_protected`. Disjoint authorized bleed
+when candidate planning proceeds, the gate reports
+`untranscribed_source_protected`. Earlier abstentions preserve the whole lane
+without an attenuation plan. Transcript enrollment, including empty transcripts,
+is part of the persistent gate fingerprint. Disjoint authorized bleed
 remains eligible for attenuation. Selected transcript words map only
 through that recording's placements using
 `SessionTimeline.map_selected_source_span(s)`. Implicit primary lanes keep the
