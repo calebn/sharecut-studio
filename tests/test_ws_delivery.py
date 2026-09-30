@@ -131,6 +131,22 @@ async def test_close_has_its_own_deadline_and_truncates_reason():
     assert reasons == ["x" * 120]
 
 
+@pytest.mark.asyncio
+async def test_close_reason_fits_wire_limit_without_splitting_unicode():
+    reasons: list[str] = []
+
+    async def write(_value: str) -> None:
+        raise AssertionError("closed connections cannot write")
+
+    async def close(_code: int, reason: str) -> None:
+        reasons.append(reason)
+
+    writer = SerializedWsWriter(write, close)
+    await writer.close(1013, "🙂" * 100)
+    assert reasons == ["🙂" * 30]
+    assert len(reasons[0].encode("utf-8")) == 120
+
+
 def test_queue_enforces_count_without_dropping_accepted_frames():
     from podcast_mcp.util.ws_delivery import WsFrameQueue
 

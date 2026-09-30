@@ -56,7 +56,9 @@ class SerializedWsWriter(Generic[T]):
             active.cancel()
         try:
             async with asyncio.timeout(self._timeout):
-                await self._close(code, reason[:120])
+                await self._close(
+                    code, reason.encode("utf-8")[:120].decode("utf-8", errors="ignore")
+                )
         except TimeoutError:
             return
 
