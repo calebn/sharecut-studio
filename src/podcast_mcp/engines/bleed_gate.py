@@ -35,7 +35,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
-BLEED_GATE_REV = 5
+BLEED_GATE_REV = 6
 EVIDENCE_RATE = 8000
 VERIFICATION_RATE = 48_000
 GATE_FADE_SEC = 0.012
@@ -480,6 +480,7 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                 "track_id": tid,
                 "media": media,
                 "clips": [span.clip.model_dump(mode="json") for span in clips],
+                "transcribed_source_ids": [source_id for source_id, _ in words],
                 "words": [
                     {
                         "source_id": source_id,
