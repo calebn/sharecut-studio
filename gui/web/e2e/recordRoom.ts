@@ -490,7 +490,7 @@ export async function landParticipant(
 
 /**
  * Whether the host's own socket (participant `p_host`) is currently reported
- * connected by `/api/record/state`. A closed host `/api/session/ws` submits a
+ * connected by `/api/record/state`. A closed host `/api/host/ws` submits a
  * `Leave` for the host participant (`services/record/service.py`
  * `disconnect`), so this flips false while the host's socket is down and true
  * again once it reconnects and the host `Join` lands.

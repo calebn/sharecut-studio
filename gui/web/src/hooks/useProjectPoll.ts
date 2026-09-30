@@ -9,6 +9,8 @@ import {
   currentDocumentSeq,
   pollSnapshotAlreadyApplied,
 } from "../document/cursor";
+import { useDawStore } from "../state/dawStore";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import type { ProjectView } from "../types/project";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
@@ -21,6 +23,7 @@ export function useProjectPoll(
   _setProject: (project: ProjectView) => void,
   enabled = true,
 ): void {
+  const projectEpoch = useDawStore((state) => state.projectEpoch);
   useFileMetaPoll(
     enabled && Boolean(projectPath),
     () => loadProjectMeta(projectPath),
@@ -37,5 +40,7 @@ export function useProjectPoll(
         return;
       applyDocumentSnapshot(snapshot, { scope });
     },
+    SANITY_POLL_MS,
+    `${projectPath}\0${projectEpoch}`,
   );
 }

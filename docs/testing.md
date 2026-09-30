@@ -553,7 +553,7 @@ settles.
 
 The US-2 host-disconnect scenario (`gui/web/e2e/record-host-reconnect.spec.ts`)
 models a host drop with `installNetworkOutage` (`gui/web/e2e/networkOutage.ts`).
-It uses `page.routeWebSocket` to proxy the host's `/api/session/ws` (the host
+It uses `page.routeWebSocket` to proxy the host's `/api/host/ws` (the host
 record plane) and the guest's `/api/rec/<token>/ws`, and it aborts the guest's
 `/api/rec/` HTTP. A drop closes both sides of the proxied sockets, so the
 server sees the host leave. Until restore, it refuses new sockets before they

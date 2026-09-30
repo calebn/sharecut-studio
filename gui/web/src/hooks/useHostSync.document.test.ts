@@ -16,7 +16,25 @@ import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { documentClientId } from "../utils/documentClient";
-import { useDocumentSync } from "./useDocumentSync";
+import { useHostSync } from "./useHostSync";
+
+function useHostDocument(
+  projectPath: string,
+  _setProject: unknown,
+  enabled = true,
+): void {
+  useHostSync(
+    projectPath,
+    () => undefined,
+    () => ({}),
+    true,
+    0,
+    null,
+    false,
+    "document-test",
+    enabled,
+  );
+}
 
 vi.mock("../state/requestDrainLazy", () => ({
   requestHostDrainLazy: vi.fn(),
@@ -53,7 +71,7 @@ function delta(seq: number, fields: Record<string, unknown>) {
   };
 }
 
-describe("useDocumentSync", () => {
+describe("useHostDocument", () => {
   beforeEach(() => {
     FakeWebSocket.reset({ autoOpen: false });
     resetDocumentSeqForTests();
@@ -71,11 +89,12 @@ describe("useDocumentSync", () => {
   });
 
   it("merges patch.tracks, ignores non-document frames, and keeps comments-only merges", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     expect(FakeWebSocket.instances).toHaveLength(1);
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         server_seq: 2,
         snapshot: {
@@ -92,6 +111,7 @@ describe("useDocumentSync", () => {
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Ping",
         server_seq: 2,
         snapshot: { server_seq: 2, project: minimalProject() },
@@ -101,6 +121,7 @@ describe("useDocumentSync", () => {
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         server_seq: 3,
         snapshot: {
@@ -116,9 +137,10 @@ describe("useDocumentSync", () => {
   });
 
   it("ignores a non-document frame and still applies a later same-seq Applied", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Ping",
         server_seq: 4,
         snapshot: {
@@ -133,6 +155,7 @@ describe("useDocumentSync", () => {
 
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         server_seq: 4,
         snapshot: {
@@ -149,7 +172,7 @@ describe("useDocumentSync", () => {
   it("ignores a retired socket callback after same-project reconnect", async () => {
     vi.useFakeTimers();
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined),
+      useHostDocument("/tmp/ep.json", () => undefined),
     );
     try {
       const old = FakeWebSocket.instances[0];
@@ -165,6 +188,7 @@ describe("useDocumentSync", () => {
       expect(FakeWebSocket.instances).toHaveLength(2);
       act(() =>
         FakeWebSocket.instances[1].emit({
+          plane: "document",
           type: "Snapshot",
           snapshot: {
             server_seq: 2,
@@ -177,6 +201,7 @@ describe("useDocumentSync", () => {
       act(() => {
         oldMessage?.({
           data: JSON.stringify({
+            plane: "document",
             type: "Snapshot",
             snapshot: {
               server_seq: 99,
@@ -202,7 +227,7 @@ describe("useDocumentSync", () => {
   it("reconnects after a non-4403 close", async () => {
     vi.useFakeTimers();
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined, true),
+      useHostDocument("/tmp/ep.json", () => undefined, true),
     );
     try {
       await act(async () => {
@@ -221,7 +246,7 @@ describe("useDocumentSync", () => {
   it("treats a 4403 close as terminal and stops reconnecting", async () => {
     vi.useFakeTimers();
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined, true),
+      useHostDocument("/tmp/ep.json", () => undefined, true),
     );
     try {
       await act(async () => {
@@ -238,11 +263,12 @@ describe("useDocumentSync", () => {
   });
 
   it("chains file_before across an own-client Applied so the poll can skip it", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     const F1 = { mtime_ns: 100, size: 5 };
     const F2 = { mtime_ns: 200, size: 6 };
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Snapshot",
         server_seq: 1,
         snapshot: {
@@ -255,6 +281,7 @@ describe("useDocumentSync", () => {
     });
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         server_seq: 2,
         command: { client_id: "someone-else" },
@@ -272,6 +299,7 @@ describe("useDocumentSync", () => {
     const F3 = { mtime_ns: 300, size: 7 };
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         server_seq: 3,
         command: { client_id: "someone-else" },
@@ -291,7 +319,7 @@ describe("useDocumentSync", () => {
     const { requestHostDrainLazy } = await import("../state/requestDrainLazy");
     vi.mocked(requestHostDrainLazy).mockClear();
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined, true),
+      useHostDocument("/tmp/ep.json", () => undefined, true),
     );
     try {
       await act(async () => {
@@ -322,7 +350,7 @@ describe("useDocumentSync", () => {
   it("resyncs from the hello Snapshot after a reconnect, with no poll", async () => {
     vi.useFakeTimers();
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined, true),
+      useHostDocument("/tmp/ep.json", () => undefined, true),
     );
     try {
       await act(async () => {
@@ -330,6 +358,7 @@ describe("useDocumentSync", () => {
       });
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "document",
           type: "Applied",
           server_seq: 2,
           snapshot: { server_seq: 2, ...delta(2, { tracks: [track("mid")] }) },
@@ -352,6 +381,7 @@ describe("useDocumentSync", () => {
       });
       await act(async () => {
         FakeWebSocket.instances[1].emit({
+          plane: "document",
           type: "Snapshot",
           server_seq: 5,
           snapshot: {
@@ -370,13 +400,13 @@ describe("useDocumentSync", () => {
   });
 
   it("queues a peer frame, flushes it via applyDocumentResult, then drops the own echo", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     const listener = vi.fn();
     const unsub = useDawStore.subscribe(listener);
     try {
-      // Peer's Applied at seq 2 arrives but is only queued, not flushed yet.
       await act(async () => {
         FakeWebSocket.instances[0].deliver({
+          plane: "document",
           type: "Applied",
           server_seq: 2,
           command: { client_id: "peer" },
@@ -389,9 +419,6 @@ describe("useDocumentSync", () => {
       expect(
         useDawStore.getState().project?.tracks.map((t) => t.id),
       ).not.toEqual(["peer"]);
-
-      // The local HTTP result for this client's own edit at seq 3 flushes the
-      // queue first (applying the queued peer frame), then applies itself.
       listener.mockClear();
       await act(async () => {
         applyDocumentResult({
@@ -407,11 +434,10 @@ describe("useDocumentSync", () => {
         "own",
       ]);
       expect(listener).toHaveBeenCalledTimes(2);
-
-      // The WS echo of that same own-client seq-3 command is dropped.
       listener.mockClear();
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "document",
           type: "Applied",
           server_seq: 3,
           command: { client_id: documentClientId() },
@@ -425,10 +451,9 @@ describe("useDocumentSync", () => {
         "peer",
         "own",
       ]);
-
-      // A later peer frame at seq 4 still applies normally.
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "document",
           type: "Applied",
           server_seq: 4,
           command: { client_id: "peer" },
@@ -448,11 +473,12 @@ describe("useDocumentSync", () => {
 
   it("drops a frame queued before unmount instead of applying it", async () => {
     const { unmount } = renderHook(() =>
-      useDocumentSync("/tmp/ep.json", () => undefined, true),
+      useHostDocument("/tmp/ep.json", () => undefined, true),
     );
     const socket = FakeWebSocket.instances[0];
     await act(async () => {
       socket.deliver({
+        plane: "document",
         type: "Applied",
         server_seq: 2,
         snapshot: {
@@ -474,16 +500,16 @@ describe("useDocumentSync", () => {
   });
 
   it("drops malformed and non-document frames at receipt without queuing", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     const socket = FakeWebSocket.instances[0];
     const { pendingInboundCount } = await import("../sync/inboundQueue");
     socket.onmessage?.({ data: "{not json" });
-    socket.deliver({ type: "Presence", clients: [] });
-    socket.deliver({ type: "Applied", server_seq: 3 });
+    socket.deliver({ plane: "document", type: "Presence", clients: [] });
+    socket.deliver({ plane: "document", type: "Applied", server_seq: 3 });
     expect(pendingInboundCount()).toBe(0);
   });
   it("removes a pending display draft when its late acknowledgment is older than the installed peer state", async () => {
-    renderHook(() => useDocumentSync("/tmp/ep.json", () => undefined, true));
+    renderHook(() => useHostDocument("/tmp/ep.json", () => undefined, true));
     applyDocumentSnapshot({
       server_seq: 1,
       state_token: token,
@@ -502,6 +528,7 @@ describe("useDocumentSync", () => {
     expect(useDawStore.getState().project?.tracks[0].label).toBe("Mine");
     await act(async () =>
       FakeWebSocket.instances[0].emit({
+        plane: "document",
         type: "Applied",
         command: { command_id: "mine" },
         snapshot: {
@@ -519,11 +546,12 @@ it("reconnects after batched project ABA and applies current peer frames", async
   FakeWebSocket.reset({ autoOpen: false });
   vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
   useDawStore.getState().hydrate(path, minimalProject());
-  const { unmount } = renderHook(() => useDocumentSync(path, () => undefined));
+  const { unmount } = renderHook(() => useHostDocument(path, () => undefined));
   try {
     const old = FakeWebSocket.instances[0];
     act(() => {
       old.deliver({
+        plane: "document",
         type: "Snapshot",
         snapshot: {
           server_seq: 99,
@@ -539,6 +567,7 @@ it("reconnects after batched project ABA and applies current peer frames", async
     expect(FakeWebSocket.instances).toHaveLength(2);
     act(() =>
       FakeWebSocket.instances[1].emit({
+        plane: "document",
         type: "Snapshot",
         snapshot: {
           server_seq: 10,
@@ -552,6 +581,7 @@ it("reconnects after batched project ABA and applies current peer frames", async
     expect(useDawStore.getState().project?.meta.name).toBe("Current");
     act(() =>
       FakeWebSocket.instances[1].emit({
+        plane: "document",
         type: "Applied",
         snapshot: {
           server_seq: 11,

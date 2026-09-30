@@ -449,13 +449,13 @@ def test_owner_routes_reject_relayed_requests(
     assert minimal_project.read_bytes() == before
 
 
-@pytest.mark.parametrize("path", ["/api/document/ws", "/api/session/ws"])
+@pytest.mark.parametrize("path", ["/api/host/ws"])
 def test_owner_ws_rejects_relayed(path: str, minimal_project, monkeypatch) -> None:
     from starlette.websockets import WebSocketDisconnect
 
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     client = TestClient(create_app())
-    url = f"{path}?path={minimal_project}&client_id=c1&role=viewer"
+    url = f"{path}?path={minimal_project}&document_client_id=doc-test&client_id=c1&role=viewer"
     with pytest.raises(WebSocketDisconnect) as exc:
         with client.websocket_connect(url, headers={"X-Sharecut-Relayed": "1"}):
             pass

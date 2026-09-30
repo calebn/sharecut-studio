@@ -2,13 +2,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { currentServerClockOffsetMs } from "../presence/clock";
 import { useDawStore } from "../state/dawStore";
-import { pendingInboundCount } from "../sync/inboundQueue";
+import { flushInbound, pendingInboundCount } from "../sync/inboundQueue";
 import { FakeWebSocket } from "../test/fakeWebSocket";
 import { minimalProject } from "../test/fixtures";
 import { stubRaf } from "../test/raf";
 import type { SessionState } from "../types/session";
 import { SANITY_POLL_MS } from "./useFileMetaPoll";
-import { useSessionSync } from "./useSessionSync";
+import { useHostSync } from "./useHostSync";
+
+vi.mock("../state/requestDrainLazy", () => ({ requestHostDrainLazy: vi.fn() }));
 
 vi.mock("../api", () => ({
   loadSessionMeta: vi.fn(async () => ({
@@ -24,7 +26,7 @@ vi.mock("../api", () => ({
   })),
 }));
 
-describe("useSessionSync presence", () => {
+describe("useHostSync presence", () => {
   beforeEach(async () => {
     FakeWebSocket.reset();
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
@@ -41,7 +43,7 @@ describe("useSessionSync presence", () => {
   it("sends Presence over WS with type first and skips HTTP heartbeat while open", async () => {
     const interval = vi.spyOn(window, "setInterval");
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 1, is_playing: true }),
@@ -78,7 +80,7 @@ describe("useSessionSync presence", () => {
   it("does not stamp localClientId when session sync is disabled", () => {
     useDawStore.setState({ localClientId: null });
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({}),
@@ -96,7 +98,7 @@ describe("useSessionSync presence", () => {
 
   it("applies Presence roster and server_time_ns", async () => {
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({}),
@@ -110,10 +112,15 @@ describe("useSessionSync presence", () => {
     );
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "session",
         type: "Presence",
         server_time_ns: (Date.now() + 400) * 1e6,
         clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
-      } satisfies Partial<SessionState> & { type: string; clients: unknown });
+      } satisfies Partial<SessionState> & {
+        plane: string;
+        type: string;
+        clients: unknown;
+      });
     });
     expect(useDawStore.getState().sessionClients.x?.client_id).toBe("x");
     expect(currentServerClockOffsetMs()).not.toBe(0);
@@ -123,7 +130,7 @@ describe("useSessionSync presence", () => {
     const { useRecordHostStore } = await import("../record/hostStore");
     useRecordHostStore.getState().setSnapshot(null);
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({}),
@@ -157,7 +164,7 @@ describe("useSessionSync presence", () => {
     useRecordHostStore.getState().setSnapshot(null);
     useRecordHostStore.getState().setConnected(false);
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({}),
@@ -184,7 +191,7 @@ describe("useSessionSync presence", () => {
     const { useRecordHostStore } = await import("../record/hostStore");
     useRecordHostStore.getState().resetConnection();
     const { unmount } = renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({}),
@@ -211,17 +218,7 @@ describe("useSessionSync presence", () => {
     useRecordHostStore.getState().resetConnection();
     const { rerender } = renderHook(
       ({ path }: { path: string }) =>
-        useSessionSync(
-          path,
-          vi.fn(),
-          () => ({}),
-          true,
-          0,
-          null,
-          false,
-          "k",
-          true,
-        ),
+        useHostSync(path, vi.fn(), () => ({}), true, 0, null, false, "k", true),
       { initialProps: { path: "/tmp/ep.project.json" } },
     );
     await act(async () => {
@@ -252,7 +249,7 @@ describe("useSessionSync presence", () => {
       const apply = vi.fn();
       const clientIdRef: { current: string | null } = { current: null };
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           apply,
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -264,7 +261,6 @@ describe("useSessionSync presence", () => {
           true,
         ),
       );
-      // Let the WebSocket open (microtask) before the publish debounce fires.
       await act(async () => {
         await Promise.resolve();
       });
@@ -287,6 +283,7 @@ describe("useSessionSync presence", () => {
 
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Echo",
           command: {
             type: "ViewerState",
@@ -296,10 +293,9 @@ describe("useSessionSync presence", () => {
           snapshot: { server_seq: 1, last_command_id: "cmd-1" },
         });
       });
-      // Cursor now holds { serverSeq: 1, commandId: "cmd-1" }: an agent echo of
-      // that same command is deduped instead of re-applied.
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Applied",
           command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
           snapshot: {
@@ -312,9 +308,9 @@ describe("useSessionSync presence", () => {
         });
       });
       expect(apply).not.toHaveBeenCalled();
-      // A newer agent command still applies.
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Applied",
           command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
           snapshot: {
@@ -340,7 +336,7 @@ describe("useSessionSync presence", () => {
       const { postSessionState } = await import("../api");
       const { rerender } = renderHook(
         ({ suppressed }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             vi.fn(),
             () => ({ playhead_sec: 42, is_playing: false }),
@@ -366,6 +362,7 @@ describe("useSessionSync presence", () => {
       rerender({ suppressed: true });
       await act(async () => {
         socket.emit({
+          plane: "session",
           type: "Error",
           code: "invalid_viewer_state",
           detail: "bad",
@@ -396,7 +393,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -451,7 +448,7 @@ describe("useSessionSync presence", () => {
       const { postSessionState } = await import("../api");
       const { rerender } = renderHook(
         ({ publishKey }: { publishKey: string }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             vi.fn(),
             () => ({ playhead_sec: 0, is_playing: false }),
@@ -508,7 +505,7 @@ describe("useSessionSync presence", () => {
       const { postSessionState } = await import("../api");
       const { rerender } = renderHook(
         ({ publishKey }: { publishKey: string }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             vi.fn(),
             () => ({ playhead_sec: 0, is_playing: false }),
@@ -536,6 +533,7 @@ describe("useSessionSync presence", () => {
           .filter((f) => f.type === "ViewerState");
       const echo = (clientId: string | undefined, seq: number) =>
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Echo",
           command: { type: "ViewerState", client_id: clientId, role: "viewer" },
           snapshot: { server_seq: seq, last_command_id: `cmd-${seq}` },
@@ -587,7 +585,7 @@ describe("useSessionSync presence", () => {
       const { postSessionState } = await import("../api");
       const { rerender } = renderHook(
         ({ publishKey }: { publishKey: string }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             vi.fn(),
             () => ({ playhead_sec: 0, is_playing: false }),
@@ -615,6 +613,7 @@ describe("useSessionSync presence", () => {
           .filter((f) => f.type === "ViewerState");
       const echo = (clientId: string | undefined, seq: number) =>
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Echo",
           command: { type: "ViewerState", client_id: clientId, role: "viewer" },
           snapshot: { server_seq: seq, last_command_id: `cmd-${seq}` },
@@ -656,7 +655,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -687,6 +686,7 @@ describe("useSessionSync presence", () => {
 
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Echo",
           command: { type: "ViewerState", client_id: clientId, role: "viewer" },
           snapshot: { server_seq: 1, last_command_id: "cmd-1" },
@@ -709,7 +709,7 @@ describe("useSessionSync presence", () => {
       stubRaf();
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -740,6 +740,7 @@ describe("useSessionSync presence", () => {
 
       await act(async () => {
         FakeWebSocket.instances[0].deliver({
+          plane: "session",
           type: "Echo",
           command: { type: "ViewerState", client_id: clientId, role: "viewer" },
           snapshot: { server_seq: 1, last_command_id: "cmd-1" },
@@ -762,7 +763,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -783,6 +784,7 @@ describe("useSessionSync presence", () => {
 
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Error",
           code: "invalid_viewer_state",
           detail: "bad",
@@ -808,7 +810,7 @@ describe("useSessionSync presence", () => {
       const { postSessionState, loadSessionMeta } = await import("../api");
       const { rerender } = renderHook(
         ({ publishKey }: { publishKey: string }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             vi.fn(),
             () => ({ playhead_sec: 0, is_playing: false }),
@@ -852,7 +854,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState, loadSessionMeta } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -885,7 +887,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -930,7 +932,7 @@ describe("useSessionSync presence", () => {
     try {
       const { postSessionState } = await import("../api");
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -994,7 +996,7 @@ describe("useSessionSync presence", () => {
           revision: number;
           commandId: string | null;
         }) =>
-          useSessionSync(
+          useHostSync(
             "/tmp/ep.project.json",
             apply,
             () => ({ playhead_sec: 0, is_playing: false }),
@@ -1014,6 +1016,7 @@ describe("useSessionSync presence", () => {
       expect(finishPublish).toBeDefined();
 
       const applied = (seq: number, commandId: string) => ({
+        plane: "session",
         type: "Applied",
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
@@ -1066,7 +1069,7 @@ describe("useSessionSync presence", () => {
       );
       const apply = vi.fn();
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           apply,
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -1102,6 +1105,7 @@ describe("useSessionSync presence", () => {
       expect(frames).toHaveLength(1);
       await act(async () => {
         sock.emit({
+          plane: "session",
           type: "Echo",
           command: {
             type: "ViewerState",
@@ -1111,7 +1115,6 @@ describe("useSessionSync presence", () => {
           snapshot: { server_seq: 3, last_command_id: "cmd-3" },
         });
       });
-      // The torn-down effect's POST finishes late with an older sequence.
       await act(async () => {
         finishPublish?.({
           server_seq: 1,
@@ -1120,6 +1123,7 @@ describe("useSessionSync presence", () => {
         await Promise.resolve();
       });
       const applied = (seq: number, commandId: string) => ({
+        plane: "session",
         type: "Applied",
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
@@ -1158,7 +1162,7 @@ describe("useSessionSync presence", () => {
         server_seq: 3,
       });
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           vi.fn(),
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -1175,6 +1179,7 @@ describe("useSessionSync presence", () => {
       });
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Snapshot",
           snapshot: {
             server_seq: 3,
@@ -1217,7 +1222,7 @@ describe("useSessionSync presence", () => {
       });
       const apply = vi.fn();
       renderHook(() =>
-        useSessionSync(
+        useHostSync(
           "/tmp/ep.project.json",
           apply,
           () => ({ playhead_sec: 0, is_playing: false }),
@@ -1234,6 +1239,7 @@ describe("useSessionSync presence", () => {
       });
       await act(async () => {
         FakeWebSocket.instances[0].emit({
+          plane: "session",
           type: "Snapshot",
           snapshot: {
             server_seq: 3,
@@ -1273,7 +1279,7 @@ describe("useSessionSync presence", () => {
     const listener = vi.fn();
     const unsub = useDawStore.subscribe(listener);
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         useDawStore.getState().applyAgentSession,
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1292,10 +1298,12 @@ describe("useSessionSync presence", () => {
     const sock = FakeWebSocket.instances[0];
     await act(async () => {
       sock.deliver({
+        plane: "session",
         type: "Presence",
         clients: [{ client_id: "a", role: "viewer" }],
       });
       sock.deliver({
+        plane: "session",
         type: "Presence",
         clients: [
           { client_id: "a", role: "viewer" },
@@ -1303,6 +1311,7 @@ describe("useSessionSync presence", () => {
         ],
       });
       sock.deliver({
+        plane: "session",
         type: "Presence",
         clients: [
           { client_id: "a", role: "viewer" },
@@ -1311,6 +1320,7 @@ describe("useSessionSync presence", () => {
         ],
       });
       sock.deliver({
+        plane: "session",
         type: "Applied",
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
@@ -1337,7 +1347,7 @@ describe("useSessionSync presence", () => {
   it("a clock-only frame writes nothing to the store", async () => {
     const listener = vi.fn();
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1355,6 +1365,7 @@ describe("useSessionSync presence", () => {
     const unsub = useDawStore.subscribe(listener);
     await act(async () => {
       FakeWebSocket.instances[0].emit({
+        plane: "session",
         type: "Ping",
         server_time_ns: (Date.now() + 100) * 1e6,
       });
@@ -1363,11 +1374,11 @@ describe("useSessionSync presence", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it("still applies the record plane immediately, ahead of any queued frame", async () => {
+  it("queues recording snapshots until the inbound batch applies", async () => {
     const { useRecordHostStore } = await import("../record/hostStore");
     useRecordHostStore.getState().setSnapshot(null);
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1383,8 +1394,6 @@ describe("useSessionSync presence", () => {
       await Promise.resolve();
     });
     const sock = FakeWebSocket.instances[0];
-    // Delivered without a flush: the record-plane frame still applies
-    // synchronously, unlike a queued session frame.
     await act(async () => {
       sock.deliver({
         type: "Snapshot",
@@ -1399,12 +1408,15 @@ describe("useSessionSync presence", () => {
         },
       });
     });
+    expect(useRecordHostStore.getState().snapshot).toBeNull();
+    expect(pendingInboundCount()).toBe(1);
+    act(() => flushInbound());
     expect(useRecordHostStore.getState().snapshot?.state).toBe("recording");
   });
 
   it("applies a PresenceDelta for a known client at the current roster version", async () => {
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1422,6 +1434,7 @@ describe("useSessionSync presence", () => {
     const sock = FakeWebSocket.instances[0];
     await act(async () => {
       sock.emit({
+        plane: "session",
         type: "Presence",
         roster_version: 7,
         clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
@@ -1429,6 +1442,7 @@ describe("useSessionSync presence", () => {
     });
     await act(async () => {
       sock.emit({
+        plane: "session",
         type: "PresenceDelta",
         author_client_id: "x",
         roster_version: 7,
@@ -1441,7 +1455,7 @@ describe("useSessionSync presence", () => {
 
   it("sends exactly one RosterRequest on a version gap", async () => {
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1459,6 +1473,7 @@ describe("useSessionSync presence", () => {
     const sock = FakeWebSocket.instances[0];
     await act(async () => {
       sock.emit({
+        plane: "session",
         type: "Presence",
         roster_version: 7,
         clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
@@ -1467,6 +1482,7 @@ describe("useSessionSync presence", () => {
     sock.sent = [];
     await act(async () => {
       sock.emit({
+        plane: "session",
         type: "PresenceDelta",
         author_client_id: "x",
         roster_version: 9,
@@ -1477,13 +1493,12 @@ describe("useSessionSync presence", () => {
       .map((s) => JSON.parse(s) as { type: string })
       .filter((f) => f.type === "RosterRequest");
     expect(rosterRequests).toHaveLength(1);
-    // The stale delta was dropped, not applied.
     expect(useDawStore.getState().sessionClients.x?.label).toBe("Ada");
   });
 
   it("sends a RosterRequest on a PresenceResync", async () => {
     renderHook(() =>
-      useSessionSync(
+      useHostSync(
         "/tmp/ep.project.json",
         vi.fn(),
         () => ({ playhead_sec: 0, is_playing: false }),
@@ -1501,6 +1516,7 @@ describe("useSessionSync presence", () => {
     const sock = FakeWebSocket.instances[0];
     await act(async () => {
       sock.emit({
+        plane: "session",
         type: "Presence",
         roster_version: 7,
         clients: [{ client_id: "x", role: "viewer", label: "Ada" }],
@@ -1508,7 +1524,10 @@ describe("useSessionSync presence", () => {
     });
     sock.sent = [];
     await act(async () => {
-      sock.emit({ type: "PresenceResync" });
+      sock.emit({
+        plane: "session",
+        type: "PresenceResync",
+      });
     });
     const rosterRequests = sock.sent
       .map((s) => JSON.parse(s) as { type: string })

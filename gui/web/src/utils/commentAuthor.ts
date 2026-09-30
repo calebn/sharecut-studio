@@ -4,7 +4,6 @@ import { readLocal, writeLocal } from "./storage";
 const STORAGE_KEY = "podcast-mcp-comment-author";
 const DEFAULT_AUTHOR = "viewer";
 
-/** Presence label the host publishes (useSessionSync); the host's default comment name. */
 export const HOST_SESSION_LABEL = "Host";
 /** A guest's presence label and comment name until they save one. */
 export const GUEST_SESSION_LABEL = "Guest";

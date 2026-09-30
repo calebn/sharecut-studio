@@ -85,3 +85,11 @@ def _foreign_document_write(project: EpisodeProject) -> dict:
         return row
     finally:
         store.close()
+
+
+def receive_host_plane(socket, plane: str) -> dict:
+    for _ in range(40):
+        frame = socket.receive_json()
+        if frame.get("plane") == plane:
+            return frame
+    raise AssertionError(f"no {plane} frame")

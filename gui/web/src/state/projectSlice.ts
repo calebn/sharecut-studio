@@ -100,6 +100,8 @@ export const createProjectSlice: StateCreator<
             soloTracks: {},
             sessionRegion: null,
             lastAgentQuery: null,
+            lastAppliedRevision: 0,
+            lastAppliedCommandId: null,
             playUntilSec: null,
             playSkipStartSec: null,
             playSkipEndSec: null,

@@ -36,12 +36,13 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from sync_helpers import receive_host_plane
 
 runner = CliRunner()
 
 
 def test_document_ws_snapshot_runs_off_event_loop(minimal_project, monkeypatch):
-    from podcast_mcp.gui.routes import document as document_route
+    from podcast_mcp.gui.routes import host as document_route
     from podcast_mcp.services.document_sync import DocumentSyncService
 
     thread_ids: dict[str, int] = {}
@@ -59,9 +60,9 @@ def test_document_ws_snapshot_runs_off_event_loop(minimal_project, monkeypatch):
     monkeypatch.setattr(document_route, "authorize_client", authorize_on_loop)
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", snapshot_in_worker)
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-worker&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-worker&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
     assert thread_ids["snapshot"] != thread_ids["loop"]
 
 
@@ -91,10 +92,10 @@ def test_document_ws_subscribes_before_initial_snapshot(minimal_project, monkeyp
 
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", snapshot_with_concurrent_event)
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-race&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-race&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
-        assert ws.receive_json()["server_seq"] == 999
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["server_seq"] == 999
 
 
 def test_document_ws_is_server_to_client_only(minimal_project):
@@ -103,11 +104,11 @@ def test_document_ws_is_server_to_client_only(minimal_project):
 
     client = TestClient(create_app())
     url = (
-        f"/api/document/ws?path={quote(str(minimal_project))}"
+        f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}"
         "&client_id=ws-doc&role=viewer&label=Doc"
     )
     with client.websocket_connect(url) as ws:
-        first = ws.receive_json()
+        first = receive_host_plane(ws, "document")
         assert first["type"] == "Snapshot"
         assert first["plane"] == "document"
         assert "comments" in first["snapshot"]
@@ -116,6 +117,7 @@ def test_document_ws_is_server_to_client_only(minimal_project):
             {
                 "type": "Command",
                 "command_type": "AddComment",
+                "plane": "document",
                 "payload": {"body": "from ws", "author": "ws", "timeline_start": 1.25},
                 "client_seq": 1,
                 "command_id": uuid4().hex,
@@ -133,31 +135,33 @@ def test_document_ws_is_server_to_client_only(minimal_project):
                 "snapshot": {"server_seq": 7},
             },
         )
-        applied = ws.receive_json()
+        applied = receive_host_plane(ws, "document")
         assert applied["server_seq"] == 7
     assert load_project(minimal_project).comments == []
 
 
 def test_document_ws_closes_4403_when_authz_revoked_mid_session(minimal_project, monkeypatch):
-    from podcast_mcp.gui.routes import document as document_route
+    from podcast_mcp.gui.routes import host as document_route
     from podcast_mcp.services.session_sync.authz import AuthzDecision
 
     calls = {"n": 0}
+    revoked = False
 
     def _auth(**_kwargs):
         calls["n"] += 1
-        if calls["n"] == 1:
+        if not revoked:
             return AuthzDecision(allowed=True)
         return AuthzDecision(allowed=False, reason="revoked")
 
     monkeypatch.setattr(document_route, "authorize_client", _auth)
-    monkeypatch.setattr(document_route, "DOCUMENT_WS_AUTHZ_RECHECK_S", 0.01)
+    monkeypatch.setattr(document_route, "HOST_WS_AUTHZ_RECHECK_S", 0.01)
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-revoke&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-revoke&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
+        revoked = True
         with pytest.raises(WebSocketDisconnect) as closed:
-            ws.receive_json()
+            receive_host_plane(ws, "document")
     assert closed.value.code == 4403
     assert closed.value.reason == "authorization revoked"
     assert calls["n"] >= 2
@@ -168,25 +172,25 @@ def test_document_ws_closes_1011_and_logs_when_pump_fails(minimal_project, caplo
     from podcast_mcp.services.session_sync.hub import get_hub
 
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=ws-pump&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-pump&role=viewer"
     with (
-        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.document"),
+        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.host"),
         client.websocket_connect(url) as ws,
     ):
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
         get_hub().publish(
             document_hub_key(load_project(minimal_project)),
             {"type": "Applied", "plane": "document", "unserializable": object()},
         )
         with pytest.raises(WebSocketDisconnect) as closed:
-            ws.receive_json()
+            receive_host_plane(ws, "document")
     assert closed.value.code == 1011
     assert "document pump failed" in caplog.text
 
 
 def test_document_ws_guest_denied(minimal_project):
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=g1&role=guest"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=g1&role=guest"
     with pytest.raises(WebSocketDisconnect), client.websocket_connect(url):
         pass
 

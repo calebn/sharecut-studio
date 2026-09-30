@@ -3,7 +3,7 @@
 Stdio ``podcast-mcp``, the ``podcast session`` / ``podcast play`` CLIs and
 ``podcast record land`` journal rows into the shared ``artifacts/session/`` stores,
 but their hub publish reaches their own, empty hub. While at least one GUI socket
-(host ``/api/document/ws`` / ``/api/session/ws``, guest ``/daw/ws``) holds a lease on
+(host ``/api/host/ws``, guest ``/daw/ws``) holds a lease on
 a workspace, one daemon thread polls both journals' ``server_seq`` every
 ``CROSS_PROCESS_POLL_S`` (a parse-free read, the same one the meta routes use) and
 republishes rows this process did not publish itself

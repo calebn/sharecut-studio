@@ -17,7 +17,7 @@ export type PresenceCarryingFrame = {
 
 /**
  * Apply one presence-plane frame to the roster store. Shared by the host
- * (`useSessionSync`) and guest (`useGuestSync`) sockets so both apply the same
+ * (`useHostSync`) and guest (`useGuestSync`) sockets so both apply the same
  * version/roster rules (`presence/roster.ts`'s `applyPresenceDelta`).
  *
  * Returns `true` when a `PresenceDelta` landed on a stale or unknown-client version, or

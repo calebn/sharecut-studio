@@ -7,12 +7,11 @@ import {
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { HelpDialog } from "./home/HelpDialog";
 import { useBladeCut } from "./hooks/useBladeCut";
-import { useDocumentSync } from "./hooks/useDocumentSync";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
+import { useHostSync } from "./hooks/useHostSync";
 import { usePipelineJob } from "./hooks/usePipelineJob";
 import { usePointerType } from "./hooks/usePointerType";
 import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
-import { useSessionSync } from "./hooks/useSessionSync";
 import { useDawKeymapListener } from "./keymap/listener";
 import { BounceDialog } from "./layout/BounceDialog";
 import { CheatsheetDialogs } from "./layout/CheatsheetDialogs";
@@ -91,8 +90,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setActivityRunningCount,
   });
 
-  useDocumentSync(projectPath, setProject, syncEnabled);
-  useSessionSync(
+  useHostSync(
     projectPath,
     applyAgentSession,
     buildViewerSnapshot,
