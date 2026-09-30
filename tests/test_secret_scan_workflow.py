@@ -61,7 +61,7 @@ def test_gitleaks_has_no_committed_ignore_baseline() -> None:
     assert not (ROOT / ".gitleaksignore").exists()
 
 
-def test_gitleaks_config_extends_defaults_with_one_scoped_pin_allowlist() -> None:
+def test_gitleaks_config_extends_defaults_with_scoped_digest_allowlists() -> None:
     config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
 
     assert config["extend"] == {"useDefault": True}
@@ -72,7 +72,7 @@ def test_gitleaks_config_extends_defaults_with_one_scoped_pin_allowlist() -> Non
     rule = config["rules"][0]
     assert "regex" not in rule  # inherits the default detector
 
-    assert len(rule["allowlists"]) == 1
+    assert len(rule["allowlists"]) == 2
     allow = rule["allowlists"][0]
     assert allow["condition"] == "AND"
     assert allow["regexTarget"] == "line"
@@ -97,6 +97,34 @@ def test_gitleaks_pin_allowlist_matches_pin_lines_only() -> None:
     assert not allowed(f'api_key = "{digest}"')
     assert not allowed(f'("tokenizer.json", "{digest[:-1]}")')
     assert not allowed(f'_EN_TOKENIZER_SHA256 = "{digest.upper()}"')
+
+
+def test_gitleaks_document_certificates_allow_only_exact_public_fixture_values() -> None:
+    config = tomllib.loads(GITLEAKS_CONFIG.read_text(encoding="utf-8"))
+    allow = config["rules"][0]["allowlists"][1]
+    assert allow["condition"] == "AND"
+    assert allow["regexTarget"] == "line"
+    paths = [
+        f"tests/fixtures/document_delta/{name}.json"
+        for name in ("small-move", "small-word", "small-regroup")
+    ]
+    assert len(allow["paths"]) == 3
+    for path in paths:
+        assert any(re.fullmatch(pattern, path) for pattern in allow["paths"])
+        lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
+        certificates = [line for line in lines if '"base_token"' in line]
+        assert len(certificates) == 1
+        assert any(re.search(pattern, certificates[0]) for pattern in allow["regexes"])
+        api_line = certificates[0].replace('"base_token"', '"api_key"')
+        assert not any(re.search(pattern, api_line) for pattern in allow["regexes"])
+    for path in (
+        "src/podcast_mcp/api.py",
+        "tests/fixtures/document_delta/new.json",
+        "tests/fixtures/document_delta/small-word.json.backup",
+    ):
+        assert not any(re.fullmatch(pattern, path) for pattern in allow["paths"])
+    unknown = '"base_token": "' + "0123456789abcdef" * 4 + '",'
+    assert not any(re.search(pattern, unknown) for pattern in allow["regexes"])
 
 
 def test_every_model_pin_line_is_allowlisted_or_standalone() -> None:

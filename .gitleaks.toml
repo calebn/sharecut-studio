@@ -1,4 +1,4 @@
-# Gitleaks config for secret-scan.yml: the default rules plus one scoped allowlist.
+# Gitleaks config for secret-scan.yml: the default rules plus scoped digest allowlists.
 # See docs/testing.md § Credential history scanning.
 [extend]
 useDefault = true
@@ -19,4 +19,17 @@ id = "generic-api-key"
       '''_[A-Z0-9_]*_SHA256 = "[0-9a-f]{64}"''',
       # ("tokenizer.json", "<64 hex>") manifest entries
       '''\("[\w./-]+", "[0-9a-f]{64}"\)''',
+    ]
+
+    [[rules.allowlists]]
+    description = "Exact public predecessor certificate digests in document delta goldens (#599)"
+    condition = "AND"
+    paths = [
+      '''^tests/fixtures/document_delta/small-move\.json$''',
+      '''^tests/fixtures/document_delta/small-word\.json$''',
+      '''^tests/fixtures/document_delta/small-regroup\.json$''',
+    ]
+    regexTarget = "line"
+    regexes = [
+      '''^\s*"base_token": "(87d2483bad4c3c96cb16346e6c03fa0f6ff290a9d257e352c0c06d08359bd762|aa1600b0dea9b9271b802fb2e8b9f1e2e860aba6b0b1c17b893ca0b79456e3ea|a04fbc790a126e446c08459c2c014612b7aeacb94bb74fa1ab8101905c3ea151)",?\s*$''',
     ]
