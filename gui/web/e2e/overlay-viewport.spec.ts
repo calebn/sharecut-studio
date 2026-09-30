@@ -1,4 +1,5 @@
 import { expect, type Locator, test } from "@playwright/test";
+import { expectPageAxeClean } from "./axe";
 import {
   expectDialogLowerTargetReachable,
   expectMenuLastItemReachable,
@@ -99,6 +100,24 @@ test.describe("dialog consumers reachability", () => {
                   name: dialogCase.targetName,
                   exact: true,
                 });
+        if (dialogCase.name === "Bounce…") {
+          const dialog = page.getByRole("dialog", { name: "Bounce…" });
+          const labels = await dialog.locator("label").evaluateAll((rows) =>
+            rows.map((row) => ({
+              height: row.getBoundingClientRect().height,
+              controlLeft: row.querySelector("input")?.getBoundingClientRect()
+                .left,
+              textLeft: row.querySelector("span")?.getBoundingClientRect().left,
+            })),
+          );
+          expect(labels).toHaveLength(5);
+          for (const row of labels) {
+            expect(row.height).toBeGreaterThanOrEqual(44);
+            expect(row.controlLeft).toBe(labels[0].controlLeft);
+            expect(row.textLeft).toBe(labels[0].textLeft);
+          }
+          await expectPageAxeClean(page, ".ui-dialog-root");
+        }
         await expectDialogLowerTargetReachable(
           page,
           dialogCase.name,

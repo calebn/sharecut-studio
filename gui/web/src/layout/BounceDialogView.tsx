@@ -51,64 +51,72 @@ export function BounceDialogView(props: BounceDialogViewProps) {
       title="Bounce…"
       panelClassName="bounce-dialog-panel"
     >
-      <fieldset className="bounce-dialog-fieldset">
-        <legend>Source</legend>
-        <label>
-          <input
-            type="radio"
-            name={sourceName}
-            checked={source === "entire"}
-            onChange={() => onSourceChange("entire")}
-          />
-          Entire mix
-        </label>
-        <label>
-          <input
-            type="radio"
-            name={sourceName}
-            checked={source === "selected"}
-            onChange={() => onSourceChange("selected")}
-          />
-          Selected tracks ({selectedCount})
-        </label>
-        <label>
-          <input
-            type="radio"
-            name={sourceName}
-            checked={source === "soloed"}
-            onChange={() => onSourceChange("soloed")}
-          />
-          Soloed tracks ({soloCount})
-        </label>
-      </fieldset>
-      <label className="bounce-dialog-check">
-        <input
-          type="checkbox"
-          checked={useRegion}
-          disabled={!hasRegion}
-          onChange={(e) => onUseRegionChange(e.target.checked)}
-        />
-        Limit to session region
-        {!hasRegion ? " (no region set)" : ""}
-      </label>
-      <label className="bounce-dialog-check">
-        <input
-          type="checkbox"
-          checked={includeMp3}
-          onChange={(e) => onIncludeMp3Change(e.target.checked)}
-        />
-        Also write MP3
-      </label>
-      <InlineError message={error} />
-      <div className="bounce-dialog-actions">
-        <Button
-          variant="primary"
-          type="button"
-          disabled={busy}
-          onClick={onBounce}
-        >
-          {busy ? "Bouncing…" : "Bounce"}
-        </Button>
+      <div className="bounce-dialog-body">
+        <fieldset className="bounce-dialog-fieldset">
+          <legend>Source</legend>
+          <label>
+            <input
+              type="radio"
+              name={sourceName}
+              checked={source === "entire"}
+              onChange={() => onSourceChange("entire")}
+            />
+            <span>Entire mix</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={sourceName}
+              checked={source === "selected"}
+              onChange={() => onSourceChange("selected")}
+            />
+            <span>Selected tracks ({selectedCount})</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={sourceName}
+              checked={source === "soloed"}
+              onChange={() => onSourceChange("soloed")}
+            />
+            <span>Soloed tracks ({soloCount})</span>
+          </label>
+        </fieldset>
+        <div className="bounce-dialog-options">
+          <label className="bounce-dialog-check">
+            <input
+              type="checkbox"
+              checked={useRegion}
+              disabled={!hasRegion}
+              onChange={(e) => onUseRegionChange(e.target.checked)}
+            />
+            <span>
+              Limit to session region
+              {!hasRegion ? " (no region set)" : ""}
+            </span>
+          </label>
+          <label className="bounce-dialog-check">
+            <input
+              type="checkbox"
+              checked={includeMp3}
+              onChange={(e) => onIncludeMp3Change(e.target.checked)}
+            />
+            <span>Also write MP3</span>
+          </label>
+        </div>
+        <div className="bounce-dialog-footer">
+          <InlineError message={error} />
+          <div className="bounce-dialog-actions">
+            <Button
+              variant="primary"
+              type="button"
+              disabled={busy}
+              onClick={onBounce}
+            >
+              {busy ? "Bouncing…" : "Bounce"}
+            </Button>
+          </div>
+        </div>
       </div>
     </Dialog>
   );

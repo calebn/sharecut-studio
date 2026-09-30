@@ -186,36 +186,63 @@
   width: min(28rem, calc(100vw - 2rem));
 }
 
-.bounce-dialog-fieldset {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin: var(--space-4) 0;
-  padding: var(--space-4) var(--space-5);
+.bounce-dialog-body {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-6);
+}
+
+.bounce-dialog-fieldset {
+  min-inline-size: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
 }
 
 .bounce-dialog-fieldset legend {
-  padding: 0 var(--space-1);
+  padding: 0;
+  margin-bottom: var(--space-3);
   font-weight: 600;
 }
 
-.bounce-dialog-check {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-3) 0;
+.bounce-dialog-options {
+  display: grid;
+  gap: var(--space-1);
 }
 
-.bounce-dialog-error {
-  color: var(--danger);
-  margin: var(--space-3) 0;
+.bounce-dialog-fieldset label,
+.bounce-dialog-check {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  min-block-size: var(--touch-min);
+  padding-block: var(--space-3);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.bounce-dialog-fieldset input,
+.bounce-dialog-check input {
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin: var(--space-0) 0 0;
+}
+
+.bounce-dialog-footer {
+  display: grid;
+  gap: var(--space-4);
 }
 
 .bounce-dialog-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--space-5);
+}
+
+.bounce-dialog-actions > button {
+  min-block-size: var(--touch-min);
+  min-inline-size: 7rem;
 }
 
 .command-palette-panel.share-dialog-panel {

@@ -89,6 +89,11 @@ Local web UI for inspecting an episode without mutating state.
 
 ### Frontend foundation
 
+The Bounce dialog groups Source, export options, and its action footer with
+theme spacing tokens. Radio and checkbox labels share aligned control/text
+columns and a `--touch-min` hit target; long labels wrap beside the control.
+Its scoped layout preserves the shared dialog's focus trap and scrolling body.
+
 Sharecut Studio (`gui/web/`) uses plain CSS + React (no Tailwind/shadcn). Semantic theme tokens live in `gui/web/src/styles/theme/` (light/dark via `data-theme` + `prefers-color-scheme`; transport toggle + `localStorage`). Shared chrome is the **Sharecut Studio UI library** under `gui/web/src/ui/` (Button, CommandButton, Dialog, Menu, Field, …) — charter and command-bus bridge: [`gui/web/docs/ui-library.md`](../gui/web/docs/ui-library.md). Comment UI is shared from `gui/web/src/comments/`. Domain CSS is split into `@import` partials from `gui/web/src/styles/daw.css`. See [`gui/web/README.md`](../gui/web/README.md).
 
 ### Launch

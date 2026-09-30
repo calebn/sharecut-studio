@@ -80,6 +80,27 @@ describe("BounceDialogView", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps long option labels clickable and the error before Bounce; axe-clean", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    props.selectedCount = 123456789;
+    props.hasRegion = false;
+    props.error = "Select one or more tracks first, then try bouncing again.";
+    const { container } = render(<BounceDialogView {...props} />);
+
+    await user.click(screen.getByText("Selected tracks (123456789)"));
+    expect(props.onSourceChange).toHaveBeenCalledWith("selected");
+    expect(screen.getByRole("group", { name: "Source" })).toContainElement(
+      screen.getByLabelText("Selected tracks (123456789)"),
+    );
+    const error = screen.getByText(props.error);
+    const action = screen.getByRole("button", { name: "Bounce" });
+    expect(
+      error.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await expectNoA11yViolations(container);
+  });
+
   it("gives two instances distinct radio group names", () => {
     const propsA = baseProps();
     const propsB = baseProps();
