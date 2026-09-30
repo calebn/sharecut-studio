@@ -41,6 +41,10 @@ Rules:
    - Skill: `.agents/skills/` only if agents need a workflow
 4. Run `make capabilities-check` and `make schema-export` (and `make cheatsheet` when keys change). New MCP/CLI/pipeline ids also appear on `make progress-check` automatically ([progress.md](progress.md)).
 
+`agent.transcript` includes host vocabulary read/write tools. CLI removal flags
+and MCP replacement writes use `TranscriptPrecorrectService`; revision checks
+and prompt limits stay in the service rather than adapters.
+
 ## Governance
 
 | Gate | Command |

@@ -867,3 +867,72 @@ async def test_plain_runtime_error_stays_generic(minimal_project):
     assert result.structured_content is None or "project_busy" not in json.dumps(
         result.structured_content
     )
+
+
+def test_transcript_vocabulary_parity_roundtrip_and_conflict(tmp_path):
+    from podcast_mcp.services.transcript_precorrect import VocabularyConflictError
+
+    path = mcp_server.episode_create(str(tmp_path / "vocab"), name="Vocabulary")
+    base = json.loads(mcp_server.get_transcript_vocabulary_tool(path))
+    saved = json.loads(
+        mcp_server.set_transcript_vocabulary_tool(
+            path, terms=[" Ada ", "Ada"], guest_names=["Caleb"], base_revision=base["revision"]
+        )
+    )
+    assert saved["terms"] == ["Ada"]
+    assert saved["guest_names"] == ["Caleb"]
+    assert saved["revision"] != base["revision"]
+    with pytest.raises(VocabularyConflictError):
+        mcp_server.set_transcript_vocabulary_tool(
+            path, terms=["Wrong"], guest_names=[], base_revision=base["revision"]
+        )
+    assert json.loads(mcp_server.get_transcript_vocabulary_tool(path)) == saved
+    cleared = json.loads(
+        mcp_server.set_transcript_vocabulary_tool(
+            path, terms=[], guest_names=[], base_revision=saved["revision"]
+        )
+    )
+    assert cleared["terms"] == [] and cleared["guest_names"] == []
+
+
+def test_transcript_vocabulary_parity_registered_schema_requires_revision():
+    from mcp.server import MCPServer
+
+    from podcast_mcp.mcp.tools import register_all
+
+    server = MCPServer("vocabulary-parity")
+    register_all(server)
+    tools = {tool.name: tool for tool in server._tool_manager.list_tools()}
+    assert "get_transcript_vocabulary_tool" in tools
+    setter = tools["set_transcript_vocabulary_tool"]
+    assert set(setter.parameters["required"]) == {
+        "project_path",
+        "terms",
+        "guest_names",
+        "base_revision",
+    }
+
+
+def test_transcript_vocabulary_parity_rejects_overflow_and_preserves_context(tmp_path):
+    from podcast_mcp.services import ProjectWorkspace, TranscriptPrecorrectService
+
+    path = mcp_server.episode_create(str(tmp_path / "vocab-limits"), name="Vocabulary")
+    svc = TranscriptPrecorrectService(ProjectWorkspace.open(path))
+    svc.update_context(values={"show_title": "My Show", "preserve_tokens": ["keep"]})
+    base = json.loads(mcp_server.get_transcript_vocabulary_tool(path))
+    with pytest.raises(ValueError, match="prompt"):
+        mcp_server.set_transcript_vocabulary_tool(
+            path,
+            terms=["A" * 100, "B" * 100, "C" * 100, "D" * 100],
+            guest_names=[],
+            base_revision=base["revision"],
+        )
+    assert json.loads(mcp_server.get_transcript_vocabulary_tool(path)) == base
+    saved = json.loads(
+        mcp_server.set_transcript_vocabulary_tool(
+            path, terms=["New"], guest_names=[], base_revision=base["revision"]
+        )
+    )
+    assert saved["terms"] == ["New"]
+    assert svc.get_context()["show_title"] == "My Show"
+    assert svc.get_context()["preserve_tokens"] == ["keep"]

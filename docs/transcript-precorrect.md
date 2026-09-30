@@ -40,6 +40,14 @@ podcast transcript context set --project episode.project.json --show-title "My S
 podcast transcript context set --project episode.project.json --file context.yaml
 ```
 
+Remove entries with repeatable `--remove-term` / `--remove-guest-name` on
+`context set`. A file merge precedes flag additions, then removals; names match
+exactly after trimming spaces. Host MCP `get_transcript_vocabulary_tool` reads
+both lists and their revision. `set_transcript_vocabulary_tool` replaces both
+lists using that required `base_revision`, rejecting a stale save. Vocabulary
+changes affect future ASR prompts, while glossary replacements below affect
+existing words.
+
 ## Report
 
 `artifacts/transcript_precorrect_report.json` contains:

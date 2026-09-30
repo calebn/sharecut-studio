@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import typer
 import yaml
@@ -311,21 +312,31 @@ def transcript_context_set_cmd(
     show_title: str | None = typer.Option(None, "--show-title"),
     guest_name: list[str] = typer.Option(None, "--guest-name"),
     term: list[str] = typer.Option(None, "--term"),
+    remove_term: list[str] = typer.Option(None, "--remove-term"),
+    remove_guest_name: list[str] = typer.Option(None, "--remove-guest-name"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     svc = TranscriptPrecorrectService(ws)
-    if not context_file and not (show_title or guest_name or term):
+    if not context_file and not (
+        show_title or guest_name or term or remove_term or remove_guest_name
+    ):
         raise typer.BadParameter("Provide --file or at least one field flag")
     try:
+        data: dict[str, Any] = {}
         if context_file:
-            data = yaml.safe_load(context_file.read_text(encoding="utf-8")) or {}
-            path = svc.update_context(values=data)
-        else:
-            path = svc.update_context(
-                values={"show_title": show_title} if show_title else None,
-                guest_names=guest_name,
-                terms=term,
-            )
+            loaded = yaml.safe_load(context_file.read_text(encoding="utf-8"))
+            data = {} if loaded is None else loaded
+            if not isinstance(data, dict):
+                raise ValueError("Context file must contain a YAML mapping")
+        if show_title:
+            data["show_title"] = show_title
+        path = svc.update_context(
+            values=data,
+            guest_names=guest_name,
+            terms=term,
+            remove_terms=remove_term,
+            remove_guest_names=remove_guest_name,
+        )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     except TranscriptContextBusyError as exc:

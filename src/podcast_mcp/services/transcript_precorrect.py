@@ -80,8 +80,10 @@ class TranscriptPrecorrectService:
         values: dict[str, Any] | None = None,
         terms: list[str] | None = None,
         guest_names: list[str] | None = None,
+        remove_terms: list[str] | None = None,
+        remove_guest_names: list[str] | None = None,
     ) -> str:
-        """Merge values into transcript_context.yaml under the context lock.
+        """Merge values, append terms/names, then remove entries under the context lock.
 
         Raises ValueError when changed vocabulary would be truncated in the Whisper prompt,
         or when changed terms or guest names break the entry limits, and TranscriptContextBusyError
@@ -92,10 +94,17 @@ class TranscriptPrecorrectService:
             current = load_transcript_context(workspace)
             merged = {**context_to_dict(current), **(values or {})}
             if terms:
-                merged["terms"] = [*current.terms, *terms]
+                merged["terms"] = [*(merged.get("terms") or []), *terms]
             if guest_names:
-                merged["guest_names"] = [*current.guest_names, *guest_names]
-            for key in ("terms", "guest_names"):
+                merged["guest_names"] = [*(merged.get("guest_names") or []), *guest_names]
+            for key, removals in (("terms", remove_terms), ("guest_names", remove_guest_names)):
+                if removals:
+                    removed = set(_clean_vocabulary(removals))
+                    merged[key] = [
+                        str(value).strip()
+                        for value in merged.get(key) or []
+                        if str(value).strip() not in removed
+                    ]
                 if merged.get(key) != getattr(current, key):
                     merged[key] = _clean_vocabulary([str(v) for v in merged.get(key) or []])
             next_ctx = context_from_dict(merged)

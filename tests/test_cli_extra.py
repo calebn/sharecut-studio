@@ -563,3 +563,49 @@ def test_pipeline_run_rejects_force_with_retime_words(tmp_path, sample_wav):
     assert result.exit_code == 2
     run.assert_not_called()
     assert "force" in result.output
+
+
+def test_transcript_context_vocabulary_parity_remove_and_file(tmp_path):
+    project = _init_project(tmp_path)
+    initial = runner.invoke(
+        transcript_app,
+        ["context", "set", "--project", str(project), "--guest-name", "Ada", "--term", "Old"],
+    )
+    assert initial.exit_code == 0
+    context = tmp_path / "context.yaml"
+    context.write_text("terms: [File]\nshow_title: Show\n")
+    result = runner.invoke(
+        transcript_app,
+        [
+            "context",
+            "set",
+            "--project",
+            str(project),
+            "--file",
+            str(context),
+            "--term",
+            "New",
+            "--remove-term",
+            "File",
+            "--remove-guest-name",
+            "Ada",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    shown = runner.invoke(transcript_app, ["context", "show", "--project", str(project)])
+    saved = json.loads(shown.stdout)
+    assert saved["terms"] == ["New"]
+    assert saved["guest_names"] == []
+    assert saved["show_title"] == "Show"
+
+
+@pytest.mark.parametrize("yaml_content", ["- invalid\n", "[]\n", "false\n", "0\n"])
+def test_transcript_context_vocabulary_parity_rejects_non_mapping_file(tmp_path, yaml_content):
+    project = _init_project(tmp_path)
+    context = tmp_path / "context.yaml"
+    context.write_text(yaml_content)
+    result = runner.invoke(
+        transcript_app, ["context", "set", "--project", str(project), "--file", str(context)]
+    )
+    assert result.exit_code == 2
+    assert "mapping" in result.output

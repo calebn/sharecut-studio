@@ -48,6 +48,15 @@ ASR reads only input-keyed caches and retains the new write plus one previous
 variant per recording job and audio hash. A pruned cache may require ASR again;
 stored project transcripts and undo history remain authoritative.
 
+Vocabulary edits are available through CLI `context set --remove-term NAME`
+(and `--remove-guest-name NAME`) or host MCP `get_transcript_vocabulary_tool` /
+`set_transcript_vocabulary_tool`. Read first and pass its exact revision as the
+required `base_revision`; null is valid only when the read revision is null.
+The MCP setter replaces both lists and preserves other context. Reload and
+review after a revision conflict. With CLI `--file`, flags add to merged values
+and removals apply last; absent removals are harmless. These edits affect future
+ASR prompts and leave existing words unchanged.
+
 ## Workspace setup
 
 ```bash
