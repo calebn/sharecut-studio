@@ -661,6 +661,53 @@ def test_truncated_mp3_does_not_publish_a_short_pyramid(tmp_path):
 
 
 @needs_ffmpeg
+@pytest.mark.parametrize("offset", [0, 3])
+def test_timestamp_gapped_audio_keeps_packed_pcm_waveform(tmp_path, offset):
+    eng = FFmpegEngine()
+    audio = tmp_path / "gapped.m4a"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-af",
+            f"aselect='not(between(t,1,2))',asetpts=PTS+{offset}/TB",
+            "-c:a",
+            "aac",
+            "-y",
+            str(audio),
+        ],
+        check=True,
+        timeout=60,
+    )
+    probe = eng.probe(audio)
+    assert probe.audio_duration_sec is not None
+    assert 3.9 < probe.audio_duration_sec < 4.1
+    raw = run(
+        [eng.ffmpeg, "-v", "error", "-i", str(audio), "-f", "f32le", "pipe:1"],
+        capture_output=True,
+        check=True,
+        timeout=60,
+    ).stdout
+    expected_frames = len(raw) // (4 * probe.channels)
+    assert 2.9 < expected_frames / probe.sample_rate < 3.1
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-gap", key)
+    build_pyramid("track:gap", key, audio, out)
+    meta = read_meta(out)
+    assert meta.total_frames == expected_frames
+    samples = np.frombuffer(raw, dtype="<f4").reshape(-1, probe.channels)
+    _, expected_levels = build_levels(
+        [samples], sample_rate=probe.sample_rate, channels=probe.channels
+    )
+    assert read_bins(out, meta, 0, 0, meta.levels[0].bins) == expected_levels[0].tobytes()
+
+
+@needs_ffmpeg
 def test_estimated_vbr_mp3_remains_buildable(tmp_path):
     eng = FFmpegEngine()
     audio = tmp_path / "estimated.mp3"
@@ -734,6 +781,65 @@ def test_audio_shorter_than_video_uses_audio_duration_for_decode_check(tmp_path)
     out = pyramid_path(tmp_path, "track-video", key)
     build_pyramid("track:video", key, audio, out)
     assert 3.9 < read_meta(out).total_frames / read_meta(out).sample_rate < 4.2
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("truncate", [False, True])
+def test_audio_offset_with_video_does_not_mask_a_short_decode(tmp_path, truncate):
+    eng = FFmpegEngine()
+    full = tmp_path / "offset-video.mp4"
+    run(
+        [
+            eng.ffmpeg,
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=16x16:r=1:d=8",
+            "-itsoffset",
+            "3",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "mpeg4",
+            "-c:a",
+            "aac",
+            "-movflags",
+            "faststart",
+            "-y",
+            str(full),
+        ],
+        check=True,
+        timeout=60,
+    )
+    audio = full
+    if truncate:
+        audio = tmp_path / "short-offset-video.mp4"
+        data = full.read_bytes()
+        audio.write_bytes(data[: len(data) * 7 // 10])
+    probe = eng.probe(audio)
+    assert probe.audio_duration_sec is not None
+    assert 3.9 < probe.audio_duration_sec < 4.2
+    raw = run(
+        [eng.ffmpeg, "-v", "error", "-i", str(audio), "-f", "f32le", "pipe:1"],
+        capture_output=True,
+        check=True,
+        timeout=60,
+    ).stdout
+    expected_frames = len(raw) // (4 * probe.channels)
+    key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
+    out = pyramid_path(tmp_path, "track-offset-video", key)
+    if truncate:
+        assert expected_frames / probe.sample_rate < 3
+        with pytest.raises(RuntimeError, match="short"):
+            build_pyramid("track:offset-video", key, audio, out)
+        assert not out.exists()
+    else:
+        build_pyramid("track:offset-video", key, audio, out)
+        assert read_meta(out).total_frames == expected_frames
 
 
 @needs_ffmpeg
@@ -899,6 +1005,42 @@ class _ImmediateTimer:
 
 def _probe(*_a, **_k):
     return AudioProbe(duration_sec=0.0, sample_rate=8000, channels=1)
+
+
+@pytest.mark.parametrize(
+    "progress",
+    [
+        b"",
+        b"out_time_us=invalid\nprogress=end\n",
+        b"out_time_us=2000000\nprogress=continue\n",
+        b"out_time_us=2000000\nprogress=continue\nout_time_us=invalid\nprogress=end\n",
+    ],
+)
+def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
+    proc = _FakeProc(np.ones(16000, dtype="<f4").tobytes())
+    proc.wait = MagicMock(wraps=proc.wait)
+    eng = FFmpegEngine(ffmpeg="ffmpeg", ffprobe="ffprobe")
+
+    def spawn(_argv, *, stdout, stderr):
+        stderr.write(progress)
+        stderr.flush()
+        return proc
+
+    with (
+        patch.object(
+            eng,
+            "probe",
+            return_value=AudioProbe(
+                duration_sec=2, sample_rate=8000, channels=1, audio_duration_sec=2
+            ),
+        ),
+        patch("podcast_mcp.engines.ffmpeg.popen", side_effect=spawn),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "tone.m4a")
+        with pytest.raises(RuntimeError, match="timestamp"):
+            list(chunks)
+    assert proc.wait.call_count >= 2
+    assert proc.poll() == 0
 
 
 def test_stream_timer_kills_stuck_process(tmp_path):

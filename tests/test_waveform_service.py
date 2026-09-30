@@ -38,6 +38,7 @@ from podcast_mcp.services.waveform import (
     tile_bytes,
     waveform_status,
 )
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from waveform_helpers import SR, reset_waveform_caches, waveform_project, write_wav
 
@@ -300,6 +301,57 @@ def test_tile_and_pcm_treat_a_corrupt_pyramid_as_missing(tmp_path):
         with pytest.raises(svc.WaveformDecodeError):
             read()
         assert not out.exists()
+
+
+@pytest.mark.parametrize("read_kind", ["status", "tile", "pcm", "cached-tile"])
+def test_corrupt_reader_preserves_a_concurrently_rebuilt_pyramid(tmp_path, monkeypatch, read_kind):
+    project_path = waveform_project(tmp_path)
+    waveform_status(project_path, "raw")
+    wait_pyramid_jobs()
+    key = waveform_status(project_path, "raw")["media"]["track:host"]["key"]
+    out = pyramid_path(project_path.parent.resolve() / "artifacts" / "peaks", "track-host", key)
+    out.write_bytes(b"garbage")
+    if read_kind != "cached-tile":
+        svc._META.clear()
+    observed = threading.Event()
+    replaced = threading.Event()
+    errors = []
+    real_drop = svc._drop_pyramid
+
+    def delayed_drop(path, observed_key):
+        observed.set()
+        assert replaced.wait(5)
+        real_drop(path, observed_key)
+
+    def read():
+        try:
+            if read_kind == "status":
+                waveform_status(project_path, "raw")
+            elif read_kind == "pcm":
+                pcm_block(project_path, "track:host", key, 0)
+            else:
+                tile_bytes(project_path, "track:host", key, 0, 0, 1)
+        except svc.WaveformDecodeError:
+            pass
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(svc, "_drop_pyramid", delayed_drop)
+    monkeypatch.setattr(svc, "schedule_pyramid_build", lambda *args, **kwargs: False)
+    reader = threading.Thread(target=read)
+    reader.start()
+    try:
+        assert observed.wait(5)
+        with hold_shared_file_lock(out.parent / ".waveform.lock", timeout=5):
+            write_synthetic_pyramid(out, sample_rate=SR, total_frames=64 * 300, seed=7)
+            replaced.set()
+    finally:
+        replaced.set()
+        reader.join(5)
+    assert not reader.is_alive()
+    assert errors == []
+    assert read_meta(out).total_frames == 64 * 300
+    assert waveform_status(project_path, "raw")["media"]["track:host"]["status"] == "ready"
 
 
 def test_drop_pyramid_unlinks_and_evicts_the_cached_header(tmp_path):
