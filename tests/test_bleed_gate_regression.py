@@ -353,3 +353,27 @@ def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_p
     next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
     assert build_bleed_gate_plan(project, "host") != after
     assert track_render_hash(project, "host") != before
+
+
+def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_path: Path) -> None:
+    from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+
+    project = _episode(tmp_path)
+    project.clips = [clip for clip in project.clips if clip.track_id != "host"]
+    project.sources.append(SourceRecording(id="parked-host", path="raw/host.wav"))
+    project.tracks.append(Track(id="parking", label="Parking", role=TrackRole.MUSIC))
+    project.clips.append(
+        Clip(
+            id="parked-foreign-region",
+            track_id="parking",
+            source_id="parked-host",
+            source_start=2.0,
+            source_end=2.6,
+            timeline_start=0.4,
+        )
+    )
+    before = project.model_dump(mode="json")
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.attenuation_spans == ((2.0, 2.6),)
+    assert any(start <= 0.55 and end >= 1.0 for start, end in plan.protected_spans)
+    assert project.model_dump(mode="json") == before
