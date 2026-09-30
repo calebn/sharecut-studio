@@ -283,3 +283,71 @@ def test_workspace_with_symlinked_project_keeps_canonical_context(minimal_projec
     assert expected["show_title"] == "Canonical"
     assert TranscriptPrecorrectService.vocabulary_status(alias) == expected
     assert TranscriptPrecorrectService.vocabulary_status(minimal_project) == expected
+
+
+def test_unreadable_unused_history_signature_uses_uncached_full_loader(
+    minimal_project, monkeypatch
+):
+    import podcast_mcp.project_store as store_module
+
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.mutate("before test", "after test", lambda p: setattr(p.meta, "name", "Changed"))
+    assert load_project(minimal_project).history.entries
+    expected = _expected(minimal_project)
+    index = minimal_project.parent / "history" / "index.json"
+    original_signature = store_module._file_signature
+    original_read = Path.read_text
+    original_load = ProjectStore.load
+    loads = 0
+
+    def signature(path):
+        if path == index:
+            raise PermissionError("History directory inaccessible")
+        return original_signature(path)
+
+    def read(path, *args, **kwargs):
+        if path == index:
+            raise AssertionError("Authoritative loader should not read unused history")
+        return original_read(path, *args, **kwargs)
+
+    def load(store):
+        nonlocal loads
+        loads += 1
+        return original_load(store)
+
+    monkeypatch.setattr(store_module, "_file_signature", signature)
+    monkeypatch.setattr(Path, "read_text", read)
+    monkeypatch.setattr(ProjectStore, "load", load)
+    client = _client()
+    for _ in range(2):
+        response = _get(client, minimal_project)
+        assert response.status_code == 200
+        assert response.json() == expected
+    assert loads == 2
+
+
+def test_unreadable_required_history_still_raises_from_full_loader(minimal_project, monkeypatch):
+    import podcast_mcp.project_store as store_module
+
+    assert load_project(minimal_project).history.is_empty()
+    index = minimal_project.parent / "history" / "index.json"
+    original_signature = store_module._file_signature
+    original_read = Path.read_text
+
+    def signature(path):
+        if path == index:
+            raise PermissionError("History directory inaccessible")
+        return original_signature(path)
+
+    def read(path, *args, **kwargs):
+        if path == index:
+            raise PermissionError("History directory inaccessible")
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(store_module, "_file_signature", signature)
+    monkeypatch.setattr(Path, "read_text", read)
+    with pytest.raises(ValueError, match="unreadable JSON sidecar"):
+        _expected(minimal_project)
+    with pytest.raises(ValueError, match="unreadable JSON sidecar"):
+        TranscriptPrecorrectService.vocabulary_status(minimal_project)
+    assert _get(_client(), minimal_project).status_code == 500

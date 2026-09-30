@@ -281,7 +281,10 @@ class ProjectStore:
         Context YAML is deliberately outside this cache. A changed file still goes
         through the complete project/history loader, so validation errors are preserved.
         """
-        before = self._vocabulary_cache_key()
+        try:
+            before = self._vocabulary_cache_key()
+        except OSError:
+            return TranscriptVocabularyState.from_project(self.load())
         with _VOCABULARY_CACHE_LOCK:
             hit = _VOCABULARY_CACHE.get(before)
             if hit is not None:
