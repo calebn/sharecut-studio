@@ -704,13 +704,17 @@ never receive a fabricated document resync frame.
 A shared tunnel backlog closes that tunnel with `1013`. Every guest using it
 then reconnects through the existing host-online flow. A full individual guest
 queue closes that guest without blocking another guest's output. A replacement
-tunnel cannot be removed by the previous tunnel's late teardown.
+tunnel retires the old connection and releases its queues. Late advertisements
+and teardown from that old connection cannot change the replacement's routing.
+Stream close codes and UTF-8-bounded reasons propagate in both directions.
 
 `util/ws_delivery.py` owns the shared queue accounting and serialized writer.
 Writes have a five-second deadline that includes waiting for another write.
 Terminal close cancels the active write and has its own five-second deadline.
-Host tunnel control replies use the same writer as proxied data. Guest GUI
-sockets also use this writer through `GuestWsGuard`; authorization gates still
+Host tunnel control replies and HTTP request dispatch use the same writer as
+proxied data. A failed HTTP dispatch releases its pending request and returns
+`504`; a closed tunnel returns `503`. Guest GUI sockets also use this writer
+through `GuestWsGuard`; authorization gates still
 run inside the serialized write. Host-side local stream sends have the same
 five-second deadline. These are delivery limits, not a claim that every
 application event fits in one small frame.

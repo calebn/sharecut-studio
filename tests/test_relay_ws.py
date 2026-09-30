@@ -10,7 +10,7 @@ import socket
 import threading
 import time
 from collections.abc import Iterator
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import uvicorn
@@ -123,7 +123,7 @@ def test_parse_host_tokens_per_host(monkeypatch):
 
 def test_register_tunnel_replaces_old_shares():
     state = RelayState(set())
-    s1 = TunnelSession(host_id="h1", websocket=None)  # type: ignore[arg-type]
+    s1 = TunnelSession(host_id="h1", websocket=AsyncMock())
     s1.share_tokens.add("old")
     asyncio.run(state.register_tunnel(s1))
     state.token_to_host["old"] = "h1"
@@ -980,7 +980,7 @@ async def test_tunnel_queue_overflow_closes_and_unregister_releases_backlog():
 @pytest.mark.asyncio
 async def test_stale_tunnel_teardown_cannot_remove_replacement():
     state = RelayState(set())
-    old = TunnelSession(host_id="same", websocket=None)
+    old = TunnelSession(host_id="same", websocket=AsyncMock())
     replacement = TunnelSession(host_id="same", websocket=None)
     await state.register_tunnel(old)
     await state.register_tunnel(replacement)
@@ -1096,3 +1096,113 @@ def test_shared_tunnel_send_deadline_closes_and_releases_streams(monkeypatch):
                 assert session.ws_streams == {}
                 assert session.to_host.queued_bytes == 0
                 assert stream.queue.queued_bytes == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("close_fails", [False, True])
+async def test_replaced_tunnel_releases_backlogs_and_cannot_advertise_for_new_owner(close_fails):
+    state = RelayState(set(), allow_open_tunnel=True)
+    socket = AsyncMock()
+    if close_fails:
+        socket.close.side_effect = OSError("old transport already closed")
+    old = TunnelSession(host_id="same", websocket=socket)
+    stream = GuestWsStream()
+    stream.queue.put_nowait("retained guest frame")
+    old.ws_streams["old-stream"] = stream
+    old.to_host.put_nowait({"type": "ws_data", "text": "retained host frame"})
+    await state.register_tunnel(old)
+    await state.update_shares("same", [{"token": "old"}], expected_session=old)
+    replacement = TunnelSession(host_id="same", websocket=AsyncMock())
+    await state.register_tunnel(replacement)
+    await state.update_shares("same", [{"token": "new"}], expected_session=replacement)
+    await state.update_shares("same", [], expected_session=old)
+    await state.unregister_tunnel("same", expected_session=old)
+    assert state.tunnel_for_token("new") is replacement
+    assert state.tunnel_for_token("old") is None
+    assert replacement.share_tokens == {"new"}
+    assert old.ws_streams == {}
+    assert old.to_host.queued_bytes == stream.queue.queued_bytes == 0
+    assert stream.closed.is_set()
+    assert (stream.close_code, stream.close_reason) == (1013, "host tunnel replaced")
+    socket.close.assert_awaited_once_with(code=1013, reason="host tunnel replaced")
+    assert old.writer.closed
+
+
+@pytest.mark.asyncio
+async def test_http_dispatch_uses_tunnel_delivery_deadline_and_releases_pending(monkeypatch):
+    from podcast_mcp.util.ws_delivery import SerializedWsWriter
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
+    app = create_relay_app()
+    socket = AsyncMock()
+    entered = asyncio.Event()
+
+    async def write(_payload):
+        entered.set()
+        await asyncio.Event().wait()
+
+    session = TunnelSession(host_id="http-deadline", websocket=socket, host_token="secret")
+    session.writer = SerializedWsWriter(write, socket.close, timeout=0.02)
+    await app.state.relay.register_tunnel(session)
+    await app.state.relay.update_shares(
+        session.host_id,
+        attach_share_claims(
+            [{"token": "http-tok", "capabilities": ["view"]}],
+            host_id=session.host_id,
+            secret="secret",
+        ),
+        expected_session=session,
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://relay") as http:
+        response = await asyncio.wait_for(http.get("/api/review/http-tok/project"), 1)
+        assert response.status_code == 504
+        assert response.json() == {"detail": "host delivery timed out"}
+        response = await asyncio.wait_for(http.get("/api/review/http-tok/project"), 1)
+        assert response.status_code == 503
+        assert response.json() == {"detail": "host offline"}
+    assert entered.is_set()
+    socket.send_json.assert_not_awaited()
+    socket.close.assert_awaited_once_with(1013, "slow consumer")
+    assert session.pending == {}
+
+
+@pytest.mark.asyncio
+async def test_tunnel_close_cancels_blocked_http_without_retaining_request(monkeypatch):
+    from podcast_mcp.util.ws_delivery import SerializedWsWriter
+    from podcast_relay.limits import get_relay_limiters, reset_relay_limiters_for_tests
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
+    monkeypatch.setenv("PODCAST_RELAY_TOKEN_CONCURRENT", "1")
+    reset_relay_limiters_for_tests()
+    app = create_relay_app()
+    socket = AsyncMock()
+    entered = asyncio.Event()
+
+    async def write(_payload):
+        entered.set()
+        await asyncio.Event().wait()
+
+    session = TunnelSession(host_id="http-cancel", websocket=socket, host_token="secret")
+    session.writer = SerializedWsWriter(write, socket.close)
+    await app.state.relay.register_tunnel(session)
+    await app.state.relay.update_shares(
+        session.host_id,
+        attach_share_claims(
+            [{"token": "cancel-tok", "capabilities": ["view"]}],
+            host_id=session.host_id,
+            secret="secret",
+        ),
+        expected_session=session,
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://relay") as http:
+        request = asyncio.create_task(http.get("/api/review/cancel-tok/project"))
+        await asyncio.wait_for(entered.wait(), 1)
+        await session.writer.close(1013, "host tunnel replaced")
+        with pytest.raises(asyncio.CancelledError):
+            await request
+    assert session.pending == {}
+    gate = get_relay_limiters().token_concurrent
+    assert gate.try_enter("cancel-tok").allowed
+    assert not gate.try_enter("cancel-tok").allowed
+    gate.exit("cancel-tok")
+    reset_relay_limiters_for_tests()

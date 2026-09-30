@@ -22,7 +22,12 @@ from podcast_mcp.util.proxy_paths import (
     assert_allowed_local_gui_path,
     assert_safe_proxy_path,
 )
-from podcast_mcp.util.ws_delivery import WS_SEND_TIMEOUT_S, SerializedWsWriter, TextWsStream
+from podcast_mcp.util.ws_delivery import (
+    WS_SEND_TIMEOUT_S,
+    SerializedWsWriter,
+    TextWsStream,
+    ws_close_details,
+)
 from podcast_relay.protocol import PROTOCOL_VERSION, msg
 
 log = logging.getLogger(__name__)
@@ -500,7 +505,7 @@ class TunnelClient:
                     )
                     if stream is not None:
                         if mtype == "ws_close":
-                            stream.close()
+                            stream.close(*ws_close_details(raw.get("code"), raw.get("reason")))
                         else:
                             try:
                                 stream.queue.put_nowait(str(raw.get("text") or ""))

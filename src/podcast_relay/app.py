@@ -30,7 +30,7 @@ from podcast_mcp.util.body_limits import (
     relay_ws_max_size,
 )
 from podcast_mcp.util.proxy_paths import proxy_path_is_safe
-from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue
+from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue, ws_close_details
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 from podcast_relay.limits import (
@@ -236,6 +236,14 @@ class RelayState:
             self.tunnels[session.host_id] = session
             for t in session.share_tokens:
                 self.token_to_host[t] = session.host_id
+            if old is not None and old is not session:
+                for stream in old.ws_streams.values():
+                    stream.close(1013, "host tunnel replaced", discard=True)
+                old.ws_streams.clear()
+                old.to_host.close(discard=True)
+        if old is not None and old is not session:
+            with contextlib.suppress(Exception):
+                await old.writer.close(1013, "host tunnel replaced")
 
     async def unregister_tunnel(
         self, host_id: str, *, expected_session: TunnelSession | None = None
@@ -260,12 +268,16 @@ class RelayState:
         self,
         host_id: str,
         shares: list[dict[str, Any]],
+        *,
+        expected_session: TunnelSession | None = None,
     ) -> None:
         from podcast_relay.share_claims import verify_share_claim
 
         async with self._lock:
             session = self.tunnels.get(host_id)
-            if session is None:
+            if session is None or (
+                expected_session is not None and session is not expected_session
+            ):
                 return
             secret = self.secret_for_session(session)
             open_dev = self.allow_open_tunnel and not self.host_tokens and not self.host_secrets
@@ -450,7 +462,7 @@ def create_relay_app() -> FastAPI:
                         shares = data.get("shares") or []
                         if not isinstance(shares, list):
                             shares = []
-                        await state.update_shares(host_id, shares)
+                        await state.update_shares(host_id, shares, expected_session=session)
                         await session.send(
                             msg(
                                 "register",
@@ -481,20 +493,7 @@ def create_relay_app() -> FastAPI:
                     elif mtype == "ws_close":
                         stream = session.ws_streams.pop(str(data.get("id") or ""), None)
                         if stream is not None:
-                            code = data.get("code")
-                            if (
-                                isinstance(code, int)
-                                and 1000 <= code <= 4999
-                                and code
-                                not in (
-                                    1005,
-                                    1006,
-                                    1015,
-                                )
-                            ):
-                                stream.close_code = code
-                            stream.close_reason = str(data.get("reason") or "")[:120]
-                            stream.close(stream.close_code, stream.close_reason)
+                            stream.close(*ws_close_details(data.get("code"), data.get("reason")))
                     elif mtype == "ping":
                         await session.send(msg("pong"))
                     elif mtype == "pong":
@@ -613,7 +612,11 @@ def create_relay_app() -> FastAPI:
         pending = PendingHttp()
         session.pending[req_id] = pending
         try:
-            await session.websocket.send_json(
+            if session.writer.closed:
+                session.pending.pop(req_id, None)
+                _release_gates()
+                return JSONResponse({"detail": "host offline"}, status_code=503)
+            await session.send(
                 msg(
                     "http",
                     id=req_id,
@@ -629,6 +632,10 @@ def create_relay_app() -> FastAPI:
                     share_token=token,
                 )
             )
+            if session.writer.closed:
+                session.pending.pop(req_id, None)
+                _release_gates()
+                return JSONResponse({"detail": "host offline"}, status_code=503)
             try:
                 await asyncio.wait_for(pending.headers_ready.wait(), timeout=300.0)
             except TimeoutError:
@@ -656,7 +663,11 @@ def create_relay_app() -> FastAPI:
                 headers=out_headers,
                 media_type=media,
             )
-        except Exception:
+        except TimeoutError:
+            session.pending.pop(req_id, None)
+            _release_gates()
+            return JSONResponse({"detail": "host delivery timed out"}, status_code=504)
+        except (asyncio.CancelledError, Exception):
             session.pending.pop(req_id, None)
             _release_gates()
             raise
