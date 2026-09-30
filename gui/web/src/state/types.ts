@@ -130,6 +130,7 @@ export interface DawState {
   /** Share capability list from bootstrap; null for host. */
   shareCapabilities: string[] | null;
   playheadSec: number;
+  playheadSeekRevision: number;
   zoomPxPerSec: number;
   waveformAmpZoom: number;
   /** Waveform scale: auto (dialogue in dB), linear or log; remembered per project. */
@@ -282,7 +283,7 @@ export interface DawState {
   setPlaybackRate: (rate: number) => void;
   setProject: (project: ProjectView) => void;
   setGuestMode: (mode: string | null) => void;
-  setPlayheadSec: (sec: number) => void;
+  setPlayheadSec: (sec: number, origin?: "seek" | "playback") => void;
   /** Set zoom, clamped to the session-aware ceiling. */
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;

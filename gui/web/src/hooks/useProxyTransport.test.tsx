@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { playbackPositionSec } from "../audio/playbackClock";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -7,6 +8,7 @@ import { useProxyTransport } from "./useProxyTransport";
 
 const engine = vi.hoisted(() => ({
   setManifest: vi.fn(),
+  setPlaybackRate: vi.fn(),
   setProject: vi.fn(),
   setSolo: vi.fn(),
   setListenMute: vi.fn(),
@@ -70,6 +72,7 @@ describe("useProxyTransport", () => {
       useDawStore.getState().setIsPlaying(true);
     });
     expect(engine.play).toHaveBeenCalledWith(10);
+    expect(playbackPositionSec()).toBe(30);
 
     act(() => useDawStore.getState().setPlayheadSec(25));
     act(() => {
@@ -80,6 +83,7 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().playheadSec).toBe(10);
     expect(engine.pause).toHaveBeenCalled();
     expect(engine.seek).toHaveBeenLastCalledWith(10);
+    expect(playbackPositionSec()).toBeNull();
   });
 
   it("Pause keeps the store playhead, not the engine's pause time", async () => {
@@ -113,5 +117,44 @@ describe("useProxyTransport", () => {
     });
 
     expect(useDawStore.getState().playheadSec).toBe(0);
+  });
+  it("applies the follower playback rate to cached audio", async () => {
+    useDawStore.setState({ playbackRate: 1.5 });
+    renderHook(() => useProxyTransport());
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(engine.setPlaybackRate).toHaveBeenCalledWith(1.5);
+    act(() => useDawStore.getState().setPlaybackRate(1.545));
+    expect(engine.setPlaybackRate).toHaveBeenLastCalledWith(1.545);
+  });
+  it("distinguishes natural ticks from a skip jump", async () => {
+    const { result } = renderHook(() => useProxyTransport());
+    await vi.waitFor(() => expect(result.current).toBe(true));
+    act(() => useDawStore.getState().setIsPlaying(true));
+    const before = useDawStore.getState().playheadSeekRevision;
+    act(() => {
+      frames.shift()?.(0);
+    });
+    expect(useDawStore.getState().playheadSeekRevision).toBe(before);
+    act(() =>
+      useDawStore.setState({ playSkipStartSec: 25, playSkipEndSec: 35 }),
+    );
+    act(() => {
+      frames.shift()?.(0);
+    });
+    expect(useDawStore.getState().playheadSeekRevision).toBe(before + 1);
+    expect(useDawStore.getState().playheadSec).toBe(35);
+  });
+  it("applies follow correction seeks while playing and ignores natural ticks", async () => {
+    const { result } = renderHook(() => useProxyTransport());
+    await vi.waitFor(() => expect(result.current).toBe(true));
+    act(() => useDawStore.getState().setIsPlaying(true));
+    engine.seek.mockClear();
+    act(() => useDawStore.getState().setPlayheadSec(10, "playback"));
+    expect(engine.seek).not.toHaveBeenCalled();
+    act(() => useDawStore.getState().setPlayheadSec(10.3));
+    expect(engine.seek).toHaveBeenCalledExactlyOnceWith(10.3);
   });
 });

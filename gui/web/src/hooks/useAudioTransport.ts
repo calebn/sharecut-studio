@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
+import { bindPlaybackClock } from "../audio/playbackClock";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
@@ -153,6 +154,7 @@ export function useAudioTransport(enabled = true): void {
     projectPath,
     projectEpoch,
     playheadSec,
+    playheadSeekRevision,
     setPlayheadSec,
     isPlaying: timelineIsPlaying,
     sourcePreview: preview,
@@ -176,6 +178,7 @@ export function useAudioTransport(enabled = true): void {
     projectPath: s.projectPath,
     projectEpoch: s.projectEpoch,
     playheadSec: s.playheadSec,
+    playheadSeekRevision: s.playheadSeekRevision,
     setPlayheadSec: s.setPlayheadSec,
     isPlaying: s.isPlaying,
     sourcePreview: s.sourcePreview,
@@ -211,6 +214,7 @@ export function useAudioTransport(enabled = true): void {
   const rafRef = useRef<number | null>(null);
   const abTimerRef = useRef<number | null>(null);
   const playheadRef = useRef(playheadSec);
+  const appliedSeekRevision = useRef(playheadSeekRevision);
   const drivingPlayheadRef = useRef(false);
   const projectRef = useRef(project);
   const auditionModeRef = useRef(auditionMode);
@@ -422,19 +426,17 @@ export function useAudioTransport(enabled = true): void {
     }
   }, [playbackRate, enabled, modeKey]);
 
-  // External seek (paused scrub, or large agent jump while playing).
-  // While playing, ignore small deltas — transport RAF owns the clock; session
-  // heartbeats used to re-seek every ~200ms and stutter the WAV.
   useEffect(() => {
+    const explicitSeek = appliedSeekRevision.current !== playheadSeekRevision;
     if (
       !enabled ||
       previewRef.current ||
-      drivingPlayheadRef.current ||
+      (drivingPlayheadRef.current && !explicitSeek) ||
       !project
     ) {
       return;
     }
-    const threshold = isPlaying ? 0.5 : 0.12;
+    const threshold = explicitSeek ? 0 : isPlaying ? 0.5 : 0.12;
     seekPlayersToTimeline(
       playersRef.current,
       project,
@@ -442,7 +444,15 @@ export function useAudioTransport(enabled = true): void {
       auditionMode,
       threshold,
     );
-  }, [playheadSec, isPlaying, project, auditionMode, enabled]);
+    appliedSeekRevision.current = playheadSeekRevision;
+  }, [
+    playheadSec,
+    playheadSeekRevision,
+    isPlaying,
+    project,
+    auditionMode,
+    enabled,
+  ]);
 
   const playUntilRef = useRef(playUntilSec);
   playUntilRef.current = playUntilSec;
@@ -561,6 +571,8 @@ export function useAudioTransport(enabled = true): void {
         return;
       }
 
+      if (cancelled) return;
+
       const seekAllToTimeline = (timelineSec: number) => {
         const projNow = projectRef.current;
         const modeNow = auditionModeRef.current;
@@ -631,12 +643,13 @@ export function useAudioTransport(enabled = true): void {
             playSkipStartRef.current,
             playSkipEndRef.current,
           );
-          if (skipped !== t) {
+          const jumped = skipped !== t;
+          if (jumped) {
             t = skipped;
             seekAllToTimeline(t);
           }
           drivingPlayheadRef.current = true;
-          setPlayheadSec(t);
+          setPlayheadSec(t, jumped ? "seek" : "playback");
           // Keep the flag through React's playhead effect (sync clear was a no-op).
           queueMicrotask(() => {
             drivingPlayheadRef.current = false;
@@ -749,4 +762,31 @@ export function useAudioTransport(enabled = true): void {
     setAudioError,
     updateSourcePreview,
   ]);
+  useEffect(() => {
+    if (!enabled) return;
+    return bindPlaybackClock(() => {
+      if (
+        previewRef.current ||
+        useDawStore.getState().projectEpoch !== projectEpoch
+      )
+        return null;
+      const picked = pickMaster(playersRef.current);
+      const projectNow = projectRef.current;
+      if (
+        !picked ||
+        !projectNow ||
+        picked[1].paused ||
+        picked[1].ended ||
+        picked[1].readyState < 2 ||
+        picked[1].seeking
+      )
+        return null;
+      return masterTimelineSec(
+        picked[1],
+        picked[0],
+        projectNow,
+        auditionModeRef.current,
+      );
+    });
+  }, [enabled, projectEpoch, modeKey]);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadProxyManifest } from "../api";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
+import { bindPlaybackClock } from "../audio/playbackClock";
 import { ProxyEngine } from "../audio/proxyEngine";
 import type { ProxyManifest } from "../audio/proxyMath";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
@@ -26,7 +27,9 @@ export function useProxyTransport(): boolean {
     project,
     projectPath,
     isPlaying,
+    playbackRate,
     playheadSec,
+    playheadSeekRevision,
     setPlayheadSec,
     playUntilSec,
     playSkipStartSec,
@@ -43,7 +46,9 @@ export function useProxyTransport(): boolean {
     project: s.project,
     projectPath: s.projectPath,
     isPlaying: s.isPlaying,
+    playbackRate: s.playbackRate,
     playheadSec: s.playheadSec,
+    playheadSeekRevision: s.playheadSeekRevision,
     setPlayheadSec: s.setPlayheadSec,
     playUntilSec: s.playUntilSec,
     playSkipStartSec: s.playSkipStartSec,
@@ -63,6 +68,7 @@ export function useProxyTransport(): boolean {
   const manifestRef = useRef<ProxyManifest | null>(null);
   const rafRef = useRef<number | null>(null);
   const abTimerRef = useRef<number | null>(null);
+  const appliedSeekRevision = useRef(playheadSeekRevision);
   const playheadSecRef = useRef(playheadSec);
   playheadSecRef.current = playheadSec;
   const playUntilRef = useRef(playUntilSec);
@@ -150,6 +156,10 @@ export function useProxyTransport(): boolean {
   }, [project, active]);
 
   useEffect(() => {
+    engineRef.current?.setPlaybackRate(playbackRate);
+  }, [playbackRate, active]);
+
+  useEffect(() => {
     engineRef.current?.setSolo(soloTracks);
   }, [soloTracks, active]);
 
@@ -175,11 +185,12 @@ export function useProxyTransport(): boolean {
           playSkipStartRef.current,
           playSkipEndRef.current,
         );
-        if (skipped !== t) {
+        const jumped = skipped !== t;
+        if (jumped) {
           t = skipped;
           engine.seek(t);
         }
-        setPlayheadSec(t);
+        setPlayheadSec(t, jumped ? "seek" : "playback");
         const until = playUntilRef.current;
         if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
           const followup = playAbFollowupRef.current;
@@ -257,11 +268,25 @@ export function useProxyTransport(): boolean {
 
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || !active || isPlaying) {
+    if (!engine || !active) {
       return;
     }
-    engine.seek(playheadSec);
-  }, [playheadSec, active, isPlaying]);
+    if (!isPlaying || appliedSeekRevision.current !== playheadSeekRevision) {
+      engine.seek(playheadSec);
+      appliedSeekRevision.current = playheadSeekRevision;
+    }
+  }, [playheadSec, playheadSeekRevision, active, isPlaying]);
+
+  useEffect(() => {
+    if (!active) return;
+    return bindPlaybackClock(() =>
+      useDawStore.getState().projectPath === projectPath &&
+      useDawStore.getState().isPlaying &&
+      rafRef.current != null
+        ? (engineRef.current?.currentTimeSec() ?? null)
+        : null,
+    );
+  }, [active, projectPath]);
 
   return active;
 }

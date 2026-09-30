@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { playbackPositionSec } from "../audio/playbackClock";
 import { selectionToWire } from "../session/wire";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -51,7 +52,15 @@ export function usePresencePublisher(
       socketSend({
         type: "Presence",
         client_seq: seqRef.current++,
-        ...(s.followingClientId ? {} : { playhead_sec: s.playheadSec }),
+        ...(s.followingClientId
+          ? {}
+          : {
+              playhead_sec:
+                meta.transport?.playhead_sec ??
+                (s.isPlaying
+                  ? (playbackPositionSec() ?? s.playheadSec)
+                  : s.playheadSec),
+            }),
         label: labelRef.current,
         meta: {
           display_name: labelRef.current,
@@ -88,8 +97,10 @@ export function usePresencePublisher(
     if (!send) {
       return;
     }
-    const push = (meta: Parameters<PresenceThrottle["push"]>[0]) =>
-      throttleRef.current.push(meta);
+    const push = (
+      meta: Parameters<PresenceThrottle["push"]>[0],
+      immediate = false,
+    ) => throttleRef.current.push(meta, immediate);
     const publishFollowing = (s: DawState) => {
       if (s.followingClientId) {
         push({
@@ -101,17 +112,23 @@ export function usePresencePublisher(
       }
       push({ following: null });
     };
-    const publishTransport = (s: DawState) => {
+    const publishTransport = (s: DawState, immediate = false, seek = false) => {
       if (s.followingClientId) {
         return;
       }
-      push({
-        transport: {
-          playing: s.isPlaying,
-          playhead_sec: s.playheadSec,
-          rate: s.playbackRate,
+      push(
+        {
+          transport: {
+            playing: s.isPlaying,
+            playhead_sec:
+              s.isPlaying && !seek
+                ? (playbackPositionSec() ?? s.playheadSec)
+                : s.playheadSec,
+            rate: s.playbackRate,
+          },
         },
-      });
+        immediate,
+      );
     };
     const publishSelection = (s: DawState) => {
       push({ selection: selectionToWire(s.selection, s.project?.envelopes) });
@@ -156,23 +173,32 @@ export function usePresencePublisher(
     // Connect: publish everything once, in the order of the frames below.
     const initial = useDawStore.getState();
     publishFollowing(initial);
-    publishTransport(initial);
+    publishTransport(initial, true);
     publishSelection(initial);
     publishViewport(initial);
     publishUi(initial);
 
-    return useDawStore.subscribe((s, prev) => {
+    const playbackTimer = window.setInterval(() => {
+      const s = useDawStore.getState();
+      if (s.isPlaying) publishTransport(s);
+    }, 1000);
+    const unsubscribe = useDawStore.subscribe((s, prev) => {
       const followChanged = s.followingClientId !== prev.followingClientId;
       if (followChanged) {
         publishFollowing(s);
       }
       if (
         followChanged ||
-        s.playheadSec !== prev.playheadSec ||
+        s.playheadSeekRevision !== prev.playheadSeekRevision ||
+        (!s.isPlaying && s.playheadSec !== prev.playheadSec) ||
         s.isPlaying !== prev.isPlaying ||
         s.playbackRate !== prev.playbackRate
       ) {
-        publishTransport(s);
+        publishTransport(
+          s,
+          true,
+          s.playheadSeekRevision !== prev.playheadSeekRevision,
+        );
       }
       if (s.selection !== prev.selection) {
         publishSelection(s);
@@ -188,5 +214,9 @@ export function usePresencePublisher(
         publishUi(s);
       }
     });
+    return () => {
+      unsubscribe();
+      window.clearInterval(playbackTimer);
+    };
   }, [send]);
 }

@@ -14,6 +14,7 @@ type TransportSlice = Pick<
   | "updateSourcePreview"
   | "releaseSourcePreview"
   | "playheadSec"
+  | "playheadSeekRevision"
   | "isPlaying"
   | "playStartSec"
   | "auditionMode"
@@ -129,6 +130,7 @@ export const createTransportSlice: StateCreator<
         : {},
     ),
   playheadSec: 0,
+  playheadSeekRevision: 0,
   isPlaying: false,
   playStartSec: null as number | null,
   auditionMode: "mix" as AuditionMode,
@@ -142,11 +144,13 @@ export const createTransportSlice: StateCreator<
   playAbFollowup: null as PlayAbFollowup | null,
   auditionEpoch: 0,
   audioError: null as string | null,
-  setPlayheadSec: (playheadSec) =>
+  setPlayheadSec: (playheadSec, origin = "seek") =>
     set((s) => ({
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       playheadSec,
+      playheadSeekRevision:
+        s.playheadSeekRevision + (origin === "seek" ? 1 : 0),
       ...playStartPatch(s, s.isPlaying, playheadSec),
     })),
   setIsPlaying: (isPlaying) =>
@@ -181,6 +185,7 @@ export const createTransportSlice: StateCreator<
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying: false,
       playheadSec: stopTargetSec(s),
+      playheadSeekRevision: s.playheadSeekRevision + 1,
       playStartSec: null,
     })),
   setAuditionMode: (auditionMode) =>
@@ -205,6 +210,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       playheadSec,
+      playheadSeekRevision: s.playheadSeekRevision + 1,
       isPlaying: true,
       playStartSec: playheadSec,
       playUntilSec: untilSec,
@@ -214,14 +220,15 @@ export const createTransportSlice: StateCreator<
       auditionEpoch: s.auditionEpoch + 1,
     })),
   continueAudition: ({ playheadSec, untilSec, skip }) =>
-    set({
+    set((s) => ({
       playheadSec,
+      playheadSeekRevision: s.playheadSeekRevision + 1,
       isPlaying: true,
       playUntilSec: untilSec,
       playSkipStartSec: skip?.start ?? null,
       playSkipEndSec: skip?.end ?? null,
       playAbFollowup: null,
-    }),
+    })),
   setAudioError: (audioError) => set({ audioError }),
   clearSessionRegion: () =>
     set({

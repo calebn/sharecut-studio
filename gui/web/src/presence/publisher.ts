@@ -13,7 +13,7 @@ type SendCb = (meta: Partial<PresenceMeta>) => void;
 
 export function createPresenceThrottle(opts: ThrottleOpts = {}) {
   const cursorMs = opts.cursorMs ?? 100;
-  const transportMs = opts.transportMs ?? 200;
+  const transportMs = opts.transportMs ?? 1000;
   const viewportMs = opts.viewportMs ?? 100;
   const uiMs = opts.uiMs ?? 100;
   let pending: Partial<PresenceMeta> = {};
@@ -24,6 +24,7 @@ export function createPresenceThrottle(opts: ThrottleOpts = {}) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let send: SendCb | null = null;
   let lastPlaying: boolean | undefined;
+  let lastRate: number | undefined;
   let lastFollowing: string | null | undefined;
   let lastSelectionJson = "";
   let lastUiEdgeJson = "";
@@ -55,9 +56,10 @@ export function createPresenceThrottle(opts: ThrottleOpts = {}) {
     onSend(cb: SendCb) {
       send = cb;
     },
-    push(partial: Partial<PresenceMeta>) {
+    push(partial: Partial<PresenceMeta>, immediate = false) {
       const now = Date.now();
       const edge =
+        immediate ||
         ("cursor" in partial && partial.cursor === null) ||
         ("following" in partial && partial.following !== lastFollowing) ||
         ("selection" in partial &&
@@ -70,10 +72,12 @@ export function createPresenceThrottle(opts: ThrottleOpts = {}) {
           ]) !== lastUiEdgeJson) ||
         ("transport" in partial &&
           partial.transport != null &&
-          partial.transport.playing !== lastPlaying);
+          (partial.transport.playing !== lastPlaying ||
+            partial.transport.rate !== lastRate));
       pending = { ...pending, ...partial };
       if ("transport" in partial && partial.transport) {
         lastPlaying = partial.transport.playing;
+        lastRate = partial.transport.rate;
       }
       if ("following" in partial) {
         lastFollowing = partial.following ?? null;

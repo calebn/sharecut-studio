@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bindPlaybackClock } from "../audio/playbackClock";
 import { useFollowUi } from "../hooks/useFollowUi";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sessionRoster } from "../test/fixtures";
@@ -18,6 +19,7 @@ describe("usePresencePublisher", () => {
   });
   afterEach(() => {
     setPresenceCursorSink(null);
+    vi.useRealTimers();
   });
 
   it("omits copied playhead and viewport while following", () => {
@@ -201,7 +203,7 @@ describe("usePresencePublisher", () => {
     });
     expect(renders).toBe(rendersAfterMount);
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, 1100));
     });
     const metas = sent.map((f) => f.meta as Record<string, unknown>);
     expect(
@@ -240,5 +242,146 @@ describe("usePresencePublisher", () => {
       .map((f) => f.meta as Record<string, unknown>)
       .findLast((m) => m.transport != null) as { transport: { rate: number } };
     expect(last.transport.rate).toBe(1.5);
+  });
+  it("publishes one fresh transport per second, urgent seek/rate edges, and no follower feedback", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: true,
+      playheadSec: 0,
+      playbackRate: 1,
+    });
+    const sent: Record<string, unknown>[] = [];
+    const send = (f: Record<string, unknown>) => sent.push(f);
+    const { unmount } = renderHook(() => usePresencePublisher(send, "Host"));
+    const transports = () =>
+      sent.flatMap((f) => {
+        const meta = f.meta as {
+          transport?: { playhead_sec: number; rate: number } | null;
+        };
+        return meta.transport ? [meta.transport] : [];
+      });
+    sent.length = 0;
+    act(() => {
+      for (let i = 1; i <= 100; i++) {
+        useDawStore.getState().setPlayheadSec(i / 50, "playback");
+        vi.advanceTimersByTime(20);
+      }
+    });
+    expect(transports()).toHaveLength(2);
+    expect(transports().at(-1)?.playhead_sec).toBe(2);
+    act(() => useDawStore.getState().setPlayheadSec(20));
+    expect(transports().at(-1)?.playhead_sec).toBe(20);
+    expect(transports()).toHaveLength(3);
+    act(() => useDawStore.getState().setPlaybackRate(1.5));
+    expect(transports().at(-1)?.rate).toBe(1.5);
+    expect(transports()).toHaveLength(4);
+    act(() => useDawStore.getState().startFollow("leader"));
+    sent.length = 0;
+    act(() => {
+      useDawStore.getState().setPlayheadSec(30);
+      useDawStore.getState().setPlaybackRate(1.545);
+      vi.advanceTimersByTime(11_000);
+    });
+    expect(transports()).toEqual([]);
+    expect(sent.every((f) => !Object.hasOwn(f, "playhead_sec"))).toBe(true);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("publishes paused seeks, audition jumps, agent seeks, and Stop immediately", () => {
+    vi.useFakeTimers();
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: false,
+      playheadSec: 0,
+    });
+    const sent: Record<string, unknown>[] = [];
+    const { unmount } = renderHook(() =>
+      usePresencePublisher((f) => sent.push(f), "Host"),
+    );
+    const last = () =>
+      sent.findLast(
+        (f) => (f.meta as { transport?: unknown }).transport != null,
+      )?.meta;
+    act(() => useDawStore.getState().setPlayheadSec(5));
+    expect(last()).toMatchObject({
+      transport: { playing: false, playhead_sec: 5 },
+    });
+    act(() =>
+      useDawStore.getState().beginAudition({ playheadSec: 10, untilSec: 20 }),
+    );
+    expect(last()).toMatchObject({
+      transport: { playing: true, playhead_sec: 10 },
+    });
+    act(() =>
+      useDawStore
+        .getState()
+        .continueAudition({ playheadSec: 30, untilSec: 40 }),
+    );
+    expect(last()).toMatchObject({
+      transport: { playing: true, playhead_sec: 30 },
+    });
+    act(() => useDawStore.getState().stopPlayback());
+    expect(last()).toMatchObject({
+      transport: { playing: false, playhead_sec: 10 },
+    });
+    act(() =>
+      useDawStore.getState().applyAgentSession({
+        source: null,
+        track_id: null,
+        match_index: null,
+        selection: null,
+        viewer_mute: {},
+        solo_tracks: {},
+        tier: null,
+        dry_run: false,
+        server_seq: 1,
+        version: 1,
+        origin: "agent",
+        updated_at_ns: 0,
+        last_command_id: "agent-seek",
+        last_role: "agent",
+        audition_mode: "mix",
+        playhead_sec: 15,
+        is_playing: false,
+        region: null,
+        query: null,
+      }),
+    );
+    expect(last()).toMatchObject({
+      transport: { playing: false, playhead_sec: 15 },
+    });
+    unmount();
+  });
+  it("stamps live timeline audio rather than a stale store position", () => {
+    const release = bindPlaybackClock(() => 12.25);
+    useDawStore.setState({
+      followingClientId: null,
+      isPlaying: true,
+      playheadSec: 12,
+    });
+    const sent: Record<string, unknown>[] = [];
+    const { unmount } = renderHook(() =>
+      usePresencePublisher((f) => sent.push(f), "Host"),
+    );
+    try {
+      const transport = sent.find(
+        (f) => (f.meta as { transport?: unknown }).transport != null,
+      );
+      expect(transport).toMatchObject({
+        playhead_sec: 12.25,
+        meta: { transport: { playhead_sec: 12.25 } },
+      });
+      act(() => useDawStore.getState().setPlayheadSec(20));
+      expect(sent.at(-1)).toMatchObject({
+        playhead_sec: 20,
+        meta: { transport: { playhead_sec: 20 } },
+      });
+    } finally {
+      unmount();
+      release();
+    }
   });
 });

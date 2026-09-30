@@ -6,6 +6,7 @@ import {
   isObservingClient,
   remotePlayheadSec,
   remotePresenceClients,
+  serverNowMs,
 } from "../presence/followSync";
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import type {
@@ -170,6 +171,7 @@ function selectionBox(
 type PresenceOverlayRowProps = {
   client: SessionClient;
   cursorEls: RefObject<Map<string, HTMLDivElement>>;
+  playheadEls: RefObject<Map<string, HTMLDivElement>>;
   project: ProjectView | null;
   durationSec: number;
   zoomPxPerSec: number;
@@ -195,6 +197,7 @@ type PresenceOverlayRowProps = {
 const PresenceOverlayRow = memo(function PresenceOverlayRow({
   client: c,
   cursorEls,
+  playheadEls,
   project,
   durationSec,
   zoomPxPerSec,
@@ -224,6 +227,10 @@ const PresenceOverlayRow = memo(function PresenceOverlayRow({
       !isObservingClient(c) ? (
         <div
           className="presence-playhead"
+          ref={(el) => {
+            if (el) playheadEls.current.set(c.client_id, el);
+            else playheadEls.current.delete(c.client_id);
+          }}
           style={
             {
               left: playhead * zoomPxPerSec,
@@ -298,6 +305,7 @@ export function PresenceOverlayView({
   const others = remotePresenceClients(clients, localClientId, nowMs);
 
   const cursorEls = useRef<Map<string, HTMLDivElement>>(new Map());
+  const playheadEls = useRef<Map<string, HTMLDivElement>>(new Map());
   const [motion] = useState(() => createCursorMotion());
   const othersRef = useRef(others);
   othersRef.current = others;
@@ -310,8 +318,15 @@ export function PresenceOverlayView({
 
   const hasRemoteCursor = others.some((c) => isLaneCursor(c.meta?.cursor));
 
+  const hasPlayingPlayhead = others.some(
+    (c) =>
+      c.meta?.transport?.playing &&
+      !isObservingClient(c) &&
+      c.client_id !== hidePlayheadForClientId,
+  );
+
   useEffect(() => {
-    if (!hasRemoteCursor) {
+    if (!hasRemoteCursor && !hasPlayingPlayhead) {
       return;
     }
     let raf = 0;
@@ -321,7 +336,13 @@ export function PresenceOverlayView({
     const tick = () => {
       const z = zoomRef.current;
       const current = new Set<string>();
+      const now = serverNowMs();
       for (const c of othersRef.current) {
+        const playheadEl = playheadEls.current.get(c.client_id);
+        if (playheadEl) {
+          const at = remotePlayheadSec(c, durationSec, now);
+          if (at != null) playheadEl.style.left = `${at * z}px`;
+        }
         const cursor = c.meta?.cursor;
         if (!isLaneCursor(cursor)) {
           continue;
@@ -358,7 +379,7 @@ export function PresenceOverlayView({
         motion.drop(id);
       }
     };
-  }, [hasRemoteCursor, motion]);
+  }, [hasRemoteCursor, hasPlayingPlayhead, durationSec, motion]);
 
   if (others.length === 0) {
     return null;
@@ -371,6 +392,7 @@ export function PresenceOverlayView({
           key={c.client_id}
           client={c}
           cursorEls={cursorEls}
+          playheadEls={playheadEls}
           project={project}
           durationSec={durationSec}
           zoomPxPerSec={zoomPxPerSec}

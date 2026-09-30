@@ -39,6 +39,8 @@ export class ProxyEngine {
   private master: GainNode;
   private active: ActiveSource[] = [];
   private playing = false;
+  private playbackRate = 1;
+  private scheduleGeneration = 0;
   private originCtxTime = 0;
   private originTimelineSec = 0;
   private solo: Record<string, boolean> = {};
@@ -125,9 +127,19 @@ export class ProxyEngine {
     void this.scheduleAround(fromTimelineSec);
   }
 
+  setPlaybackRate(rate: number): void {
+    if (rate === this.playbackRate) return;
+    const at = this.currentTimeSec();
+    this.originTimelineSec = at;
+    this.originCtxTime = this.ctx.currentTime;
+    this.playbackRate = rate;
+    if (this.playing) void this.scheduleAround(at);
+  }
+
   pause(): number {
     const t = this.currentTimeSec();
     this.playing = false;
+    this.scheduleGeneration += 1;
     this.stopSources();
     this.originTimelineSec = t;
     return t;
@@ -147,7 +159,10 @@ export class ProxyEngine {
     if (!this.playing) {
       return this.originTimelineSec;
     }
-    return this.originTimelineSec + (this.ctx.currentTime - this.originCtxTime);
+    return (
+      this.originTimelineSec +
+      (this.ctx.currentTime - this.originCtxTime) * this.playbackRate
+    );
   }
 
   dispose(): void {
@@ -226,25 +241,27 @@ export class ProxyEngine {
     when: number,
   ): void {
     const g = gain.gain;
-    g.cancelScheduledValues(when);
-    if (slice.fadeInSec > 0) {
-      g.setValueAtTime(0, when);
-      if (slice.gainCurve === "equalPower") {
-        g.linearRampToValueAtTime(1, when + slice.fadeInSec);
-      } else {
-        g.linearRampToValueAtTime(1, when + slice.fadeInSec);
-      }
-    } else {
-      g.setValueAtTime(1, when);
+    const start = Math.max(when, this.ctx.currentTime);
+    const end = when + slice.durationSec / this.playbackRate;
+    const fadeIn = slice.fadeInSec / this.playbackRate;
+    const fadeOut = slice.fadeOutSec / this.playbackRate;
+    const initial = Math.min(
+      fadeIn > 0 ? Math.min(1, (start - when) / fadeIn) : 1,
+      fadeOut > 0 ? Math.min(1, (end - start) / fadeOut) : 1,
+    );
+    g.cancelScheduledValues(start);
+    g.setValueAtTime(Math.max(0, initial), start);
+    if (fadeIn > 0 && when + fadeIn > start) {
+      g.linearRampToValueAtTime(1, when + fadeIn);
     }
-    if (slice.fadeOutSec > 0) {
-      const fadeStart = when + slice.durationSec - slice.fadeOutSec;
-      g.setValueAtTime(1, Math.max(when, fadeStart));
-      g.linearRampToValueAtTime(0, when + slice.durationSec);
+    if (fadeOut > 0) {
+      if (end - fadeOut > start) g.setValueAtTime(1, end - fadeOut);
+      g.linearRampToValueAtTime(0, end);
     }
   }
 
   private async scheduleAround(timelineSec: number): Promise<void> {
+    const generation = ++this.scheduleGeneration;
     if (!this.manifest) {
       return;
     }
@@ -275,9 +292,10 @@ export class ProxyEngine {
         await this.ensureBuffer(tid, Number(idxStr));
       }),
     );
-    if (!this.playing) {
+    if (!this.playing || generation !== this.scheduleGeneration) {
       return;
     }
+    timelineSec = this.currentTimeSec();
     this.stopSources();
     const nowCtx = this.ctx.currentTime;
     for (const slice of slices) {
@@ -286,23 +304,24 @@ export class ProxyEngine {
       if (!buf || !trackGain) {
         continue;
       }
-      const when = nowCtx + (slice.whenTimelineSec - timelineSec);
-      if (when + slice.durationSec < nowCtx) {
+      const when =
+        nowCtx + (slice.whenTimelineSec - timelineSec) / this.playbackRate;
+      if (when + slice.durationSec / this.playbackRate < nowCtx) {
         continue;
       }
       const source = this.ctx.createBufferSource();
       source.buffer = buf;
+      source.playbackRate.value = this.playbackRate;
       const clipGain = this.ctx.createGain();
       source.connect(clipGain);
       clipGain.connect(trackGain);
-      this.applyFades(clipGain, slice, Math.max(when, nowCtx));
+      this.applyFades(clipGain, slice, when);
       const offset = slice.bufferOffsetSec;
-      const startAt = Math.max(0, when - nowCtx);
       try {
         if (when >= nowCtx) {
           source.start(when, offset, slice.durationSec);
         } else {
-          const skipped = nowCtx - when;
+          const skipped = (nowCtx - when) * this.playbackRate;
           source.start(
             nowCtx,
             offset + skipped,
@@ -313,7 +332,6 @@ export class ProxyEngine {
         continue;
       }
       this.active.push({ source, gain: clipGain });
-      void startAt;
     }
   }
 }

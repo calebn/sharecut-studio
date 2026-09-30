@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { playbackPositionSec } from "../audio/playbackClock";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -61,6 +62,63 @@ describe("useAudioTransport project transitions", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("applies a small explicit follow seek while playing without chasing clock ticks", async () => {
+    useDawStore.getState().setProject(trackProject("raw/host.wav"));
+    useDawStore.getState().setAuditionMode("raw");
+    const { unmount } = renderHook(() => useAudioTransport());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await act(async () => {});
+    const player = FakeAudio.instances[0];
+    player.currentTime = 10;
+    act(() => useDawStore.getState().setPlayheadSec(10.1, "playback"));
+    expect(player.currentTime).toBe(10);
+    act(() => useDawStore.getState().setPlayheadSec(10.3));
+    expect(player.currentTime).toBe(10.3);
+    expect(player.paused).toBe(false);
+    expect(playbackPositionSec()).toBeNull();
+    player.readyState = 4;
+    expect(playbackPositionSec()).toBe(10.3);
+    act(() => useDawStore.getState().setIsPlaying(false));
+    expect(playbackPositionSec() ?? 9).toBe(9);
+    unmount();
+    expect(playbackPositionSec() ?? 8).toBe(8);
+  });
+
+  it("does not restart clock updates when an old play promise resolves after project change", async () => {
+    let finishPlay: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finishPlay = resolve;
+    });
+    const play = vi
+      .spyOn(FakeAudio.prototype, "play")
+      .mockImplementation(function (this: FakeAudio) {
+        this.paused = false;
+        return pending;
+      });
+    const frames = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", frames);
+    useDawStore.getState().setProject(trackProject("raw/host.wav"));
+    useDawStore.getState().setAuditionMode("raw");
+    const { unmount } = renderHook(() => useAudioTransport());
+    try {
+      act(() => useDawStore.getState().setIsPlaying(true));
+      await act(async () => {});
+      expect(play).toHaveBeenCalled();
+      expect(playbackPositionSec()).toBeNull();
+      act(() =>
+        useDawStore
+          .getState()
+          .hydrate("/tmp/project-next.json", minimalProject()),
+      );
+      await act(async () => finishPlay?.());
+      expect(frames).not.toHaveBeenCalled();
+      expect(playbackPositionSec()).toBeNull();
+    } finally {
+      unmount();
+      play.mockRestore();
+    }
   });
 
   it("keeps an empty project and empty track free of an audio error", () => {
@@ -400,6 +458,7 @@ describe("exact raw source preview", () => {
     expect(FakeAudio.instances).toHaveLength(1);
     expect(player.currentTime).toBe(2.02);
     expect(useDawStore.getState().playheadSec).toBe(42);
+    expect(playbackPositionSec() ?? 42).toBe(42);
     act(() => state.stopPlayback());
     expect(useDawStore.getState().sourcePreview).toBeNull();
     unmount();
