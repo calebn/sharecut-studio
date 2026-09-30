@@ -295,6 +295,51 @@ Without `uv`, `install.sh` creates a plain `.venv` and runs
 
 ## MCP and agents
 
+### Impeccable design hooks
+
+The repo includes the upstream Impeccable skill in
+`.agents/skills/impeccable/` and Codex `PostToolUse` / `Stop` definitions in
+`.codex/hooks.json`. Shared `.impeccable/config.json` enables design checks.
+Review and trust both definitions in Codex Settings → Hooks, or `/hooks` in
+the CLI, then reload Codex to discover the `$impeccable` skill. Changed hook
+definitions require trust again. Installing files alone does not grant Codex trust.
+
+From the repo root, verify the runtime and configuration:
+
+```bash
+.agents/skills/impeccable/scripts/impeccable engine-probe
+.agents/skills/impeccable/scripts/impeccable hooks status
+.agents/skills/impeccable/scripts/impeccable doctor
+```
+
+The launcher pins its engine version in `scripts/VERSION`. The first run on a
+fresh clone downloads that platform's binary into `~/.impeccable/bin/<version>/`
+and verifies its SHA-256 sidecar. Run `engine-probe` in a terminal with network
+and cache write access before using sandboxed hooks. A preinstalled engine can
+also be supplied through `IMPECCABLE_BIN`. Platform binaries, local consent,
+and hook caches are ignored by Git.
+
+Supported web edits get focused feedback after a write and a broader check
+at turn completion. These are agent design checks; existing Git hooks,
+Stylelint, accessibility tests, and CI still apply. Do not suppress a finding
+without the approval required by this repo's engineering rules. Product and
+design context remain in `docs/ui-philosophy.md`, `docs/design-tokens.md`, and
+`ux/pages/brand.md`; installation does not generate `PRODUCT.md` or `DESIGN.md`.
+
+To refresh the upstream installation, use Node.js 22.18 or later:
+
+```bash
+npx impeccable update --scope=project
+.agents/skills/impeccable/scripts/impeccable doctor
+```
+
+Review upstream changes, the pinned engine version, and the generated hook
+definitions on a feature branch. Enable or disable checks with
+`.agents/skills/impeccable/scripts/impeccable hooks on` / `hooks off`.
+See the [upstream hook documentation](https://impeccable.style/docs/hooks/).
+
+### MCP configuration
+
 After `./install.sh`, use `source .venv/bin/activate` (or `uv run`) so `podcast` /
 `podcast-mcp` resolve. Agent config lives under [.agents/](../.agents/):
 

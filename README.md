@@ -25,6 +25,8 @@ No system FFmpeg? `podcast bootstrap --component ffmpeg` (included after `instal
 
 Agent config is tool-agnostic under [.agents/](.agents/) (skills, rules, MCP template). Register MCP per [docs/setup.md](docs/setup.md). With `podcast gui` running on loopback, **Connect agent…** (home or Menu) copies `http://127.0.0.1:8765/mcp` for URL-only clients. Use the `podcast-setup` skill when onboarding.
 
+Codex UI edits have project-local [Impeccable design hooks](docs/setup.md#impeccable-design-hooks). Review and trust them in Codex Settings → Hooks after cloning or updating their definitions.
+
 ## Maximal install (all extras)
 
 Use this only when you need enrollment speaker ID (`speaker` / `speaker-lite`) and/or neural join QC (`joinqc`). On Linux this pulls **multi‑GB** PyTorch/CUDA wheels (Docker clean-room: ~6 GB `.venv` + ~0.5 GB bootstrap cache). Prefer the Quick start above for everyday CLI/MCP/GUI work.

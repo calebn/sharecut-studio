@@ -110,6 +110,12 @@ If a doc would mislead the next agent or contributor, fix it before finishing th
 
 ## Agent bundle
 
+Codex UI design feedback uses the upstream `.agents/skills/impeccable/` skill
+and `.codex/hooks.json`. Setup and trust steps:
+[docs/setup.md § Impeccable design hooks](docs/setup.md#impeccable-design-hooks).
+Repo engineering and styling rules take precedence over upstream guidance;
+detector suppressions require explicit user approval.
+
 Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `git-workflow.md`, `gui-styling.md`, `issue-claims.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
 
 ## Skills

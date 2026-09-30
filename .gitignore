@@ -63,6 +63,13 @@ gui/desktop/dist-linux/
 examples/minimal_episode/artifacts/
 .cache/
 
+# Impeccable runtime downloads and per-developer hook state
+.agents/skills/impeccable/scripts/bin/
+.impeccable/config.local.json
+.impeccable/hook.cache.json
+.impeccable/hook.pending.json
+.impeccable/*.ndjson
+
 # Local-only ingest alignment probes (ephemeral; do not commit)
 scripts/find_*.py
 scripts/find_*.sh
