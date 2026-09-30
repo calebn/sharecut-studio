@@ -37,6 +37,7 @@ class SerializedWsWriter(Generic[T]):
         self._lock = asyncio.Lock()
         self._active: asyncio.Task[object] | None = None
         self._closed = False
+        self._close_complete = asyncio.Event()
 
     @property
     def closed(self) -> bool:
@@ -57,8 +58,13 @@ class SerializedWsWriter(Generic[T]):
             await self.close(1013, "slow consumer")
             raise
 
+    async def wait_closed(self) -> None:
+        """Wait until the initiated close attempt completes, fails, or times out."""
+        await self._close_complete.wait()
+
     async def close(self, code: int, reason: str) -> None:
         if self._closed:
+            await self.wait_closed()
             return
         self._closed = True
         active = self._active
@@ -69,6 +75,8 @@ class SerializedWsWriter(Generic[T]):
                 await self._close(*ws_close_details(code, reason))
         except TimeoutError:
             return
+        finally:
+            self._close_complete.set()
 
 
 class WsFrameQueue(Generic[T]):

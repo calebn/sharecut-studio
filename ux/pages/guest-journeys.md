@@ -277,6 +277,8 @@ flowchart TD
    indicator). A shorter blip stays REC and does not remount the host keeper. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
+   The host sees you disconnect after your last room tab closes. Closing one
+   guest tab leaves another tab joined as the same guest connected.
    If the host removes a guest, that guest's live room connection closes and
    stops receiving room events or sending signal, heartbeat, and comments;
    other guests remain in the room. The browser does not auto-rejoin after a

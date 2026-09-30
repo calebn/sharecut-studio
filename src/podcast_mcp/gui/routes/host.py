@@ -323,7 +323,11 @@ async def host_ws(
                 with CancelScope(shield=True):
                     subscriptions.close()
                     try:
-                        await tasks.stop()
+                        try:
+                            if guard.closed:
+                                await guard.wait_closed()
+                        finally:
+                            await tasks.stop()
                     finally:
                         try:
                             await detach_record()
