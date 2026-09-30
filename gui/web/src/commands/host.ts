@@ -1,11 +1,10 @@
 import {
   hostLandRecord,
-  refreshProject,
   startExportJob,
   startRenderPreview,
   waitForPipelineJob,
 } from "../api";
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import {
   FEATURE_SHARE_UI_MENU,
   hasFeature,
@@ -127,11 +126,10 @@ export function registerHostCommands(): void {
       if (!isCurrentProject()) {
         return { status: "disabled", reason: "Project changed during refresh" };
       }
-      const project = await refreshProject(s.projectPath);
+      await refreshDocumentProject(s.projectPath);
       if (!isCurrentProject()) {
         return { status: "disabled", reason: "Project changed during refresh" };
       }
-      applyDocumentSnapshot({ project }, { force: true });
       const store = useDawStore.getState();
       store.setHighlightStaleRender(false);
       store.announceStatus("Mix preview refreshed");
@@ -221,8 +219,7 @@ export function registerHostCommands(): void {
     return runRecordCommand(async () => {
       const result = await hostLandRecord(s.projectPath);
       const n = Array.isArray(result.clips) ? result.clips.length : 0;
-      const project = await refreshProject(s.projectPath);
-      applyDocumentSnapshot({ project }, { force: true });
+      await refreshDocumentProject(s.projectPath);
       useDawStore
         .getState()
         .announceStatus(`Landed ${n} clip(s) on the timeline`);

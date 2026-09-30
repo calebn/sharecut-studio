@@ -77,7 +77,10 @@ def test_timing_command_audio_projection_stale_and_guest_denial(timing_workspace
         service.submit(timing_command(context), capabilities=["edit", "suggest"])
     result = service.submit(timing_command(context))
     assert result["type"] == "Applied"
-    assert {"tracks", "render_status", "transcript"} <= result["snapshot"]["patch"].keys()
+    assert result["snapshot"]["delta"]["projection"] == "transcript_audio"
+    snapshot = service.document_snapshot(projection="transcript_audio")
+    assert snapshot["state_token"] == result["snapshot"]["state_token"]
+    assert {"tracks", "render_status", "transcript"} <= snapshot["patch"].keys()
     persisted = load_project(ws.path)
     assert persisted.transcripts[0].words[0].start == 1.25
     assert persisted.transcripts[1].words[0].start == 1

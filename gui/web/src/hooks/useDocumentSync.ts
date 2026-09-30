@@ -1,16 +1,13 @@
 import { useEffect } from "react";
-import { loadProject } from "../api";
 import {
   applyDocumentSnapshot,
-  applyDocumentSnapshotWithResync,
+  refreshDocumentDisplay,
 } from "../document/applyDocumentUpdate";
 import {
-  eventServerSeq,
-  noteDocumentFile,
-  noteDocumentSeq,
-  resetDocumentSeq,
-  shouldApplyDocumentEvent,
-} from "../document/cursor";
+  activateDocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
+import { finishDocumentDraft } from "../document/pendingDrafts";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
@@ -39,7 +36,7 @@ function documentWsUrl(projectPath: string): string {
 type DocumentSnapshotMsg = {
   type?: string;
   server_seq?: number;
-  command?: { client_id?: string };
+  command?: { client_id?: string; command_id?: string };
   snapshot?: DocumentSnapshot;
 };
 
@@ -64,7 +61,7 @@ export function useDocumentSync(
     if (!enabled || !projectPath) {
       return;
     }
-    resetDocumentSeq();
+    const scope = activateDocumentScope(projectPath);
     let ws: WebSocket | null = null;
     let closed = false;
     let retry: ReturnType<typeof setTimeout> | null = null;
@@ -95,34 +92,14 @@ export function useDocumentSync(
         // Parsed at receipt like the session and guest hooks; the seq/file
         // bookkeeping and the apply run in order from the per-frame queue.
         enqueueInbound(() => {
-          if (closed) {
+          if (closed || !isCurrentDocumentScope(scope)) {
             return;
           }
           try {
-            noteDocumentFile(snap);
-            if (
-              !shouldApplyDocumentEvent({
-                server_seq: msg.server_seq,
-                snapshot: snap,
-                command: msg.command,
-              })
-            ) {
-              noteDocumentSeq(eventServerSeq(msg));
-              return;
-            }
-            if (snap.resync) {
-              applyDocumentSnapshotWithResync(
-                snap,
-                () => loadProject(projectPath),
-                {
-                  commandClientId: msg.command?.client_id,
-                },
-              ).catch(() => undefined);
-            } else {
-              applyDocumentSnapshot(snap, {
-                commandClientId: msg.command?.client_id,
-              });
-            }
+            if (msg.command?.command_id)
+              finishDocumentDraft(msg.command.command_id);
+            applyDocumentSnapshot(snap, { scope });
+            if (msg.command?.command_id) refreshDocumentDisplay();
           } catch {
             // An apply error drops this frame only, as it did before queuing.
           }

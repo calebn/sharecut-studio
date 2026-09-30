@@ -7,7 +7,7 @@ vi.mock("../state/dawStore", () => ({
   useDawStore: { getState: vi.fn(() => ({})) },
 }));
 vi.mock("./project", () => ({
-  loadProjectPhase: vi.fn(async () => ({})),
+  loadDocumentState: vi.fn(async () => ({})),
 }));
 vi.mock("../document/applyDocumentUpdate", () => ({
   applyDocumentSnapshot: vi.fn(),
@@ -18,11 +18,7 @@ vi.mock("../state/offlineStore", () => ({
 }));
 
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
-import {
-  currentDocumentSeq,
-  noteDocumentSeq,
-  resetDocumentSeqForTests,
-} from "../document/cursor";
+import { noteDocumentSeq, resetDocumentSeqForTests } from "../document/cursor";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import {
@@ -39,7 +35,7 @@ import {
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
 } from "./documentEdits";
-import { loadProjectPhase } from "./project";
+import { loadDocumentState } from "./project";
 
 beforeEach(() => {
   vi.mocked(submitQueuedDocumentCommand).mockClear();
@@ -256,8 +252,8 @@ describe("setTranscriptWordsIgnored", () => {
 
 describe("transcript correction 409 refresh (#746)", () => {
   beforeEach(() => {
-    vi.mocked(loadProjectPhase).mockReset();
-    vi.mocked(loadProjectPhase).mockResolvedValue({});
+    vi.mocked(loadDocumentState).mockReset();
+    vi.mocked(loadDocumentState).mockResolvedValue({});
     vi.mocked(applyDocumentSnapshot).mockClear();
     vi.mocked(useDawStore.getState).mockReturnValue({
       projectPath: "/tmp/ep",
@@ -287,14 +283,13 @@ describe("transcript correction 409 refresh (#746)", () => {
     async (_name, send) => {
       const conflict = new ApiError("stale", null, 409);
       vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(conflict);
-      const patch = { transcript: null };
-      vi.mocked(loadProjectPhase).mockResolvedValueOnce(patch);
+      const patch = { server_seq: 5, patch: { transcript: null } };
+      vi.mocked(loadDocumentState).mockResolvedValueOnce(patch);
       await expect(send()).rejects.toBe(conflict);
-      expect(loadProjectPhase).toHaveBeenCalledWith("/tmp/ep", "detail");
-      expect(applyDocumentSnapshot).toHaveBeenCalledWith(
-        { patch },
-        { force: true },
-      );
+      expect(loadDocumentState).toHaveBeenCalledWith("/tmp/ep", "full");
+      expect(applyDocumentSnapshot).toHaveBeenCalledWith(patch, {
+        scope: expect.objectContaining({ path: "/tmp/ep" }),
+      });
     },
   );
 
@@ -305,13 +300,13 @@ describe("transcript correction 409 refresh (#746)", () => {
     await expect(
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello"),
     ).rejects.toThrow("boom");
-    expect(loadProjectPhase).not.toHaveBeenCalled();
+    expect(loadDocumentState).not.toHaveBeenCalled();
   });
 
   it("still rethrows the 409 when the refresh fails", async () => {
     const conflict = new ApiError("stale", null, 409);
     vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(conflict);
-    vi.mocked(loadProjectPhase).mockRejectedValueOnce(new Error("offline"));
+    vi.mocked(loadDocumentState).mockRejectedValueOnce(new Error("offline"));
     await expect(
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello"),
     ).rejects.toBe(conflict);
@@ -331,42 +326,21 @@ describe("transcript correction 409 refresh (#746)", () => {
     expect(applyDocumentSnapshot).not.toHaveBeenCalled();
   });
 
-  it("fetches the phase again when a live update lands while it loads", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(
-      new ApiError("stale", null, 409),
-    );
-    const stale = { transcript: null };
-    const fresh = { transcript: { utterances: [] } };
-    vi.mocked(loadProjectPhase)
-      .mockImplementationOnce(async () => {
-        noteDocumentSeq(currentDocumentSeq() + 1);
-        return stale;
-      })
-      .mockResolvedValueOnce(fresh);
-    await expect(
-      correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello"),
-    ).rejects.toBeInstanceOf(ApiError);
-    expect(loadProjectPhase).toHaveBeenCalledTimes(2);
-    expect(applyDocumentSnapshot).toHaveBeenCalledTimes(1);
-    expect(applyDocumentSnapshot).toHaveBeenCalledWith(
-      { patch: fresh },
-      { force: true },
-    );
-  });
-
-  it("applies nothing when live updates land during every attempt", async () => {
-    vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(
-      new ApiError("stale", null, 409),
-    );
-    vi.mocked(loadProjectPhase).mockImplementation(async () => {
-      noteDocumentSeq(currentDocumentSeq() + 1);
-      return {};
+  it("passes the atomic snapshot at its real head even when a live update races it", async () => {
+    const conflict = new ApiError("stale", null, 409);
+    vi.mocked(submitQueuedDocumentCommand).mockRejectedValueOnce(conflict);
+    const snapshot = { server_seq: 8, patch: { transcript: null } };
+    vi.mocked(loadDocumentState).mockImplementationOnce(async () => {
+      noteDocumentSeq(7);
+      return snapshot;
     });
     await expect(
       correctTranscriptWord("/tmp/ep", "host", 0, "Hi", "hello"),
-    ).rejects.toBeInstanceOf(ApiError);
-    expect(loadProjectPhase).toHaveBeenCalledTimes(3);
-    expect(applyDocumentSnapshot).not.toHaveBeenCalled();
+    ).rejects.toBe(conflict);
+    expect(loadDocumentState).toHaveBeenCalledTimes(1);
+    expect(applyDocumentSnapshot).toHaveBeenCalledWith(snapshot, {
+      scope: expect.objectContaining({ path: "/tmp/ep" }),
+    });
   });
 });
 

@@ -291,7 +291,7 @@ requires HTTP 200 and host setup still waits for `networkidle`.
 | Agent ↔ DAW session sync | `test_session_sync.py`, `test_gui_api.py` (session endpoints) |
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
-| Document handlers / caps | `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
+| Document handlers / caps | `test_document_delta.py`, `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
 | Document submit crash consistency (every store handoff, lock contention) | `test_document_submit_crash_recovery.py`, `test_project_commit_lock.py` (spawned children are reaped with `tests/process_helpers.py` `reap`, which kills a child that hangs) |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
@@ -315,6 +315,8 @@ Best practice: **one Pydantic source of truth**, publish + assert at every adapt
 TypeScript codegen uses the web project's Biome configuration; a formatter failure
 must fail export/check rather than writing an unformatted artifact. Install the
 `gui/web` dependencies before running the local schema gate.
+
+`test_document_delta.py` checks actual command deltas, fresh-state retry heads, same-inode/restored-mtime reloads, artifact and history certificates, cache bounds, saved-command repair, concurrent writers, guest privacy, and 10,000-clip/long-transcript byte budgets. Compact actual service projections in `tests/fixtures/document_delta/` also run through the TypeScript parser/applier. Frontend `document/authority.test.ts`, `projectionDelta.test.ts`, and `pendingDrafts.test.ts` cover predecessor recovery, HTTP-before-WS races, scope generations, copy-on-write behavior, hostile expansion, and bounded optimistic display.
 
 Handler behavior stays in `test_document_sync.py` (constructs internal `DocumentCommand` dicts after validation).
 

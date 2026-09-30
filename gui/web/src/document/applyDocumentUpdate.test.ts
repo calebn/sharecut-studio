@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { loadDocumentState } from "../api/project";
 import { useDawStore } from "../state/dawStore";
 import { enqueueInbound, pendingInboundCount } from "../sync/inboundQueue";
 import { minimalProject } from "../test/fixtures";
@@ -7,14 +8,15 @@ import { MAX_CONTENT_PX } from "../utils/timelineZoom.generated";
 import {
   applyDocumentResult,
   applyDocumentSnapshot,
-  applyDocumentSnapshotWithResync,
+  recoverDocument,
 } from "./applyDocumentUpdate";
 import {
   noteDocumentFile,
-  noteDocumentSeq,
   pollSnapshotAlreadyApplied,
   resetDocumentSeqForTests,
 } from "./cursor";
+
+vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
 
 const track = (id: string) => ({
   id,
@@ -50,7 +52,7 @@ describe("applyDocumentSnapshot", () => {
     useDawStore.getState().hydrate("/tmp/p.json", first);
     applyDocumentSnapshot({
       server_seq: 3,
-      patch: { tracks: [track("a")] },
+      project: minimalProject({ tracks: [track("a")] }),
     });
     expect(useDawStore.getState().project?.tracks).toHaveLength(1);
     applyDocumentSnapshot({
@@ -60,19 +62,19 @@ describe("applyDocumentSnapshot", () => {
     expect(useDawStore.getState().project?.tracks[0]?.id).toBe("b");
   });
 
-  it("skips own-client Applied at the current seq", () => {
+  it("skips a duplicate delta at the current seq", () => {
     resetDocumentSeqForTests();
     useDawStore
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ tracks: [] }));
     applyDocumentSnapshot({
       server_seq: 3,
-      patch: { tracks: [track("a")] },
+      project: minimalProject({ tracks: [track("a")] }),
     });
     applyDocumentSnapshot(
       {
         server_seq: 3,
-        project: minimalProject({ tracks: [track("own")] }),
+        delta: { base_seq: 2, operations: [] },
       },
       { commandClientId: documentClientId() },
     );
@@ -123,14 +125,12 @@ describe("applyDocumentSnapshot", () => {
       .getState()
       .hydrate("/tmp/p.json", minimalProject({ tracks: [track("stale")] }));
     const shell = minimalProject({ tracks: [track("fresh")] });
-    await applyDocumentSnapshotWithResync(
-      {
-        server_seq: 4,
-        resync: true,
-        patch: { clips: { tracks: {}, clip_count: 0 } },
-      },
-      async () => shell,
-    );
+    vi.mocked(loadDocumentState).mockResolvedValue({
+      server_seq: 6,
+      project: shell,
+    });
+    applyDocumentSnapshot({ server_seq: 4, resync: true });
+    await recoverDocument(4);
     expect(useDawStore.getState().project?.tracks[0]?.id).toBe("fresh");
   });
 });
@@ -139,11 +139,10 @@ describe("applyDocumentResult", () => {
   it("records the result's file so the poll skips this client's own edit, before or after the WS echo", () => {
     resetDocumentSeqForTests();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
-    noteDocumentSeq(1);
     noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
     const snapshot = {
       server_seq: 2,
-      comments: [],
+      project: minimalProject(),
       file_before: { mtime_ns: 100, size: 5 },
       file: { mtime_ns: 200, size: 6 },
     };
@@ -169,7 +168,7 @@ describe("applyDocumentResult", () => {
     expect(pendingInboundCount()).toBe(1);
     applyDocumentResult({
       command: { client_id: documentClientId() },
-      snapshot: { server_seq: 1, comments: [] },
+      snapshot: { server_seq: 1, project: minimalProject() },
     });
     order.push("own-result-applied");
     expect(order).toEqual(["queued-peer-frame", "own-result-applied"]);

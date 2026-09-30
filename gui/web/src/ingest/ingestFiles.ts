@@ -4,13 +4,8 @@ import { errorMessage } from "../utils/apiError";
  * Upload bytes then document commands (never fork probe/clip logic in the UI).
  */
 
-import {
-  addTrackCommand,
-  refreshProject,
-  setTrackMediaCommand,
-  uploadMediaFile,
-} from "../api";
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import { addTrackCommand, setTrackMediaCommand, uploadMediaFile } from "../api";
+import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
 import {
   formatIngestDuration,
@@ -128,8 +123,7 @@ export async function ingestFiles(
         focusId = await createTrackWithMedia(projectPath, file, taken);
       }
     }
-    const next = await refreshProject(projectPath);
-    applyDocumentSnapshot({ project: next }, { force: true });
+    await refreshDocumentProject(projectPath);
     if (focusId) {
       focusImportedTrack(focusId);
       announceImportResult(focusId, { replaced });

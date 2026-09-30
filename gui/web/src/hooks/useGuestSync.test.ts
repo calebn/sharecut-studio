@@ -15,8 +15,11 @@ const loadProject = vi.fn();
 const loadProjectMeta = vi.fn();
 
 vi.mock("../api", () => ({
-  loadProject: (...args: unknown[]) => loadProject(...args),
   loadProjectMeta: (...args: unknown[]) => loadProjectMeta(...args),
+}));
+
+vi.mock("../api/project", () => ({
+  loadDocumentState: (...args: unknown[]) => loadProject(...args),
 }));
 
 vi.mock("../state/offlineStore", () => ({
@@ -34,7 +37,7 @@ describe("useGuestSync", () => {
     loadProject.mockReset();
     loadProjectMeta.mockReset();
     loadProjectMeta.mockResolvedValue({ mtime_ns: 1, size: 1, server_seq: 0 });
-    loadProject.mockResolvedValue(minimalProject());
+    loadProject.mockResolvedValue({ server_seq: 0, project: minimalProject() });
     useDawStore.getState().hydrate("share:tok123", minimalProject());
     useDawStore.getState().setActivityJob(null);
     vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
@@ -151,7 +154,7 @@ describe("useGuestSync", () => {
     expect(currentServerClockOffsetMs()).not.toBe(0);
   });
 
-  it("merges comments when document snapshot has no project", async () => {
+  it("applies an authoritative comment replacement", async () => {
     const apply = vi.fn();
     const setProject = vi.fn();
     const project = minimalProject({
@@ -167,7 +170,9 @@ describe("useGuestSync", () => {
         plane: "document",
         snapshot: {
           server_seq: 1,
-          comments: [{ id: "c2", body: "hi" }],
+          project: minimalProject({
+            comments: [{ id: "c2", body: "hi" } as never],
+          }),
         },
       });
     });
@@ -177,6 +182,7 @@ describe("useGuestSync", () => {
   });
 
   it("ignores older document server_seq", async () => {
+    useDawStore.getState().hydrate("share:tok", minimalProject());
     const setProject = vi.fn();
     renderHook(() => useGuestSync("share:tok", vi.fn(), setProject, true));
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { refreshProject, setTranscriptWordSuppressed } from "../api";
+import { setTranscriptWordSuppressed } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -13,7 +13,6 @@ import { TranscriptPanel } from "./TranscriptPanel";
 vi.mock("../api", async (orig) => ({
   ...(await orig<typeof import("../api")>()),
   setTranscriptWordSuppressed: vi.fn(async () => ({})),
-  refreshProject: vi.fn(async () => minimalProject()),
 }));
 
 vi.mock("../commands/execute", () => ({
@@ -100,7 +99,6 @@ function project() {
 describe("TranscriptPanel suppressed-only rows (#758)", () => {
   beforeEach(() => {
     vi.mocked(setTranscriptWordSuppressed).mockClear();
-    vi.mocked(refreshProject).mockClear();
     useDawStore.setState({
       project: project(),
       projectPath: "/tmp/ep",

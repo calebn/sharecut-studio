@@ -13,7 +13,6 @@ vi.mock("../../api", async (orig) => ({
   setTranscriptWordSuppressed: vi.fn(async () => {}),
   setTranscriptWordAutomatic: vi.fn(async () => {}),
   setTranscriptWordsIgnored: vi.fn(async () => {}),
-  refreshProject: vi.fn(),
 }));
 
 vi.mock("../../commands/execute", () => ({

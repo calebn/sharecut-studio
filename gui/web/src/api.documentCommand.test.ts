@@ -15,6 +15,7 @@ const applyDocumentSnapshot = vi.fn();
 vi.mock("./document/applyDocumentUpdate", () => ({
   applyDocumentResult,
   applyDocumentSnapshot,
+  refreshDocumentDisplay: vi.fn(),
   mergeGuestActionDone: vi.fn(),
   mergeReturnedComment: vi.fn(),
 }));
@@ -337,6 +338,31 @@ describe("host document command queue", () => {
     const queuedId = () =>
       (enqueueCommand.mock.calls[0]?.[1] as { command_id: string }).command_id;
 
+    it("applies a committed guest reply even when local queue cleanup fails", async () => {
+      const { useDawStore } = await import("./state/dawStore");
+      const { minimalProject } = await import("./test/fixtures");
+      useDawStore.getState().hydrate("share:tok", minimalProject());
+      removeQueuedCommand.mockRejectedValueOnce(
+        new Error("IndexedDB unavailable"),
+      );
+      const reply = {
+        ok: true,
+        snapshot: { server_seq: 2, project: minimalProject() },
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(JSON.stringify(reply), { status: 200 })),
+      );
+      const { submitDocumentCommand } = await import("./api");
+      await expect(
+        submitDocumentCommand("share:tok", "SetTrackFader", fader),
+      ).resolves.toEqual(reply);
+      expect(applyDocumentResult).toHaveBeenCalledWith(
+        reply,
+        expect.objectContaining({ path: "share:tok" }),
+      );
+    });
+
     it("drops a live command the server refused, so it never replays", async () => {
       vi.stubGlobal(
         "fetch",
@@ -608,7 +634,10 @@ describe("host document command queue", () => {
 
     await submitDocumentCommand("/tmp/project-a.json", "SetTrackMeta");
 
-    expect(applyDocumentResult).toHaveBeenCalledWith({ ok: true, snapshot });
+    expect(applyDocumentResult).toHaveBeenCalledWith(
+      { ok: true, snapshot },
+      expect.objectContaining({ path: "/tmp/project-a.json" }),
+    );
     useDawStore.setState({ projectPath: "" });
   });
 
@@ -887,8 +916,15 @@ describe("host document command queue", () => {
   it("reloads the host envelope slice after a SetEnvelope conflict", async () => {
     const envelopes = [{ track_id: "host", parameter: "volume", points: [] }];
     const fetchSpy = vi.fn(async (url: string) =>
-      url.includes("phase=envelopes")
-        ? new Response(JSON.stringify({ envelopes }), { status: 200 })
+      url.includes("phase=full")
+        ? new Response(
+            JSON.stringify({
+              server_seq: 4,
+              state_token: "a".repeat(64),
+              patch: { envelopes },
+            }),
+            { status: 200 },
+          )
         : new Response(JSON.stringify({ detail: { detail: "changed" } }), {
             status: 409,
           }),
@@ -902,8 +938,8 @@ describe("host document command queue", () => {
       setEnvelope("/tmp/episode.project.json", "host", [], []),
     ).rejects.toThrow("changed");
     expect(applyDocumentSnapshot).toHaveBeenCalledWith(
-      { patch: { envelopes } },
-      { force: true },
+      { server_seq: 4, state_token: "a".repeat(64), patch: { envelopes } },
+      { scope: expect.objectContaining({ path: "/tmp/episode.project.json" }) },
     );
     useDawStore.setState({ projectPath: "" });
   });

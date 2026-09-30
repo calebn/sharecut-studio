@@ -1,3 +1,13 @@
+import {
+  activateDocumentScope,
+  type DocumentScope,
+  documentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
+import {
+  beginDocumentDraft,
+  finishDocumentDraft,
+} from "../document/pendingDrafts";
 /** Persisted command order, replay, conflict, and result-application policy. */
 
 import {
@@ -5,7 +15,10 @@ import {
   postGuestDocumentCommand,
   postHostDocumentCommand,
 } from "../api/documentTransport";
-import { applyDocumentResult } from "../document/applyDocumentUpdate";
+import {
+  applyDocumentResult,
+  refreshDocumentDisplay,
+} from "../document/applyDocumentUpdate";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
@@ -32,6 +45,7 @@ export type DocumentCommandOptions = {
 };
 
 interface HostCommandBody {
+  scope: DocumentScope;
   command_id: string;
   client_seq: number;
   type: string;
@@ -59,6 +73,36 @@ export async function submitQueuedDocumentCommand(
   payload: Record<string, unknown> = {},
   opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
+  const commandId = opts?.command_id ?? newCommandId();
+  const active = useDawStore.getState().projectPath === projectPath;
+  const scope = active ? activateDocumentScope(projectPath) : documentScope();
+  if (active) beginDocumentDraft(commandId, type, payload, opts?.replaying);
+  try {
+    const result = await submitCommand(projectPath, type, payload, {
+      ...opts,
+      command_id: commandId,
+    });
+    if (active && isCurrentDocumentScope(scope) && result.queued !== true) {
+      finishDocumentDraft(commandId);
+      refreshDocumentDisplay();
+    }
+    return result;
+  } catch (error) {
+    if (active && isCurrentDocumentScope(scope)) {
+      finishDocumentDraft(commandId);
+      refreshDocumentDisplay();
+    }
+    throw error;
+  }
+}
+
+async function submitCommand(
+  projectPath: string,
+  type: string,
+  payload: Record<string, unknown> = {},
+  opts?: DocumentCommandOptions,
+): Promise<Record<string, unknown>> {
+  const scope = documentScope();
   const command_id = opts?.command_id ?? newCommandId();
   const client_seq = opts?.client_seq ?? nextDocumentClientSeq();
   const bodyBase = {
@@ -138,14 +182,19 @@ export async function submitQueuedDocumentCommand(
       await removeQueuedCommand(token, command_id);
       throw failure;
     }
-    await removeQueuedCommand(token, command_id);
+    try {
+      await removeQueuedCommand(token, command_id);
+    } catch {
+      // A committed reply stays valid; the retained identity makes cleanup replay safe.
+    }
     const data = reply.data;
     if (useDawStore.getState().projectPath === projectPath) {
-      applyDocumentResult(data);
+      applyDocumentResult(data, scope);
     }
     return data;
   }
   const hostBody: HostCommandBody = {
+    scope,
     command_id,
     client_seq,
     type,
@@ -298,7 +347,7 @@ async function submitHostDocumentCommand(
   }
   const data = reply.data;
   if (useDawStore.getState().projectPath === projectPath) {
-    applyDocumentResult(data);
+    applyDocumentResult(data, body.scope);
   }
   return data;
 }

@@ -104,14 +104,12 @@ export type {
 export {
   closeEpisodeProject,
   createEpisodeProject,
+  loadDocumentState,
   loadHistoryDiff,
-  loadProject,
-  loadProjectDetail,
   loadProjectMeta,
   loadReviewBootstrap,
   openEpisodeProject,
   pickEpisodeProject,
-  refreshProject,
   uploadMediaFile,
 } from "./api/project";
 export {

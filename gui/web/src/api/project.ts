@@ -1,11 +1,13 @@
 import { hostFetch } from "../api/documentTransport";
+import type { DocumentSnapshot } from "../document/projectPatch";
 import {
   isShareProjectKey,
   reviewApiBase,
   shareTokenFromKey,
 } from "../shareMode";
 import type { ProjectMeta } from "../types/pipeline";
-import type { HistoryDiff, ProjectView } from "../types/project";
+import type { HistoryDiff } from "../types/project";
+import { withAbortTimeout } from "../utils/abortTimeout";
 import { readApiError } from "../utils/apiError";
 
 export async function loadReviewBootstrap(token: string): Promise<{
@@ -24,59 +26,48 @@ export async function loadReviewBootstrap(token: string): Promise<{
   }>;
 }
 
-export async function loadProject(
+export async function loadDocumentState(
   projectPath: string,
-  init?: { signal?: AbortSignal },
-): Promise<ProjectView> {
-  return loadProjectPhase(
-    projectPath,
-    "shell",
-    init?.signal,
-  ) as Promise<ProjectView>;
-}
-
-export async function loadProjectDetail(
-  projectPath: string,
-  init?: { signal?: AbortSignal },
-): Promise<Partial<ProjectView>> {
-  return loadProjectPhase(projectPath, "detail", init?.signal);
-}
-
-export async function loadProjectPhase(
-  projectPath: string,
-  // HTTP phases match ViewProjection / guest OpenAPI; Applied uses WS snapshot.patch.
-  phase:
-    | "shell"
-    | "detail"
-    | "full"
-    | "tracks"
-    | "comments"
-    | "clips"
-    | "fx"
-    | "envelopes"
-    | "mix"
-    | "transcript_audio",
+  phase: "shell" | "detail" | "full" = "shell",
   signal?: AbortSignal,
-): Promise<ProjectView | Partial<ProjectView>> {
-  if (isShareProjectKey(projectPath)) {
-    const token = shareTokenFromKey(projectPath)!;
-    const res = await fetch(
-      `${reviewApiBase(token)}/daw/project?phase=${encodeURIComponent(phase)}`,
-      { signal },
-    );
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-    return res.json() as Promise<ProjectView>;
-  }
-  const res = await hostFetch(
-    `/api/project?path=${encodeURIComponent(projectPath)}&phase=${encodeURIComponent(phase)}`,
-    { signal },
+): Promise<DocumentSnapshot> {
+  return withAbortTimeout(
+    30_000,
+    "Document recovery timed out",
+    async (timeoutSignal) => {
+      const requestSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
+      const query = `phase=${phase}`;
+      const response = isShareProjectKey(projectPath)
+        ? await fetch(
+            `${reviewApiBase(shareTokenFromKey(projectPath)!)}/daw/document/state?${query}`,
+            { signal: requestSignal },
+          )
+        : await hostFetch(
+            `/api/document/state?path=${encodeURIComponent(projectPath)}&${query}`,
+            { signal: requestSignal },
+          );
+      if (!response.ok) throw new Error(await readApiError(response));
+      const value: unknown = await response.json();
+      if (
+        !value ||
+        typeof value !== "object" ||
+        !("server_seq" in value) ||
+        !Number.isSafeInteger(value.server_seq) ||
+        Number(value.server_seq) < 0
+      )
+        throw new Error("Invalid document state");
+      if (
+        !("resync" in value && value.resync === true) &&
+        (!("state_token" in value) ||
+          typeof value.state_token !== "string" ||
+          !/^[a-f0-9]{64}$/.test(value.state_token))
+      )
+        throw new Error("Invalid document basis");
+      return value as DocumentSnapshot;
+    },
   );
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
-  return res.json() as Promise<ProjectView>;
 }
 
 export async function loadProjectMeta(
@@ -109,7 +100,6 @@ export async function loadProjectMeta(
   return res.json() as Promise<ProjectMeta>;
 }
 
-/** A failed waveform request, with the server's `Retry-After` (seconds). */
 export async function loadHistoryDiff(
   projectPath: string,
   fromIndex: number,
@@ -126,12 +116,6 @@ export async function loadHistoryDiff(
   }
   return res.json() as Promise<HistoryDiff>;
 }
-export async function refreshProject(
-  projectPath: string,
-): Promise<ProjectView> {
-  return loadProject(projectPath);
-}
-
 export async function createEpisodeProject(
   workspaceDir: string,
   name: string,

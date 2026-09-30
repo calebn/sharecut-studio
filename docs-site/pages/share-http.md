@@ -41,6 +41,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/audition-context` | `play + view` | Windowed captions + PNG URLs (agent hear channel v1) |
 | `GET` | `…/daw/audition-context-image` | `play + view` | Waveform or spectrogram of a timeline window |
 | `POST` | `…/daw/document/command` | `view + command allowlist` | Typed body — see Document commands |
+| `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
 | `POST` | `…/daw/media/upload` | `edit` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable) |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |

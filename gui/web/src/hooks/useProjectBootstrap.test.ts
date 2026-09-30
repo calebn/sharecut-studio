@@ -1,139 +1,158 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { loadDocumentState } from "../api/project";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import {
+  documentScope,
+  isCurrentDocumentScope,
+  resetDocumentAuthority,
+} from "../document/authorityState";
+import type { DocumentSnapshot } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { useProjectBootstrap } from "./useProjectBootstrap";
 
-const loadProject = vi.fn();
-const loadProjectDetail = vi.fn();
-
-vi.mock("../api", () => ({
-  loadProject: (...args: unknown[]) => loadProject(...args),
-  loadProjectDetail: (...args: unknown[]) => loadProjectDetail(...args),
-}));
-
-describe("useProjectBootstrap", () => {
-  beforeEach(() => {
-    loadProject.mockReset();
-    loadProjectDetail.mockReset();
-    useDawStore.getState().hydrate("/tmp/p.json", null);
+vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
+const token = "a".repeat(64);
+const shell = () =>
+  minimalProject({
+    project_path: "/tmp/p.json",
+    tracks: [sampleTrack()],
+    meta: {
+      name: "Shell",
+      workspace_dir: "/tmp",
+      hydration: { transcript_words: false, history_groups: false },
+    },
   });
-
-  it("loads shell then merges detail without store.hydrate()", async () => {
-    const shell = minimalProject({
-      tracks: [
-        {
-          id: "host",
-          label: "Host",
-          role: "dialogue",
-          speaker: null,
-          gain_db: 0,
-          muted: false,
-          duration_sec: 10,
-          fx_count: 0,
-          stem_is_fresh: true,
-        },
-      ],
-    });
-    const tracks = shell.tracks;
-    loadProject.mockResolvedValue(shell);
-    loadProjectDetail.mockResolvedValue({
+function detail(seq = 0): DocumentSnapshot {
+  return {
+    server_seq: seq,
+    state_token: token,
+    patch: {
       transcript: { utterances: [] },
-      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
       meta: {
-        name: "Test Episode",
-        workspace_dir: "/tmp/test",
+        name: "Hydrated",
+        workspace_dir: "/tmp",
         hydration: { transcript_words: true, history_groups: true },
       },
-    });
+    },
+  };
+}
+beforeEach(() => {
+  vi.mocked(loadDocumentState).mockReset();
+  resetDocumentAuthority();
+  useDawStore.getState().hydrate("/tmp/p.json", null);
+});
+describe("sequenced project bootstrap", () => {
+  it("installs the actual shell sequence then hydrates detail without resetting waveform state", async () => {
+    const project = shell();
+    vi.mocked(loadDocumentState)
+      .mockResolvedValueOnce({ server_seq: 0, state_token: token, project })
+      .mockResolvedValueOnce(detail());
     const hydrate = vi.spyOn(useDawStore.getState(), "hydrate");
     renderHook(() => useProjectBootstrap("/tmp/p.json"));
-    await waitFor(() => {
-      expect(useDawStore.getState().project?.tracks).toBe(tracks);
-    });
-    expect(loadProject).toHaveBeenCalledWith(
-      "/tmp/p.json",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    await waitFor(() =>
+      expect(
+        useDawStore.getState().project?.meta.hydration?.transcript_words,
+      ).toBe(true),
     );
-    expect(loadProjectDetail).toHaveBeenCalledWith(
+    expect(useDawStore.getState().project?.tracks).toBe(project.tracks);
+    expect(loadDocumentState).toHaveBeenNthCalledWith(
+      1,
       "/tmp/p.json",
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      "shell",
+      expect.any(AbortSignal),
     );
-    expect(
-      useDawStore.getState().project?.meta.hydration?.transcript_words,
-    ).toBe(true);
+    expect(loadDocumentState).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/p.json",
+      "detail",
+      expect.any(AbortSignal),
+    );
     expect(hydrate).not.toHaveBeenCalled();
   });
-
-  it("aborts in-flight fetches on unmount so a late shell cannot land", async () => {
-    let resolveShell: (value: ReturnType<typeof minimalProject>) => void = () =>
-      undefined;
-    loadProject.mockImplementation(
-      (_path: string, init?: { signal?: AbortSignal }) =>
-        new Promise((resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
-          });
-          resolveShell = resolve;
+  it("aborts on unmount and rejects a late shell", async () => {
+    let resolve!: (value: DocumentSnapshot) => void;
+    vi.mocked(loadDocumentState).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
         }),
     );
     const { unmount } = renderHook(() => useProjectBootstrap("/tmp/p.json"));
-    await waitFor(() => expect(loadProject).toHaveBeenCalled());
+    const signal = vi.mocked(loadDocumentState).mock.calls[0][2]!;
     unmount();
-    resolveShell(minimalProject());
-    await Promise.resolve();
+    resolve({ server_seq: 0, state_token: token, project: shell() });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(signal.aborted).toBe(true);
     expect(useDawStore.getState().project).toBeNull();
   });
-
-  it("retries detail after a document snapshot races the first fetch", async () => {
-    const shell = minimalProject();
-    let resolveDetail: (value: unknown) => void = () => undefined;
-    loadProject.mockResolvedValue(shell);
-    loadProjectDetail
+  it("discards racing old detail and hydrates the new sequence", async () => {
+    let resolve!: (value: DocumentSnapshot) => void;
+    vi.mocked(loadDocumentState)
+      .mockResolvedValueOnce({
+        server_seq: 0,
+        state_token: token,
+        project: shell(),
+      })
       .mockImplementationOnce(
         () =>
-          new Promise((resolve) => {
-            resolveDetail = resolve;
+          new Promise((done) => {
+            resolve = done;
           }),
       )
-      .mockResolvedValue({
-        transcript: { utterances: [] },
-        meta: {
-          name: "after-applied",
-          workspace_dir: "/tmp/test",
-          hydration: { transcript_words: true, history_groups: true },
+      .mockResolvedValueOnce(detail(7));
+    renderHook(() => useProjectBootstrap("/tmp/p.json"));
+    await waitFor(() => expect(loadDocumentState).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      applyDocumentSnapshot({
+        server_seq: 7,
+        state_token: token,
+        project: shell(),
+      });
+      resolve({
+        ...detail(),
+        patch: {
+          ...detail().patch,
+          meta: { name: "Stale", workspace_dir: "/tmp" },
         },
       });
-    renderHook(() => useProjectBootstrap("/tmp/p.json"));
-    await waitFor(() => {
-      expect(useDawStore.getState().project).toBe(shell);
     });
-    applyDocumentSnapshot({
-      server_seq: 7,
-      project: minimalProject({
-        meta: {
-          name: "after-applied",
-          workspace_dir: "/tmp/test",
-          hydration: { transcript_words: false, history_groups: false },
-        },
-      }),
+    await waitFor(() =>
+      expect(useDawStore.getState().project?.meta.name).toBe("Hydrated"),
+    );
+    expect(loadDocumentState).toHaveBeenCalledTimes(3);
+  });
+  it("keeps a live socket scope valid when a failed bootstrap is retried", async () => {
+    const project = minimalProject();
+    vi.mocked(loadDocumentState).mockRejectedValueOnce(
+      new Error("temporary failure"),
+    );
+    const hook = renderHook(() => useProjectBootstrap("/tmp/p.json"));
+    const socketScope = documentScope();
+    await waitFor(() =>
+      expect(hook.result.current.error).toBe("temporary failure"),
+    );
+    vi.mocked(loadDocumentState).mockResolvedValue({
+      server_seq: 1,
+      state_token: token,
+      project,
     });
-    resolveDetail({
-      transcript: { utterances: [] },
-      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
-      meta: {
-        name: "stale-detail",
-        workspace_dir: "/tmp/test",
-        hydration: { transcript_words: true, history_groups: true },
+    act(() => hook.result.current.retry());
+    await waitFor(() => expect(useDawStore.getState().project).not.toBeNull());
+    expect(isCurrentDocumentScope(socketScope)).toBe(true);
+    applyDocumentSnapshot(
+      {
+        server_seq: 2,
+        state_token: token,
+        project: minimalProject({
+          meta: { name: "Peer after retry", workspace_dir: "/tmp" },
+        }),
       },
-    });
-    await waitFor(() => expect(loadProjectDetail).toHaveBeenCalledTimes(2));
-    await waitFor(() => {
-      expect(useDawStore.getState().project?.meta.name).toBe("after-applied");
-      expect(
-        useDawStore.getState().project?.meta.hydration?.transcript_words,
-      ).toBe(true);
-    });
+      { scope: socketScope },
+    );
+    expect(useDawStore.getState().project?.meta.name).toBe("Peer after retry");
   });
 });

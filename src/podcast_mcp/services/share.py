@@ -602,12 +602,17 @@ def sanitize_guest_document_event(event: dict[str, Any]) -> dict[str, Any]:
     ``{mtime_ns, size}``.
     """
     out = dict(event)
+    guest_snapshot = out.pop("_guest_snapshot", None)
+    if guest_snapshot is not None:
+        out["snapshot"] = guest_snapshot
     cmd = out.get("command")
     if isinstance(cmd, dict):
         out["command"] = {"type": cmd.get("type")}
     snap = out.get("snapshot")
     if isinstance(snap, dict):
         snap = dict(snap)
+        if isinstance(snap.get("delta"), dict) and snap["delta"].get("audience") != "guest":
+            snap = {"server_seq": snap.get("server_seq", 0), "resync": True}
         if isinstance(snap.get("project"), dict):
             snap["project"] = sanitize_guest_project_view(snap["project"])
         if isinstance(snap.get("patch"), dict):

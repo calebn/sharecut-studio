@@ -1,0 +1,1034 @@
+{
+  "before": {
+    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.project.json",
+    "meta": {
+      "name": "production-small-move",
+      "workspace_dir": "/private/tmp/realtime-594-run/prototype/production-small-move",
+      "hydration": {
+        "transcript_words": false,
+        "history_groups": false
+      }
+    },
+    "timeline_duration_sec": 0.0,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": null,
+        "gain_db": 0.0,
+        "fader_db": 0.0,
+        "muted": false,
+        "duration_sec": 13.0,
+        "fx_count": 0,
+        "stem_is_fresh": false,
+        "has_source_audio": true,
+        "media_path": "raw/host.wav",
+        "fade_max_ms": 40
+      }
+    ],
+    "clips": {
+      "tracks": {
+        "host": [
+          {
+            "id": "c0",
+            "track_id": "host",
+            "source_start": 0.0,
+            "source_end": 0.1,
+            "timeline_start": 0.0,
+            "timeline_end": 0.1,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": null,
+            "join_render_mode": null,
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c1",
+            "track_id": "host",
+            "source_start": 0.2,
+            "source_end": 0.30000000000000004,
+            "timeline_start": 0.2,
+            "timeline_end": 0.30000000000000004,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c0",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c2",
+            "track_id": "host",
+            "source_start": 0.4,
+            "source_end": 0.5,
+            "timeline_start": 0.4,
+            "timeline_end": 0.5,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c1",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c3",
+            "track_id": "host",
+            "source_start": 0.6000000000000001,
+            "source_end": 0.7000000000000001,
+            "timeline_start": 0.6000000000000001,
+            "timeline_end": 0.7000000000000001,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c2",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c4",
+            "track_id": "host",
+            "source_start": 0.8,
+            "source_end": 0.9,
+            "timeline_start": 0.8,
+            "timeline_end": 0.9,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c3",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c5",
+            "track_id": "host",
+            "source_start": 1.0,
+            "source_end": 1.1,
+            "timeline_start": 1.0,
+            "timeline_end": 1.1,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c4",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c6",
+            "track_id": "host",
+            "source_start": 1.2000000000000002,
+            "source_end": 1.3000000000000003,
+            "timeline_start": 1.2000000000000002,
+            "timeline_end": 1.3000000000000003,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c5",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c7",
+            "track_id": "host",
+            "source_start": 1.4000000000000001,
+            "source_end": 1.5000000000000002,
+            "timeline_start": 1.4000000000000001,
+            "timeline_end": 1.5000000000000002,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c6",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          }
+        ]
+      },
+      "clip_count": 8
+    },
+    "chapters": [],
+    "pending_edits": [],
+    "edit_boundaries": [
+      {
+        "id": "eb:c0:c1",
+        "track_id": "host",
+        "left_clip_id": "c0",
+        "right_clip_id": "c1",
+        "timeline_join_sec": 0.1,
+        "cutaway_source_start": 0.1,
+        "cutaway_source_end": 0.2,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c1:c2",
+        "track_id": "host",
+        "left_clip_id": "c1",
+        "right_clip_id": "c2",
+        "timeline_join_sec": 0.30000000000000004,
+        "cutaway_source_start": 0.30000000000000004,
+        "cutaway_source_end": 0.4,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c2:c3",
+        "track_id": "host",
+        "left_clip_id": "c2",
+        "right_clip_id": "c3",
+        "timeline_join_sec": 0.5,
+        "cutaway_source_start": 0.5,
+        "cutaway_source_end": 0.6000000000000001,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c3:c4",
+        "track_id": "host",
+        "left_clip_id": "c3",
+        "right_clip_id": "c4",
+        "timeline_join_sec": 0.7000000000000001,
+        "cutaway_source_start": 0.7000000000000001,
+        "cutaway_source_end": 0.8,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c4:c5",
+        "track_id": "host",
+        "left_clip_id": "c4",
+        "right_clip_id": "c5",
+        "timeline_join_sec": 0.9,
+        "cutaway_source_start": 0.9,
+        "cutaway_source_end": 1.0,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c5:c6",
+        "track_id": "host",
+        "left_clip_id": "c5",
+        "right_clip_id": "c6",
+        "timeline_join_sec": 1.1,
+        "cutaway_source_start": 1.1,
+        "cutaway_source_end": 1.2000000000000002,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c6:c7",
+        "track_id": "host",
+        "left_clip_id": "c6",
+        "right_clip_id": "c7",
+        "timeline_join_sec": 1.3000000000000003,
+        "cutaway_source_start": 1.3000000000000003,
+        "cutaway_source_end": 1.4000000000000001,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      }
+    ],
+    "applied_edits": {
+      "count": 0,
+      "records": []
+    },
+    "effects_by_track": {
+      "host": []
+    },
+    "envelopes": [],
+    "social_clips": [],
+    "comments": [],
+    "render_status": {
+      "tracks": {
+        "host": {
+          "stem_path": null,
+          "stem_exists": false,
+          "stem_is_fresh": false,
+          "render_hash": "defcf82a34a6d8f3",
+          "stored_hash": null,
+          "expected_duration_sec": null,
+          "stem_duration_sec": null,
+          "duration_mismatch": false
+        }
+      },
+      "premix": {
+        "path": null,
+        "exists": false,
+        "stale_vs_stems": false,
+        "stale_vs_mix": false
+      },
+      "reconciliation": {
+        "stale": true,
+        "fingerprint": "ef7a31ed158734e5",
+        "last_reconciliation_hash": null,
+        "reconciliation_stale_flag": false
+      },
+      "invalidations": [],
+      "needs_rerender": true
+    },
+    "edit_impact": {
+      "total_removed_sec": 0,
+      "by_track_sec": {},
+      "applied_count": 0,
+      "pending_review_count": 0,
+      "segments": [],
+      "clip_count": 8,
+      "timeline_duration_sec": 1.5000000000000002,
+      "gap_count": 7
+    },
+    "history": {
+      "cursor": -1,
+      "can_undo": false,
+      "can_redo": false,
+      "groups": []
+    },
+    "transcript": null
+  },
+  "after": {
+    "project_path": "/private/tmp/realtime-594-run/prototype/production-small-move/episode.project.json",
+    "meta": {
+      "name": "production-small-move",
+      "workspace_dir": "/private/tmp/realtime-594-run/prototype/production-small-move",
+      "hydration": {
+        "transcript_words": false,
+        "history_groups": false
+      }
+    },
+    "timeline_duration_sec": 1.6,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": null,
+        "gain_db": 0.0,
+        "fader_db": 0.0,
+        "muted": false,
+        "duration_sec": 13.0,
+        "fx_count": 0,
+        "stem_is_fresh": false,
+        "has_source_audio": true,
+        "media_path": "raw/host.wav",
+        "fade_max_ms": 40
+      }
+    ],
+    "clips": {
+      "tracks": {
+        "host": [
+          {
+            "id": "c0",
+            "track_id": "host",
+            "source_start": 0.0,
+            "source_end": 0.1,
+            "timeline_start": 0.0,
+            "timeline_end": 0.1,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": null,
+            "join_render_mode": null,
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c2",
+            "track_id": "host",
+            "source_start": 0.4,
+            "source_end": 0.5,
+            "timeline_start": 0.4,
+            "timeline_end": 0.5,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c0",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c3",
+            "track_id": "host",
+            "source_start": 0.6000000000000001,
+            "source_end": 0.7000000000000001,
+            "timeline_start": 0.6000000000000001,
+            "timeline_end": 0.7000000000000001,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c2",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c4",
+            "track_id": "host",
+            "source_start": 0.8,
+            "source_end": 0.9,
+            "timeline_start": 0.8,
+            "timeline_end": 0.9,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c3",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c5",
+            "track_id": "host",
+            "source_start": 1.0,
+            "source_end": 1.1,
+            "timeline_start": 1.0,
+            "timeline_end": 1.1,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c4",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c6",
+            "track_id": "host",
+            "source_start": 1.2000000000000002,
+            "source_end": 1.3000000000000003,
+            "timeline_start": 1.2000000000000002,
+            "timeline_end": 1.3000000000000003,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c5",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c7",
+            "track_id": "host",
+            "source_start": 1.4000000000000001,
+            "source_end": 1.5000000000000002,
+            "timeline_start": 1.4000000000000001,
+            "timeline_end": 1.5000000000000002,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c6",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          },
+          {
+            "id": "c1",
+            "track_id": "host",
+            "source_start": 0.2,
+            "source_end": 0.30000000000000004,
+            "timeline_start": 1.5,
+            "timeline_end": 1.6,
+            "fade_in_ms": 0,
+            "fade_out_ms": 0,
+            "join_in_mode": "fade",
+            "join_left_clip_id": "c7",
+            "join_render_mode": "fade",
+            "join_crossfade_ms": 0,
+            "join_crossfade_blocked": null,
+            "source_id": null,
+            "origin_track_id": "host",
+            "mute_regions": [],
+            "clipping_regions": [],
+            "clipping_truncated": false
+          }
+        ]
+      },
+      "clip_count": 8
+    },
+    "chapters": [],
+    "pending_edits": [],
+    "edit_boundaries": [
+      {
+        "id": "eb:c0:c2",
+        "track_id": "host",
+        "left_clip_id": "c0",
+        "right_clip_id": "c2",
+        "timeline_join_sec": 0.1,
+        "cutaway_source_start": 0.1,
+        "cutaway_source_end": 0.4,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c2:c3",
+        "track_id": "host",
+        "left_clip_id": "c2",
+        "right_clip_id": "c3",
+        "timeline_join_sec": 0.5,
+        "cutaway_source_start": 0.5,
+        "cutaway_source_end": 0.6000000000000001,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c3:c4",
+        "track_id": "host",
+        "left_clip_id": "c3",
+        "right_clip_id": "c4",
+        "timeline_join_sec": 0.7000000000000001,
+        "cutaway_source_start": 0.7000000000000001,
+        "cutaway_source_end": 0.8,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c4:c5",
+        "track_id": "host",
+        "left_clip_id": "c4",
+        "right_clip_id": "c5",
+        "timeline_join_sec": 0.9,
+        "cutaway_source_start": 0.9,
+        "cutaway_source_end": 1.0,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c5:c6",
+        "track_id": "host",
+        "left_clip_id": "c5",
+        "right_clip_id": "c6",
+        "timeline_join_sec": 1.1,
+        "cutaway_source_start": 1.1,
+        "cutaway_source_end": 1.2000000000000002,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c6:c7",
+        "track_id": "host",
+        "left_clip_id": "c6",
+        "right_clip_id": "c7",
+        "timeline_join_sec": 1.3000000000000003,
+        "cutaway_source_start": 1.3000000000000003,
+        "cutaway_source_end": 1.4000000000000001,
+        "has_cutaway": true,
+        "cutaway_word_ids": []
+      },
+      {
+        "id": "eb:c7:c1",
+        "track_id": "host",
+        "left_clip_id": "c7",
+        "right_clip_id": "c1",
+        "timeline_join_sec": 1.5000000000000002,
+        "cutaway_source_start": 1.5000000000000002,
+        "cutaway_source_end": 1.5000000000000002,
+        "has_cutaway": false,
+        "cutaway_word_ids": []
+      }
+    ],
+    "applied_edits": {
+      "count": 1,
+      "records": [
+        {
+          "id": "alog_3bf15ccf",
+          "applied_at": "2026-09-30T15:27:06.830400+00:00",
+          "operation": "move_clips",
+          "decision_ids": [],
+          "track_ids": [
+            "host"
+          ],
+          "source_start": null,
+          "source_end": null,
+          "timeline_start": 0.2,
+          "timeline_end": 1.6,
+          "reason": null,
+          "crossfade_ms": null,
+          "boundary_mode": null,
+          "cut_confidence": null,
+          "params": {
+            "clips": [
+              {
+                "clip_id": "c1",
+                "track_id": "host",
+                "timeline_start": 1.5,
+                "previous_track_id": "host",
+                "previous_timeline_start": 0.2
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "effects_by_track": {
+      "host": []
+    },
+    "envelopes": [],
+    "social_clips": [],
+    "comments": [],
+    "render_status": {
+      "tracks": {
+        "host": {
+          "stem_path": null,
+          "stem_exists": false,
+          "stem_is_fresh": false,
+          "render_hash": "33cb03926a44845d",
+          "stored_hash": null,
+          "expected_duration_sec": null,
+          "stem_duration_sec": null,
+          "duration_mismatch": false
+        }
+      },
+      "premix": {
+        "path": null,
+        "exists": false,
+        "stale_vs_stems": false,
+        "stale_vs_mix": false
+      },
+      "reconciliation": {
+        "stale": true,
+        "fingerprint": "db4313226713bf74",
+        "last_reconciliation_hash": null,
+        "reconciliation_stale_flag": true
+      },
+      "invalidations": [
+        {
+          "id": "inv_0e65228c2c",
+          "track_ids": [
+            "host"
+          ],
+          "timeline_start": 0.2,
+          "timeline_end": 1.6,
+          "reason": "clip",
+          "at": "2026-09-30T15:27:06.831059+00:00"
+        }
+      ],
+      "needs_rerender": true
+    },
+    "edit_impact": {
+      "total_removed_sec": 0,
+      "by_track_sec": {},
+      "applied_count": 0,
+      "pending_review_count": 0,
+      "segments": [],
+      "clip_count": 8,
+      "timeline_duration_sec": 1.6,
+      "gap_count": 6
+    },
+    "history": {
+      "cursor": 1,
+      "can_undo": true,
+      "can_redo": false,
+      "groups": [
+        {
+          "kind": "mutation",
+          "before_index": 0,
+          "after_index": 1,
+          "before_id": "d69d9d4787b3",
+          "after_id": "83963b0dc145",
+          "label": "move clips",
+          "operation": "move_clips",
+          "params": {
+            "clip_ids": [
+              "c1"
+            ]
+          },
+          "created_at": "2026-09-30T15:27:06.835369+00:00",
+          "title": "move clips"
+        }
+      ]
+    },
+    "transcript": {
+      "utterances": []
+    }
+  },
+  "delta": {
+    "base_seq": 0,
+    "base_token": "87d2483bad4c3c96cb16346e6c03fa0f6ff290a9d257e352c0c06d08359bd762",
+    "audience": "host",
+    "projection": "shell",
+    "operations": [
+      {
+        "type": "replace",
+        "section": "timeline_duration_sec",
+        "parent": null,
+        "value": 1.6
+      },
+      {
+        "type": "rows",
+        "section": "clip_rows",
+        "parent": "host",
+        "before_count": 8,
+        "splices": [
+          {
+            "index": 1,
+            "delete": 1,
+            "insert": []
+          },
+          {
+            "index": 8,
+            "delete": 0,
+            "insert": [
+              {
+                "id": "c1",
+                "track_id": "host",
+                "source_start": 0.2,
+                "source_end": 0.30000000000000004,
+                "timeline_start": 1.5,
+                "timeline_end": 1.6,
+                "fade_in_ms": 0,
+                "fade_out_ms": 0,
+                "join_in_mode": "fade",
+                "join_left_clip_id": "c7",
+                "join_render_mode": "fade",
+                "join_crossfade_ms": 0,
+                "join_crossfade_blocked": null,
+                "source_id": null,
+                "origin_track_id": "host",
+                "mute_regions": [],
+                "clipping_regions": [],
+                "clipping_truncated": false
+              }
+            ]
+          }
+        ],
+        "updates": [
+          {
+            "index": 1,
+            "value": {
+              "id": "c2",
+              "track_id": "host",
+              "source_start": 0.4,
+              "source_end": 0.5,
+              "timeline_start": 0.4,
+              "timeline_end": 0.5,
+              "fade_in_ms": 0,
+              "fade_out_ms": 0,
+              "join_in_mode": "fade",
+              "join_left_clip_id": "c0",
+              "join_render_mode": "fade",
+              "join_crossfade_ms": 0,
+              "join_crossfade_blocked": null,
+              "source_id": null,
+              "origin_track_id": "host",
+              "mute_regions": [],
+              "clipping_regions": [],
+              "clipping_truncated": false
+            }
+          }
+        ]
+      },
+      {
+        "type": "rows",
+        "section": "edit_boundaries",
+        "parent": null,
+        "before_count": 7,
+        "splices": [
+          {
+            "index": 0,
+            "delete": 2,
+            "insert": [
+              {
+                "id": "eb:c0:c2",
+                "track_id": "host",
+                "left_clip_id": "c0",
+                "right_clip_id": "c2",
+                "timeline_join_sec": 0.1,
+                "cutaway_source_start": 0.1,
+                "cutaway_source_end": 0.4,
+                "has_cutaway": true,
+                "cutaway_word_ids": []
+              }
+            ]
+          },
+          {
+            "index": 7,
+            "delete": 0,
+            "insert": [
+              {
+                "id": "eb:c7:c1",
+                "track_id": "host",
+                "left_clip_id": "c7",
+                "right_clip_id": "c1",
+                "timeline_join_sec": 1.5000000000000002,
+                "cutaway_source_start": 1.5000000000000002,
+                "cutaway_source_end": 1.5000000000000002,
+                "has_cutaway": false,
+                "cutaway_word_ids": []
+              }
+            ]
+          }
+        ],
+        "updates": []
+      },
+      {
+        "type": "replace",
+        "section": "applied_edits",
+        "parent": null,
+        "value": {
+          "count": 1
+        }
+      },
+      {
+        "type": "rows",
+        "section": "applied_records",
+        "parent": null,
+        "before_count": 0,
+        "splices": [
+          {
+            "index": 0,
+            "delete": 0,
+            "insert": [
+              {
+                "id": "alog_3bf15ccf",
+                "applied_at": "2026-09-30T15:27:06.830400+00:00",
+                "operation": "move_clips",
+                "decision_ids": [],
+                "track_ids": [
+                  "host"
+                ],
+                "source_start": null,
+                "source_end": null,
+                "timeline_start": 0.2,
+                "timeline_end": 1.6,
+                "reason": null,
+                "crossfade_ms": null,
+                "boundary_mode": null,
+                "cut_confidence": null,
+                "params": {
+                  "clips": [
+                    {
+                      "clip_id": "c1",
+                      "track_id": "host",
+                      "timeline_start": 1.5,
+                      "previous_track_id": "host",
+                      "previous_timeline_start": 0.2
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "updates": []
+      },
+      {
+        "type": "replace",
+        "section": "render_status",
+        "parent": null,
+        "value": {
+          "premix": {
+            "path": null,
+            "exists": false,
+            "stale_vs_stems": false,
+            "stale_vs_mix": false
+          },
+          "reconciliation": {
+            "stale": true,
+            "fingerprint": "db4313226713bf74",
+            "last_reconciliation_hash": null,
+            "reconciliation_stale_flag": true
+          },
+          "needs_rerender": true
+        }
+      },
+      {
+        "type": "rows",
+        "section": "render_tracks",
+        "parent": null,
+        "before_count": 1,
+        "splices": [],
+        "updates": [
+          {
+            "index": 0,
+            "value": {
+              "key": "host",
+              "value": {
+                "stem_path": null,
+                "stem_exists": false,
+                "stem_is_fresh": false,
+                "render_hash": "33cb03926a44845d",
+                "stored_hash": null,
+                "expected_duration_sec": null,
+                "stem_duration_sec": null,
+                "duration_mismatch": false
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "rows",
+        "section": "invalidations",
+        "parent": null,
+        "before_count": 0,
+        "splices": [
+          {
+            "index": 0,
+            "delete": 0,
+            "insert": [
+              {
+                "id": "inv_0e65228c2c",
+                "track_ids": [
+                  "host"
+                ],
+                "timeline_start": 0.2,
+                "timeline_end": 1.6,
+                "reason": "clip",
+                "at": "2026-09-30T15:27:06.831059+00:00"
+              }
+            ]
+          }
+        ],
+        "updates": []
+      },
+      {
+        "type": "replace",
+        "section": "edit_impact",
+        "parent": null,
+        "value": {
+          "total_removed_sec": 0,
+          "by_track_sec": {},
+          "applied_count": 0,
+          "pending_review_count": 0,
+          "clip_count": 8,
+          "timeline_duration_sec": 1.6,
+          "gap_count": 6
+        }
+      },
+      {
+        "type": "replace",
+        "section": "history",
+        "parent": null,
+        "value": {
+          "cursor": 1,
+          "can_undo": true,
+          "can_redo": false
+        }
+      },
+      {
+        "type": "rows",
+        "section": "history_groups",
+        "parent": null,
+        "before_count": 0,
+        "splices": [
+          {
+            "index": 0,
+            "delete": 0,
+            "insert": [
+              {
+                "kind": "mutation",
+                "before_index": 0,
+                "after_index": 1,
+                "before_id": "d69d9d4787b3",
+                "after_id": "83963b0dc145",
+                "label": "move clips",
+                "operation": "move_clips",
+                "params": {
+                  "clip_ids": [
+                    "c1"
+                  ]
+                },
+                "created_at": "2026-09-30T15:27:06.835369+00:00",
+                "title": "move clips"
+              }
+            ]
+          }
+        ],
+        "updates": []
+      },
+      {
+        "type": "replace",
+        "section": "transcript",
+        "parent": null,
+        "value": {}
+      },
+      {
+        "type": "replace",
+        "section": "utterances",
+        "parent": null,
+        "value": []
+      }
+    ]
+  }
+}

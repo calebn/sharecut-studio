@@ -1,0 +1,637 @@
+{
+  "before": {
+    "transcript": {
+      "utterances": [
+        {
+          "track_id": "host",
+          "speaker": "host",
+          "start": 0.0,
+          "end": 2.35,
+          "text": "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11",
+          "timeline_start": 0.0,
+          "timeline_end": 2.35,
+          "timeline_spans": [
+            {
+              "start": 0.0,
+              "end": 2.35
+            }
+          ],
+          "mappable": true,
+          "words": [
+            {
+              "text": "w0",
+              "start": 0.0,
+              "end": 0.15,
+              "timeline_start": 0.0,
+              "timeline_end": 0.15,
+              "mappable": true,
+              "word_index": 0,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 0
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w1",
+              "start": 0.2,
+              "end": 0.35,
+              "timeline_start": 0.2,
+              "timeline_end": 0.35,
+              "mappable": true,
+              "word_index": 1,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 1
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w2",
+              "start": 0.4,
+              "end": 0.55,
+              "timeline_start": 0.4,
+              "timeline_end": 0.55,
+              "mappable": true,
+              "word_index": 2,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 2
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w3",
+              "start": 0.6000000000000001,
+              "end": 0.7500000000000001,
+              "timeline_start": 0.6000000000000001,
+              "timeline_end": 0.7500000000000001,
+              "mappable": true,
+              "word_index": 3,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 3
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w4",
+              "start": 0.8,
+              "end": 0.9500000000000001,
+              "timeline_start": 0.8,
+              "timeline_end": 0.9500000000000001,
+              "mappable": true,
+              "word_index": 4,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 4
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w5",
+              "start": 1.0,
+              "end": 1.15,
+              "timeline_start": 1.0,
+              "timeline_end": 1.15,
+              "mappable": true,
+              "word_index": 5,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 5
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w6",
+              "start": 1.2000000000000002,
+              "end": 1.35,
+              "timeline_start": 1.2000000000000002,
+              "timeline_end": 1.35,
+              "mappable": true,
+              "word_index": 6,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 6
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w7",
+              "start": 1.4000000000000001,
+              "end": 1.55,
+              "timeline_start": 1.4000000000000001,
+              "timeline_end": 1.55,
+              "mappable": true,
+              "word_index": 7,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 7
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w8",
+              "start": 1.6,
+              "end": 1.75,
+              "timeline_start": 1.6,
+              "timeline_end": 1.75,
+              "mappable": true,
+              "word_index": 8,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 8
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w9",
+              "start": 1.8,
+              "end": 1.95,
+              "timeline_start": 1.8,
+              "timeline_end": 1.95,
+              "mappable": true,
+              "word_index": 9,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 9
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w10",
+              "start": 2.0,
+              "end": 2.15,
+              "timeline_start": 2.0,
+              "timeline_end": 2.15,
+              "mappable": true,
+              "word_index": 10,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 10
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w11",
+              "start": 2.2,
+              "end": 2.35,
+              "timeline_start": 2.2,
+              "timeline_end": 2.35,
+              "mappable": true,
+              "word_index": 11,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 11
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            }
+          ]
+        }
+      ]
+    },
+    "history": {
+      "cursor": -1,
+      "can_undo": false,
+      "can_redo": false,
+      "groups": []
+    },
+    "meta": {
+      "hydration": {
+        "transcript_words": true,
+        "history_groups": true
+      }
+    },
+    "comments": []
+  },
+  "after": {
+    "transcript": {
+      "utterances": [
+        {
+          "track_id": "host",
+          "speaker": "host",
+          "start": 0.0,
+          "end": 2.35,
+          "text": "w0 w1 w2 w3 changed \ud83e\udd8a w5 w6 w7 w8 w9 w10 w11",
+          "timeline_start": 0.0,
+          "timeline_end": 2.35,
+          "timeline_spans": [
+            {
+              "start": 0.0,
+              "end": 2.35
+            }
+          ],
+          "mappable": true,
+          "words": [
+            {
+              "text": "w0",
+              "start": 0.0,
+              "end": 0.15,
+              "timeline_start": 0.0,
+              "timeline_end": 0.15,
+              "mappable": true,
+              "word_index": 0,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 0
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w1",
+              "start": 0.2,
+              "end": 0.35,
+              "timeline_start": 0.2,
+              "timeline_end": 0.35,
+              "mappable": true,
+              "word_index": 1,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 1
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w2",
+              "start": 0.4,
+              "end": 0.55,
+              "timeline_start": 0.4,
+              "timeline_end": 0.55,
+              "mappable": true,
+              "word_index": 2,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 2
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w3",
+              "start": 0.6000000000000001,
+              "end": 0.7500000000000001,
+              "timeline_start": 0.6000000000000001,
+              "timeline_end": 0.7500000000000001,
+              "mappable": true,
+              "word_index": 3,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 3
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "changed \ud83e\udd8a",
+              "start": 0.8,
+              "end": 0.9500000000000001,
+              "timeline_start": 0.8,
+              "timeline_end": 0.9500000000000001,
+              "mappable": true,
+              "word_index": 4,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 4
+              },
+              "confidence": 1.0,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w5",
+              "start": 1.0,
+              "end": 1.15,
+              "timeline_start": 1.0,
+              "timeline_end": 1.15,
+              "mappable": true,
+              "word_index": 5,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 5
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w6",
+              "start": 1.2000000000000002,
+              "end": 1.35,
+              "timeline_start": 1.2000000000000002,
+              "timeline_end": 1.35,
+              "mappable": true,
+              "word_index": 6,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 6
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w7",
+              "start": 1.4000000000000001,
+              "end": 1.55,
+              "timeline_start": 1.4000000000000001,
+              "timeline_end": 1.55,
+              "mappable": true,
+              "word_index": 7,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 7
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w8",
+              "start": 1.6,
+              "end": 1.75,
+              "timeline_start": 1.6,
+              "timeline_end": 1.75,
+              "mappable": true,
+              "word_index": 8,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 8
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w9",
+              "start": 1.8,
+              "end": 1.95,
+              "timeline_start": 1.8,
+              "timeline_end": 1.95,
+              "mappable": true,
+              "word_index": 9,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 9
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w10",
+              "start": 2.0,
+              "end": 2.15,
+              "timeline_start": 2.0,
+              "timeline_end": 2.15,
+              "mappable": true,
+              "word_index": 10,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 10
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            },
+            {
+              "text": "w11",
+              "start": 2.2,
+              "end": 2.35,
+              "timeline_start": 2.2,
+              "timeline_end": 2.35,
+              "mappable": true,
+              "word_index": 11,
+              "timing_target": {
+                "track_id": "host",
+                "source_id": null,
+                "word_index": 11
+              },
+              "confidence": 0.9,
+              "suppressed": false,
+              "ignored": false,
+              "suspect_hallucination": false,
+              "audibility_locked": false
+            }
+          ]
+        }
+      ]
+    },
+    "history": {
+      "cursor": 1,
+      "can_undo": true,
+      "can_redo": false,
+      "groups": [
+        {
+          "kind": "mutation",
+          "before_index": 0,
+          "after_index": 1,
+          "before_id": "43aa0c0fcae2",
+          "after_id": "277c2f01c6f4",
+          "label": "correct word",
+          "operation": null,
+          "params": null,
+          "created_at": "2026-09-30T15:27:06.888338+00:00",
+          "title": "correct word"
+        }
+      ]
+    },
+    "meta": {
+      "hydration": {
+        "transcript_words": true,
+        "history_groups": true
+      }
+    },
+    "comments": []
+  },
+  "delta": {
+    "base_seq": 0,
+    "base_token": "aa1600b0dea9b9271b802fb2e8b9f1e2e860aba6b0b1c17b893ca0b79456e3ea",
+    "audience": "host",
+    "projection": "detail",
+    "operations": [
+      {
+        "type": "rows",
+        "section": "utterances",
+        "parent": null,
+        "before_count": 1,
+        "splices": [],
+        "updates": [
+          {
+            "index": 0,
+            "set": {},
+            "unset": [],
+            "text": {
+              "index": 12,
+              "delete": 2,
+              "insert": "changed \ud83e\udd8a"
+            },
+            "words": {
+              "index": 4,
+              "delete": 1,
+              "insert": [
+                {
+                  "text": "changed \ud83e\udd8a",
+                  "start": 0.8,
+                  "end": 0.9500000000000001,
+                  "timeline_start": 0.8,
+                  "timeline_end": 0.9500000000000001,
+                  "mappable": true,
+                  "word_index": 4,
+                  "timing_target": {
+                    "track_id": "host",
+                    "source_id": null,
+                    "word_index": 4
+                  },
+                  "confidence": 1.0,
+                  "suppressed": false,
+                  "ignored": false,
+                  "suspect_hallucination": false,
+                  "audibility_locked": false
+                }
+              ]
+            },
+            "requires_words": true,
+            "word_count": 12
+          }
+        ],
+        "row_encoding": "predecessor-spans"
+      },
+      {
+        "type": "replace",
+        "section": "history",
+        "parent": null,
+        "value": {
+          "cursor": 1,
+          "can_undo": true,
+          "can_redo": false
+        }
+      },
+      {
+        "type": "rows",
+        "section": "history_groups",
+        "parent": null,
+        "before_count": 0,
+        "splices": [
+          {
+            "index": 0,
+            "delete": 0,
+            "insert": [
+              {
+                "kind": "mutation",
+                "before_index": 0,
+                "after_index": 1,
+                "before_id": "43aa0c0fcae2",
+                "after_id": "277c2f01c6f4",
+                "label": "correct word",
+                "operation": null,
+                "params": null,
+                "created_at": "2026-09-30T15:27:06.888338+00:00",
+                "title": "correct word"
+              }
+            ]
+          }
+        ],
+        "updates": []
+      }
+    ]
+  }
+}

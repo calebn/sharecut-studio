@@ -1,6 +1,9 @@
 import { hostFetch } from "../api/documentTransport";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
-import { fetchWhileSeqStable } from "../document/fetchWhileSeqStable";
+import {
+  activateDocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -12,7 +15,7 @@ import {
 import type { AutomationPoint } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
-import { loadProjectPhase } from "./project";
+import { loadDocumentState } from "./project";
 
 /** Wire shape for a guarded transcript command's optional stale-text guard. */
 function withExpectedText(expectedText?: string | null): {
@@ -380,31 +383,14 @@ export async function setEnvelope(
   }
 }
 
-/** Tries before a post-409 refresh that keeps racing live updates gives up; those updates are newer anyway. */
-const PHASE_REFRESH_ATTEMPTS = 3;
-
-/**
- * Load one projection phase from the host and force it into the store, so
- * the next edit's baseline is the host's current state (used after a 409).
- * The GET carries no `server_seq`, so a live update that lands while it is
- * in flight may be newer than the patch: fetch again instead of
- * overwriting it, and apply nothing if updates keep landing (#746).
- * The retry loop is fetchWhileSeqStable (shared with useProjectBootstrap).
- */
 async function refreshProjectPhase(
   projectPath: string,
-  phase: "envelopes" | "detail",
+  _phase: "envelopes" | "detail",
 ): Promise<void> {
-  const fresh = await fetchWhileSeqStable(
-    () => loadProjectPhase(projectPath, phase),
-    {
-      attempts: PHASE_REFRESH_ATTEMPTS,
-      isCancelled: () => useDawStore.getState().projectPath !== projectPath,
-    },
-  );
-  if (fresh) {
-    applyDocumentSnapshot({ patch: fresh.value }, { force: true });
-  }
+  if (useDawStore.getState().projectPath !== projectPath) return;
+  const scope = activateDocumentScope(projectPath);
+  const snapshot = await loadDocumentState(projectPath, "full");
+  if (isCurrentDocumentScope(scope)) applyDocumentSnapshot(snapshot, { scope });
 }
 
 function applyQueuedEnvelope(

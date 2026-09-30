@@ -51,6 +51,17 @@ from sqlite_helpers import FailingConnection
 from sync_helpers import _foreign_document_write
 
 
+def _current_projection(svc, reply):
+    snapshot = reply["snapshot"]
+    if "delta" not in snapshot:
+        return snapshot
+    delta = snapshot["delta"]
+    current = svc.document_snapshot(projection=delta["projection"])
+    assert current["server_seq"] == snapshot["server_seq"]
+    assert current["state_token"] == snapshot["state_token"]
+    return current
+
+
 def test_document_add_comment_and_idempotent(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     cmd = DocumentCommand(
@@ -67,12 +78,12 @@ def test_document_add_comment_and_idempotent(minimal_project):
     result = svc.submit(cmd)
     assert result["ok"]
     assert result["type"] == "Applied"
-    assert len(result["snapshot"]["comments"]) == 1
-    assert result["snapshot"]["comments"][0]["body"] == "Live note"
-    assert "history" in result["snapshot"]
-    assert "can_undo" in result["snapshot"]["history"]
-    assert "entries" not in result["snapshot"]["history"]
-    groups = result["snapshot"]["history"]["groups"]
+    assert len(_current_projection(svc, result)["comments"]) == 1
+    assert _current_projection(svc, result)["comments"][0]["body"] == "Live note"
+    assert "history" in _current_projection(svc, result)
+    assert "can_undo" in _current_projection(svc, result)["history"]
+    assert "entries" not in _current_projection(svc, result)["history"]
+    groups = _current_projection(svc, result)["history"]["groups"]
     assert groups
     assert any(
         g.get("kind") == "mutation"
@@ -82,7 +93,7 @@ def test_document_add_comment_and_idempotent(minimal_project):
 
     again = svc.submit(cmd)
     assert again.get("idempotent") is True
-    assert len(again["snapshot"]["comments"]) == 1
+    assert len(_current_projection(svc, again)["comments"]) == 1
 
 
 def test_a_command_applies_on_top_of_a_change_saved_since_open(minimal_project):
@@ -121,7 +132,7 @@ def test_document_reply_via_command(minimal_project):
             client_seq=1,
         )
     )
-    cid = add["snapshot"]["comments"][0]["id"]
+    cid = _current_projection(svc, add)["comments"][0]["id"]
     reply = svc.submit(
         DocumentCommand(
             type="AddReply",
@@ -131,7 +142,7 @@ def test_document_reply_via_command(minimal_project):
             client_seq=2,
         )
     )
-    assert len(reply["snapshot"]["comments"][0]["replies"]) == 1
+    assert len(_current_projection(svc, reply)["comments"][0]["replies"]) == 1
 
 
 def _undoable_rejection(minimal_project):
@@ -231,7 +242,7 @@ def test_document_undo_redo_history(minimal_project):
         )
     )
     assert rejected["ok"]
-    assert rejected["snapshot"]["history"]["can_undo"] is True
+    assert _current_projection(svc, rejected)["history"]["can_undo"] is True
 
     undo = svc.submit(
         DocumentCommand(
@@ -243,7 +254,7 @@ def test_document_undo_redo_history(minimal_project):
         )
     )
     assert undo["ok"]
-    assert undo["snapshot"]["history"]["can_redo"] is True
+    assert _current_projection(svc, undo)["history"]["can_redo"] is True
     ws_after_undo = ProjectWorkspace.open(minimal_project)
     assert any(e.id == "d1" for e in ws_after_undo.project.edit_decisions)
 
@@ -267,7 +278,7 @@ def test_document_undo_redo_history(minimal_project):
             client_seq=3,
         )
     )
-    assert redo["snapshot"]["history"]["can_undo"] is True
+    assert _current_projection(svc, redo)["history"]["can_undo"] is True
     ws_after_redo = ProjectWorkspace.open(minimal_project)
     assert not any(e.id == "d1" for e in ws_after_redo.project.edit_decisions)
 
@@ -459,7 +470,7 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
         )
     )
     assert faded["ok"]
-    fade_snap = faded["snapshot"]
+    fade_snap = _current_projection(svc, faded)
     assert "project" not in fade_snap
     assert fade_snap["patch"]["clips"]["tracks"]["host"][1]["fade_in_ms"] == 40
     assert "render_status" in fade_snap["patch"]
@@ -479,7 +490,7 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
         )
     )
     assert joined["ok"]
-    join_snap = joined["snapshot"]
+    join_snap = _current_projection(svc, joined)
     assert "project" not in join_snap
     assert join_snap["patch"]["clips"]["tracks"]["host"][1]["join_in_mode"] == "crossfade"
     assert "render_status" in join_snap["patch"]
@@ -496,7 +507,7 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
         )
     )
     assert applied["ok"]
-    rec_snap = applied["snapshot"]
+    rec_snap = _current_projection(svc, applied)
     assert "project" not in rec_snap
     assert "clips" in rec_snap["patch"]
     assert "applied_fade_updates" in applied["command"]["payload"]["result"]
@@ -537,7 +548,7 @@ def test_document_set_effect_bypass(minimal_project):
         )
     )
     assert out["ok"]
-    fx_snap = out["snapshot"]
+    fx_snap = _current_projection(svc, out)
     assert "project" not in fx_snap
     assert fx_snap["patch"]["effects_by_track"]["host"][1]["bypass"] is True
     assert "render_status" in fx_snap["patch"]
@@ -1117,7 +1128,7 @@ def test_document_correct_and_suppress_transcript(minimal_project):
         )
     )
     assert corrected["ok"]
-    corr_snap = corrected["snapshot"]
+    corr_snap = _current_projection(svc, corrected)
     assert "project" not in corr_snap
     assert corr_snap["patch"]["meta"]["hydration"]["transcript_words"] is True
     ws2 = ProjectWorkspace.open(minimal_project)
@@ -1251,7 +1262,7 @@ def test_document_suppress_edge_word_stays_in_detail_patch_and_unsuppresses(mini
         )
     )
     assert suppressed["ok"]
-    patch = suppressed["snapshot"]["patch"]
+    patch = _current_projection(svc, suppressed)["patch"]
     utterance = patch["transcript"]["utterances"][0]
     assert utterance["text"] == "to the show"
     words = utterance["words"]
@@ -1275,7 +1286,7 @@ def test_document_suppress_edge_word_stays_in_detail_patch_and_unsuppresses(mini
         )
     )
     assert unsuppressed["ok"]
-    patch2 = unsuppressed["snapshot"]["patch"]
+    patch2 = _current_projection(svc, unsuppressed)["patch"]
     utterance2 = patch2["transcript"]["utterances"][0]
     assert utterance2["text"] == "welcome to the show"
     assert utterance2["words"][0]["suppressed"] is False
@@ -1317,7 +1328,7 @@ def test_document_suppress_every_word_keeps_suppressed_only_row_and_unsuppresses
         )
     )
     assert suppressed["ok"]
-    patch = suppressed["snapshot"]["patch"]
+    patch = _current_projection(svc, suppressed)["patch"]
     utterances = patch["transcript"]["utterances"]
     assert len(utterances) == 1
     utterance = utterances[0]
@@ -1341,7 +1352,7 @@ def test_document_suppress_every_word_keeps_suppressed_only_row_and_unsuppresses
         )
     )
     assert unsuppressed["ok"]
-    patch2 = unsuppressed["snapshot"]["patch"]
+    patch2 = _current_projection(svc, unsuppressed)["patch"]
     utterance2 = patch2["transcript"]["utterances"][0]
     assert utterance2["text"] == "um"
     assert "suppressed_only" not in utterance2
@@ -1388,7 +1399,7 @@ def test_document_set_transcript_words_ignored(minimal_project):
         )
     )
     assert ignored["ok"]
-    patch = ignored["snapshot"]["patch"]
+    patch = _current_projection(svc, ignored)["patch"]
     words = patch["transcript"]["utterances"][0]["words"]
     assert all(w["ignored"] is True for w in words)
     assert "tracks" in patch
@@ -1477,7 +1488,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
         )
     )
     assert env["ok"]
-    env_snap = env["snapshot"]
+    env_snap = _current_projection(svc, env)
     assert "project" not in env_snap
     assert len(env_snap["patch"]["envelopes"]) == 1
     assert "render_status" in env_snap["patch"]
@@ -1969,8 +1980,9 @@ def test_hub_fanout_document_applied(minimal_project):
         e2 = q2.get_nowait()
         assert e1["type"] == "Applied"
         assert e2["type"] == "Applied"
-        assert "project" in e1["snapshot"]
-        pending = e1["snapshot"]["project"].get("pending_edits") or []
+        assert e1["snapshot"]["delta"]["projection"] == "shell"
+        assert e2["snapshot"]["delta"] == e1["snapshot"]["delta"]
+        pending = svc.document_snapshot()["project"].get("pending_edits") or []
         assert all(p.get("id") != "d-fanout" for p in pending)
     finally:
         get_hub().unsubscribe(key, q1)
@@ -2290,9 +2302,9 @@ def test_document_set_track_meta_snapshot_includes_history_groups(minimal_projec
         )
     )
     assert result["ok"]
-    assert "tracks" in result["snapshot"]["project"]
-    assert "transcript" in result["snapshot"]["project"]
-    hist = result["snapshot"]["history"]
+    assert "tracks" in _current_projection(svc, result)["project"]
+    assert "transcript" in _current_projection(svc, result)["project"]
+    hist = _current_projection(svc, result)["history"]
     assert hist["can_undo"] is True
     assert "entries" not in hist
     assert any(
@@ -2722,7 +2734,7 @@ def test_a_failed_apply_does_not_leave_its_record_for_a_later_save(minimal_proje
     svc = DocumentSyncService.open(minimal_project)
     first = svc.submit(_comment("first"))
     assert first["ok"]
-    cid = first["snapshot"]["comments"][0]["id"]
+    cid = _current_projection(svc, first)["comments"][0]["id"]
 
     with pytest.raises(DocumentConflictError):
         svc.submit(

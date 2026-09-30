@@ -521,6 +521,20 @@ def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[st
     return {"job": job}
 
 
+@router.get("/api/review/{token}/daw/document/state")
+def get_daw_document_state(
+    token: str, phase: str = Query("shell", pattern="^(shell|detail|full)$")
+) -> dict[str, Any]:
+    _check_token(token)
+    _rate_limit(token, "read")
+    try:
+        _row, ws = require_share_cap(token, CAP_VIEW)
+        snapshot = DocumentSyncService(ws).document_snapshot(projection=phase)
+        return sanitize_guest_document_event({"snapshot": snapshot})["snapshot"]
+    except Exception as exc:
+        raise _map_share_exc(exc) from exc
+
+
 @router.post("/api/review/{token}/daw/document/command")
 def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[str, Any]:
     """Guest document commands - capability-gated Pass 1-2 / suggest set."""
@@ -535,6 +549,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
         return sanitize_guest_document_event(
             svc.submit(
                 cmd,
+                audience="guest",
                 capabilities=list(row.get("capabilities") or []),
                 structural_mode=body.structural_mode,
             )

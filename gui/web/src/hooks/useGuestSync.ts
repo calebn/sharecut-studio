@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadProject, loadProjectMeta } from "../api";
+import { loadProjectMeta } from "../api";
+import { loadDocumentState } from "../api/project";
+import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
-  applyDocumentSnapshot,
-  applyDocumentSnapshotWithResync,
-} from "../document/applyDocumentUpdate";
+  activateDocumentScope,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
 import {
   currentDocumentSeq,
-  eventServerSeq,
-  noteDocumentFile,
-  noteDocumentSeq,
-  resetDocumentSeq,
-  shouldApplyDocumentEvent,
-  shouldApplyPollSnapshot,
+  pollSnapshotAlreadyApplied,
 } from "../document/cursor";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { applyServerClock } from "../presence/clock";
@@ -99,7 +96,7 @@ export function useGuestSync(
     const rosterRequester = createRosterRequester((frame) =>
       sendRef.current?.(frame),
     );
-    resetDocumentSeq();
+    const scope = activateDocumentScope(projectPath);
     sessionSeqRef.current = 0;
     wsOpenRef.current = false;
 
@@ -112,21 +109,16 @@ export function useGuestSync(
           if (wsOpenRef.current || closed) {
             return;
           }
-          const metaSeq = meta.server_seq ?? 0;
-          if (!shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())) {
+          if (
+            pollSnapshotAlreadyApplied(meta) ||
+            ((meta.server_seq ?? 0) > 0 &&
+              (meta.server_seq ?? 0) < currentDocumentSeq())
+          )
             return;
-          }
-          const proj = await loadProject(projectPath);
-          if (wsOpenRef.current || closed) {
+          const snapshot = await loadDocumentState(projectPath);
+          if (wsOpenRef.current || closed || !isCurrentDocumentScope(scope))
             return;
-          }
-          if (!shouldApplyPollSnapshot(metaSeq, currentDocumentSeq())) {
-            return;
-          }
-          const next = applyDocumentSnapshot(
-            { project: proj, server_seq: metaSeq },
-            { force: true },
-          );
+          const next = applyDocumentSnapshot(snapshot, { scope });
           if (next) {
             void mergeOfflineSnapshot(token, { project: next });
           }
@@ -197,45 +189,10 @@ export function useGuestSync(
           return;
         }
         if (msg.plane === "document") {
-          noteDocumentFile(snap as DocumentSnapshot);
-          const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
-          if (
-            !shouldApplyDocumentEvent({
-              server_seq: msg.server_seq,
-              snapshot: snap as DocumentSnapshot,
-              command: (msg as { command?: { client_id?: string } }).command,
-            })
-          ) {
-            noteDocumentSeq(eventServerSeq(msg));
-            return;
-          }
-          const cmdClientId = (msg as { command?: { client_id?: string } })
-            .command?.client_id;
-          if ((snap as DocumentSnapshot).resync) {
-            void applyDocumentSnapshotWithResync(
-              snap as DocumentSnapshot,
-              () => loadProject(projectPath),
-              { commandClientId: cmdClientId },
-            )
-              .then((next) => {
-                if (next) {
-                  void mergeOfflineSnapshot(token, { project: next });
-                } else if (seq > 0) {
-                  noteDocumentSeq(seq);
-                }
-              })
-              .catch(() => undefined); // transient: the next Applied or reconnect Snapshot resyncs
-            return;
-          }
           const next = applyDocumentSnapshot(snap as DocumentSnapshot, {
-            commandClientId: cmdClientId,
+            scope,
           });
-          if (next) {
-            void mergeOfflineSnapshot(token, { project: next });
-          } else if (seq > 0) {
-            noteDocumentSeq(seq);
-          }
-          return;
+          if (next) void mergeOfflineSnapshot(token, { project: next });
         }
       };
 
