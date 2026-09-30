@@ -353,3 +353,70 @@ def test_build_shares_load_error(tmp_path: Path):
     cfg = RelayConfig()
     client = TunnelClient(cfg, project_path=bad)
     assert client._build_shares() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code,reason", [(1013, "guest backlog full"), (4403, "🙂" * 100)])
+async def test_relay_close_details_reach_local_gui_socket(code, reason):
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+    started = asyncio.Event()
+    closed = asyncio.Event()
+    local_closes: list[tuple[int, str]] = []
+    sent: list[dict] = []
+
+    class LocalWs:
+        def __aiter__(self):
+            return self.frames()
+
+        async def frames(self):
+            started.set()
+            await asyncio.Event().wait()
+            yield "unreachable"
+
+        async def send(self, _text):
+            raise AssertionError("close frame is not application data")
+
+        async def close(self, *, code, reason):
+            local_closes.append((code, reason))
+            closed.set()
+
+    class LocalContext:
+        async def __aenter__(self):
+            return LocalWs()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class RelayWs:
+        calls = 0
+
+        async def recv(self):
+            self.calls += 1
+            if self.calls == 1:
+                return json.dumps(
+                    {
+                        "type": "ws_open",
+                        "id": "stream",
+                        "path": "api/review/daw/ws",
+                        "share_token": "tok",
+                    }
+                )
+            if self.calls == 2:
+                await started.wait()
+                return json.dumps(
+                    {"type": "ws_close", "id": "stream", "code": code, "reason": reason}
+                )
+            await closed.wait()
+            raise ConnectionError("relay dropped")
+
+    async def send(payload):
+        sent.append(payload)
+
+    with patch.object(websockets, "connect", return_value=LocalContext()):
+        with pytest.raises(ConnectionError, match="relay dropped"):
+            await asyncio.wait_for(client._serve_messages(RelayWs(), object(), send), 1)
+    expected_reason = reason.encode("utf-8")[:120].decode("utf-8", errors="ignore")
+    assert local_closes == [(code, expected_reason)]
+    assert sent == [{"type": "ws_close", "id": "stream", "code": code, "reason": expected_reason}]

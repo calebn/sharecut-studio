@@ -11,6 +11,14 @@ WS_SEND_TIMEOUT_S = 5.0
 T = TypeVar("T")
 
 
+def ws_close_details(code: object, reason: object) -> tuple[int, str]:
+    valid = {1000, 1001, 1002, 1003, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014}
+    text = str(reason or "").encode("utf-8")[:120].decode("utf-8", errors="ignore")
+    if isinstance(code, int) and (code in valid or 3000 <= code <= 4999):
+        return code, text
+    return 1000, text
+
+
 class SerializedWsWriter(Generic[T]):
     """One connection's write owner. Closing cancels its blocked active write."""
 
@@ -56,9 +64,7 @@ class SerializedWsWriter(Generic[T]):
             active.cancel()
         try:
             async with asyncio.timeout(self._timeout):
-                await self._close(
-                    code, reason.encode("utf-8")[:120].decode("utf-8", errors="ignore")
-                )
+                await self._close(*ws_close_details(code, reason))
         except TimeoutError:
             return
 
@@ -148,7 +154,6 @@ class TextWsStream:
 
     def close(self, code: int = 1000, reason: str = "", *, discard: bool = False) -> None:
         if self.close_code == 1000:
-            self.close_code = code
-            self.close_reason = reason[:120]
+            self.close_code, self.close_reason = ws_close_details(code, reason)
         self.queue.close(discard=discard)
         self.closed.set()

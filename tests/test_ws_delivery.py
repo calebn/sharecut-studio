@@ -213,3 +213,10 @@ def test_stream_overflow_close_releases_retained_frames():
     assert stream.queue.queued_bytes == 0
     assert stream.queue.get_nowait() is None
     assert (stream.close_code, stream.close_reason) == (1013, "overflow")
+
+
+@pytest.mark.parametrize("code", [1004, 1005, 1006, 1015, 2000, 5000, "1013", None])
+def test_reserved_or_invalid_close_codes_use_normal_close(code):
+    from podcast_mcp.util.ws_delivery import ws_close_details
+
+    assert ws_close_details(code, "reason") == (1000, "reason")
