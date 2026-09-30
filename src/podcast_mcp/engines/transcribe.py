@@ -177,13 +177,6 @@ def _cache_publication_lock(
 
 
 def _prune_asr_cache(project: EpisodeProject, cache: Path) -> None:
-    """Keep this ASR variant and one previous write in its exact job/audio family.
-
-    Called under the family publication lock after a successful ASR write.
-    Removes legacy names and alignment sidecars without a retained ASR parent.
-    Symlinks, directories, other job/audio families and canonical mirrors are untouched.
-    Cleanup failures do not discard the successful transcription.
-    """
     family = re.escape(cache.stem.rsplit("_", 1)[0])
     pattern = re.compile(family + r"(?:_[0-9a-f]{16})?(?:\.word_align_[0-9a-f]{16})?\.json")
     protected = _canonical_transcript_names(project)
