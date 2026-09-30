@@ -135,6 +135,11 @@ snapshot returned by `TranscriptContext.transcription_vocabulary()`.
 `TranscriptService`. `TranscriptPrecorrectService` converts context writer lock
 timeouts to `TranscriptContextBusyError`; adapters handle the service error.
 
+ASR caches are derived files, separate from canonical transcript mirrors.
+`TranscriptionEngine` retains two input variants per exact job/audio family.
+ASR and alignment publication share that family's `artifacts/transcript-cache-*.lock`;
+inference runs outside it. The persistence contract is in [persistence.md](persistence.md).
+
 ### Timebase: source vs timeline clock
 
 **All stored times (`TranscriptWord`, `EditDecision`, `CombinedUtterance`) are source-media seconds; `timeline.clips` is the only bridge; anything that touches rendered audio (stems, premix, mastered, export) must map through [`SessionTimeline`](../src/podcast_mcp/engines/session_timeline.py).**

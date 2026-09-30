@@ -1215,31 +1215,23 @@ def test_transcribe_tracks_second_run_reuses_and_keeps_corrections(
     assert proj.transcripts[0].words[0].text == "the"
 
 
-def test_transcribe_tracks_honours_legacy_cache(minimal_project, sample_wav, tmp_workspace):
+def test_transcribe_tracks_honours_input_keyed_cache(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.engines.transcribe import legacy_cache_path
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.transcript_context import TranscriptContext
-    from podcast_mcp.util.hashing import sha256_file
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    # The legacy cache is only trusted with no prompt at all (docs/transcript-workflow.md);
-    # the default priming prompt (#769) would otherwise always disqualify it.
     TranscriptContext(transcribe={"initial_prompt": False}).save(proj.workspace_path())
-    legacy = legacy_cache_path(proj, "host", sha256_file(tmp_workspace / "raw" / "host.wav"))
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    legacy.write_text(
+    engine = Engine()
+    cache = engine.cache_path(proj, "host", tmp_workspace / "raw" / "host.wav", language="en")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(
         Transcript(
             track_id="host", words=[TranscriptWord(text="old", start=0, end=0.5)]
         ).model_dump_json(),
         encoding="utf-8",
     )
     defaults = load_defaults()
-    defaults["transcribe"]["vad"]["enabled"] = False
-    defaults["transcribe"]["decode"] = {
-        "temperature": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
-        "hallucination_silence_threshold": None,
-    }
     with patch.object(Engine, "transcribe_file") as asr:
         steps.transcribe_tracks(proj, defaults)
     asr.assert_not_called()

@@ -94,6 +94,11 @@ Forced word alignment is on by default when the word aligner is downloaded (`pod
 
 `pipeline list` shows each step's enabled / no-op / disabled state under the effective config; `--json` for scripting. After `pipeline run`, read the `Export QC:` line on stdout (ok/FAILED, issue count, path) before treating an export as shippable (MCP `pipeline_run` returns the same lines after `Completed through …`) — a run that exported with a not-ok verdict exits 1 by default (`--no-strict` exits 0 and leaves the call to you).
 
+ASR caches retain two input variants per recording job and audio hash, the new
+write and one previous write. Legacy unkeyed cache files are not read. A pruned
+cache cannot support Re-time words until Re-transcribe regenerates it. Stored
+project transcripts still follow the reuse and edited-transcript guards above.
+
 ## After automation
 
 1. Listen to `artifacts/premix.wav` or `export/{name}.wav` (where `{name}` is a

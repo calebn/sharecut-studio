@@ -27,7 +27,6 @@ from podcast_mcp.word_aligner_models import (
 )
 
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
-FASTER_WHISPER_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 
 
 @dataclass(frozen=True)
@@ -212,20 +211,6 @@ class AsrOptions:
                 60.0,
             ),
         )
-
-    @classmethod
-    def faster_whisper_defaults(cls) -> AsrOptions:
-        """What ``WhisperModel.transcribe`` does with no options (pre-#521 behaviour)."""
-        return cls(
-            vad_enabled=False,
-            temperature=FASTER_WHISPER_TEMPERATURE,
-            hallucination_silence_threshold=None,
-        )
-
-    @property
-    def is_faster_whisper_default(self) -> bool:
-        """True when decode settings match faster-whisper's own (legacy cache is valid)."""
-        return self.decode_key() == type(self).faster_whisper_defaults().decode_key()
 
     def _vad_parameters(self) -> dict[str, Any]:
         return {

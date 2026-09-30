@@ -6,9 +6,13 @@ import logging
 import math
 import re
 from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
+from stat import S_ISREG
 from typing import TYPE_CHECKING, Any, TypeVar
+
+from filelock import FileLock, Timeout
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.engines.asr_options import AsrOptions
@@ -34,7 +38,9 @@ from podcast_mcp.models import (
     TranscriptKey,
     TranscriptWord,
 )
+from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.progress import (
     ProgressReporter,
@@ -55,6 +61,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 TRANSCRIBE_CANCELLED = "Transcription cancelled"
+ASR_CACHE_VARIANTS = 2
+ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 
 _T = TypeVar("_T")
 
@@ -142,13 +150,73 @@ def _info_duration(info: Any) -> float | None:
     return None
 
 
+def _canonical_transcript_names(project: EpisodeProject) -> set[str]:
+    return {
+        "combined.json",
+        *(f"{track.id}.json" for track in project.tracks),
+        *(f"{transcript.track_id}.json" for transcript in project.transcripts),
+    }
+
+
 def _cache_file(project: EpisodeProject, cache_id: str, name: str) -> Path:
-    return resolve_cache_file(project.transcripts_dir(), name, kind="transcript", cache_id=cache_id)
+    if name in _canonical_transcript_names(project):
+        raise ValueError(f"transcript cache collides with a canonical mirror: {cache_id}")
+    directory = project.transcripts_dir()
+    path = resolve_cache_file(directory, name, kind="transcript", cache_id=cache_id)
+    if path != directory.resolve() / name:
+        raise ValueError(f"transcript cache aliases another file: {cache_id}")
+    return path
 
 
-def legacy_cache_path(project: EpisodeProject, cache_id: str, audio_sha256: str) -> Path:
-    """Pre-model/prompt cache name ``{id}_{audio16}.json`` (read-only fallback)."""
-    return _cache_file(project, cache_id, f"{cache_id_part(cache_id)}_{audio_sha256[:16]}.json")
+def _cache_publication_lock(
+    project: EpisodeProject, asr_cache: Path
+) -> AbstractContextManager[FileLock]:
+    family = asr_cache.stem.rsplit("_", 1)[0]
+    path = workspace_artifacts_dir(project.workspace_path()) / f"transcript-cache-{family}.lock"
+    return hold_shared_file_lock(path, timeout=ASR_CACHE_LOCK_TIMEOUT_SEC)
+
+
+def _prune_asr_cache(project: EpisodeProject, cache: Path) -> None:
+    """Keep this ASR variant and one previous write in its exact job/audio family.
+
+    Called under the family publication lock after a successful ASR write.
+    Removes legacy names and alignment sidecars without a retained ASR parent.
+    Symlinks, directories, other job/audio families and canonical mirrors are untouched.
+    Cleanup failures do not discard the successful transcription.
+    """
+    family = re.escape(cache.stem.rsplit("_", 1)[0])
+    pattern = re.compile(family + r"(?:_[0-9a-f]{16})?(?:\.word_align_[0-9a-f]{16})?\.json")
+    protected = _canonical_transcript_names(project)
+    files: list[tuple[Path, int]] = []
+    try:
+        for path in cache.parent.iterdir():
+            if path.name in protected or not pattern.fullmatch(path.name):
+                continue
+            try:
+                stat = path.lstat()
+                if S_ISREG(stat.st_mode):
+                    files.append((path, stat.st_mtime_ns))
+            except FileNotFoundError:
+                continue
+        variants = sorted(
+            (
+                (path, mtime)
+                for path, mtime in files
+                if re.fullmatch(family + r"_[0-9a-f]{16}\.json", path.name) and path != cache
+            ),
+            key=lambda item: (item[1], item[0].name),
+            reverse=True,
+        )
+        kept = {cache.stem, *(path.stem for path, _mtime in variants[: ASR_CACHE_VARIANTS - 1])}
+        for path, _mtime in files:
+            if path.name.partition(".word_align_")[0].removesuffix(".json") in kept:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as exc:
+                log.warning("could not prune transcript cache %s: %s", path.name, exc)
+    except OSError as exc:
+        log.warning("could not scan transcript cache family %s: %s", cache.name, exc)
 
 
 def _read_json_cache(path: Path, what: str, parse: Callable[[Any], _T]) -> _T | None:
@@ -195,44 +263,63 @@ def _read_align_cache(
 
 
 def _write_align_cache(
-    path: Path, asr_cache: Path, aligner: WordAligner, result: WordAlignResult
+    project: EpisodeProject,
+    path: Path,
+    asr_cache: Path,
+    aligner: WordAligner,
+    result: WordAlignResult,
 ) -> None:
     """Best-effort: the cache only saves a re-align, so a failed write keeps the aligned spans."""
     try:
-        write_text_atomic(
-            path,
-            json.dumps(
-                {
-                    "aligner": aligner.cache_identity(),
-                    "spans": [None if s is None else list(s) for s in result.spans],
-                    "scores": list(result.scores) if result.scores else [None] * len(result.spans),
-                    "stats": result.stats.as_dict(),
-                    "runtime_sec": round(result.runtime_sec, 3),
-                },
-                indent=2,
-            ),
-        )
-        # One live sidecar per ASR cache: older words / aligner identities are stale.
-        for stale in path.parent.glob(f"{asr_cache.stem}.word_align_*.json"):
-            if stale != path:
-                stale.unlink(missing_ok=True)
-    except OSError as exc:
+        with _cache_publication_lock(project, asr_cache):
+            if not asr_cache.is_file():
+                return
+            write_text_atomic(
+                path,
+                json.dumps(
+                    {
+                        "aligner": aligner.cache_identity(),
+                        "spans": [None if s is None else list(s) for s in result.spans],
+                        "scores": list(result.scores)
+                        if result.scores
+                        else [None] * len(result.spans),
+                        "stats": result.stats.as_dict(),
+                        "runtime_sec": round(result.runtime_sec, 3),
+                    },
+                    indent=2,
+                ),
+            )
+            # One live sidecar per ASR cache: older words / aligner identities are stale.
+            protected = _canonical_transcript_names(project)
+            for stale in path.parent.glob(f"{asr_cache.stem}.word_align_*.json"):
+                if (
+                    stale != path
+                    and stale.name not in protected
+                    and re.fullmatch(
+                        re.escape(asr_cache.stem) + r"\.word_align_[0-9a-f]{16}\.json", stale.name
+                    )
+                    and not stale.is_symlink()
+                    and stale.is_file()
+                ):
+                    stale.unlink(missing_ok=True)
+    except (OSError, Timeout) as exc:
         log.warning("could not update word-alignment cache %s: %s", path.name, exc)
 
 
-_CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"
+_CACHE_AUDIO_KEY = r"_([0-9a-f]{16})_[0-9a-f]{16}\.json"
 
 
 def cached_audio_keys(project: EpisodeProject, cache_id: str) -> set[str]:
-    """16-hex audio keys of the ASR caches (new and legacy names) stored for ``cache_id``."""
+    """16-hex audio keys of the ASR caches stored for ``cache_id``."""
     tdir = project.transcripts_dir()
     if not tdir.is_dir():
         return set()
     pattern = re.compile(re.escape(cache_id_part(cache_id)) + _CACHE_AUDIO_KEY)
+    protected = _canonical_transcript_names(project)
     keys: set[str] = set()
     for path in tdir.iterdir():
         match = pattern.fullmatch(path.name)
-        if match:
+        if match and path.name not in protected and not path.is_symlink() and path.is_file():
             keys.add(match.group(1))
     return keys
 
@@ -429,7 +516,7 @@ class TranscriptionEngine:
         initial_prompt: str | None,
         audio_sha256: str,
     ) -> tuple[Path, Transcript | None]:
-        """This job's ASR cache path and its cached words (new name, then legacy when trusted).
+        """This job's ASR cache path and its cached words.
 
         The transcript is None on a miss; Whisper never runs here.
         """
@@ -442,11 +529,6 @@ class TranscriptionEngine:
             audio_sha256=audio_sha256,
         )
         transcript = _read_cache(cache)
-        # The legacy name does not encode model or prompt, so it is only
-        # trusted when no prompt shaped the words and decoding matches
-        # faster-whisper's own defaults (VAD / temperature change the words).
-        if transcript is None and not initial_prompt and self.options.is_faster_whisper_default:
-            transcript = _read_cache(legacy_cache_path(project, job.cache_id, audio_sha256))
         return cache, transcript
 
     def load_word_aligner(self) -> WordAligner:
@@ -560,7 +642,7 @@ class TranscriptionEngine:
             spans = result.spans
             scores: list[float | None] = list(result.scores) or [None] * len(spans)
             align_sec = round(result.runtime_sec, 3)
-            _write_align_cache(path, asr_cache, aligner, result)
+            _write_align_cache(project, path, asr_cache, aligner, result)
         else:
             spans, scores = cached
         retimed = apply_word_spans(transcript.words, spans, scores)
@@ -639,9 +721,9 @@ class TranscriptionEngine:
         max_word_sec: float = DEFAULT_MAX_WORD_DURATION_SEC,
         audio_sha256: str | None = None,
     ) -> Transcript:
-        """Transcribe one job: new cache, legacy cache (no prompt only), then ASR.
+        """Transcribe one job from its input-keyed cache, otherwise run ASR.
 
-        use_cache=False skips both caches.
+        use_cache=False skips the cache.
         """
         sha = audio_sha256 or sha256_file(job.audio)
         transcript: Transcript | None = None
@@ -682,7 +764,9 @@ class TranscriptionEngine:
         if fresh:
             # Whisper's own times (transcribe_file already flagged them with this
             # max_word_sec); alignment has its own cache, so the flag never re-runs Whisper.
-            write_text_atomic(cache, transcript.model_dump_json(indent=2))
+            with _cache_publication_lock(project, cache):
+                write_text_atomic(cache, transcript.model_dump_json(indent=2))
+                _prune_asr_cache(project, cache)
         align_entry = self._align_words(project, job, transcript, cache, use_cache=use_cache)
         # Backstop on the final spans (aligned, or Whisper's where alignment was off/failed).
         flag_anomalous_asr_durations(
