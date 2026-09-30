@@ -211,7 +211,9 @@ When writing new code that deals with time:
 1. **Never inline clip arithmetic** (`source_start + (t - timeline_start)` and friends). Use [`SessionTimeline`](../src/podcast_mcp/engines/session_timeline.py) for project-level mapping, `clip_timeline_overlap_to_source` / `clip_timeline_point_to_source` / `clip_source_to_timeline_shift` for clip-list edit/render code, or the `Clip.timeline_end` property for geometry. `tests/test_timebase_guards.py` fails CI otherwise.
 2. **Touching rendered audio** (stems, premix, mastered, export, captions, chapters, social clips)? Map source→timeline through the mapper first.
    Cross-track audibility and bleed-path checks use rendered stems when available; if stems are absent, project decoded raw samples through `SessionTimeline.lane_clip_spans` before measuring so both tracks share one clock. Resolve each clip through `resolve_clip_audio_path`, including extra source recordings. An unavailable selected source invalidates the whole lane cache.
-   For a selected recording's transcript, reuse `transcript_for_source` and
+   For a selected recording's transcript, reuse `transcript_for_source` (exact source
+   first; track-level words only for primary media and equivalent source aliases),
+   or the shared `selected_source_transcripts` lane query, and
    `SessionTimeline.map_selected_source_span(s)` so another recording's same-numbered
    seconds are not mistaken for this source. Local retained-bleed delay evidence uses
    bounded raw windows including lag/null context and passes their origin as `t0`.

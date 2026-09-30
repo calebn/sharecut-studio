@@ -326,7 +326,7 @@ def test_crossfade_layout_preserves_audio_and_explains_gate_abstention(tmp_path)
     assert project.model_dump(mode="json") == snapshot
 
 
-def test_origin_copy_placement_used_by_gate_mapping_invalidates_its_hash(tmp_path):
+def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_path):
     from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
     from podcast_mcp.engines.play_audit import track_render_hash
 
@@ -345,5 +345,11 @@ def test_origin_copy_placement_used_by_gate_mapping_invalidates_its_hash(tmp_pat
     plan = build_bleed_gate_plan(project, "host")
     before = track_render_hash(project, "host")
     copy.timeline_start = 2
-    assert build_bleed_gate_plan(project, "host") != plan
+    after = build_bleed_gate_plan(project, "host")
+    assert after == plan
+    assert after.attenuation_spans == ((2.0, 2.6),)
+    assert all(end < 2.0 for _, end in after.protected_spans)
+    assert track_render_hash(project, "host") == before
+    next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
+    assert build_bleed_gate_plan(project, "host") != after
     assert track_render_hash(project, "host") != before

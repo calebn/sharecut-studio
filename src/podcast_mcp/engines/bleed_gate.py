@@ -16,14 +16,13 @@ from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
-    origin_track_id_for_clip,
 )
 from podcast_mcp.engines.ungated_audio import (
     raw_evidence_layout_reason,
     raw_timeline_samples,
     raw_timeline_window,
 )
-from podcast_mcp.models import EpisodeProject, TranscriptGateScope
+from podcast_mcp.models import EpisodeProject, TranscriptGateScope, TranscriptWord
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db_stream, linear_rms
 from podcast_mcp.util.intervals import (
     HalfOpenIntervalIndex,
@@ -36,7 +35,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
-BLEED_GATE_REV = 2
+BLEED_GATE_REV = 3
 EVIDENCE_RATE = 8000
 VERIFICATION_RATE = 48_000
 GATE_FADE_SEC = 0.012
@@ -325,13 +324,7 @@ def _compute_bleed_gate_plan(
     source_clock: bool = False,
     ignore_scope: bool = False,
 ) -> BleedGatePlan:
-    transcript = project.transcript_for_track(track_id)
-    if transcript is None:
-        return BleedGatePlan(reasons=("missing_transcript",))
     timeline = SessionTimeline(project)
-    related = {track_id} | {word.dominant_track for word in transcript.words if word.dominant_track}
-    if any(raw_evidence_layout_reason(project, tid) for tid in related):
-        return BleedGatePlan(reasons=("unsupported_crossfade_evidence_clock",))
     if source_clock:
         from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
@@ -345,15 +338,32 @@ def _compute_bleed_gate_plan(
                 return BleedGatePlan(reasons=("unsupported_source_proxy_layout",))
         except (OSError, ValueError):
             return BleedGatePlan(reasons=("unavailable_owner_source",))
+    transcripts = project.selected_source_transcripts(track_id)
+    if not transcripts:
+        return BleedGatePlan(reasons=("missing_transcript",))
+    explicit_placements = bool(timeline.lane_clip_spans(track_id))
+    word_spans: list[tuple[TranscriptWord, list[tuple[TimelineSec, TimelineSec]]]] = []
+    for source_id, transcript in transcripts:
+        bounds = [(SourceSec(word.start), SourceSec(word.end)) for word in transcript.words]
+        mapped = (
+            timeline.map_selected_source_spans(track_id, source_id, bounds)
+            if explicit_placements
+            else timeline.map_source_spans(track_id, bounds)
+        )
+        word_spans.extend(zip(transcript.words, mapped, strict=True))
+    related = {track_id} | {word.dominant_track for word, _ in word_spans if word.dominant_track}
+    if any(raw_evidence_layout_reason(project, tid) for tid in related):
+        return BleedGatePlan(reasons=("unsupported_crossfade_evidence_clock",))
     candidates = [
-        word
-        for word in transcript.words
+        (word, spans)
+        for word, spans in word_spans
         if word.suppressed
         and word.audibility_status == "bleed"
         and word.dominant_track
         and word.end > word.start
         and not word.ignored
         and not word.audibility_locked
+        and spans
     ]
     if not candidates:
         return BleedGatePlan(reasons=("no_confirmed_bleed_words",))
@@ -366,17 +376,15 @@ def _compute_bleed_gate_plan(
         return BleedGatePlan(reasons=("unavailable_owner_source",))
     seeds = [
         (float(start), float(end))
-        for word in transcript.words
+        for word, spans in word_spans
         if not word.suppressed
-        for start, end in timeline.map_source_span(
-            track_id, SourceSec(word.start), SourceSec(word.end)
-        )
+        for start, end in spans
     ]
     protected = _owner_protection(own, seeds)
     peers: dict[str, np.ndarray] = {}
     attenuation: list[tuple[float, float]] = []
     reasons: set[str] = set()
-    for word in candidates:
+    for word, spans in candidates:
         peer_id = word.dominant_track
         if peer_id is None or peer_id == track_id:
             continue
@@ -391,9 +399,7 @@ def _compute_bleed_gate_plan(
         except (OSError, ValueError, wave.Error, CalledProcessError):
             reasons.add("unavailable_peer_source")
             continue
-        for start, end in timeline.map_source_span(
-            track_id, SourceSec(word.start), SourceSec(word.end)
-        ):
+        for start, end in spans:
             verified, lag = _verified_copy_frames(own, peers[peer_id], float(start), float(end))
             try:
                 verified = [
@@ -411,16 +417,19 @@ def _compute_bleed_gate_plan(
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
-    if source_clock:
+    if source_clock and explicit_placements:
+        placements = timeline.lane_clip_spans(track_id)
         attenuation = merge_intervals(
-            (float(start), float(end))
+            (float(source_span[0]), float(source_span[1]))
             for lo, hi in attenuation
-            for start, end in timeline.map_timeline_span(track_id, TimelineSec(lo), TimelineSec(hi))
+            for placement in placements
+            if (source_span := clip_timeline_overlap_to_source(placement.clip, lo, hi)) is not None
         )
         protected = merge_intervals(
-            (float(start), float(end))
+            (float(source_span[0]), float(source_span[1]))
             for lo, hi in protected
-            for start, end in timeline.map_timeline_span(track_id, TimelineSec(lo), TimelineSec(hi))
+            for placement in placements
+            if (source_span := clip_timeline_overlap_to_source(placement.clip, lo, hi)) is not None
         )
     return BleedGatePlan(tuple(attenuation), tuple(protected), tuple(sorted(reasons)))
 
@@ -432,9 +441,9 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
     track = project.track_by_id(track_id)
     if track is None:
         return {}
-    transcript = project.transcript_for_track(track_id)
+    transcripts = project.selected_source_transcripts(track_id)
     relevant = {track_id}
-    if transcript:
+    for _, transcript in transcripts:
         relevant.update(word.dominant_track for word in transcript.words if word.dominant_track)
     inputs: list[dict[str, Any]] = []
     for tid in sorted(relevant):
@@ -455,19 +464,15 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                 media.append({"path": str(path), "revision": file_revision(path)})
             except OSError:
                 media.append({"path": str(path), "unavailable": True})
-        words = project.transcript_for_track(tid)
+        words = project.selected_source_transcripts(tid)
         inputs.append(
             {
                 "track_id": tid,
                 "media": media,
                 "clips": [span.clip.model_dump(mode="json") for span in clips],
-                "origin_placements": [
-                    clip.model_dump(mode="json")
-                    for clip in project.clips
-                    if origin_track_id_for_clip(project, clip) == tid
-                ],
                 "words": [
                     {
+                        "source_id": source_id,
                         "start": word.start,
                         "end": word.end,
                         "suppressed": word.suppressed,
@@ -476,10 +481,9 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                         "locked": word.audibility_locked,
                         "ignored": word.ignored,
                     }
-                    for word in words.words
-                ]
-                if words
-                else [],
+                    for source_id, transcript in words
+                    for word in transcript.words
+                ],
             }
         )
     return {

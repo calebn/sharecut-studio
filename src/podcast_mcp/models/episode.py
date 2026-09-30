@@ -757,8 +757,9 @@ class EpisodeProject(BaseModel):
         self.transcript_data.per_track = value
 
     def transcript_for_source(self, track_id: str, source_id: str | None) -> Transcript | None:
-        """The transcript for ``track_id`` whose ``source_id`` matches, else the
-        first track-level transcript (``source_id is None``)."""
+        """This recording's transcript; track-level words apply only to primary media."""
+        from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
         fallback: Transcript | None = None
         for tr in self.transcripts:
             if tr.track_id != track_id:
@@ -768,7 +769,33 @@ class EpisodeProject(BaseModel):
                 return tr
             if sid is None and fallback is None:
                 fallback = tr
-        return fallback
+        if source_id is None or fallback is None:
+            return fallback
+        track = self.track_by_id(track_id)
+        source = self.source_by_id(source_id)
+        if track is None or track.media is None or source is None:
+            return None
+        try:
+            if resolve_under_workspace(self, source.path) == resolve_under_workspace(
+                self, track.media.path
+            ):
+                return fallback
+        except (OSError, ValueError):
+            pass
+        return None
+
+    def selected_source_transcripts(self, track_id: str) -> list[tuple[str | None, Transcript]]:
+        """Transcribed recordings selected on a lane, including implicit primary media."""
+        source_ids = dict.fromkeys(
+            clip.source_id for clip in self.clips if clip.track_id == track_id
+        )
+        if not source_ids:
+            source_ids[None] = None
+        return [
+            (source_id, transcript)
+            for source_id in source_ids
+            if (transcript := self.transcript_for_source(track_id, source_id)) is not None
+        ]
 
     @property
     def combined_transcript(self) -> CombinedTranscript | None:

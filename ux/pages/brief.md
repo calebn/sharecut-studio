@@ -92,6 +92,27 @@ the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-
 
 ---
 
+## Speech-preserving bleed cleanup
+
+The current CLI and agent workflow keeps each speaker's speech and uncertain audio
+intact. After transcript reconciliation, cleanup reduces only independently
+verified foreign copies. A transcript from another recording cannot authorize
+muting or moving a take that has not been transcribed.
+
+When a copy must remain, the default workflow can align a complete direct-speaker
+phrase locally if measured delays agree and quiet boundaries preserve its words.
+The mixed recording stays intact. Uncertain timing, conflicting copies, or unsafe
+seams remain unresolved for listening and review; the workflow does not promise
+that every recording can be aligned automatically.
+
+A saved manual or declined timing choice survives reopening and blocks automatic
+retiming until the editor explicitly resets it. Existing manual recorder placement
+and saved mix mutes are also respected. Corrections and choices remain undoable.
+These are shipped CLI/agent behaviors; this section does not claim a dedicated
+bleed-alignment review control in the Studio UI.
+
+---
+
 ## Design principles
 
 1. **Listen-first** — every edit surface keeps play/seek around the selection.
