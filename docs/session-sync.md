@@ -444,7 +444,11 @@ hold token `kind` / `session_id` / role; this DB holds the live room.
 `GuestWsGuard` uses `util/ws_delivery.py`'s serialized writer. Its five-second
 send deadline includes lock wait. Revocation closes without waiting for a
 blocked write lock and cancels the active writer. Close itself has a separate
-five-second deadline. A timed-out send closes with `1013` and propagates the
+five-second deadline. Close intent rejects later writes immediately; completion
+is signalled after the close attempt finishes, fails, or times out. Concurrent
+close callers share that completion. Host teardown awaits an initiated close
+before cancelling its pumps, including when startup is still awaiting room
+discovery. A timed-out send closes with `1013` and propagates the
 failure to its pump, so the connection can reconnect and restore state.
 Existing document/roster overflow markers and progress coalescing still apply
 inside their application hubs. Relay stream and shared tunnel queue limits are

@@ -73,6 +73,9 @@ class GuestWsGuard:
     async def close(self, code: int, reason: str) -> None:
         await self._writer.close(code, reason)
 
+    async def wait_closed(self) -> None:
+        await self._writer.wait_closed()
+
     async def recheck_loop(self) -> None:
         while True:
             await asyncio.sleep(self.interval)
