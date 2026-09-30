@@ -10,6 +10,12 @@ import {
   SHORT_VIEWPORTS,
 } from "./overlayReachability";
 
+function expectTouchHeight(height: number, layoutHeight: number): void {
+  expect(layoutHeight).toBeGreaterThanOrEqual(44);
+  // Translated DOM rectangles can report 43.999996px for a 44px layout box.
+  expect(height).toBeGreaterThanOrEqual(44 - 0.001);
+}
+
 test("reports scroll evaluator failures from overlay reachability", async ({
   page,
 }) => {
@@ -48,10 +54,16 @@ test.describe("overlay viewport scroll", () => {
       const targets = await share
         .locator(".ui-control, .share-dialog-check")
         .evaluateAll((elements) =>
-          elements.map((element) => element.getBoundingClientRect().height),
+          elements.map((element) => ({
+            height: element.getBoundingClientRect().height,
+            layoutHeight:
+              element instanceof HTMLElement ? element.offsetHeight : 0,
+          })),
         );
       expect(targets.length).toBeGreaterThan(0);
-      for (const height of targets) expect(height).toBeGreaterThanOrEqual(44);
+      for (const target of targets) {
+        expectTouchHeight(target.height, target.layoutHeight);
+      }
       await share.getByRole("button", { name: "Close", exact: true }).click();
       await expectShareRecordRoomsReachable(page);
     });
@@ -115,6 +127,7 @@ test.describe("dialog consumers reachability", () => {
           const labels = await dialog.locator("label").evaluateAll((rows) =>
             rows.map((row) => ({
               height: row.getBoundingClientRect().height,
+              layoutHeight: row instanceof HTMLElement ? row.offsetHeight : 0,
               controlLeft: row.querySelector("input")?.getBoundingClientRect()
                 .left,
               textLeft: row.querySelector("span")?.getBoundingClientRect().left,
@@ -122,7 +135,7 @@ test.describe("dialog consumers reachability", () => {
           );
           expect(labels).toHaveLength(5);
           for (const row of labels) {
-            expect(row.height).toBeGreaterThanOrEqual(44);
+            expectTouchHeight(row.height, row.layoutHeight);
             expect(row.controlLeft).toBe(labels[0].controlLeft);
             expect(row.textLeft).toBe(labels[0].textLeft);
           }

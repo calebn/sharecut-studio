@@ -3,6 +3,11 @@
   color: var(--color-text-primary);
 }
 
+.review-shell > .cover-center {
+  box-sizing: border-box;
+  inline-size: 100%;
+}
+
 .review-audio {
   inline-size: 100%;
 }
@@ -28,6 +33,7 @@
 
 .review-compose input,
 .review-compose textarea {
+  min-inline-size: 0;
   background: var(--color-bg-canvas);
   border: 1px solid var(--color-border-strong);
   color: var(--color-text-primary);

@@ -541,6 +541,8 @@ use the shared modal and suspend while model-download confirmation is open.
 Guest status summaries for Impact and Pipeline remain readable without offering
 unavailable host panels. Editable chapter and reply fields have persistent
 accessible names; long comments, vocabulary terms, and inspector metadata wrap
-within their panes. Status pills and muted/resolved metadata use readable text
-roles rather than reducing the opacity of the entire surface. See the
+within their panes. The guest review reading column stays within its shell;
+native comment fields shrink within that column even when the browser gives
+them a larger preferred width. Status pills and muted/resolved metadata use
+readable text roles rather than reducing the opacity of the entire surface. See the
 [GUI surface audit](gui-surface-audit.md) for tested states and limitations.

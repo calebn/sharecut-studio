@@ -12,7 +12,8 @@ target. Reading form labels, hints, and errors use `--font-size-body`, while
 actions use reading-body type. Compact timeline/inspector controls retain their
 editor density. See the [component recipes](../gui/web/docs/ui-library.md#composition-recipes)
 and [consistency audit](design-system-audit.md) for checked examples and remaining
-phone coverage.
+phone coverage. Guest review bounds its reading column and lets native composer
+fields shrink to fit narrow viewports.
 
 ## Breakpoints
 
