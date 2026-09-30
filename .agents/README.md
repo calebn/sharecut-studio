@@ -12,6 +12,7 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 | [skills/](skills/) | Episode workflows and the Codex GitHub issue pipeline |
 | [defaults/pipeline.yaml](defaults/pipeline.yaml) | Shared pipeline thresholds |
 | [mcp.json](mcp.json) | MCP server (`podcast-mcp` on PATH) |
+| [skills/impeccable/](skills/impeccable/) | Upstream UI design skill and version-pinned engine launcher, with Codex hooks in `../.codex/hooks.json` |
 
 ## MCP
 
@@ -35,6 +36,13 @@ See [docs/setup.md](../docs/setup.md) for details.
 `build_edit_context` includes `doc_refs` pointing at these paths.
 
 ## Skills
+
+The vendored Impeccable skill comes from
+[pbakaus/impeccable](https://github.com/pbakaus/impeccable), under its bundled
+Apache-2.0 [license](skills/impeccable/LICENSE). Its skill version lives in
+`SKILL.md` metadata and its engine version in `scripts/VERSION`. Setup, updates,
+and Codex hook trust: [design hooks](../docs/setup.md#impeccable-design-hooks).
+Repo engineering rules govern any changes or detector suppressions it suggests.
 
 Repo skills live under `skills/`. Optional install into a global skills dir:
 

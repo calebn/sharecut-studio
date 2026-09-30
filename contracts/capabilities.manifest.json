@@ -3,6 +3,7 @@
   "description": "Capability registration contract: Sharecut Studio command/GUI/keyboard + MCP/CLI/skills.",
   "hub_skills": [
     "codex-issue-pipeline",
+    "impeccable",
     "podcast-balance-levels",
     "podcast-chapter-markers",
     "podcast-cleanup-transcript",

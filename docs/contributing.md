@@ -44,6 +44,12 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 
 ### Sharecut Studio frontend quality
 
+Codex contributors also have [Impeccable design hooks](setup.md#impeccable-design-hooks)
+for feedback on web edits. Trust the project definitions in Settings → Hooks.
+Keep their upstream launcher and reference files together when updating the
+vendored skill. Repo styling and approval rules take precedence over upstream
+suggestions, including advice to add detector ignores.
+
 - **Strict TypeScript** (`gui/web` `tsconfig` `"strict": true`).
 - **oxlint** for JS/TS (incl. `jsx-a11y`, `react/exhaustive-deps`, `react/only-export-components`, plus hygiene: `typescript/no-explicit-any`, `typescript/ban-ts-comment`, type-aware `typescript/no-floating-promises` / `typescript/no-misused-promises` / `typescript/no-redundant-type-constituents` / `typescript/restrict-template-expressions` / `typescript/no-base-to-string` / `typescript/no-meaningless-void-operator` via `options.typeAware` + `oxlint-tsgolint`, `eqeqeq` with `null: ignore`, `prefer-const`, `no-var`, `no-console` — CLI under `scripts/` may log).
 - **Stylelint** for CSS: outside `src/styles/theme/`, colors, padding, margin, gap, font-size, and radius must be theme `var(--…)` (`declaration-strict-value`); chrome is rem (`meowtec/no-px`, ignore `1px`/`-1px`); viewport-size `@media` (`width`/`height`) is off — use named `@container` (`app` / `timeline`). `declaration-no-important` and `at-rule-disallowed-list: layer` are on; `font-size: 62.5%` is banned. Transitions and animations time with `--motion-*` tokens (`declaration-property-unit-disallowed-list` rejects any literal `ms`/`s`; stop motion with `none`), and `tests/test_css_policy.py` also requires those in `partials/` to sit inside `@media (prefers-reduced-motion: no-preference)`, loops included. Exceptions need `/* stylelint-disable-next-line RULE -- user-approved: reason */`. Stylelint ignores `src/styles/theme/`; `tests/test_css_policy.py` (and `tests/test_css_no_important.py`) cover that tree plus `deploy/`, `ux/assets`, `docs-site/assets`, relay `static/`, and the desktop splash **without stripping comments**. Python must not author CSS colors (`color:#…` in `.py`); load `.css` files instead. Agent judgment: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
