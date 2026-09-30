@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { KeymapCategory } from "../keymap/registry";
-import { Dialog } from "../ui";
+import { Button, Dialog } from "../ui";
 import type {
   CommandPaletteAction,
   CommandPaletteCategory,
@@ -55,23 +55,18 @@ export function CommandPaletteView({
         Press <kbd>?</kbd> anytime. Character keys only apply when the timeline
         or transcript has focus.
       </p>
-      <button
-        type="button"
-        className="ui-control--quiet"
-        onClick={onOpenGestures}
-      >
+      <Button variant="link" onClick={onOpenGestures}>
         Gestures
-      </button>
+      </Button>
 
       <div
         className="command-palette-tabs"
-        role="tablist"
+        role="group"
         aria-label="Shortcut categories"
       >
         <button
           type="button"
-          role="tab"
-          aria-selected={tab === "all"}
+          aria-pressed={tab === "all"}
           className={tab === "all" ? "active" : undefined}
           onClick={() => setTab("all")}
         >
@@ -81,8 +76,7 @@ export function CommandPaletteView({
           <button
             key={category}
             type="button"
-            role="tab"
-            aria-selected={tab === category}
+            aria-pressed={tab === category}
             className={tab === category ? "active" : undefined}
             onClick={() => setTab(category)}
           >
@@ -92,8 +86,7 @@ export function CommandPaletteView({
         {unbound.length ? (
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === "actions"}
+            aria-pressed={tab === "actions"}
             className={tab === "actions" ? "active" : undefined}
             onClick={() => setTab("actions")}
           >

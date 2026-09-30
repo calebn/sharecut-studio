@@ -105,7 +105,7 @@ export function BounceDialogView(props: BounceDialogViewProps) {
           </label>
         </div>
         <div className="bounce-dialog-footer">
-          <InlineError message={error} />
+          <InlineError message={error} role="alert" />
           <div className="bounce-dialog-actions">
             <Button
               variant="primary"

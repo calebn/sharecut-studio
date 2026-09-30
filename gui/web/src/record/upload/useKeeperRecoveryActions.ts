@@ -22,7 +22,10 @@ export type KeeperRecoveryActions = {
   notice: string | null;
 };
 
-export function recoveryNotice(result: KeeperRecoveryResult): string {
+export function recoveryNotice(
+  result: KeeperRecoveryResult,
+  uploadAvailable = true,
+): string {
   if (result.recovered === 0) {
     return "No partial keeper needed recovery.";
   }
@@ -31,7 +34,10 @@ export function recoveryNotice(result: KeeperRecoveryResult): string {
     result.trimmed > 0
       ? " An incomplete trailing sample was dropped from the end."
       : "";
-  return `Recovered ${segments}. Upload will resume.${trimmed}`;
+  const next = uploadAvailable
+    ? "Upload will resume."
+    : "Download your local recording to keep a copy.";
+  return `Recovered ${segments}. ${next}${trimmed}`;
 }
 
 export function useKeeperRecoveryActions(args: {
@@ -41,6 +47,7 @@ export function useKeeperRecoveryActions(args: {
   takeIndex: number | null;
   /** Latest "room stopped and capture settled"; re-checked during recovery. */
   recoverAllowed: boolean;
+  uploadAvailable?: boolean;
   onRecovered: () => void;
 }): KeeperRecoveryActions {
   const { sink, sessionId, participantId, takeIndex } = args;
@@ -49,6 +56,8 @@ export function useKeeperRecoveryActions(args: {
   const { busy, run: runSingle } = useSingleFlight();
   const allowedRef = useRef(args.recoverAllowed);
   allowedRef.current = args.recoverAllowed;
+  const uploadAvailableRef = useRef(args.uploadAvailable ?? true);
+  uploadAvailableRef.current = args.uploadAvailable ?? true;
   const onRecoveredRef = useRef(args.onRecovered);
   onRecoveredRef.current = args.onRecovered;
   const mountedRef = useMountedRef();
@@ -99,6 +108,7 @@ export function useKeeperRecoveryActions(args: {
             takeIndex,
             () => allowedRef.current,
           ),
+          uploadAvailableRef.current,
         ),
       () => onRecoveredRef.current(),
     );

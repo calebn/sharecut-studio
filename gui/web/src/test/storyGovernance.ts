@@ -14,6 +14,8 @@ export const STORY_SUPPORT_MODULES = new Set([
   "storybook/openDialog.ts",
 ]);
 
+export const CATALOG_ONLY_MODULES = new Set(["storybook/StyleGuide.tsx"]);
+
 // Literal specifiers only: non-literal `import(x)`, template/concatenated
 // strings and path aliases are not detected (see docs/design-system.md).
 const STORYBOOK_PACKAGE_RE = /^(?:storybook(?:\/|$)|@storybook\/)/;
@@ -23,7 +25,9 @@ const SOURCE_EXT_RE = /\.[cm]?[jt]sx?$/;
 const FROM_WEB_ROOT_RE = /^\.\.\/src\//;
 
 const SUPPORT_TARGETS = new Set(
-  [...STORY_SUPPORT_MODULES].map((rel) => rel.replace(SOURCE_EXT_RE, "")),
+  [...STORY_SUPPORT_MODULES, ...CATALOG_ONLY_MODULES].map((rel) =>
+    rel.replace(SOURCE_EXT_RE, ""),
+  ),
 );
 
 /** Stories, tests and `test/` helpers may touch stories; app code may not. */

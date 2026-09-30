@@ -200,6 +200,11 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ### Responsive shells
 
+Shared dialog close buttons and Share actions/checkbox labels use the tokenized
+44px touch floor. Reading forms also enlarge shared actions and supporting labels
+without changing dense editor controls. The [component consistency audit](design-system-audit.md)
+records the verified phone examples and outstanding composition work.
+
 Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes + selection sheets. Touch long-press selects clips, words, comments, and tracks; swipe left resolves an eligible host comment; double-tap a word opens correction. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
@@ -528,3 +533,14 @@ become document conflicts. Guest shares cannot submit this command.
 `recording_audio_path`, with workspace containment. Omitting `source_id` selects
 the track's primary media. Host authorization and HTTP Range streaming remain
 part of the existing route.
+
+### GUI audit refinements
+
+Shared dialogs mount outside inert app chrome. On phones, Pipeline parameters
+use the shared modal and suspend while model-download confirmation is open.
+Guest status summaries for Impact and Pipeline remain readable without offering
+unavailable host panels. Editable chapter and reply fields have persistent
+accessible names; long comments, vocabulary terms, and inspector metadata wrap
+within their panes. Status pills and muted/resolved metadata use readable text
+roles rather than reducing the opacity of the entire surface. See the
+[GUI surface audit](gui-surface-audit.md) for tested states and limitations.

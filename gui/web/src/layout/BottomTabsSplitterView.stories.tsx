@@ -30,6 +30,7 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
         aria-label="Editor panels preview"
         style={{
           width: context.parameters.splitterPhone ? "360px" : "48rem",
+          maxWidth: "100%",
           height: "12.5rem",
         }}
       >
@@ -140,9 +141,8 @@ export const PhoneWidth: Story = {
   parameters: { ...recordMobileViewport.parameters, splitterPhone: true },
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement }) => {
-    await expect(canvasElement.querySelector(".bottom-tabs")).toHaveStyle({
-      width: "360px",
-    });
+    const panel = canvasElement.querySelector<HTMLElement>(".bottom-tabs");
+    await expect(panel?.getBoundingClientRect().width).toBeLessThanOrEqual(360);
     await expect(
       within(canvasElement).getByRole("separator", {
         name: "Resize editor panels",

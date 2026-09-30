@@ -46,7 +46,7 @@ describe("HostMcpDialog", () => {
   });
 
   it("shows the URL, snippet, and is axe-clean", async () => {
-    const { container } = render(
+    const { baseElement: container } = render(
       <HostMcpDialog open onClose={() => undefined} hasProject />,
     );
     expect(
@@ -137,7 +137,7 @@ describe("HostMcpDialog", () => {
   });
 
   it("warns when no episode is open", async () => {
-    const { container } = render(
+    const { baseElement: container } = render(
       <HostMcpDialog open onClose={() => undefined} hasProject={false} />,
     );
     expect(await screen.findByText(/Open an episode first/)).toBeTruthy();

@@ -531,7 +531,7 @@
   left: 0.25rem;
   font-size: var(--font-size-micro);
   font-weight: 600;
-  color: var(--envelope-line);
+  color: var(--color-text-secondary);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -876,7 +876,7 @@
 }
 
 .track-header-row.muted {
-  opacity: 0.45;
+  background: var(--color-timeline-lane-muted);
 }
 
 .track-header-row.dragging {

@@ -47,7 +47,12 @@ const dawState = vi.hoisted(() => ({
   activityJob: null as import("../types/pipeline").PipelineJobSnapshot | null,
 }));
 
+let shellBreakpoint: "desktop" | "phone" = "desktop";
+
 const mockState = {
+  get shellBreakpoint() {
+    return shellBreakpoint;
+  },
   projectPath: "/tmp/ep.project.json",
   get pipelineJob() {
     return dawState.pipelineJob;
@@ -285,7 +290,11 @@ function withMasterLufsParam() {
 describe("PipelinePanel", () => {
   it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
     const user = userEvent.setup();
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await user.type(await screen.findByLabelText("Terms"), "Kaczynski{Enter}");
     await user.click(screen.getByRole("button", { name: "Save vocabulary" }));
     await waitFor(() =>
@@ -312,6 +321,7 @@ describe("PipelinePanel", () => {
   });
 
   beforeEach(() => {
+    shellBreakpoint = "desktop";
     vi.clearAllMocks();
     waitForPipelineJob.mockReset();
     // A running Analyze from another viewer stays running unless a test finishes it.
@@ -357,9 +367,39 @@ describe("PipelinePanel", () => {
     });
   });
 
+  it("opens phone step parameters with shared modal focus and restores the trigger", async () => {
+    shellBreakpoint = "phone";
+    const user = userEvent.setup();
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const trigger = await screen.findByRole("button", {
+      name: "Balance tracks",
+    });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Step parameters" });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Close$/ })).toHaveFocus(),
+    );
+    await expectNoA11yViolations(dialog);
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "Step parameters" }),
+    ).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("loads config and runs with visible values", async () => {
     const user = userEvent.setup();
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -379,7 +419,11 @@ describe("PipelinePanel", () => {
 
   it("does not list the missing aligner while Precise word boundaries is off", async () => {
     loadPipelineConfig.mockResolvedValue(alignerConfig(false, false));
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -388,7 +432,11 @@ describe("PipelinePanel", () => {
 
   it("lists the missing aligner while Precise word boundaries is on", async () => {
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -411,7 +459,11 @@ describe("PipelinePanel", () => {
     runBootstrap.mockResolvedValue({ job: bootJob });
     waitForBootstrapJob.mockResolvedValue(bootJob);
 
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -441,7 +493,11 @@ describe("PipelinePanel", () => {
   it("locks Precise word boundaries off with the download when the aligner is missing", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(null, false));
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -475,7 +531,11 @@ describe("PipelinePanel", () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
     putPipelineConfig.mockResolvedValue(alignerConfig(false, false));
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await user.click(
       await screen.findByRole("button", { name: "Transcribe tracks" }),
     );
@@ -508,7 +568,11 @@ describe("PipelinePanel", () => {
   it("shows Precise word boundaries on by default once the aligner is downloaded", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(null, true));
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -560,7 +624,11 @@ describe("PipelinePanel", () => {
     });
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -607,7 +675,11 @@ describe("PipelinePanel", () => {
     );
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -657,7 +729,11 @@ describe("PipelinePanel", () => {
       }),
     );
 
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -701,7 +777,11 @@ describe("PipelinePanel", () => {
   it("has no axe violations with the aligner badge", async () => {
     const user = userEvent.setup();
     loadPipelineConfig.mockResolvedValue(alignerConfig(true, false));
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -716,7 +796,11 @@ describe("PipelinePanel", () => {
   });
 
   it("has no axe violations on loaded panel", async () => {
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -726,7 +810,11 @@ describe("PipelinePanel", () => {
   it("rolls back param edit when the latest PUT fails", async () => {
     const user = userEvent.setup();
     putPipelineConfig.mockRejectedValue(new Error("save failed"));
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -742,7 +830,11 @@ describe("PipelinePanel", () => {
 
   it("shows Downloaded / Needs download chrome on Whisper options", async () => {
     const user = userEvent.setup();
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -761,7 +853,11 @@ describe("PipelinePanel", () => {
 
   it("opens download dialog for missing model and Cancel reverts", async () => {
     const user = userEvent.setup();
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -785,7 +881,11 @@ describe("PipelinePanel", () => {
 
   it("defers missing model selection without starting bootstrap", async () => {
     const user = userEvent.setup();
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -822,7 +922,11 @@ describe("PipelinePanel", () => {
         },
       }),
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: "Run pipeline" }),
@@ -886,7 +990,11 @@ describe("PipelinePanel", () => {
         ),
       });
 
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Transcribe tracks").length).toBeGreaterThan(
         0,
@@ -950,7 +1058,11 @@ describe("PipelinePanel", () => {
       needs_retranscription: true,
       edited_tracks: ["host"],
     });
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await user.click(
       await screen.findByRole("button", { name: "Re-transcribe" }),
     );
@@ -999,7 +1111,11 @@ describe("PipelinePanel", () => {
         },
       ],
     };
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(
         screen.getByText(/Waiting on conversation alignment/i),
@@ -1041,7 +1157,11 @@ describe("PipelinePanel", () => {
         },
       ],
     };
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: /run pipeline/i }),
@@ -1077,7 +1197,11 @@ describe("PipelinePanel", () => {
         },
       ],
     };
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(
         screen.getByText(/Waiting on transcript refine/i),
@@ -1099,7 +1223,11 @@ describe("PipelinePanel", () => {
       elapsed_sec: 5,
       steps: [],
     };
-    const { container, rerender } = render(<PipelinePanel />);
+    const { baseElement: container, rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("Running balance_tracks")).toBeInTheDocument();
     });
@@ -1123,7 +1251,11 @@ describe("PipelinePanel", () => {
       total: null,
       message: "Mixing music bed",
     };
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("Mixing music bed")).toBeInTheDocument();
     });
@@ -1147,7 +1279,11 @@ describe("PipelinePanel", () => {
       elapsed_sec: 2,
       steps: [],
     };
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("cancelled")).toBeInTheDocument();
     });
@@ -1160,7 +1296,11 @@ describe("PipelinePanel", () => {
       message: "Step exploded",
       error: "boom",
     };
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("failed")).toBeInTheDocument();
     });
@@ -1203,7 +1343,11 @@ describe("PipelinePanel", () => {
       status: "cancelled",
       message: "Bounce cancelled",
     });
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: /run pipeline/i }),
@@ -1272,7 +1416,11 @@ describe("PipelinePanel", () => {
         };
       },
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1311,7 +1459,11 @@ describe("PipelinePanel", () => {
         return null;
       },
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1326,7 +1478,11 @@ describe("PipelinePanel", () => {
   it("shows a running Analyze job's per-track progress with Cancel", async () => {
     const user = userEvent.setup();
     dawState.activityJob = analyzeJobSnap();
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("Scanned host (1/2)")).toBeInTheDocument();
     });
@@ -1355,7 +1511,11 @@ describe("PipelinePanel", () => {
 
   it("names a message-less Analyze progress bar Analyze progress", async () => {
     dawState.activityJob = analyzeJobSnap({ message: null });
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     expect(
       await screen.findByRole("progressbar", { name: "Analyze progress" }),
     ).toHaveAttribute("aria-valuenow", "50");
@@ -1371,7 +1531,11 @@ describe("PipelinePanel", () => {
         result: remoteAnalyzeResult(),
       }),
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
     expect(waitForPipelineJob).toHaveBeenCalledWith(
       "an-remote",
@@ -1398,7 +1562,11 @@ describe("PipelinePanel", () => {
         applied: true,
       },
     });
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1416,7 +1584,11 @@ describe("PipelinePanel", () => {
           finish = r;
         }),
     );
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
     });
@@ -1430,7 +1602,11 @@ describe("PipelinePanel", () => {
       current: null,
       total: null,
     });
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await act(async () => {
       finish(
         analyzeJobSnap({
@@ -1447,13 +1623,21 @@ describe("PipelinePanel", () => {
 
   it("stops following a remote Analyze on project switch", async () => {
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
     });
     const signal = waitForPipelineJob.mock.calls[0][1].signal as AbortSignal;
     mockState.projectPath = "/tmp/other.project.json";
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(signal.aborted).toBe(true);
     });
@@ -1463,19 +1647,31 @@ describe("PipelinePanel", () => {
       current: 2,
       message: "Scanned guest (2/2)",
     });
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await act(async () => {});
     expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
   });
 
   it("follows a still-running remote Analyze again after switching back to its project", async () => {
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
     });
     mockState.projectPath = "/tmp/other.project.json";
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await act(async () => {});
     // Another project's pane does not adopt the job.
     expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
@@ -1488,7 +1684,11 @@ describe("PipelinePanel", () => {
       }),
     );
     mockState.projectPath = "/tmp/ep.project.json";
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
     expect(waitForPipelineJob).toHaveBeenCalledTimes(2);
     await waitFor(() => {
@@ -1520,13 +1720,21 @@ describe("PipelinePanel", () => {
         }),
     );
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
     });
     // Activity moves on, so this tab can edit while the remote result is still in flight.
     dawState.activityJob = null;
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1582,13 +1790,21 @@ describe("PipelinePanel", () => {
       }),
     );
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
     await waitFor(() => {
       expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
     });
     dawState.activityJob = null;
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await user.click(screen.getByRole("button", { name: "Balance tracks" }));
     await waitFor(() => {
       expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-12);
@@ -1613,13 +1829,21 @@ describe("PipelinePanel", () => {
       }),
     );
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     expect(await screen.findByText("host: mains hum")).toBeInTheDocument();
     expect(
       screen.getByText("Analyze suggestions (not applied)"),
     ).toBeInTheDocument();
     dawState.activityJob = null;
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await user.click(screen.getByRole("button", { name: "Balance tracks" }));
     expect(
       screen.getByLabelText(/Master LUFS/i).closest("label"),
@@ -1640,7 +1864,11 @@ describe("PipelinePanel", () => {
       applied: true,
       config: patched,
     });
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1658,12 +1886,20 @@ describe("PipelinePanel", () => {
     });
     waitForPipelineJob.mockResolvedValueOnce(cancelled);
     dawState.activityJob = analyzeJobSnap({ id: "an-remote" });
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(waitForPipelineJob).toHaveBeenCalledTimes(1);
     });
     dawState.activityJob = cancelled;
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await act(async () => {});
     expect(screen.getByText("host: mains hum")).toBeInTheDocument();
     expect(screen.getByText("Analyze suggestions applied")).toBeInTheDocument();
@@ -1676,7 +1912,11 @@ describe("PipelinePanel", () => {
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
     const user = userEvent.setup();
     analyzePipeline.mockResolvedValue(null);
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1704,7 +1944,11 @@ describe("PipelinePanel", () => {
           captured = opts.signal;
         }),
     );
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1713,7 +1957,11 @@ describe("PipelinePanel", () => {
       expect(captured).toBeInstanceOf(AbortSignal);
     });
     mockState.projectPath = "/tmp/other.project.json";
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(captured?.aborted).toBe(true);
     });
@@ -1737,7 +1985,11 @@ describe("PipelinePanel", () => {
       last_progress_at: t0,
       steps: [],
     };
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getByText("Aligning conversation")).toBeInTheDocument();
     });
@@ -1814,7 +2066,11 @@ describe("PipelinePanel", () => {
       config: body.config ?? withAlign.config,
       enabled_steps: body.enabled_steps ?? withAlign.enabled_steps,
     }));
-    const { container } = render(<PipelinePanel />);
+    const { baseElement: container } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -1860,13 +2116,21 @@ describe("PipelinePanel", () => {
           resolveAnalyze = r;
         }),
     );
-    const { rerender } = render(<PipelinePanel />);
+    const { rerender } = render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
     await user.click(screen.getByRole("button", { name: "Analyze" }));
     mockState.projectPath = "/tmp/other.project.json";
-    rerender(<PipelinePanel />);
+    rerender(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(loadPipelineConfig).toHaveBeenLastCalledWith(
         "/tmp/other.project.json",
@@ -1955,7 +2219,11 @@ describe("PipelinePanel", () => {
         config: body.config ?? withAlign.config,
         enabled_steps: body.enabled_steps ?? withAlign.enabled_steps,
       }));
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -2004,7 +2272,11 @@ describe("PipelinePanel", () => {
           resolvePut = () => r(structuredClone(serverAfterPut));
         }),
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -2071,7 +2343,11 @@ describe("PipelinePanel", () => {
           resolveAnalyze = r;
         }),
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });
@@ -2135,7 +2411,11 @@ describe("PipelinePanel", () => {
           rejectPut = reject;
         }),
     );
-    render(<PipelinePanel />);
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
     await waitFor(() => {
       expect(screen.getAllByText("Balance tracks").length).toBeGreaterThan(0);
     });

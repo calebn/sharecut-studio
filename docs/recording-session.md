@@ -1385,3 +1385,15 @@ The host recording plane shares `/api/host/ws` with session presence and documen
 ## Guest socket service work
 
 Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot before starting queued fanout. Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.
+
+## Recording UI consistency checks
+
+The Storybook recording catalog includes active and disconnected rooms, microphone
+loss, room-tone progress, clipping reports, upload/retry states, and keeper
+recovery. Consent checkboxes retain native sizing inside their touchable labels;
+participant names and live comments wrap within the room. Initial roster hydration
+stays silent, while subsequent joins and departures are announced together.
+Recovery promises resumed upload only while an upload transport is available.
+After access ends, recovered local audio remains downloadable and the message
+asks the participant to keep a copy. See [GUI surface audit](gui-surface-audit.md)
+for coverage and platform limits.

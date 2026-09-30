@@ -43,6 +43,16 @@ test.describe("overlay viewport scroll", () => {
     }) => {
       await page.setViewportSize(viewport);
       await openHostProject(page);
+      await openDialogFromMenu(page, "Share…");
+      const share = page.getByRole("dialog", { name: "Share", exact: true });
+      const targets = await share
+        .locator(".ui-control, .share-dialog-check")
+        .evaluateAll((elements) =>
+          elements.map((element) => element.getBoundingClientRect().height),
+        );
+      expect(targets.length).toBeGreaterThan(0);
+      for (const height of targets) expect(height).toBeGreaterThanOrEqual(44);
+      await share.getByRole("button", { name: "Close", exact: true }).click();
       await expectShareRecordRoomsReachable(page);
     });
   }

@@ -29,7 +29,7 @@ function baseProps(): Parameters<typeof BounceDialogView>[0] {
 describe("BounceDialogView", () => {
   it("renders production source options from props; axe-clean", async () => {
     const props = baseProps();
-    const { container } = render(<BounceDialogView {...props} />);
+    const { baseElement: container } = render(<BounceDialogView {...props} />);
     expect(screen.getByLabelText("Entire mix")).toBeInTheDocument();
     expect(screen.getByLabelText("Selected tracks (2)")).toBeInTheDocument();
     expect(screen.getByLabelText("Soloed tracks (1)")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("BounceDialogView", () => {
     props.selectedCount = 123456789;
     props.hasRegion = false;
     props.error = "Select one or more tracks first, then try bouncing again.";
-    const { container } = render(<BounceDialogView {...props} />);
+    const { baseElement: container } = render(<BounceDialogView {...props} />);
 
     await user.click(screen.getByText("Selected tracks (123456789)"));
     expect(props.onSourceChange).toHaveBeenCalledWith("selected");

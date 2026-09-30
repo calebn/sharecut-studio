@@ -3,6 +3,11 @@
 How we name CSS custom properties in Sharecut Studio, so a new contributor can
 tell where a token lives, what it's for, and whether they may mint a new one.
 
+For visual examples, open Storybook **Style guide → Start here**. Its space
+and type samples consume the live CSS variables. This document owns naming
+and editing rules; [the catalog guide](design-system.md) owns navigation and
+story conventions.
+
 Research basis (naming conventions only — we don't use Figma; the Figma
 pipeline notes in these sources don't apply to us):
 
@@ -141,17 +146,19 @@ directly; the old `--bg-app`, `--bg-panel`, `--bg-elevated`, `--bg-lane`, and
 `--color-bg-elevated`) stay in `brand-tokens.css` because marketing, relay, and
 splash pages use them without the Studio ladder.
 
-Two roles sit beside the ladder:
+Three roles sit beside the ladder:
 
 - `--color-field` — form fields. White with a strong border in light mode;
   recessed below the pane in dark mode. `base.css` applies it (and the Plex
   sans family) to every input, select, and textarea at zero specificity.
-- `--color-chip-selected` / `--color-chip-selected-fg` — the one selected
-  state for toggles, segments, tabs, and selected rows: a neutral chip with
+- `--color-chip-selected` / `--color-chip-selected-fg` — the default selected
+  state for toggles, grouped segments, and selected rows: a neutral chip with
   full-strength text. Selection never uses the accent. `.ui-control`'s base
   pressed rule paints it (with a `--color-text-secondary` border), so
-  components never restate it; checked menu radios add a check mark. One
-  documented exception: the phone tab bar (`.mobile-nav`) marks the current
+  components never restate it; checked menu radios add a check mark.
+  Quiet standalone toggles and tabs use full-strength text and a neutral
+  underline instead; grouped `.ui-segmented` controls retain the chip.
+  Another exception: the phone tab bar (`.mobile-nav`) marks the current
   location with an accent top indicator and accent label, following the iOS
   and Android tab-bar convention; it is navigation, not a selected value.
 - `--color-hover` — the hover wash: a faint `--color-text-primary` tint that

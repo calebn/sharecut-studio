@@ -41,7 +41,7 @@
 .ui-field-hint {
   margin: 0;
   font-size: var(--font-size-caption);
-  opacity: 0.75;
+  color: var(--color-text-secondary);
 }
 
 .ui-field-control {
@@ -150,7 +150,7 @@
 
 .pill.warning {
   background: var(--color-warning-subtle);
-  color: var(--warning);
+  color: var(--color-text-primary);
 }
 
 button.pill {
@@ -188,12 +188,12 @@ button.pill.pill--info {
 
 .pill.ok {
   background: var(--color-success-subtle);
-  color: var(--success);
+  color: var(--color-text-primary);
 }
 
 .pill.audition {
   background: var(--color-envelope-muted);
-  color: var(--envelope-line);
+  color: var(--color-text-primary);
   max-width: 13.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -227,8 +227,8 @@ button.pill.pill--info {
 .ui-control.dialog-close {
   display: grid;
   place-items: center;
-  inline-size: var(--control-height);
-  block-size: var(--control-height);
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
   padding: 0;
   border-color: transparent;
   background: transparent;
@@ -277,8 +277,6 @@ button.pill.pill--info {
   font-size: var(--font-size-small);
 }
 
-/* Pressed / selected is the shared chip everywhere (tabs and quiet
-   segments restate it below); hover is a wash, so the two never look alike. */
 .ui-control[aria-pressed="true"],
 .ui-control.active {
   color: var(--color-chip-selected-fg);

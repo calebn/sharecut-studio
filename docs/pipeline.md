@@ -138,6 +138,10 @@ Each step returns a short human-readable **summary** (counts of tracks, cuts, su
 
 ## Configurable run (GUI / MCP)
 
+On phones, selecting a Pipeline step opens its parameters in a modal Dialog with
+a visible Close button, Escape dismissal, and focus restoration. Wider shells
+show the same form inline.
+
 Sharecut Studio Pipeline pane and MCP tools share a **working set** of enabled steps + yaml-derived params:
 
 - `GET`/`PUT` config and `POST` analyze — see [gui-integration.md](gui-integration.md) § Pipeline tab

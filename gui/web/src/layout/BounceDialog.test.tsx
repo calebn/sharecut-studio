@@ -52,7 +52,7 @@ describe("BounceDialog", () => {
 
   it("shows bounce dialog and is axe-clean", async () => {
     useDawStore.setState({ bounceDialogOpen: true });
-    const { container } = render(<BounceDialog />);
+    const { baseElement: container } = render(<BounceDialog />);
     const dialog = screen.getByRole("dialog", { name: "Bounce…" });
     expect(dialog).toBeTruthy();
     expect(screen.getByText("Entire mix")).toBeTruthy();

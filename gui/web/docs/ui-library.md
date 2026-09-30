@@ -4,6 +4,10 @@ Intentional in-house chrome library under [`src/ui/`](../src/ui/). **No Radix / 
 
 ## Library vs domain
 
+Storybook **Style guide → Start here** provides a task-oriented index and
+live type, spacing, and control-state examples. Use it to find a component;
+use this contract to decide where code and behavior belong.
+
 | In the library (`ui/`) | Out of the library (domain) |
 |------------------------|-----------------------------|
 | Button, ToggleButton, Field, FieldRow, InlineError | ClipBlock, TrackLane, Playhead |
@@ -24,19 +28,45 @@ Import from [`src/ui/index.ts`](../src/ui/index.ts) (or `../ui`). Hooks used by 
 
 ### `.ui-control` interaction primitive
 
-`Button`, `ToggleButton`, and `CommandButton` (including `bare`, which the transport `LayoutToggle` / `LayoutRestoreChip` use) always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` (the `--color-hover` wash) does **not** apply to the primary / danger / link variants, `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn`; those exclusions sit inside `:where()` so the wash stays at (0,2,0) and any component that paints its own control (transport strip, Listen card) wins. Action pills still use their outline-on-hover exception. Pressed is the selected chip (`--color-chip-selected`) from `.ui-control`'s base rule; segment groups (`SegmentedControl`, which `ToolModeToggle` renders) keep the chip on hover. Hover is a wash and selected is a chip everywhere, including menus (checked menu radios add a check mark); the accent is never a selected state.
+`Button`, `ToggleButton`, and `CommandButton` (including `bare`, which the transport `LayoutToggle` / `LayoutRestoreChip` use) always apply `ui-control`. Domain classes may set padding / min-size / grouping layout; they must **not** re-declare `:hover` / `:focus-visible` / pressed paint unless a documented exception (e.g. stale-pill warning outline). Default `.ui-control:hover` (the `--color-hover` wash) does **not** apply to the primary / danger / link variants, `.pill`, `.status-chip`, `.status-pipeline`, `.trk-btn.mute` / `.solo`, or `.comment-mode-btn`; those exclusions sit inside `:where()` so the wash stays at (0,2,0) and any component that paints its own control (transport strip, Listen card) wins. Action pills still use their outline-on-hover exception. Pressed is the selected chip (`--color-chip-selected`) from `.ui-control`'s base rule; segment groups (`SegmentedControl`, which `ToolModeToggle` renders) keep the chip on hover. Hover is a wash. Default toggles and grouped segments use a neutral selected chip; standalone quiet toggles and tabs use full-strength text and a neutral underline. Checked menu radios add a check mark. The phone navigation current-location indicator is the documented accent exception.
 
 | Modifier | Use |
 |----------|-----|
 | (default) | Transparent fill with a `--color-border-strong` contour; hover adds the `--color-hover` wash; pressed is the selected chip |
 | `.primary` | Copper solid fill (`--color-accent-solid`); one per context |
 | `.danger` | Destructive text/border |
-| `.ui-control--quiet` or `[data-ui-kind="tab"]` | Tabs / segmented tools — quieter rest, still hover + focus-visible + pressed |
+| `.ui-control--quiet` or `[data-ui-kind="tab"]` | Standalone tabs / quiet toggles — transparent selected fill with neutral underline; grouped segments override this with a selected chip |
 | `.ui-control--compact` | Transport icons, M/S |
 
 Pressed selectors: `.ui-control[aria-pressed="true"]` and `.ui-control.active` (alias during migrate). Hover is gated behind `@media (hover: hover) and (pointer: fine)`. Focus ring uses `:focus-visible` only (2px `--color-accent` outline).
 
 Product-facing state table: [`ux/pages/brand.md`](../../ux/pages/brand.md) § Mixing-room control states. Timeline canvas widgets are out of this primitive.
+
+## Composition recipes
+
+Keep editor controls compact. Reading forms (`.home-screen`, `.review-shell`,
+`.record-shell`, `.bootstrap-wizard`) give shared actions a `--touch-min`
+minimum height and reading-body text; labels, hints, and errors use
+`--font-size-body`. Dialog close buttons and Share actions/checkbox labels also
+meet `--touch-min`. This is a target-size rule, not a global increase in mixer
+density. Segmented controls still need context-specific phone treatment.
+
+For a simple choice dialog, use a grid body with `--space-6` between task
+sections, `--space-1` within related options, and `--space-4` between feedback
+and actions. Bounce is the current example. Do not combine a section gap with
+child margins that count the same separation twice. Share's more complex list
+composition still uses its existing margins; see the [consistency audit](../../../docs/design-system-audit.md).
+
+`Field` accepts arbitrary child controls. Give hints/errors unique `hintId` /
+`errorId` props, reference the visible messages from the child's
+`aria-describedby`, and set `aria-invalid` on invalid controls. Remove the error
+ID from that reference when the error disappears. Use `useId()` for repeated
+instances. Field does not clone children or infer which control an error belongs
+to. Its stories demonstrate both associations.
+
+`DefinitionList` is semantic markup whose current visual composition belongs to
+`.inspector`; its story renders inside that context. Inline navigation actions
+use `Button variant="link"`, including the shortcut/gesture cross-links.
 
 ## Keyboard governance
 
@@ -106,6 +136,6 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 
 ## Overlays
 
-- **Modal** (`Dialog`, CommandPalette, Bounce): `aria-modal`, focus trap, `inert` on `[data-daw-app-chrome]`, focus restore. Panels cap to `max-height: min(90dvh, 40rem)`; the header stays pinned and `.command-palette-body` is the only overlay scroller (`.share-dialog-body` is layout-only).
+- **Modal** (`Dialog`, CommandPalette, Bounce): shared Dialog portals to `document.body`, outside inert application chrome; `aria-modal`, focus trap, `inert` on `[data-daw-app-chrome]`, focus restore. Open one modal at a time; phone Pipeline parameters suspend while the model-download dialog is open. Panels cap to `max-height: min(90dvh, 40rem)`; the header stays pinned and `.command-palette-body` is the only overlay scroller (`.share-dialog-body` is layout-only). The scrolling body is a named keyboard-focusable region, including while every form control is disabled.
 - **Sheet** (`BottomSheet`): peek / non-modal — Escape + initial focus + restore; no chrome `inert`, no Tab trap.
-- **Menu:** Escape, outside click, arrow keys, focus restore; sections (`role="group"`) for non-menuitem content (layer checkboxes, notes). `.ui-menu-panel` caps to `min(90dvh, var(--menu-available-height))` from remaining space under the trigger and scrolls the focused item into view.
+- **Menu:** Escape, outside click, arrow keys, focus restore; Tab or Shift+Tab leaves the menu and closes it without moving focus back; sections (`role="group"`) for non-menuitem content (layer checkboxes, notes). `.ui-menu-panel` caps to `min(90dvh, var(--menu-available-height))` from remaining space under the trigger and scrolls the focused item into view.

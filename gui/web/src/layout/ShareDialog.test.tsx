@@ -74,7 +74,7 @@ describe("ShareDialog", () => {
 
   it("shows empty live list and is axe-clean", async () => {
     useDawStore.setState({ shareDialogOpen: true });
-    const { container } = render(<ShareDialog />);
+    const { baseElement: container } = render(<ShareDialog />);
     const dialog = await screen.findByRole("dialog", { name: "Share" });
     expect(dialog.querySelector(".command-palette-body")).toBeTruthy();
     expect(dialog.querySelector(".share-dialog-body")).toBeTruthy();
@@ -171,7 +171,7 @@ describe("ShareDialog", () => {
   it("lists live rows and is axe-clean", async () => {
     listHostShares.mockResolvedValue(listed([liveRow, mcpRow]));
     useDawStore.setState({ shareDialogOpen: true });
-    const { container } = render(<ShareDialog />);
+    const { baseElement: container } = render(<ShareDialog />);
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
     expect(await screen.findByText("editor-mcp-narwhal")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy agent URL" })).toBeTruthy();
@@ -255,7 +255,7 @@ describe("ShareDialog", () => {
     });
     vi.spyOn(window, "confirm").mockReturnValue(true);
     useDawStore.setState({ shareDialogOpen: true });
-    const { container } = render(<ShareDialog />);
+    const { baseElement: container } = render(<ShareDialog />);
     await screen.findByRole("heading", { name: "Record session" });
     fireEvent.click(
       screen.getByRole("button", { name: "Create record links" }),

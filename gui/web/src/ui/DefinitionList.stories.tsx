@@ -5,6 +5,13 @@ const meta: Meta<typeof DefinitionList> = {
   title: "Molecules/DefinitionList",
   component: DefinitionList,
   tags: ["autodocs"],
+  decorators: [
+    (Story) => (
+      <aside className="inspector" aria-label="Episode details">
+        <Story />
+      </aside>
+    ),
+  ],
 };
 
 export default meta;

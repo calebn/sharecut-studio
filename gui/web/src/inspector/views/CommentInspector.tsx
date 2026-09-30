@@ -105,13 +105,13 @@ export function CommentInspector({ comment, onSeek }: Props) {
       {mayReply ? (
         <div className="comment-reply-compose">
           <input
+            aria-label="Reply to comment"
             value={replyBody}
             onChange={(e) => setReplyBody(e.target.value)}
             placeholder="Reply…"
             disabled={busy}
           />
-          <button
-            type="button"
+          <Button
             disabled={busy}
             onClick={() =>
               void reply(comment, replyBody).then((ok) => {
@@ -122,7 +122,7 @@ export function CommentInspector({ comment, onSeek }: Props) {
             }
           >
             Reply
-          </button>
+          </Button>
         </div>
       ) : null}
     </ModifierInspector>

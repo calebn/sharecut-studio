@@ -60,7 +60,7 @@ describe("BootstrapWizard", () => {
     expect(container.querySelector(".box.elevated")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Skip for now" })).toBeTruthy();
-    expect(screen.getByLabelText("Speech model")).toBeTruthy();
+    expect(screen.getByLabelText("Speech model")).toHaveAccessibleDescription();
     expect(screen.getByText(/lowest practical WER/i)).toBeTruthy();
     await expectNoA11yViolations(container);
   });

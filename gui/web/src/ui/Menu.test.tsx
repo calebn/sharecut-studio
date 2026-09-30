@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -77,6 +77,96 @@ describe("Menu", () => {
     expect(peekMenuOpen()).toBe(false);
     expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
     await expectNoA11yViolations(container);
+  });
+
+  it("closes when its already-open trigger is clicked again", async () => {
+    const user = userEvent.setup();
+    render(<Fixture />);
+    const trigger = screen.getByRole("button", { name: "Open" });
+    await user.click(trigger);
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus(),
+    );
+    await user.click(trigger);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("dismisses on Tab and preserves the next control's focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Fixture />
+        <input aria-label="After menu" />
+      </>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    await user.tab();
+    expect(screen.getByRole("textbox", { name: "After menu" })).toHaveFocus();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(peekMenuOpen()).toBe(false);
+  });
+
+  it("dismisses on Shift+Tab and preserves the trigger's focus", async () => {
+    const user = userEvent.setup();
+    render(<Fixture />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("dismisses when focus moves programmatically outside", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Fixture />
+        <input aria-label="Elsewhere" />
+      </>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    act(() => screen.getByRole("textbox", { name: "Elsewhere" }).focus());
+    expect(screen.queryByRole("menu")).toBeNull();
+    await user.keyboard("{ArrowDown}{Home}{End}");
+    expect(screen.getByRole("textbox", { name: "Elsewhere" })).toHaveFocus();
+  });
+
+  it("ignores navigation outside a menu whose owner has not closed it yet", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <>
+        <Menu
+          open
+          onOpenChange={onOpenChange}
+          label="Test menu"
+          trigger={(props) => (
+            <button type="button" {...props}>
+              Open
+            </button>
+          )}
+        >
+          <MenuItem>One</MenuItem>
+        </Menu>
+        <input aria-label="Elsewhere" />
+      </>,
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "One" })).toHaveFocus();
+    });
+    act(() => screen.getByRole("textbox", { name: "Elsewhere" }).focus());
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await user.keyboard("{ArrowDown}{ArrowUp}{Home}{End}");
+    expect(screen.getByRole("textbox", { name: "Elsewhere" })).toHaveFocus();
   });
 
   it("leaves focus where it moved when closed from outside", async () => {

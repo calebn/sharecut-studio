@@ -1,4 +1,5 @@
 import { gestureLabel, MOBILE_GESTURES } from "../commands/gestures";
+import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 
 type Props = {
@@ -21,13 +22,9 @@ export function GesturesSheet({
     <Dialog open={open} onClose={onClose} title="Gestures">
       <p className="lede">
         Touch gestures for common actions.{" "}
-        <button
-          type="button"
-          className="ui-control--quiet"
-          onClick={onShowKeyboardShortcuts}
-        >
+        <Button variant="link" onClick={onShowKeyboardShortcuts}>
           Keyboard shortcuts
-        </button>
+        </Button>
       </p>
       <dl className="gesture-list">
         {MOBILE_GESTURES.map((g) => (

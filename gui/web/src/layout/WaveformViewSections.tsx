@@ -39,6 +39,7 @@ export function WaveformViewSections() {
               key={m.id}
               quiet
               role="menuitemradio"
+              tabIndex={-1}
               pressed={scale === m.id}
               aria-checked={scale === m.id}
               title={m.title}

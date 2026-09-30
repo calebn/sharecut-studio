@@ -52,7 +52,7 @@ function actions() {
 
 describe("CommandPaletteView", () => {
   it("renders nothing when closed", () => {
-    const { container } = render(
+    render(
       <CommandPaletteView
         open={false}
         categories={CATEGORIES}
@@ -60,11 +60,11 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("shows tabs, rows and the unbound section and passes axe", async () => {
-    const { container } = render(
+  it("shows category filters, rows and the unbound section and passes axe", async () => {
+    const { baseElement: container } = render(
       <CommandPaletteView
         open
         categories={CATEGORIES}
@@ -72,16 +72,23 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("tab", { name: "All keys" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "tools" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Actions" })).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "Shortcut categories" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "tools" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Actions" })).toBeTruthy();
     expect(screen.getByText("Select tool")).toBeTruthy();
     expect(screen.getByText("V")).toBeTruthy();
     expect(screen.getByText("Annotate transcript")).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 
-  it("filters rows to the selected category tab", async () => {
+  it("filters rows to the selected category filter", async () => {
     const user = userEvent.setup();
     render(
       <CommandPaletteView
@@ -91,13 +98,21 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    await user.click(screen.getByRole("tab", { name: "tools" }));
+    await user.click(screen.getByRole("button", { name: "tools" }));
+    expect(screen.getByRole("button", { name: "tools" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
     expect(screen.getByText("Select tool")).toBeTruthy();
     expect(screen.getByText("Blade tool")).toBeTruthy();
     expect(screen.queryByText("Play / pause")).toBeNull();
   });
 
-  it("shows only unbound actions on the Actions tab", async () => {
+  it("shows only unbound actions on the Actions filter", async () => {
     const user = userEvent.setup();
     render(
       <CommandPaletteView
@@ -107,12 +122,12 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    await user.click(screen.getByRole("tab", { name: "Actions" }));
+    await user.click(screen.getByRole("button", { name: "Actions" }));
     expect(screen.queryByText("Select tool")).toBeNull();
     expect(screen.getByText("Annotate transcript")).toBeTruthy();
   });
 
-  it("omits the Actions tab when there are no unbound commands", () => {
+  it("omits the Actions filter when there are no unbound commands", () => {
     render(
       <CommandPaletteView
         open
@@ -121,11 +136,11 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    expect(screen.queryByRole("tab", { name: "Actions" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Actions" })).toBeNull();
   });
 
   it("renders a row's collision note and links it via aria-describedby", async () => {
-    const { container } = render(
+    const { baseElement: container } = render(
       <CommandPaletteView
         open
         categories={CATEGORIES}
@@ -143,7 +158,7 @@ describe("CommandPaletteView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("omits a tab for a category with no rows", () => {
+  it("omits a filter for a category with no rows", () => {
     render(
       <CommandPaletteView
         open
@@ -152,7 +167,7 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    expect(screen.queryByRole("tab", { name: "history" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "history" })).toBeNull();
   });
 
   it("calls onRun, onOpenGestures, and onClose on Escape", async () => {
@@ -195,7 +210,7 @@ describe("CommandPaletteView", () => {
     expect(cbs.onRemap).toHaveBeenLastCalledWith("tool.select", "");
   });
 
-  it("resets tab and remap state when the dialog reopens", async () => {
+  it("resets filter and remap state when the dialog reopens", async () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <CommandPaletteView
@@ -205,7 +220,7 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    await user.click(screen.getByRole("tab", { name: "tools" }));
+    await user.click(screen.getByRole("button", { name: "tools" }));
     await user.click(screen.getByLabelText("Show remaps"));
     rerender(
       <CommandPaletteView
@@ -223,8 +238,8 @@ describe("CommandPaletteView", () => {
         {...actions()}
       />,
     );
-    expect(screen.getByRole("tab", { name: "All keys" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
     expect(screen.queryByLabelText("Remap Select tool")).toBeNull();

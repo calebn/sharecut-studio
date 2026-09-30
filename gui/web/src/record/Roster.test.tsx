@@ -46,4 +46,31 @@ describe("Roster", () => {
     rerender(<Roster participants={withoutAva} />);
     expect(screen.getByText("Ava left")).toBeInTheDocument();
   });
+  it("announces a join after the room empties", () => {
+    const { container, rerender } = render(<Roster participants={people} />);
+    const announcement = container.querySelector('[aria-live="polite"]');
+    expect(announcement).toHaveTextContent("");
+    rerender(<Roster participants={[]} />);
+    expect(announcement).toHaveTextContent("Host left. Ava left. Pat left");
+    rerender(
+      <Roster participants={[recordParticipant({ display_name: "Dee" })]} />,
+    );
+    expect(announcement).toHaveTextContent("Dee joined");
+  });
+
+  it("announces every join and leave in a single snapshot", () => {
+    const { container, rerender } = render(<Roster participants={people} />);
+    const announcement = container.querySelector('[aria-live="polite"]');
+    rerender(
+      <Roster
+        participants={[
+          recordParticipant({ participant_id: "guest-d", display_name: "Dee" }),
+          recordParticipant({ participant_id: "guest-e", display_name: "Eli" }),
+        ]}
+      />,
+    );
+    expect(announcement).toHaveTextContent(
+      "Dee joined. Eli joined. Host left. Ava left. Pat left",
+    );
+  });
 });

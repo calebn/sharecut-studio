@@ -18,12 +18,13 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
   );
   const { busy, error, run } = useProjectMutation();
 
-  const canRestore =
-    canApplyPass12(projectPath, guestMode, shareCapabilities) &&
+  const mayRestore = canApplyPass12(projectPath, guestMode, shareCapabilities);
+  const hasSourceClocks =
     rec.source_start != null &&
     rec.source_end != null &&
     rec.timeline_start != null &&
     rec.timeline_end != null;
+  const canRestore = mayRestore && hasSourceClocks;
 
   const onRestore = async () => {
     await run(async () => {
@@ -85,7 +86,9 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
         ) : null}
         {!canRestore ? (
           <DefItem label="Restore">
-            Unavailable (no source clocks). Use History undo
+            {mayRestore
+              ? "Unavailable (no source clocks). Use History undo"
+              : "Restore is unavailable with your current access."}
           </DefItem>
         ) : null}
         {rec.boundary_mode ? (

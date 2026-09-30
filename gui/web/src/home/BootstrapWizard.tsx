@@ -148,6 +148,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       <Field
         label="Speech model"
         htmlFor="whisper-model"
+        hintId="whisper-model-hint"
         hint={
           selected
             ? `${selected.size}. ${selected.description}`
@@ -156,6 +157,7 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       >
         <select
           id="whisper-model"
+          aria-describedby="whisper-model-hint"
           value={whisperModel}
           disabled={busy || models.length === 0}
           onChange={(e) => void onModelChange(e.target.value)}

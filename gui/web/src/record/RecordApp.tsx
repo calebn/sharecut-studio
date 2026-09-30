@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { CoverScreen, ErrorScreen, FocusPull, LoadingScreen } from "../ui";
+import {
+  Button,
+  CoverScreen,
+  ErrorScreen,
+  FocusPull,
+  LoadingScreen,
+} from "../ui";
 import { errorMessage } from "../utils/apiError";
 import "../styles/partials/record-entry.css";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
@@ -253,6 +259,7 @@ export function RecordApp({ token }: { token: string }) {
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
     takeIndex: snapshot?.take_index ?? null,
+    uploadAvailable: uploadTransport !== null,
     recoverAllowed:
       (snapshot?.state === "stopped" || accessEnded) && captureSettled,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
@@ -313,7 +320,7 @@ export function RecordApp({ token }: { token: string }) {
     return (
       <CoverScreen
         heading={inviteClosed ? "Invite link closed" : "Recording access ended"}
-        shellClassName="error-screen"
+        shellClassName="error-screen record-shell"
       >
         <p className="home-screen-error" role="alert">
           {inviteClosed
@@ -322,22 +329,17 @@ export function RecordApp({ token }: { token: string }) {
         </p>
         {!captureSettled ? <p>Finishing your local recording…</p> : null}
         {captureSettled && keeperActions.recover ? (
-          <button
-            type="button"
-            onClick={keeperActions.recover}
-            disabled={keeperActions.busy}
-          >
+          <Button onClick={keeperActions.recover} disabled={keeperActions.busy}>
             Recover local recording
-          </button>
+          </Button>
         ) : null}
         {captureSettled && keeperActions.download ? (
-          <button
-            type="button"
+          <Button
             onClick={keeperActions.download}
             disabled={keeperActions.busy}
           >
             Download local recording
-          </button>
+          </Button>
         ) : null}
         {keeperActions.error ? <p role="alert">{keeperActions.error}</p> : null}
         {keeperActions.notice ? (

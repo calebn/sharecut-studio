@@ -5,7 +5,11 @@ type Props = {
   label: string;
   htmlFor?: string;
   hint?: string;
+  /** Match the control's aria-describedby; Field accepts arbitrary children. */
+  hintId?: string;
   error?: string | null;
+  /** Match the control's aria-describedby; callers also set aria-invalid. */
+  errorId?: string;
   children: ReactNode;
   className?: string;
 };
@@ -15,7 +19,9 @@ export function Field({
   label,
   htmlFor,
   hint,
+  hintId,
   error,
+  errorId,
   children,
   className,
 }: Props) {
@@ -25,8 +31,12 @@ export function Field({
         {label}
       </label>
       <div className="ui-field-control">{children}</div>
-      {hint ? <p className="ui-field-hint">{hint}</p> : null}
-      <InlineError message={error} />
+      {hint ? (
+        <p id={hintId} className="ui-field-hint">
+          {hint}
+        </p>
+      ) : null}
+      <InlineError id={errorId} message={error} />
     </div>
   );
 }

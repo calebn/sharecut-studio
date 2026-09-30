@@ -183,8 +183,12 @@ export function HelpDialog({ open, onClose }: Props) {
             </p>
             <p>Files: {bundle.files.join(", ")}</p>
             <label htmlFor="report-description">Describe the problem</label>
+            <p id="report-description-hint">
+              Enter at least 10 characters to submit a report.
+            </p>
             <textarea
               id="report-description"
+              aria-describedby="report-description-hint"
               value={description}
               maxLength={4000}
               onChange={(event) => setDescription(event.target.value)}

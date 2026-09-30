@@ -114,6 +114,7 @@ const meta: Meta<typeof RailPreview> = {
         className="daw-shell daw-shell--phone"
         style={{
           width: context.parameters.railTablet ? "48rem" : "360px",
+          maxWidth: "100%",
         }}
       >
         <main className="mobile-mode-body">

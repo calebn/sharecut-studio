@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { partial, rule } from "../test/cssRules";
 import { sampleTrack } from "../test/fixtures";
 import { TrackHeaderView } from "./TrackHeaderView";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
@@ -46,6 +47,13 @@ function renderHeader(
 }
 
 describe("TrackHeaderView", () => {
+  it("marks muted tracks without fading their readable metadata", () => {
+    const { container } = renderHeader({ muted: true });
+    expect(container.querySelector(".track-header-row")).toHaveClass("muted");
+    const muted = rule(partial("layout.css"), ".track-header-row.muted");
+    expect(muted).toMatch(/background:\s*var\(--color-timeline-lane-muted\)/);
+    expect(muted).not.toMatch(/opacity:/);
+  });
   it("renders accessible production track details from props", async () => {
     const { container, onSelect } = renderHeader();
     const open = screen.getByRole("button", {

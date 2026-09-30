@@ -25,6 +25,7 @@ const meta: Meta<typeof TrackHeaderView> = {
         className={`daw-shell${context.parameters.trackHeaderPhone ? " daw-shell--phone" : ""} timeline-area`}
         style={{
           width: context.parameters.trackHeaderPhone ? "360px" : "48rem",
+          maxWidth: "100%",
         }}
       >
         <div className="track-headers">

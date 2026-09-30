@@ -1,4 +1,5 @@
 import { type ReactNode, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 
@@ -45,7 +46,7 @@ export function Dialog({
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       className="ui-dialog-root command-palette-root"
       role="dialog"
@@ -75,8 +76,16 @@ export function Dialog({
             disabled={closeDisabled}
           />
         </div>
-        <div className="command-palette-body">{children}</div>
+        <div
+          className="command-palette-body"
+          tabIndex={0}
+          role="region"
+          aria-label={`${title} content`}
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

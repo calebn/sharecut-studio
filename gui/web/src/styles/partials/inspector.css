@@ -44,12 +44,19 @@
 
 .modifier-titles h2 {
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.modifier-titles {
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
 .modifier-subtitle {
   margin: var(--space-0) 0 0;
   font-size: var(--font-size-small);
   color: var(--text-dim);
+  overflow-wrap: anywhere;
 }
 
 .modifier-primary-actions {
@@ -311,4 +318,5 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }

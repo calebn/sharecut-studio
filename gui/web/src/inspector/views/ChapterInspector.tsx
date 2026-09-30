@@ -90,6 +90,7 @@ export function ChapterInspector({
         <DefItem label="Title">
           {editable ? (
             <input
+              aria-label="Chapter title"
               type="text"
               value={titleStr}
               disabled={busy}
@@ -103,6 +104,7 @@ export function ChapterInspector({
           {editable ? (
             <FieldRow>
               <input
+                aria-label="Chapter time"
                 type="number"
                 min={0}
                 step={0.01}

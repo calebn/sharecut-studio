@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import type { AutomationPoint } from "../types/project";
 import { EnvelopeOverlayView } from "./EnvelopeOverlayView";
@@ -42,9 +42,11 @@ export const Editable: Story = {
   play: async ({ canvasElement, args }) => {
     const circles = canvasElement.querySelectorAll("circle");
     await expect(circles).toHaveLength(3);
-    (circles[1] as SVGCircleElement).dispatchEvent(
-      new PointerEvent("pointerdown", { bubbles: true }),
-    );
+    const point = within(canvasElement).getByRole("button", {
+      name: /Envelope point 2 at/,
+    });
+    point.focus();
+    await userEvent.keyboard("{Enter}");
     await expect(args.onSelectPoint).toHaveBeenCalledWith(1);
     await expect(args.onCommitPoints).not.toHaveBeenCalled();
   },
