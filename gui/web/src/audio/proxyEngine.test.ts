@@ -3,9 +3,18 @@ import type { ClipRow } from "../types/project";
 import { ProxyEngine } from "./proxyEngine";
 
 function makeCtx() {
-  const created: Array<{ start: (...args: unknown[]) => void }> = [];
+  const created: Array<{
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+    playbackRate: { value: number };
+  }> = [];
   const gains: Array<{
-    gain: { value: number; setTargetAtTime: ReturnType<typeof vi.fn> };
+    gain: {
+      value: number;
+      setTargetAtTime: ReturnType<typeof vi.fn>;
+      linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+      setValueAtTime: ReturnType<typeof vi.fn>;
+    };
   }> = [];
   const ctx = {
     currentTime: 0,
@@ -28,6 +37,7 @@ function makeCtx() {
     createBufferSource: () => {
       const source = {
         buffer: null as AudioBuffer | null,
+        playbackRate: { value: 1 },
         connect: vi.fn(),
         disconnect: vi.fn(),
         start: vi.fn(),
@@ -45,7 +55,14 @@ function makeCtx() {
       }) as AudioBuffer,
     resume: vi.fn(async () => undefined),
   };
-  return { ctx: ctx as unknown as AudioContext, created, gains };
+  return {
+    ctx: ctx as unknown as AudioContext,
+    created,
+    gains,
+    setTime: (time: number) => {
+      ctx.currentTime = time;
+    },
+  };
 }
 
 describe("ProxyEngine", () => {
@@ -159,5 +176,117 @@ describe("ProxyEngine", () => {
       expect.any(Number),
     );
     engine.dispose();
+  });
+  it("anchors rate changes and scales start, catch-up and fades", async () => {
+    const { ctx, created, gains, setTime } = makeCtx();
+    const engine = new ProxyEngine(ctx, async () => new ArrayBuffer(64));
+    engine.setManifest({
+      tracks: {
+        host: {
+          hash: "rate",
+          chunk_sec: 60,
+          overlap_ms: 0,
+          chunk_count: 1,
+          duration_sec: 20,
+          urls: ["u"],
+        },
+      },
+    });
+    engine.setProject(
+      {
+        host: [
+          {
+            id: "c",
+            track_id: "host",
+            source_start: 0,
+            source_end: 10,
+            timeline_start: 2,
+            timeline_end: 12,
+            fade_in_ms: 1000,
+            fade_out_ms: 2000,
+            join_in_mode: "fade",
+            source_id: null,
+          },
+        ],
+      },
+      [{ id: "host", gain_db: 0, muted: false }],
+    );
+    engine.setPlaybackRate(2);
+    engine.play(0);
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    expect(created[0].playbackRate.value).toBe(2);
+    expect(created[0].start).toHaveBeenCalledWith(1, 0, 10);
+    expect(gains.at(-1)?.gain).toBeDefined();
+    const clipGain = gains.at(-1)?.gain;
+    if (!clipGain) throw new Error("missing clip gain");
+    expect(clipGain.linearRampToValueAtTime).toHaveBeenCalledWith(1, 1.5);
+    expect(clipGain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 6);
+    setTime(2);
+    expect(engine.currentTimeSec()).toBe(4);
+    engine.setPlaybackRate(1.5);
+    expect(engine.currentTimeSec()).toBe(4);
+    await vi.waitFor(() => expect(created).toHaveLength(2));
+    expect(created[1].playbackRate.value).toBe(1.5);
+    expect(created[1].start).toHaveBeenCalledWith(2, 2, 8);
+    expect(gains.at(-1)?.gain.linearRampToValueAtTime).toHaveBeenCalledWith(
+      0,
+      expect.closeTo(7.333333333333333, 10),
+    );
+    setTime(4);
+    expect(engine.currentTimeSec()).toBe(7);
+    engine.pause();
+    setTime(8);
+    expect(engine.currentTimeSec()).toBe(7);
+  });
+
+  it("an older async schedule cannot stop or replace a newer seek", async () => {
+    const { ctx, created } = makeCtx();
+    const releases: Array<(buffer: ArrayBuffer) => void> = [];
+    const engine = new ProxyEngine(
+      ctx,
+      () => new Promise((resolve) => releases.push(resolve)),
+    );
+    engine.setManifest({
+      tracks: {
+        host: {
+          hash: "race",
+          chunk_sec: 60,
+          overlap_ms: 0,
+          chunk_count: 1,
+          duration_sec: 20,
+          urls: ["u"],
+        },
+      },
+    });
+    engine.setProject(
+      {
+        host: [
+          {
+            id: "c",
+            track_id: "host",
+            source_start: 0,
+            source_end: 20,
+            timeline_start: 0,
+            timeline_end: 20,
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            join_in_mode: "fade",
+            source_id: null,
+          },
+        ],
+      },
+      [{ id: "host", gain_db: 0, muted: false }],
+    );
+    engine.play(0);
+    engine.seek(5);
+    releases[1](new ArrayBuffer(64));
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    expect(created[0].start).toHaveBeenCalledWith(0, 5, 15);
+    releases[0](new ArrayBuffer(64));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(created).toHaveLength(1);
+    expect(created[0].stop).not.toHaveBeenCalled();
+    engine.dispose();
+    expect(created[0].stop).toHaveBeenCalledOnce();
   });
 });

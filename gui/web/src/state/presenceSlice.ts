@@ -80,7 +80,11 @@ export const createPresenceSlice: StateCreator<
   setTranscriptScrollRequest: (transcriptScrollRequest) =>
     set({ transcriptScrollRequest }),
   playbackRate: 1,
-  setPlaybackRate: (playbackRate) => set({ playbackRate }),
+  setPlaybackRate: (playbackRate) => {
+    if (get().playbackRate !== playbackRate) {
+      set({ playbackRate });
+    }
+  },
   startFollow: (clientId) => {
     const s = get();
     const target = rosterEntry(s.sessionClients, clientId);
@@ -135,6 +139,7 @@ export const createPresenceSlice: StateCreator<
         lastAppliedRevision: state.server_seq,
         lastAppliedCommandId: state.last_command_id,
         playheadSec: state.playhead_sec,
+        playheadSeekRevision: get().playheadSeekRevision + 1,
         lastAgentQuery: state.query,
         sessionRegion: state.region,
         playUntilSec:

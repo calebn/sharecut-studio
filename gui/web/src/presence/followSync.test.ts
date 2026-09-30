@@ -53,6 +53,33 @@ describe("followSync", () => {
     expect(expectedPlayheadSec(t, 2000, 10.2)).toBeCloseTo(10.2, 5);
   });
 
+  it("extrapolates stamped ghosts at the leader rate and holds paused/unstamped positions", () => {
+    const meta = {
+      transport: {
+        playing: true,
+        playhead_sec: 10,
+        rate: 1.5,
+        stamped_ns: 1e9,
+      },
+    };
+    expect(remotePlayheadSec({ meta }, 60, 2000)).toBe(11.5);
+    expect(remotePlayheadSec({ meta }, 11, 2000)).toBe(11);
+    expect(
+      remotePlayheadSec(
+        { meta: { transport: { ...meta.transport, playing: false } } },
+        60,
+        2000,
+      ),
+    ).toBe(10);
+    expect(
+      remotePlayheadSec(
+        { meta: { transport: { playing: true, playhead_sec: 10, rate: 1 } } },
+        60,
+        2000,
+      ),
+    ).toBe(10);
+  });
+
   it("plans seek / nudge / none by drift band", () => {
     const clock: NudgeClock = { startedAt: null };
     expect(planCorrection(1, 1.4, undefined, 0, clock).action).toBe("seek");

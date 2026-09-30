@@ -16,6 +16,8 @@ import { clampToSession } from "../utils/time";
 import { MIN_VIEWPORT_SPAN_SEC } from "../utils/timelineZoom.generated";
 import { clampZoomPxPerSec } from "../utils/zoom";
 
+import { serverNowMs } from "./clock";
+
 export { serverNowMs } from "./clock";
 
 export function expectedPlayheadSec(
@@ -37,14 +39,23 @@ export function expectedPlayheadSec(
 }
 
 /**
- * Remote playhead ghost position: the first finite of
- * `meta.transport.playhead_sec` and top-level `playhead_sec`, clamped to the
- * session; null when neither is usable.
+ * Stamped transport advances between presence frames. Unstamped or invalid
+ * transport falls back to its finite playhead or the top-level position.
  */
 export function remotePlayheadSec(
   client: Pick<SessionClient, "playhead_sec" | "meta">,
   durationSec: number,
+  nowMs = serverNowMs(),
 ): number | null {
+  const transport = client.meta?.transport;
+  if (transport?.stamped_ns != null && Number.isFinite(transport.stamped_ns)) {
+    const expected = expectedPlayheadSec(
+      transport,
+      nowMs,
+      Number.isFinite(durationSec) ? durationSec : Number.MAX_SAFE_INTEGER,
+    );
+    if (Number.isFinite(expected)) return expected;
+  }
   const raw = [client.meta?.transport?.playhead_sec, client.playhead_sec].find(
     (v): v is number => typeof v === "number" && Number.isFinite(v),
   );

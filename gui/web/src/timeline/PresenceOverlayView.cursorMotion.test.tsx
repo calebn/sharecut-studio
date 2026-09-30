@@ -84,3 +84,49 @@ it("forgets a departed client's cursor motion and builds the motion once", () =>
   expect(motionLog.created).toBe(1);
   unmount();
 });
+
+it("animates a stamped playhead with no cursor, then holds pause and releases rAF", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW_MS);
+  const leader: SessionClient = {
+    client_id: "lead",
+    role: "viewer",
+    last_seen_ns: NOW_MS * 1e6,
+    meta: {
+      transport: {
+        playing: true,
+        playhead_sec: 2,
+        rate: 1.5,
+        stamped_ns: NOW_MS * 1e6,
+      },
+    },
+  };
+  const { container, rerender, unmount } = render(view([leader]));
+  const ghost = container.querySelector<HTMLElement>(".presence-playhead");
+  expect(ghost?.style.left).toBe("20px");
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  expect(Number.parseFloat(ghost?.style.left ?? "0")).toBeCloseTo(35, 0);
+  rerender(
+    view([
+      {
+        ...leader,
+        meta: {
+          transport: {
+            playing: false,
+            playhead_sec: 4,
+            rate: 1.5,
+            stamped_ns: (NOW_MS + 1000) * 1e6,
+          },
+        },
+      },
+    ]),
+  );
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  expect(ghost?.style.left).toBe("40px");
+  expect(vi.getTimerCount()).toBe(0);
+  unmount();
+});
