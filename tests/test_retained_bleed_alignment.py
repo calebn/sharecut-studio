@@ -1141,3 +1141,81 @@ def test_saved_choice_does_not_lock_a_different_selected_recording(
     plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
     assert len(plan.proposals) == 1
     assert {"track_id": "direct", "reason": f"saved_{mode}_decision"} not in plan.skipped
+
+
+def test_untranscribed_secondary_recording_cannot_borrow_primary_phrase_authorization(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    before = p.model_dump(by_alias=True)
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "missing_direct_retained_phrase"} in plan.skipped
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 0
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_untranscribed_secondary_recording_cannot_authorize_quiet_destination_trim(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    before = p.model_dump(by_alias=True)
+    assert _api()._retained_words_survive_trim(p, "direct", 1.05, 1.18) is False
+    assert p.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("absolute_path", [False, True])
+def test_primary_recording_explicit_alias_keeps_legacy_phrase_authorization(
+    tmp_path: Path, absolute_path: bool
+) -> None:
+    from podcast_mcp.models import SourceRecording
+
+    p = _episode(tmp_path)
+    path = str(tmp_path / "raw" / "direct.wav") if absolute_path else "raw/direct.wav"
+    p.sources.append(SourceRecording(id="primary-alias", path=path, duration_sec=6))
+    next(clip for clip in p.clips if clip.track_id == "direct").source_id = "primary-alias"
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].source_id == "primary-alias"
+    assert plan.proposals[0].offset_sec == pytest.approx(-0.15, abs=0.002)
+
+
+@pytest.mark.parametrize("selection", ["secondary", "primary_alias", "absolute_primary_alias"])
+def test_gate_cannot_project_primary_foreign_verdict_onto_untranscribed_recording(
+    tmp_path: Path, selection: str
+) -> None:
+    from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+    from podcast_mcp.models import SourceRecording
+
+    p = _episode(tmp_path)
+    reference = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    _write(tmp_path / "raw" / "uncertain.wav", reference)
+    if selection == "secondary":
+        selected_path = "raw/secondary.wav"
+    else:
+        selected_path = "raw/direct.wav"
+    _write(tmp_path / selected_path, reference * 0.12)
+    path = str(tmp_path / selected_path) if selection == "absolute_primary_alias" else selected_path
+    p.sources.append(SourceRecording(id="selected", path=path, duration_sec=6))
+    next(clip for clip in p.clips if clip.track_id == "direct").source_id = "selected"
+    p.transcripts[0].words = [
+        TranscriptWord(
+            text="foreign",
+            start=1.3,
+            end=3.1,
+            suppressed=True,
+            audibility_status="bleed",
+            dominant_track="uncertain",
+        )
+    ]
+    p.transcripts[1].words = [TranscriptWord(text="foreign", start=1.3, end=3.1)]
+    before = p.model_dump(by_alias=True)
+    plan = build_bleed_gate_plan(p, "direct")
+    if selection == "secondary":
+        assert plan.attenuation_spans == ()
+    else:
+        assert plan.attenuation_spans
+    assert p.model_dump(by_alias=True) == before
