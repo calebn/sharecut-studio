@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from podcast_mcp.engines.session_timeline import SessionTimeline
+from podcast_mcp.edits.timeline_ops import ripple_delete, trim_clip_edge
 from podcast_mcp.gui.mapper import map_edit_boundaries
 from podcast_mcp.models import (
     Clip,
@@ -62,6 +63,44 @@ def test_map_edit_boundaries_includes_cutaway_words(minimal_project):
     assert join["timeline_join_sec"] == 5.0
     assert any(w["text"] == "gone" for w in join["cutaway_word_ids"])
     assert not any(w["text"] == "keep" for w in join["cutaway_word_ids"])
+
+
+def test_ripple_cut_boundary_previews_removed_word_and_trim_restores_it(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    project = ws.project
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=30.0),
+        )
+    ]
+    project.timeline.clips = [
+        Clip(id="full", track_id="host", source_start=0.0, source_end=30.0, timeline_start=0.0)
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="before", start=2.0, end=3.0),
+                TranscriptWord(text="removed", start=8.0, end=9.0),
+                TranscriptWord(text="after", start=18.0, end=19.0),
+            ],
+        )
+    ]
+
+    ripple_delete(project, 5.0, 15.0, use_inaudible_opt=False)
+    assert [w.text for w in project.transcripts[0].words] == ["before", "after"]
+    (join,) = map_edit_boundaries(project)
+    assert [w["text"] for w in join["cutaway_word_ids"]] == ["removed"]
+
+    trim_clip_edge(project, join["right_clip_id"], "in", 5.0)
+    assert [w.text for w in project.transcripts[0].words] == [
+        "before",
+        "removed",
+        "after",
+    ]
 
 
 def test_map_edit_boundaries_keeps_zero_length_word_at_left_clip_end(minimal_project):
