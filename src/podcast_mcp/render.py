@@ -5,7 +5,11 @@ import json
 from podcast_mcp.edits.transcript_reconcile import maybe_auto_reconcile
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.play_audit import premix_path
-from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
+from podcast_mcp.engines.reconciliation_state import (
+    audio_state_fingerprint,
+    mark_reconciliation_fresh,
+    mark_reconciliation_stale,
+)
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.util.progress import NullProgress, ProgressReporter, resolve_progress_task
@@ -28,6 +32,7 @@ def rerender_preview(
         track.transcript_gate for track in project.tracks
     )
     reconciliation_result: dict | None = None
+    reconciled_fingerprint: str | None = None
     with resolve_progress_task(
         "render",
         "Rendering preview",
@@ -39,6 +44,8 @@ def rerender_preview(
             reconciliation_result = maybe_auto_reconcile(
                 project, force=True, policy=policy, progress=None
             )
+            if not project.reconciliation_stale:
+                reconciled_fingerprint = project.last_reconciliation_hash
         runner.run(project, only_step="assemble_timeline", progress=NullProgress())
         task.advance(1, message="Assembled timeline", total=3)
         runner.run(project, only_step="mix_with_music", progress=NullProgress())
@@ -53,6 +60,10 @@ def rerender_preview(
                     policy=policy,
                     progress=None,
                 )
+            elif reconciled_fingerprint == audio_state_fingerprint(project):
+                mark_reconciliation_fresh(project)
+            if reconciliation_result is not None:
+                reconciliation_result["stale"] = project.reconciliation_stale
             task.advance(1, message="Reconciled transcript", total=3)
         else:
             mark_reconciliation_stale(project)

@@ -173,8 +173,7 @@ unresolved audio, other suppression statuses, unavailable evidence, and unsuppor
 evidence formats remain audible. Automatic hard attenuation requires a suppressed
 `bleed` word with a different dominant track, a matching raw peer copy that beats a
 time-shifted null, and an absolute residual below three PCM16 quantization steps.
-Coarse evidence runs at 8 kHz; bounded 48 kHz raw window reads veto owner activity
-outside that evidence band. Supported evidence is mono PCM16 WAV at up to 48 kHz.
+Coarse owner-activity evidence runs at 8 kHz. Bounded 48 kHz raw windows verify the proposed peer-copy residual across the wider band. They do not independently detect owner activity. Supported hard-gate evidence is mono PCM16 WAV at up to 48 kHz. Crossfade layouts abstain because their rendered clock can diverge from raw placements.
 Real room coloration or network delays can make every candidate abstain; this is
 reported in `gate_reasons`, and applying the flag does not prove bleed was reduced.
 

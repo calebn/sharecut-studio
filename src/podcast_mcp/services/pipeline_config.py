@@ -663,32 +663,32 @@ def suggest_pipeline_tuning(
                 )
             )
 
-        gate = row.get("gate_analysis") or {}
-        gate_issues = gate.get("issues") or []
-        if gate_issues or gate.get("risk") in ("high", "medium"):
-            transcript_gate = gate.get("gate_type") == "transcript"
-            message = (
-                f"{tid}: transcript gate overreach findings - review the acoustic gate and speech boundaries"
-                if transcript_gate
-                else f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)"
-            )
-            evidence = {
-                "risk": gate.get("risk"),
-                "issue_count": len(gate_issues),
-                "issues_sample": gate_issues[:3],
-            }
-            if transcript_gate:
-                evidence["gate_type"] = "transcript"
-            reasons.append(
-                _reason(
-                    "gate_overreach",
-                    message,
-                    evidence,
-                    track_id=tid,
+        gate_report = row.get("gate_analysis") or {}
+        for gate in gate_report.get("components") or [gate_report]:
+            gate_issues = gate.get("issues") or []
+            if gate_issues or gate.get("risk") in ("high", "medium"):
+                transcript_gate = gate.get("gate_type") == "transcript"
+                message = (
+                    f"{tid}: transcript gate overreach findings - review the acoustic gate and speech boundaries"
+                    if transcript_gate
+                    else f"{tid}: gate overreach findings - proposed a milder gate threshold (-6 dB)"
                 )
-            )
-            gate_overreach = gate_overreach or not transcript_gate
-
+                evidence = {
+                    "risk": gate.get("risk"),
+                    "issue_count": len(gate_issues),
+                    "issues_sample": gate_issues[:3],
+                }
+                if transcript_gate:
+                    evidence["gate_type"] = "transcript"
+                reasons.append(
+                    _reason(
+                        "gate_overreach",
+                        message,
+                        evidence,
+                        track_id=tid,
+                    )
+                )
+                gate_overreach = gate_overreach or not transcript_gate
         if row.get("high_bleed_warning"):
             reasons.append(
                 _reason(

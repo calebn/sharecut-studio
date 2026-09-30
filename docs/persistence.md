@@ -4,6 +4,18 @@ Durable stores used by Podcast MCP. **Before adding a new JSON sidecar or
 sqlite file**, read this doc and extend an existing store. Update this file and
 [AGENTS.md](../AGENTS.md) in the same change.
 
+
+Local retained-bleed timing choices extend the existing project JSON store:
+`editorial.retained_bleed_alignments` contains typed source-scoped auto/manual/declined
+records, offsets, placement provenance, and evidence revision. There is no new
+decision sidecar. `ProjectWorkspace.mutate()` publishes decisions and ordinary
+clip moves together; editable snapshots include the whole editorial section.
+Raw selected recordings remain immutable. The process-local 16-entry immutable
+gate-plan LRU is ephemeral; media, transcript, placement, and policy revisions
+invalidate its key. It stores neither PCM nor live project objects. Initial
+planning can still decode whole selected sources. Derived delay examples are bounded
+profile data, not authoritative timing choices.
+
 ## Inventory
 
 Transcript bleed gating stores its enabled flag and optional

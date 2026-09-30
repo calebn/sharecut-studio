@@ -278,8 +278,8 @@ def test_play_follow_transcript_track(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
-            side_effect=lambda _seg, out, _gain: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",
@@ -298,6 +298,155 @@ def test_play_follow_transcript_track(minimal_project, sample_wav) -> None:
         )
     assert result.tier == "transcript_gated"
     assert "follow-transcript:processed:host" in result.source_label
+
+
+def test_follow_transcript_single_track_caps_positive_output_gain(
+    minimal_project, sample_wav, tmp_path: Path
+) -> None:
+    import wave
+
+    import numpy as np
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    ws.project.track_by_id("host").fader_db = 12.0
+    segment = tmp_path / "loud_segment.wav"
+    sample_rate = 48_000
+    times = np.arange(sample_rate, dtype=np.float32) / sample_rate
+    signal = np.round(0.8 * np.sin(2 * np.pi * 440 * times) * 32767).astype("<i2")
+    with wave.open(str(segment), "wb") as audio_file:
+        audio_file.setnchannels(1)
+        audio_file.setsampwidth(2)
+        audio_file.setframerate(sample_rate)
+        audio_file.writeframes(signal.tobytes())
+
+    with patch.object(
+        PlayService,
+        "_follow_transcript_audio",
+        return_value=(segment, "segment_render", 0.0, 1.0),
+    ):
+        result = PlayService(ws).play(
+            PlayRequest(
+                source="processed:host",
+                start_sec=0.0,
+                end_sec=1.0,
+                follow_transcript=True,
+            ),
+            dry_run=True,
+            publish_audition=False,
+        )
+
+    with wave.open(str(result.wav_path), "rb") as rendered:
+        output = np.frombuffer(rendered.readframes(rendered.getnframes()), dtype="<i2")
+    peak = float(np.max(np.abs(output))) / 32768
+    assert 0.85 <= peak <= 0.90
+
+
+def test_follow_transcript_playback_uses_selected_clip_recordings(
+    minimal_project, sample_wav
+) -> None:
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.models import SourceRecording
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    raw = ws.project.workspace_path() / "raw"
+
+    def write_constant(path: Path, amplitude: float) -> None:
+        samples = np.full(4 * 48_000, amplitude, dtype=np.float32)
+        pcm16 = np.round(samples * 32767).astype("<i2")
+        with wave.open(str(path), "wb") as audio_file:
+            audio_file.setnchannels(1)
+            audio_file.setsampwidth(2)
+            audio_file.setframerate(48_000)
+            audio_file.writeframes(pcm16.tobytes())
+
+    write_constant(raw / "primary.wav", 0.05)
+    write_constant(raw / "source-a.wav", 0.25)
+    write_constant(raw / "source-b.wav", 0.5)
+    ws.project.track_by_id("host").media = MediaAsset(path="raw/primary.wav", duration_sec=4.0)
+    ws.project.sources.extend(
+        [
+            SourceRecording(id="a", path="raw/source-a.wav", speaker="Host"),
+            SourceRecording(id="b", path="raw/source-b.wav", speaker="Host"),
+        ]
+    )
+    ws.project.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=1.0,
+            source_id="a",
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=0.0,
+            source_end=0.5,
+            timeline_start=2.25,
+            source_id="b",
+        ),
+    ]
+    service = PlayService(ws)
+
+    with patch(
+        "podcast_mcp.engines.transcript_gated_play.apply_track_transcript_gate",
+        side_effect=lambda _project, _track_id, path, **_kwargs: path,
+    ):
+        result = service.play(
+            PlayRequest(
+                source="processed:host",
+                start_sec=1.0,
+                end_sec=3.0,
+                follow_transcript=True,
+            ),
+            dry_run=True,
+            publish_audition=False,
+        )
+
+    with wave.open(str(result.wav_path), "rb") as rendered:
+        audio = np.frombuffer(rendered.readframes(rendered.getnframes()), dtype="<i2")
+    assert float(np.abs(audio[:12_000]).mean()) / 32768 == pytest.approx(0.25, abs=0.01)
+    assert float(np.abs(audio[36_000:48_000]).mean()) / 32768 == pytest.approx(0.0, abs=0.002)
+    assert float(np.abs(audio[60_000:72_000]).mean()) / 32768 == pytest.approx(0.5, abs=0.01)
+
+
+def test_follow_transcript_mix_cache_tracks_peak_ceiling(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    service = PlayService(ws)
+    service._defaults = {"mix": {"premix_peak_ceiling_db": -1.0}}
+    segment = ws.project.artifacts_dir() / "segment.wav"
+    segment.parent.mkdir(parents=True, exist_ok=True)
+    segment.write_bytes(sample_wav.read_bytes())
+    ceilings: list[float] = []
+
+    def render_mix(_segments, output: Path, *, peak_ceiling_db: float | None = None) -> Path:
+        ceilings.append(float(peak_ceiling_db))
+        output.write_bytes(sample_wav.read_bytes())
+        return output
+
+    with (
+        patch.object(
+            PlayService,
+            "_follow_transcript_audio",
+            return_value=(segment, "segment_render", 0.0, 1.0),
+        ),
+        patch(
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=render_mix,
+        ),
+        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
+        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
+    ):
+        first = service._play_follow_transcript_mix(0.0, 1.0, False, dry_run=True, player=None)
+        service._defaults["mix"]["premix_peak_ceiling_db"] = -6.0
+        second = service._play_follow_transcript_mix(0.0, 1.0, False, dry_run=True, player=None)
+
+    assert first.wav_path != second.wav_path
+    assert ceilings == [-1.0, -6.0]
 
 
 def test_play_follow_transcript_mix(minimal_project, sample_wav) -> None:
@@ -990,15 +1139,17 @@ def _follow_patches(seg_out, *, mix=None, track=None):
         patch.object(
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
-        patch("podcast_mcp.services.play.FFmpegEngine.apply_gain", side_effect=track),
-        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=mix),
+        patch(
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=track or mix,
+        ),
         patch("podcast_mcp.services.play.word_intervals", return_value=[(0.0, 0.4)]),
         patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
     )
 
 
 def _play_follow(ws, source, patches):
-    with patches[0], patches[1], patches[2], patches[3], patches[4]:
+    with patches[0], patches[1], patches[2], patches[3]:
         return PlayService(ws).play(
             PlayRequest(source=source, start_sec=0.0, end_sec=1.0, follow_transcript=True),
             dry_run=True,
@@ -1047,7 +1198,7 @@ def test_follow_transcript_track_publishes_atomically(minimal_project, sample_wa
     seg_out.touch()
     targets: list[Path] = []
 
-    def _render(_seg, out, _gain):
+    def _render(_segments, out, **_kwargs):
         targets.append(out)
         out.write_bytes(b"RIFF")
         return out
@@ -1064,10 +1215,6 @@ def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
     with (
         patch.object(
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
-        ),
-        patch(
-            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
-            side_effect=lambda _seg, out, _gain: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
@@ -1105,8 +1252,8 @@ def test_play_follow_transcript_track_source(minimal_project, sample_wav) -> Non
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.apply_gain",
-            side_effect=lambda _seg, out, _gain: out.touch() or None,
+            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
         patch(
             "podcast_mcp.services.play.word_intervals",

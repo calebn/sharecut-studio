@@ -69,3 +69,8 @@ Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharec
 
 Shortcut cheatsheet: [daw-shortcuts.md](daw-shortcuts.md) / [ux shortcuts](https://ux.sharecut.studio/#/shortcuts).
 Contributor recipe stays in this file; the JSON contract is [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json).
+
+
+### Local retained-bleed alignment
+
+`align_retained_bleed_tool` and `podcast edit align-retained-bleed` preview or apply supported local phrase corrections. `set_retained_bleed_alignment_mode_tool` and `podcast edit bleed-alignment-choice` save or reset user timing decisions. `apply_transcript_gate_tool` checks retained-bleed alignment by default. See [audio engineering](audio-engineering.md#retained-bleed-during-overlapping-speech) for scope, persistent choices, and abstention behavior.

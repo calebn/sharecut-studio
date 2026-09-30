@@ -1,7 +1,6 @@
-"""Raw selected media projected onto the shared timeline for acoustic evidence."""
-
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +11,7 @@ from podcast_mcp.engines.session_timeline import (
     TimelineClipSpan,
     clip_timeline_overlap_to_source,
 )
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import ClipJoinMode, EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import run
@@ -110,6 +109,7 @@ def raw_timeline_window(
     end: float,
     *,
     sample_rate: int = 48_000,
+    preserve_channels: bool = False,
 ) -> np.ndarray:
     """Decode only selected raw clip windows, retaining all requested frequencies."""
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
@@ -119,19 +119,21 @@ def raw_timeline_window(
         raise ValueError("raw timeline window is unavailable")
     spans = SessionTimeline(project).lane_clip_spans(track_id)
     if not spans:
-        return load_mono_window(
+        loader = load_wav_channels_window if preserve_channels else load_mono_window
+        return loader(
             track_audio_path(project, track_id),
             start_sec=start,
             duration_sec=end - start,
             sample_rate=sample_rate,
         )
-    samples = np.zeros(round((end - start) * sample_rate), dtype=np.float32)
+    samples: np.ndarray | None = None
     for span in spans:
         mapped = clip_timeline_overlap_to_source(span.clip, start, end)
         if mapped is None:
             continue
         lo, hi = max(start, float(span.timeline_start)), min(end, float(span.timeline_end))
-        window = load_mono_window(
+        loader = load_wav_channels_window if preserve_channels else load_mono_window
+        window = loader(
             resolve_clip_audio_path(project, track, span.clip),
             start_sec=float(mapped[0]),
             duration_sec=float(mapped[1] - mapped[0]),
@@ -139,7 +141,65 @@ def raw_timeline_window(
         )
         offset = round((lo - start) * sample_rate)
         count = round((hi - lo) * sample_rate)
-        if window.size < count:
+        if window.shape[0] < count:
             raise ValueError(f"clip {span.clip.id} source samples are unavailable")
+        if samples is None:
+            samples = np.zeros(
+                (round((end - start) * sample_rate), *window.shape[1:]), dtype=np.float32
+            )
+        if samples.shape[1:] != window.shape[1:]:
+            raise ValueError("selected media channel layouts differ")
         samples[offset : offset + count] += window[:count]
-    return samples
+    return (
+        samples
+        if samples is not None
+        else np.zeros(
+            (round((end - start) * sample_rate), 1)
+            if preserve_channels
+            else round((end - start) * sample_rate),
+            dtype=np.float32,
+        )
+    )
+
+
+def load_wav_channels_window(
+    path: Path, *, start_sec: float, duration_sec: float, sample_rate: int
+) -> np.ndarray:
+    """Bounded PCM16 reads retain every channel for speech-preservation vetoes."""
+    with wave.open(str(path), "rb") as source:
+        rate, channels = source.getframerate(), source.getnchannels()
+        if source.getsampwidth() != 2 or rate > sample_rate or channels not in (1, 2):
+            raise ValueError(
+                "full-band channel evidence needs mono/stereo PCM16 at the evidence rate or below"
+            )
+        first = round(start_sec * rate)
+        count = round(duration_sec * rate)
+        if first < 0 or first + count > source.getnframes():
+            raise ValueError("source channel samples are unavailable")
+        source.setpos(first)
+        samples = (
+            np.frombuffer(source.readframes(count), dtype="<i2")
+            .reshape(-1, channels)
+            .astype(np.float32)
+            / 32768
+        )
+    if samples.shape[0] != count:
+        raise ValueError("source channel samples are unavailable")
+    if rate == sample_rate:
+        return samples
+    positions = np.arange(round(duration_sec * sample_rate)) * rate / sample_rate
+    return np.column_stack(
+        [np.interp(positions, np.arange(count), samples[:, channel]) for channel in range(channels)]
+    ).astype(np.float32)
+
+
+def raw_evidence_layout_reason(project: EpisodeProject, track_id: str) -> str | None:
+    """Raw placement evidence requires the renderer to retain the declared timeline clock."""
+    if any(
+        clip.track_id == track_id
+        and clip.join_in_mode == ClipJoinMode.CROSSFADE
+        and clip.fade_in_ms > 0
+        for clip in project.clips
+    ):
+        return "unsupported_crossfade_evidence_clock"
+    return None

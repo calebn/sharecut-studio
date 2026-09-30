@@ -9,8 +9,8 @@ from podcast_mcp.engines.play_audit import proxy_render_hash, stem_is_fresh, tra
 from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
 from podcast_mcp.render import rerender_preview
-from podcast_mcp.services.play import PlayRequest, PlayService
 from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.play import PlayRequest, PlayService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -174,3 +174,53 @@ def test_refresh_reconciles_current_ungated_peer_not_its_stale_stem(tmp_path):
     rerender_preview(project)
     guest = project.transcript_for_track("guest").words[0]
     assert guest.audibility_status != "inaudible"
+
+
+def test_refresh_does_not_clear_stale_when_audio_changes_after_reconciliation(
+    tmp_path, monkeypatch
+):
+    from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
+    from podcast_mcp.pipeline import PipelineRunner
+
+    project = audio_project(tmp_path)
+    original = PipelineRunner.run
+
+    def change_after_evidence(self, p, **kwargs):
+        result = original(self, p, **kwargs)
+        if kwargs.get("only_step") == "mix_with_music":
+            p.clips[0].fade_in_ms += 30
+            mark_reconciliation_stale(p)
+        return result
+
+    monkeypatch.setattr(PipelineRunner, "run", change_after_evidence)
+    result = rerender_preview(project)
+    assert project.reconciliation_stale is True
+    assert result["reconciliation"]["stale"] is True
+
+
+def test_same_track_noise_and_transcript_gates_keep_separate_attribution(tmp_path, monkeypatch):
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+    from podcast_mcp.models import ProcessingChain, ProcessingEffect
+
+    project = audio_project(tmp_path)
+    project.processing_chains = [
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="agate")])
+    ]
+    with wave.open(str(tmp_path / "raw" / "host.wav"), "rb") as source:
+        samples = np.frombuffer(source.readframes(source.getnframes()), dtype="<i2").copy()
+    samples[16000 : int(1.1 * 16000)] = 0
+    stem = project.artifacts_dir() / "tracks" / "host.wav"
+    stem.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(stem), "wb") as output:
+        output.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        output.writeframes(samples.tobytes())
+    before_transcript_gate = TrackRmsCache.from_timeline_stem(stem)
+    monkeypatch.setattr(
+        "podcast_mcp.engines.audio_audit._pre_transcript_gate_cache",
+        lambda *_: before_transcript_gate,
+    )
+    report = analyze_gate_overreach(project, "host")
+    assert report["gate_type"] == "combined"
+    by_type = {part["gate_type"]: part for part in report["components"]}
+    assert by_type["transcript"]["risk"] == "none"
+    assert by_type["noise"]["issue_count"] > 0

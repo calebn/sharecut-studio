@@ -562,3 +562,8 @@ The home-speaker gate and track enrollment reuse one bounded PCM WAV reader per
 track. Each window keeps the same frame rounding and resampling as the standard
 decoder, without loading the whole stem. The gate indexes bleed windows while
 retaining the first window in scan order when several overlap a word.
+
+
+### Acoustic follow-up when speakers overlap
+
+Keep both speakers when the off-mic capture cannot be removed safely. The bleed-gate workflow attempts supported local alignment and preserves unresolved audio. Inspect alignment proposals and `skipped` reasons before judging the mix. Saved manual or declined timing choices remain authoritative after reopening. See [retained bleed during overlapping speech](audio-engineering.md#retained-bleed-during-overlapping-speech) for tools and limits.

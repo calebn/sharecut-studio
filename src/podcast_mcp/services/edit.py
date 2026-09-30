@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import (
@@ -71,6 +72,12 @@ from podcast_mcp.edits.join_modes import (
     set_clip_join_mode,
 )
 from podcast_mcp.edits.loudness import check_loudness
+from podcast_mcp.edits.retained_bleed_alignment import (
+    AlignmentPlan,
+    apply_retained_bleed_alignment,
+    plan_retained_bleed_alignment,
+    set_retained_bleed_alignment_mode,
+)
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     silence_islands_from_hops,
@@ -139,6 +146,7 @@ from podcast_mcp.effects.presets import (
 )
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
+from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
@@ -158,6 +166,14 @@ def _user_transcript_edit(
         return run_user_transcript_edit(p, track_id, fn)
 
     return run
+
+
+def _alignment_preview(plan: AlignmentPlan) -> dict[str, Any]:
+    return {
+        "proposed_count": len(plan.proposals),
+        "proposals": [asdict(proposal) for proposal in plan.proposals],
+        "skipped": list(plan.skipped),
+    }
 
 
 class EditService:
@@ -1611,6 +1627,68 @@ class EditService:
             progress=progress,
         )
 
+    def align_retained_bleed(
+        self,
+        *,
+        track_id: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        apply: bool = True,
+        override_placement_lock: bool = False,
+        lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
+    ) -> dict[str, Any]:
+        def plan(p: EpisodeProject) -> AlignmentPlan:
+            return plan_retained_bleed_alignment(
+                p,
+                track_id=track_id,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                override_placement_lock=override_placement_lock,
+            )
+
+        if not apply:
+            return _alignment_preview(plan(self.ws.project))
+
+        def mutate(p: EpisodeProject) -> dict[str, Any]:
+            result = apply_retained_bleed_alignment(p, plan(p))
+            if result["applied_count"]:
+                rerender_preview(p, reconcile=False)
+            return result
+
+        with render_lock(self.ws.project, timeout=lock_timeout):
+            return self.ws.mutate(
+                "before retained bleed alignment", "after retained bleed alignment", mutate
+            )
+
+    def set_bleed_alignment_mode(
+        self,
+        decision_id: str,
+        mode: Literal["auto", "manual", "declined"],
+        *,
+        track_id: str | None = None,
+        start_sec: float | None = None,
+        end_sec: float | None = None,
+        override_placement_lock: bool = False,
+    ) -> dict[str, Any]:
+        def mutate(p: EpisodeProject) -> dict[str, Any]:
+            proposal = None
+            if not any(d.id == decision_id for d in p.editorial.retained_bleed_alignments):
+                plan = plan_retained_bleed_alignment(
+                    p,
+                    track_id=track_id,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    override_placement_lock=override_placement_lock,
+                )
+                proposal = next(
+                    (item for item in plan.proposals if item.decision_id == decision_id), None
+                )
+            return set_retained_bleed_alignment_mode(p, decision_id, mode, proposal=proposal)
+
+        return self.ws.mutate(
+            "before bleed alignment choice", "after bleed alignment choice", mutate
+        )
+
     def apply_bleed_mute(
         self,
         *,
@@ -1619,40 +1697,52 @@ class EditService:
         start_sec: float | None = None,
         end_sec: float | None = None,
         apply: bool = True,
+        align_retained_bleed: bool = True,
+        override_placement_lock: bool = False,
         progress: ProgressReporter | None = None,
         lock_timeout: float = RENDER_LOCK_TIMEOUT_SEC,
         cancel_check: Callable[[], bool] | None = None,
     ) -> dict:
-        tid: str | None = None
-        if track_id or speaker:
-            tid = self._resolve(track_id, speaker)
+        tid = self._resolve(track_id, speaker) if track_id or speaker else None
 
-        if not apply:
-            return apply_transcript_bleed_mute(
-                self.ws.project,
-                track_id=tid,
-                start_sec=start_sec,
-                end_sec=end_sec,
-                dry_run=True,
-                progress=progress,
-            )
-
-        def mutate(p) -> dict:
-            return apply_transcript_bleed_mute(
+        def run(p: EpisodeProject, *, dry_run: bool) -> dict:
+            alignment = None
+            if align_retained_bleed:
+                plan = plan_retained_bleed_alignment(
+                    p,
+                    track_id=tid,
+                    start_sec=start_sec,
+                    end_sec=end_sec,
+                    override_placement_lock=override_placement_lock,
+                )
+                if plan.proposals or plan.skipped:
+                    alignment = (
+                        _alignment_preview(plan)
+                        if dry_run
+                        else apply_retained_bleed_alignment(p, plan)
+                    )
+                    if not dry_run and alignment["applied_count"]:
+                        rerender_preview(p, reconcile=False, progress=progress)
+            result = apply_transcript_bleed_mute(
                 p,
                 track_id=tid,
                 start_sec=start_sec,
                 end_sec=end_sec,
-                dry_run=False,
+                dry_run=dry_run,
                 progress=progress,
             )
+            if alignment is not None:
+                result["alignment"] = alignment
+            return result
 
-        # The render lock comes before mutate()'s project locks (lock order, #482).
+        if not apply:
+            return run(self.ws.project, dry_run=True)
+
         with render_lock(self.ws.project, timeout=lock_timeout, cancel_check=cancel_check):
             return self.ws.mutate(
                 "before apply bleed mute",
                 "after apply bleed mute",
-                mutate,
+                lambda p: run(p, dry_run=False),
             )
 
     def gate_overreach(

@@ -1876,7 +1876,9 @@
           "bleed_words_tool",
           "apply_bleed_suppression_tool",
           "overlap_duplicates_tool",
-          "apply_transcript_gate_tool"
+          "apply_transcript_gate_tool",
+          "align_retained_bleed_tool",
+          "set_retained_bleed_alignment_mode_tool"
         ],
         "cli": "podcast edit",
         "skill": "podcast-audio-cleanup"

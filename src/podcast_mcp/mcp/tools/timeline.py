@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 from mcp.server import MCPServer
 
@@ -776,11 +777,14 @@ def apply_transcript_gate_tool(
     end_sec: float | None = None,
     apply: bool = True,
     dry_run: bool = False,
+    align_retained_bleed: bool = True,
+    override_placement_lock: bool = False,
 ) -> str:
     """Apply an acoustic bleed plan to fresh dialogue stems and persist its source scope.
 
     Retained speech and unresolved audio stay open. Later renders reuse the plan's
-    policy and scope. Transcript metadata is unchanged.
+    policy and scope. Supported local retained-bleed alignment runs by default and
+    respects saved timing choices. Alignment can trigger normal transcript reconciliation.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
@@ -790,7 +794,61 @@ def apply_transcript_gate_tool(
             start_sec=start_sec,
             end_sec=end_sec,
             apply=apply and not dry_run,
+            align_retained_bleed=align_retained_bleed,
+            override_placement_lock=override_placement_lock,
             lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+        )
+    )
+
+
+def align_retained_bleed_tool(
+    project_path: str,
+    track_id: str | None = None,
+    start_sec: float | None = None,
+    end_sec: float | None = None,
+    apply: bool = True,
+    override_placement_lock: bool = False,
+) -> str:
+    """Align supported complete direct phrases locally while keeping uncertain audio intact.
+
+    Preview with apply=False. Saved manual/declined decisions take priority.
+    Legacy placement overrides require an explicit timeline window.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        EditService(ws).align_retained_bleed(
+            track_id=track_id,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            apply=apply,
+            override_placement_lock=override_placement_lock,
+            lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+        )
+    )
+
+
+def set_retained_bleed_alignment_mode_tool(
+    project_path: str,
+    decision_id: str,
+    mode: Literal["auto", "manual", "declined"],
+    track_id: str | None = None,
+    start_sec: float | None = None,
+    end_sec: float | None = None,
+    override_placement_lock: bool = False,
+) -> str:
+    """Save a timing choice for an applied decision or a proposal from the same window.
+
+    Manual and declined choices prevent later automatic correction; auto resets that choice.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        EditService(ws).set_bleed_alignment_mode(
+            decision_id,
+            mode,
+            track_id=track_id,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            override_placement_lock=override_placement_lock,
         )
     )
 
@@ -831,6 +889,8 @@ def register(mcp: MCPServer) -> None:
         reconcile_transcript_tool,
         apply_bleed_suppression_tool,
         apply_transcript_gate_tool,
+        align_retained_bleed_tool,
+        set_retained_bleed_alignment_mode_tool,
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(move_clips_tool)
@@ -886,5 +946,7 @@ def register(mcp: MCPServer) -> None:
         apply_bleed_suppression_tool,
         overlap_duplicates_tool,
         apply_transcript_gate_tool,
+        align_retained_bleed_tool,
+        set_retained_bleed_alignment_mode_tool,
     ):
         mcp.tool()(notify_after_mutation(fn) if fn in mutating else fn)

@@ -1,11 +1,11 @@
-"""Conservative acoustic bleed candidates, independent of already gated output."""
-
 from __future__ import annotations
 
+import json
 import math
 import wave
 from contextlib import suppress
 from dataclasses import dataclass
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -16,16 +16,26 @@ from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
     clip_timeline_overlap_to_source,
+    origin_track_id_for_clip,
 )
-from podcast_mcp.engines.ungated_audio import raw_timeline_samples, raw_timeline_window
+from podcast_mcp.engines.ungated_audio import (
+    raw_evidence_layout_reason,
+    raw_timeline_samples,
+    raw_timeline_window,
+)
 from podcast_mcp.models import EpisodeProject, TranscriptGateScope
-from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db, linear_rms
-from podcast_mcp.util.intervals import intersect_intervals, merge_intervals
+from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db_stream, linear_rms
+from podcast_mcp.util.intervals import (
+    HalfOpenIntervalIndex,
+    intersect_intervals,
+    merge_intervals,
+    subtract_intervals,
+)
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
-BLEED_GATE_REV = 1
+BLEED_GATE_REV = 2
 EVIDENCE_RATE = 8000
 VERIFICATION_RATE = 48_000
 GATE_FADE_SEC = 0.012
@@ -33,6 +43,15 @@ _FRAME_SEC = 0.08
 _MAX_LAG_SEC = 0.025
 _MIN_COPY_CORRELATION = 0.98
 _PCM_UNCERTAINTY = 3 / 32768
+_NULL_SHIFT_SEC = 0.32
+_MIN_NULL_MARGIN = 0.15
+_MAX_COPY_GAIN = 0.5
+_OWNER_FRAME_SEC = 0.02
+_OWNER_HOP_SEC = 0.01
+_OWNER_FLOOR_DB = -80.0
+_OWNER_FLOOR_PERCENTILE = 10
+_OWNER_FLOOR_MARGIN_DB = 6
+_OWNER_BRIDGE_FRAMES = 15
 
 
 @dataclass(frozen=True)
@@ -42,11 +61,21 @@ class BleedGatePlan:
     reasons: tuple[str, ...] = ()
     fade_sec: float = GATE_FADE_SEC
 
+    @cached_property
+    def _attenuation_index(self) -> HalfOpenIntervalIndex:
+        return HalfOpenIntervalIndex.build(self.attenuation_spans)
+
     def gains_for_frames(self, first_frame: int, count: int, rate: int) -> np.ndarray:
         """Gain on the absolute clock, with transitions inside justified attenuation."""
         gains = np.ones(count, dtype=np.float32)
+        overlapping = self._attenuation_index.overlapping_ordinals(
+            first_frame / rate, (first_frame + count) / rate
+        )
+        if not overlapping:
+            return gains
         positions = np.arange(first_frame, first_frame + count)
-        for start, end in self.attenuation_spans:
+        for ordinal in overlapping:
+            start, end = self.attenuation_spans[ordinal]
             lo, hi = math.ceil(start * rate), math.ceil(end * rate)
             width = min(round(self.fade_sec * rate), (hi - lo) // 2)
             selected = (positions >= lo) & (positions < hi)
@@ -117,36 +146,29 @@ def _scope_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float
     return merge_intervals(intervals)
 
 
-def _subtract(
-    spans: list[tuple[float, float]], protected: list[tuple[float, float]]
-) -> list[tuple[float, float]]:
-    for lo, hi in merge_intervals(protected):
-        remaining: list[tuple[float, float]] = []
-        for start, end in spans:
-            if hi <= start or lo >= end:
-                remaining.append((start, end))
-            else:
-                if lo > start:
-                    remaining.append((start, lo))
-                if hi < end:
-                    remaining.append((hi, end))
-        spans = remaining
-    return spans
-
-
 def _owner_protection(
     samples: np.ndarray, seeds: list[tuple[float, float]]
 ) -> list[tuple[float, float]]:
-    frame, hop = round(0.02 * EVIDENCE_RATE), round(0.01 * EVIDENCE_RATE)
+    frame, hop = round(_OWNER_FRAME_SEC * EVIDENCE_RATE), round(_OWNER_HOP_SEC * EVIDENCE_RATE)
     if not seeds or samples.size < frame:
         return seeds
-    levels = frame_rms_db(samples, frame, hop)
-    floor = max(-80.0, float(np.percentile(levels, 10)) + 6)
-    active = bridge_short_dips(levels > floor, 15)
-    runs = [(lo * 0.01, hi * 0.01 + 0.01) for lo, hi in bool_runs(active)]
+    levels = frame_rms_db_stream(
+        (samples[first : first + EVIDENCE_RATE] for first in range(0, samples.size, EVIDENCE_RATE)),
+        frame,
+        hop,
+    )
+    floor = max(
+        _OWNER_FLOOR_DB,
+        float(np.percentile(levels, _OWNER_FLOOR_PERCENTILE)) + _OWNER_FLOOR_MARGIN_DB,
+    )
+    active = bridge_short_dips(levels > floor, _OWNER_BRIDGE_FRAMES)
+    runs = [
+        (lo * _OWNER_HOP_SEC, hi * _OWNER_HOP_SEC + _OWNER_HOP_SEC) for lo, hi in bool_runs(active)
+    ]
     expanded = list(seeds)
+    seed_index = HalfOpenIntervalIndex.build(seeds)
     for start, end in runs:
-        if any(start < hi and end > lo for lo, hi in seeds):
+        if seed_index.overlaps(start, end):
             expanded.append((start, end))
     return merge_intervals(expanded)
 
@@ -183,7 +205,10 @@ def _verified_copy_frames(
         scale = xy / xx
         residual = linear_rms(y - scale * x)
         null_correlation = 0.0
-        for offset in (-round(0.32 * EVIDENCE_RATE), round(0.32 * EVIDENCE_RATE)):
+        for offset in (
+            -round(_NULL_SHIFT_SEC * EVIDENCE_RATE),
+            round(_NULL_SHIFT_SEC * EVIDENCE_RATE),
+        ):
             null_first, null_last = peer_first + offset, peer_last + offset
             if null_first < 0 or null_last > peer.size:
                 continue
@@ -196,8 +221,8 @@ def _verified_copy_frames(
                 )
         if (
             correlation >= _MIN_COPY_CORRELATION
-            and correlation - null_correlation >= 0.15
-            and abs(scale) <= 0.5
+            and correlation - null_correlation >= _MIN_NULL_MARGIN
+            and abs(scale) <= _MAX_COPY_GAIN
             and residual <= _PCM_UNCERTAINTY
         ):
             spans.append((first / EVIDENCE_RATE, last / EVIDENCE_RATE))
@@ -251,6 +276,27 @@ def _full_band_copy(
     return linear_rms(own - peer * scale) <= _PCM_UNCERTAINTY
 
 
+class _UnavailableGateEvidence(Exception):
+    def __init__(self, plan: BleedGatePlan) -> None:
+        super().__init__("gate evidence is temporarily unavailable")
+        self.plan = plan
+
+
+@lru_cache(maxsize=16)
+def _cached_bleed_gate_plan(
+    project_json: str, track_id: str, _media_revision: str, source_clock: bool, ignore_scope: bool
+) -> BleedGatePlan:
+    plan = _compute_bleed_gate_plan(
+        EpisodeProject.model_validate_json(project_json),
+        track_id,
+        source_clock=source_clock,
+        ignore_scope=ignore_scope,
+    )
+    if any(reason.startswith("unavailable_") for reason in plan.reasons):
+        raise _UnavailableGateEvidence(plan)
+    return plan
+
+
 def build_bleed_gate_plan(
     project: EpisodeProject,
     track_id: str,
@@ -258,11 +304,33 @@ def build_bleed_gate_plan(
     source_clock: bool = False,
     ignore_scope: bool = False,
 ) -> BleedGatePlan:
-    """Plan only independently verified foreign copies; all unresolved audio stays open."""
+    """Reuse immutable acoustic evidence until selected media, metadata, or policy changes."""
+    serialized = project.model_dump_json(
+        by_alias=True, include={"version", "meta", "sources", "timeline", "transcript_data"}
+    )
+    revision = json.dumps(
+        bleed_gate_payload(project, track_id), sort_keys=True, separators=(",", ":")
+    )
+    try:
+        return _cached_bleed_gate_plan(serialized, track_id, revision, source_clock, ignore_scope)
+    except _UnavailableGateEvidence as exc:
+        return exc.plan
+
+
+def _compute_bleed_gate_plan(
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    source_clock: bool = False,
+    ignore_scope: bool = False,
+) -> BleedGatePlan:
     transcript = project.transcript_for_track(track_id)
     if transcript is None:
         return BleedGatePlan(reasons=("missing_transcript",))
     timeline = SessionTimeline(project)
+    related = {track_id} | {word.dominant_track for word in transcript.words if word.dominant_track}
+    if any(raw_evidence_layout_reason(project, tid) for tid in related):
+        return BleedGatePlan(reasons=("unsupported_crossfade_evidence_clock",))
     if source_clock:
         from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
@@ -338,7 +406,7 @@ def build_bleed_gate_plan(
             if not verified:
                 reasons.add("uncertain_foreign_ownership")
             attenuation.extend(verified)
-    attenuation = _subtract(merge_intervals(attenuation), protected)
+    attenuation = subtract_intervals(merge_intervals(attenuation), merge_intervals(protected))
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
@@ -395,6 +463,11 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
                 "track_id": tid,
                 "media": media,
                 "clips": [span.clip.model_dump(mode="json") for span in clips],
+                "origin_placements": [
+                    clip.model_dump(mode="json")
+                    for clip in project.clips
+                    if origin_track_id_for_clip(project, clip) == tid
+                ],
                 "words": [
                     {
                         "start": word.start,
@@ -421,15 +494,15 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "max_lag_sec": _MAX_LAG_SEC,
             "min_copy_correlation": _MIN_COPY_CORRELATION,
             "max_residual": _PCM_UNCERTAINTY,
-            "null_shift_sec": 0.32,
-            "min_null_margin": 0.15,
-            "max_copy_gain": 0.5,
-            "owner_frame_sec": 0.02,
-            "owner_hop_sec": 0.01,
-            "owner_floor_db": -80.0,
-            "owner_floor_percentile": 10,
-            "owner_floor_margin_db": 6,
-            "owner_bridge_frames": 15,
+            "null_shift_sec": _NULL_SHIFT_SEC,
+            "min_null_margin": _MIN_NULL_MARGIN,
+            "max_copy_gain": _MAX_COPY_GAIN,
+            "owner_frame_sec": _OWNER_FRAME_SEC,
+            "owner_hop_sec": _OWNER_HOP_SEC,
+            "owner_floor_db": _OWNER_FLOOR_DB,
+            "owner_floor_percentile": _OWNER_FLOOR_PERCENTILE,
+            "owner_floor_margin_db": _OWNER_FLOOR_MARGIN_DB,
+            "owner_bridge_frames": _OWNER_BRIDGE_FRAMES,
         },
         "scope": [scope.model_dump(mode="json") for scope in track.transcript_gate_scope]
         if track.transcript_gate_scope is not None

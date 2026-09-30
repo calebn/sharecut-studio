@@ -12,6 +12,19 @@ Raw recordings often arrive as **several files** in one folder. The episode work
 
 ## Pipeline conversation align
 
+Local retained-bleed alignment addresses a different problem from conversation
+placement: a remote speaker can be present on another mic with a network delay
+even after the recorders share a conversation clock. Where the conservative bleed
+gate must retain mixed audio, the planner may isolate and move one complete
+direct-source phrase inside the requested region. It preserves the mixed lane,
+requires quiet source slack on both ends, and rejects drift, conflicting peer
+delays, or weak evidence. Mix-muted direct or retained lanes are skipped. Quiet destination overlap is
+trimmed inside the affected region, without removing retained-word coverage.
+Existing manual recorder placement and saved local
+manual/declined decisions are honored. Bypassing a recorder lock requires an
+explicit scoped request and records override provenance; saved local choices
+still take precedence. This does not move the whole lane or stretch voiced audio. Declared crossfade joins abstain with `unsupported_crossfade_evidence_clock`, because their rendered clock can differ from raw clip placement.
+
 After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
 
 Human acceptance covers the current alignment plan as well as clip placement. A new plan, including a held acoustic candidate, needs a fresh review even when clip geometry is unchanged. If every acoustic confirmation window fails to decode, the large move remains an unconfirmed candidate held at identity for review.

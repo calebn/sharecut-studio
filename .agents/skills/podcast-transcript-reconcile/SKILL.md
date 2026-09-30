@@ -29,7 +29,7 @@ The transcript is a **derived view** of audio. Reconciliation measures word-leve
 | `bleed_words_tool` | Bleed-tagged words only (acoustic dominance) |
 | `apply_bleed_suppression_tool` | Suppress bleed on wrong track; optional time range and exclude word keys |
 | `overlap_duplicates_tool` | Read-only overlapping word pairs with text-match hints |
-| `apply_transcript_gate_tool` | Gate stems to non-suppressed words (acoustic follow-up; see podcast-mute-bleed) |
+| `apply_transcript_gate_tool` | Attenuate measured directed bleed while preserving owner speech and uncertain or untranscribed audio (see podcast-mute-bleed) |
 | `analyze_cleanup_tool` | Includes flagged/bleed counts and staleness in full cleanup report |
 
 **CLI:** `podcast edit audibility-map`, `flagged-words`, `bleed-words`, `suppress-bleed`, `overlap-duplicates`, `reconciliation-status`, `reconcile-transcript` (applies by default; `--dry-run` to preview), `apply-bleed-mute`
@@ -101,7 +101,7 @@ Full tuning guide: [docs/transcript-reconcile.md](../../docs/transcript-reconcil
 4. `apply_bleed_suppression_tool` (applies by default; bleed-only, not inaudible). Use `dry_run=true` to preview. `exclude_words_json` for keep-words; scope with `start_sec` / `end_sec`.
 5. Re-attribution: bleed on track A dominant on track B → suppress on A only (B already has Whisper output).
 
-**When premix sounds fine:** leave audio unchanged; fix transcript metadata only. Gates trim silence between words, not speech-overlap bleed.
+**When premix sounds fine:** leave audio unchanged; fix transcript metadata only. The audio gate attenuates only verified directed bleed. It preserves owner speech and uncertain or untranscribed audio, so it does not act as a word-time whitelist.
 
 ## Transcript first, audio second
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import contextlib
 from collections.abc import Sequence
 from pathlib import Path
+from statistics import median
 from typing import TYPE_CHECKING, Any, Literal
 
 from podcast_mcp.edits.clips_ops import clips_for_track, is_session_join
@@ -170,6 +171,21 @@ HYPOTHESIS_CATALOG: dict[str, dict[str, Any]] = {
         "meaning": (
             "Voiced speech runs through a clip edge at this join: the cut removed the start "
             "(clipped onset) or the end (clipped tail) of a phrase."
+        ),
+    },
+    "retained_bleed_misalignment": {
+        "severity": "warn",
+        "confidence": "measured",
+        "autonomy": "auto_ok",
+        "skill": "podcast-mute-bleed",
+        "tools": [
+            "play_compose_tool",
+            "align_retained_bleed_tool",
+            "set_retained_bleed_alignment_mode_tool",
+        ],
+        "meaning": (
+            "A local delayed copy remains audible. Timing evidence does not establish owner absence. "
+            "Preserve overlapping speech; preview safe local alignment and respect saved timing choices."
         ),
     },
     "echo_risk": {
@@ -779,7 +795,7 @@ def _echo_meaning(p: EchoPairProfile) -> str:
         f"echo_risk: {p.bleed_track_id} carries {p.source_track_id}'s voice {level} at {lag} lag "
         f"in {p.consistent_frames} of {p.copy_frames} correlated frames over timeline "
         f"{p.span_start:.0f}-{p.span_end:.0f}s{example}: same-room bleed doubles "
-        f"{p.source_track_id} in the mix. Gate {p.bleed_track_id} to its own words "
+        f"{p.source_track_id} in the mix. Inspect verified removal and retained-bleed alignment "
         f"(podcast-mute-bleed) or check mic placement."
     )
 
@@ -804,7 +820,42 @@ def _echo_hypotheses(
         for p in profiles
         if p.echo_risk(cfg)
     ]
-    return out, bool(skipped)
+    local_config = EchoConfig(
+        measure_long_delays=True,
+        analysis_span_sec=min(60.0, max(30.0, timeline_end - timeline_start)),
+    )
+    local_profiles, local_skipped = echo_profiles(
+        project, start_sec=timeline_start, end_sec=timeline_end, config=local_config
+    )
+    for profile in local_profiles:
+        local_rows = [
+            row
+            for row in profile.long_delay_regions
+            if row.start < timeline_end and row.end > timeline_start
+        ]
+        supported = [row for row in local_rows if row.supported and row.lag_ms is not None]
+        lags = [row.lag_ms for row in supported if row.lag_ms is not None]
+        if not lags or not any(abs(lag) > 10 for lag in lags):
+            continue
+        evidence = profile.to_dict(local_config)
+        evidence["long_delay_regions"] = [
+            row.to_dict() for row in supported[: local_config.max_examples]
+        ]
+        evidence["long_delay_summary"] = {
+            "measured_windows": len(local_rows),
+            "supported_windows": len(supported),
+            "lag_ms": median(lags),
+            "owner_absence_proven": False,
+        }
+        out.append(
+            _hypothesis(
+                "retained_bleed_misalignment",
+                tracks=[profile.source_track_id, profile.bleed_track_id],
+                window=window,
+                evidence=evidence,
+            )
+        )
+    return out, bool(skipped or local_skipped)
 
 
 def _build_suggested_listen(

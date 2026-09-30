@@ -5,7 +5,7 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, SupportsIndex, TypeVar, cast
+from typing import Any, Literal, SupportsIndex, TypeVar, cast
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -522,10 +522,28 @@ class TimelineSection(BaseModel):
     clips: list[Clip] = Field(default_factory=list)
 
 
+class RetainedBleedAlignmentDecision(ClipMuteRegion):
+    """Source-scoped timing choice, preserved with editable project history."""
+
+    id: str
+    direct_track_id: str
+    bleed_track_id: str
+    source_id: str | None = None
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    end_s: float = Field(gt=0, allow_inf_nan=False)
+    mode: Literal["auto", "manual", "declined"] = "auto"
+    offset_sec: float = Field(default=0.0, allow_inf_nan=False)
+    previous_timeline_start: float = Field(ge=0, allow_inf_nan=False)
+    timeline_start: float = Field(ge=0, allow_inf_nan=False)
+    provenance: Literal["automatic", "requested_scoped_override"] = "automatic"
+    evidence_revision: int = 1
+
+
 class EditorialSection(BaseModel):
     edit_decisions: list[EditDecision] = Field(default_factory=list)
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
     chapters: list[ChapterMarker] = Field(default_factory=list)
+    retained_bleed_alignments: list[RetainedBleedAlignmentDecision] = Field(default_factory=list)
 
 
 class TranscriptsSection(BaseModel):

@@ -7,6 +7,12 @@ Podcast MCP uses **non-destructive editing** at two levels:
 
 ## Storage layout
 
+Local retained-bleed alignment decisions are part of `editorial`, so undo/redo
+restores phrase clip placement and `auto` / `manual` / `declined` choices together.
+Preview is read-only. Saving a declined preview is an ordinary history mutation
+without a clip move; resetting it to auto permits fresh evidence-based planning.
+Domain application rejects a stale plan before making any edits.
+
 ```
 episode/
 ├── raw/                          # untouched recordings

@@ -303,10 +303,14 @@ def render_gated_track(
     timeline_end: float,
     gain_db: float = 0.0,
 ) -> Path:
-    """Gate one stem and play it at ``gain_db`` (the track's output gain).
+    """Deprecated whitelist utility kept for direct import compatibility.
+
+    Gate one stem and play it at ``gain_db`` (the track's output gain).
 
     The take is not normalised. If the gain would push it past full scale,
     it is pulled back to just under full scale instead of hard-clipping.
+
+    Project auditions use the conservative plan through PlayService.
     """
     duration = timeline_end - timeline_start
     seg = _load_segment(stem_path, timeline_start, duration)
@@ -324,6 +328,7 @@ def gate_stem_window(
     win_start: float,
     win_end: float,
     plan: BleedGatePlan | None = None,
+    timeline_start: float = 0.0,
 ) -> Path:
     """Gate only ``[win_start, win_end)``; audio outside the window is unchanged."""
     if stem_path.resolve() == output_path.resolve():
@@ -340,6 +345,7 @@ def gate_stem_window(
                 win_start=win_start,
                 win_end=win_end,
                 plan=plan,
+                timeline_start=timeline_start,
             )
             temporary_path.replace(output_path)
         finally:
@@ -354,8 +360,9 @@ def gate_stem_window(
 
     with stem_path.open("rb") as source:
         channels, rate, data_start, data_bytes = _pcm16_wave_info(source)
+        origin_frame = round(timeline_start * rate)
         ordered_intervals = sorted(
-            (math.ceil(start * rate), math.ceil(end * rate), ordinal)
+            (math.ceil(start * rate) - origin_frame, math.ceil(end * rate) - origin_frame, ordinal)
             for ordinal, (start, end) in enumerate(intervals)
         )
         starts = [start for start, _end, _ordinal in ordered_intervals]
@@ -401,7 +408,7 @@ def gate_stem_window(
                     gated_chunk = _gate_pcm_chunk(
                         raw[left * bytes_per_frame : right * bytes_per_frame],
                         [(start, end) for _ordinal, start, end in overlapping],
-                        first_frame=chunk_first,
+                        first_frame=chunk_first + origin_frame if plan is not None else chunk_first,
                         sample_rate=rate,
                         channels=channels,
                         plan=plan,
@@ -422,7 +429,7 @@ def gate_rendered_wav(
     timeline_start: float,
     timeline_end: float,
 ) -> Path:
-    """In-place gate a rendered WAV whose samples start at ``timeline_start``."""
+    """Deprecated whitelist utility; project renders use apply_bleed_gate_plan."""
     duration = max(0.0, timeline_end - timeline_start)
     if duration <= 0:
         return wav_path
@@ -473,20 +480,15 @@ def apply_bleed_gate_plan(
     duration = max(0.0, timeline_end - timeline_start)
     if not plan.attenuation_spans or duration <= 0:
         return wav_path
-    local = BleedGatePlan(
-        attenuation_spans=tuple(
-            (start - timeline_start, end - timeline_start) for start, end in plan.attenuation_spans
-        ),
-        fade_sec=plan.fade_sec,
-    )
     return gate_stem_window(
         wav_path,
-        list(local.attenuation_spans),
+        list(plan.attenuation_spans),
         wav_path,
         duration_sec=duration,
         win_start=0.0,
         win_end=duration,
-        plan=local,
+        plan=plan,
+        timeline_start=timeline_start,
     )
 
 
@@ -499,7 +501,10 @@ def render_gated_mix(
     timeline_end: float,
     gains_db: dict[str, float] | None = None,
 ) -> Path:
-    """Sum the gated stems, each at its ``gains_db`` entry (dB, default 0), then peak-normalise.
+    """Deprecated whitelist utility kept for direct import compatibility.
+
+    Project mixes use the conservative plan through PlayService.
+    Sum the gated stems, each at its ``gains_db`` entry (dB, default 0), then peak-normalise.
 
     Stems don't bake a track's output gain, so the caller passes it here and the
     gated mix keeps the track balance every other mix path plays.

@@ -302,3 +302,48 @@ def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path)
     np.testing.assert_allclose(
         _read_pcm(segment), _read_pcm(whole)[round(start * RATE) : round(end * RATE)], atol=1
     )
+
+
+def test_crossfade_layout_preserves_audio_and_explains_gate_abstention(tmp_path):
+    from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+    from podcast_mcp.models import ClipJoinMode
+
+    project = _episode(tmp_path)
+    project.clips[0].join_in_mode = ClipJoinMode.CROSSFADE
+    project.clips[0].fade_in_ms = 500
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.attenuation_spans == ()
+    assert plan.reasons == ("unsupported_crossfade_evidence_clock",)
+    before = (project.artifacts_dir() / "tracks" / "host.wav").read_bytes()
+    snapshot = project.model_dump(mode="json")
+    with render_lock(project):
+        result = apply_transcript_bleed_mute(
+            project, track_id="host", start_sec=0.1, end_sec=0.2, dry_run=False
+        )
+    assert result["applied_count"] == 0
+    assert result["skipped"][0]["reason"] == "unsupported_crossfade_evidence_clock"
+    assert (project.artifacts_dir() / "tracks" / "host.wav").read_bytes() == before
+    assert project.model_dump(mode="json") == snapshot
+
+
+def test_origin_copy_placement_used_by_gate_mapping_invalidates_its_hash(tmp_path):
+    from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
+    from podcast_mcp.engines.play_audit import track_render_hash
+
+    project = _episode(tmp_path)
+    project.sources.append(SourceRecording(id="parked-host", path="raw/host.wav"))
+    project.tracks.append(Track(id="parking", label="Parking", role=TrackRole.MUSIC))
+    copy = Clip(
+        id="parked",
+        track_id="parking",
+        source_id="parked-host",
+        source_start=0.55,
+        source_end=1.0,
+        timeline_start=3.1,
+    )
+    project.clips.append(copy)
+    plan = build_bleed_gate_plan(project, "host")
+    before = track_render_hash(project, "host")
+    copy.timeline_start = 2
+    assert build_bleed_gate_plan(project, "host") != plan
+    assert track_render_hash(project, "host") != before

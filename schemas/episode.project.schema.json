@@ -184,7 +184,27 @@
       "properties": {
         "edit_decisions": { "type": "array", "items": { "$ref": "#/$defs/EditDecision" } },
         "edit_log": { "type": "array", "items": { "$ref": "#/$defs/AppliedEditRecord" } },
-        "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } }
+        "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } },
+        "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } }
+      }
+    },
+    "RetainedBleedAlignmentDecision": {
+      "type": "object",
+      "description": "Source-scoped complete direct-phrase timing choice; end_s must exceed start_s. Saved manual and declined modes block automatic corrections.",
+      "required": ["id", "direct_track_id", "bleed_track_id", "start_s", "end_s", "previous_timeline_start", "timeline_start"],
+      "properties": {
+        "id": { "type": "string" },
+        "direct_track_id": { "type": "string" },
+        "bleed_track_id": { "type": "string" },
+        "source_id": { "type": ["string", "null"], "default": null },
+        "start_s": { "type": "number", "minimum": 0 },
+        "end_s": { "type": "number", "exclusiveMinimum": 0 },
+        "mode": { "type": "string", "enum": ["auto", "manual", "declined"], "default": "auto" },
+        "offset_sec": { "type": "number", "default": 0 },
+        "previous_timeline_start": { "type": "number", "minimum": 0 },
+        "timeline_start": { "type": "number", "minimum": 0 },
+        "provenance": { "type": "string", "enum": ["automatic", "requested_scoped_override"], "default": "automatic" },
+        "evidence_revision": { "type": "integer", "default": 1 }
       }
     },
     "AppliedEditRecord": {
