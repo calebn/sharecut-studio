@@ -186,9 +186,8 @@ sends a fixed punctuation-priming sentence (`DEFAULT_PROMPT_PRIMER`, currently
 whenever `transcribe.initial_prompt` is not turned off. This is a real change
 to future ASR output for every project, not only ones with a saved vocabulary;
 re-transcribe (or a changed-audio run) is needed to apply it to existing
-transcripts. Because a prompt is now sent by default, the legacy
-`transcripts/{track}_{audio}.json` cache (below) is only read when
-`transcribe.initial_prompt: false` is set explicitly. `transcribe_tracks` also
+transcripts. ASR caches include this prompt in their input key.
+`transcribe_tracks` also
 flags a dialogue track whose punctuation rate lands far below its peers'
 average (`collect_punctuation_outlier_flags`, needs at least two dialogue
 tracks with 100+ words each so a short clip or a two-word peer can't trip it;
@@ -230,12 +229,24 @@ decode never runs unprimed (which would recreate #769 for that track). Re-time
 only reuses cached words, so which prompt produced them does not matter as
 long as the audio and model still match.
 
-ASR also reads an older
-`transcripts/{track}_{audio}.json` cache (which does not encode model, prompt or
-decode options) when the new-name cache misses, caches are in use (not forced), no
-prompt is set, **and** the decode options equal faster-whisper's own defaults (VAD off,
-its default temperatures); with the shipped defaults (VAD on) or the default prompt
-(above) that legacy file is ignored; it never migrates or rewrites that file.
+ASR reads only input-keyed `transcripts/{id}_{audio16}_{inputs16}.json` caches.
+The older `{id}_{audio16}.json` fallback is removed. A successful ASR cache write
+keeps that variant and one previous variant by write time for the exact job ID
+and audio hash. Extra source recordings have their own job IDs. Pruning deletes
+other input variants, the old unkeyed name, and alignment sidecars whose ASR
+parent is not retained. Canonical `{track_id}.json` and `combined.json` mirrors,
+other jobs, other audio hashes, symlinks, and directories are untouched. Cache
+paths that alias another transcript file or collide with a canonical mirror
+are rejected.
+
+ASR publication, pruning, and alignment-cache publication share a per-family
+`artifacts/transcript-cache-{id}_{audio16}.lock` with a 10-second timeout.
+Inference runs outside the lock. Failed ASR writes do not prune anything; cleanup
+failures log a warning and keep the successful transcription. Cache hits do not
+prune or refresh write time. An alignment that finishes after its ASR parent was
+evicted keeps its result in memory without publishing an orphan sidecar.
+Pruned caches can be regenerated; stored project transcripts and undo history
+remain authoritative.
 
 With `transcribe.forced_alignment.enabled`, alignment results get their own
 cache beside the ASR cache: `transcripts/{id}_{audio16}_{inputs16}.word_align_{key16}.json`,
@@ -347,7 +358,7 @@ working set, so it always uses the shipped defaults. Reading them never stages a
 **Reuse policy:** `transcribe_tracks` never re-runs ASR over a transcript that
 already exists for the same audio. Studio's **Re-transcribe** (`force_transcribe`),
 CLI `--force`, or `transcribe.overwrite: true` replace it explicitly; forcing skips
-the ASR disk cache (both cache names) and re-runs Whisper. Changed
+the ASR disk cache and re-runs Whisper. Changed
 media re-transcribes automatically. Transcripts edited through `correct_word`,
 `correct_phrase`, `set_word_suppressed`, `set_word_automatic`, `set_words_ignored`, `verify_transcript` or transcript
 cleanup are flagged `user_edited`. An unattended (Batch) run refuses to replace one, before

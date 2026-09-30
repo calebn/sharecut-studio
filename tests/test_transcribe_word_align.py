@@ -507,6 +507,11 @@ def test_new_alignment_prunes_stale_sidecars_of_the_same_asr_cache(minimal_proje
     asr_cache.parent.mkdir(parents=True, exist_ok=True)
     stale = asr_cache.with_name(f"{asr_cache.stem}.word_align_{'0' * 16}.json")
     other = asr_cache.with_name(f"guest_{'1' * 16}_{'2' * 16}.word_align_{'0' * 16}.json")
+    from podcast_mcp.models import Track
+
+    canonical = asr_cache.with_name(f"{asr_cache.stem}.word_align_{'1' * 16}.json")
+    proj.tracks.append(Track(id=canonical.stem, label="Cache-shaped track"))
+    canonical.write_text("preserve")
     stale.write_text("{}", encoding="utf-8")
     other.write_text("{}", encoding="utf-8")
 
@@ -515,18 +520,18 @@ def test_new_alignment_prunes_stale_sidecars_of_the_same_asr_cache(minimal_proje
 
     assert not stale.exists()
     assert other.exists()
-    assert len(list(asr_cache.parent.glob(f"{asr_cache.stem}.word_align_*.json"))) == 1
+    assert canonical.read_text() == "preserve"
+    assert len(list(asr_cache.parent.glob(f"{asr_cache.stem}.word_align_*.json"))) == 2
 
 
-def test_read_asr_cache_hits_new_then_legacy_and_misses(minimal_project, tmp_path):
-    from podcast_mcp.engines.transcribe import legacy_cache_path
+def test_read_asr_cache_hits_current_name_and_misses(minimal_project, tmp_path):
     from podcast_mcp.util.hashing import sha256_file
 
     proj = load_project(minimal_project)
     wav = tmp_path / "clip.wav"
     _write_wav(wav)
     job = TranscribeJob(track_id="host", source_id=None, audio=wav)
-    engine = TranscriptionEngine(options=AsrOptions.faster_whisper_defaults())
+    engine = TranscriptionEngine()
 
     def _fresh_asr(*args, **kwargs):
         return Transcript(
@@ -551,16 +556,9 @@ def test_read_asr_cache_hits_new_then_legacy_and_misses(minimal_project, tmp_pat
     )
     assert miss is None
 
-    # The legacy name (no prompt, faster-whisper-default decode) is tried on a new-name miss.
     cache.unlink()
-    legacy = legacy_cache_path(proj, job.cache_id, sha)
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    legacy.write_text(hit.model_dump_json(), encoding="utf-8")
-    _, legacy_hit = engine.read_asr_cache(
-        proj, job, language="en", initial_prompt=None, audio_sha256=sha
-    )
-    assert legacy_hit is not None
-    assert [(w.start, w.end) for w in legacy_hit.words] == [(0.0, 0.5), (0.5, 1.0)]
+    _, miss = engine.read_asr_cache(proj, job, language="en", initial_prompt=None, audio_sha256=sha)
+    assert miss is None
 
 
 def test_cancel_before_alignment_raises_without_aligning(minimal_project, tmp_path):
@@ -584,3 +582,27 @@ def test_cancel_stops_the_per_job_loop_before_asr(minimal_project, tmp_path):
     with patcher as asr, render_cancel_scope(lambda: True), pytest.raises(CancelledProgress):
         engine.transcribe_all_dialogue(proj, jobs=[job], language="en")
     asr.assert_not_called()
+
+
+def test_alignment_finishing_after_asr_eviction_keeps_result_without_orphan_cache(
+    minimal_project, tmp_path
+):
+    project, job, engine, patcher = _setup(minimal_project, tmp_path, words=HI_BYE_WORDS)
+    stub = StubAligner([(0.1, 0.3), (0.6, 0.9)], n_aligned=2, n_unaligned=0)
+    engine._word_aligner = stub
+    original_align = stub.align
+    newer = TranscriptionEngine(options=_options(False))
+
+    def align(audio, words):
+        with patch.object(newer, "transcribe_file", return_value=Transcript(track_id="", words=[])):
+            newer.transcribe_job(project, job, language="en", initial_prompt="newer")
+            newer.transcribe_job(project, job, language="en", initial_prompt="newest")
+        return original_align(audio, words)
+
+    stub.align = align
+    with patcher:
+        result = engine.transcribe_job(project, job, language="en")
+    assert [(w.start, w.end) for w in result.words] == [(0.1, 0.3), (0.6, 0.9)]
+    assert engine.forced_alignment_jobs[0]["status"] == "aligned"
+    assert len(list(project.transcripts_dir().glob("host_*_*.json"))) == 2
+    assert not list(project.transcripts_dir().glob("*.word_align_*.json"))

@@ -44,6 +44,10 @@ Pipeline, CLI `podcast transcribe`, and MCP `transcribe_track` use the same
 `transcribe.language` setting, `en` by default. Set it to YAML `null` in pipeline
 configuration for auto-detection. Language remains part of the ASR cache key.
 
+ASR reads only input-keyed caches and retains the new write plus one previous
+variant per recording job and audio hash. A pruned cache may require ASR again;
+stored project transcripts and undo history remain authoritative.
+
 ## Workspace setup
 
 ```bash

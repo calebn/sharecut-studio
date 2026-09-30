@@ -173,10 +173,9 @@ def _host_project(minimal_project, sample_wav, tmp_workspace):
 
 
 def _write_legacy(proj, dest):
-    from podcast_mcp.engines.transcribe import legacy_cache_path
     from podcast_mcp.util.hashing import sha256_file
 
-    legacy = legacy_cache_path(proj, "host", sha256_file(dest))
+    legacy = proj.transcripts_dir() / f"host_{sha256_file(dest)[:16]}.json"
     legacy.parent.mkdir(parents=True, exist_ok=True)
     tr = Transcript(track_id="host", words=[TranscriptWord(text="legacy", start=0, end=0.5)])
     legacy.write_text(tr.model_dump_json(), encoding="utf-8")
@@ -207,17 +206,22 @@ def test_legacy_cache_ignored_with_non_default_decode_options(
     asr.assert_called_once()
 
 
-def test_legacy_cache_name_is_honoured_by_default(minimal_project, sample_wav, tmp_workspace):
+def test_legacy_cache_is_a_miss_and_removed_after_success(
+    minimal_project, sample_wav, tmp_workspace
+):
     from unittest.mock import patch
 
     proj, dest = _host_project(minimal_project, sample_wav, tmp_workspace)
     _write_legacy(proj, dest)
-    engine = TranscriptionEngine(options=AsrOptions.faster_whisper_defaults())
-    with patch.object(engine, "transcribe_file") as asr:
-        out = engine.transcribe_all_dialogue(proj, language="en")
-    asr.assert_not_called()
-    assert out[0].words[0].text == "legacy"
-    assert out[0].audio_sha256
+    engine = TranscriptionEngine(options=AsrOptions(vad_enabled=False))
+    with patch.object(
+        engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
+    ) as asr:
+        engine.transcribe_all_dialogue(proj, language="en")
+    asr.assert_called_once()
+    from podcast_mcp.util.hashing import sha256_file
+
+    assert not (proj.transcripts_dir() / f"host_{sha256_file(dest)[:16]}.json").exists()
 
 
 def test_legacy_cache_ignored_with_prompt_or_when_disabled(
@@ -260,7 +264,7 @@ def test_corrupt_cache_is_a_miss_and_is_rewritten(
     )
 
 
-def test_cached_audio_keys_reads_both_names_only_for_that_job(minimal_project):
+def test_cached_audio_keys_reads_current_names_only_for_that_job(minimal_project):
     from podcast_mcp.engines.transcribe import cached_audio_keys
 
     proj = load_project(minimal_project)
@@ -274,7 +278,7 @@ def test_cached_audio_keys_reads_both_names_only_for_that_job(minimal_project):
         "combined.json",
     ):
         (tdir / name).write_text("{}", encoding="utf-8")
-    assert cached_audio_keys(proj, "host") == {"1" * 16, "2" * 16}
+    assert cached_audio_keys(proj, "host") == {"2" * 16}
     assert cached_audio_keys(proj, "host__b") == {"3" * 16}
 
 
@@ -317,3 +321,259 @@ def test_pipeline_and_transcript_service_share_default_language_cache(
         assert decode.call_args.kwargs["language"] == "en"
     finally:
         store.put(minimal_project, reset=True)
+
+
+@pytest.mark.parametrize("source_id", [None, "guest-source"])
+def test_successful_cache_write_keeps_two_variants_and_their_alignments(
+    minimal_project, sample_wav, tmp_workspace, source_id
+):
+    import os
+    from unittest.mock import patch
+
+    from podcast_mcp.engines.transcribe import TranscribeJob
+    from podcast_mcp.models import Track
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    job = TranscribeJob("host", source_id, audio)
+    engine = TranscriptionEngine()
+    current = engine.cache_path(project, job.cache_id, audio, initial_prompt="current")
+    current.parent.mkdir(exist_ok=True)
+    previous = []
+    for i in range(3):
+        cache = engine.cache_path(project, job.cache_id, audio, initial_prompt=f"old-{i}")
+        cache.write_text(Transcript(track_id="host", words=[]).model_dump_json())
+        os.utime(cache, ns=(i + 1, i + 1))
+        sidecar = cache.with_name(f"{cache.stem}.word_align_{'a' * 16}.json")
+        sidecar.write_text("{}")
+        previous.append((cache, sidecar))
+    family = current.stem.rsplit("_", 1)[0]
+    legacy = current.with_name(f"{family}.json")
+    legacy.write_text("{}")
+    orphan = current.with_name(f"{family}_{'0' * 16}.word_align_{'b' * 16}.json")
+    orphan.write_text("{}")
+    protected = [
+        current.with_name("host.json"),
+        current.with_name("combined.json"),
+        current.with_name(f"host__other_{'1' * 16}_{'2' * 16}.json"),
+        current.with_name(f"{job.cache_id}_{'3' * 16}_{'4' * 16}.json"),
+        current.with_name(f"{family}_not-an-input-key.json"),
+    ]
+    mirror_name = f"{family}_{'7' * 16}"
+    project.tracks.append(Track(id=mirror_name, label="Cache-shaped track"))
+    protected.append(current.with_name(f"{mirror_name}.json"))
+    for path in protected:
+        path.write_text("preserve")
+    target = tmp_workspace / "outside-transcripts.txt"
+    target.write_text("preserve")
+    link = current.with_name(f"{family}_{'5' * 16}.json")
+    link.symlink_to(target)
+    directory = current.with_name(f"{family}_{'6' * 16}.json")
+    directory.mkdir()
+    with patch.object(
+        engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
+    ) as decode:
+        engine.transcribe_job(project, job, initial_prompt="current")
+        engine.transcribe_job(project, job, initial_prompt="current")
+    assert decode.call_count == 1
+    assert current.is_file()
+    assert previous[2][0].is_file() and previous[2][1].is_file()
+    assert all(not path.exists() for pair in previous[:2] for path in pair)
+    assert not legacy.exists() and not orphan.exists()
+    assert all(path.read_text() == "preserve" for path in protected)
+    assert link.is_symlink() and target.read_text() == "preserve"
+    assert directory.is_dir()
+
+
+@pytest.mark.parametrize("failure", ["decode", "write"])
+def test_failed_transcription_preserves_prior_cache_family(
+    minimal_project, sample_wav, tmp_workspace, failure
+):
+    from unittest.mock import patch
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    engine = TranscriptionEngine()
+    old = engine.cache_path(project, "host", audio, initial_prompt="old")
+    old.parent.mkdir(exist_ok=True)
+    legacy = old.with_name(f"{old.stem.rsplit('_', 1)[0]}.json")
+    old.write_text("preserve")
+    legacy.write_text("preserve legacy")
+    with patch.object(
+        engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
+    ) as decode:
+        if failure == "decode":
+            decode.side_effect = OSError("decode failed")
+        with patch("podcast_mcp.engines.transcribe.write_text_atomic") as write:
+            if failure == "write":
+                write.side_effect = OSError("write failed")
+            with pytest.raises(OSError, match="failed"):
+                engine.transcribe_track(project, "host", initial_prompt="new")
+    assert old.read_text() == "preserve"
+    assert legacy.read_text() == "preserve legacy"
+
+
+def test_cache_cleanup_failure_keeps_successful_transcription(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    from pathlib import Path
+    from unittest.mock import patch
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    engine = TranscriptionEngine()
+    current = engine.cache_path(project, "host", audio, initial_prompt="new")
+    current.parent.mkdir(exist_ok=True)
+    legacy = current.with_name(f"{current.stem.rsplit('_', 1)[0]}.json")
+    legacy.write_text("old")
+    original_unlink = Path.unlink
+
+    def unlink(path, *args, **kwargs):
+        if path == legacy:
+            raise PermissionError("cache busy")
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink)
+    with patch.object(engine, "transcribe_file", return_value=Transcript(track_id="", words=[])):
+        result = engine.transcribe_track(project, "host", initial_prompt="new")
+    assert result.track_id == "host"
+    assert current.is_file() and legacy.is_file()
+    assert "could not prune transcript cache" in caplog.text
+
+
+def test_cache_path_rejects_alias_to_canonical_transcript(minimal_project, tmp_path):
+    project = load_project(minimal_project)
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"audio")
+    engine = TranscriptionEngine()
+    cache = engine.cache_path(project, "host", audio)
+    cache.parent.mkdir(exist_ok=True)
+    canonical = cache.with_name("host.json")
+    canonical.write_text("preserve")
+    cache.symlink_to(canonical)
+    with pytest.raises(ValueError, match="aliases another file"):
+        engine.cache_path(project, "host", audio)
+    assert canonical.read_text() == "preserve"
+
+
+def test_concurrent_cache_writers_leave_two_complete_variants(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from unittest.mock import patch
+
+    from podcast_mcp.engines.transcribe import TranscribeJob
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    job = TranscribeJob("host", None, audio)
+    barrier = Barrier(4)
+
+    def decode(*args, **kwargs):
+        barrier.wait(timeout=5)
+        return Transcript(track_id="", words=[])
+
+    def run(prompt):
+        return TranscriptionEngine().transcribe_job(project, job, initial_prompt=prompt)
+
+    with patch.object(TranscriptionEngine, "transcribe_file", side_effect=decode):
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(run, ["one", "two", "three", "four"]))
+    assert [result.track_id for result in results] == ["host"] * 4
+    caches = list(project.transcripts_dir().glob("host_*_*.json"))
+    assert len(caches) == 2
+    assert all(
+        Transcript.model_validate_json(path.read_text()).track_id == "host" for path in caches
+    )
+
+
+@pytest.mark.parametrize("failure", ["disappeared", "scan-denied"])
+def test_cache_cleanup_handles_filesystem_changes_after_success(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog, failure
+):
+    from pathlib import Path
+    from unittest.mock import patch
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    engine = TranscriptionEngine()
+    cache = engine.cache_path(project, "host", audio, initial_prompt="new")
+    cache.parent.mkdir(exist_ok=True)
+    legacy = cache.with_name(f"{cache.stem.rsplit('_', 1)[0]}.json")
+    legacy.write_text("old")
+    original_lstat = Path.lstat
+    original_iterdir = Path.iterdir
+
+    def lstat(path):
+        if path == legacy:
+            legacy.unlink()
+            raise FileNotFoundError("cache disappeared")
+        return original_lstat(path)
+
+    def iterdir(path):
+        if path == cache.parent:
+            raise PermissionError("directory unreadable")
+        return original_iterdir(path)
+
+    if failure == "disappeared":
+        monkeypatch.setattr(Path, "lstat", lstat)
+    else:
+        monkeypatch.setattr(Path, "iterdir", iterdir)
+    with patch.object(engine, "transcribe_file", return_value=Transcript(track_id="", words=[])):
+        result = engine.transcribe_track(project, "host", initial_prompt="new")
+    assert result.track_id == "host"
+    assert cache.is_file()
+    if failure == "scan-denied":
+        assert "could not scan transcript cache family" in caplog.text
+
+
+def test_cache_path_rejects_name_collision_with_canonical_mirror(minimal_project, tmp_path):
+    from podcast_mcp.models import Track
+
+    project = load_project(minimal_project)
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"audio")
+    engine = TranscriptionEngine()
+    cache = engine.cache_path(project, "host", audio)
+    project.tracks.append(Track(id=cache.stem, label="Cache-shaped track"))
+    cache.parent.mkdir(exist_ok=True)
+    cache.write_text("preserve")
+    with pytest.raises(ValueError, match="collides with a canonical mirror"):
+        engine.cache_path(project, "host", audio)
+    assert cache.read_text() == "preserve"
+
+
+def test_cache_publication_timeout_does_not_prune(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from threading import Event, Thread
+    from unittest.mock import patch
+
+    from filelock import Timeout
+
+    import podcast_mcp.engines.transcribe as module
+
+    project, audio = _host_project(minimal_project, sample_wav, tmp_workspace)
+    engine = TranscriptionEngine()
+    cache = engine.cache_path(project, "host", audio, initial_prompt="new")
+    cache.parent.mkdir(exist_ok=True)
+    legacy = cache.with_name(f"{cache.stem.rsplit('_', 1)[0]}.json")
+    legacy.write_text("preserve")
+    started, release = Event(), Event()
+    monkeypatch.setattr(module, "ASR_CACHE_LOCK_TIMEOUT_SEC", 0.05)
+
+    def hold():
+        with module._cache_publication_lock(project, cache):
+            started.set()
+            release.wait(timeout=5)
+
+    thread = Thread(target=hold)
+    thread.start()
+    try:
+        assert started.wait(timeout=5)
+        with patch.object(
+            engine, "transcribe_file", return_value=Transcript(track_id="", words=[])
+        ):
+            with pytest.raises(Timeout):
+                engine.transcribe_track(project, "host", initial_prompt="new")
+        assert not cache.exists()
+        assert legacy.read_text() == "preserve"
+    finally:
+        release.set()
+        thread.join(timeout=5)

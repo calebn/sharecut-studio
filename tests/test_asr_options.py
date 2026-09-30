@@ -175,21 +175,6 @@ def test_decode_key_ignores_vad_params_when_off():
     assert AsrOptions().decode_key() != a
 
 
-def test_faster_whisper_defaults_match_installed_signature():
-    fw = pytest.importorskip("faster_whisper")
-    params = inspect.signature(fw.WhisperModel.transcribe).parameters
-    ref = AsrOptions.faster_whisper_defaults()
-    assert list(ref.temperature) == list(params["temperature"].default)
-    assert ref.no_speech_threshold == params["no_speech_threshold"].default
-    assert ref.log_prob_threshold == params["log_prob_threshold"].default
-    assert ref.compression_ratio_threshold == params["compression_ratio_threshold"].default
-    assert ref.condition_on_previous_text == params["condition_on_previous_text"].default
-    assert ref.hallucination_silence_threshold == params["hallucination_silence_threshold"].default
-    assert ref.vad_enabled == params["vad_filter"].default
-    assert ref.is_faster_whisper_default
-    assert not AsrOptions().is_faster_whisper_default
-
-
 def test_engine_default_options_follow_pipeline_yaml(monkeypatch, tmp_path):
     from podcast_mcp.engines.transcribe import TranscriptionEngine
 
