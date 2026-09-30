@@ -245,6 +245,8 @@ class PlacedSegment:
       overlaps that are not soft joins.
 
     With all three at 0 the segment simply abuts the previous one (hard concat).
+    `source_path` selects a per-segment media input when a timeline contains clips
+    from multiple recordings; unset segments use the render call's input path.
     """
 
     src_start: float
@@ -256,6 +258,7 @@ class PlacedSegment:
     overlap_prev_sec: float = 0.0
     # Clip-local mute holes (seconds from src_start) rendered as silence.
     mute_spans: tuple[tuple[float, float], ...] = ()
+    source_path: Path | None = None
 
 
 @dataclass
@@ -800,6 +803,7 @@ class FFmpegEngine:
         *,
         crossfade_curve: str = "tri",
         lead_in_sec: float = 0.0,
+        output_duration_sec: float | None = None,
     ) -> Path:
         """Assemble placed source segments into the output in a single ffmpeg pass.
 
@@ -815,9 +819,16 @@ class FFmpegEngine:
             raise ValueError("no segments to render")
 
         n = len(placed)
+        multi_source = any(seg.source_path is not None for seg in placed)
         filters: list[str] = []
 
-        if n == 1:
+        if multi_source:
+            for i, seg in enumerate(placed):
+                filters.append(
+                    f"[{i}:a]atrim=start={seg.src_start}:end={seg.src_end},"
+                    f"asetpts=PTS-STARTPTS[src{i}]"
+                )
+        elif n == 1:
             seg = placed[0]
             filters.append(
                 f"[0:a]atrim=start={seg.src_start}:end={seg.src_end},asetpts=PTS-STARTPTS[src0]"
@@ -893,19 +904,29 @@ class FFmpegEngine:
             combined = acc
 
         final = af_chain if af_chain else "anull"
+        if output_duration_sec is not None:
+            if output_duration_sec <= 0:
+                raise ValueError("output_duration_sec must be positive")
+            final = (
+                f"{final},apad=whole_dur={output_duration_sec},atrim=duration={output_duration_sec}"
+            )
         filters.append(f"{combined}{final}[out]")
 
-        cmd = [
-            self.ffmpeg,
-            "-y",
-            "-i",
-            str(input_path),
-            "-filter_complex",
-            ";".join(filters),
-            "-map",
-            "[out]",
-            str(output_path),
-        ]
+        cmd = [self.ffmpeg, "-y"]
+        if multi_source:
+            for seg in placed:
+                cmd.extend(["-i", str(seg.source_path or input_path)])
+        else:
+            cmd.extend(["-i", str(input_path)])
+        cmd.extend(
+            [
+                "-filter_complex",
+                ";".join(filters),
+                "-map",
+                "[out]",
+                str(output_path),
+            ]
+        )
         run(cmd, check=True, capture_output=True)
         return output_path
 

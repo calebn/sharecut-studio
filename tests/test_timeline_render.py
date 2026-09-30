@@ -27,6 +27,41 @@ from podcast_mcp.models import (
 )
 
 
+def _write_constant_pcm_wav(
+    path: Path,
+    *,
+    duration_sec: float,
+    amplitude: float,
+    sample_rate: int = 48_000,
+) -> bytes:
+    import numpy as np
+
+    samples = np.full(
+        round(duration_sec * sample_rate),
+        round(amplitude * 32767),
+        dtype="<i2",
+    )
+    data = samples.tobytes()
+    _write_pcm_wav_bytes(path, data, sample_rate=sample_rate)
+    return data
+
+
+def _write_pcm_wav_bytes(path: Path, data: bytes, *, sample_rate: int = 48_000) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio_file:
+        audio_file.setnchannels(1)
+        audio_file.setsampwidth(2)
+        audio_file.setframerate(sample_rate)
+        audio_file.writeframes(data)
+
+
+def _read_pcm(path: Path):
+    import numpy as np
+
+    with wave.open(str(path), "rb") as audio_file:
+        return np.frombuffer(audio_file.readframes(audio_file.getnframes()), dtype="<i2")
+
+
 def test_render_two_clips_with_gap(sample_wav: Path, tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()
@@ -1270,13 +1305,8 @@ def test_multi_source_segment_applies_transcript_gate_once_to_pcm(
     ws = tmp_path / "ws_multi_source_gate_once"
     raw = ws / "raw"
     raw.mkdir(parents=True)
-    samples = np.full(2 * 48_000, round(0.4 * 32767), dtype="<i2")
     for name in ("a.wav", "b.wav"):
-        with wave.open(str(raw / name), "wb") as audio_file:
-            audio_file.setnchannels(1)
-            audio_file.setsampwidth(2)
-            audio_file.setframerate(48_000)
-            audio_file.writeframes(samples.tobytes())
+        _write_constant_pcm_wav(raw / name, duration_sec=2.0, amplitude=0.4)
 
     project = EpisodeProject.create("multi_source_gate_once", str(ws))
     project.sources.extend(
@@ -1322,12 +1352,8 @@ def test_multi_source_segment_applies_transcript_gate_once_to_pcm(
     render_track_from_timeline(project, track, full, {}, engine=eng)
     render_track_segment(project, "host", 0.0, 2.0, segment, {}, engine=eng)
 
-    def read_pcm(path: Path) -> np.ndarray:
-        with wave.open(str(path), "rb") as audio_file:
-            return np.frombuffer(audio_file.readframes(audio_file.getnframes()), dtype="<i2")
-
-    full_pcm = read_pcm(full)
-    segment_pcm = read_pcm(segment)
+    full_pcm = _read_pcm(full)
+    segment_pcm = _read_pcm(segment)
     assert segment_pcm.shape == full_pcm.shape
     np.testing.assert_allclose(segment_pcm, full_pcm, atol=2)
 
@@ -1343,14 +1369,9 @@ def test_multi_source_segment_fades_only_at_real_clip_edges(tmp_path: Path) -> N
 
     ws = tmp_path / "ws_multi_source_fades"
     raw = ws / "raw"
-    raw.mkdir(parents=True)
-    samples = np.full(2 * 48_000, round(0.4 * 32767), dtype="<i2")
-    for name in ("a.wav", "b.wav"):
-        with wave.open(str(raw / name), "wb") as audio_file:
-            audio_file.setnchannels(1)
-            audio_file.setsampwidth(2)
-            audio_file.setframerate(48_000)
-            audio_file.writeframes(samples.tobytes())
+    a_pcm = _write_constant_pcm_wav(raw / "a.wav", duration_sec=2.0, amplitude=0.4)
+    b_pcm = _write_constant_pcm_wav(raw / "b.wav", duration_sec=2.0, amplitude=0.4)
+    _write_pcm_wav_bytes(raw / "single.wav", a_pcm + b_pcm)
 
     project = EpisodeProject.create("multi_source_fades", str(ws))
     project.sources.extend(
@@ -1394,12 +1415,44 @@ def test_multi_source_segment_fades_only_at_real_clip_edges(tmp_path: Path) -> N
     render_track_segment(project, "host", 0.0, 2.5, full, {}, engine=eng)
     render_track_segment(project, "host", 0.25, 2.25, seek, {}, engine=eng)
 
-    def read_pcm(path: Path) -> np.ndarray:
-        with wave.open(str(path), "rb") as audio_file:
-            return np.frombuffer(audio_file.readframes(audio_file.getnframes()), dtype="<i2")
+    single_project = EpisodeProject.create("single_source_fades", str(ws))
+    single_project.timeline.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/single.wav", duration_sec=4.0),
+        )
+    )
+    single_project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.0,
+            fade_in_ms=100,
+            fade_out_ms=100,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=2.0,
+            source_end=3.0,
+            timeline_start=1.5,
+            fade_in_ms=100,
+            fade_out_ms=100,
+        ),
+    ]
+    single_full = ws / "artifacts" / "single_full.wav"
+    single_seek = ws / "artifacts" / "single_seek.wav"
+    render_track_segment(single_project, "host", 0.0, 2.5, single_full, {}, engine=eng)
+    render_track_segment(single_project, "host", 0.25, 2.25, single_seek, {}, engine=eng)
 
-    full_pcm = read_pcm(full).astype(np.float32)
-    seek_pcm = read_pcm(seek).astype(np.float32)
+    full_pcm = _read_pcm(full).astype(np.float32)
+    seek_pcm = _read_pcm(seek).astype(np.float32)
+    np.testing.assert_allclose(full_pcm, _read_pcm(single_full), atol=2)
+    np.testing.assert_allclose(seek_pcm, _read_pcm(single_seek), atol=2)
     rate = 48_000
 
     def mean_abs(
@@ -1417,6 +1470,117 @@ def test_multi_source_segment_fades_only_at_real_clip_edges(tmp_path: Path) -> N
     assert mean_abs(full_pcm, 2.48, 2.5) < second_clip_level * 0.25
     assert mean_abs(seek_pcm, 0.25, 0.27, origin=0.25) > first_clip_level * 0.8
     assert mean_abs(seek_pcm, 2.23, 2.25, origin=0.25) > second_clip_level * 0.8
+
+
+@pytest.mark.parametrize(
+    ("join_mode", "expected_duration", "fade_at_join"),
+    [
+        (ClipJoinMode.CUT, 2.0, False),
+        (ClipJoinMode.FADE, 2.0, True),
+        (ClipJoinMode.CROSSFADE, 1.8, False),
+    ],
+)
+def test_multi_source_join_modes_keep_declared_audio_semantics(
+    tmp_path: Path,
+    join_mode: ClipJoinMode,
+    expected_duration: float,
+    fade_at_join: bool,
+) -> None:
+    import numpy as np
+
+    from podcast_mcp.models import SourceRecording
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+
+    ws = tmp_path / f"ws_multi_source_{join_mode.value}"
+    raw = ws / "raw"
+    a_pcm = _write_constant_pcm_wav(raw / "a.wav", duration_sec=1.0, amplitude=0.3)
+    b_pcm = _write_constant_pcm_wav(raw / "b.wav", duration_sec=1.0, amplitude=0.6)
+    _write_pcm_wav_bytes(raw / "single.wav", a_pcm + b_pcm)
+    project = EpisodeProject.create("multi_source_join", str(ws))
+    project.sources.extend(
+        [
+            SourceRecording(id="a", path="raw/a.wav", speaker="Host"),
+            SourceRecording(id="b", path="raw/b.wav", speaker="Host"),
+        ]
+    )
+    project.timeline.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/a.wav", duration_sec=2.0),
+        )
+    )
+    project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.2,
+            source_id="a",
+            fade_out_ms=200,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=1.2,
+            source_id="b",
+            fade_in_ms=200,
+            join_in_mode=join_mode,
+        ),
+    ]
+    output = ws / "artifacts" / "joined.wav"
+    render_track_from_timeline(project, project.tracks[0], output, {}, engine=eng)
+
+    pcm = _read_pcm(output).astype(np.float32)
+    single_project = EpisodeProject.create("single_source_join", str(ws))
+    single_project.timeline.tracks.append(
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/single.wav", duration_sec=2.0),
+        )
+    )
+    single_project.timeline.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=1.0,
+            timeline_start=0.2,
+            fade_out_ms=200,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=1.0,
+            source_end=2.0,
+            timeline_start=1.2,
+            fade_in_ms=200,
+            join_in_mode=join_mode,
+        ),
+    ]
+    single_output = ws / "artifacts" / "single.wav"
+    render_track_from_timeline(
+        single_project, single_project.tracks[0], single_output, {}, engine=eng
+    )
+    single_pcm = _read_pcm(single_output).astype(np.float32)
+
+    assert pcm.shape == single_pcm.shape
+    np.testing.assert_allclose(pcm, single_pcm, atol=2)
+    assert eng.probe(output).duration_sec == pytest.approx(expected_duration + 0.2, abs=0.02)
+    join_window = float(np.abs(pcm[round(1.1 * 48_000) : round(1.2 * 48_000)]).mean())
+    if fade_at_join:
+        assert join_window < 0.3 * 0.3 * 32767
+    else:
+        assert join_window > 0.2 * 0.3 * 32767
 
 
 def test_cut_join_drops_only_the_fades_at_that_join(tmp_path: Path) -> None:
