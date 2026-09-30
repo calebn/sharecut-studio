@@ -4,6 +4,7 @@ import hashlib
 import os
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -605,6 +606,60 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
     assert gc_pyramids(project_path) == 0  # once per process per project
 
 
+def test_gc_refreshes_live_refs_after_waiting_for_publication(tmp_path, monkeypatch):
+    project_path = waveform_project(tmp_path)
+    project = load_project(project_path)
+    ensure_project_waveforms(project)
+    stale_index = media_index(project_path)
+    audio = project_path.parent / "raw" / "new.wav"
+    write_wav(audio, 8000)
+    entry = MediaEntry("raw", audio, "raw/new.wav")
+    key = current_key(entry)
+    peaks = project_path.parent / "artifacts" / "peaks"
+    donor = pyramid_path(peaks, "track-retired", key)
+    wm_pyramid.build_pyramid("track:retired", key, audio, donor)
+    expected = donor.read_bytes()
+    old = time.time() - 9 * 86_400
+    os.utime(donor, (old, old))
+    out = pyramid_path(peaks, "track-new", key)
+    waiting = threading.Event()
+    errors = []
+    removed = []
+
+    @contextmanager
+    def observed_lock(path, *, timeout):
+        waiting.set()
+        with hold_shared_file_lock(path, timeout=timeout) as lock:
+            yield lock
+
+    def collect():
+        try:
+            removed.append(gc_pyramids(project_path, stale_index))
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(svc, "hold_shared_file_lock", observed_lock)
+    with hold_shared_file_lock(peaks / ".waveform.lock", timeout=5):
+        collector = threading.Thread(target=collect)
+        collector.start()
+        assert waiting.wait(5)
+        project.timeline.tracks.append(
+            Track(id="new", label="New", media=MediaAsset(path="raw/new.wav"))
+        )
+        save_project(project, project_path)
+        wm_pyramid.build_pyramid("track:new", key, audio, out)
+        assert out.stat().st_ino == donor.stat().st_ino
+    collector.join(5)
+    assert not collector.is_alive()
+    assert errors == []
+    assert removed == [1]
+    assert out.read_bytes() == expected
+    with patch.object(wm_pyramid, "decode_media") as decode:
+        assert waveform_status(project_path, "raw")["media"]["track:new"]["status"] == "ready"
+        wait_pyramid_jobs()
+    decode.assert_not_called()
+
+
 def test_gc_pyramids_drops_legacy_json_once_the_track_has_a_pyramid(tmp_path):
     project_path = waveform_project(tmp_path)
     peaks = project_path.parent / "artifacts" / "peaks"
@@ -1095,15 +1150,17 @@ def test_media_index_stem_written_during_parse_is_not_kept(tmp_path, monkeypatch
     assert media_index(project_path) is not first
 
 
-def test_gc_failure_is_retried_and_does_not_break_status(tmp_path, monkeypatch):
+@pytest.mark.parametrize("supplied_index", [False, True])
+def test_gc_failure_is_retried_and_does_not_break_status(tmp_path, monkeypatch, supplied_index):
     project_path = waveform_project(tmp_path)
+    index = media_index(project_path) if supplied_index else None
 
     def gone(_p):
         raise FileNotFoundError("x")
 
     monkeypatch.setattr(svc, "media_index", gone)
     with pytest.raises(FileNotFoundError):
-        gc_pyramids(project_path)
+        gc_pyramids(project_path, index)
     assert str(project_path.resolve()) not in svc._GC_DONE
     monkeypatch.undo()
     assert gc_pyramids(project_path) == 0
