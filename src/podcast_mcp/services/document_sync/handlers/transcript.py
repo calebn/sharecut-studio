@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
@@ -77,7 +78,14 @@ def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dic
     )
 
 
+def set_transcript_word_timing(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    return EditService(ws).set_word_timing(
+        WordTimingTarget(**p["target"]), p["expected_token"], p["start"], p["end"]
+    )
+
+
 HANDLERS: dict[str, Handler] = {
+    "SetTranscriptWordTiming": set_transcript_word_timing,
     "ReplaceTranscriptMatches": replace_transcript_matches,
     "CorrectTranscriptWord": correct_transcript_word,
     "CorrectTranscriptPhrase": correct_transcript_phrase,

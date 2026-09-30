@@ -165,6 +165,7 @@ export function useSessionSync(
 
   /** HTTP publish: the socket-down path, and the recovery when a WS publish is rejected or never echoed. */
   const publishOverHttp = useEffectEvent(async () => {
+    if (suppressPublish || !enabled || !projectPath) return;
     const written = await postSessionState(projectPath, viewerSnapshot());
     cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
   });
@@ -370,6 +371,7 @@ export function useSessionSync(
    * the deadline to the next-oldest frame's own send time.
    */
   const publish = useEffectEvent(async () => {
+    if (suppressPublish || !enabled || !projectPath) return;
     if (
       sendRef.current?.({ type: "ViewerState", snapshot: viewerSnapshot() })
     ) {
@@ -384,6 +386,7 @@ export function useSessionSync(
 
   useEffect(() => {
     if (!enabled || !projectPath || suppressPublish) {
+      stopViewerStateWait(viewerStateWaitRef.current);
       return;
     }
     let cancelled = false;

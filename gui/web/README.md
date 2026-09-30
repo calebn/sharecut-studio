@@ -308,3 +308,5 @@ Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentAc
 ## Layout constants
 
 `utils/layout.ts` holds the default layout dims (`--ruler-height`, `--marker-lane-height`, lane height). At runtime `TimelineView` measures the stage and provides the live lane and marker-lane heights through `timeline/timelineMetrics.ts` (`useTimelineMetrics`), and sets `--lane-height` / `--marker-lane-height` on `.timeline-area`; overlays and headers read the context, never the constants. Presence `lane_pos` stays in lane units so viewers with different lane heights agree.
+
+The Wordbar (`transcript/TranscriptWordbar.tsx`) edits exact source-word timing through the document command bus. It uses native range/number controls, the shared waveform with an explicit local viewport, and an owned source-preview descriptor consumed by the existing audio transport. Draft pointer movement does not publish session state or write document commands.

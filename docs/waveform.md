@@ -616,3 +616,11 @@ flight on the host and 3 through a share, and 4 raster jobs outstanding.
 webview lacks it (older WKWebView, some WebKitGTK builds), or a GPU context
 is lost, the CPU worker draws the same pixels
 ([desktop-packaging.md](desktop-packaging.md)).
+
+## Retained transcript recordings
+
+Raw waveform media listings include source IDs referenced by clips or retained
+transcripts. A transcript recording remains available for timing repair after its
+last clip is removed. `collect_media_refs`, `track_media_refs`, and media watch
+paths share this source selection. The existing source ref, pyramid key, and
+workspace path checks apply to these recordings.

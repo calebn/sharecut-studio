@@ -145,6 +145,8 @@ type UiSlice = Pick<
   | "commentMode"
   | "commentDraft"
   | "transcriptFollowPlayhead"
+  | "transcriptTimingRequest"
+  | "setTranscriptTimingRequest"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
   | "transcriptInlineCommitPending"
@@ -331,6 +333,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     commentMode: false,
     commentDraft: null as CommentDraft | null,
     transcriptFollowPlayhead: true,
+    transcriptTimingRequest: null,
     transcriptInlineEditRequest: null as TranscriptInlineEditRequest | null,
     transcriptInlineCommitPending: false,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
@@ -445,6 +448,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ transcriptFollowPlayhead }),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
+    setTranscriptTimingRequest: (transcriptTimingRequest) =>
+      set({ transcriptTimingRequest }),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>
       set({ transcriptInlineEditRequest }),
     setTranscriptInlineCommitPending: (transcriptInlineCommitPending) =>

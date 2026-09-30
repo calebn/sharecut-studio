@@ -69,6 +69,7 @@ import { quietBandsInView } from "./quietWash";
 import { useResolvedTheme, waveformStyle } from "./waveformTheme";
 
 type Props = {
+  viewport?: { scrollLeft: number; width: number };
   mediaRef: MediaRef;
   kind: WaveformKind;
   /** Media time (s) at the clip's left edge (preview-aware). */
@@ -193,6 +194,7 @@ function quietBands(
  * in until they arrive.
  */
 function WaveformLayerView({
+  viewport,
   mediaRef,
   kind,
   mediaStartSec,
@@ -239,12 +241,12 @@ function WaveformLayerView({
           origin,
           clipLeftCss,
           clipWidthCss,
-          scrollLeft: s.scrollLeft,
-          viewportWidth: s.timelineViewportWidth,
+          scrollLeft: viewport?.scrollLeft ?? s.scrollLeft,
+          viewportWidth: viewport?.width ?? s.timelineViewportWidth,
         });
         return r ? `${r[0]}:${r[1]}` : "";
       },
-      [origin, clipLeftCss, clipWidthCss],
+      [origin, clipLeftCss, clipWidthCss, viewport],
     ),
   );
   const wanted = useRef(new Set<string>());

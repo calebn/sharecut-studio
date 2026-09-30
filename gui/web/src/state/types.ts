@@ -102,8 +102,25 @@ export type PlayAbFollowup = {
   gapSec: number;
 };
 
+export type SourcePreviewRequest = {
+  ownerId: string;
+  projectEpoch: number;
+  trackId: string;
+  sourceId: string | null;
+  cacheKey: string;
+  startSec: number;
+  endSec: number;
+  generation: number;
+  playing: boolean;
+};
+
 /** Public DAW API — same shape as the former Context value. */
 export interface DawState {
+  sourcePreview: SourcePreviewRequest | null;
+  sourcePreviewGeneration: number;
+  sourcePreviewPositionSec: number | null;
+  sourcePreviewError: string | null;
+
   project: ProjectView | null;
   projectPath: string;
   /** Changes when the viewer opens a different project, even if it later returns. */
@@ -133,6 +150,7 @@ export interface DawState {
   commentDraft: CommentDraft | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
+  transcriptTimingRequest: TranscriptInlineEditRequest | null;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   transcriptFindReplaceOpen: boolean;
   /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
@@ -277,6 +295,9 @@ export interface DawState {
   setActiveTab: (tab: DawTab) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
+  setTranscriptTimingRequest: (
+    request: TranscriptInlineEditRequest | null,
+  ) => void;
   setTranscriptInlineEditRequest: (
     request: TranscriptInlineEditRequest | null,
   ) => void;
@@ -293,6 +314,20 @@ export interface DawState {
   setPipelineJob: (job: PipelineJobSnapshot | null) => void;
   setActivityJob: (job: PipelineJobSnapshot | null) => void;
   setActivityRunningCount: (count: number) => void;
+  beginSourcePreview: (
+    request: Omit<
+      SourcePreviewRequest,
+      "generation" | "playing" | "projectEpoch"
+    >,
+  ) => void;
+  updateSourcePreview: (
+    ownerId: string,
+    generation: number,
+    positionSec: number,
+    stopped?: boolean,
+    error?: string,
+  ) => void;
+  releaseSourcePreview: (ownerId: string) => void;
   setIsPlaying: (playing: boolean) => void;
   togglePlaying: () => void;
   /** Stop: halt and return to playStartSec clamped to the timeline, then forget it (Pause keeps the position). */

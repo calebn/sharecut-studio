@@ -154,7 +154,9 @@ export function useAudioTransport(enabled = true): void {
     projectEpoch,
     playheadSec,
     setPlayheadSec,
-    isPlaying,
+    isPlaying: timelineIsPlaying,
+    sourcePreview: preview,
+    updateSourcePreview,
     setIsPlaying,
     auditionMode,
     viewerMute,
@@ -176,6 +178,8 @@ export function useAudioTransport(enabled = true): void {
     playheadSec: s.playheadSec,
     setPlayheadSec: s.setPlayheadSec,
     isPlaying: s.isPlaying,
+    sourcePreview: s.sourcePreview,
+    updateSourcePreview: s.updateSourcePreview,
     setIsPlaying: s.setIsPlaying,
     auditionMode: s.auditionMode,
     viewerMute: s.viewerMute,
@@ -192,6 +196,17 @@ export function useAudioTransport(enabled = true): void {
     playbackRate: s.playbackRate,
   }));
 
+  const isPlaying = preview ? preview.playing : timelineIsPlaying;
+  const previewRef = useRef(preview);
+  previewRef.current = preview;
+  const previewUrl = preview
+    ? audioUrl(projectPath, "raw", preview.trackId, {
+        ...(preview.sourceId !== null ? { sourceId: preview.sourceId } : {}),
+        cacheKey: preview.cacheKey,
+      })
+    : null;
+  const previewUrlRef = useRef(previewUrl);
+  previewUrlRef.current = previewUrl;
   const playersRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const rafRef = useRef<number | null>(null);
   const abTimerRef = useRef<number | null>(null);
@@ -221,7 +236,9 @@ export function useAudioTransport(enabled = true): void {
         ? "premix"
         : "stem";
   const sourcesKey = project ? playerSourcesKey(project, playerSource) : "";
-  const modeKey = `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}`;
+  const modeKey = previewUrl
+    ? `source-preview:${previewUrl}`
+    : `${auditionMode}:${needsMultitrack ? "mt" : "premix"}:${fxKey}:${sourcesKey}`;
 
   useEffect(() => {
     if (!enabled) {
@@ -262,8 +279,21 @@ export function useAudioTransport(enabled = true): void {
           if (useDawStore.getState().projectEpoch !== projectEpoch) {
             return;
           }
-          setAudioError(`Failed to load audio (${key})`);
-          setIsPlaying(false);
+          const source = previewRef.current;
+          if (key === "source-preview") {
+            if (!source || previewUrlRef.current !== url) return;
+            updateSourcePreview(
+              source.ownerId,
+              source.generation,
+              source.startSec,
+              true,
+              "The recording could not be loaded.",
+            );
+          } else {
+            if (source) return;
+            setAudioError(`Failed to load audio (${key})`);
+            setIsPlaying(false);
+          }
         },
         { signal: playerEvents.signal },
       );
@@ -271,7 +301,9 @@ export function useAudioTransport(enabled = true): void {
       el.playbackRate = useDawStore.getState().playbackRate;
     };
 
-    if (!needsMultitrack && auditionMode === "mix") {
+    if (previewUrlRef.current) {
+      make("source-preview", previewUrlRef.current);
+    } else if (!needsMultitrack && auditionMode === "mix") {
       if (!project.render_status.premix.exists) {
         // Tracks without source media have nothing to play. The absent premix
         // is expected until audio exists (#78).
@@ -308,10 +340,10 @@ export function useAudioTransport(enabled = true): void {
       }
     }
 
-    const t = playheadRef.current;
+    const t = previewRef.current?.startSec ?? playheadRef.current;
     for (const [key, el] of players) {
       const mediaSec =
-        auditionMode === "raw" && key !== "premix"
+        !previewRef.current && auditionMode === "raw" && key !== "premix"
           ? (rawSourceSec(project, key, t) ?? t)
           : t;
       const apply = () => {
@@ -342,6 +374,7 @@ export function useAudioTransport(enabled = true): void {
     auditionMode,
     setAudioError,
     setIsPlaying,
+    updateSourcePreview,
   ]);
 
   useEffect(() => {
@@ -349,6 +382,11 @@ export function useAudioTransport(enabled = true): void {
       return;
     }
     const players = playersRef.current;
+    const sourcePlayer = players.get("source-preview");
+    if (sourcePlayer) {
+      sourcePlayer.volume = 1;
+      return;
+    }
     const premix = players.get("premix");
     if (premix) {
       premix.volume = 1;
@@ -388,7 +426,12 @@ export function useAudioTransport(enabled = true): void {
   // While playing, ignore small deltas — transport RAF owns the clock; session
   // heartbeats used to re-seek every ~200ms and stutter the WAV.
   useEffect(() => {
-    if (!enabled || drivingPlayheadRef.current || !project) {
+    if (
+      !enabled ||
+      previewRef.current ||
+      drivingPlayheadRef.current ||
+      !project
+    ) {
       return;
     }
     const threshold = isPlaying ? 0.5 : 0.12;
@@ -437,7 +480,9 @@ export function useAudioTransport(enabled = true): void {
     }
 
     let cancelled = false;
-    const startAt = playheadRef.current;
+    const runEvents = new AbortController();
+    const ownedPreview = previewRef.current;
+    const startAt = ownedPreview?.startSec ?? playheadRef.current;
     const proj = projectRef.current;
     const mode = auditionModeRef.current;
 
@@ -446,9 +491,22 @@ export function useAudioTransport(enabled = true): void {
       event: "loadedmetadata" | "seeked",
     ) =>
       new Promise<void>((resolve, reject) => {
-        const onErr = () => reject(new Error("audio load failed"));
-        el.addEventListener(event, () => resolve(), { once: true });
-        el.addEventListener("error", onErr, { once: true });
+        const ready = () => {
+          el.removeEventListener("error", failed);
+          resolve();
+        };
+        const failed = () => {
+          el.removeEventListener(event, ready);
+          reject(new Error("audio load failed"));
+        };
+        el.addEventListener(event, ready, {
+          once: true,
+          signal: runEvents.signal,
+        });
+        el.addEventListener("error", failed, {
+          once: true,
+          signal: runEvents.signal,
+        });
       });
 
     const run = async () => {
@@ -458,7 +516,7 @@ export function useAudioTransport(enabled = true): void {
             await waitFor(el, "loadedmetadata");
           }
           let mediaSec = startAt;
-          if (mode === "raw" && key !== "premix" && proj) {
+          if (!ownedPreview && mode === "raw" && key !== "premix" && proj) {
             mediaSec = rawSourceSec(proj, key, startAt) ?? startAt;
           }
           const target = Math.min(mediaSec, el.duration || mediaSec);
@@ -481,6 +539,18 @@ export function useAudioTransport(enabled = true): void {
           const msg = errorMessage(e);
           const blocked =
             e instanceof DOMException && e.name === "NotAllowedError";
+          if (ownedPreview) {
+            updateSourcePreview(
+              ownedPreview.ownerId,
+              ownedPreview.generation,
+              startAt,
+              true,
+              blocked
+                ? "Browser blocked playback. Select Play word to try again."
+                : msg,
+            );
+            return;
+          }
           setAudioError(
             blocked
               ? "Browser blocked autoplay. Click Play in the transport"
@@ -517,7 +587,14 @@ export function useAudioTransport(enabled = true): void {
 
       // A Stop or Pause can land before this effect's cleanup; never write a stale clock over it.
       const tick = () => {
-        if (cancelled || !useDawStore.getState().isPlaying) {
+        if (
+          cancelled ||
+          (ownedPreview
+            ? previewRef.current?.ownerId !== ownedPreview.ownerId ||
+              previewRef.current.generation !== ownedPreview.generation ||
+              !previewRef.current.playing
+            : !useDawStore.getState().isPlaying)
+        ) {
           return;
         }
         const picked = pickMaster(playersRef.current);
@@ -525,6 +602,23 @@ export function useAudioTransport(enabled = true): void {
           return;
         }
         const [masterKey, master] = picked;
+        if (ownedPreview) {
+          const stopped =
+            master.ended ||
+            master.currentTime >= ownedPreview.endSec - AUDITION_STOP_EPS_SEC;
+          updateSourcePreview(
+            ownedPreview.ownerId,
+            ownedPreview.generation,
+            Math.min(master.currentTime, ownedPreview.endSec),
+            stopped,
+          );
+          if (stopped) {
+            master.pause();
+            return;
+          }
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
         if (master && !master.paused && !master.ended) {
           const projNow = projectRef.current;
           const modeNow = auditionModeRef.current;
@@ -632,6 +726,7 @@ export function useAudioTransport(enabled = true): void {
 
     return () => {
       cancelled = true;
+      runEvents.abort();
       if (abTimerRef.current != null) {
         window.clearTimeout(abTimerRef.current);
         abTimerRef.current = null;
@@ -644,6 +739,7 @@ export function useAudioTransport(enabled = true): void {
   }, [
     enabled,
     isPlaying,
+    preview?.generation,
     modeKey,
     setIsPlaying,
     setPlayheadSec,
@@ -651,5 +747,6 @@ export function useAudioTransport(enabled = true): void {
     continueAudition,
     clearSessionRegion,
     setAudioError,
+    updateSourcePreview,
   ]);
 }

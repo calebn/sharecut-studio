@@ -60,5 +60,11 @@ export function mediaSignature(project: ProjectView | null): string {
       }
     }
   }
+  for (const utterance of project.transcript?.utterances ?? []) {
+    for (const word of utterance.words ?? []) {
+      if (word.timing_target?.source_id)
+        sources.add(word.timing_target.source_id);
+    }
+  }
   return `${tracks.join("\u0002")}\u0003${[...sources].sort().join("\u0002")}`;
 }

@@ -145,6 +145,8 @@ export const createPresenceSlice: StateCreator<
         auditionEpoch: get().auditionEpoch + 1,
         isPlaying: Boolean(state.is_playing),
         ...playStartPatch(get(), Boolean(state.is_playing), state.playhead_sec),
+        sourcePreview: null,
+        sourcePreviewGeneration: get().sourcePreviewGeneration + 1,
         ...hear,
         ...(state.selection !== undefined ? { selection: nextSel } : {}),
         ...(state.clients

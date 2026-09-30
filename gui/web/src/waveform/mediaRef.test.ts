@@ -91,3 +91,36 @@ describe("mediaSignature", () => {
     expect(mediaSignature(p)).toBe(base);
   });
 });
+
+it("refreshes waveform status when an unplaced raw transcript source becomes visible", () => {
+  const base = minimalProject();
+  const retained = minimalProject({
+    transcript: {
+      utterances: [
+        {
+          track_id: "host",
+          speaker: "Host",
+          text: "word",
+          start: 1,
+          end: 2,
+          words: [
+            {
+              text: "word",
+              start: 1,
+              end: 2,
+              timing_target: {
+                track_id: "host",
+                source_id: "retained",
+                word_index: 0,
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  expect(mediaSignature(retained)).not.toBe(mediaSignature(base));
+  const moved = structuredClone(retained);
+  moved.transcript!.utterances[0]!.words![0]!.start = 1.5;
+  expect(mediaSignature(moved)).toBe(mediaSignature(retained));
+});

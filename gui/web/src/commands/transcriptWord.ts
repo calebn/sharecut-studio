@@ -4,6 +4,40 @@ import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
 
 export function registerTranscriptWordCommands(): void {
+  registerCommand("transcript.adjustTiming", (args) => {
+    const s = useDawStore.getState();
+    if (
+      !s.project ||
+      isShareProjectKey(s.projectPath) ||
+      s.project.meta.hydration?.transcript_words === false
+    )
+      return { status: "disabled", reason: "Hydrated host project required" };
+    const selection = s.selection;
+    const trackId =
+      typeof args.trackId === "string"
+        ? args.trackId
+        : selection?.kind === "transcriptWord"
+          ? selection.trackId
+          : null;
+    const wordIndex =
+      typeof args.wordIndex === "number"
+        ? args.wordIndex
+        : selection?.kind === "transcriptWord"
+          ? selection.wordIndex
+          : null;
+    if (
+      trackId == null ||
+      wordIndex == null ||
+      !findTranscriptWord(s.project, trackId, wordIndex)?.timing_target
+    )
+      return { status: "disabled", reason: "Select a source transcript word" };
+    s.setTranscriptTimingRequest({
+      projectPath: s.projectPath,
+      trackId,
+      wordIndex,
+    });
+    return { status: "ok" };
+  });
   registerCommand("transcript.editWordInline", () => {
     const s = useDawStore.getState();
     if (!s.project || isShareProjectKey(s.projectPath))

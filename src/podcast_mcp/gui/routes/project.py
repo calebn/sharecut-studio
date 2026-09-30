@@ -268,6 +268,7 @@ def get_audio(
         ),
     ),
     track_id: str | None = Query(None),
+    source_id: str | None = Query(None),
     review_version_id: str | None = Query(
         None,
         description="Frozen review mix id (alias for kind=review + track_id)",
@@ -293,6 +294,7 @@ def get_audio(
             ws,
             kind=transport_kind,
             track_id=transport_track,
+            source_id=source_id,
             rerender=rerender,
         )
     except ValueError as exc:

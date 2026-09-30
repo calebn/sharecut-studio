@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.models import EpisodeProject, Track, TrackRole
+from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
 
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
@@ -76,3 +77,15 @@ def dialogue_track_ids(project: EpisodeProject) -> list[str]:
 def mixed_dialogue_track_ids(project: EpisodeProject) -> list[str]:
     """Dialogue track ids the mix plays (the saved mute leaves a track out)."""
     return [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE and not t.muted]
+
+
+def recording_audio_path(project: EpisodeProject, track_id: str, source_id: str | None) -> Path:
+    """Resolve exact raw recording media; None selects the track's primary media."""
+    if source_id is None:
+        return resolve_under_workspace(project, str(track_audio_path(project, track_id)))
+    if project.track_by_id(track_id) is None:
+        raise KeyError(f"unknown track {track_id!r}")
+    source = project.source_by_id(source_id)
+    if source is None:
+        raise KeyError(f"unknown source recording {source_id!r}")
+    return resolve_under_workspace(project, source.path)

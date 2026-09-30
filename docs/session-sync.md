@@ -248,6 +248,15 @@ Every realtime WS `onmessage` handler (`useDocumentSync`, `useSessionSync`, `use
 | `POST /api/document/command` | Typed commands (see table below) |
 | `WS /api/document/ws` | Server→client only: hello shell `Snapshot`, then fanout `Applied`. Inbound frames are ignored; commands use `POST /api/document/command`. `authorize_client` runs on connect and every 30 s (`DOCUMENT_WS_AUTHZ_RECHECK_S`); a revoked grant closes `4403`, which host `useDocumentSync` treats as terminal (no reconnect until page reload; `useProjectPoll` stays the fallback); a failed fan-out pump is logged and closes `1011` so the client reconnects and resyncs |
 
+### Exact-source timing commands
+
+`SetTranscriptWordTiming` is a host-only document command. Its target contains the
+exact stored transcript key and word ordinal. The context token guards the word
+sequence and raw recording dependencies before the service saves source-clock
+bounds. A stale token produces `DocumentConflictError`. Its `TRANSCRIPT_AUDIO`
+Applied projection includes transcript words, tracks, and render status, so timing
+changes to ignored words invalidate processed audio in the viewer.
+
 ### Command identity and retries
 
 An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
@@ -307,6 +316,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `ReplaceTranscriptMatches` | `EditService.replace_transcript_matches` | `search`, `replacement`, `match_case`, `preview_token` (host-only; full source-keyed preview, one history action) |
 | `CorrectTranscriptWord` | `EditService.correct_word` | `track_id`, `word_index`, `text`, `expected_text?` |
 | `CorrectTranscriptPhrase` | `EditService.correct_phrase` | `track_id`, `start_word_index`, `end_word_index`, `text`, `expected_text?` |
+| `SetTranscriptWordTiming` | `EditService.set_word_timing` | `target`, `expected_token`, `start`, `end` (source clock; host-only) |
 | `SetTranscriptWordSuppressed` | `EditService.set_word_suppressed` | `track_id`, `word_index`, `suppressed`, `expected_text?` |
 | `SetTranscriptWordAutomatic` | `EditService.set_word_automatic` | `track_id`, `word_index`, `expected_text?` — clears `audibility_locked` only (#824); `suppressed` waits for the next reconcile pass |
 | `SetTranscriptWordsIgnored` | `EditService.set_words_ignored` | `track_id`, `start_word_index`, `end_word_index` (`ge=0`), `ignored`, `expected_text?` — text-and-audio hide (#633): words stay in the transcript, only their audio is muted at render; host-only, not in guest `EDIT_COMMANDS` |

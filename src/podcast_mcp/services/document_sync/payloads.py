@@ -212,6 +212,19 @@ class CorrectTranscriptPhrasePayload(BaseModel):
     )
 
 
+class WordTimingTargetPayload(BaseModel):
+    track_id: str = Field(min_length=1)
+    source_id: str | None = Field(..., min_length=1)
+    word_index: int = Field(ge=0)
+
+
+class SetTranscriptWordTimingPayload(BaseModel):
+    target: WordTimingTargetPayload
+    expected_token: str = Field(min_length=1)
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(gt=0, allow_inf_nan=False)
+
+
 class SetTranscriptWordSuppressedPayload(BaseModel):
     track_id: str
     word_index: int
@@ -528,6 +541,11 @@ class CorrectTranscriptPhraseCommand(DocumentCommandEnvelope):
     payload: CorrectTranscriptPhrasePayload
 
 
+class SetTranscriptWordTimingCommand(DocumentCommandEnvelope):
+    type: Literal["SetTranscriptWordTiming"] = "SetTranscriptWordTiming"
+    payload: SetTranscriptWordTimingPayload
+
+
 class SetTranscriptWordSuppressedCommand(DocumentCommandEnvelope):
     type: Literal["SetTranscriptWordSuppressed"] = "SetTranscriptWordSuppressed"
     payload: SetTranscriptWordSuppressedPayload
@@ -685,6 +703,7 @@ DocumentCommandBody = Annotated[
     | SetTranscriptWordSuppressedCommand
     | SetTranscriptWordAutomaticCommand
     | SetTranscriptWordsIgnoredCommand
+    | SetTranscriptWordTimingCommand
     | AddChapterCommand
     | UpdateChapterCommand
     | DeleteChapterCommand
@@ -791,6 +810,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SetTranscriptWordSuppressed": SetTranscriptWordSuppressedPayload,
     "SetTranscriptWordAutomatic": SetTranscriptWordAutomaticPayload,
     "SetTranscriptWordsIgnored": SetTranscriptWordsIgnoredPayload,
+    "SetTranscriptWordTiming": SetTranscriptWordTimingPayload,
     "AddChapter": AddChapterPayload,
     "UpdateChapter": UpdateChapterPayload,
     "DeleteChapter": DeleteChapterPayload,

@@ -2214,6 +2214,30 @@
       }
     },
     {
+      "id": "daw.transcript.adjustTiming",
+      "label": "Adjust word timing",
+      "tooltip": "Adjust source-word boundaries against the raw recording waveform; one Undo per drag",
+      "service": "EditService.set_word_timing",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "transcript.adjustTiming",
+        "gui": [
+          "transcript.wordbar"
+        ]
+      },
+      "presence": {
+        "cursor": "anchor",
+        "follow": "none",
+        "anchor": "transcript:word:<track>:<i>"
+      },
+      "omit": {
+        "keyboard_reason": "Native range controls and numeric fields in the word inspector"
+      }
+    },
+    {
       "id": "daw.transcript.editWordInline",
       "label": "Edit focused transcript word",
       "tooltip": "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",

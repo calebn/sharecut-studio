@@ -14,11 +14,12 @@ TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-TRANSCRIPT_WORD_COMMANDS: frozenset[str] = frozenset(TRANSCRIPT_HANDLERS)
-
-# Ignore/restore (#633) additionally needs tracks/render_status freshness so the
-# GUI stem cache key changes; checked before TRANSCRIPT_WORD_COMMANDS.
-TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset({"SetTranscriptWordsIgnored"})
+TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset(
+    {"SetTranscriptWordsIgnored", "SetTranscriptWordTiming"}
+)
+TRANSCRIPT_WORD_COMMANDS: frozenset[str] = (
+    frozenset(TRANSCRIPT_HANDLERS) - TRANSCRIPT_AUDIO_COMMANDS
+)
 
 CLIP_SLICE_COMMANDS: frozenset[str] = frozenset(
     {

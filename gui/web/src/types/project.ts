@@ -192,7 +192,14 @@ export interface HistoryGroup {
   id?: string;
 }
 
+export interface TranscriptTimingTarget {
+  track_id: string;
+  source_id: string | null;
+  word_index: number;
+}
+
 export interface TranscriptWordView {
+  timing_target?: TranscriptTimingTarget;
   text: string;
   start: number;
   end: number;

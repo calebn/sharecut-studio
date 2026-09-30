@@ -468,6 +468,13 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Annotate transcript",
     when: "always",
   },
+  "transcript.adjustTiming": {
+    id: "transcript.adjustTiming",
+    category: "edit",
+    label: "Adjust word timing",
+    when: "hostProjectLoaded",
+    notes: "Source-clock boundaries for the selected transcript word",
+  },
   "transcript.editWordInline": {
     id: "transcript.editWordInline",
     category: "edit",

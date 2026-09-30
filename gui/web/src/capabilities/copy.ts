@@ -354,6 +354,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip_pressed: "Exit Correct (restore seek-on-click)",
     toggle: true,
   },
+  "daw.transcript.adjustTiming": {
+    label: "Adjust word timing",
+    tooltip:
+      "Adjust source-word boundaries against the raw recording waveform; one Undo per drag",
+  },
   "daw.transcript.editWordInline": {
     label: "Edit focused transcript word",
     tooltip:
@@ -468,6 +473,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.correct": "daw.transcript.correct",
   "mobileShell.gesture.doubleTapWord": "daw.transcript.correct",
   "transcript.inlineEdit": "daw.transcript.correct",
+  "transcript.wordbar": "daw.transcript.adjustTiming",
   "transcript.select": "daw.transcript.select",
   "transcript.ignore": "daw.transcript.ignore",
   "transcript.restoreIgnored": "daw.transcript.ignore",

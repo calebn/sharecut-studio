@@ -25,6 +25,7 @@ def resolve_viewer_audio(
     *,
     kind: str,
     track_id: str | None = None,
+    source_id: str | None = None,
     rerender: bool = False,
     build_stem: bool = False,
 ) -> Path:
@@ -33,6 +34,7 @@ def resolve_viewer_audio(
         workspace,
         kind=kind,
         track_id=track_id,
+        source_id=source_id,
         rerender=rerender,
         build_stem=build_stem,
     ).path
@@ -43,6 +45,7 @@ def resolve_viewer_transport(
     *,
     kind: str,
     track_id: str | None = None,
+    source_id: str | None = None,
     rerender: bool = False,
     build_stem: bool = False,
 ) -> TransportPath:
@@ -50,6 +53,7 @@ def resolve_viewer_transport(
     return PlayService(workspace).resolve_transport_path(
         kind,
         track_id=track_id,
+        source_id=source_id,
         rerender=rerender,
         build_stem=build_stem,
     )

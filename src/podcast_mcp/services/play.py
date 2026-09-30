@@ -56,7 +56,7 @@ from podcast_mcp.util.project_state import (
     render_lock,
     snapshot_project,
 )
-from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.tracks import recording_audio_path
 
 log = logging.getLogger(__name__)
 
@@ -248,6 +248,7 @@ class PlayService:
         kind: str,
         *,
         track_id: str | None = None,
+        source_id: str | None = None,
         rerender: bool = False,
         build_stem: bool = False,
     ) -> TransportPath:
@@ -262,6 +263,8 @@ class PlayService:
         - ``raw`` / ``track`` - source media (``podcast play --source track:<id>``)
         """
         normalized = kind.strip().lower()
+        if source_id is not None and normalized not in ("raw", "track"):
+            raise ValueError("source_id is only supported for raw/track transport")
         if normalized == "premix":
             # Transport streaming must not rebuild on every GET; use rerender=True
             # (CLI --rerender / ?rerender=1) when a rebuild is intentional.
@@ -337,12 +340,12 @@ class PlayService:
         if normalized in ("raw", "track"):
             if not track_id:
                 raise ValueError("track_id required for raw/track transport")
-            path = track_audio_path(self.project, track_id)
+            path = recording_audio_path(self.project, track_id, source_id)
             if not path.is_file():
                 raise FileNotFoundError(f"raw media not found: {path}")
             return TransportPath(
                 path=path.resolve(),
-                source=f"track:{track_id}",
+                source=f"source:{source_id}" if source_id is not None else f"track:{track_id}",
                 tier="raw",
             )
 

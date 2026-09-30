@@ -6,7 +6,7 @@ A media ref names one media file the viewer draws a waveform for:
 - ``source:<id>`` — a ``project.sources`` row, resolved like
   ``engines/timeline_render.resolve_clip_audio_path`` (pinned by
   ``test_source_ref_resolves_like_clip_render``; listed when at least one
-  clip references it);
+  clip or retained transcript references it);
 - ``stem:<id>`` — ``artifacts/tracks/<id>.wav`` (listed only while
   ``stem_is_fresh``; ids must match ``SAFE_TRACK_ID``).
 
@@ -119,21 +119,24 @@ def _stem_candidate(project: EpisodeProject, track_id: str) -> _Candidate | None
     return _Candidate(ref=ref, kind="stem", path=path)
 
 
-def _clip_source_ids(project: EpisodeProject, track_id: str | None = None) -> list[str]:
-    """Sorted source ids referenced by clips (only *track_id*'s lane when given)."""
+def _retained_source_ids(project: EpisodeProject, track_id: str | None = None) -> list[str]:
     return sorted(
         {
             c.source_id
             for c in project.clips
             if c.source_id and (track_id is None or c.track_id == track_id)
         }
+        | {
+            tr.source_id
+            for tr in project.transcripts
+            if tr.source_id and (track_id is None or tr.track_id == track_id)
+        }
     )
 
 
 def _project_candidates(project: EpisodeProject) -> list[_Candidate | None]:
-    """Every ref of *project* in listing order: track media, clip sources, then stems."""
     found = [_track_candidate(project, t) for t in project.tracks]
-    found += [_source_candidate(project, s) for s in _clip_source_ids(project)]
+    found += [_source_candidate(project, s) for s in _retained_source_ids(project)]
     found += [_stem_candidate(project, t.id) for t in project.tracks if t.media is not None]
     return found
 
@@ -184,10 +187,12 @@ def media_watch_paths(project: EpisodeProject) -> tuple[Path, ...]:
 
 
 def track_media_refs(project: EpisodeProject, track: Track, *, sources: bool = True) -> MediaRefs:
-    """The track ref plus, unless ``sources=False``, the clip source refs of *track*'s lane."""
+    """The track ref plus, unless ``sources=False``, the retained source refs of *track*'s lane."""
     candidates = [_track_candidate(project, track)]
     if sources:
-        candidates += [_source_candidate(project, s) for s in _clip_source_ids(project, track.id)]
+        candidates += [
+            _source_candidate(project, s) for s in _retained_source_ids(project, track.id)
+        ]
     return _resolve(project, candidates, fresh_only=False)
 
 

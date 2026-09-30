@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
@@ -356,4 +357,102 @@ describe("useAudioTransport saved mix (#386)", () => {
     expect(volumes()).toEqual({ host: expect.closeTo(0.501, 3), guest: 0 });
     unmount();
   });
+});
+
+describe("exact raw source preview", () => {
+  beforeEach(() => {
+    FakeAudio.instances = [];
+    vi.stubGlobal("Audio", FakeAudio);
+    useDawStore
+      .getState()
+      .hydrate("/tmp/source-preview.json", trackProject("raw/primary.wav"));
+    useDawStore.getState().setAuditionMode("raw");
+  });
+  afterEach(() => vi.unstubAllGlobals());
+  it("reuses the source player for range updates without moving the timeline", async () => {
+    const state = useDawStore.getState();
+    state.setPlayheadSec(42);
+    state.beginSourcePreview({
+      ownerId: "word",
+      trackId: "host",
+      sourceId: "extra",
+      cacheKey: "version",
+      startSec: 2,
+      endSec: 3,
+    });
+    const { unmount } = renderHook(() => useAudioTransport());
+    await act(async () => {});
+    const player = FakeAudio.instances[0];
+    expect(player.src).toContain("source_id=extra");
+    expect(player.currentTime).toBe(2);
+    expect(player.volume).toBe(1);
+    act(() =>
+      state.beginSourcePreview({
+        ownerId: "word",
+        trackId: "host",
+        sourceId: "extra",
+        cacheKey: "version",
+        startSec: 2.02,
+        endSec: 3,
+      }),
+    );
+    await act(async () => {});
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(player.currentTime).toBe(2.02);
+    expect(useDawStore.getState().playheadSec).toBe(42);
+    act(() => state.stopPlayback());
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    unmount();
+  });
+});
+
+describe("source preview asset error ownership", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ["source-a", "source-b"],
+    ["source-a", null],
+    [null, "source-b"],
+  ])(
+    "ignores %s errors after %s takes over before passive cleanup",
+    async (before, after) => {
+      FakeAudio.instances = [];
+      vi.stubGlobal("Audio", FakeAudio);
+      const state = useDawStore.getState();
+      state.hydrate("/tmp/asset-ownership", trackProject("raw/primary.wav"));
+      state.setIsPlaying(false);
+      state.setAuditionMode("raw");
+      const begin = (sourceId: string) =>
+        state.beginSourcePreview({
+          ownerId: "editor",
+          trackId: "host",
+          sourceId,
+          cacheKey: sourceId,
+          startSec: 0,
+          endSec: 1,
+        });
+      if (before) begin(before);
+      let injectOldError = false;
+      const view = renderHook(() => {
+        useAudioTransport();
+        const sourceId = useDawStore((s) => s.sourcePreview?.sourceId ?? null);
+        useLayoutEffect(() => {
+          if (injectOldError)
+            FakeAudio.instances[0].dispatchEvent(new Event("error"));
+        }, [sourceId]);
+      });
+      await act(async () => {});
+      act(() => {
+        injectOldError = true;
+        if (after) begin(after);
+        else state.setIsPlaying(true);
+      });
+      expect(useDawStore.getState().audioError).toBeNull();
+      expect(useDawStore.getState().sourcePreviewError).toBeNull();
+      if (after)
+        expect(useDawStore.getState().sourcePreview?.playing).toBe(true);
+      else expect(useDawStore.getState().isPlaying).toBe(true);
+      view.unmount();
+    },
+  );
 });
