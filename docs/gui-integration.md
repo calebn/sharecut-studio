@@ -468,7 +468,9 @@ A track whose words are **all** suppressed produces no utterance in `combined.js
 
 `pending_edits[].join_risk` is optional view metadata for tighten proposals (`filler:` / `pause:` / `repetition:` / `restart:`). It maps propose-time reason suffixes (`:risky`, `:join_review`) through `gui/mapper.py` — **not** a live `EditService.join_quality` sweep on every ProjectView snapshot. Verdicts are `review` when those suffixes are present; otherwise the field is `null`. Use `join_quality_tool` for a per-decision live score. The host Tighten tab treats `review_required`, `join_risk.verdict` `fail`/`review`, and `:risky` as harsh (excluded from apply-all when Avoid harsh cuts is on).
 
-**Transcript display is non-destructive:** cut-away (`mappable === false`) utterances stay in on-disk `combined.json` with source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
+**Transcript display is non-destructive:** displaying or hiding retained cut-away (`mappable === false`) utterances does not alter on-disk `combined.json` or its source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
+
+Boundary word previews require retained `cutaway_word_ids`. Ripple cuts remove overlapping words from the active per-track transcript, so those cuts currently have no restored-word preview. [Issue #883](https://github.com/calebn/sharecut-studio/issues/883) tracks a durable source for archived word references and the cut/restore regression.
 
 **Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten. The lane's applied-edit ticks do not use `timeline_*` at all (#527): they come from `params.per_track_source` (`ripple_delete`/`punch_delete`/`approve_edits`/`apply_prefix_edits`), `params.split_source_by_track` (`split_clips_at`/`approve_split`), or the record's own `source_start`/`source_end`, projected through the track's current clips.
 
@@ -546,3 +548,15 @@ native comment fields shrink within that column even when the browser gives
 them a larger preferred width. Status pills and muted/resolved metadata use
 readable text roles rather than reducing the opacity of the entire surface. See the
 [GUI surface audit](gui-surface-audit.md) for tested states and limitations.
+
+Transcript edit-boundary gestures freeze the starting source bounds and button
+rectangle. The glyph retains its inline size and translates by the clamped delta.
+A bounded body portal displays roll/trim intent, precise delta, restored-word
+side, legal limits, and cancellation instructions without changing transcript
+flow. Focus departure, ancestor scroll, or resize cancels stale placement.
+Pointer up commits once. Pointer cancellation, lost capture, window blur, Escape,
+and unmount discard the preview and release capture, listeners, and drag locks.
+Pending commits block another gesture on that handle and show saving feedback.
+Rejected commits show a scrollable alert with Dismiss and focus restoration.
+Focused component tests, live-project touch and geometry tests, and word-bearing
+Storybook browser tests cover these behaviors at desktop and phone widths.

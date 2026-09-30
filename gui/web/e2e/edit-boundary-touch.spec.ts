@@ -133,6 +133,20 @@ for (const width of [1440, 360]) {
         /aligned dialogue/i,
       );
       await setTheme(page, theme);
+      const boundaryCommands: string[] = [];
+      page.on("request", (request) => {
+        if (
+          !request.url().includes("/api/document/command") ||
+          request.method() !== "POST"
+        )
+          return;
+        const command: { type?: string } | null = request.postDataJSON();
+        if (
+          command?.type === "RollClipJoin" ||
+          command?.type === "TrimClipEdge"
+        )
+          boundaryCommands.push(command.type);
+      });
       let applied = false;
       try {
         await waiveRefineGate(page, "e2e boundary geometry");
@@ -161,7 +175,8 @@ for (const width of [1440, 360]) {
           "xpath=ancestor::*[contains(@class, 'utterance-turn')][1]",
         );
         const originalParagraph = await paragraph.boundingBox();
-        let restoredWordsSeen = false;
+        if (!originalParagraph)
+          throw new Error("Boundary needs a visible transcript turn");
         await page.mouse.move(x, y);
         await page.mouse.down();
         for (const distance of [
@@ -177,19 +192,36 @@ for (const width of [1440, 360]) {
             expect(Math.abs(box.y - initial.y)).toBeLessThan(0.5);
             expect(box.width).toBeCloseTo(initial.width, 1);
             expect(await paragraph.boundingBox()).toEqual(originalParagraph);
+            const preview = await page
+              .locator(".edit-boundary-preview")
+              .boundingBox();
+            if (!preview) throw new Error("Drag feedback disappeared");
+            expect(preview.x).toBeGreaterThanOrEqual(0);
+            expect(preview.x + preview.width).toBeLessThanOrEqual(width);
+            expect(preview.y).toBeGreaterThanOrEqual(0);
+            expect(preview.y + preview.height).toBeLessThanOrEqual(900);
+            expect(
+              preview.y >= initial.y + initial.height ||
+                preview.y + preview.height <= initial.y,
+            ).toBe(true);
           }).toPass({ timeout: 2000 });
-          restoredWordsSeen ||=
-            (await page
-              .getByRole("group", { name: "Preview restored words" })
-              .count()) > 0;
         }
-        expect(restoredWordsSeen).toBe(true);
+        await page.mouse.move(x + 10000, y);
+        await expect(page.locator(".edit-boundary-preview")).toContainText(
+          "Limit reached",
+        );
+        const limited = await mark.boundingBox();
+        await page.mouse.move(x + 12000, y);
+        await expect(async () =>
+          expect(await mark.boundingBox()).toEqual(limited),
+        ).toPass({ timeout: 2000 });
         await page.keyboard.press("Escape");
         await page.mouse.up();
         await expect(page.locator("body")).not.toHaveClass(
           /is-boundary-dragging/,
         );
         await expect(mark).toHaveAttribute("aria-grabbed", "false");
+        expect(boundaryCommands).toEqual([]);
       } finally {
         await page.mouse.up();
         if (applied)

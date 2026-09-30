@@ -531,6 +531,17 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 `expectPageAxeClean(page, selector)` can also check a focused surface; the open transport-menu test scopes its axe check to the menu while unrelated track-header and loading-timeline ARIA names are tracked in #114. Do not disable additional axe rules to hide failures.
 
+### Storybook browser geometry
+
+`npm run test:e2e:storybook` in `gui/web` starts its own Storybook server on
+port 6010 and runs Chromium against the production edit-boundary stories.
+The restored-word fixtures make ghost preview geometry observable without a
+live episode or backend. Real mouse trajectories check stable text and row
+layout, handle displacement, preview bounds, and Escape cleanup at 1440px
+and 360px in light and dark themes. `.github/workflows/storybook.yml` installs
+Chromium and runs this suite before building the catalog. This supplements
+the jsdom story interaction and axe checks.
+
 ### Shared live project in Playwright
 
 Specs share one live project with `workers: 1`, so rows from earlier specs (for

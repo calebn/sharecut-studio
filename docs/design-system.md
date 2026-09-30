@@ -41,7 +41,9 @@ existing control meets it. Track gaps in the [editor interaction review](https:/
 
 The [UI philosophy](ui-philosophy.md) remains the product requirement source.
 The [boundary drag defect](https://github.com/calebn/sharecut-studio/issues/877)
-is a known gap in the current implementation.
+is covered by intermediate browser geometry regressions. The glyph retains its
+inline size while a bounded body portal shows feedback. Ripple-cut word archival
+remains a separate gap in [#883](https://github.com/calebn/sharecut-studio/issues/883).
 
 ## What's in it
 
@@ -257,8 +259,17 @@ extraction, even though ARIA 1.2 deprecates it; axe lists it as needs-review
 that classification so an axe upgrade that changes it fails there. If it is
 ever dropped, replace it with a live-region or `aria-description` drag
 message. One drag runs at a time: a second finger on the button is ignored
-until the first lifts (Vitest, plus a real Chromium two-finger touch drag in
-`gui/web/e2e/edit-boundary-touch.spec.ts`).
+until the first lifts. Pointer cancel, lost capture, focus departure, window blur,
+ancestor scroll, resize, Escape, and unmount discard the gesture. Pointer up
+commits once. Saving blocks another gesture on that handle. Errors scroll within
+viewport bounds and provide a Dismiss button that restores focus.
+
+The portal shows roll/trim intent, a delta at 0.01-second display precision,
+clamp limits, and restored-word side. Long previews report abbreviated or omitted
+words. Focused Vitest tests cover lifecycle behavior. Chromium tests in
+`gui/web/e2e/edit-boundary-touch.spec.ts` cover live-project geometry and touch.
+`gui/web/e2e-storybook/edit-boundary.spec.ts` covers word-bearing roll and trim,
+wrapped text, both themes, focus departure, and short-viewport error recovery.
 
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link

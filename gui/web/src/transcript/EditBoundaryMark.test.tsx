@@ -100,7 +100,7 @@ describe("EditBoundaryMark", () => {
       timeline_start: 10,
       timeline_end: 25,
     });
-    const { getByRole, container } = render(
+    const { getByRole } = render(
       <EditBoundaryMark
         boundary={boundary}
         leftClip={left}
@@ -112,10 +112,10 @@ describe("EditBoundaryMark", () => {
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
     expect(mark.className).toContain("dragging");
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
-    expect(container.querySelector(".edit-ghost-words")?.textContent).toContain(
+    expect(document.querySelector(".edit-ghost-words")?.textContent).toContain(
       "ghostly",
     );
-    expect(container.querySelector(".edit-ghost-words")?.textContent).toContain(
+    expect(document.querySelector(".edit-ghost-words")?.textContent).toContain(
       "words",
     );
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
@@ -481,5 +481,172 @@ describe("EditBoundaryMarkView", () => {
     expectDragListenersRemoved(add, remove);
     add.mockRestore();
     remove.mockRestore();
+  });
+});
+
+describe("boundary gesture lifecycle", () => {
+  function setup(onTrim = vi.fn()) {
+    const view = render(
+      <div className="transcript-list">
+        <EditBoundaryMarkView
+          boundary={boundary}
+          leftClip={clip({ id: "left", source_end: 20 })}
+          rightClip={null}
+          getRollBounds={() => ({
+            prevSourceEnd: 0,
+            nextSourceStart: 80,
+            mediaEnd: 80,
+          })}
+          onRoll={vi.fn()}
+          onTrim={onTrim}
+        />
+      </div>,
+    );
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    return { ...view, mark, onTrim };
+  }
+
+  it.each(["blur", "resize", "scroll", "lostpointercapture", "escape"])(
+    "cancels on %s",
+    (reason) => {
+      const { mark, onTrim } = setup();
+      if (reason === "escape") fireEvent.keyDown(mark, { key: "Escape" });
+      else if (reason === "lostpointercapture")
+        fireEvent(mark, new PointerEvent(reason, { pointerId: 1 }));
+      else if (reason === "scroll")
+        fireEvent.scroll(mark.closest(".transcript-list") ?? document);
+      else fireEvent(window, new Event(reason));
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+      expect(onTrim).not.toHaveBeenCalled();
+      expect(mark).toHaveAttribute("aria-grabbed", "false");
+      expect(document.body).not.toHaveClass("is-boundary-dragging");
+    },
+  );
+
+  it("keeps feedback outside the text flow and reports exact delta", () => {
+    const { mark, container } = setup();
+    expect(mark.textContent).toBe("¦");
+    expect(mark.style.transform).toBe("translateX(5rem)");
+    expect(container.querySelector(".edit-boundary-preview")).toBeNull();
+    expect(document.querySelector(".edit-boundary-preview")).toHaveTextContent(
+      "Trim out +1.00s",
+    );
+    fireEvent.pointerCancel(window, { pointerId: 1 });
+  });
+
+  it("blocks another gesture while saving and presents rejected commits", async () => {
+    let rejectSave: (reason: Error) => void = () => undefined;
+    const onTrim = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    const { mark, getByRole } = setup(onTrim);
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    expect(mark).toBeDisabled();
+    expect(getByRole("status")).toHaveTextContent("Saving boundary edit");
+    fireEvent.pointerDown(mark, { pointerId: 2, clientX: 100 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 180 });
+    expect(onTrim).toHaveBeenCalledTimes(1);
+    rejectSave(new Error("offline"));
+    await waitFor(() =>
+      expect(getByRole("alert")).toHaveTextContent("offline"),
+    );
+    expect(mark).not.toBeDisabled();
+  });
+
+  it("cancels when focus leaves the boundary", () => {
+    const { mark, onTrim } = setup();
+    fireEvent.blur(mark);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    expect(onTrim).not.toHaveBeenCalled();
+    expect(mark).toHaveAttribute("aria-grabbed", "false");
+    expect(document.body).not.toHaveClass("is-boundary-dragging");
+  });
+
+  it("bounds a long error and dismisses it with focus restored", async () => {
+    const onTrim = vi.fn(async () => {
+      throw new Error("Detailed server failure ".repeat(200));
+    });
+    const { mark, getByRole, queryByRole } = setup(onTrim);
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    const alert = await waitFor(() => getByRole("alert"));
+    expect(alert).toHaveTextContent(
+      "Detailed server failure ".repeat(200).trim(),
+    );
+    const preview = alert.closest<HTMLElement>(".edit-boundary-preview");
+    expect(preview?.style.maxHeight).toBeTruthy();
+    expect(preview).toHaveClass("edit-boundary-preview-error");
+    fireEvent.click(getByRole("button", { name: "Dismiss boundary error" }));
+    expect(queryByRole("alert")).toBeNull();
+    expect(mark).toHaveFocus();
+  });
+
+  it("trims a right edge inward with frozen source math", () => {
+    const onTrim = vi.fn();
+    const view = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={null}
+        rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
+        getRollBounds={() => ({
+          prevSourceEnd: 0,
+          nextSourceStart: 80,
+          mediaEnd: 80,
+        })}
+        onRoll={vi.fn()}
+        onTrim={onTrim}
+      />,
+    );
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 20 });
+    expect(view.getByRole("status")).toHaveTextContent("Trim in -1.00s");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 20 });
+    expect(onTrim).toHaveBeenCalledWith("right", "in", 24);
+  });
+
+  it("freezes legal movement and reports the reached limit", () => {
+    const onRoll = vi.fn();
+    const bounds = () => ({
+      prevSourceEnd: 0,
+      nextSourceStart: 80,
+      mediaEnd: 20.5,
+    });
+    const view = render(
+      <EditBoundaryMarkView
+        boundary={boundary}
+        leftClip={clip({ id: "left", source_end: 20 })}
+        rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
+        getRollBounds={bounds}
+        onRoll={onRoll}
+        onTrim={vi.fn()}
+      />,
+    );
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    expect(mark.style.transform).toBe("translateX(2.5rem)");
+    expect(view.getByRole("status")).toHaveTextContent(
+      "+0.50s · Limit reached",
+    );
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 300 });
+    expect(mark.style.transform).toBe("translateX(2.5rem)");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 300 });
+    expect(onRoll).toHaveBeenCalledWith("left", "right", 0.5);
+  });
+
+  it("no-ops at the original position and commits only once", () => {
+    const { mark, onTrim } = setup();
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 100 });
+    expect(onTrim).not.toHaveBeenCalled();
+    fireEvent.pointerDown(mark, { pointerId: 3, clientX: 100 });
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 3, clientX: 180 });
+    expect(onTrim).toHaveBeenCalledTimes(1);
   });
 });

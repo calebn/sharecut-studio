@@ -41,6 +41,14 @@ jobs:
         run: npm ci
         working-directory: gui/web
 
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: gui/web
+
+      - name: Verify browser geometry
+        run: npm run test:e2e:storybook
+        working-directory: gui/web
+
       - name: Build Storybook
         run: npm run build-storybook
         working-directory: gui/web

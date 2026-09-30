@@ -46,7 +46,9 @@ const meta: Meta<typeof EditBoundaryMarkView> = {
     (Story) => (
       <main aria-label="Edit boundary preview" className="transcript-list">
         <p className="utterance-seg">
-          We found <Story /> the signal.
+          We found a clear signal after listening carefully to the room tone and
+          comparing each take. <Story /> The next phrase starts cleanly and
+          keeps the conversation moving.
         </p>
       </main>
     ),
@@ -83,7 +85,7 @@ export const RollJoin: Story = {
 
 export const RollDragPreview: Story = {
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
+    const canvas = within(canvasElement.ownerDocument.body);
     const mark = canvasElement.querySelector(
       "button[data-boundary-id]",
     ) as HTMLElement;
@@ -94,8 +96,8 @@ export const RollDragPreview: Story = {
       canvas.getByRole("group", { name: "Preview restored words" }),
     ).toBeInTheDocument();
     await expect(
-      canvasElement.querySelector(".edit-boundary-delta"),
-    ).toHaveTextContent("+1.0s");
+      canvasElement.ownerDocument.querySelector(".edit-boundary-delta"),
+    ).toHaveTextContent("+1.00s");
     void fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
     await waitFor(() => expect(args.onRoll).toHaveBeenCalled());
   },
@@ -125,5 +127,27 @@ export const PhoneWidth: Story = {
       "button[data-boundary-id]",
     ) as HTMLElement;
     await expect(button).toBeVisible();
+  },
+};
+
+export const LongFailure: Story = {
+  args: {
+    onRoll: fn(async () => {
+      throw new Error("Detailed server failure ".repeat(200));
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    const mark = within(canvasElement).getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() =>
+      expect(canvas.getByRole("alert")).toHaveTextContent(
+        "Detailed server failure",
+      ),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Dismiss boundary error" }),
+    ).toBeVisible();
   },
 };
