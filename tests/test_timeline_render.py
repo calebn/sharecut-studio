@@ -1674,3 +1674,118 @@ def test_render_semantics_rev_bumped_for_per_join_cut() -> None:
     from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 
     assert RENDER_SEMANTICS_REV >= 3
+
+
+def _multi_source_constant_project(
+    tmp_path: Path,
+    name: str,
+    specs: list[tuple[str, float, float, float, dict[str, object]]],
+) -> tuple[EpisodeProject, Path]:
+    from podcast_mcp.models import SourceRecording
+
+    ws = tmp_path / name
+    raw = ws / "raw"
+    sources = []
+    clips = []
+    for sid, timeline_start, duration, amplitude, clip_fields in specs:
+        _write_constant_pcm_wav(raw / f"{sid}.wav", duration_sec=duration, amplitude=amplitude)
+        sources.append(
+            SourceRecording(id=sid, path=f"raw/{sid}.wav", speaker="Host", duration_sec=duration)
+        )
+        clips.append(
+            Clip(
+                id=sid,
+                track_id="host",
+                source_id=sid,
+                source_start=0.0,
+                source_end=duration,
+                timeline_start=timeline_start,
+                **clip_fields,
+            )
+        )
+    project = EpisodeProject.create(name, str(ws))
+    project.sources = sources
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{sources[0].id}.wav", duration_sec=specs[0][2]),
+        )
+    ]
+    project.timeline.clips = clips
+    return project, ws
+
+
+def test_multi_source_segment_preserves_partial_overlapping_placements(tmp_path: Path) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project, ws = _multi_source_constant_project(
+        tmp_path,
+        "segment_overlap",
+        [("a", 0.0, 1.0, 0.1, {}), ("b", 0.5, 1.0, 0.2, {})],
+    )
+    full_path = ws / "full.wav"
+    render_track_from_timeline(project, project.tracks[0], full_path, {}, engine=eng)
+    full = _read_pcm(full_path).astype(np.float32)
+    rate = 48_000
+
+    for start, end in ((0.4, 1.2), (0.6, 1.2)):
+        segment_path = ws / f"segment-{start}.wav"
+        render_track_segment(project, "host", start, end, segment_path, {}, engine=eng)
+        segment = _read_pcm(segment_path).astype(np.float32)
+        expected = full[round(start * rate) : round(end * rate)]
+        assert segment.shape == expected.shape
+        np.testing.assert_allclose(segment, expected, atol=2)
+    overlap = full[round(0.6 * rate) : round(0.9 * rate)]
+    assert np.mean(np.abs(overlap)) == pytest.approx(0.3 * 32767, abs=2)
+
+
+def test_multi_source_segment_uses_cut_neighbor_beyond_window(tmp_path: Path) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project, ws = _multi_source_constant_project(
+        tmp_path,
+        "cut_neighbor",
+        [
+            ("a", 0.0, 1.0, 0.1, {}),
+            ("b", 1.0, 1.0, 0.2, {"fade_out_ms": 200}),
+            ("c", 2.0, 1.0, 0.3, {"join_in_mode": ClipJoinMode.CUT}),
+        ],
+    )
+    full_path = ws / "full.wav"
+    segment_path = ws / "segment.wav"
+    render_track_from_timeline(project, project.tracks[0], full_path, {}, engine=eng)
+    full = _read_pcm(full_path).astype(np.float32)
+    project.source_by_id("c").path = "raw/missing-outside-window.wav"
+    render_track_segment(project, "host", 0.0, 2.0, segment_path, {}, engine=eng)
+    segment = _read_pcm(segment_path).astype(np.float32)
+    expected = full[: 2 * 48_000]
+    assert segment.shape == expected.shape
+    np.testing.assert_allclose(segment, expected, atol=2)
+    assert np.mean(np.abs(segment[-round(0.02 * 48_000) :])) == pytest.approx(0.2 * 32767, abs=2)
+
+
+def test_multi_source_nested_overlap_keeps_absolute_timeline_clock(tmp_path: Path) -> None:
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project, ws = _multi_source_constant_project(
+        tmp_path,
+        "nested_overlap",
+        [("a", 0.0, 3.0, 0.1, {}), ("b", 0.5, 1.0, 0.2, {}), ("c", 2.0, 1.0, 0.3, {})],
+    )
+    output = ws / "nested.wav"
+    render_track_from_timeline(project, project.tracks[0], output, {}, engine=eng)
+    pcm = _read_pcm(output).astype(np.float32)
+    assert pcm.shape == (3 * 48_000,)
+    c_region = pcm[round(2.2 * 48_000) : round(2.4 * 48_000)]
+    assert np.mean(np.abs(c_region)) == pytest.approx(0.4 * 32767, abs=2)

@@ -1211,3 +1211,34 @@ def test_measure_loudness_blocks_parses_framelog(tmp_path: Path):
     assert got == [(0.199977, -120.7), (0.399977, -41.8)]
     assert af1[af1.index("-af") + 1] == "highpass=f=80,ebur128=framelog=info"
     assert af2[af2.index("-af") + 1] == "ebur128=framelog=info"
+
+
+def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
+    sample_wav: Path, tmp_path: Path
+) -> None:
+    from podcast_mcp.engines.ffmpeg import PlacedSegment
+
+    engine = FFmpegEngine()
+    other = tmp_path / "other.wav"
+    placed = [
+        PlacedSegment(0.0, 0.1, source_path=sample_wav),
+        PlacedSegment(0.1, 0.2, source_path=other),
+        PlacedSegment(0.2, 0.3, source_path=sample_wav),
+        PlacedSegment(0.3, 0.4, source_path=other),
+        PlacedSegment(0.4, 0.5),
+    ]
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        engine.render_timeline(sample_wav, tmp_path / "out.wav", placed, "anull")
+    command = run.call_args.args[0]
+    input_paths = [
+        Path(command[index + 1]).resolve()
+        for index, token in enumerate(command[:-1])
+        if token == "-i"
+    ]
+    filter_complex = command[command.index("-filter_complex") + 1]
+    assert input_paths.count(sample_wav.resolve()) == 1
+    assert input_paths.count(other.resolve()) == 1
+    assert len(input_paths) == 2
+    assert "[0:a]asplit=3" in filter_complex
+    assert "[1:a]asplit=2" in filter_complex
+    assert filter_complex.count("atrim=") == len(placed)
