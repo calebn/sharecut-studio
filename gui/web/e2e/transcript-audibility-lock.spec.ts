@@ -42,11 +42,11 @@ test.describe("Audibility lock indicator (#781)", () => {
     page,
   }) => {
     await page.route(
-      (url) => new URL(url).pathname === "/api/project",
+      (url) => new URL(url).pathname === "/api/document/state",
       async (route) => {
         const response = await route.fetch();
         const body = (await response.json()) as Record<string, unknown>;
-        lockWord(body);
+        lockWord((body.project ?? body.patch) as Record<string, unknown>);
         await route.fulfill({ response, json: body });
       },
     );
@@ -97,11 +97,11 @@ test.describe("Audibility lock indicator (#781)", () => {
     page,
   }) => {
     await page.route(
-      (url) => new URL(url).pathname === "/api/project",
+      (url) => new URL(url).pathname === "/api/document/state",
       async (route) => {
         const response = await route.fetch();
         const body = (await response.json()) as Record<string, unknown>;
-        lockWord(body);
+        lockWord((body.project ?? body.patch) as Record<string, unknown>);
         await route.fulfill({ response, json: body });
       },
     );
@@ -146,11 +146,13 @@ test.describe("Audibility lock indicator (#781)", () => {
     page,
   }) => {
     await page.route(
-      (url) => new URL(url).pathname === "/api/project",
+      (url) => new URL(url).pathname === "/api/document/state",
       async (route) => {
         const response = await route.fetch();
         const body = (await response.json()) as Record<string, unknown>;
-        lockAndLowerWord(body);
+        lockAndLowerWord(
+          (body.project ?? body.patch) as Record<string, unknown>,
+        );
         await route.fulfill({ response, json: body });
       },
     );

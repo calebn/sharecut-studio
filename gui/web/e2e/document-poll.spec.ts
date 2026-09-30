@@ -1,15 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
 
-/**
- * One host document command should reach the timeline as exactly one socket
- * Applied frame, with no `/api/project` GET from the sanity poll skipping in
- * behind it (#657). The sanity poll ticks every 30 s (`SANITY_POLL_MS`,
- * #662), so this forces one meta check with a focus event instead of waiting
- * out the interval.
- */
 test.describe("Document poll double-apply", () => {
-  test("a host commit is one socket frame and no project GET", async ({
+  test("a host commit is one socket frame and no shell recovery GET", async ({
     page,
   }) => {
     let sawHelloSnapshot = false;
@@ -54,7 +47,7 @@ test.describe("Document poll double-apply", () => {
     page.on("request", (req) => {
       const url = new URL(req.url());
       if (
-        url.pathname === "/api/project" &&
+        url.pathname === "/api/document/state" &&
         url.searchParams.get("phase") === "shell"
       ) {
         shellGets.push(req.url());
