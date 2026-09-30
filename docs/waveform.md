@@ -303,6 +303,10 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   live pyramid, otherwise once they are 7 days old (an older app build may
   still write them, and a guest status poll can trigger the pass). A failed
   pass is retried on a later status call and never fails the status request.
+  GC refreshes the saved media index after acquiring the directory lock before
+  deciding which ref slugs are orphaned. It uses a caller's earlier index only
+  for the artifact directory. The fresh lookup preserves refs saved while GC
+  waited for publication, but does not serialize concurrent project writes.
 - **`pcm_block(project_path, ref, key, block)`:** one host deep-zoom block.
   Decoded compressed blocks are kept in an LRU of 32 blocks (at most 8 MiB)
   keyed by media path, key and block, so refs of one file share entries. The
