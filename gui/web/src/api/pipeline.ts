@@ -146,6 +146,9 @@ export async function loadPipelineStatus(init?: {
 }
 
 export type TranscriptVocabulary = {
+  show_title: string | null;
+  prompt_limit: number | null;
+  prompt_primer: string;
   terms: string[];
   guest_names: string[];
   revision: string | null;

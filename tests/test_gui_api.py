@@ -2862,6 +2862,27 @@ def test_api_pipeline_analyze_job_cancel_and_slot(minimal_project, monkeypatch) 
         time.sleep(0.05)
 
 
+@pytest.mark.parametrize("enabled,limit", [(True, 400), (True, 10), (False, 400)])
+def test_api_transcript_vocabulary_prompt_metadata(minimal_project, enabled, limit) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.transcript_context import TranscriptContext
+
+    TranscriptContext(
+        show_title="Example show",
+        transcribe={"initial_prompt": enabled, "initial_prompt_max_chars": limit},
+    ).save(minimal_project.parent)
+    response = TestClient(create_app()).get(
+        "/api/transcript/vocabulary", params={"path": str(minimal_project)}
+    )
+    assert response.status_code == 200
+    assert response.json()["show_title"] == "Example show"
+    assert response.json()["prompt_limit"] == (limit if enabled else None)
+    assert response.json()["prompt_primer"] == "Podcast episode transcript."
+
+
 def test_api_transcript_vocabulary_roundtrip_and_validation(minimal_project) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
