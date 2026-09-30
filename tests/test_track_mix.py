@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -49,10 +50,18 @@ from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.history.summary import format_history_group_title
 from podcast_mcp.mcp.server import track_set_mute_tool, track_set_volume_tool
-from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    load_project,
+    save_project,
+)
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
-from podcast_mcp.services import EpisodeService, PipelineService, ProjectWorkspace
+from podcast_mcp.services import EditService, EpisodeService, PipelineService, ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -179,6 +188,56 @@ def test_export_after_a_mute_without_refresh_remixes_first(minimal_project: Path
     assert _shipped(export) == ["host"]
 
 
+def test_real_wav_export_refreshes_music_fx_and_media_once(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    project = EpisodeProject.create("music freshness", str(tmp_path / "episode"))
+    project.ensure_dirs()
+    path = save_project(project)
+    other = tmp_path / "other.wav"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=880:duration=2",
+            "-ar",
+            "48000",
+            str(other),
+        ],
+        check=True,
+    )
+    ws = ProjectWorkspace.open(path)
+    episode = EpisodeService(ws)
+    episode.add_track("voice", str(sample_wav), role="dialogue")
+    episode.add_track("music", str(other), role="music")
+    service = PipelineService(ws)
+
+    first = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    first_premix = premix_path(ws.project).read_bytes()
+    EditService(ws).add_effect(track_id="music", effect="volume", params={"volume": "0.2"})
+    assert premix_is_stale(ws.project) is True
+    assert EditService(ws).render_status()["needs_rerender"] is True
+    second = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    assert second != first
+    assert premix_path(ws.project).read_bytes() != first_premix
+    assert premix_is_stale(ws.project) is False
+
+    episode.set_track_media("music", str(sample_wav))
+    assert premix_is_stale(ws.project) is True
+    third = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    assert third != second
+    assert premix_is_stale(ws.project) is False
+    revision = premix_path(ws.project).stat().st_mtime_ns
+    reopened = ProjectWorkspace.open(path)
+    PipelineService(reopened).export_audio([{"ext": "wav"}])
+    assert premix_path(reopened.project).stat().st_mtime_ns == revision
+
+
 def test_an_unchanged_project_reuses_the_master(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     _fresh_stems(ws.project)
@@ -211,6 +270,42 @@ def test_a_stem_behind_its_edits_stales_the_premix(minimal_project: Path) -> Non
         steps.mix_with_music(ws.project, defaults)
         Path(rendered["guest"]).unlink()
         assert premix_is_stale(ws.project) is False
+
+
+@pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO, TrackRole.SFX])
+def test_a_non_dialogue_stem_behind_its_effects_stales_the_premix(
+    minimal_project: Path, role: TrackRole
+) -> None:
+    ws = _two_tracks(minimal_project)
+    bed = ws.project.track_by_id("guest")
+    assert bed is not None
+    bed.role = role
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    eng.probe.return_value.duration_sec = 6.0
+    eng.render_dialogue_track.side_effect = lambda _project, _track, out, **_kw: out.write_bytes(
+        b"RIFF"
+    )
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, load_defaults())
+    assert premix_is_stale(ws.project) is False
+
+    from podcast_mcp.models import ProcessingChain, ProcessingEffect
+
+    ws.project.processing_chains.append(
+        ProcessingChain(
+            track_id="guest", effects=[ProcessingEffect(effect="volume", params={"volume": "0.2"})]
+        )
+    )
+    assert premix_is_stale(ws.project) is True
+    assert render_status_report(ws.project)["needs_rerender"] is True
+
+    bed.muted = True
+    assert premix_is_stale(ws.project) is True
+    write_premix_hash(ws.project, mix_gains(ws.project))
+    assert premix_is_stale(ws.project) is False
+    ws.project.processing_chains[-1].effects[0].params["volume"] = "0.3"
+    assert premix_is_stale(ws.project) is False
 
 
 def test_a_master_without_a_matching_hash_is_stale(minimal_project: Path) -> None:
