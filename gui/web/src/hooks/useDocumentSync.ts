@@ -10,6 +10,7 @@ import {
 import { finishDocumentDraft } from "../document/pendingDrafts";
 import type { DocumentSnapshot } from "../document/projectPatch";
 import { getSessionToken } from "../sessionAuth";
+import { useDawStore } from "../state/dawStore";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { detachSocket } from "../sync/detachSocket";
@@ -57,6 +58,7 @@ export function useDocumentSync(
   _setProject: (project: ProjectView) => void,
   enabled = true,
 ): void {
+  const projectEpoch = useDawStore((state) => state.projectEpoch);
   useEffect(() => {
     if (!enabled || !projectPath) {
       return;
@@ -72,10 +74,19 @@ export function useDocumentSync(
         return;
       }
       ws = new WebSocket(documentWsUrl(projectPath));
+      const thisSocket = ws;
+      let retired = false;
+      const current = () =>
+        !closed &&
+        !retired &&
+        ws === thisSocket &&
+        isCurrentDocumentScope(scope);
       ws.onopen = () => {
+        if (!current()) return;
         drain();
       };
       ws.onmessage = (ev) => {
+        if (!current()) return;
         let msg: DocumentSnapshotMsg;
         try {
           msg = JSON.parse(ev.data as string) as DocumentSnapshotMsg;
@@ -92,7 +103,7 @@ export function useDocumentSync(
         // Parsed at receipt like the session and guest hooks; the seq/file
         // bookkeeping and the apply run in order from the per-frame queue.
         enqueueInbound(() => {
-          if (closed || !isCurrentDocumentScope(scope)) {
+          if (!current()) {
             return;
           }
           try {
@@ -106,9 +117,12 @@ export function useDocumentSync(
         });
       };
       ws.onclose = (event) => {
-        if (!closed && !isTerminalWsClose(event.code)) {
-          retry = setTimeout(connect, 2000);
-        }
+        if (!current()) return;
+        retired = true;
+        if (!isTerminalWsClose(event.code)) retry = setTimeout(connect, 2000);
+      };
+      ws.onerror = () => {
+        if (current()) thisSocket.close();
       };
     };
     connect();
@@ -126,5 +140,5 @@ export function useDocumentSync(
         detachSocket(ws);
       }
     };
-  }, [projectPath, enabled]);
+  }, [projectPath, enabled, projectEpoch]);
 }

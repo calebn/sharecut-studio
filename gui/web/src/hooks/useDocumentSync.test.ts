@@ -146,6 +146,59 @@ describe("useDocumentSync", () => {
     ]);
   });
 
+  it("ignores a retired socket callback after same-project reconnect", async () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() =>
+      useDocumentSync("/tmp/ep.json", () => undefined),
+    );
+    try {
+      const old = FakeWebSocket.instances[0];
+      const oldMessage = old.onmessage;
+      const oldClose = old.onclose;
+      act(() => {
+        old.close(1011);
+        oldClose?.({ code: 1011 });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      act(() =>
+        FakeWebSocket.instances[1].emit({
+          type: "Snapshot",
+          snapshot: {
+            server_seq: 2,
+            project: minimalProject({
+              meta: { ...minimalProject().meta, name: "Current" },
+            }),
+          },
+        }),
+      );
+      act(() => {
+        oldMessage?.({
+          data: JSON.stringify({
+            type: "Snapshot",
+            snapshot: {
+              server_seq: 99,
+              project: minimalProject({
+                meta: { ...minimalProject().meta, name: "Retired" },
+              }),
+            },
+          }),
+        });
+        oldClose?.({ code: 1011 });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(useDawStore.getState().project?.meta.name).toBe("Current");
+    } finally {
+      unmount();
+      vi.useRealTimers();
+    }
+  });
+
   it("reconnects after a non-4403 close", async () => {
     vi.useFakeTimers();
     const { unmount } = renderHook(() =>
@@ -459,4 +512,56 @@ describe("useDocumentSync", () => {
     );
     expect(useDawStore.getState().project?.tracks[0].label).toBe("Newer peer");
   });
+});
+
+it("reconnects after batched project ABA and applies current peer frames", async () => {
+  const path = "/tmp/ep.json";
+  FakeWebSocket.reset({ autoOpen: false });
+  vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+  useDawStore.getState().hydrate(path, minimalProject());
+  const { unmount } = renderHook(() => useDocumentSync(path, () => undefined));
+  try {
+    const old = FakeWebSocket.instances[0];
+    act(() => {
+      old.deliver({
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 99,
+          project: minimalProject({
+            meta: { ...minimalProject().meta, name: "Old" },
+          }),
+        },
+      });
+      useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+      useDawStore.getState().hydrate(path, minimalProject());
+    });
+    expect(old.closed).toBe(true);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    act(() =>
+      FakeWebSocket.instances[1].emit({
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 10,
+          state_token: token,
+          project: minimalProject({
+            meta: { ...minimalProject().meta, name: "Current" },
+          }),
+        },
+      }),
+    );
+    expect(useDawStore.getState().project?.meta.name).toBe("Current");
+    act(() =>
+      FakeWebSocket.instances[1].emit({
+        type: "Applied",
+        snapshot: {
+          server_seq: 11,
+          ...delta(11, { meta: { ...minimalProject().meta, name: "Peer" } }),
+        },
+      }),
+    );
+    expect(useDawStore.getState().project?.meta.name).toBe("Peer");
+  } finally {
+    unmount();
+    vi.unstubAllGlobals();
+  }
 });

@@ -75,6 +75,7 @@ export function useGuestSync(
   _setProject: (project: ProjectView) => void,
   enabled = true,
 ): boolean {
+  const projectEpoch = useDawStore((state) => state.projectEpoch);
   const applyRef = useRef(applyAgentSession);
   applyRef.current = applyAgentSession;
   const sessionSeqRef = useRef(0);
@@ -142,7 +143,15 @@ export function useGuestSync(
       ws = new WebSocket(
         guestWsUrl(token, connectIdRef.current, sessionDisplayName("guest")),
       );
+      const thisSocket = ws;
+      let retired = false;
+      const current = () =>
+        !closed &&
+        !retired &&
+        ws === thisSocket &&
+        isCurrentDocumentScope(scope);
       ws.onopen = () => {
+        if (!current()) return;
         wsOpenRef.current = true;
         const sock = ws;
         sendRef.current = bindWsSender(sock);
@@ -156,7 +165,7 @@ export function useGuestSync(
        * client-id handoff above already happened at receipt.
        */
       const handleGuestFrame = (msg: GuestMsg) => {
-        if (closed) {
+        if (!current()) {
           return;
         }
         if (handlePresenceWsFrame(msg, rosterRequester)) {
@@ -197,6 +206,7 @@ export function useGuestSync(
       };
 
       ws.onmessage = (ev) => {
+        if (!current()) return;
         try {
           const msg = JSON.parse(ev.data as string) as GuestMsg & {
             server_time_ns?: number;
@@ -225,11 +235,11 @@ export function useGuestSync(
           // ignore malformed
         }
       };
-      const thisSocket = ws;
       ws.onclose = () => {
-        if (ws !== thisSocket) {
+        if (!current()) {
           return;
         }
+        retired = true;
         wsOpenRef.current = false;
         sendRef.current = null;
         setWsReady(false);
@@ -265,7 +275,7 @@ export function useGuestSync(
       rosterRequester.dispose();
       setWsReady(false);
     };
-  }, [projectPath, enabled]);
+  }, [projectPath, enabled, projectEpoch]);
 
   const sendPresence = useCallback((frame: Record<string, unknown>) => {
     sendRef.current?.(frame);

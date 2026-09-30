@@ -460,4 +460,76 @@ describe("useGuestSync", () => {
       .filter((f) => f.type === "RosterRequest");
     expect(rosterRequests).toHaveLength(1);
   });
+  it("reconnects after batched review ABA and accepts the current document hello", () => {
+    const path = "share:tok123";
+    const { unmount } = renderHook(() =>
+      useGuestSync(path, vi.fn(), vi.fn(), true),
+    );
+    const old = FakeWebSocket.instances[0];
+    act(() => {
+      old.deliver({
+        plane: "document",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 99,
+          project: minimalProject({
+            meta: { ...minimalProject().meta, name: "Old" },
+          }),
+        },
+      });
+      useDawStore.getState().hydrate("share:other", minimalProject());
+      useDawStore.getState().hydrate(path, minimalProject());
+    });
+    expect(old.closed).toBe(true);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    act(() =>
+      FakeWebSocket.instances[1].emit({
+        plane: "document",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 10,
+          project: minimalProject({
+            meta: { ...minimalProject().meta, name: "Current" },
+          }),
+        },
+      }),
+    );
+    expect(useDawStore.getState().project?.meta.name).toBe("Current");
+    unmount();
+  });
+  it("rejects a retired socket before clock and local identity handoff", () => {
+    const path = "share:tok123";
+    const { unmount } = renderHook(() =>
+      useGuestSync(path, vi.fn(), vi.fn(), true),
+    );
+    const old = FakeWebSocket.instances[0];
+    const oldMessage = old.onmessage;
+    act(() => {
+      useDawStore.getState().hydrate("share:other", minimalProject());
+      useDawStore.getState().hydrate(path, minimalProject());
+    });
+    act(() =>
+      FakeWebSocket.instances[1].emit({
+        plane: "session",
+        type: "Snapshot",
+        client_id: "current-id",
+        snapshot: { server_seq: 1, server_time_ns: (Date.now() + 50) * 1e6 },
+      }),
+    );
+    const offset = currentServerClockOffsetMs();
+    act(() =>
+      oldMessage?.({
+        data: JSON.stringify({
+          plane: "session",
+          type: "Snapshot",
+          client_id: "retired-id",
+          server_time_ns: (Date.now() + 5000) * 1e6,
+          snapshot: { server_seq: 99 },
+        }),
+      }),
+    );
+    expect(useDawStore.getState().localClientId).toBe("current-id");
+    expect(currentServerClockOffsetMs()).toBe(offset);
+    unmount();
+  });
 });
