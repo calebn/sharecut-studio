@@ -123,6 +123,8 @@ def test_pregate_reconcile_reuses_only_fresh_ungated_stems(tmp_path, monkeypatch
         _write_pcm(source, _read_pcm(source).astype(float) / 32767 * 10 ** (-12 / 20))
     elif state == "gated":
         track.transcript_gate = True
+        timeline_render.render_track_from_timeline(project, track, stem, load_defaults())
+        write_stem_hash(project, "guest")
     renders = []
     original = timeline_render.render_track_from_timeline
 
