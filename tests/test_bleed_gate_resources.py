@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import shutil
 
 import numpy as np
+import pytest
 
 from podcast_mcp.engines import bleed_gate
-from test_bleed_gate_regression import _episode
+from test_bleed_gate_regression import RATE, _episode, _read_pcm, _write_pcm
 
 
 def test_owner_activity_analysis_bounds_each_rms_allocation(monkeypatch):
@@ -61,3 +63,39 @@ def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_p
     assert "unavailable_full_band_evidence" in failed.reasons
     monkeypatch.setattr(bleed_gate, "raw_timeline_window", original)
     assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans
+
+
+@pytest.mark.parametrize("replaced_track", ["host", "guest"])
+def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_peer(
+    tmp_path, replaced_track
+):
+    from podcast_mcp.engines.play_audit import track_render_hash
+    from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
+
+    project = _episode(tmp_path)
+    first = bleed_gate.build_bleed_gate_plan(project, "host")
+    assert first.attenuation_spans
+    previous_hash = track_render_hash(project, "host")
+    path = tmp_path / "raw" / f"{replaced_track}.wav"
+    before = path.stat()
+    samples = _read_pcm(path).astype(np.float64) / 32767
+    lo, hi = round(2 * RATE), round(2.6 * RATE)
+    if replaced_track == "host":
+        clock = np.arange(hi - lo) / RATE
+        samples[lo:hi] += 0.06 * np.sin(2 * np.pi * 11003 * clock)
+    else:
+        samples[lo:hi] = np.random.default_rng(497).normal(0, 0.15, hi - lo)
+    replacement = path.with_name("replacement.wav")
+    _write_pcm(replacement, samples)
+    os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+    os.replace(replacement, path)
+    after = path.stat()
+    assert (after.st_size, after.st_mtime_ns) == (before.st_size, before.st_mtime_ns)
+    assert after.st_ino != before.st_ino
+    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ()
+    assert track_render_hash(project, "host") != previous_hash
+    source = tmp_path / "raw" / "host.wav"
+    output = tmp_path / "replacement-gated.wav"
+    shutil.copyfile(source, output)
+    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
+    np.testing.assert_array_equal(_read_pcm(output), _read_pcm(source))
