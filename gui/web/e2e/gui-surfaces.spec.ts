@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import type { PipelineConfigResponse } from "../src/types/pipeline";
+import { setByPath } from "../src/utils/configPath";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openTransportMenu } from "./overlayReachability";
@@ -257,15 +258,30 @@ test("phone pipeline hands focus to a missing Whisper model dialog and back", as
   );
   expect(response.ok()).toBe(true);
   const config = (await response.json()) as PipelineConfigResponse;
+  const currentModel = config.whisper_models?.[0];
+  if (!currentModel) throw new Error("The Whisper catalog must contain models");
   const models = (config.whisper_models ?? []).map((model) => ({
     ...model,
-    cached: false,
+    cached: model.id === currentModel.id,
   }));
   expect(models.length).toBeGreaterThan(1);
+  const pickerConfig: PipelineConfigResponse = {
+    ...config,
+    config: setByPath(config.config, "transcribe.model", currentModel.id),
+    components: {
+      ...config.components,
+      whisper: {
+        ...config.components.whisper,
+        ok: true,
+        model: currentModel.id,
+      },
+    },
+    whisper_models: models,
+  };
   await page.route("**/api/pipeline/config**", async (route) => {
     await route.fulfill({
       response,
-      json: { ...config, whisper_models: models },
+      json: pickerConfig,
     });
   });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -279,8 +295,10 @@ test("phone pipeline hands focus to a missing Whisper model dialog and back", as
   });
   const picker = parameters.getByRole("combobox");
   const originalModel = await picker.inputValue();
+  expect(originalModel).toBe(currentModel.id);
   const missingModel = models.find((model) => model.id !== originalModel);
   expect(missingModel).toBeDefined();
+  expect(missingModel?.cached).toBe(false);
   await picker.selectOption(missingModel!.id);
   const download = page.getByRole("dialog", {
     name: "Download Whisper model?",

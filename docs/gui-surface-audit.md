@@ -20,7 +20,7 @@ wrapper code were reviewed where they determine visible states.
 | Panels and inspectors | All nine panel and 15 inspector implementation files, permission branches, error and recovery paths | Focused inspector tests; live panel navigation, long comments/vocabulary/chapter names and phone Pipeline modal checks |
 | Timeline, tracks and transcript | Every implementation component and its relevant styles; selection, pending/applied edits, joins, envelopes, marker/comment/presence and word editing states | Catalog scan; live editing, transcript and inspector workflows |
 | Recording | All 22 implementation components and relevant hooks; consent/lobby, host/guest/producer rooms, mic/storage/capture failures, room tone, clipping, upload, recovery and terminal states | 42 new prop-driven states; 168 desktop/phone cases in both themes; 12 live recording workflows with fake media; recovery and roster regressions |
-| Guest review | Audio readiness, access failures, review controls, comments/replies, filters and layout | Four live commenter-share cases at desktop/phone sizes in both themes, with contrast-enabled axe |
+| Guest review | Audio readiness, access failures, review controls, comments/replies, filters and layout | Four initial live commenter-share cases at desktop/phone sizes in both themes, with contrast-enabled axe; shipping confirmation adds 320px and enlarged native-field preferences |
 | Native wrapper | Splash/startup and sidecar errors, close/quit failure paths, CLI installation and permission interfaces | Responsive splash/error browser checks; OS-native prompts and packaged WebViews remain source-reviewed |
 
 ## Findings fixed
@@ -59,7 +59,7 @@ overflow, render failures or page errors. The separate final recording matrix
 covered 168 cases with the same clean result. Axe included WCAG A/AA contrast.
 These checks do not constitute exhaustive accessibility certification.
 
-The final current-build editor/splash run passed 25 cases. Its 21 editor cases
+The pre-shipping editor/splash run passed 25 cases. Its 21 editor cases
 include 30 panel scans and six chapter-inspector scans across both themes and
 three sizes with contrast enabled. A broader 43-case run passed existing editor
 workflows and all 12 recording workflows against the final build. Four separate
@@ -71,7 +71,7 @@ formatting, typecheck, production app build and Storybook build pass. Lint/build
 retain existing warnings. The production build guard excludes catalog-only code.
 The Chromium/WebKit compatibility matrix passes all 18 cases, including playback,
 offline/reconnect, phone layout, recording, review, Bounce and waveform flows.
-Together, the final editor/splash, broader workflow, guest-review and compatibility
+Together, the pre-shipping editor/splash, broader workflow, guest-review and compatibility
 runs comprise 90 passing browser cases; earlier repeated runs are not added to
 that total.
 
@@ -119,3 +119,22 @@ Follow-up work is scoped separately from this consistency patch:
 
 The [design system interaction requirements](design-system.md#interaction-quality-requirements)
 define the target without implying those follow-ups have shipped.
+
+## Shipping CI corrections
+
+The first Linux PR browser run exposed a guest-review column that grew with
+native fields' preferred width. The reading column now stays within its parent,
+and composer fields can shrink. The guest regression matrix includes 320px
+with enlarged native field preferences, as well as the original 360px and
+1440px cases in both themes. These shipping checks supplement the pre-shipping
+90-case record rather than replacing its evidence with a fresh full local run.
+
+The phone model-confirmation fixture now declares an installed current Whisper
+model and an uncached alternative. It exercises the intended confirmation path
+without depending on installed models on the runner. Touch-target assertions
+retain an exact 44px layout-height floor and allow only 0.001px of floating-point
+error in translated bounding rectangles.
+
+Local shipping confirmation passes six guest-review cases and five focused model,
+Share, and Bounce cases. The enlarged-field 320px regression fails against the
+old build before the layout fix. Eight beta-story coverage-policy tests pass.

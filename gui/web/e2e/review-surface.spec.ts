@@ -4,7 +4,7 @@ import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
 for (const theme of ["light", "dark"] as const) {
-  for (const width of [1440, 360]) {
+  for (const width of [1440, 360, 320]) {
     test(`guest review supports comments and replies at ${width} in ${theme}`, async ({
       browser,
     }) => {
@@ -39,6 +39,18 @@ for (const theme of ["light", "dark"] as const) {
                   .evaluate((audio: HTMLAudioElement) => audio.readyState),
               )
               .toBeGreaterThan(0);
+            if (width === 320) {
+              await guest
+                .getByLabel("Your name", { exact: true })
+                .evaluate((input: HTMLInputElement) => {
+                  input.size = 40;
+                });
+              await guest
+                .getByLabel("Comment", { exact: true })
+                .evaluate((textarea: HTMLTextAreaElement) => {
+                  textarea.cols = 40;
+                });
+            }
             await guest
               .getByLabel("Your name", { exact: true })
               .fill("Guest reviewer");
@@ -67,6 +79,14 @@ for (const theme of ["light", "dark"] as const) {
                 guest.evaluate(() => document.documentElement.scrollWidth),
               )
               .toBeLessThanOrEqual(width);
+            const readingBounds = await guest
+              .locator(".cover-center")
+              .evaluate((element) => {
+                const { left, right } = element.getBoundingClientRect();
+                return { left, right };
+              });
+            expect(readingBounds.left).toBeGreaterThanOrEqual(0);
+            expect(readingBounds.right).toBeLessThanOrEqual(width);
             await expectReadingSurfaceAxeClean(guest);
             await guest.screenshot({
               path: test.info().outputPath("review.png"),
