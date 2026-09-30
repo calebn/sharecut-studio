@@ -14,15 +14,11 @@ import numpy as np
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
-from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.dsp import db_to_amplitude
-from podcast_mcp.util.process import run
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
 GATE_FADE_SEC = 0.012
 GATE_MERGE_GAP_SEC = DEFAULT_MERGE_GAP_SEC
-GATE_SAMPLE_RATE = 48_000
 
 
 def word_intervals(
@@ -112,63 +108,6 @@ def transcript_gate_fingerprint(
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def _load_segment(
-    path: Path,
-    start_sec: float,
-    duration_sec: float,
-    *,
-    sample_rate: int = GATE_SAMPLE_RATE,
-    ffmpeg: str | None = None,
-) -> np.ndarray:
-    cmd = [
-        ffmpeg or resolve_ffmpeg(),
-        "-v",
-        "error",
-        "-ss",
-        str(start_sec),
-        "-t",
-        str(duration_sec),
-        "-i",
-        str(path),
-        "-ac",
-        "1",
-        "-ar",
-        str(sample_rate),
-        "-f",
-        "f32le",
-        "pipe:1",
-    ]
-    r = run(cmd, capture_output=True, check=True)
-    return np.frombuffer(r.stdout, dtype=np.float32)
-
-
-def _apply_gate(
-    samples: np.ndarray,
-    intervals: list[tuple[float, float]],
-    *,
-    timeline_start: float,
-    sample_rate: int = GATE_SAMPLE_RATE,
-    fade_sec: float = GATE_FADE_SEC,
-) -> np.ndarray:
-    n = samples.size
-    if n == 0:
-        return samples
-    env = np.zeros(n, dtype=np.float32)
-    fade = int(fade_sec * sample_rate)
-    for s, e in intervals:
-        i0 = max(0, min(n, math.ceil((s - timeline_start) * sample_rate)))
-        i1 = max(i0, min(n, math.ceil((e - timeline_start) * sample_rate)))
-        if i0 == i1:
-            continue
-        env[i0:i1] = 1.0
-        if fade > 0:
-            up = min(fade, i1 - i0)
-            env[i0 : i0 + up] *= np.linspace(0, 1, up, dtype=np.float32)
-            dn = min(fade, i1 - i0)
-            env[i1 - dn : i1] *= np.linspace(1, 0, dn, dtype=np.float32)
-    return samples * env
-
-
 def _gate_pcm_chunk(
     raw: bytes,
     frame_intervals: list[tuple[int, int]],
@@ -240,83 +179,6 @@ def _pcm16_wave_info(source: Any) -> tuple[int, int, int, int]:
             return channels, rate, chunk_start, chunk_size
         source.seek(chunk_start + chunk_size + (chunk_size % 2))
     raise ValueError("transcript gate requires a valid PCM16 WAV stem")
-
-
-def _write_wav(
-    samples: np.ndarray,
-    output_path: Path,
-    *,
-    sample_rate: int = GATE_SAMPLE_RATE,
-    ffmpeg: str | None = None,
-) -> Path:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    pcm = np.clip(samples, -1.0, 1.0)
-    pcm16 = (pcm * 32767).astype(np.int16)
-    run(
-        [
-            ffmpeg or resolve_ffmpeg(),
-            "-y",
-            "-f",
-            "s16le",
-            "-ar",
-            str(sample_rate),
-            "-ac",
-            "1",
-            "-i",
-            "pipe:0",
-            str(output_path),
-        ],
-        input=pcm16.tobytes(),
-        check=True,
-        capture_output=True,
-    )
-    return output_path
-
-
-def _normalize_peak(samples: np.ndarray, peak: float = 0.95) -> np.ndarray:
-    max_val = float(np.max(np.abs(samples))) if samples.size else 0.0
-    if max_val < 1e-10:
-        return samples
-    return samples * (peak / max_val)
-
-
-def _limit_to_full_scale(samples: np.ndarray) -> np.ndarray:
-    """Pull ``samples`` back under full scale (``_normalize_peak``) only when they would clip."""
-    if samples.size and float(np.max(np.abs(samples))) > 1.0:
-        return _normalize_peak(samples)
-    return samples
-
-
-def _apply_gain_db(samples: np.ndarray, gain_db: float) -> np.ndarray:
-    """Scale ``samples`` by ``gain_db``; 0 dB returns them unchanged."""
-    if not gain_db:
-        return samples
-    return samples * np.float32(db_to_amplitude(gain_db))
-
-
-def render_gated_track(
-    stem_path: Path,
-    intervals: list[tuple[float, float]],
-    output_path: Path,
-    *,
-    timeline_start: float,
-    timeline_end: float,
-    gain_db: float = 0.0,
-) -> Path:
-    """Deprecated whitelist utility kept for direct import compatibility.
-
-    Gate one stem and play it at ``gain_db`` (the track's output gain).
-
-    The take is not normalised. If the gain would push it past full scale,
-    it is pulled back to just under full scale instead of hard-clipping.
-
-    Project auditions use the conservative plan through PlayService.
-    """
-    duration = timeline_end - timeline_start
-    seg = _load_segment(stem_path, timeline_start, duration)
-    gated = _apply_gate(seg, intervals, timeline_start=timeline_start)
-    _write_wav(_limit_to_full_scale(_apply_gain_db(gated, gain_db)), output_path)
-    return output_path
 
 
 def gate_stem_window(
@@ -422,30 +284,6 @@ def gate_stem_window(
     return output_path
 
 
-def gate_rendered_wav(
-    wav_path: Path,
-    intervals: list[tuple[float, float]],
-    *,
-    timeline_start: float,
-    timeline_end: float,
-) -> Path:
-    """Deprecated whitelist utility; project renders use apply_bleed_gate_plan."""
-    duration = max(0.0, timeline_end - timeline_start)
-    if duration <= 0:
-        return wav_path
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-    try:
-        seg = _load_segment(wav_path, 0.0, duration)
-        gated = _apply_gate(seg, intervals, timeline_start=timeline_start)
-        _write_wav(gated, tmp_path)
-        tmp_path.replace(wav_path)
-    finally:
-        if tmp_path.is_file():
-            tmp_path.unlink(missing_ok=True)
-    return wav_path
-
-
 def apply_track_transcript_gate(
     project: EpisodeProject,
     track_id: str,
@@ -490,40 +328,6 @@ def apply_bleed_gate_plan(
         plan=plan,
         timeline_start=timeline_start,
     )
-
-
-def render_gated_mix(
-    stems: list[tuple[str, Path]],
-    intervals_by_track: dict[str, list[tuple[float, float]]],
-    output_path: Path,
-    *,
-    timeline_start: float,
-    timeline_end: float,
-    gains_db: dict[str, float] | None = None,
-) -> Path:
-    """Deprecated whitelist utility kept for direct import compatibility.
-
-    Project mixes use the conservative plan through PlayService.
-    Sum the gated stems, each at its ``gains_db`` entry (dB, default 0), then peak-normalise.
-
-    Stems don't bake a track's output gain, so the caller passes it here and the
-    gated mix keeps the track balance every other mix path plays.
-    Peak normalisation keeps the balance but not the absolute level: a uniform
-    gain change renders the same audio.
-    """
-    duration = timeline_end - timeline_start
-    gains = gains_db or {}
-    mix: np.ndarray | None = None
-    for tid, path in stems:
-        seg = _load_segment(path, timeline_start, duration)
-        gated = _apply_gate(seg, intervals_by_track.get(tid, []), timeline_start=timeline_start)
-        gated = _apply_gain_db(gated, float(gains.get(tid, 0.0)))
-        mix = gated if mix is None else mix + gated
-    if mix is None:
-        raise ValueError("no stems to mix")
-    mix = _normalize_peak(mix)
-    _write_wav(mix, output_path)
-    return output_path
 
 
 def dialogue_tracks_for_play(project: EpisodeProject) -> list[str]:

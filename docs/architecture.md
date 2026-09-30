@@ -49,9 +49,7 @@ Transcript bleed gating plans bounded foreign attenuation in
 `engines/bleed_gate.py` from ungated selected media, mapped by
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
 verified attenuation spans, and abstention reasons.
-The old whitelist helpers `render_gated_track`, `render_gated_mix`, and
-`gate_rendered_wav` remain deprecated direct-import compatibility utilities.
-Project playback and rendering use conservative plans instead.
+Project playback and rendering apply those conservative plans to rendered audio.
 
 `engines/transcript_gated_play.py` uses absolute transition positions so segment
 requests add no word-edge fades. `edits/transcript_bleed_mute.py` persists the
