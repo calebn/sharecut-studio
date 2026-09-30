@@ -289,7 +289,6 @@ def dump_project_projection(
 def projection_dependencies(
     ws: ProjectWorkspace,
 ) -> tuple[tuple[str, tuple[int, int, int, int, int] | str | None], ...]:
-    """Certify non-project inputs read by the named projection assemblers."""
     import hashlib
     import json
 

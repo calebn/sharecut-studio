@@ -567,6 +567,5 @@ export function applyProjectionDelta(
           : value;
     }
   }
-  // The closed section parser admits only ProjectView roots and their collection forms.
   return result as unknown as ProjectView;
 }

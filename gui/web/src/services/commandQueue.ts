@@ -184,9 +184,7 @@ async function submitCommand(
     }
     try {
       await removeQueuedCommand(token, command_id);
-    } catch {
-      // A committed reply stays valid; the retained identity makes cleanup replay safe.
-    }
+    } catch {}
     const data = reply.data;
     if (useDawStore.getState().projectPath === projectPath) {
       applyDocumentResult(data, scope);
