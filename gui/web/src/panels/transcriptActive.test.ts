@@ -36,7 +36,7 @@ function utt(
       timeline_end: e,
     })),
     ...extra,
-  } as CombinedUtterance;
+  };
 }
 
 const utterances = [
@@ -104,5 +104,50 @@ describe("transcriptActiveKey", () => {
     const rows = [utt(0, 2, [[0, 1]], { suppressed_only: true })];
     const index = buildTranscriptActiveIndex(rows);
     expect(transcriptActiveKey(index, 0.5)).toBe("|");
+  });
+});
+
+describe("indexed transcript highlights", () => {
+  it("keeps transcript order for unsorted overlapping rows and backward seeks", () => {
+    const rows = [
+      utt(8, 12, [[8, 12]]),
+      utt(0, 20, [[0, 20]]),
+      utt(9, 10, [[9, 10]]),
+    ];
+    const index = buildTranscriptActiveIndex(rows);
+    expect(transcriptActiveKey(index, 9.5)).toBe("0,1,2|0.0,1.0,2.0");
+    expect(transcriptActiveKey(index, 15)).toBe("1|1.0");
+    expect(transcriptActiveKey(index, 1)).toBe("1|1.0");
+    expect(transcriptActiveKey(index, 8)).toBe("0,1|0.0,1.0");
+    expect(transcriptActiveKey(index, 20)).toBe("|");
+  });
+
+  it("handles surviving spans, gaps and words beyond their row bounds", () => {
+    const index = buildTranscriptActiveIndex([
+      utt(0, 10, [[12, 13]], {
+        timeline_spans: [
+          { start: 0, end: 2 },
+          { start: 8, end: 10 },
+        ],
+      }),
+      utt(5, 6, [[5, 6]], { suppressed_only: true }),
+      utt(6, 7, [[6, 7]], { mappable: false }),
+    ]);
+    expect(transcriptActiveKey(index, 1)).toBe("0|");
+    expect(transcriptActiveKey(index, 5.5)).toBe("|");
+    expect(transcriptActiveKey(index, 6.5)).toBe("|2.0");
+    expect(transcriptActiveKey(index, 8)).toBe("0|");
+    expect(transcriptActiveKey(index, 10)).toBe("|");
+    expect(transcriptActiveKey(index, 12.5)).toBe("|0.0");
+    expect(transcriptActiveKey(index, 13)).toBe("|");
+  });
+
+  it("handles no rows and instant words beyond an utterance's end", () => {
+    expect(transcriptActiveKey(buildTranscriptActiveIndex([]), 1)).toBe("|");
+    const index = buildTranscriptActiveIndex([utt(0, 1, [[10, 9]])]);
+    expect(transcriptActiveKey(index, 0.5)).toBe("0|");
+    expect(transcriptActiveKey(index, 9.99)).toBe("|0.0");
+    expect(transcriptActiveKey(index, 10.01)).toBe("|0.0");
+    expect(transcriptActiveKey(index, 10.06)).toBe("|");
   });
 });
