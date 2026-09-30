@@ -137,6 +137,8 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest,
     setTranscriptViewAnchor,
     pointerKind,
+    transcriptInlineEditRequest,
+    setTranscriptInlineEditRequest,
     transcriptInlineCommitPending,
     setTranscriptInlineCommitPending,
     transcriptInlineEditFailure,
@@ -163,6 +165,8 @@ export function TranscriptPanel() {
     setTranscriptScrollRequest: s.setTranscriptScrollRequest,
     setTranscriptViewAnchor: s.setTranscriptViewAnchor,
     pointerKind: s.pointerKind,
+    transcriptInlineEditRequest: s.transcriptInlineEditRequest,
+    setTranscriptInlineEditRequest: s.setTranscriptInlineEditRequest,
     transcriptInlineCommitPending: s.transcriptInlineCommitPending,
     setTranscriptInlineCommitPending: s.setTranscriptInlineCommitPending,
     transcriptInlineEditFailure: s.transcriptInlineEditFailure,
@@ -222,12 +226,12 @@ export function TranscriptPanel() {
   /** True when mouseenter extended the range during a drag (survives mouseup→click). */
   const dragExtendedRef = useRef(false);
   const [intent, setIntentState] = useState<TranscriptIntent>("navigate");
-  const cancelQueuedSeek = () => {
+  const cancelQueuedSeek = useCallback(() => {
     if (clickTimerRef.current != null) {
       window.clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
     }
-  };
+  }, []);
   /** Switching intent drops a single-tap seek queued under the old one. */
   const setIntent = (
     next: TranscriptIntent | ((prev: TranscriptIntent) => TranscriptIntent),
@@ -359,17 +363,47 @@ export function TranscriptPanel() {
     setPlayheadSec(sec);
   };
 
-  const openInlineEdit = (ref: WordRef) => {
-    cancelQueuedSeek();
-    // One correction at a time: a pending commit keeps its editor open.
-    // No client timeout, like every useProjectMutation flow: a stalled request
-    // holds the lock until it settles, and the saving status line says why.
-    // The lock lives in the DAW store so a tab switch that remounts this
-    // panel keeps it.
-    if (useDawStore.getState().transcriptInlineCommitPending) return;
-    setTranscriptInlineEditFailure(null);
-    setInlineEdit(ref);
-  };
+  const openInlineEdit = useCallback(
+    (ref: WordRef) => {
+      cancelQueuedSeek();
+      // One correction at a time: a pending commit keeps its editor open.
+      // No client timeout, like every useProjectMutation flow: a stalled request
+      // holds the lock until it settles, and the saving status line says why.
+      // The lock lives in the DAW store so a tab switch that remounts this
+      // panel keeps it.
+      if (useDawStore.getState().transcriptInlineCommitPending) return;
+      setTranscriptInlineEditFailure(null);
+      setInlineEdit(ref);
+    },
+    [cancelQueuedSeek, setTranscriptInlineEditFailure],
+  );
+  useEffect(() => {
+    if (!transcriptInlineEditRequest) return;
+    setTranscriptInlineEditRequest(null);
+    const request = transcriptInlineEditRequest;
+    if (
+      request.projectPath !== projectPath ||
+      intent !== "navigate" ||
+      !canCorrect
+    )
+      return;
+    const word = findTranscriptWordIn(
+      allUtterances,
+      request.trackId,
+      request.wordIndex,
+    );
+    if (!word || wordSeekSec(word) == null) return;
+    openInlineEdit(request);
+  }, [
+    transcriptInlineEditRequest,
+    setTranscriptInlineEditRequest,
+    projectPath,
+    intent,
+    canCorrect,
+    allUtterances,
+    openInlineEdit,
+  ]);
+
   const closeInlineEdit = (ref: WordRef, restoreFocus: boolean) => {
     setInlineEdit((cur) => {
       if (
@@ -799,7 +833,7 @@ export function TranscriptPanel() {
     );
 
   return (
-    <div className="transcript-panel">
+    <div className="transcript-panel" data-transcript-intent={intent}>
       <div className="transcript-toolbar">
         <span className="transcript-meta">
           {mappedCount} utterances

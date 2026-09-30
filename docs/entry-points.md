@@ -64,7 +64,7 @@ Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharec
 | Transport / tools / edit / history | Sharecut Studio chrome | See `make cheatsheet` | session / edit / history MCP |
 | Presence / follow | Avatar stack, ghosts, follow banner | Escape unfollows | `get_session_presence_tool` / `guest_get_session_presence` |
 | Bounce / export | Menu + dialog | Mod+Shift+B / E | `podcast-bounce-export` / `podcast-master-export` |
-| Pipeline / transcript / NL / clips | Pipeline tab / inspectors | — | matching skills + MCP |
+| Pipeline / transcript / NL / clips | Pipeline tab / inspectors | F2: inline correction on a focused Navigate word; native Enter seeks | matching skills + MCP |
 | Guest review | Share SPA | — | guest remote MCP allowlist |
 
 Shortcut cheatsheet: [daw-shortcuts.md](daw-shortcuts.md) / [ux shortcuts](https://ux.sharecut.studio/#/shortcuts).

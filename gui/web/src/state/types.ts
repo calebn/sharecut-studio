@@ -52,6 +52,12 @@ export interface TranscriptReviewCursor {
   order: number;
 }
 
+export interface TranscriptInlineEditRequest {
+  projectPath: string;
+  trackId: string;
+  wordIndex: number;
+}
+
 export type DawTab = PresenceTab;
 
 /** Phone bottom-nav mode (Listen / Timeline / Text / More). */
@@ -128,6 +134,7 @@ export interface DawState {
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
   /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
+  transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
@@ -269,6 +276,9 @@ export interface DawState {
   setActiveTab: (tab: DawTab) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
+  setTranscriptInlineEditRequest: (
+    request: TranscriptInlineEditRequest | null,
+  ) => void;
   setTranscriptInlineCommitPending: (pending: boolean) => void;
   setTranscriptInlineEditFailure: (
     failure: TranscriptInlineEditFailure | null,

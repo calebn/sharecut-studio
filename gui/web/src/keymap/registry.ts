@@ -72,6 +72,16 @@ const BROWSER_TAB_CHORD_NOTE =
 
 export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
+    id: "transcript.editWordInline",
+    category: "edit",
+    label: "Edit focused transcript word",
+    keys: ["F2"],
+    bareKey: true,
+    noRepeat: true,
+    when: "hostProjectLoaded",
+    notes: "F2: focused word in Navigate mode",
+  },
+  {
     id: "presence.unfollow",
     category: "presence",
     label: "Stop following",
