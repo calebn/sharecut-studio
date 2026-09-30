@@ -368,8 +368,13 @@ export function EditBoundaryMarkView({
             (word, index) => word.text !== words[index]?.text,
           );
           return createPortal(
-            <div
+            <section
               className={`edit-boundary-preview${lifecycle.kind === "error" ? " edit-boundary-preview-error" : ""}`}
+              aria-label={
+                lifecycle.kind === "error"
+                  ? "Boundary edit feedback"
+                  : undefined
+              }
               style={{
                 ...position,
                 left: `${left / rootRem}rem`,
@@ -419,7 +424,7 @@ export function EditBoundaryMarkView({
                 <span> · +{words.length - visibleWords.length} more words</span>
               ) : null}
               {abbreviated ? <span> · Long words abbreviated</span> : null}
-            </div>,
+            </section>,
             document.body,
           );
         })();
