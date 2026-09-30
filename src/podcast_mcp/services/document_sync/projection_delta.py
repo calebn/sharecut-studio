@@ -1,5 +1,3 @@
-"""Closed ProjectView section edits. All positions address one sequenced predecessor."""
-
 from __future__ import annotations
 
 import json
@@ -102,7 +100,6 @@ def split(view: dict[str, Any]) -> dict[tuple[str, str | None], Any]:
             part = value[member]
             if member == "tracks":
                 if root == "clips":
-                    # Preserve even an empty map.
                     sections[("clips", None)]["tracks"] = {}
                     for key, rows in part.items():
                         sections[("clip_rows", key)] = rows
@@ -169,7 +166,6 @@ def row_update(section: str, before: dict[str, Any], after: dict[str, Any]) -> d
         }
     if section != "utterances":
         return {"value": after}
-    # Words and text are the only large fields on an utterance row.
     headers = {k: v for k, v in after.items() if k not in ("words", "text") and before.get(k) != v}
     deleted = [k for k in before if k not in after]
     op: dict[str, Any] = {"set": headers, "unset": deleted}
