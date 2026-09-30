@@ -24,7 +24,9 @@ apply only to primary media or a physically equivalent explicit source alias.
 An unrelated source without a transcript supplies no phrase or gate authorization,
 and a destination trim touching it abstains. Selected transcript words map only
 through that recording's placements using
-`SessionTimeline.map_selected_source_span(s)`. Phrase indexes are built once per
+`SessionTimeline.map_selected_source_span(s)`. Implicit primary lanes keep the
+identity source-to-timeline clock, independent of copies parked on other lanes.
+Phrase indexes are built once per
 direct lane and traversal stops when the 64-phrase evidence budget is spent.
 Local delay reads include bounded lag and shifted-null context with an explicit
 timeline origin, rather than decoding complete recordings. Overlapping old/new

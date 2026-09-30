@@ -35,7 +35,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import track_audio_path
 
-BLEED_GATE_REV = 3
+BLEED_GATE_REV = 4
 EVIDENCE_RATE = 8000
 VERIFICATION_RATE = 48_000
 GATE_FADE_SEC = 0.012
@@ -348,7 +348,10 @@ def _compute_bleed_gate_plan(
         mapped = (
             timeline.map_selected_source_spans(track_id, source_id, bounds)
             if explicit_placements
-            else timeline.map_source_spans(track_id, bounds)
+            else [
+                [(TimelineSec(float(start)), TimelineSec(float(end)))] if end > start else []
+                for start, end in bounds
+            ]
         )
         word_spans.extend(zip(transcript.words, mapped, strict=True))
     related = {track_id} | {word.dominant_track for word, _ in word_spans if word.dominant_track}
