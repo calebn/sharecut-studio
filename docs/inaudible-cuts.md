@@ -44,6 +44,11 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 
 Crossfade curve for overlap mode only: `render.crossfade_curve` (default `tri`).
 
+Clips selecting different recordings use the same fade, cut, crossfade, gap, and
+overlap assembly graph as clips sharing one source. Segment playback preserves
+fades at real clip boundaries; seeking into the middle of a clip adds no fade at
+the playback window edge. Transcript gating runs once on the assembled segment.
+
 Future cuts only — existing committed edits are not retroactively re-optimized.
 
 If a waveform window cannot be decoded while optimizing a cut or scoring an optional neural join, the safe fallback remains in effect and the failure is recorded at debug level for diagnosis.
