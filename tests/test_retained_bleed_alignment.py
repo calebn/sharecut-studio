@@ -657,3 +657,132 @@ def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
     assert preview["alignment"]["proposed_count"] == 0
     assert {"track_id": "direct", "reason": reason} in preview["alignment"]["skipped"]
     assert p.model_dump(by_alias=True) == before
+
+
+def test_default_gate_preview_accepts_supported_implicit_full_media_timeline(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.services import EditService, ProjectWorkspace
+
+    p = _episode(tmp_path)
+    p.clips = []
+    ws = ProjectWorkspace(tmp_path / "episode.project.json", p)
+    ws.save()
+    before = p.model_dump(by_alias=True)
+    preview = EditService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
+    assert preview["dry_run"] is True
+    assert p.model_dump(by_alias=True) == before
+
+
+def _select_secondary_source(p: EpisodeProject, tmp_path: Path) -> None:
+    from podcast_mcp.models import SourceRecording
+
+    samples = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    _write(tmp_path / "raw" / "secondary.wav", samples)
+    _write(tmp_path / "raw" / "direct.wav", np.zeros_like(samples))
+    p.sources.append(SourceRecording(id="secondary", path="raw/secondary.wav", duration_sec=6))
+    next(clip for clip in p.clips if clip.track_id == "direct").source_id = "secondary"
+
+
+def test_phrase_planning_uses_selected_secondary_recording_transcript(tmp_path: Path) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    selected_words = p.transcripts[0].words[:2]
+    p.transcripts[0].words = p.transcripts[0].words[-1:]
+    p.transcripts.append(Transcript(track_id="direct", source_id="secondary", words=selected_words))
+    before = p.model_dump(by_alias=True)
+    plan = _api().plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert len(plan.proposals) == 1
+    proposal = plan.proposals[0]
+    assert proposal.source_id == "secondary"
+    assert proposal.phrase_source_start == pytest.approx(1.2)
+    assert proposal.phrase_source_end == pytest.approx(3.2)
+    assert proposal.offset_sec == pytest.approx(-0.15, abs=0.002)
+    assert p.model_dump(by_alias=True) == before
+
+
+def test_quiet_trim_preserves_retained_words_from_selected_secondary_transcript(
+    tmp_path: Path,
+) -> None:
+    p = _episode(tmp_path)
+    _select_secondary_source(p, tmp_path)
+    p.transcripts.append(
+        Transcript(
+            track_id="direct",
+            source_id="secondary",
+            words=[
+                TranscriptWord(text="quiet retained word", start=1.07, end=1.1),
+                *[word.model_copy() for word in p.transcripts[0].words],
+            ],
+        )
+    )
+    before = p.model_dump(by_alias=True)
+    api = _api()
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "quiet_trim_would_remove_retained_word"} in plan.skipped
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 0
+    assert p.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("signal", ["copy", "periodic", "unrelated"])
+def test_scoped_delay_decodes_bounded_context_on_two_hour_source_with_null_controls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, signal: str
+) -> None:
+    from podcast_mcp.engines import ungated_audio
+
+    p = _episode(tmp_path)
+    for clip in p.clips:
+        clip.source_end = 7200
+    for track in p.tracks:
+        track.media.duration_sec = 7200
+    rate = 8000
+    origin = 984.0
+    count = 40 * rate
+    rng = np.random.default_rng(9354)
+    direct = rng.normal(0, 0.001, count).astype(np.float32)
+    mixed = rng.normal(0, 0.001, count).astype(np.float32)
+    first, last = round((1000.2 - origin) * rate), round((1002.2 - origin) * rate)
+    lag = round(0.15 * rate)
+    direct[first:last] = rng.normal(0, 0.08, last - first)
+    mixed[first - lag : last - lag] += direct[first:last] * 0.2
+    if signal == "periodic":
+        direct = (0.08 * np.sin(2 * np.pi * 173 * np.arange(count) / rate)).astype(np.float32)
+        mixed[:-lag] = direct[lag:] * 0.2
+    elif signal == "unrelated":
+        mixed = rng.normal(0, 0.08, count).astype(np.float32)
+    reads: list[tuple[float, float]] = []
+
+    def bounded_decode(path, *, start_sec, duration_sec, sample_rate, **kwargs):
+        assert sample_rate == rate
+        reads.append((start_sec, duration_sec))
+        assert duration_sec <= 32, "local evidence must not decode the two-hour recording"
+        assert origin <= start_sec and start_sec + duration_sec <= origin + count / rate
+        samples = direct if Path(path).stem == "direct" else mixed
+        lo = round((start_sec - origin) * rate)
+        return samples[lo : lo + round(duration_sec * rate)].copy()
+
+    def full_decode(*args, **kwargs):
+        raise AssertionError("scoped local evidence requested an unbounded source decode")
+
+    monkeypatch.setattr(ungated_audio, "load_mono_window", bounded_decode)
+    monkeypatch.setattr(ungated_audio, "load_mono_full", full_decode)
+    result = _api()._local_delay(
+        p,
+        "direct",
+        "uncertain",
+        {},
+        {},
+        999.7,
+        1002.7,
+        phrase_start=1000.2,
+        phrase_end=1002.2,
+    )
+    assert reads
+    assert sum(duration for _, duration in reads) <= 64
+    if signal == "copy":
+        assert result.reason is None
+        assert result.offset_sec == pytest.approx(-0.15, abs=0.002)
+        assert result.validation_windows >= 3
+    else:
+        assert result.reason is not None
