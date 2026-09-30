@@ -1185,6 +1185,36 @@ def test_mix_tracks_warns_when_the_peak_is_unmeasured(tmp_path: Path, caplog):
     assert "volume=" not in _filter_complex(run.call_args_list[1][0][0]).split("amix")[1]
 
 
+@pytest.mark.parametrize("track_count", [1, 2])
+@pytest.mark.parametrize(
+    ("initial_peak", "final_peak", "trim_filter"),
+    [("-inf", "3.4", ",volume=-4.4dB"), ("3.4", "-inf", "")],
+)
+def test_mix_tracks_uses_the_completed_peak_summary(
+    tmp_path: Path, track_count: int, initial_peak: str, final_peak: str, trim_filter: str
+) -> None:
+    eng = FFmpegEngine()
+    out = tmp_path / "mix.wav"
+    stderr = (
+        f"[Parsed_ebur128_3 @ 0x1] Summary:\n\n  True peak:\n"
+        f"    Peak: {initial_peak} dBFS\n"
+        f"[Parsed_ebur128_3 @ 0x2] Summary:\n\n  True peak:\n"
+        f"    Peak: {final_peak} dBFS\n"
+    )
+    tracks = [(tmp_path / f"{i}.wav", 0.0) for i in range(track_count)]
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        run.side_effect = [MagicMock(stderr=stderr, returncode=0), MagicMock(returncode=0)]
+        assert eng.mix_tracks(tracks, out, peak_ceiling_db=-1.0) == out
+    render = run.call_args_list[1][0][0]
+    unity_graph = {
+        1: "[0:a]volume=0.0dB",
+        2: "[0:a]volume=0.0dB[a0];[1:a]volume=0.0dB[a1];"
+        "[a0][a1]amix=inputs=2:duration=longest:normalize=0",
+    }
+    assert _filter_complex(render) == f"{unity_graph[track_count]}{trim_filter}[out]"
+    assert render[-1] == str(out)
+
+
 def test_headroom_trim_db():
     from podcast_mcp.engines.ffmpeg import headroom_trim_db
 

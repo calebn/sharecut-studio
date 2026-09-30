@@ -406,6 +406,23 @@ def test_a_peak_ceiling_change_stales_the_premix(minimal_project: Path) -> None:
     assert premix_is_stale(ws.project, lower) is True
 
 
+def test_revision_two_premix_requires_a_remix_without_changing_stems(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws = _two_tracks(minimal_project)
+    _fake_premix(ws)
+    stem_hashes = {track.id: track_render_hash(ws.project, track.id) for track in ws.project.tracks}
+    with monkeypatch.context() as old_mix:
+        old_mix.setattr(play_audit, "MIX_SEMANTICS_REV", 2)
+        write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+    assert render_status_report(ws.project)["premix"]["stale_vs_mix"] is True
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+    assert render_status_report(ws.project)["premix"]["stale_vs_mix"] is False
+    assert {track.id: track_render_hash(ws.project, track.id) for track in ws.project.tracks} == (
+        stem_hashes
+    )
+
+
 def test_without_a_config_the_premix_is_judged_by_its_recorded_ceiling(
     minimal_project: Path,
 ) -> None:
