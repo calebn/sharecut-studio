@@ -3458,9 +3458,6 @@ def test_upsert_source_keeps_clipping_on_none_and_clears_on_empty(minimal_projec
 def test_land_hashes_each_keeper_once_outside_the_project_locks(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    """Landing hashes each keeper before any project lock; the locked part only stats (#365)."""
-    import time
-
     from podcast_mcp.services.record import landing as landing_mod
     from podcast_mcp.util.file_locks import shared_file_lock
     from podcast_mcp.util.project_state import (
@@ -3490,6 +3487,7 @@ def test_land_hashes_each_keeper_once_outside_the_project_locks(
     file_lock = shared_file_lock(project_commit_lock_path(ws.project))
     real_hash = landing_mod.sha256_file
     observed: list[tuple[bool, bool]] = []
+    snapshots: list[str] = []
 
     def spy(path):
         got: list[bool] = []
@@ -3498,39 +3496,24 @@ def test_land_hashes_each_keeper_once_outside_the_project_locks(
             acquired = state_lock.acquire(blocking=False)
             got.append(acquired)
             if acquired:
-                state_lock.release()
+                try:
+                    snapshots.append(snapshot_project(ws.project).meta.name)
+                finally:
+                    state_lock.release()
 
         thread = threading.Thread(target=probe)
         thread.start()
         thread.join()
         observed.append((got[0], file_lock.is_locked))
-        time.sleep(0.5)
         return real_hash(path)
 
     monkeypatch.setattr(landing_mod, "sha256_file", spy)
-    done = threading.Event()
-    waits: list[float] = []
-
-    def snapshots() -> None:
-        while not done.is_set():
-            started = time.monotonic()
-            snapshot_project(ws.project)
-            waits.append(time.monotonic() - started)
-            time.sleep(0.02)
-
-    prober = threading.Thread(target=snapshots)
-    prober.start()
-    try:
-        result = RecordLandingService(ws).land(align=lambda _p: None)
-    finally:
-        done.set()
-        prober.join()
+    result = RecordLandingService(ws).land(align=lambda _p: None)
     assert len(result["clips"]) == 3
     assert len(observed) == 3
     assert all(state_free for state_free, _ in observed)
     assert not any(file_held for _, file_held in observed)
-    assert waits
-    assert max(waits) < 0.5
+    assert snapshots == ["test_episode", "test_episode", "test_episode"]
 
 
 def _fail_rollback_once(monkeypatch, *, times: int = 1):
