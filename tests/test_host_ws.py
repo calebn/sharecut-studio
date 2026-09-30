@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from contextlib import asynccontextmanager
 from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from podcast_mcp.gui.routes import host
 from podcast_mcp.gui.server import create_app
@@ -324,3 +326,108 @@ def test_failed_host_presence_claim_does_not_remove_live_connection(minimal_proj
                 with client.websocket_connect(_url(minimal_project)) as failed:
                     failed.receive_json()
             assert any(row["client_id"] == "presence-owner" for row in service.store.list_clients())
+
+
+@pytest.mark.parametrize(
+    ("cause", "code", "reason"),
+    [("revocation", 4403, "authorization revoked"), ("pump", 1011, "document pump failed")],
+)
+def test_background_close_finishes_before_startup_teardown(
+    minimal_project, monkeypatch, cause, code, reason
+):
+    close_started = threading.Event()
+    close_delivered = threading.Event()
+    cleanup_started = threading.Event()
+    release_close = asyncio.Event()
+    revoked = threading.Event()
+    original_close = WebSocket.close
+    hub = get_hub()
+    original_unsubscribe = hub.unsubscribe
+    document_key = document_hub_key(load_project(minimal_project))
+
+    async def delayed_close(self, code=1000, reason=None):
+        close_started.set()
+        await release_close.wait()
+        await original_close(self, code=code, reason=reason)
+        close_delivered.set()
+
+    def active_session(project):
+        assert close_started.wait(2)
+        return None
+
+    def unsubscribe(key, queue):
+        original_unsubscribe(key, queue)
+        if key == document_key:
+            cleanup_started.set()
+
+    monkeypatch.setattr(hub, "unsubscribe", unsubscribe)
+    monkeypatch.setattr(WebSocket, "close", delayed_close)
+    monkeypatch.setattr(host.RecordSessionService, "active_session_id", active_session)
+    monkeypatch.setattr(
+        host, "authorize_client", lambda **kwargs: AuthzDecision(not revoked.is_set(), "revoked")
+    )
+    monkeypatch.setattr(host, "HOST_WS_AUTHZ_RECHECK_S", 0.01)
+    with TestClient(create_app()).websocket_connect(_url(minimal_project)) as socket:
+        _hello(socket)
+        if cause == "revocation":
+            revoked.set()
+        else:
+            get_hub().publish(
+                document_hub_key(load_project(minimal_project)),
+                {"type": "Applied", "plane": "document", "unserializable": object()},
+            )
+        assert cleanup_started.wait(2)
+        socket.portal.call(release_close.set)
+        assert close_delivered.wait(2), "startup teardown cancelled the pending close frame"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            receive_host_plane(socket, "document")
+    assert (closed.value.code, closed.value.reason) == (code, reason)
+
+
+def test_undeliverable_background_close_bounds_host_teardown(minimal_project, monkeypatch):
+    from functools import partial
+
+    from podcast_mcp.gui.routes import guest_ws_common
+    from podcast_mcp.util.ws_delivery import SerializedWsWriter
+
+    close_started = threading.Event()
+    close_stopped = threading.Event()
+    removed = threading.Event()
+    revoked = threading.Event()
+    elapsed = []
+    original_remove = SessionSyncService.remove_client
+
+    async def blocked_close(self, code=1000, reason=None):
+        started = time.monotonic()
+        close_started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            elapsed.append(time.monotonic() - started)
+            close_stopped.set()
+
+    def active_session(project):
+        assert close_started.wait(2)
+        return None
+
+    def remove(self, *args, **kwargs):
+        result = original_remove(self, *args, **kwargs)
+        removed.set()
+        return result
+
+    monkeypatch.setattr(WebSocket, "close", blocked_close)
+    monkeypatch.setattr(host.RecordSessionService, "active_session_id", active_session)
+    monkeypatch.setattr(SessionSyncService, "remove_client", remove)
+    monkeypatch.setattr(
+        guest_ws_common, "SerializedWsWriter", partial(SerializedWsWriter, timeout=0.05)
+    )
+    monkeypatch.setattr(
+        host, "authorize_client", lambda **kwargs: AuthzDecision(not revoked.is_set(), "revoked")
+    )
+    monkeypatch.setattr(host, "HOST_WS_AUTHZ_RECHECK_S", 0.01)
+    with TestClient(create_app()).websocket_connect(_url(minimal_project)) as socket:
+        _hello(socket)
+        revoked.set()
+        assert close_stopped.wait(2)
+        assert removed.wait(2)
+    assert 0.04 <= elapsed[0] < 1
