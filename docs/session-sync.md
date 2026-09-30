@@ -449,3 +449,9 @@ failure to its pump, so the connection can reconnect and restore state.
 Existing document/roster overflow markers and progress coalescing still apply
 inside their application hubs. Relay stream and shared tunnel queue limits are
 specified in [host-online-relay.md](host-online-relay.md#websocket-backpressure).
+
+### Deferred fanout optimizations
+
+Shared JSON encoding, per-token relay fanout, and replacement of the presence coalescer's threading timer remain deferred after the #601 delivery and worker changes. A production-sanitizer microbenchmark with 50 recipients measured about 0.39 ms per presence event versus 0.21 ms with shared sanitization (about 1.8 ms CPU saved per second at 10 Hz), and 0.88 ms versus 0.02 ms for a compact document event with shared encoding. These are CPU measurements for compact frames, not network throughput or large-snapshot results. Current payload sizes do not justify another delivery cache or relay audience owner.
+
+The current coalescer retains one pending latest builder per project and builds events on delivery, but still uses a new threading timer for each trailing tick. Per-connection authorization, recipient identity, serialized writes, and compression remain independent. Revisit prepared immutable event values or relay fanout when production profiling shows material CPU or network cost; neither optimization is shipped.
