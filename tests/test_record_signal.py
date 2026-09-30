@@ -191,7 +191,7 @@ def test_signal_rejects_self_and_unknown_payload(
 def test_host_signal_reaches_guest(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         _drain_until(host, lambda m: m.get("plane") == "record", n=40)
         with client.websocket_connect(f"/api/rec/{token}/ws?name=Ava") as guest:

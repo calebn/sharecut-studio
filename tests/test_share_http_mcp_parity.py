@@ -79,7 +79,7 @@ def test_iter_app_routes_discovers_share_websockets() -> None:
     assert ("WEBSOCKET", "/api/rec/{token}/ws") in routes
     assert ("WEBSOCKET", "/api/review/{token}/daw/ws") in routes
     assert ("WEBSOCKET", "/api/review/{token}/progress/ws") in routes
-    assert not any(path in {"/api/session/ws", "/api/document/ws"} for _method, path in routes)
+    assert not any(path in {"/api/host/ws"} for _method, path in routes)
 
 
 @pytest.mark.parametrize(

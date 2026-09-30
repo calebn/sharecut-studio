@@ -6,7 +6,7 @@ import os
 import secrets
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, WebSocket
 from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.responses import Response
@@ -105,7 +105,7 @@ def require_host(
         raise HTTPException(status_code=403, detail=decision.reason)
 
 
-def resolve_project(path: str, request: Request | None = None) -> Path:
+def resolve_project(path: str, request: Request | WebSocket | None = None) -> Path:
     """Resolve *path* and optionally pin to ``app.state.served_project``.
 
     *request* may be a FastAPI ``Request`` or Starlette ``WebSocket`` (both expose

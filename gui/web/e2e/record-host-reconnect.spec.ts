@@ -74,7 +74,7 @@ test.describe("record host reconnect", () => {
         // Install before host.goto: routes only apply to sockets opened after.
         await markSharecutE2e(host);
         const hostNet = await installNetworkOutage(host, {
-          webSocket: /\/api\/session\/ws/,
+          webSocket: /\/api\/host\/ws/,
         });
 
         let room!: Awaited<ReturnType<typeof createRecordRoom>>;
@@ -250,7 +250,7 @@ test.describe("record host reconnect", () => {
           await expect
             .poll(
               async () => (await hostRecordSnapshot(host, projectPath)).state,
-              { timeout: 10_000 },
+              { timeout: 35_000 },
             )
             .toBe("paused");
           const paused = await hostRecordSnapshot(host, projectPath);

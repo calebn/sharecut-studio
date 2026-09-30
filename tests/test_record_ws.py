@@ -533,7 +533,7 @@ def test_host_ws_attaches_record_plane_after_room_mint(
     _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         first = host.receive_json()
         assert first["type"] == "Snapshot"
@@ -551,8 +551,8 @@ def test_two_host_session_sockets_survive_record_attach(
 
     ws, _created, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     path = quote(str(ws.path))
-    url_a = f"/api/session/ws?path={path}&client_id=host-a&role=viewer&label=HostA"
-    url_b = f"/api/session/ws?path={path}&client_id=host-b&role=viewer&label=HostB"
+    url_a = f"/api/host/ws?document_client_id=doc-test&path={path}&client_id=host-a&role=viewer&label=HostA"
+    url_b = f"/api/host/ws?document_client_id=doc-test&path={path}&client_id=host-b&role=viewer&label=HostB"
     with client.websocket_connect(url_a) as host_a:
         assert host_a.receive_json()["type"] == "Snapshot"
         _drain_until(host_a, lambda m: m.get("plane") == "record")
@@ -574,8 +574,8 @@ def test_closing_one_host_tab_keeps_p_host_connected(
 
     ws, _created, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     path = quote(str(ws.path))
-    url_a = f"/api/session/ws?path={path}&client_id=host-a&role=viewer&label=HostA"
-    url_b = f"/api/session/ws?path={path}&client_id=host-b&role=viewer&label=HostB"
+    url_a = f"/api/host/ws?document_client_id=doc-test&path={path}&client_id=host-a&role=viewer&label=HostA"
+    url_b = f"/api/host/ws?document_client_id=doc-test&path={path}&client_id=host-b&role=viewer&label=HostB"
     with client.websocket_connect(url_a) as host_a:
         assert host_a.receive_json()["type"] == "Snapshot"
         _drain_until(host_a, lambda m: m.get("plane") == "record")
@@ -598,7 +598,7 @@ def test_host_ws_start_after_attach_is_not_join_idempotent(
     from urllib.parse import quote
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-a&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         _drain_until(host, lambda m: m.get("plane") == "record")
         token = room["guest"]["token"]
@@ -1380,21 +1380,25 @@ def test_host_ws_record_attach_error_and_fail_until(
 
     ws, _created, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
 
+    attempts = []
+
     def boom(*_a, **_k):
+        attempts.append(True)
         raise RecordStateError("boom")
 
     monkeypatch.setattr(
-        "podcast_mcp.gui.routes.session.RecordSessionService.join",
+        "podcast_mcp.gui.routes.host.RecordSessionService.join",
         boom,
     )
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-fail&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-fail&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         assert host.receive_json()["type"] == "Snapshot"
         err = _drain_until(host, lambda m: m.get("code") == "record_attach_failed")
         assert err["plane"] == "record"
-        host.send_json({"type": "Presence", "playhead_sec": 0, "client_seq": 2, "meta": {}})
-        msg = host.receive_json()
-        assert msg.get("code") != "record_attach_failed"
+        host.send_json({"type": "ViewerState", "snapshot": {"playhead_sec": 0}})
+        msg = _drain_until(host, lambda m: m.get("type") == "Echo")
+        assert msg["plane"] == "session"
+        assert len(attempts) == 1
 
 
 def test_host_ws_reattaches_when_record_session_changes(
@@ -1418,7 +1422,7 @@ def test_host_ws_reattaches_when_record_session_changes(
         "active_session_id",
         staticmethod(flip),
     )
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-flip&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-flip&role=viewer&label=Host"
     with client.websocket_connect(url) as host:
         _drain_until(host, lambda m: m.get("plane") == "record")
         host.send_json({"type": "Presence", "playhead_sec": 0, "client_seq": 2, "meta": {}})
@@ -1437,7 +1441,7 @@ def test_host_ws_teardown_survives_record_disconnect_error(
     import contextlib
     from urllib.parse import quote
 
-    from podcast_mcp.gui.routes import session as session_routes
+    from podcast_mcp.gui.routes import host as session_routes
     from podcast_mcp.gui.routes.guest_ws_common import WsTaskSet
     from podcast_mcp.services.record.service import record_hub_key
     from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
@@ -1460,7 +1464,7 @@ def test_host_ws_teardown_survives_record_disconnect_error(
         raise RuntimeError("database is locked")
 
     monkeypatch.setattr(RecordSessionService, "disconnect", _locked)
-    url = f"/api/session/ws?path={quote(str(ws.path))}&client_id=host-lock&role=viewer&label=Host"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(ws.path))}&client_id=host-lock&role=viewer&label=Host"
     with contextlib.suppress(RuntimeError):
         with client.websocket_connect(url) as host:
             assert host.receive_json()["type"] == "Snapshot"
@@ -1649,3 +1653,78 @@ def test_join_mint_raises_invite_closed(minimal_project, sample_wav, tmp_workspa
             client_id="c1",
             connection_id="conn1",
         )
+
+
+def test_host_mux_record_io_is_off_loop_and_all_frames_use_guard(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import asyncio
+    from contextvars import ContextVar
+    from urllib.parse import quote
+
+    from fastapi import WebSocket
+
+    from podcast_mcp.gui.routes import host as host_route
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
+
+    ws, _room_info, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    calls = []
+    for name in ("join", "disconnect"):
+        original = getattr(RecordSessionService, name)
+
+        def spy(self, *args, _name=name, _original=original, **kwargs):
+            try:
+                asyncio.get_running_loop()
+                on_loop = True
+            except RuntimeError:
+                on_loop = False
+            calls.append((_name, on_loop))
+            return _original(self, *args, **kwargs)
+
+        monkeypatch.setattr(RecordSessionService, name, spy)
+    route = host_route.route_record_ws_message
+
+    def dispatch(*args, **kwargs):
+        with pytest.raises(RuntimeError, match="no running event loop"):
+            asyncio.get_running_loop()
+        calls.append(("dispatch", False))
+        return route(*args, **kwargs)
+
+    monkeypatch.setattr(host_route, "route_record_ws_message", dispatch)
+    guarded = ContextVar("guarded", default=False)
+    original_guard_send = GuestWsGuard.send_json
+    original_send = WebSocket.send_json
+    frames = []
+
+    async def through_guard(self, payload):
+        mark = guarded.set(True)
+        try:
+            await original_guard_send(self, payload)
+        finally:
+            guarded.reset(mark)
+
+    async def checked_send(self, payload, *args, **kwargs):
+        assert guarded.get()
+        assert payload["plane"] in {"session", "document", "record"}
+        frames.append(payload)
+        await original_send(self, payload, *args, **kwargs)
+
+    monkeypatch.setattr(GuestWsGuard, "send_json", through_guard)
+    monkeypatch.setattr(WebSocket, "send_json", checked_send)
+    url = f"/api/host/ws?path={quote(str(ws.path))}&client_id=owner&document_client_id=doc-owner"
+    with client.websocket_connect(url) as socket:
+        _drain_until(
+            socket, lambda frame: frame.get("plane") == "record" and frame.get("type") == "Snapshot"
+        )
+        socket.send_json(
+            {"type": "Record", "command_type": "Heartbeat", "payload": {}, "client_seq": 10}
+        )
+        echo = _drain_until(
+            socket,
+            lambda frame: frame.get("command_type") == "Heartbeat" and frame.get("type") == "Echo",
+        )
+        assert echo["client_id"] == "owner"
+    assert {name for name, _ in calls} == {"join", "dispatch", "disconnect"}
+    assert not any(on_loop for _, on_loop in calls)
+    record_frames = [frame for frame in frames if frame["plane"] == "record"]
+    assert [frame["type"] for frame in record_frames[:2]] == ["Echo", "Snapshot"]

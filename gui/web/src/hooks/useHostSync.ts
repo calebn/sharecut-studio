@@ -5,7 +5,19 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { loadSessionMeta, loadSessionState, postSessionState } from "../api";
+import {
+  applyDocumentSnapshot,
+  refreshDocumentDisplay,
+} from "../document/applyDocumentUpdate";
+import {
+  activateDocumentScope,
+  documentAuthority,
+  isCurrentDocumentScope,
+} from "../document/authorityState";
+import { finishDocumentDraft } from "../document/pendingDrafts";
+import type { DocumentSnapshot } from "../document/projectPatch";
 import { applyServerClock } from "../presence/clock";
 import {
   handlePresenceWsFrame,
@@ -15,6 +27,7 @@ import { usePresencePublisher } from "../presence/usePresencePublisher";
 import { useRecordHostStore } from "../record/hostStore";
 import { bindRecordHostSend } from "../record/hostWire";
 import { emitRecordSignal, isRecordSignal } from "../record/monitor/signalBus";
+import type { RecordSnapshot } from "../record/types";
 import { newClientId } from "../session/clientId";
 import {
   type AppliedCursor,
@@ -28,30 +41,22 @@ import { createRosterRequester } from "../session/rosterRequest";
 import { bindWsSender, type WsSender } from "../session/wsSend";
 import { getSessionToken } from "../sessionAuth";
 import { useDawStore } from "../state/dawStore";
+import { requestHostDrainLazy } from "../state/requestDrainLazy";
+import { SANITY_POLL_MS } from "../state/syncCadence";
 import { detachSocket } from "../sync/detachSocket";
+import { hostReconnectDelay } from "../sync/hostReconnect";
 import { enqueueInbound } from "../sync/inboundQueue";
 import type { SessionState, ViewerSessionSnapshot } from "../types/session";
 import { HOST_SESSION_LABEL } from "../utils/commentAuthor";
+import { documentClientId } from "../utils/documentClient";
+import { isTerminalWsClose } from "../utils/wsClose";
 import { useFileMetaPoll } from "./useFileMetaPoll";
 
 const PLAYHEAD_HEARTBEAT_MS = 200;
 const DISCRETE_DEBOUNCE_MS = 50;
 
-/**
- * No own-client `ViewerState` Echo within this window of the oldest unechoed
- * send: republish over HTTP. Fixed, not RTT-scaled: on a live socket slower
- * than this (high-latency relay/tunnel) the Echo lands after the fallback and
- * each debounced change costs one redundant `POST /api/session/state`. That is
- * harmless because `publish_viewer_snapshot` re-diffs and journals only changed
- * fields.
- */
 const VIEWER_STATE_ECHO_TIMEOUT_MS = 1500;
 
-/**
- * One echo-deadline timer per `ViewerState` frame sent and not yet echoed,
- * oldest first. Server Echoes arrive in send order, so an own-client Echo
- * cancels the head; the next-oldest frame keeps its own deadline.
- */
 type ViewerStateWait = { timers: number[] };
 
 function stopViewerStateWait(wait: ViewerStateWait): void {
@@ -61,20 +66,33 @@ function stopViewerStateWait(wait: ViewerStateWait): void {
   wait.timers.length = 0;
 }
 
-/** The session WS's own wire message shape, hoisted so both `onmessage` and the queued `handleSessionFrame` job can share it. */
 type SessionWireMsg = PresenceCarryingFrame & {
   type: string;
   code?: string;
-  plane?: string;
+  plane: "session";
   server_time_ns?: number;
   command?: { role?: string; type?: string; client_id?: string };
 };
+
+type DocumentWireMsg = {
+  plane: "document";
+  type: string;
+  snapshot?: DocumentSnapshot;
+  command?: { client_id?: string; command_id?: string };
+};
+type RecordWireMsg = {
+  plane: "record";
+  type: string;
+  snapshot?: RecordSnapshot;
+};
+type HostWireMsg = SessionWireMsg | DocumentWireMsg | RecordWireMsg;
 
 function wsUrl(projectPath: string, clientId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
   const q = new URLSearchParams({
     path: projectPath,
     client_id: clientId,
+    document_client_id: documentClientId(),
     role: "viewer",
     label: HOST_SESSION_LABEL,
   });
@@ -82,20 +100,10 @@ function wsUrl(projectPath: string, clientId: string): string {
   if (tok) {
     q.set("token", tok);
   }
-  return `${proto}://${window.location.host}/api/session/ws?${q.toString()}`;
+  return `${proto}://${window.location.host}/api/host/ws?${q.toString()}`;
 }
 
-/**
- * Session sync: WebSocket primary (Applied fanout), HTTP publish fallback, and
- * a 30 s meta sanity poll. Other processes' commands arrive over the socket
- * via the server's cross-process watcher (#695); the poll is a sanity net.
- *
- * Presence and durable deltas (`ViewerState`) publish over WS while it is
- * open. POST /api/session/state is the socket-down / rejected / unechoed
- * fallback.
- * See docs/gui-integration.md § Shared session state.
- */
-export function useSessionSync(
+export function useHostSync(
   projectPath: string,
   applyAgentSession: (state: SessionState) => void,
   buildViewerSnapshot: () => ViewerSessionSnapshot,
@@ -106,18 +114,25 @@ export function useSessionSync(
   publishKey: string,
   enabled = true,
 ): void {
+  const projectEpoch = useDawStore((state) => state.projectEpoch);
   const clientIdRef = useRef(newClientId());
   const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
-  const cursorRef = useRef<AppliedCursor>({
-    serverSeq: lastAppliedRevision,
-    commandId: lastAppliedCommandId,
+  const cursorRef = useRef<{ epoch: number; value: AppliedCursor }>({
+    epoch: projectEpoch,
+    value: { serverSeq: lastAppliedRevision, commandId: lastAppliedCommandId },
   });
+  if (cursorRef.current.epoch !== projectEpoch) {
+    cursorRef.current = {
+      epoch: projectEpoch,
+      value: { serverSeq: 0, commandId: null },
+    };
+  }
   const applyAgentSessionRef = useRef(applyAgentSession);
   applyAgentSessionRef.current = applyAgentSession;
 
-  cursorRef.current = {
-    serverSeq: Math.max(cursorRef.current.serverSeq, lastAppliedRevision),
+  cursorRef.current.value = {
+    serverSeq: Math.max(cursorRef.current.value.serverSeq, lastAppliedRevision),
     commandId: lastAppliedCommandId,
   };
 
@@ -130,7 +145,7 @@ export function useSessionSync(
       return;
     }
     useDawStore.getState().setLocalClientId(clientIdRef.current);
-  }, [enabled]);
+  }, [enabled, projectEpoch]);
 
   const applyRemote = useCallback(
     (
@@ -138,20 +153,27 @@ export function useSessionSync(
       commandType?: string | null,
       commandClientId?: string | null,
     ) => {
-      const { apply, next } = shouldApplyRemote(state, cursorRef.current, {
-        commandType,
-        localPlaying: isPlayingRef.current,
-        localClientId: clientIdRef.current,
-        commandClientId,
-      });
+      const { apply, next } = shouldApplyRemote(
+        state,
+        cursorRef.current.value,
+        {
+          commandType,
+          localPlaying: isPlayingRef.current,
+          localClientId: clientIdRef.current,
+          commandClientId,
+        },
+      );
       if (!apply) {
-        cursorRef.current = {
-          serverSeq: Math.max(next.serverSeq, cursorRef.current.serverSeq),
+        cursorRef.current.value = {
+          serverSeq: Math.max(
+            next.serverSeq,
+            cursorRef.current.value.serverSeq,
+          ),
           commandId: next.commandId,
         };
         return;
       }
-      cursorRef.current = next;
+      cursorRef.current.value = next;
       applyAgentSessionRef.current(state);
     },
     [],
@@ -163,26 +185,30 @@ export function useSessionSync(
     label: HOST_SESSION_LABEL,
   });
 
-  /** HTTP publish: the socket-down path, and the recovery when a WS publish is rejected or never echoed. */
   const publishOverHttp = useEffectEvent(async () => {
     if (suppressPublish || !enabled || !projectPath) return;
+    const scope = activateDocumentScope(projectPath);
     const written = await postSessionState(projectPath, viewerSnapshot());
-    cursorRef.current = advanceCursorIfNewer(cursorRef.current, written);
+    if (isCurrentDocumentScope(scope))
+      cursorRef.current.value = advanceCursorIfNewer(
+        cursorRef.current.value,
+        written,
+      );
   });
 
-  /** Stop waiting for the ViewerState echo and republish the latest snapshot over HTTP. */
   const fallBackToHttp = useEffectEvent(() => {
     stopViewerStateWait(viewerStateWaitRef.current);
-    void publishOverHttp().catch(() => {
-      // Transient: the next publishKey change or reconnect republishes.
-    });
+    void publishOverHttp().catch(() => {});
   });
 
   useEffect(() => {
     if (!enabled || !projectPath) {
       return;
     }
+    const scope = activateDocumentScope(projectPath);
     const viewerStateWait = viewerStateWaitRef.current;
+    let attempt = 0;
+    const drain = () => requestHostDrainLazy(projectPath);
     let cancelled = false;
     let retry: number | null = null;
     let socket: WebSocket | null = null;
@@ -190,15 +216,8 @@ export function useSessionSync(
       sendRef.current?.(frame),
     );
 
-    /**
-     * Everything but the record plane, the clock sample and the own-client
-     * ViewerState Echo's deadline bookkeeping (all handled at receipt in
-     * `onmessage`): presence, the rejected-ViewerState fallback, and
-     * Snapshot/Applied/Echo application. Runs from the per-frame inbound
-     * queue, so N frames received between paints commit as one render.
-     */
     const handleSessionFrame = (msg: SessionWireMsg) => {
-      if (cancelled) {
+      if (cancelled || !isCurrentDocumentScope(scope)) {
         return;
       }
       if (handlePresenceWsFrame(msg, rosterRequester)) {
@@ -219,18 +238,24 @@ export function useSessionSync(
         msg.snapshot
       ) {
         const snap = msg.snapshot;
-        if (msg.type === "Snapshot" && cursorRef.current.serverSeq === 0) {
-          const { apply, next } = baselineFromSnapshot(snap, cursorRef.current);
+        if (
+          msg.type === "Snapshot" &&
+          cursorRef.current.value.serverSeq === 0
+        ) {
+          const { apply, next } = baselineFromSnapshot(
+            snap,
+            cursorRef.current.value,
+          );
           if (apply) {
             applyAgentSessionRef.current(snap);
           }
-          cursorRef.current = next;
+          cursorRef.current.value = next;
           return;
         }
         if (
           shouldHandleWsMessage(
             { type: msg.type, command: msg.command, snapshot: snap },
-            cursorRef.current,
+            cursorRef.current.value,
             {
               localPlaying: isPlayingRef.current,
               localClientId: clientIdRef.current,
@@ -243,77 +268,113 @@ export function useSessionSync(
             msg.command?.client_id ?? snap.last_client_id,
           );
         } else {
-          cursorRef.current = advanceCursorIfNewer(cursorRef.current, snap);
+          cursorRef.current.value = advanceCursorIfNewer(
+            cursorRef.current.value,
+            snap,
+          );
         }
       }
     };
 
     const connect = () => {
-      if (cancelled) {
+      if (cancelled || !isCurrentDocumentScope(scope)) {
         return;
       }
       socket = new WebSocket(wsUrl(projectPath, clientIdRef.current));
       const thisSocket = socket;
       socket.onopen = () => {
+        if (!current()) return;
+        drain();
         sendRef.current = bindWsSender(thisSocket);
         bindRecordHostSend(sendRef.current);
         setWsReady(true);
         useRecordHostStore.getState().setConnected(true);
       };
+      let retired = false;
+      const initialized = new Set<"session" | "document">();
+      const current = () =>
+        !cancelled &&
+        !retired &&
+        socket === thisSocket &&
+        isCurrentDocumentScope(scope);
+      const noteInitialized = (plane: "session" | "document") => {
+        initialized.add(plane);
+        if (initialized.size === 2) attempt = 0;
+      };
       socket.onmessage = (ev) => {
+        if (!current()) return;
+        let msg: HostWireMsg;
         try {
-          const msg = JSON.parse(ev.data as string) as SessionWireMsg;
+          msg = JSON.parse(ev.data as string) as HostWireMsg;
+          if (!msg || typeof msg !== "object") return;
+        } catch {
+          return;
+        }
+        if (msg.plane === "session") {
           applyServerClock(msg.server_time_ns ?? msg.snapshot?.server_time_ns);
-          if (msg.plane === "record" && isRecordSignal(msg)) {
-            emitRecordSignal(msg);
-            return;
-          }
-          if (msg.plane === "record" && msg.snapshot) {
-            useRecordHostStore
-              .getState()
-              .setSnapshot(
-                msg.snapshot as unknown as import("../record/types").RecordSnapshot,
-              );
-            return;
-          }
           if (
             msg.type === "Echo" &&
             msg.snapshot &&
             msg.command?.type === "ViewerState" &&
             msg.command.client_id === clientIdRef.current
           ) {
-            // At receipt, not in the queued job: the echo deadline is a plain
-            // timer, and a delayed flush could lose the race to it and send a
-            // redundant HTTP publish.
-            const oldest = viewerStateWaitRef.current.timers.shift();
-            if (oldest !== undefined) {
-              window.clearTimeout(oldest);
-            }
+            const oldest = viewerStateWait.timers.shift();
+            if (oldest !== undefined) window.clearTimeout(oldest);
           }
-          enqueueInbound(() => handleSessionFrame(msg), {
-            coalesceKey:
-              msg.type === "Presence" && Array.isArray(msg.clients)
-                ? "session:presence"
-                : undefined,
+          enqueueInbound(
+            () => {
+              if (!current()) return;
+              handleSessionFrame(msg);
+              if (msg.type === "Snapshot" && msg.snapshot)
+                noteInitialized("session");
+            },
+            {
+              coalesceKey:
+                msg.type === "Presence" && Array.isArray(msg.clients)
+                  ? "host:presence"
+                  : undefined,
+            },
+          );
+        } else if (msg.plane === "document") {
+          const snap = msg.snapshot;
+          if (!snap || (msg.type !== "Snapshot" && msg.type !== "Applied"))
+            return;
+          enqueueInbound(() => {
+            if (!current()) return;
+            if (msg.command?.command_id)
+              finishDocumentDraft(msg.command.command_id);
+            applyDocumentSnapshot(snap, { scope });
+            if (msg.command?.command_id) refreshDocumentDisplay();
+            if (
+              msg.type === "Snapshot" &&
+              documentAuthority.phase.kind === "ready" &&
+              !snap.resync
+            )
+              noteInitialized("document");
           });
-        } catch {
-          // ignore malformed
+        } else if (msg.plane === "record") {
+          enqueueInbound(() => {
+            if (!current()) return;
+            if (isRecordSignal(msg)) emitRecordSignal(msg);
+            else if (msg.snapshot) {
+              const snapshot = msg.snapshot;
+              flushSync(() =>
+                useRecordHostStore.getState().setSnapshot(snapshot),
+              );
+            }
+          });
         }
       };
-      socket.onclose = () => {
-        if (cancelled || socket !== thisSocket) {
-          return;
-        }
+      socket.onclose = (event) => {
+        if (!current()) return;
+        retired = true;
         sendRef.current = null;
-        // Unechoed ViewerState frames are not lost: setWsReady(false) below
-        // re-runs the debounced publish effect (wsReady is in its deps), which
-        // republishes the latest snapshot over HTTP since sendRef is now null.
         stopViewerStateWait(viewerStateWait);
         bindRecordHostSend(null);
         setWsReady(false);
         useRecordHostStore.getState().setConnected(false);
-        if (!cancelled) {
-          retry = window.setTimeout(connect, 1000);
+        if (!isTerminalWsClose(event.code)) {
+          retry = window.setTimeout(connect, hostReconnectDelay(attempt++));
         }
       };
       socket.onerror = () => {
@@ -323,7 +384,12 @@ export function useSessionSync(
       };
     };
     connect();
+    const onOnline = () => drain();
+    window.addEventListener("online", onOnline);
+    const drainTimer = window.setInterval(drain, SANITY_POLL_MS);
     return () => {
+      window.removeEventListener("online", onOnline);
+      window.clearInterval(drainTimer);
       cancelled = true;
       if (retry != null) {
         window.clearTimeout(retry);
@@ -338,44 +404,34 @@ export function useSessionSync(
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
     };
-  }, [projectPath, enabled, applyRemote]);
+  }, [projectPath, enabled, projectEpoch, applyRemote]);
 
   const sendPresence = useCallback((frame: Record<string, unknown>) => {
     sendRef.current?.(frame);
   }, []);
   usePresencePublisher(wsReady ? sendPresence : null, HOST_SESSION_LABEL);
-
-  // Other processes' commands (stdio MCP, `podcast session` / `podcast play`)
-  // arrive over the socket via the server's cross-process watcher (#695);
-  // this poll is only a sanity net.
   useFileMetaPoll(
     enabled && Boolean(projectPath),
     () => loadSessionMeta(projectPath),
     async (meta) => {
-      if (sessionPollAlreadyApplied(meta.server_seq, cursorRef.current)) {
+      const scope = activateDocumentScope(projectPath);
+      if (sessionPollAlreadyApplied(meta.server_seq, cursorRef.current.value)) {
         return;
       }
       const state = await loadSessionState(projectPath);
-      if (state) {
+      if (state && isCurrentDocumentScope(scope)) {
         applyRemote(state);
       }
     },
+    SANITY_POLL_MS,
+    `${projectPath}\0${projectEpoch}`,
   );
 
-  /**
-   * Durable viewer state: one WS `ViewerState` frame while live, else HTTP.
-   * The server's own-client Echo advances the cursor (onmessage) and ends the
-   * wait; a rejection or no Echo within VIEWER_STATE_ECHO_TIMEOUT_MS of the oldest unechoed
-   * send (half-open socket, dropped frame) republishes over HTTP. Each frame has its own
-   * deadline: later sends do not extend the oldest one, and an Echo for the oldest hands
-   * the deadline to the next-oldest frame's own send time.
-   */
   const publish = useEffectEvent(async () => {
     if (suppressPublish || !enabled || !projectPath) return;
     if (
       sendRef.current?.({ type: "ViewerState", snapshot: viewerSnapshot() })
     ) {
-      // Each frame gets its own deadline; fallBackToHttp clears the rest.
       viewerStateWaitRef.current.timers.push(
         window.setTimeout(() => fallBackToHttp(), VIEWER_STATE_ECHO_TIMEOUT_MS),
       );
@@ -396,17 +452,13 @@ export function useSessionSync(
           if (!cancelled) {
             await publish();
           }
-        } catch {
-          // Transient
-        }
+        } catch {}
       })();
     }, DISCRETE_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // wsReady: a (re)connect republishes over the new socket; a drop republishes
-    // over HTTP. onclose relies on this to recover unechoed ViewerState frames.
   }, [projectPath, suppressPublish, publishKey, enabled, wsReady]);
 
   useEffect(() => {
@@ -420,9 +472,7 @@ export function useSessionSync(
           if (!cancelled) {
             await publish();
           }
-        } catch {
-          // Transient
-        }
+        } catch {}
       })();
     }, PLAYHEAD_HEARTBEAT_MS);
     return () => {

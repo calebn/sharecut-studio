@@ -37,7 +37,7 @@ from podcast_mcp.services.session_sync.viewer import (
     publish_viewer_snapshot,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace
-from sync_helpers import _foreign_session_write
+from sync_helpers import _foreign_session_write, receive_host_plane
 
 
 def test_play_os_vs_audition_commands(minimal_project) -> None:
@@ -1111,9 +1111,9 @@ def test_websocket_viewer_state_publishes_off_the_event_loop(minimal_project, mo
 
     monkeypatch.setattr(session_routes, "publish_viewer_snapshot", spy)
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-thread&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-thread&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
         ws.send_json(
             {
                 "type": "ViewerState",
@@ -1121,7 +1121,7 @@ def test_websocket_viewer_state_publishes_off_the_event_loop(minimal_project, mo
             }
         )
         for _ in range(8):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame.get("type") == "Echo":
                 break
         else:
@@ -1236,11 +1236,11 @@ def test_websocket_command_collision_keeps_connection_open(minimal_project) -> N
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-retry&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-retry&role=viewer"
 
     def receive_type(ws, kind: str) -> dict:
         for _ in range(4):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame["type"] == kind:
                 return frame
         raise AssertionError(f"no {kind} frame")
@@ -1252,7 +1252,7 @@ def test_websocket_command_collision_keeps_connection_open(minimal_project) -> N
         "client_seq": 1,
     }
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
         ws.send_json(command)
         first = receive_type(ws, "Echo")
         ws.send_json(command)
@@ -1278,11 +1278,9 @@ def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = (
-        f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-vs&role=viewer&label=Host"
-    )
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-vs&role=viewer&label=Host"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
         ws.send_json(
             {
                 "type": "ViewerState",
@@ -1294,7 +1292,7 @@ def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
         for _ in range(8):
             if seen_echo and seen_applied:
                 break
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if (
                 frame.get("type") == "Echo"
                 and frame.get("command", {}).get("type") == "ViewerState"
@@ -1311,7 +1309,7 @@ def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
 
         ws.send_json({"type": "ViewerState", "snapshot": 3})
         for _ in range(8):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame.get("type") == "Error":
                 assert frame["code"] == "invalid_viewer_state"
                 break
@@ -1325,7 +1323,7 @@ def test_websocket_viewer_state_fans_out_and_echoes(minimal_project) -> None:
             }
         )
         for _ in range(8):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame.get("type") == "Echo":
                 break
         else:
@@ -1349,17 +1347,17 @@ def test_websocket_viewer_state_service_error_keeps_connection_open(
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-boom&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-boom&role=viewer"
 
     def receive_type(ws, kind: str) -> dict:
         for _ in range(8):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame["type"] == kind:
                 return frame
         raise AssertionError(f"no {kind} frame")
 
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
         ws.send_json(
             {
                 "type": "ViewerState",
@@ -1482,9 +1480,9 @@ def test_owner_ws_presence_drops_invalid_playhead(minimal_project) -> None:
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-ph&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-ph&role=viewer"
     with client.websocket_connect(url) as ws:
-        ws.receive_json()
+        receive_host_plane(ws, "session")
         ws.send_json({"type": "Presence", "client_seq": 1, "playhead_sec": 3.0})
         ws.send_text('{"type":"Presence","client_seq":2,"playhead_sec":NaN}')
         ws.send_text('{"type":"Presence","client_seq":3,"playhead_sec":Infinity}')
@@ -1500,7 +1498,7 @@ def test_owner_ws_presence_drops_invalid_playhead(minimal_project) -> None:
         mine = None
         for _ in range(50):
             with client.websocket_connect(url.replace("ws-ph", "observer")) as obs:
-                snap = obs.receive_json()["snapshot"]
+                snap = receive_host_plane(obs, "session")["snapshot"]
             for c in snap.get("clients") or []:
                 if c["client_id"] == "ws-ph" and (c.get("meta") or {}).get("cursor"):
                     mine = c
@@ -1522,11 +1520,11 @@ def test_owner_ws_label_sanitized(minimal_project) -> None:
     client = TestClient(create_app())
     raw = "Ana\x07   Bee" + "z" * 80
     url = (
-        f"/api/session/ws?path={quote(str(minimal_project))}"
+        f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}"
         f"&client_id=ws-label&role=viewer&label={quote(raw)}"
     )
     with client.websocket_connect(url) as ws:
-        snap = ws.receive_json()["snapshot"]
+        snap = receive_host_plane(ws, "session")["snapshot"]
     mine = next(c for c in snap["clients"] if c["client_id"] == "ws-label")
     assert mine["label"] == ("Ana Bee" + "z" * 80)[:40]
 
@@ -1794,9 +1792,9 @@ def test_websocket_snapshot_on_connect(minimal_project) -> None:
     proj = load_project(minimal_project)
     SessionSyncService(proj).submit_control("SetPlayhead", {"playhead_sec": 3.0})
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-a&role=viewer&label=A"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-a&role=viewer&label=A"
     with client.websocket_connect(url) as ws:
-        first = ws.receive_json()
+        first = receive_host_plane(ws, "session")
         assert first["type"] == "Snapshot"
         assert first["snapshot"]["playhead_sec"] == 3.0
         ws.send_json(
@@ -2002,9 +2000,9 @@ def test_ws_disconnect_removes_client(minimal_project) -> None:
 
     proj = load_project(minimal_project)
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=ws-leave&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=ws-leave&role=viewer"
     with client.websocket_connect(url) as ws:
-        ws.receive_json()
+        receive_host_plane(ws, "session")
         ids = {c["client_id"] for c in SessionSyncService(proj).snapshot()["clients"]}
         assert "ws-leave" in ids
     ids = {c["client_id"] for c in SessionSyncService(proj).snapshot()["clients"]}

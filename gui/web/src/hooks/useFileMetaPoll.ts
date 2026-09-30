@@ -24,6 +24,7 @@ export function useFileMetaPoll(
   fetchMeta: () => Promise<FileMeta>,
   onChange: (meta: FileMeta) => void | Promise<void>,
   intervalMs = SANITY_POLL_MS,
+  ownershipKey: string | number = "",
 ): void {
   const mtimeRef = useRef<number | null>(null);
   const sizeRef = useRef<number | null | undefined>(null);
@@ -103,5 +104,5 @@ export function useFileMetaPoll(
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [enabled, intervalMs]);
+  }, [enabled, intervalMs, ownershipKey]);
 }

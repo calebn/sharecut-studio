@@ -1310,7 +1310,7 @@ Shipped in `feat/recording-lobby-consent`:
 
 - [x] Prefixed `SyncStore` (`record_*`) + `RecordParticipantStore` leases.
 - [x] Pure reducer + `RecordSessionService`; hub `record:{workspace}`.
-- [x] Guest/producer `WS /api/rec/{token}/ws`; host record plane on `/api/session/ws`.
+- [x] Guest/producer `WS /api/rec/{token}/ws`; host record plane on `/api/host/ws`.
 - [x] Host `GET /api/record/state` + `POST /api/record/command`; CLI/MCP twins.
 - [x] Lobby / DeviceCheck / ConsentGate / Room / FullRoom / Declined.
 - [x] Host Record panel, transport REC chip, Share **Open room panel**.
@@ -1377,3 +1377,7 @@ Shipped in `feat/recording-producer-live-comments`:
 - [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata).
 - [x] Discard take deletes sqlite rows and `review.comments[]` with those ids. Reconnect queue `record:{token}:comments` upserts once.
+
+## Host recording over the shared socket
+
+The host recording plane shares `/api/host/ws` with session presence and document updates. Guest and producer `/api/rec/{token}/ws` connections remain separate. The host subscribes before joining and sends its recording Echo/Snapshot before queued record events. Signals retain participant filtering and lease-key removal. Each socket has a distinct recording connection ID; closing one host tab leaves other host tabs connected. Incoming messages check for a newly active or replaced room, with a one-second retry delay after a failed join. Join, record commands, and disconnect run sequentially off the event loop, and every host frame uses the same bounded writer.

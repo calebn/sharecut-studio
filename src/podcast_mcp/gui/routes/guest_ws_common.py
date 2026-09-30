@@ -30,7 +30,7 @@ async def guest_ws_reject(websocket: WebSocket, code: int, reason: str) -> None:
 
 
 class GuestWsGuard:
-    """Write lock, malformed counter, and periodic re-authorization (share guests and the owner ``/api/document/ws``)."""
+    """Write lock, malformed counter, and periodic re-authorization (share guests and the owner ``/api/host/ws``)."""
 
     def __init__(
         self,
@@ -110,7 +110,7 @@ class WsTaskSet:
     """Background tasks for one GUI WebSocket: ``spawn`` pumps, ``stop`` on teardown.
 
     Shared by the guest sockets (via ``GuestWsConnection``) and the owner
-    ``/api/document/ws`` and ``/api/session/ws`` routes.
+    ``/api/host/ws`` routes.
     """
 
     def __init__(self, log_label: str) -> None:

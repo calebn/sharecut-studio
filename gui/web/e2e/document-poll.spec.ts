@@ -9,17 +9,18 @@ test.describe("Document poll double-apply", () => {
     const appliedFrames: unknown[] = [];
 
     page.on("websocket", (ws) => {
-      if (!ws.url().includes("/api/document/ws")) {
+      if (!ws.url().includes("/api/host/ws")) {
         return;
       }
       ws.on("framereceived", (event) => {
-        let msg: { type?: string } | null = null;
+        let msg: { type?: string; plane?: string } | null = null;
         try {
           msg = JSON.parse(String(event.payload));
         } catch {
           return;
         }
-        if (msg?.type === "Snapshot") {
+        if (msg?.plane !== "document") return;
+        if (msg.type === "Snapshot") {
           sawHelloSnapshot = true;
         } else if (msg?.type === "Applied") {
           appliedFrames.push(msg);

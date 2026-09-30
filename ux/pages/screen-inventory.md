@@ -433,3 +433,9 @@ Replacement tokens must each contain a letter or number; attach punctuation to t
 ### Selected-word timing
 
 In Correct mode, the host word inspector includes **Adjust timing**. It expands an inline raw-source waveform with start/end handles, source-second fields and bounded preview. The same inspector content is used by the responsive transcript editor. Drag release saves once; keyboard and numeric changes require **Apply timing**. **Undo timing** closes the draft and restores the stored boundaries. See the [Wordbar guide](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md#wordbar-source-timing) for source identity, warnings and audio consequences.
+
+### Realtime connection
+
+Studio uses one host realtime connection for collaboration, document edits and recording.
+Reconnect restores each plane from its initial state. Recording roster updates apply
+before following connection signals, including when guests join between paints.

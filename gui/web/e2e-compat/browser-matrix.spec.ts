@@ -92,7 +92,7 @@ test.describe("browser compatibility matrix", () => {
       class TrackedWebSocket extends NativeWebSocket {
         constructor(url: string | URL, protocols?: string | string[]) {
           super(url, protocols);
-          if (String(url).includes("/api/document/ws")) {
+          if (String(url).includes("/api/host/ws")) {
             sockets.push(this);
             this.addEventListener("message", (event) =>
               received.push(String(event.data)),

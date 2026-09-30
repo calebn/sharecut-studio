@@ -12,7 +12,7 @@ test.describe("Chrome-first bootstrap", () => {
     });
     const phases: string[] = [];
 
-    await page.routeWebSocket(/\/api\/document\/ws/, () => undefined);
+    await page.routeWebSocket(/\/api\/host\/ws/, () => undefined);
 
     await page.route(
       (url) => new URL(url).pathname === "/api/document/state",

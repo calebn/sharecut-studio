@@ -31,7 +31,7 @@ from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
 from process_helpers import reap
-from sync_helpers import _foreign_document_write, _foreign_session_write, drain
+from sync_helpers import _foreign_document_write, _foreign_session_write, drain, receive_host_plane
 
 _CTX = mp.get_context("spawn")
 
@@ -354,9 +354,9 @@ def test_document_ws_leases_before_hello_and_releases_on_close(minimal_project, 
     monkeypatch.setattr(DocumentSyncService, "document_snapshot", _spy_snapshot)
 
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=lease-doc&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=lease-doc&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
 
     assert events[:2] == ["acquire", "snapshot"]
     assert events[-1] == "release"
@@ -383,9 +383,9 @@ def test_session_ws_leases_before_hello_and_releases_on_close(minimal_project, m
     monkeypatch.setattr(SessionSyncService, "snapshot", _spy_snapshot)
 
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=lease-sess&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=lease-sess&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
 
     assert events[0] == "acquire"
     # release runs in the socket's finally, before the post-disconnect presence
@@ -397,19 +397,19 @@ def test_session_ws_leases_before_hello_and_releases_on_close(minimal_project, m
 def test_session_ws_pushes_a_foreign_write_live(minimal_project, monkeypatch):
     monkeypatch.setattr(cross_process_sync, "CROSS_PROCESS_POLL_S", 0.02)
     client = TestClient(create_app())
-    url = f"/api/session/ws?path={quote(str(minimal_project))}&client_id=live-sess&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=live-sess&role=viewer"
     key = str(ProjectWorkspace.open(minimal_project).project.workspace_path())
     with client.websocket_connect(url) as ws:
-        frame = ws.receive_json()
+        frame = receive_host_plane(ws, "session")
         while frame.get("type") != "Snapshot":
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
 
         proj = load_project(minimal_project)
         _foreign_session_write(proj, 6.5)
 
         applied = None
         for _ in range(20):
-            frame = ws.receive_json()
+            frame = receive_host_plane(ws, "session")
             if frame.get("type") == "Applied":
                 applied = frame
                 break
@@ -427,9 +427,9 @@ def test_document_ws_pushes_a_foreign_write_once_and_never_repeats_own_writes(
 
     monkeypatch.setattr(cross_process_sync, "CROSS_PROCESS_POLL_S", 0.02)
     client = TestClient(create_app())
-    url = f"/api/document/ws?path={quote(str(minimal_project))}&client_id=live-doc&role=viewer"
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=live-doc&role=viewer"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "document")["type"] == "Snapshot"
 
         applied = DocumentSyncService.open(minimal_project).submit(
             DocumentCommand(
@@ -441,7 +441,7 @@ def test_document_ws_pushes_a_foreign_write_once_and_never_repeats_own_writes(
             )
         )
         own_seq = applied["server_seq"]
-        first = ws.receive_json()
+        first = receive_host_plane(ws, "document")
         assert first["type"] == "Applied"
         assert first["server_seq"] == own_seq
 
@@ -450,7 +450,7 @@ def test_document_ws_pushes_a_foreign_write_once_and_never_repeats_own_writes(
         proj = load_project(minimal_project)
         _foreign_document_write(proj)
 
-        second = ws.receive_json()
+        second = receive_host_plane(ws, "document")
         assert second["type"] == "Applied"
         assert second["server_seq"] == own_seq + 1
         assert second["command"]["type"] == "ExternalMutate"

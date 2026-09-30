@@ -21,6 +21,7 @@ from podcast_mcp.services.session_sync.presence_delta import (
     row_changes,
 )
 from podcast_mcp.services.session_sync.service import SessionSyncService
+from sync_helpers import receive_host_plane
 
 
 class _FakeTimer:
@@ -314,11 +315,9 @@ def test_hello_snapshot_carries_full_roster_and_roster_version(minimal_project) 
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = (
-        f"/api/session/ws?path={quote(str(minimal_project))}&client_id=hello-a&role=viewer&label=A"
-    )
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=hello-a&role=viewer&label=A"
     with client.websocket_connect(url) as ws:
-        first = ws.receive_json()
+        first = receive_host_plane(ws, "session")
         assert first["type"] == "Snapshot"
         assert isinstance(first["snapshot"]["clients"], list)
         assert any(c["client_id"] == "hello-a" for c in first["snapshot"]["clients"])
@@ -463,13 +462,11 @@ def test_roster_request_over_the_host_ws(minimal_project) -> None:
     from podcast_mcp.gui.server import create_app
 
     client = TestClient(create_app())
-    url = (
-        f"/api/session/ws?path={quote(str(minimal_project))}&client_id=roster-a&role=viewer&label=A"
-    )
+    url = f"/api/host/ws?document_client_id=doc-test&path={quote(str(minimal_project))}&client_id=roster-a&role=viewer&label=A"
     with client.websocket_connect(url) as ws:
-        assert ws.receive_json()["type"] == "Snapshot"
+        assert receive_host_plane(ws, "session")["type"] == "Snapshot"
         ws.send_json({"type": "RosterRequest"})
-        reply = ws.receive_json()
+        reply = receive_host_plane(ws, "session")
         assert reply["type"] == "Presence"
         assert any(c["client_id"] == "roster-a" for c in reply["clients"])
 

@@ -2047,6 +2047,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "anyio" },
     { name = "boto3" },
     { name = "botocore" },
     { name = "fastapi" },
@@ -2080,6 +2081,7 @@ dev = [
     { name = "vulture" },
 ]
 gui = [
+    { name = "anyio" },
     { name = "boto3" },
     { name = "botocore" },
     { name = "fastapi" },
@@ -2117,6 +2119,8 @@ speaker-lite = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", marker = "extra == 'all'", specifier = ">=4.0.0" },
+    { name = "anyio", marker = "extra == 'gui'", specifier = ">=4.0.0" },
     { name = "av", specifier = ">=11,<19" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "boto3", marker = "extra == 'all'", specifier = ">=1.34.0" },
