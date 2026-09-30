@@ -1191,7 +1191,7 @@ async def test_guest_ws_guard_recheck_and_malformed():
     await guest_ws_reject(ws, 4403, "invalid or revoked share token")
     assert ws.closed[0][0] == 4403
     guard = GuestWsGuard(ws, lambda: False, interval=0.01, on_frame=0.0, malformed_limit=2)
-    assert guard.share_ok_on_frame() is False
+    assert await guard.share_ok_on_frame() is False
     assert guard.note_malformed() is False
     assert guard.note_malformed() is False
     assert guard.note_malformed() is True

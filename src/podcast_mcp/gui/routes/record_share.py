@@ -9,7 +9,9 @@ import logging
 import secrets
 from typing import Any
 
+from anyio import CancelScope
 from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capability
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
@@ -102,7 +104,7 @@ async def record_ws(
         await guest_ws_reject(websocket, 4403, "record room missing")
         return
     try:
-        _row, ws_proj = open_share_workspace(token, kind=SHARE_KIND_RECORD)
+        _row, ws_proj = await run_in_threadpool(open_share_workspace, token, kind=SHARE_KIND_RECORD)
     except (KeyError, FileNotFoundError):
         await guest_ws_reject(websocket, 4403, "share not found")
         return
@@ -113,23 +115,28 @@ async def record_ws(
 
     caps = list(row.get("capabilities") or [])
     guest_client_id = client_id or f"rec-{token[:8]}"
-    svc = RecordSessionService(ws_proj.project, session_id=session_id)
     hub = get_hub()
     hub_key = record_hub_key(ws_proj.project)
     connection_id = secrets.token_hex(8)
     participant_id: str | None = None
+    svc: RecordSessionService | None = None
     joined = False
     q = None
 
     def _connection_valid() -> bool:
-        return _record_still_valid(token) and (
-            participant_id is None or svc.participant_active(participant_id)
+        return (
+            svc is not None
+            and _record_still_valid(token)
+            and (participant_id is None or svc.participant_active(participant_id))
         )
 
     def _participant_runtime_valid() -> bool:
-        return participant_id is None or svc.participant_not_removed_in_runtime(participant_id)
+        return svc is not None and (
+            participant_id is None or svc.participant_not_removed_in_runtime(participant_id)
+        )
 
     try:
+        svc = await run_in_threadpool(RecordSessionService, ws_proj.project, session_id=session_id)
         guard = await conn.start(_connection_valid, send_gate=_participant_runtime_valid)
         loop = asyncio.get_running_loop()
         # No cross-process lease (#695): only this GUI process writes record state (WebRTC
@@ -142,7 +149,7 @@ async def record_ws(
             try:
                 while True:
                     event = await q.get()
-                    if not guard.share_ok_on_frame() or not _participant_runtime_valid():
+                    if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
                         await guard.close(4403, "participant removed or share revoked")
                         return
                     filtered = filter_record_event_for_guest(
@@ -163,8 +170,6 @@ async def record_ws(
                     await guard.close(1011, "record pump failed")
                 raise
 
-        conn.spawn(_pump())
-
         while True:
             try:
                 text = await websocket.receive_text()
@@ -176,7 +181,7 @@ async def record_ws(
                 raise
             if guard.closed:
                 break
-            if not guard.share_ok_on_frame() or not _participant_runtime_valid():
+            if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
                 await guard.close(4403, "participant removed or share revoked")
                 break
             if len(text) > GUEST_FRAME_MAX_BYTES:
@@ -232,7 +237,8 @@ async def record_ws(
                             {"plane": "record", "type": "Error", "code": "join_first"}
                         )
                         continue
-                    echo, snap = svc.join(
+                    echo, snap = await run_in_threadpool(
+                        svc.join,
                         token=token,
                         role=role,
                         display_name=str(
@@ -267,8 +273,10 @@ async def record_ws(
                             "snapshot": snap_out,
                         }
                     )
+                    conn.spawn(_pump())
                     continue
-                echo, _seq = route_record_ws_message(
+                echo, _seq = await run_in_threadpool(
+                    route_record_ws_message,
                     svc,
                     msg,
                     client_id=guest_client_id,
@@ -308,16 +316,19 @@ async def record_ws(
                     }
                 )
     finally:
-        try:
-            if q is not None:
-                hub.unsubscribe(hub_key, q)
-            await conn.stop_tasks()
-        finally:
+        with CancelScope(shield=True):
             try:
-                if participant_id is not None:
-                    svc.disconnect(participant_id, connection_id=connection_id)
+                if q is not None:
+                    hub.unsubscribe(hub_key, q)
+                await conn.stop_tasks()
             finally:
-                conn.release()
+                try:
+                    if svc is not None and participant_id is not None:
+                        await run_in_threadpool(
+                            svc.disconnect, participant_id, connection_id=connection_id
+                        )
+                finally:
+                    conn.release()
 
 
 def _guest_upload_ctx(
