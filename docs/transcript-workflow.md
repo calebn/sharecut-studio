@@ -230,7 +230,9 @@ only reuses cached words, so which prompt produced them does not matter as
 long as the audio and model still match.
 
 ASR reads only input-keyed `transcripts/{id}_{audio16}_{inputs16}.json` caches.
-The older `{id}_{audio16}.json` fallback is removed. A successful ASR cache write
+The older `{id}_{audio16}.json` fallback is removed. Those filenames remain
+audio identity evidence for persisted transcripts without a hash; their contents
+are never reused as ASR results. A successful ASR cache write
 keeps that variant and one previous variant by write time for the exact job ID
 and audio hash. Extra source recordings have their own job IDs. Pruning deletes
 other input variants, the old unkeyed name, and alignment sidecars whose ASR

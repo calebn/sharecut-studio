@@ -128,14 +128,14 @@ def test_legacy_transcript_with_only_other_audio_caches_reruns(job, tmp_path):
 def test_legacy_transcript_with_matching_cache_is_adopted(job, tmp_path):
     p = _project(_tr(), workspace=str(tmp_path))
     sha = sha256_file(job.audio)
-    _cache_files(p, f"host_{'a' * 16}_{'b' * 16}.json", f"host_{sha[:16]}_{'b' * 16}.json")
+    _cache_files(p, f"host_{'a' * 16}.json", f"host_{sha[:16]}.json")
     plan = plan_transcription(p, [job], overwrite=False, unattended=True)
     assert plan.reused == [job] and plan.adopted == [job.key]
 
 
 def test_legacy_edited_transcript_with_stale_caches_is_refused_unattended(job, tmp_path):
     p = _project(_tr(user_edited=True), workspace=str(tmp_path))
-    _cache_files(p, f"host_{'a' * 16}_{'b' * 16}.json")
+    _cache_files(p, f"host_{'a' * 16}.json")
     with pytest.raises(TranscriptOverwriteRefused, match="audio changed"):
         plan_transcription(p, [job], overwrite=False, unattended=True)
 

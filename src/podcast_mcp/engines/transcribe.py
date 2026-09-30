@@ -306,11 +306,15 @@ def _write_align_cache(
         log.warning("could not update word-alignment cache %s: %s", path.name, exc)
 
 
-_CACHE_AUDIO_KEY = r"_([0-9a-f]{16})_[0-9a-f]{16}\.json"
+_CACHE_AUDIO_KEY = r"_([0-9a-f]{16})(?:_[0-9a-f]{16})?\.json"
 
 
 def cached_audio_keys(project: EpisodeProject, cache_id: str) -> set[str]:
-    """16-hex audio keys of the ASR caches stored for ``cache_id``."""
+    """Audio identity evidence from input-keyed or obsolete cache names.
+
+    Legacy filenames still protect no-hash project transcripts from stale-audio
+    adoption; their contents are never decoded as ASR results.
+    """
     tdir = project.transcripts_dir()
     if not tdir.is_dir():
         return set()
