@@ -24,6 +24,7 @@ See ``docs/waveform.md``.
 from __future__ import annotations
 
 import contextlib
+import functools
 import logging
 import re
 import time
@@ -42,6 +43,7 @@ from podcast_mcp.engines.waveform_media import (
     MediaKind,
     collect_media_refs,
     current_key,
+    current_ref_key,
     ensure_project_waveforms,
     ensure_track_waveforms,
     media_watch_paths,
@@ -51,6 +53,7 @@ from podcast_mcp.engines.waveform_media import (
 )
 from podcast_mcp.engines.waveform_pyramid import (
     BIN_BYTES,
+    PYRAMID_LOCK_TIMEOUT_SEC,
     PcmSource,
     PyramidMeta,
     probe_pcm_source,
@@ -65,6 +68,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
+from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
@@ -297,7 +301,9 @@ def _generating() -> dict[str, Any]:
     return {"status": "generating"}
 
 
-def _ref_status(artifacts_dir: Path, ref: str, entry: MediaEntry) -> dict[str, Any]:
+def _ref_status(
+    project_path: Path, artifacts_dir: Path, ref: str, entry: MediaEntry
+) -> dict[str, Any]:
     try:
         target = pyramid_target(artifacts_dir, ref, entry)
     except OSError:
@@ -312,7 +318,13 @@ def _ref_status(artifacts_dir: Path, ref: str, entry: MediaEntry) -> dict[str, A
             _drop_pyramid(target.out, target.key)
     if pyramid_build_failed(target.key):
         return _unavailable(REASON_DECODE_FAILED)
-    if schedule_pyramid_build(ref, target.key, entry.abs_path, target.out):
+    if schedule_pyramid_build(
+        ref,
+        target.key,
+        entry.abs_path,
+        target.out,
+        current_key=functools.partial(current_ref_key, project_path, ref),
+    ):
         return _generating()
     return _unavailable(REASON_DECODE_FAILED)
 
@@ -331,7 +343,7 @@ def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
     media: dict[str, dict[str, Any]] = {}
     for ref, entry in index.refs.items():
         if entry.kind == kind:
-            media[ref] = _ref_status(index.artifacts_dir, ref, entry)
+            media[ref] = _ref_status(project_path, index.artifacts_dir, ref, entry)
     for ref, reason in index.unavailable.items():
         if _ref_kind(ref) == kind:
             media[ref] = _unavailable(reason)
@@ -502,25 +514,26 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
         removed = 0
         peaks = index.artifacts_dir / "peaks"
         live_pyramids: set[str] = set()
-        for path in peaks.glob("*.wfpk"):
-            match = _PYRAMID_NAME_RE.fullmatch(path.name)
-            if match is None:
-                continue
-            if match.group(1) in live:
-                live_pyramids.add(match.group(1))
-                continue
-            with contextlib.suppress(OSError):
-                if path.stat().st_mtime < cutoff:
-                    path.unlink()
-                    removed += 1
-        for legacy in peaks.glob("*.json"):
-            # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530);
-            # ``ref_slug`` hashes ids an older build wrote unsanitized.
-            superseded = ref_slug("track", legacy.stem) in live_pyramids
-            with contextlib.suppress(OSError):
-                if superseded or legacy.stat().st_mtime < cutoff:
-                    legacy.unlink()
-                    removed += 1
+        with hold_shared_file_lock(peaks / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC):
+            for path in peaks.glob("*.wfpk"):
+                match = _PYRAMID_NAME_RE.fullmatch(path.name)
+                if match is None:
+                    continue
+                if match.group(1) in live:
+                    live_pyramids.add(match.group(1))
+                    continue
+                with contextlib.suppress(OSError):
+                    if path.stat().st_mtime < cutoff:
+                        path.unlink()
+                        removed += 1
+            for legacy in peaks.glob("*.json"):
+                # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530);
+                # ``ref_slug`` hashes ids an older build wrote unsanitized.
+                superseded = ref_slug("track", legacy.stem) in live_pyramids
+                with contextlib.suppress(OSError):
+                    if superseded or legacy.stat().st_mtime < cutoff:
+                        legacy.unlink()
+                        removed += 1
     except BaseException:
         with _GC_LOCK:
             _GC_DONE.discard(marker)

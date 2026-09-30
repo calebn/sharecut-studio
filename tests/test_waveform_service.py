@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import threading
 import time
@@ -18,6 +19,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     read_pcm_minmax,
     ref_slug,
     wait_pyramid_jobs,
+    write_synthetic_pyramid,
 )
 from podcast_mcp.models import MediaAsset, Track, load_project, save_project
 from podcast_mcp.services import waveform as svc
@@ -223,6 +225,64 @@ def test_status_drops_and_rebuilds_corrupt_pyramid(tmp_path):
     assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
     wait_pyramid_jobs()
     assert read_meta(out).total_frames == 64 * 302
+
+
+def test_status_rebuilds_instead_of_reusing_a_legacy_short_pyramid(tmp_path):
+    project_path = waveform_project(tmp_path)
+    entry = media_index(project_path).refs["track:host"]
+    st = entry.abs_path.stat()
+    old_key = hashlib.sha256(
+        f"1|{entry.rel_path}|{st.st_size}|{st.st_mtime_ns}".encode()
+    ).hexdigest()[:20]
+    old = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", old_key)
+    write_synthetic_pyramid(old, sample_rate=SR, total_frames=1, seed=1)
+
+    assert waveform_status(project_path, "raw")["media"]["track:host"] == {"status": "generating"}
+    wait_pyramid_jobs()
+    ready = waveform_status(project_path, "raw")["media"]["track:host"]
+    assert ready["status"] == "ready"
+    assert ready["key"] != old_key
+    assert ready["total_frames"] == 64 * 300
+
+
+def test_old_job_does_not_prune_new_media_path_for_the_same_ref(tmp_path):
+    project_path = waveform_project(tmp_path)
+    artifacts = project_path.parent / "artifacts"
+    old_entry = media_index(project_path).refs["track:host"]
+    old_key = current_key(old_entry)
+    entered = threading.Event()
+    release = threading.Event()
+    real_decode = wm_pyramid.decode_media
+
+    def blocked(path, **kwargs):
+        if path == old_entry.abs_path:
+            entered.set()
+            assert release.wait(5)
+        return real_decode(path, **kwargs)
+
+    with patch.object(wm_pyramid, "decode_media", side_effect=blocked):
+        try:
+            assert wm.schedule_media_ref(artifacts, "track:host", old_entry)
+            assert entered.wait(5)
+            project = load_project(project_path)
+            host = project.track_by_id("host")
+            assert host is not None and host.media is not None
+            host.media.path = "raw/guest.wav"
+            save_project(project, project_path)
+            new_entry = wm.collect_media_refs(load_project(project_path)).refs["track:host"]
+            live_key = current_key(new_entry)
+            peaks = artifacts / "peaks"
+            live = pyramid_path(peaks, "track-host", live_key)
+            wm_pyramid.build_pyramid("track:host", live_key, new_entry.abs_path, live)
+            other = pyramid_path(peaks, "track-host", "a" * 20)
+            write_synthetic_pyramid(other, sample_rate=SR, total_frames=1, seed=1)
+            os.utime(other, (time.time() + 10, time.time() + 10))
+        finally:
+            release.set()
+            wait_pyramid_jobs()
+
+    assert read_meta(live).total_frames == 64 * 301
+    assert pyramid_path(peaks, "track-host", old_key).exists()
 
 
 def test_tile_and_pcm_treat_a_corrupt_pyramid_as_missing(tmp_path):

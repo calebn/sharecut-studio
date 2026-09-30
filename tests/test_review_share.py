@@ -2034,6 +2034,25 @@ def test_guest_waveform_status_and_tiles(minimal_project, sample_wav, monkeypatc
     assert pcm.status_code in {404, 405}
 
 
+def test_guest_waveform_vanished_tile_returns_404_then_status_rebuilds(minimal_project, sample_wav):
+    from podcast_mcp.engines.waveform_pyramid import pyramid_path, wait_pyramid_jobs
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    base = f"/api/review/{token}/daw/waveform"
+    key = client.get(f"{base}/status").json()["media"]["track:host"]["key"]
+    out = pyramid_path(minimal_project.parent / "artifacts" / "peaks", "track-host", key)
+    out.unlink()
+
+    missing = client.get(
+        f"{base}/tiles/{key}", params={"ref": "track:host", "level": 0, "start": 0}
+    )
+    assert missing.status_code == 404
+    assert missing.headers["cache-control"] == "no-store"
+    assert client.get(f"{base}/status").json()["media"]["track:host"] == {"status": "generating"}
+    wait_pyramid_jobs()
+    assert client.get(f"{base}/status").json()["media"]["track:host"]["status"] == "ready"
+
+
 def test_guest_waveform_requires_view(minimal_project, sample_wav):
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "comment"])
     status = client.get(f"/api/review/{token}/daw/waveform/status")

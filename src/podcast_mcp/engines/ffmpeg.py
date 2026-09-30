@@ -263,6 +263,8 @@ class AudioProbe:
     duration_sec: float
     sample_rate: int
     channels: int
+    duration_estimated: bool = False
+    audio_duration_sec: float | None = None
 
 
 @dataclass(frozen=True)
@@ -330,7 +332,7 @@ class FFmpegEngine:
         cmd = [
             self.ffprobe,
             "-v",
-            "quiet",
+            "warning",
             "-print_format",
             "json",
             "-show_format",
@@ -342,16 +344,23 @@ class FFmpegEngine:
         cmd.append(str(path))
         r = run(cmd, capture_output=True, text=True, check=True)
         data = json.loads(r.stdout)
-        stream: dict[str, Any] = next(
-            (s for s in data.get("streams", []) if s.get("codec_type") == "audio"),
-            {},
-        )
+        audio_streams = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
+        stream: dict[str, Any] = audio_streams[0] if audio_streams else {}
         fmt = data.get("format", {})
         duration = float(fmt.get("duration") or stream.get("duration") or 0)
+        try:
+            audio_duration = float(stream["duration"])
+        except (KeyError, TypeError, ValueError):
+            audio_duration = None
         return AudioProbe(
             duration_sec=duration,
             sample_rate=int(stream.get("sample_rate") or 48000),
             channels=int(stream.get("channels") or 1),
+            duration_estimated=(
+                "estimating duration from bitrate" in (r.stderr or "").lower()
+                or len(audio_streams) != 1
+            ),
+            audio_duration_sec=audio_duration,
         )
 
     def stream_pcm_f32(
@@ -365,7 +374,8 @@ class FFmpegEngine:
         when the generator closes, or when one chunk waits on ffmpeg longer than
         ``PCM_STREAM_TIMEOUT_SEC`` (the consumer's time between chunks does not
         count). A non-zero exit raises ``RuntimeError`` with the tail of ffmpeg's
-        stderr.
+        stderr. A successful whole-file exit also raises when decoded audio is
+        materially shorter than a reliable audio-stream duration.
         """
         if chunk_frames < 1:
             raise ValueError("chunk_frames must be >= 1")
@@ -375,7 +385,30 @@ class FFmpegEngine:
         chunks = self._read_pcm_f32(
             argv, channels, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
         )
-        return sample_rate, channels, chunks
+        return sample_rate, channels, self._checked_pcm_chunks(chunks, info)
+
+    @staticmethod
+    def _checked_pcm_chunks(
+        chunks: Generator[np.ndarray, None, None], info: AudioProbe
+    ) -> Generator[np.ndarray, None, None]:
+        frames = 0
+        expected_duration = info.audio_duration_sec
+        try:
+            for chunk in chunks:
+                frames += len(chunk)
+                yield chunk
+            if (
+                expected_duration is not None
+                and expected_duration > 0
+                and not info.duration_estimated
+                and frames / info.sample_rate + 0.25 < expected_duration
+            ):
+                raise RuntimeError(
+                    f"ffmpeg PCM decode ended short: {frames / info.sample_rate:.3f} s "
+                    f"of {expected_duration:.3f} s"
+                )
+        finally:
+            chunks.close()
 
     def stream_mono_f32(
         self, path: Path, *, sample_rate: int, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES

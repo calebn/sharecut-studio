@@ -18,6 +18,7 @@ pipeline never imports ``services``; ``services/waveform`` re-exports them.
 
 from __future__ import annotations
 
+import functools
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     ref_slug,
     schedule_pyramid_build,
 )
-from podcast_mcp.models import EpisodeProject, Track
+from podcast_mcp.models import EpisodeProject, Track, load_project, project_file_path
 from podcast_mcp.util.workspace_paths import (
     resolve_under_workspace,
     resolve_within,
@@ -200,6 +201,12 @@ def current_key(entry: MediaEntry) -> str:
     return media_key(entry.rel_path, st.st_size, st.st_mtime_ns)
 
 
+def current_ref_key(project_path: Path, ref: str) -> str | None:
+    """Current key for *ref* in the saved project, including a replaced media path."""
+    entry = collect_media_refs(load_project(project_path)).refs.get(ref)
+    return current_key(entry) if entry is not None else None
+
+
 def pyramid_target(artifacts_dir: Path, ref: str, entry: MediaEntry) -> PyramidTarget:
     """Current key and file for *ref* (``stat()`` on every call; ``OSError`` if gone)."""
     kind, _, ref_id = ref.partition(":")
@@ -216,7 +223,15 @@ def schedule_media_ref(artifacts_dir: Path, ref: str, entry: MediaEntry) -> bool
         return False
     if target.out.is_file():
         return True
-    return schedule_pyramid_build(ref, target.key, entry.abs_path, target.out)
+    return schedule_pyramid_build(
+        ref,
+        target.key,
+        entry.abs_path,
+        target.out,
+        current_key=functools.partial(
+            current_ref_key, project_file_path(artifacts_dir.parent), ref
+        ),
+    )
 
 
 def schedule_track_waveforms(project: EpisodeProject, track: Track) -> int:
@@ -247,7 +262,15 @@ def ensure_track_waveforms(project: EpisodeProject, track: Track, *, sources: bo
         try:
             target = pyramid_target(artifacts, ref, entry)
             if not target.out.is_file():
-                build_pyramid(ref, target.key, entry.abs_path, target.out)
+                build_pyramid(
+                    ref,
+                    target.key,
+                    entry.abs_path,
+                    target.out,
+                    current_key=functools.partial(
+                        current_ref_key, project_file_path(artifacts.parent), ref
+                    ),
+                )
         except Exception as exc:
             log.debug("waveform pyramid build failed for %s: %s", ref, exc)
             continue
