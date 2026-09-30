@@ -90,6 +90,10 @@ The overflow Menu panel caps to remaining space under the trigger (`min(90dvh, v
 Storybook `Templates/BounceDialog` previews the production `BounceDialogView`
 behind Menu → Project → Bounce…; the live `BounceDialog` keeps the job
 start/follow and DAW selection.
+Source choices and export checkboxes share aligned control/text columns and
+44 px minimum label targets. Source, the two export options, and the action
+footer use separate spacing groups; wrapped labels keep the control beside
+their first line. Errors appear above the right-aligned Bounce action.
 
 ---
 
