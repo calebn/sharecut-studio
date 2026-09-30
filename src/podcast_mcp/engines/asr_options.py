@@ -119,7 +119,6 @@ def _temperatures(value: Any, default: tuple[float, ...]) -> tuple[float, ...]:
 
 @dataclass(frozen=True)
 class AsrOptions:
-    # Language has its own ASR cache-key field, separate from decode_key().
     language: str | None = "en"
     vad_enabled: bool = True
     vad_threshold: float = 0.4

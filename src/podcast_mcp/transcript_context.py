@@ -91,8 +91,6 @@ class SpeakerIdConfig:
 
 @dataclass(frozen=True)
 class TranscriptionVocabulary:
-    """Prompt and revision from one transcript context snapshot."""
-
     initial_prompt: str | None
     revision: str | None
 
