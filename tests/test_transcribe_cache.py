@@ -264,7 +264,7 @@ def test_corrupt_cache_is_a_miss_and_is_rewritten(
     )
 
 
-def test_cached_audio_keys_reads_current_names_only_for_that_job(minimal_project):
+def test_cached_audio_keys_keeps_legacy_audio_evidence_only_for_that_job(minimal_project):
     from podcast_mcp.engines.transcribe import cached_audio_keys
 
     proj = load_project(minimal_project)
@@ -278,7 +278,7 @@ def test_cached_audio_keys_reads_current_names_only_for_that_job(minimal_project
         "combined.json",
     ):
         (tdir / name).write_text("{}", encoding="utf-8")
-    assert cached_audio_keys(proj, "host") == {"2" * 16}
+    assert cached_audio_keys(proj, "host") == {"1" * 16, "2" * 16}
     assert cached_audio_keys(proj, "host__b") == {"3" * 16}
 
 
