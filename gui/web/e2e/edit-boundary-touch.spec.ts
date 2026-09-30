@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
+import { setTheme } from "./theme";
 
 const CLIENT_ID = "e2e-edit-boundary-touch";
 
@@ -120,3 +121,82 @@ test.describe("Transcript edit-boundary touch drag", () => {
     }
   });
 });
+
+for (const width of [1440, 360]) {
+  for (const theme of ["light", "dark"] as const) {
+    test(`boundary grab point stays aligned through preview changes at ${width}px in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText(
+        /aligned dialogue/i,
+      );
+      await setTheme(page, theme);
+      let applied = false;
+      try {
+        await waiveRefineGate(page, "e2e boundary geometry");
+        await postDocumentCommand(page, CLIENT_ID, "RippleDeleteRange", {
+          start: 5,
+          end: 15,
+        });
+        applied = true;
+        await page
+          .getByRole("button", {
+            name: width < 720 ? "Text" : "Transcript",
+            exact: true,
+          })
+          .click();
+        const annotate = page.locator(".transcript-annotate-btn");
+        if ((await annotate.getAttribute("aria-pressed")) !== "true")
+          await annotate.click();
+        const mark = page.locator(".edit-boundary-mark").first();
+        await expect(mark).toBeVisible();
+        await mark.scrollIntoViewIfNeeded();
+        const initial = await mark.boundingBox();
+        if (!initial) throw new Error("Boundary has no visible grab target");
+        const x = initial.x + initial.width / 2;
+        const y = initial.y + initial.height / 2;
+        const paragraph = mark.locator(
+          "xpath=ancestor::*[contains(@class, 'utterance-turn')][1]",
+        );
+        const originalParagraph = await paragraph.boundingBox();
+        let restoredWordsSeen = false;
+        await page.mouse.move(x, y);
+        await page.mouse.down();
+        for (const distance of [
+          0, 4, 8, 16, 32, 64, 80, 32, 0, -4, -16, -32, -64, 0,
+        ]) {
+          await page.mouse.move(x + distance, y);
+          await expect(async () => {
+            const box = await mark.boundingBox();
+            if (!box) throw new Error("Boundary disappeared during drag");
+            expect(
+              Math.abs(box.x + initial.width / 2 - (x + distance)),
+            ).toBeLessThan(0.5);
+            expect(Math.abs(box.y - initial.y)).toBeLessThan(0.5);
+            expect(box.width).toBeCloseTo(initial.width, 1);
+            expect(await paragraph.boundingBox()).toEqual(originalParagraph);
+          }).toPass({ timeout: 2000 });
+          restoredWordsSeen ||=
+            (await page
+              .getByRole("group", { name: "Preview restored words" })
+              .count()) > 0;
+        }
+        expect(restoredWordsSeen).toBe(true);
+        await page.keyboard.press("Escape");
+        await page.mouse.up();
+        await expect(page.locator("body")).not.toHaveClass(
+          /is-boundary-dragging/,
+        );
+        await expect(mark).toHaveAttribute("aria-grabbed", "false");
+      } finally {
+        await page.mouse.up();
+        if (applied)
+          await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
+            rerender: false,
+          });
+      }
+    });
+  }
+}
