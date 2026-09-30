@@ -133,8 +133,8 @@ export interface DawState {
   commentDraft: CommentDraft | null;
   transcriptFollowPlayhead: boolean;
   transcriptAnnotate: boolean;
-  /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
+  /** An inline transcript word fix is saving; outlives a TranscriptPanel remount (tab switch). */
   transcriptInlineCommitPending: boolean;
   /** Late failure of an inline word fix; outlives a TranscriptPanel remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
