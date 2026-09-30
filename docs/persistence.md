@@ -78,7 +78,9 @@ Vocabulary status reads reuse at most 16 immutable saved project metadata revisi
 in process, keyed by the canonical path and project/history-index device, inode,
 size, mtime and ctime (missing index is a distinct state). Cache misses use the
 existing project/history validator. All merged context YAML is read on every call;
-this cache creates no durable store or coordination file.
+this cache creates no durable store or coordination file. An unreadable cache signature
+falls back to an uncached validated load. Nonempty saved history still skips adoption;
+required history-index read errors still propagate.
 
 ## When to extend which store
 
