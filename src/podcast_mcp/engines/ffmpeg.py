@@ -808,11 +808,12 @@ class FFmpegEngine:
         """Assemble placed source segments into the output in a single ffmpeg pass.
 
         Builds one `-filter_complex` graph that trims each source range, applies
-        per-segment fades, joins them handling every inter-segment relationship -
-        hard concat, silence-padded concat for gaps, `acrossfade` for soft joins,
-        and `adelay`+`amix` for genuine timeline overlaps - then runs the track FX
-        chain once over the assembled audio so stateful filters keep continuous
-        state across joins.
+        per-segment fades, and joins every inter-segment relationship: hard concat,
+        silence-padded concat for gaps, `acrossfade` for soft joins, and
+        `adelay`+`amix` for genuine timeline overlaps. Multi-source renders group
+        segments by resolved path, seek each input to its selected source bounds,
+        and split it for reuse. Track FX run once over the assembled audio so
+        stateful filters keep continuous state across joins.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not placed:
@@ -820,12 +821,45 @@ class FFmpegEngine:
 
         n = len(placed)
         multi_source = any(seg.source_path is not None for seg in placed)
+        source_ranges: dict[Path, tuple[float, float]] = {}
+        source_paths: list[Path] = []
+        source_indices: list[int] = []
+        if multi_source:
+            for seg in placed:
+                path = (seg.source_path or input_path).resolve()
+                source_paths.append(path)
+                if path not in source_ranges:
+                    source_ranges[path] = (seg.src_start, seg.src_end)
+                else:
+                    start, end = source_ranges[path]
+                    source_ranges[path] = (min(start, seg.src_start), max(end, seg.src_end))
+            source_index_by_path = {path: i for i, path in enumerate(source_ranges)}
+            source_indices = [source_index_by_path[path] for path in source_paths]
+        source_split_labels = [""] * n if multi_source else []
         filters: list[str] = []
 
         if multi_source:
+            for input_index in range(len(source_ranges)):
+                segment_indices = [
+                    segment_index
+                    for segment_index, source_index in enumerate(source_indices)
+                    if source_index == input_index
+                ]
+                labels = [f"[src_in{input_index}_{i}]" for i in range(len(segment_indices))]
+                if len(labels) > 1:
+                    filters.append(f"[{input_index}:a]asplit={len(labels)}{''.join(labels)}")
+                else:
+                    filters.append(f"[{input_index}:a]anull{labels[0]}")
+                for segment_index, label in zip(segment_indices, labels, strict=True):
+                    source_split_labels[segment_index] = label
+
             for i, seg in enumerate(placed):
+                source_path = source_paths[i]
+                source_start = source_ranges[source_path][0]
+                trim_start = seg.src_start - source_start
+                trim_end = seg.src_end - source_start
                 filters.append(
-                    f"[{i}:a]atrim=start={seg.src_start}:end={seg.src_end},"
+                    f"{source_split_labels[i]}atrim=start={trim_start}:end={trim_end},"
                     f"asetpts=PTS-STARTPTS[src{i}]"
                 )
         elif n == 1:
@@ -859,7 +893,7 @@ class FFmpegEngine:
         if n == 1:
             combined = seg_labels[0]
             if lead_in_sec > 0:
-                filters.append(f"{combined}adelay={int(lead_in_sec * 1000)}:all=1[asm]")
+                filters.append(f"{combined}adelay={round(lead_in_sec * 1000)}:all=1[asm]")
                 combined = "[asm]"
         elif not needs_pairwise:
             cat_in = "".join(seg_labels)
@@ -869,7 +903,7 @@ class FFmpegEngine:
             acc = seg_labels[0]
             running_end = lead_in_sec + (placed[0].src_end - placed[0].src_start)
             if lead_in_sec > 0:
-                filters.append(f"{acc}adelay={int(lead_in_sec * 1000)}:all=1[acc0]")
+                filters.append(f"{acc}adelay={round(lead_in_sec * 1000)}:all=1[acc0]")
                 acc = "[acc0]"
             for i in range(1, n):
                 seg = placed[i]
@@ -887,7 +921,7 @@ class FFmpegEngine:
                     overlap = min(seg.overlap_prev_sec, running_end)
                     delay_sec = max(0.0, running_end - overlap)
                     delayed = f"[ov{i}]"
-                    filters.append(f"{cur}adelay={int(delay_sec * 1000)}:all=1{delayed}")
+                    filters.append(f"{cur}adelay={round(delay_sec * 1000)}:all=1{delayed}")
                     filters.append(
                         f"{acc}{delayed}amix=inputs=2:duration=longest:normalize=0{out_label}"
                     )
@@ -914,8 +948,8 @@ class FFmpegEngine:
 
         cmd = [self.ffmpeg, "-y"]
         if multi_source:
-            for seg in placed:
-                cmd.extend(["-i", str(seg.source_path or input_path)])
+            for path, (start, end) in source_ranges.items():
+                cmd.extend(["-ss", str(start), "-t", str(end - start), "-i", str(path)])
         else:
             cmd.extend(["-i", str(input_path)])
         cmd.extend(
