@@ -26,8 +26,8 @@ from podcast_mcp.history.summary import (
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import (
     ShareService,
     lookup_share,
     open_share_workspace,
@@ -324,7 +324,7 @@ def test_share_object_store_warning_and_daw_meta(
     from datetime import datetime, timedelta
 
     from podcast_mcp.edits.share_registry import share_hard_expired
-    from podcast_mcp.services.share import (
+    from podcast_mcp.services.collaboration.share import (
         ShareService,
         share_daw_meta,
     )
@@ -340,7 +340,9 @@ def test_share_object_store_warning_and_daw_meta(
     def _boom(*_a, **_k):
         raise RuntimeError("object_store down")
 
-    monkeypatch.setattr("podcast_mcp.services.share.upload_review_version_to_object_store", _boom)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share.upload_review_version_to_object_store", _boom
+    )
     again = ShareService(ws).create(
         review_version_id=ver["id"],
         capabilities=["play", "view"],

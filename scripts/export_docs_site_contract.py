@@ -248,8 +248,7 @@ def _share_route_note_errors(seen: set[tuple[str, str]]) -> list[str]:
 def check_share_http_mcp_parity() -> list[str]:
     """Every share HTTP/WS route has a guest MCP twin or an explicit http-only note."""
     sys.path.insert(0, str(ROOT / "src"))
-    from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS
-    from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
+    from podcast_mcp.services.remote_mcp import ALL_GUEST_TOOLS, TOOL_HANDLERS
 
     errors: list[str] = []
     if set(_ROUTE_AGENT) != set(_ROUTE_NOTES):
@@ -374,7 +373,15 @@ def _render_share_routes() -> str:
 
 def _render_remote_tools() -> str:
     sys.path.insert(0, str(ROOT / "src"))
-    from podcast_mcp.services.remote_mcp import allowlist as al
+    from podcast_mcp.services.remote_mcp import (
+        ACTION_TOOLS,
+        COMMENT_TOOLS,
+        EDIT_TOOLS,
+        PLAY_AND_VIEW_TOOLS,
+        PLAY_TOOLS,
+        SUGGEST_TOOLS,
+        VIEW_TOOLS,
+    )
 
     def fmt(tools: frozenset[str]) -> str:
         return ", ".join(f"`{t}`" for t in sorted(tools))
@@ -388,13 +395,13 @@ def _render_remote_tools() -> str:
         "",
         "| Caps | Tools |",
         "|------|-------|",
-        f"| `play` | {fmt(al.PLAY_TOOLS)} |",
-        f"| `play` + `view` | {fmt(al.PLAY_AND_VIEW_TOOLS)} |",
-        f"| `+view` | {fmt(al.VIEW_TOOLS - al.PLAY_TOOLS)} |",
-        f"| `+comment` / `reply` | {fmt(al.COMMENT_TOOLS - al.PLAY_TOOLS)} |",
-        f"| `+action` | {fmt(al.ACTION_TOOLS)} |",
-        f"| `+suggest` / `+edit` | {fmt(al.SUGGEST_TOOLS)} |",
-        f"| `+edit` only | {fmt(al.EDIT_TOOLS - al.SUGGEST_TOOLS)} |",
+        f"| `play` | {fmt(PLAY_TOOLS)} |",
+        f"| `play` + `view` | {fmt(PLAY_AND_VIEW_TOOLS)} |",
+        f"| `+view` | {fmt(VIEW_TOOLS - PLAY_TOOLS)} |",
+        f"| `+comment` / `reply` | {fmt(COMMENT_TOOLS - PLAY_TOOLS)} |",
+        f"| `+action` | {fmt(ACTION_TOOLS)} |",
+        f"| `+suggest` / `+edit` | {fmt(SUGGEST_TOOLS)} |",
+        f"| `+edit` only | {fmt(EDIT_TOOLS - SUGGEST_TOOLS)} |",
         "",
         REMOTE_END,
         "",

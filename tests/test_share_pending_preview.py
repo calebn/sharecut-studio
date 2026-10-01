@@ -21,11 +21,8 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import PlayService
-from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
-from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import (
     ShareService,
     share_pending_preview_image,
     share_pending_preview_image_cached,
@@ -33,6 +30,9 @@ from podcast_mcp.services.share import (
     share_pending_preview_wav,
     share_pending_preview_wav_cached,
 )
+from podcast_mcp.services.document import PlayService
+from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
+from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 
 
 def _wav_duration_sec(path: Path) -> float:

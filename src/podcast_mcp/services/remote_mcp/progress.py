@@ -9,7 +9,7 @@ import threading
 from collections.abc import AsyncIterator
 from typing import Any
 
-from podcast_mcp.services.guest_progress import scrub_guest_progress_text
+from podcast_mcp.services.collaboration import scrub_guest_progress_text
 from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
 from podcast_mcp.util.progress import _mcp_progress_token, short_fail_headline
 

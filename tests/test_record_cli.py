@@ -18,6 +18,7 @@ from podcast_mcp.mcp.tools.record import (
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
@@ -25,7 +26,6 @@ from podcast_mcp.services.record.service import (
     apply_record_ws_message,
     reset_record_runtime_for_tests,
 )
-from podcast_mcp.services.share import ShareService
 
 
 def _isolate() -> None:

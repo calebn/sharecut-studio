@@ -6,9 +6,9 @@ from pathlib import Path
 
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
-from podcast_mcp.services.share_page import (
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share_page import (
     build_share_head_tags,
     inject_share_document_head,
     render_share_spa_html,
@@ -129,7 +129,7 @@ def test_render_share_spa_html_uses_episode_name(
 
 def test_share_public_origin_prefers_relay(monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.share_page.load_relay_config",
+        "podcast_mcp.services.collaboration.share_page.load_relay_config",
         lambda **_kwargs: type("Relay", (), {"public_base_url": "https://sudo.science"})(),
     )
     assert share_public_origin("http://127.0.0.1:8765/") == "https://sudo.science"
@@ -137,7 +137,7 @@ def test_share_public_origin_prefers_relay(monkeypatch):
 
 def test_share_public_origin_fallbacks(monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.share_page.load_relay_config",
+        "podcast_mcp.services.collaboration.share_page.load_relay_config",
         lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("no cfg")),
     )
     assert share_public_origin("http://example.test/") == "http://example.test"
@@ -161,7 +161,7 @@ def test_inject_without_head_marker():
 
 
 def test_share_audio_url_requires_play_and_https_object_store(monkeypatch):
-    from podcast_mcp.services.share_page import share_audio_url_for_preview
+    from podcast_mcp.services.collaboration.share_page import share_audio_url_for_preview
 
     assert (
         share_audio_url_for_preview(
@@ -242,7 +242,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     ver = ReviewService(ws).publish(label="temp")
     # Simulate an empty review-mix label on the frozen version.
     monkeypatch.setattr(
-        "podcast_mcp.services.share_page.get_version",
+        "podcast_mcp.services.collaboration.share_page.get_version",
         lambda project, vid: type("V", (), {"label": ""})(),
     )
     share = ShareService(ws).create(
@@ -276,7 +276,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
 def test_render_record_spa_html_no_audio_tags(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.services.share_page import render_record_spa_html
+    from podcast_mcp.services.collaboration.share_page import render_record_spa_html
 
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
@@ -306,7 +306,7 @@ def test_render_record_spa_html_no_audio_tags(
 
 def test_share_public_origin_empty_relay(monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.share_page.load_relay_config",
+        "podcast_mcp.services.collaboration.share_page.load_relay_config",
         lambda **_kwargs: type("Relay", (), {"public_base_url": "  "})(),
     )
     assert share_public_origin("http://fallback.test/") == "http://fallback.test"
@@ -314,7 +314,7 @@ def test_share_public_origin_empty_relay(monkeypatch):
 
 def test_render_share_spa_html_fallback_token(monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.share.open_share_workspace",
+        "podcast_mcp.services.collaboration.share.open_share_workspace",
         lambda token: (_ for _ in ()).throw(KeyError("missing")),
     )
     html = render_share_spa_html(

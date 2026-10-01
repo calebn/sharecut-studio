@@ -22,15 +22,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document_sync.service import (
+from podcast_mcp.services.document_sync import (
     DocumentSyncService,
     document_db_path,
     document_hub_key,
     document_server_seq_at,
 )
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.service import (
+from podcast_mcp.services.session_sync import (
     SessionSyncService,
+    get_hub,
     session_server_seq_at,
     sync_db_path,
 )

@@ -6,15 +6,7 @@ import json
 from typing import Any
 
 from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
-from podcast_mcp.services.document_sync import DocumentSyncService
-from podcast_mcp.services.document_sync.payloads import (
-    COMMENT_BODY_MAX,
-    document_command_json_schema,
-    parse_document_command,
-)
-from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
-from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration import (
     share_add_comment,
     share_add_reply,
     share_audition_context_info,
@@ -24,6 +16,14 @@ from podcast_mcp.services.share import (
     share_set_action_done,
     share_upload_media,
 )
+from podcast_mcp.services.document_sync import (
+    COMMENT_BODY_MAX,
+    DocumentSyncService,
+    document_command_json_schema,
+    parse_document_command,
+)
+from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
+from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
 from podcast_mcp.util.progress import install_guest_tool_progress
 
 
@@ -53,8 +53,10 @@ def guest_get_session_presence() -> dict[str, Any]:
     ctx = get_remote_mcp_context()
     if not has_capability(ctx.capabilities, CAP_VIEW):
         raise PermissionError("share does not allow view")
-    from podcast_mcp.services.session_control import SessionControlService
-    from podcast_mcp.services.share import sanitize_guest_session_event
+    from podcast_mcp.services.collaboration import (
+        SessionControlService,
+        sanitize_guest_session_event,
+    )
 
     roster = SessionControlService(ctx.workspace).presence()
     return sanitize_guest_session_event({"clients": roster})
@@ -250,7 +252,7 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
     """
     _require_tool("guest_submit_document_command")
     ctx = get_remote_mcp_context()
-    from podcast_mcp.services.share import sanitize_guest_document_event
+    from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
     data = dict(kwargs)
     data.setdefault("client_id", "remote-mcp")

@@ -163,22 +163,22 @@
     {
       "id": "public-share-tokens",
       "when": "Public share tokens (coolname, active + cooldown pools)",
-      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/share.py`, `podcast review backup-registry`",
+      "update": "`docs/share-tokens.md`, `edits/share_registry.py` (`ShareRegistryProtocol`), `edits/review_shares.py`, `services/collaboration/share.py`, `podcast review backup-registry`",
       "docs": [
         "docs/share-tokens.md",
         "src/podcast_mcp/edits/share_registry.py",
         "src/podcast_mcp/edits/review_shares.py",
-        "src/podcast_mcp/services/share.py"
+        "src/podcast_mcp/services/collaboration/share.py"
       ],
       "advisory": {
         "include": [
           "src/podcast_mcp/edits/share_registry.py",
           "src/podcast_mcp/edits/review_shares.py",
-          "src/podcast_mcp/services/share.py",
+          "src/podcast_mcp/services/collaboration/share.py",
           "src/podcast_mcp/cli/review.py"
         ],
         "exclude": [
-          "src/podcast_mcp/services/share.py"
+          "src/podcast_mcp/services/collaboration/share.py"
         ]
       }
     },
@@ -198,7 +198,7 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/services/record/",
-          "src/podcast_mcp/services/record_share.py",
+          "src/podcast_mcp/services/collaboration/record_share.py",
           "src/podcast_mcp/gui/routes/record_host.py",
           "src/podcast_mcp/gui/routes/record_share.py",
           "src/podcast_mcp/gui/routes/record_upload_http.py",
@@ -734,7 +734,7 @@
         "include": [
           "src/podcast_mcp/services/remote_mcp/",
           "src/podcast_mcp/services/share_auth/",
-          "src/podcast_mcp/services/tunnel.py",
+          "src/podcast_mcp/services/collaboration/tunnel.py",
           "src/podcast_mcp/services/session_sync/authz.py",
           "src/podcast_mcp/gui/routes/remote_mcp.py",
           "src/podcast_mcp/gui/routes/auth.py",
@@ -762,17 +762,17 @@
     {
       "id": "agent-daw-session-sync",
       "when": "Agent ↔ DAW session sync (typed commands, sqlite log, WS)",
-      "update": "`docs/session-sync.md`, `docs/gui-integration.md` § Shared session state, `services/session_sync/`, `services/session_control.py`, skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands",
+      "update": "`docs/session-sync.md`, `docs/gui-integration.md` § Shared session state, `services/session_sync/`, `services/collaboration/session_control.py`, skill `podcast-play-audition`; public catalog https://docs.sharecut.studio/#/document-commands",
       "docs": [
         "docs/session-sync.md",
         "docs/gui-integration.md",
         "src/podcast_mcp/services/session_sync/",
-        "src/podcast_mcp/services/session_control.py"
+        "src/podcast_mcp/services/collaboration/session_control.py"
       ],
       "advisory": {
         "include": [
           "src/podcast_mcp/services/session_sync/",
-          "src/podcast_mcp/services/session_control.py",
+          "src/podcast_mcp/services/collaboration/session_control.py",
           "src/podcast_mcp/services/document/cross_process_sync.py",
           "src/podcast_mcp/services/app/fanout_hub.py",
           "src/podcast_mcp/services/document_sync/",
@@ -943,7 +943,7 @@
         "include": [
           "src/podcast_mcp/util/progress.py",
           "src/podcast_mcp/util/progress_install.py",
-          "src/podcast_mcp/services/guest_progress.py",
+          "src/podcast_mcp/services/collaboration/guest_progress.py",
           "src/podcast_mcp/services/remote_mcp/progress.py",
           "scripts/check_progress.py",
           "schemas/progress-exemptions.schema.json",

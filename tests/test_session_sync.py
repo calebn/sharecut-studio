@@ -15,7 +15,7 @@ import pytest
 
 from podcast_mcp.models import load_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.session_control import SessionControlService
+from podcast_mcp.services.collaboration.session_control import SessionControlService
 from podcast_mcp.services.session_sync import log as session_sync_log
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.log import SyncStore
@@ -205,7 +205,7 @@ def test_generated_client_seq_survives_new_process_counter(minimal_project, monk
 def test_cli_seeks_from_separate_processes_are_not_deduped(minimal_project) -> None:
     script = (
         "import json, sys; "
-        "from podcast_mcp.services.session_control import SessionControlService; "
+        "from podcast_mcp.services.collaboration.session_control import SessionControlService; "
         "from podcast_mcp.services.app.workspace import ProjectWorkspace; "
         "state = SessionControlService(ProjectWorkspace.open(sys.argv[1])).seek(float(sys.argv[2])); "
         "print(json.dumps({'server_seq': state['server_seq'], "
@@ -436,7 +436,7 @@ def test_seek_without_region_applies(minimal_project) -> None:
 
 def test_agent_seek_with_selection(minimal_project) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.session_control import SessionControlService
+    from podcast_mcp.services.collaboration.session_control import SessionControlService
 
     ws = ProjectWorkspace.open(minimal_project)
     snap = SessionControlService(ws).seek(

@@ -104,15 +104,17 @@ Models                   models/  (EpisodeProject, snapshots)
    access, so importing the package does not load playback or editing. Its
    implementations use `services.app` for workspace mutations,
    `services.media` for media operations, and `services.pipeline` for prosody
-   settings. `document_sync` and `session_sync`
-   remain separate service packages for command logs and live collaboration.
+   settings. `document_sync` and `session_sync` own separate document and
+   transport logs. The `collaboration` context owns share, review, guest
+   progress, record-share, session-control, share-page, and tunnel orchestration.
+   `record`, `share_auth`, and `remote_mcp` each own their existing workflows.
 8. **CLI** (`podcast_mcp.cli`) — Typer commands in `main.py`, `episode.py`, `edit.py`, `clips.py`, `comment.py`, `pipeline.py`, `history.py`.
 9. **MCP** (`podcast_mcp.mcp`) — Tool registration in `server.py`; handlers in `mcp/tools/`.
 10. **GUI** (`podcast_mcp.gui`) — DAW viewer HTTP/WS adapter (`server.py` + `routes/`); must call services (e.g. `PlayService`, `PipelineService`, `BounceService`, `CommentService`, `SessionSyncService`, bootstrap via `services.pipeline`, diagnostics via `services/support/diagnostics.py`), not duplicate path/render logic. Host MCP over Streamable HTTP is the same `MCPServer` as stdio, mounted at `/mcp` on loopback binds via [`gui/host_mcp.py`](../src/podcast_mcp/gui/host_mcp.py) (`streamable_http_app()`). **ProjectView seam:** `ViewProjection` / `parse_view_projection` live in `services/document_sync/projection_types.py` so services can name projections without importing `gui/`. Construction and dump stay in `gui/assembler.py` (`build_project_view`, `dump_project_projection`; assembler re-exports the types as the compatibility path). Services dump via a lazy assembler callback — keep dump next to construction rather than forking a second assembler in `services/`. Agent ↔ DAW transport: [session-sync.md](session-sync.md) — `services/session_sync/service.py` is the sync authority; `services/session_sync/viewer.py` adapts viewer blobs / agent play into typed commands. `services/document/cross_process_sync.py` bridges other processes' journal writes into the in-process hub while a socket watches the workspace (#695). Timeline comments: [timeline-comments.md](timeline-comments.md). Share/auth/guest routes mount only via **Sharecut Studio Extensions** ([extensions.md](extensions.md)). Lightweight stem/range bounce: `BounceService` → `export/bounces/`; mastered deliverables stay on `PipelineService.export_audio`. Both share encode/copy via `export.audio.write_audio_formats` (distinct intents; same writer). Optional native host: Tauri under `gui/desktop/` ([desktop-packaging.md](desktop-packaging.md); frozen sidecar via `PODCAST_GUI_DIST`). Deferred iOS/Android hosts and in-app BYOK agent: [cross-platform-byok.md](cross-platform-byok.md) (keep ffmpeg calls inside `FFmpegEngine`).
 
 `gui/jobs.py` keeps `PipelineJobManager` as the route/MCP facade for starting and waiting on jobs. Its `_JobCatalog` collaborator owns the shared lock, live agent claims, bounded finished-job lookup, and status snapshots. SSE fan-out is not the catalog's job: `gui/job_events.py` publishes and subscribes per job id, and `gui/routes/sse_common.py` builds the shared `StreamingResponse` both `/api/pipeline/events` and `/api/bootstrap/events` return, so concurrent subscribers never steal each other's events. Job execution still resolves `PipelineService` and `ProjectWorkspace` through the facade module so runtime patches and adapters use the same entry points.
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
-12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
+12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
 `ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
 immutable track/revision/edit metadata from the existing validated project loader.
@@ -161,17 +163,22 @@ services import each context's declared symbols from
 may import implementation modules. The pipeline context depends on the existing
 `services.app` facade for `ProjectWorkspace`, and support reads pipeline component status
 through the public facade. Neither context imports CLI, MCP, or GUI modules.
-The app, pipeline, support, and session-sync facades resolve explicit typed exports on demand through
-`util/lazy_exports.py`, preserving local configuration commands without an
-optional report HTTP client.
+All eleven service contexts expose explicit typed names through lazy package
+facades using `util/lazy_exports.py`. Importing a facade does not load its
+implementation modules or optional integrations.
 
 `tests/test_service_boundaries.py` scans production Python imports, including
-nested and relative imports. It rejects external imports of app, pipeline, and
-support internals. App services may import only the session-sync facade for
-host binding auth; GUI launch may use the neutral GUI bind and static-assets
-modules. All services are barred from `gui.routes` imports. The root
-`services` package exports no service classes; callers use their owning facade
-or a direct sibling module. The projection guard remains in
+nested and relative imports. It rejects external imports of implementation
+modules in every service context and names absent from each facade's `__all__`.
+It requires the root `services/__init__.py` to stay empty, forbids flat service
+modules, and requires every context directory to be registered. All services
+are barred from `gui.routes` imports.
+The current narrow GUI dependencies are app GUI launch to `gui.bind` and
+`gui.static_assets`, document sync projection to `gui.assembler`, remote MCP
+tools to `gui.jobs`, and collaboration share projection and playback to
+`gui.mapper` and `gui.audio`. Other service imports of CLI, MCP, or GUI
+adapters are rejected.
+The projection guard remains in
 `tests/test_import_direction.py`.
 
 ## Data flow

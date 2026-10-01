@@ -20,8 +20,8 @@ from podcast_mcp.gui.host_mcp import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 
 HANDSHAKE_VERSION = "2025-06-18"
 MODERN_VERSION = "2026-07-28"
@@ -352,7 +352,7 @@ def test_review_spa_hook_error_falls_back(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr("podcast_mcp.gui.server.load_extensions", wrapped_load)
     monkeypatch.setattr(
-        "podcast_mcp.services.share.lookup_share",
+        "podcast_mcp.services.collaboration.share.lookup_share",
         lambda token, *, kind=None: {"token": token, "kind": kind or "review"},
     )
     with TestClient(create_app(static_dir=dist)) as client:

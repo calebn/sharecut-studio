@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.session_control import SessionControlService
+from podcast_mcp.services.collaboration import SessionControlService
 
 session_app = typer.Typer(help="Read/control shared DAW session state.")
 

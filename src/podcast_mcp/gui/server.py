@@ -210,7 +210,7 @@ def create_app(
     jobs = shared_job_manager(reset=True)
     register_progress_sink(gui_sse_progress_sink)
     register_progress_sink(gui_agent_job_progress_sink)
-    from podcast_mcp.services.guest_progress import guest_ws_progress_sink, reset_guest_progress_hub
+    from podcast_mcp.services.collaboration import guest_ws_progress_sink, reset_guest_progress_hub
 
     reset_guest_progress_hub()
     register_guest_progress_sink(guest_ws_progress_sink)
@@ -307,7 +307,7 @@ def create_app(
                 return _project_mismatch_page(request, Path(served))
             try:
                 from podcast_mcp.models import load_project
-                from podcast_mcp.services.share_page import (
+                from podcast_mcp.services.collaboration import (
                     build_share_head_tags,
                     inject_share_document_head,
                 )
@@ -384,7 +384,7 @@ def create_app(
                 return _serve_share_spa(token, request, kind="record")
 
             def _serve_share_spa(token: str, request: Request, *, kind: str) -> Any:
-                from podcast_mcp.services.share import lookup_share
+                from podcast_mcp.services.collaboration import lookup_share
 
                 try:
                     lookup_share(token, kind=kind)

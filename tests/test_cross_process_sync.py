@@ -295,7 +295,7 @@ def test_watcher_thread_pushes_a_foreign_write(minimal_project, monkeypatch):
 
 def _child_seek(path: str) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace as _PW
-    from podcast_mcp.services.session_control import SessionControlService
+    from podcast_mcp.services.collaboration.session_control import SessionControlService
 
     SessionControlService(_PW.open(path)).seek(4.0)
 

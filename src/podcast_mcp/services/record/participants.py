@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from podcast_mcp.services.session_sync.sqlite import connect_session_db
+from podcast_mcp.services.session_sync import connect_session_db
 
 LEASE_TTL_NS = 7 * 24 * 60 * 60 * 1_000_000_000
 

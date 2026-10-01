@@ -11,8 +11,7 @@ from typing import Any
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.session_sync.service import sync_db_path
-from podcast_mcp.services.session_sync.sqlite import connect_session_db
+from podcast_mcp.services.session_sync import connect_session_db, sync_db_path
 
 RECORD_LIVE_COMMENT_MAX = 500
 LIVE_COMMENT_ID_PREFIX = "live-"

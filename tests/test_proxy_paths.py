@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from podcast_mcp.services.tunnel import _PATH_PREFIXES, _map_local_path
+from podcast_mcp.services.collaboration.tunnel import _PATH_PREFIXES, _map_local_path
 from podcast_mcp.util.proxy_paths import (
     UnsafeProxyPath,
     assert_allowed_local_gui_path,

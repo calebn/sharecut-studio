@@ -67,7 +67,7 @@ class CollaborationExtension:
         registry.add(FEATURE_TUNNEL_STATUS, source=self.name)
 
         def _review_spa(**kwargs: object) -> object:
-            from podcast_mcp.services.share_page import (
+            from podcast_mcp.services.collaboration import (
                 render_record_spa_html,
                 render_share_spa_html,
                 share_public_origin,

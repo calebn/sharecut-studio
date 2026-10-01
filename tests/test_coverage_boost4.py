@@ -24,8 +24,8 @@ from podcast_mcp.edits.review_versions import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
-from podcast_mcp.services.review import ReviewService
 
 runner = CliRunner()
 

@@ -7,10 +7,10 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from podcast_mcp.edits.share_capabilities import CAP_MONITOR
+from podcast_mcp.services.collaboration import drop_absolute_path_strings
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.state import RecordRole
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.share import drop_absolute_path_strings
+from podcast_mcp.services.session_sync import get_hub
 
 SIGNAL_SDP_MAX = 3500
 SIGNAL_CANDIDATE_MAX = 512

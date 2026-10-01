@@ -25,7 +25,7 @@ END = "<!-- /document-commands:generated -->"
 
 def _schema() -> dict[str, Any]:
     sys.path.insert(0, str(ROOT / "src"))
-    from podcast_mcp.services.document_sync.payloads import document_command_json_schema
+    from podcast_mcp.services.document_sync import document_command_json_schema
 
     data = document_command_json_schema()
     data["$schema"] = "https://json-schema.org/draft/2020-12/schema"

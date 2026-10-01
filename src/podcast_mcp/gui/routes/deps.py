@@ -9,7 +9,7 @@ from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.responses import Response
 
-from podcast_mcp.services.session_sync.authz import (
+from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
 )

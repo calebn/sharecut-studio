@@ -12,15 +12,17 @@ from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_projec
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.remote_mcp.limits import ws_roster_request_allowed
-from podcast_mcp.services.session_sync.commands import SyncCommand, retry_command_id
-from podcast_mcp.services.session_sync.log import ClientSequenceConflictError
-from podcast_mcp.services.session_sync.presence_delta import (
+from podcast_mcp.services.remote_mcp import ws_roster_request_allowed
+from podcast_mcp.services.session_sync import (
     ROSTER_REQUEST,
+    ClientSequenceConflictError,
+    SessionSyncService,
+    SyncCommand,
+    publish_viewer_snapshot,
+    read_session_state,
+    retry_command_id,
+    wire_snapshot,
 )
-from podcast_mcp.services.session_sync.service import SessionSyncService, read_session_state
-from podcast_mcp.services.session_sync.snapshot import wire_snapshot
-from podcast_mcp.services.session_sync.viewer import publish_viewer_snapshot
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()

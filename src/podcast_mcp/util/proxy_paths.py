@@ -11,7 +11,7 @@ class UnsafeProxyPath(ValueError):
     """Raised when a proxied path is unsafe or not allowlisted."""
 
 
-# Stamped by the host tunnel (services/tunnel.py) on every relay-proxied HTTP request and
+# Stamped by the host tunnel (services/collaboration/tunnel.py) on every relay-proxied HTTP request and
 # WS dial into the local GUI. Owner routes (host role) refuse any request that carries it.
 RELAYED_REQUEST_HEADER = "x-sharecut-relayed"
 

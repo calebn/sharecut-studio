@@ -364,7 +364,7 @@ read or decoded, to 404, stale keys to 409, a busy PCM decoder to 503 (with
 
 Guest routes (`gui/routes/review_share.py`, services
 `share_daw_waveform_status` / `share_daw_waveform_tiles` in
-`services/share.py`) need the `view` capability and only cover `kind=raw`:
+`services/collaboration/share.py`) need the `view` capability and only cover `kind=raw`:
 
 - `GET /api/review/{token}/daw/waveform/status`: read rate class.
   Like the host status, it queues missing pyramids. It is the only builder for

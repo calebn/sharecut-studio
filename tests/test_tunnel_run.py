@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from podcast_mcp.services.tunnel import (
+from podcast_mcp.services.collaboration.tunnel import (
     RelayConfig,
     TunnelClient,
     run_tunnel_sync,

@@ -73,7 +73,7 @@ def create_share(
     session_id: str | None = None,
 ) -> dict[str, Any]:
     from podcast_mcp.edits.review_versions import get_version
-    from podcast_mcp.services.share_auth.access import normalize_general_access
+    from podcast_mcp.services.share_auth import normalize_general_access
 
     assert SHARE_TOKEN_IS_GLOBALLY_UNIQUE  # documented contract
     if kind not in SHARE_KINDS:

@@ -15,16 +15,17 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
-from podcast_mcp.services.remote_mcp.limits import (
+from podcast_mcp.services.collaboration import share_allows_mcp
+from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
     classify_mcp_rpc,
+    handle_mcp_jsonrpc,
+    iter_mcp_sse,
     mcp_rate_limit_error,
     rate_limit_detail,
+    rpc_progress_token,
+    run_guest_mcp_call,
 )
-from podcast_mcp.services.remote_mcp.progress import iter_mcp_sse, rpc_progress_token
-from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.services.share import share_allows_mcp
 from podcast_mcp.util.body_limits import (
     BodyTooLarge,
     payload_too_large_response,

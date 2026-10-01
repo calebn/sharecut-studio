@@ -316,8 +316,8 @@ def test_upload_missing_chunk_raises(minimal_project, monkeypatch):
 
 
 def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_workspace, sample_wav):
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",

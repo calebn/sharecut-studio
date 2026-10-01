@@ -45,10 +45,10 @@ from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document_sync.projection_types import parse_view_projection
-from podcast_mcp.services.document_sync.service import (
+from podcast_mcp.services.document_sync import (
     document_poll_meta,
     notify_comments_changed,
+    parse_view_projection,
 )
 from podcast_mcp.services.media import (
     delete_object_store_object_if_unused,
@@ -146,7 +146,7 @@ class ShareService:
         general_access: str = "link",
         require_sign_in: bool = False,
     ) -> dict[str, Any]:
-        from podcast_mcp.services.share_auth.access import normalize_general_access
+        from podcast_mcp.services.share_auth import normalize_general_access
         from podcast_mcp.util.share_accounts import require_share_accounts_for_restricted
 
         ga = normalize_general_access(general_access)
@@ -223,7 +223,7 @@ class ShareService:
     ) -> dict[str, Any]:
         """Mint a link share from a Docs-like role; publish a mix when none exists."""
         from podcast_mcp.edits.share_capabilities import resolve_share_capabilities
-        from podcast_mcp.services.review import ReviewService
+        from podcast_mcp.services.collaboration.review import ReviewService
 
         caps = resolve_share_capabilities(role=role, with_mcp=with_mcp)
         with _create_for_host_lock:
@@ -274,7 +274,7 @@ class ShareService:
         expires_at: str | None = None,
     ) -> dict[str, Any]:
         """Mint one room: session_id + guest token + producer token."""
-        from podcast_mcp.services.record.service import (
+        from podcast_mcp.services.record import (
             assert_no_open_take,
             begin_record_session,
         )
@@ -328,7 +328,7 @@ class ShareService:
                 log.exception("failed to revoke record token %s", token)
         if not revoked:
             raise KeyError(f"record room not found: {session_id}")
-        from podcast_mcp.services.record.landing import (
+        from podcast_mcp.services.record import (
             purge_session_land_rollbacks,
             release_session_land_lock,
             remove_session_land_lock_file,
@@ -710,7 +710,7 @@ def share_project_view(token: str) -> dict[str, Any]:
 
 def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str, Any]:
     """Sharecut Studio ProjectView for guests with the ``view`` capability."""
-    from podcast_mcp.services.document_sync.service import dump_projection_locked
+    from podcast_mcp.services.document_sync import dump_projection_locked
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     projection = parse_view_projection(phase)

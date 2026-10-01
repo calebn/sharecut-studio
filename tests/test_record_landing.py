@@ -16,6 +16,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import SourceClippingRegion, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.control import RecordControlService
@@ -66,7 +67,6 @@ from podcast_mcp.services.record.upload import (
     RecordUploadService,
     sha256_hex,
 )
-from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.wav import pcm_wav_header
 
 

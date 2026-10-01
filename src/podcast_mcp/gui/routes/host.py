@@ -18,23 +18,31 @@ from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import cross_process_lease
-from podcast_mcp.services.document_sync import DocumentSyncService
-from podcast_mcp.services.document_sync.service import document_hub_key, host_document_event
-from podcast_mcp.services.record.commands import RecordAuthzError
-from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
-from podcast_mcp.services.record.service import (
+from podcast_mcp.services.document_sync import (
+    DocumentSyncService,
+    document_hub_key,
+    host_document_event,
+)
+from podcast_mcp.services.record import (
+    HOST_PARTICIPANT_ID,
     LeaseInUseError,
+    RecordAuthzError,
     RecordSessionService,
+    RecordStateError,
+    RoomFullError,
     filter_record_event_for_guest,
     record_hub_key,
     route_record_ws_message,
 )
-from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
-from podcast_mcp.services.session_sync.authz import AuthzDecision, authorize_client
-from podcast_mcp.services.session_sync.commands import SyncCommand, TransportRole
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.presence_delta import is_own_presence_echo
-from podcast_mcp.services.session_sync.service import SessionSyncService
+from podcast_mcp.services.session_sync import (
+    AuthzDecision,
+    SessionSyncService,
+    SyncCommand,
+    TransportRole,
+    authorize_client,
+    get_hub,
+    is_own_presence_echo,
+)
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()

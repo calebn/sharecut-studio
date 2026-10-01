@@ -27,8 +27,8 @@ from podcast_mcp.edits.share_registry import (
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService, lookup_share
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService, lookup_share
 from sqlite_helpers import FailingConnection
 
 
@@ -774,7 +774,7 @@ def test_lookup_inactive_and_missing_workspace(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.edits.share_registry import get_share_registry
-    from podcast_mcp.services.share import _mark_share_revoked
+    from podcast_mcp.services.collaboration.share import _mark_share_revoked
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Inact")
@@ -828,7 +828,7 @@ def test_lookup_touch_exception_fallback(minimal_project, sample_wav, tmp_worksp
     def _boom(*_a, **_k):
         raise RuntimeError("touch boom")
 
-    monkeypatch.setattr("podcast_mcp.services.share.touch_share_last_used", _boom)
+    monkeypatch.setattr("podcast_mcp.services.collaboration.share.touch_share_last_used", _boom)
     # Age so registry touch path in lookup still runs after exception
     from podcast_mcp.edits.share_registry import get_share_registry
 
@@ -854,7 +854,7 @@ def test_share_is_usable_revoked():
 
 
 def test_sanitize_guest_view():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     view = sanitize_guest_project_view(
         {
@@ -911,7 +911,9 @@ def test_revoke_object_store_cleanup_warning(
     def _boom(*_a, **_k):
         raise RuntimeError("object_store cleanup boom")
 
-    monkeypatch.setattr("podcast_mcp.services.share.delete_object_store_object_if_unused", _boom)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share.delete_object_store_object_if_unused", _boom
+    )
     monkeypatch.setattr("podcast_mcp.services.media.delete_all_proxies_if_unused", _boom)
     out = ShareService(ws).revoke(share["token"])
     assert out["revoked"] is True

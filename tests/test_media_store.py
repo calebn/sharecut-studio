@@ -27,7 +27,7 @@ def test_safe_audio_filename_rejects_exe():
 
 
 def test_rewrite_share_html_edge_cases():
-    from podcast_mcp.services.tunnel import _rewrite_share_html
+    from podcast_mcp.services.collaboration.tunnel import _rewrite_share_html
 
     assert _rewrite_share_html(b"", "tok") == b""
     assert _rewrite_share_html(b"<html></html>", "") == b"<html></html>"
@@ -275,8 +275,8 @@ def _guest_share_client(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     from pathlib import Path
 
     from podcast_mcp.models import load_project, save_project
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"

@@ -159,8 +159,8 @@ def render_share_spa_html(
     image_url: str | None = None
 
     try:
-        from podcast_mcp.services.share import open_share_workspace
-        from podcast_mcp.services.share_auth.access import access_required
+        from podcast_mcp.services.collaboration.share import open_share_workspace
+        from podcast_mcp.services.share_auth import access_required
 
         row, ws = open_share_workspace(token)
         if access_required(row):
@@ -222,7 +222,7 @@ def render_record_spa_html(
     page_url = f"{public_origin.rstrip('/')}/rec/{token}"
     try:
         from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
-        from podcast_mcp.services.share import open_share_workspace
+        from podcast_mcp.services.collaboration.share import open_share_workspace
 
         row, ws = open_share_workspace(token, kind=SHARE_KIND_RECORD)
         producer = str(row.get("role") or "") == "producer"

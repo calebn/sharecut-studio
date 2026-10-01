@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from podcast_mcp.services.document_sync.payloads import (
+from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
     TranscriptReplacementOptions,

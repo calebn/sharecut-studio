@@ -107,7 +107,7 @@ def boundary_context(
     The optional expected geometry must match the visible clips before a dialog opens.
     A stale caller receives a conflict instead of silently editing new geometry.
     """
-    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.services.document_sync import DocumentConflictError
 
     if isinstance(target, RollBoundaryTarget):
         try:
@@ -197,7 +197,7 @@ def assert_boundary_token(
     expected_token: str,
 ) -> BoundaryContext:
     """Validate inside the saved-project mutation transaction before history is recorded."""
-    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.services.document_sync import DocumentConflictError
 
     context = boundary_context(project, target)
     if context.token != expected_token:

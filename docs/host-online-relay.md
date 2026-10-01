@@ -307,7 +307,7 @@ Revoke deletes the object when no other active shares reference that version.
 - Guest uploads are probed with FFmpeg `-protocol_whitelist file,crypto,data`. Chunk uploads cap `total_chunks`, sweep stale `.uploads/`, and enforce a pending-bytes quota.
 - Restricted / guest accounts are **fail-closed**: `/auth` is not mounted and Restricted minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub testing only). Leftover Restricted tokens stay 401 via `ShareIdentityMiddleware`; Restricted share HTML never embeds object-store/OG audio.
 - Loopback GUI is a **privileged local RPC**. Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs (`/api/project/*`, pipeline, media, document, session, comments).
-- **Host role on owner routes** (#393): owner GUI routes — project, pipeline, export, diagnostics, bootstrap, record, shares, media, transcript, and the `GET /` project-mismatch recovery page (`require_host` from `gui/routes/deps.py`) and the session/document sync REST + WS surfaces (`authorize_client`) — are gated by the **host role** (`authorize_host` in `services/session_sync/authz.py`). The tunnel stamps `x-sharecut-relayed: 1` on every proxied HTTP request and WS dial into the local GUI (`services/tunnel.py`), dropping any guest-supplied copy of that header first. The host role refuses a request carrying that marker even from a loopback peer or in non-strict mode (`403`, or WebSocket close `4403`), as defense in depth behind the tunnel's path allowlist and the client-side `isShareProjectKey` check.
+- **Host role on owner routes** (#393): owner GUI routes — project, pipeline, export, diagnostics, bootstrap, record, shares, media, transcript, and the `GET /` project-mismatch recovery page (`require_host` from `gui/routes/deps.py`) and the session/document sync REST + WS surfaces (`authorize_client`) — are gated by the **host role** (`authorize_host` in `services/session_sync/authz.py`). The tunnel stamps `x-sharecut-relayed: 1` on every proxied HTTP request and WS dial into the local GUI (`services/collaboration/tunnel.py`), dropping any guest-supplied copy of that header first. The host role refuses a request carrying that marker even from a loopback peer or in non-strict mode (`403`, or WebSocket close `4403`), as defense in depth behind the tunnel's path allowlist and the client-side `isShareProjectKey` check.
 - Token lifecycle (usable vs cooldown 404, revoke, hard `expires_at`, inactivity): [share-tokens.md](share-tokens.md).
 - Prefer short `expires_at` for public demos; revoke with `podcast review revoke-share`.
 - Do not put `/?project=/abs/path` on the public relay.
@@ -553,7 +553,7 @@ deploy/relay/
   release-desktop-build.yml # reusable installer-artifact builder
 src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
 src/podcast_mcp/
-  services/tunnel.py      # TunnelClient + run_tunnel_sync
+  services/collaboration/tunnel.py      # TunnelClient + run_tunnel_sync
   runtime_config.py       # validated relay/object-store configuration
   cli/tunnel.py           # podcast tunnel CLI
   edits/share_capabilities.py  # CAP_* constants, normalize_capabilities, guest_mode

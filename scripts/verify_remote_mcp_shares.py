@@ -29,9 +29,8 @@ from typing import Any
 
 from podcast_mcp.project_io import copy_relocated_workspace
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
+from podcast_mcp.services.collaboration import ReviewService, ShareService
+from podcast_mcp.services.remote_mcp import tools_for_capabilities
 
 _ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROJECT = _ROOT / "tests" / "fixtures" / "aligned_dialogue" / "episode.project.json"

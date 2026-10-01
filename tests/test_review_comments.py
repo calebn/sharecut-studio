@@ -44,8 +44,8 @@ def test_locked_reader_adopts_same_inode_restored_mtime(minimal_project):
 def review_token(minimal_project, sample_wav):
     from pathlib import Path
 
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     ws = ProjectWorkspace.open(minimal_project)
     artifact = Path(ws.project.workspace_dir) / "artifacts"
@@ -173,7 +173,7 @@ def test_live_comments_socket_closes_on_periodic_token_revocation(
 
     from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     original = GuestWsGuard.__init__
 

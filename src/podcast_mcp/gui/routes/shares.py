@@ -14,9 +14,8 @@ from podcast_mcp.gui.schemas import (
     ShareRevokeRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.record.reducer import RecordStateError
-from podcast_mcp.services.share import ShareService
-from podcast_mcp.services.share_page import share_public_origin
+from podcast_mcp.services.collaboration import ShareService, share_public_origin
+from podcast_mcp.services.record import RecordStateError
 
 router = APIRouter()
 

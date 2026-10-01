@@ -14,8 +14,7 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
-from podcast_mcp.services.session_sync.service import sync_db_path
-from podcast_mcp.services.session_sync.sqlite import connect_session_db
+from podcast_mcp.services.session_sync import connect_session_db, sync_db_path
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
