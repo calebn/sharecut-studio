@@ -335,3 +335,5 @@ long content and modal/menu keyboard behavior with contrast enabled. Recording
 room and upload/recovery states are available in Storybook as prop-driven
 examples. Run browser wrappers sequentially with fixture/environment unit tests
 so their shared workspace-marker lifecycle does not overlap.
+
+The live `e2e/edit-boundary-archive.spec.ts` regression cuts a disposable episode, drags the resulting transcript boundary, verifies the restored word after reload, and exercises undo/redo. Run `npm run test:e2e -- e2e/edit-boundary-archive.spec.ts` after `VITE_SHARECUT_E2E=1 npm run build`.

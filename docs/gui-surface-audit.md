@@ -115,8 +115,12 @@ interaction, not every interaction in the editor.
 
 Follow-up work is scoped separately from this consistency patch:
 
-- [#883](https://github.com/calebn/sharecut-studio/issues/883) retains archived
-  word references so real ripple cuts can supply restored-word previews.
+- [#883](https://github.com/calebn/sharecut-studio/issues/883) adds source-scoped
+  archived words and complete-word restoration. Focused Python tests and a live
+  cut, drag, reload, undo and redo regression pass. Overlapping cuts preview words
+  in source order. Older cuts without an archive require History recovery.
+- [#885](https://github.com/calebn/sharecut-studio/issues/885) adds precise boundary
+  drafts, clearer partial-word feedback, and proposed audio audition under #878.
 - [#878](https://github.com/calebn/sharecut-studio/issues/878) reviews precision,
   feedback, snapping, cancellation, and recovery across editor interactions.
 - [#879](https://github.com/calebn/sharecut-studio/issues/879) measures large-project

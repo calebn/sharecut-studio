@@ -42,8 +42,8 @@ existing control meets it. Track gaps in the [editor interaction review](https:/
 The [UI philosophy](ui-philosophy.md) remains the product requirement source.
 The [boundary drag defect](https://github.com/calebn/sharecut-studio/issues/877)
 is covered by intermediate browser geometry regressions. The glyph retains its
-inline size while a bounded body portal shows feedback. Ripple-cut word archival
-remains a separate gap in [#883](https://github.com/calebn/sharecut-studio/issues/883).
+inline size while a bounded body portal shows feedback. Ripple cuts retain a source-scoped word archive for restored-word previews.
+Precision editing and draft audition remain part of [#878](https://github.com/calebn/sharecut-studio/issues/878).
 
 ## What's in it
 

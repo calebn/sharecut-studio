@@ -218,6 +218,8 @@ Any operation that can change what the listener hears must keep per-track transc
 | [`PipelineRunner`](../src/podcast_mcp/pipeline/runner.py) | Audio-affecting pipeline steps | Marks stale; full pipeline runs `reconcile_transcript` after `render_dialogue_stems` (pass 1) and after `assemble_timeline` (pass 2) |
 | [`reconcile_transcript`](../src/podcast_mcp/pipeline/steps.py) pipeline step | Pass 1 and pass 2 in ordered pipeline | Same engine as `reconcile_transcript_tool` |
 
+Cut synchronization lives in `edits/transcript_sync.py`. It maps pre-edit clip overlaps to the selected recording transcript, retains removed word metadata in `Transcript.archived_words`, and restores fully covered source words after boundary expansion. `gui/mapper.py` projects these archived words for preview; it does not load history or mutate transcripts. Project and history serialization carry the archive with the transcript.
+
 Implementation entry point: `maybe_auto_reconcile()` in [`edits/transcript_reconcile.py`](../src/podcast_mcp/edits/transcript_reconcile.py).
 
 **Policy** (`analysis` in [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml)):
