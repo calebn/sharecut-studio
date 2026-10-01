@@ -25,6 +25,7 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.background import release_background
+from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import project_busy_from_timeout, project_busy_http_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
@@ -53,6 +54,7 @@ from podcast_mcp.services.document_sync.payloads import (
     document_command_from_body,
 )
 from podcast_mcp.services.document_sync.service import document_hub_key
+from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.guest_progress import guest_progress_hub
 from podcast_mcp.services.remote_mcp.limits import (
     get_host_limiters,
@@ -540,6 +542,23 @@ def get_daw_document_state(
         _row, ws = require_share_cap(token, CAP_VIEW)
         snapshot = DocumentSyncService(ws).document_snapshot(projection=phase)
         return sanitize_guest_document_event({"snapshot": snapshot})["snapshot"]
+    except Exception as exc:
+        raise _map_share_exc(exc) from exc
+
+
+@router.post("/api/review/{token}/daw/boundary/context")
+def post_daw_boundary_context(token: str, body: BoundaryContextInput) -> dict[str, Any]:
+    """Resolve a guarded quick-edit revision for an edit-capable share."""
+    _check_token(token)
+    _rate_limit(token, "read")
+    try:
+        _row, ws = require_share_cap(token, CAP_EDIT)
+        with ws.transaction():
+            return (
+                EditService(ws)
+                .boundary_context(body.target, expected_geometry=body.expected_geometry)
+                .model_dump()
+            )
     except Exception as exc:
         raise _map_share_exc(exc) from exc
 

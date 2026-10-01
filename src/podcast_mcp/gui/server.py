@@ -27,6 +27,7 @@ from podcast_mcp.gui.middleware_host_binding import HostOriginBindingMiddleware
 from podcast_mcp.gui.middleware_security_headers import SecurityHeadersMiddleware
 from podcast_mcp.gui.routes import (
     bootstrap,
+    boundary,
     comments,
     diagnostics,
     document,
@@ -251,6 +252,7 @@ def create_app(
 
     # Core FOSS routes only - share/auth/remote MCP come from extensions.
     app.include_router(project.router)
+    app.include_router(boundary.router)
     app.include_router(waveform.router)
     app.include_router(session.router)
     app.include_router(host.router)

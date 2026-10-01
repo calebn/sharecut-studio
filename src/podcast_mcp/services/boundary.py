@@ -14,6 +14,7 @@ from podcast_mcp.edits.clips_ops import neighbour_clips, roll_join_limits, trim_
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.util.tracks import recording_audio_path
 
 
 class TrimBoundaryTarget(BaseModel):
@@ -82,6 +83,21 @@ class BoundaryContext(BaseModel):
     limits: BoundaryLimits
 
 
+class BoundaryAudioWindow(BaseModel):
+    url: str
+    window_start_sec: float
+    window_end_sec: float
+    duration_sec: float
+    seam_offset_sec: float
+
+
+class BoundaryAudition(BaseModel):
+    token: str
+    actual_edit: TrimBoundaryEdit | RollBoundaryEdit
+    current: BoundaryAudioWindow
+    proposed: BoundaryAudioWindow
+
+
 def boundary_context(
     project: EpisodeProject,
     target: TrimBoundaryTarget | RollBoundaryTarget,
@@ -93,14 +109,23 @@ def boundary_context(
     The optional expected geometry must match the visible clips before a dialog opens.
     A stale caller receives a conflict instead of silently editing new geometry.
     """
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
     if isinstance(target, RollBoundaryTarget):
-        left, right, _, _ = neighbour_clips(project, target.left_clip_id, target.right_clip_id)
+        try:
+            left, right, _, _ = neighbour_clips(project, target.left_clip_id, target.right_clip_id)
+        except ValueError as exc:
+            if expected_geometry is None:
+                raise
+            raise DocumentConflictError("boundary changed; reload its current position") from exc
         clips = [left, right]
         lo, hi = roll_join_limits(project, left.id, right.id)
         position = BoundaryPosition(source_sec=left.source_end, timeline_sec=left.timeline_end)
     else:
         clip = next((c for c in project.clips if c.id == target.clip_id), None)
         if clip is None:
+            if expected_geometry is not None:
+                raise DocumentConflictError("boundary changed; reload its current position")
             raise ValueError(f"unknown clip_id: {target.clip_id!r}")
         lo, hi = trim_edge_limits(project, clip, target.edge)
         clips = [clip]
@@ -116,18 +141,41 @@ def boundary_context(
         raise ValueError("boundary has no legal range")
     geometry = [ClipGeometry.from_clip(c) for c in clips]
     if expected_geometry is not None and geometry != expected_geometry:
-        from podcast_mcp.services.document_sync.errors import DocumentConflictError
-
         raise DocumentConflictError("boundary changed; reload its current position")
     track = project.track_by_id(clips[0].track_id)
     if track is None:
         raise ValueError("boundary track is missing")
     defaults = load_defaults()
+    selected_media = []
+    for source_id in dict.fromkeys(c.source_id for c in project.clips if c.track_id == track.id):
+        path = recording_audio_path(project, track.id, source_id)
+        try:
+            stat = path.stat()
+            media_revision = [
+                stat.st_dev,
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+                stat.st_ctime_ns,
+            ]
+        except OSError:
+            media_revision = None
+        selected_media.append(
+            {"source_id": source_id, "path": str(path), "revision": media_revision}
+        )
     revision = {
         "target": target.model_dump(),
         "geometry": [item.model_dump() for item in geometry],
         "limits": [lo, hi],
         "track_render": track_render_hash(project, track.id),
+        "selected_media": selected_media,
+        "selected_transcripts": [
+            {
+                "source_id": source_id,
+                "transcript": transcript.model_dump(),
+            }
+            for source_id, transcript in project.selected_source_transcripts(track.id)
+        ],
         "fader_db": track.fader_db,
         "muted": track.muted,
         "mix_semantics": MIX_SEMANTICS_REV,
@@ -151,9 +199,9 @@ def assert_boundary_token(
     expected_token: str,
 ) -> BoundaryContext:
     """Validate inside the saved-project mutation transaction before history is recorded."""
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
     context = boundary_context(project, target)
     if context.token != expected_token:
-        from podcast_mcp.services.document_sync.errors import DocumentConflictError
-
         raise DocumentConflictError("boundary preview is stale; reload and listen again")
     return context

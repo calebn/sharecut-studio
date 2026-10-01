@@ -11,6 +11,7 @@ from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.boundary import TrimBoundaryTarget
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 
@@ -496,12 +497,19 @@ def edit_trim_clip_cmd(
 ) -> None:
     """Move one clip edge (later clips ripple); `play context` suggests the value."""
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            EditService(ws).trim_clip_edge(clip, edge, source_sec, all_tracks=all_tracks),
-            indent=2,
+    with ws.transaction():
+        service = EditService(ws)
+        revision = service.boundary_context(
+            TrimBoundaryTarget.model_validate({"clip_id": clip, "edge": edge})
+        ).token
+        typer.echo(
+            json.dumps(
+                service.trim_clip_edge(
+                    clip, edge, source_sec, all_tracks=all_tracks, expected_token=revision
+                ),
+                indent=2,
+            )
         )
-    )
 
 
 @edit_app.command("add-chapter")

@@ -43,6 +43,10 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "view",
         "Atomic sanitized document state with sequence and opaque basis token",
     ),
+    ("POST", "/api/review/{token}/daw/boundary/context"): (
+        "edit",
+        "Source-safe trim/roll limits and revision for a visible boundary",
+    ),
     ("GET", "/api/review/{token}/daw/meta"): (
         "view",
         "mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable)",
@@ -144,6 +148,9 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",
     ("GET", "/api/review/{token}/daw/project"): "guest_get_project",
     ("GET", "/api/review/{token}/daw/document/state"): "http-only: sequenced DAW recovery",
+    ("POST", "/api/review/{token}/daw/boundary/context"): (
+        "http-only: Sharecut Studio guarded boundary dragging"
+    ),
     ("GET", "/api/review/{token}/daw/meta"): "http-only: poll mtime for Sharecut Studio reload",
     ("GET", "/api/review/{token}/daw/waveform/status"): (
         "http-only: Sharecut Studio waveform; agents use guest_audition_context"

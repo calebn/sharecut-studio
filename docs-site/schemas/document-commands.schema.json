@@ -3504,16 +3504,9 @@
           "type": "number"
         },
         "expected_token": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Expected Token"
+          "minLength": 1,
+          "title": "Expected Token",
+          "type": "string"
         },
         "left_clip_id": {
           "title": "Left Clip Id",
@@ -3527,7 +3520,8 @@
       "required": [
         "left_clip_id",
         "right_clip_id",
-        "delta_sec"
+        "delta_sec",
+        "expected_token"
       ],
       "title": "RollClipJoinPayload",
       "type": "object"
@@ -5673,16 +5667,9 @@
           "type": "string"
         },
         "expected_token": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Expected Token"
+          "minLength": 1,
+          "title": "Expected Token",
+          "type": "string"
         },
         "mode": {
           "const": "ripple",
@@ -5698,7 +5685,8 @@
       "required": [
         "clip_id",
         "edge",
-        "source_sec"
+        "source_sec",
+        "expected_token"
       ],
       "title": "TrimClipEdgePayload",
       "type": "object"

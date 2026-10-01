@@ -52,7 +52,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `RestoreAppliedEdit` | `id` (string) | — |
 | `RippleDeleteClip` | — | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
 | `RippleDeleteRange` | `end` (number), `start` (number) | — |
-| `RollClipJoin` | `delta_sec` (number), `left_clip_id` (string), `right_clip_id` (string) | `expected_token` (string \| null) |
+| `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetClipFade` | `clip_id` (string), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
@@ -69,7 +69,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
-| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `source_sec` (number) | `expected_token` (string \| null), `mode` (string) |
+| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `source_sec` (number) | `mode` (string) |
 | `UndoHistory` | — | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |

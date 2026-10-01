@@ -8,6 +8,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.boundary import TrimBoundaryTarget
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 
@@ -234,7 +235,16 @@ def trim_clip_edge_tool(
     trim handle (``TrimClipEdge``); undoable. Follow with ``render_preview``.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(EditService(ws).trim_clip_edge(clip_id, edge, source_sec, all_tracks=all_tracks))
+    with ws.transaction():
+        service = EditService(ws)
+        revision = service.boundary_context(
+            TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge})
+        ).token
+        return to_json(
+            service.trim_clip_edge(
+                clip_id, edge, source_sec, all_tracks=all_tracks, expected_token=revision
+            )
+        )
 
 
 def shorten_gaps_tool(

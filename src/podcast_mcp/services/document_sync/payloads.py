@@ -131,16 +131,16 @@ class SetClipFadePayload(BaseModel):
 class TrimClipEdgePayload(BaseModel):
     clip_id: str
     edge: Literal["in", "out"]
-    source_sec: float
+    source_sec: float = Field(allow_inf_nan=False)
     mode: Literal["ripple"] = "ripple"
-    expected_token: str | None = None
+    expected_token: str = Field(min_length=1)
 
 
 class RollClipJoinPayload(BaseModel):
     left_clip_id: str
     right_clip_id: str
-    delta_sec: float
-    expected_token: str | None = None
+    delta_sec: float = Field(allow_inf_nan=False)
+    expected_token: str = Field(min_length=1)
 
 
 class SetJoinModePayload(BaseModel):

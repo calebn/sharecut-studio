@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
@@ -901,17 +902,18 @@ class EditService:
         *,
         mode: str = "ripple",
         all_tracks: bool = False,
-        expected_token: str | None = None,
+        expected_token: str,
     ) -> dict:
+        if not math.isfinite(source_sec):
+            raise ValueError("source_sec must be finite")
         target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge})
 
         def apply(p: EpisodeProject) -> dict:
-            if expected_token is not None:
-                assert_boundary_token(p, target, expected_token)
+            assert_boundary_token(p, target, expected_token)
             return trim_clip_edge(p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks)
 
         with self.ws.transaction() as project:
-            if expected_token is not None and not all_tracks:
+            if not all_tracks:
                 current = assert_boundary_token(project, target, expected_token)
                 bounded = min(max(source_sec, current.limits.min), current.limits.max)
                 if abs(bounded - current.current.source_sec) < 1e-12:
@@ -936,21 +938,21 @@ class EditService:
         right_clip_id: str,
         delta_sec: float,
         *,
-        expected_token: str | None = None,
+        expected_token: str,
     ) -> dict:
+        if not math.isfinite(delta_sec):
+            raise ValueError("delta_sec must be finite")
         target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
 
         def apply(p: EpisodeProject) -> dict:
-            if expected_token is not None:
-                assert_boundary_token(p, target, expected_token)
+            assert_boundary_token(p, target, expected_token)
             return roll_clip_join(p, left_clip_id, right_clip_id, delta_sec)
 
         with self.ws.transaction() as project:
-            if expected_token is not None:
-                current = assert_boundary_token(project, target, expected_token)
-                bounded = min(max(delta_sec, current.limits.min), current.limits.max)
-                if abs(bounded) < 1e-12:
-                    return {"operation": "roll_clip_join", "unchanged": True}
+            current = assert_boundary_token(project, target, expected_token)
+            bounded = min(max(delta_sec, current.limits.min), current.limits.max)
+            if abs(bounded) < 1e-12:
+                return {"operation": "roll_clip_join", "unchanged": True}
             return self.ws.mutate(
                 "before roll clip join",
                 "after roll clip join",

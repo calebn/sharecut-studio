@@ -317,6 +317,8 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?` (source clocks) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
+| `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, required `expected_token` from boundary context; `mode?` (`ripple`) |
+| `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context |
 | `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
 | `SetClipJoin` | `EditService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
 | `ApplyFadeRecommendations` | `EditService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
