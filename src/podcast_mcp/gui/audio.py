@@ -6,6 +6,7 @@ CLI, MCP, and the DAW viewer stay on one code path.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from os import stat_result
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,6 @@ from fastapi import Request
 from fastapi.responses import Response
 from starlette.background import BackgroundTask
 
-from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import PlayService, TransportPath
@@ -73,19 +73,23 @@ def pinned_audio_response(
     *,
     request: Request | None = None,
     cache: bool = True,
-    background: BackgroundTask | None = None,
+    on_release: Callable[[], None] | None = None,
     **kwargs: Any,
 ) -> PinnedFileResponse | Response:
     """Pin *path* for streaming, with cache headers and an ``If-None-Match`` 304 when *cache*.
 
-    *background* (synchronous, such as an audio slot's ``exit``) runs once streaming ends.
-    When nothing will stream (the pin fails, a 304 is returned, or header setup raises),
-    the descriptor is closed and *background* is released here instead.
+    *on_release* runs once streaming ends. When nothing will stream (the pin fails, a 304 is
+    returned, or header setup raises), the descriptor is closed and *on_release* runs here.
     """
     try:
-        response = PinnedFileResponse(path, background=background, **kwargs)
+        response = PinnedFileResponse(
+            path,
+            background=BackgroundTask(on_release) if on_release is not None else None,
+            **kwargs,
+        )
     except BaseException:
-        release_background(background)
+        if on_release is not None:
+            on_release()
         raise
     not_modified: dict[str, str] | None = None
     try:
@@ -100,11 +104,13 @@ def pinned_audio_response(
                 response.headers.update(headers)
     except BaseException:
         response.close()
-        release_background(background)
+        if on_release is not None:
+            on_release()
         raise
     if not_modified is not None:
         response.close()
-        release_background(background)
+        if on_release is not None:
+            on_release()
         return Response(status_code=304, headers=not_modified)
     return response
 

@@ -26,6 +26,7 @@ flowchart TD
 5. If the host laptop sleeps / tunnel drops → offline page (not a broken blank app).
 
 Lightweight review comments update through the review socket while the page is connected. Posting a comment or reply does not reload the full review when that stream is healthy. If the connection drops, the visible page refreshes every 15 seconds and reconnects automatically. An unavailable or revoked link shows an error.
+If the frozen review audio disappears before playback begins, the audio request returns a 404 response.
 
 The review reading column and comment fields fit narrow phones without horizontal
 page scrolling. Native field sizing stays within the column rather than widening it.
