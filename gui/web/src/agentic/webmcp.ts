@@ -1,6 +1,7 @@
 /** Best-effort WebMCP tool registration for agentic browsing (Chrome). */
 
 import { execute } from "../commands/execute";
+import { seekTransport } from "../commands/seek";
 
 type ToolHandler = (args: Record<string, unknown>) => unknown;
 
@@ -53,7 +54,7 @@ export function registerDawWebMcpTools(): () => void {
         if (!Number.isFinite(seconds)) {
           throw new Error("seconds must be a number");
         }
-        await execute("transport.seek", { sec: seconds }, { skipWhen: true });
+        await seekTransport(seconds);
         return { ok: true, seconds };
       },
     },
