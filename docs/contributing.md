@@ -58,6 +58,9 @@ delete old paths, and update the explicit facade exports. Extend
 `tests/test_service_boundaries.py` when adding a context. Its registry rejects
 unregistered packages and flat service modules.
 
+Patch test dependencies where the consumer imports them. When an adapter imports
+a facade export inside a handler, patch that export on the facade.
+
 ## Beta interfaces
 
 Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefer one clear contract over backward compatibility: update every current caller, test, and affected document, then delete the obsolete API or implementation. Do not add compatibility-only overloads, aliases, fallbacks, or migrations for old clients or project formats. Keep separate paths when they serve distinct current workflows, such as immediate editing and draft audition.

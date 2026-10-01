@@ -1561,7 +1561,7 @@ def test_guest_restricted_origin_helper(monkeypatch) -> None:
     from podcast_mcp.gui.routes.review_share import guest_restricted_origin_allowed
 
     monkeypatch.setattr(
-        "podcast_mcp.services.collaboration.share_page.share_public_origin",
+        "podcast_mcp.services.collaboration.share_public_origin",
         lambda request_base=None: "https://share.example",
     )
     assert guest_restricted_origin_allowed(None) is True

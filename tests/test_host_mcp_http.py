@@ -352,7 +352,7 @@ def test_review_spa_hook_error_falls_back(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr("podcast_mcp.gui.server.load_extensions", wrapped_load)
     monkeypatch.setattr(
-        "podcast_mcp.services.collaboration.share.lookup_share",
+        "podcast_mcp.services.collaboration.lookup_share",
         lambda token, *, kind=None: {"token": token, "kind": kind or "review"},
     )
     with TestClient(create_app(static_dir=dist)) as client:
