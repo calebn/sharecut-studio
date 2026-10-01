@@ -52,6 +52,9 @@ export interface TrackView {
   speaker: string | null;
   /** Staging gain the pipeline's balance step writes. */
   gain_db: number;
+  balance_stale?: boolean | null;
+  balance_ungated?: boolean | null;
+  balance_measured_lufs?: number | null;
   /** The user's saved volume on top of gain_db (older servers omit it). */
   fader_db?: number;
   /** Saved mix mute: the mix, play and bounce leave the track out. */

@@ -80,6 +80,15 @@
         "object_store_uploaded_at": { "type": ["string", "null"] }
       }
     },
+    "BalanceBasis": {
+      "type": "object",
+      "required": ["digest", "measured_lufs", "speech_gated"],
+      "properties": {
+        "digest": { "type": "string" },
+        "measured_lufs": { "type": "number" },
+        "speech_gated": { "type": "boolean" }
+      }
+    },
     "Track": {
       "type": "object",
       "required": ["id", "label", "role"],
@@ -94,6 +103,7 @@
           "type": "number",
           "description": "Staging gain the pipeline's balance step writes (dialogue toward target LUFS)."
         },
+        "balance_basis": { "anyOf": [{ "$ref": "#/$defs/BalanceBasis" }, { "type": "null" }] },
         "fader_db": {
           "type": "number",
           "minimum": -60,

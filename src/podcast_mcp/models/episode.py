@@ -82,6 +82,12 @@ class TrackProxy(BaseModel):
     object_store_uploaded_at: str | None = None
 
 
+class BalanceBasis(BaseModel):
+    digest: str
+    measured_lufs: float
+    speech_gated: bool
+
+
 class TranscriptGateScope(ClipMuteRegion):
     """Selected source audio for a transcript gate, retained across timeline edits."""
 
@@ -103,6 +109,7 @@ class Track(BaseModel):
     room_tone: MediaAsset | None = None
     # Staging gain the pipeline's balance step writes (dialogue toward target LUFS).
     gain_db: float = 0.0
+    balance_basis: BalanceBasis | None = None
     # The user's saved volume on top of the staging gain; balance never touches it.
     fader_db: float = Field(default=0.0, ge=FADER_MIN_DB, le=FADER_MAX_DB)
     # Saved mix mute: the mix, play and bounce leave the track out. Edits,

@@ -25,6 +25,10 @@ another selected recording does not inherit it. Legacy decisions use their
 existing source/primary references. The field adds no plaintext host path to
 project metadata or editable snapshots.
 
+## Balance measurement provenance
+
+Each `timeline.tracks[]` entry may store `balance_basis` beside `gain_db`. The record contains the digest of the measured media revision, ordered FX chain, exact kept speech intervals, and measurement semantics revision, plus `measured_lufs` and `speech_gated`. It is saved in the existing project JSON and its history snapshots. A missing record means balance has not been measured; current or stale is derived from the live project and is not persisted. The record does not change render hashes or invalidate premix state by itself.
+
 ## Inventory
 
 Transcript bleed gating stores its enabled flag and optional
