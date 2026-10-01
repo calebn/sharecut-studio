@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { formatRulerTime } from "../src/utils/time";
 import { effectiveMaxZoomPxPerSec } from "../src/utils/timelineZoom.generated";
@@ -59,6 +60,15 @@ describe("expectedLastRulerTick", () => {
 
 type Clip = { track_id: string; id: string; timeline_start: number };
 
+const episodeProjectSchemaPath = path.resolve(
+  import.meta.dirname,
+  "../../../schemas/episode.project.schema.json",
+);
+const validateEpisodeProject = new Ajv2020({
+  allErrors: true,
+  strict: true,
+}).compile(JSON.parse(fs.readFileSync(episodeProjectSchemaPath, "utf8")));
+
 describe("stretchProjectToSession", () => {
   function copy(): string {
     const dest = path.join(tempWorkspace("deep-zoom-"), "episode.project.json");
@@ -85,6 +95,58 @@ describe("stretchProjectToSession", () => {
     expect(r.trackId).toBe("guest");
     expect(r.clipStartSec).toBe(3540);
     expect(r.endPointSec).toBeCloseTo(3599.9, 6);
+
+    const project: unknown = data;
+    expect(
+      validateEpisodeProject(project),
+      JSON.stringify(validateEpisodeProject.errors),
+    ).toBe(true);
+  });
+
+  it("rejects malformed stretched clip fields with a schema path", () => {
+    const p = copy();
+    stretchProjectToSession(p, HOUR_SEC);
+    const generated = JSON.parse(fs.readFileSync(p, "utf8"));
+    const guestIndex = generated.timeline.clips.findIndex(
+      (clip: Clip) => clip.track_id === "guest",
+    );
+    generated.timeline.clips[guestIndex].timeline_start = "late";
+    const project: unknown = generated;
+
+    expect(
+      validateEpisodeProject(project),
+      JSON.stringify(validateEpisodeProject.errors),
+    ).toBe(false);
+    expect(validateEpisodeProject.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          instancePath: `/timeline/clips/${guestIndex}/timeline_start`,
+          keyword: "type",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects malformed stretched envelope fields with a schema path", () => {
+    const p = copy();
+    stretchProjectToSession(p, HOUR_SEC);
+    const generated = JSON.parse(fs.readFileSync(p, "utf8"));
+    const envelopeIndex = generated.mix.automation_envelopes.length - 1;
+    generated.mix.automation_envelopes[envelopeIndex].points[0].value = "quiet";
+    const project: unknown = generated;
+
+    expect(
+      validateEpisodeProject(project),
+      JSON.stringify(validateEpisodeProject.errors),
+    ).toBe(false);
+    expect(validateEpisodeProject.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          instancePath: `/mix/automation_envelopes/${envelopeIndex}/points/0/value`,
+          keyword: "type",
+        }),
+      ]),
+    );
   });
   it("throws for an unknown track", () => {
     expect(() => stretchProjectToSession(copy(), HOUR_SEC, "nope")).toThrow();
