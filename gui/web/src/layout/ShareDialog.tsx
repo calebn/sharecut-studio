@@ -7,15 +7,24 @@ import {
   revokeHostShare,
 } from "../api";
 import { execute } from "../commands/execute";
+import type { ExecuteResult } from "../commands/types";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HostShareRow, ShareRole } from "../types/shares";
-import { errorMessage } from "../utils/apiError";
-import { ShareDialogView } from "./ShareDialogView";
+import { ApiError, errorMessage } from "../utils/apiError";
+import { type ShareCreateRecovery, ShareDialogView } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
 const COPIED_MS = 2000;
 
-type BusyOp = "create" | "revoke" | "record" | "end-room";
+type BusyOp = "create" | "refresh" | "revoke" | "record" | "end-room";
+type ShareCreateRequest = {
+  projectPath: string;
+  role: ShareRole;
+  withMcp: boolean;
+  dialogGeneration: number;
+  projectEpoch: number;
+};
 
 async function copyText(text: string): Promise<void> {
   if (!navigator.clipboard?.writeText) {
@@ -30,12 +39,14 @@ export function ShareDialog() {
     setShareDialogOpen,
     project,
     projectPath,
+    projectEpoch,
     announceStatus,
   } = useDaw((s) => ({
     shareDialogOpen: s.shareDialogOpen,
     setShareDialogOpen: s.setShareDialogOpen,
     project: s.project,
     projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
     announceStatus: s.announceStatus,
   }));
   const [role, setRole] = useState<ShareRole>("commenter");
@@ -45,10 +56,14 @@ export function ShareDialog() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<ShareCopiedKey | null>(null);
+  const [createRecovery, setCreateRecovery] = useState<ShareCreateRecovery>({
+    kind: "idle",
+  });
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadGen = useRef(0);
   const dialogGen = useRef(0);
   const busyOp = useRef<BusyOp | null>(null);
+  const staleCreateRequest = useRef<ShareCreateRequest | null>(null);
 
   const clearCopiedTimer = useCallback(() => {
     if (copiedTimer.current) {
@@ -101,8 +116,13 @@ export function ShareDialog() {
       loadGen.current += 1;
       dialogGen.current += 1;
       busyOp.current = null;
+      staleCreateRequest.current = null;
+      setCreateRecovery({ kind: "idle" });
       return;
     }
+    dialogGen.current += 1;
+    busyOp.current = null;
+    staleCreateRequest.current = null;
     setRole("commenter");
     setWithMcp(false);
     setError(null);
@@ -110,28 +130,55 @@ export function ShareDialog() {
     setBusy(false);
     clearCopiedTimer();
     setCopiedKey(null);
+    setCreateRecovery({ kind: "idle" });
     void load().catch((err: unknown) => {
       setError(errorMessage(err));
     });
-  }, [shareDialogOpen, load, clearCopiedTimer]);
+  }, [shareDialogOpen, projectEpoch, load, clearCopiedTimer]);
 
-  async function onCreate() {
-    const op: BusyOp = "create";
-    busyOp.current = op;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
+  function captureCreateRequest(): ShareCreateRequest {
+    return {
+      projectPath,
+      role,
+      withMcp,
+      dialogGeneration: dialogGen.current,
+      projectEpoch,
+    };
+  }
+
+  function isCurrentRequest(request: ShareCreateRequest): boolean {
+    const current = useDawStore.getState();
+    return (
+      request.dialogGeneration === dialogGen.current &&
+      request.projectEpoch === current.projectEpoch &&
+      request.projectPath === current.projectPath &&
+      current.shareDialogOpen
+    );
+  }
+
+  async function createShare(request: ShareCreateRequest): Promise<void> {
     try {
-      const share = await createHostShare(projectPath, {
-        role,
-        with_mcp: withMcp,
+      const share = await createHostShare(request.projectPath, {
+        role: request.role,
+        with_mcp: request.withMcp,
       });
+      if (!isCurrentRequest(request)) {
+        return;
+      }
+      staleCreateRequest.current = null;
+      setCreateRecovery({ kind: "idle" });
       if (share.url) {
         try {
           await copyText(share.url);
+          if (!isCurrentRequest(request)) {
+            return;
+          }
           markCopied(shareCopyKey("link", share.token));
           announce("Share link created and copied");
         } catch (err) {
+          if (!isCurrentRequest(request)) {
+            return;
+          }
           announce("Share link created");
           setError(errorMessage(err));
         }
@@ -140,9 +187,103 @@ export function ShareDialog() {
       }
       await load();
     } catch (err) {
-      setError(errorMessage(err));
+      if (!isCurrentRequest(request)) {
+        return;
+      }
+      if (err instanceof ApiError && err.code === "stale_mix") {
+        staleCreateRequest.current = request;
+        setCreateRecovery({
+          kind: "stale_mix",
+          message:
+            "The mix preview is out of date. Refresh it before creating a review link.",
+          refreshError: null,
+        });
+      } else if (err instanceof ApiError && err.code === "stale_master") {
+        staleCreateRequest.current = null;
+        setCreateRecovery({ kind: "idle" });
+        setError(
+          "The mastered mix is out of date. Export a new master before creating a review link.",
+        );
+      } else {
+        staleCreateRequest.current = null;
+        setCreateRecovery({ kind: "idle" });
+        setError(errorMessage(err));
+      }
+    }
+  }
+
+  async function onCreate() {
+    if (busyOp.current) {
+      return;
+    }
+    const op: BusyOp = "create";
+    const request = captureCreateRequest();
+    busyOp.current = op;
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+    staleCreateRequest.current = null;
+    setCreateRecovery({ kind: "idle" });
+    try {
+      await createShare(request);
     } finally {
-      if (busyOp.current === op) {
+      if (busyOp.current === op && isCurrentRequest(request)) {
+        busyOp.current = null;
+        setBusy(false);
+      }
+    }
+  }
+
+  async function onRefreshMix() {
+    if (busyOp.current || createRecovery.kind !== "stale_mix") {
+      return;
+    }
+    const op: BusyOp = "refresh";
+    const { message } = createRecovery;
+    const staleRequest = staleCreateRequest.current;
+    if (!staleRequest || !isCurrentRequest(staleRequest)) {
+      return;
+    }
+    const retryRequest = staleRequest;
+    busyOp.current = op;
+    setBusy(true);
+    setError(null);
+    setCreateRecovery({ kind: "refreshing" });
+    try {
+      if (!isCurrentRequest(retryRequest)) {
+        return;
+      }
+      let result: ExecuteResult;
+      try {
+        result = await execute("render.refreshMix");
+      } catch (err) {
+        if (isCurrentRequest(retryRequest)) {
+          setCreateRecovery({
+            kind: "stale_mix",
+            message,
+            refreshError: errorMessage(err),
+          });
+        }
+        return;
+      }
+      if (!isCurrentRequest(retryRequest)) {
+        return;
+      }
+      if (result.status !== "ok") {
+        setCreateRecovery({
+          kind: "stale_mix",
+          message,
+          refreshError:
+            result.status === "disabled"
+              ? result.reason
+              : "Refresh mix is unavailable",
+        });
+        return;
+      }
+      setCreateRecovery({ kind: "retrying" });
+      await createShare(retryRequest);
+    } finally {
+      if (busyOp.current === op && isCurrentRequest(retryRequest)) {
         busyOp.current = null;
         setBusy(false);
       }
@@ -272,10 +413,12 @@ export function ShareDialog() {
       onWithMcpChange={setWithMcp}
       rows={rows}
       busy={busy}
+      createRecovery={createRecovery}
       error={error}
       status={status}
       copiedKey={copiedKey}
       onCreate={() => void onCreate()}
+      onRefreshMix={() => void onRefreshMix()}
       onCreateRecord={() => void onCreateRecord()}
       onCopy={(kind, token, label, text) =>
         void copyRow(kind, token, label, text)

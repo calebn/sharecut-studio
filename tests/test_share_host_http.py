@@ -149,7 +149,8 @@ def test_create_for_host_refuses_a_stale_premix(
 
     client = TestClient(create_app(served_project=Path(minimal_project)))
     res = client.post("/api/shares", json={"path": str(minimal_project), "role": "viewer"})
-    assert res.status_code == 400
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "stale_mix"
     assert "Refresh" in res.text
 
 

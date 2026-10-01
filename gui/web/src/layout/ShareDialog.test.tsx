@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import type { HostShareRow } from "../types/shares";
+import { ApiError } from "../utils/apiError";
 import { ShareDialog } from "./ShareDialog";
 
 const listHostShares = vi.fn();
@@ -11,6 +18,18 @@ const createHostShare = vi.fn();
 const revokeHostShare = vi.fn();
 const createHostRecordRoom = vi.fn();
 const revokeHostRoom = vi.fn();
+const execute = vi.fn();
+
+vi.mock("../commands/execute", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../commands/execute")>();
+  return {
+    ...actual,
+    execute: (...args: Parameters<typeof actual.execute>) =>
+      args[0] === "render.refreshMix"
+        ? execute(...args)
+        : actual.execute(...args),
+  };
+});
 
 vi.mock("../api", () => ({
   listHostShares: (...args: unknown[]) => listHostShares(...args),
@@ -59,6 +78,7 @@ describe("ShareDialog", () => {
     revokeHostShare.mockReset();
     createHostRecordRoom.mockReset();
     revokeHostRoom.mockReset();
+    execute.mockReset().mockResolvedValue({ status: "ok" });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -66,6 +86,7 @@ describe("ShareDialog", () => {
     listHostShares.mockResolvedValue(listed());
     useDawStore.setState({
       shareDialogOpen: false,
+      projectEpoch: 1,
       projectPath: "/tmp/ep.project.json",
       project: projectStub,
       statusAnnouncement: "",
@@ -112,6 +133,307 @@ describe("ShareDialog", () => {
     expect(useDawStore.getState().statusAnnouncement).toMatch(
       /Share link created/,
     );
+  });
+
+  it("waits for Refresh to succeed, then retries the captured create once", async () => {
+    const user = userEvent.setup();
+    let finishRefresh!: (result: { status: "ok" }) => void;
+    execute.mockReturnValue(
+      new Promise((resolve) => {
+        finishRefresh = resolve;
+      }),
+    );
+    createHostShare
+      .mockRejectedValueOnce(
+        new ApiError(
+          "premix.wav is stale; render-preview provenance mismatch",
+          "stale_mix",
+          409,
+        ),
+      )
+      .mockResolvedValueOnce(liveRow);
+    listHostShares.mockResolvedValue(listed([liveRow]));
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    expect(
+      await screen.findByText(
+        "The mix preview is out of date. Refresh it before creating a review link.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/premix\.wav|render-preview provenance/),
+    ).toBeNull();
+    await user.selectOptions(
+      screen.getByLabelText("Anyone with the link"),
+      "editor",
+    );
+    await user.click(screen.getByLabelText("Allow agent (MCP)"));
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    expect(execute).toHaveBeenCalledWith("render.refreshMix");
+    expect(createHostShare).toHaveBeenCalledTimes(1);
+
+    finishRefresh({ status: "ok" });
+    await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
+    expect(createHostShare).toHaveBeenNthCalledWith(2, "/tmp/ep.project.json", {
+      role: "commenter",
+      with_mcp: false,
+    });
+    expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
+  });
+
+  it("keeps a reopened create busy when the earlier create resolves", async () => {
+    const user = userEvent.setup();
+    let finishOld!: (row: HostShareRow) => void;
+    let finishNew!: (row: HostShareRow) => void;
+    createHostShare
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishNew = resolve;
+        }),
+      );
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    act(() => useDawStore.setState({ shareDialogOpen: true }));
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+
+    await act(async () => {
+      finishOld(liveRow);
+    });
+    expect(screen.getByRole("button", { name: "Create link" })).toBeDisabled();
+    await act(async () => {
+      finishNew(liveRow);
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Create link" })).toBeEnabled(),
+    );
+  });
+
+  it("keeps a reopened refresh busy when the earlier refresh resolves", async () => {
+    const user = userEvent.setup();
+    let finishOld!: (result: { status: "ok" }) => void;
+    let finishNew!: (result: { status: "disabled"; reason: string }) => void;
+    execute
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishNew = resolve;
+        }),
+      );
+    const stale = () =>
+      new ApiError("premix is stale; refresh it", "stale_mix", 409);
+    createHostShare.mockRejectedValue(stale());
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    act(() => useDawStore.setState({ shareDialogOpen: true }));
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+
+    await act(async () => {
+      finishOld({ status: "ok" });
+    });
+    expect(screen.getByRole("button", { name: "Create link" })).toBeDisabled();
+    await act(async () => {
+      finishNew({ status: "disabled", reason: "Render failed" });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Refresh mix" })).toBeEnabled(),
+    );
+  });
+
+  it("keeps Refresh available and does not create when refresh fails", async () => {
+    const user = userEvent.setup();
+    createHostShare.mockRejectedValue(
+      new ApiError(
+        "premix.wav is stale; render-preview provenance mismatch",
+        "stale_mix",
+        409,
+      ),
+    );
+    execute.mockResolvedValue({ status: "disabled", reason: "Render failed" });
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    expect(
+      await screen.findByText("Refresh failed: Render failed"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Refresh mix" })).toBeEnabled();
+    expect(createHostShare).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not offer preview Refresh for a stale-master error", async () => {
+    const user = userEvent.setup();
+    createHostShare.mockRejectedValue(
+      new ApiError(
+        "master_loudness provenance mismatch for premix.wav",
+        "stale_master",
+        409,
+      ),
+    );
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    expect(
+      await screen.findByText(
+        "The mastered mix is out of date. Export a new master before creating a review link.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/master_loudness|premix\.wav/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Refresh mix" })).toBeNull();
+  });
+
+  it("returns a repeated stale response to explicit recovery without looping", async () => {
+    const user = userEvent.setup();
+    const stale = () =>
+      new ApiError("premix is stale; refresh it", "stale_mix", 409);
+    createHostShare
+      .mockRejectedValueOnce(stale())
+      .mockRejectedValueOnce(stale());
+    execute.mockResolvedValue({ status: "ok" });
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    ).toBeEnabled();
+    expect(createHostShare).toHaveBeenCalledTimes(2);
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry if the project changes while Refresh is running", async () => {
+    const user = userEvent.setup();
+    let finishRefresh!: (result: { status: "ok" }) => void;
+    execute.mockReturnValue(
+      new Promise((resolve) => {
+        finishRefresh = resolve;
+      }),
+    );
+    createHostShare.mockRejectedValue(
+      new ApiError("premix is stale; refresh it", "stale_mix", 409),
+    );
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    useDawStore.setState({
+      projectPath: "/tmp/other.project.json",
+      projectEpoch: 2,
+    });
+    await user.click(screen.getByRole("button", { name: "Create link" }));
+    await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
+    expect(createHostShare).toHaveBeenNthCalledWith(
+      2,
+      "/tmp/other.project.json",
+      { role: "commenter", with_mcp: false },
+    );
+    finishRefresh({ status: "ok" });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(createHostShare).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry after the dialog closes during Refresh", async () => {
+    const user = userEvent.setup();
+    let finishRefresh!: (result: { status: "ok" }) => void;
+    execute.mockReturnValue(
+      new Promise((resolve) => {
+        finishRefresh = resolve;
+      }),
+    );
+    createHostShare.mockRejectedValue(
+      new ApiError("premix is stale; refresh it", "stale_mix", 409),
+    );
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    finishRefresh({ status: "ok" });
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    expect(createHostShare).toHaveBeenCalledTimes(1);
+  });
+
+  it("invalidates recovery when a project is reopened at the same path", async () => {
+    const user = userEvent.setup();
+    let finishRefresh!: (result: { status: "ok" }) => void;
+    execute.mockReturnValue(
+      new Promise((resolve) => {
+        finishRefresh = resolve;
+      }),
+    );
+    createHostShare.mockRejectedValue(
+      new ApiError("premix is stale; refresh it", "stale_mix", 409),
+    );
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create link" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Refresh mix" }),
+    );
+    useDawStore.setState({ projectEpoch: 3 });
+    expect(screen.queryByRole("button", { name: "Refresh mix" })).toBeNull();
+    finishRefresh({ status: "ok" });
+    expect(createHostShare).toHaveBeenCalledTimes(1);
   });
 
   it("keeps Create link label and reports clipboard errors after mint", async () => {
@@ -285,6 +607,59 @@ describe("ShareDialog", () => {
     });
     expect(await screen.findByText("No live record rooms.")).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("releases a stale record operation after a same-path project reopen", async () => {
+    const user = userEvent.setup();
+    const guestRow: HostShareRow = {
+      token: "guest-room-tok",
+      url: "http://127.0.0.1:8765/rec/guest-room-tok",
+      kind: "record",
+      docs_role: null,
+      record_role: "guest",
+      session_id: "sess1",
+      mcp_url: null,
+      usable: true,
+    };
+    const producerRow: HostShareRow = {
+      ...guestRow,
+      token: "producer-room-tok",
+      url: "http://127.0.0.1:8765/rec/producer-room-tok",
+      record_role: "producer",
+    };
+    const room = {
+      session_id: "sess1",
+      guest: guestRow,
+      producer: producerRow,
+    };
+    let finishFirst!: (result: typeof room) => void;
+    createHostRecordRoom
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(room);
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+    await screen.findByRole("heading", { name: "Record session" });
+    await user.click(
+      screen.getByRole("button", { name: "Create record links" }),
+    );
+    await waitFor(() => expect(createHostRecordRoom).toHaveBeenCalledTimes(1));
+
+    act(() => useDawStore.setState({ projectEpoch: 2 }));
+    await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(2));
+    await act(async () => finishFirst(room));
+
+    await user.click(
+      screen.getByRole("button", { name: "Create record links" }),
+    );
+    await waitFor(() => expect(createHostRecordRoom).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText("Record links created and guest link copied"),
+    ).toBeTruthy();
   });
 
   it("opens the record panel from a live room", async () => {

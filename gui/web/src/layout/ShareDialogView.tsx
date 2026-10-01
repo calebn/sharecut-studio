@@ -59,10 +59,12 @@ export type ShareDialogViewProps = {
   /** Every host share row; the view shows usable rows only, split into review links and record rooms. */
   rows: readonly HostShareRow[];
   busy: boolean;
+  createRecovery: ShareCreateRecovery;
   error: string | null;
   status: string | null;
   copiedKey: ShareCopiedKey | null;
   onCreate: () => void;
+  onRefreshMix: () => void;
   onCreateRecord: () => void;
   onCopy: (
     kind: ShareCopyKind,
@@ -74,6 +76,12 @@ export type ShareDialogViewProps = {
   onEndRoom: (sessionId: string) => void;
   onOpenRoomPanel: () => void;
 };
+
+export type ShareCreateRecovery =
+  | { kind: "idle" }
+  | { kind: "stale_mix"; message: string; refreshError: string | null }
+  | { kind: "refreshing" }
+  | { kind: "retrying" };
 
 /**
  * Production Share dialog paint. Listing, minting and revoking links, the
@@ -90,10 +98,12 @@ export function ShareDialogView(props: ShareDialogViewProps) {
     onWithMcpChange,
     rows,
     busy,
+    createRecovery,
     error,
     status,
     copiedKey,
     onCreate,
+    onRefreshMix,
     onCreateRecord,
     onCopy,
     onRevoke,
@@ -159,6 +169,25 @@ export function ShareDialogView(props: ShareDialogViewProps) {
             Create link
           </Button>
         </div>
+        {createRecovery.kind === "stale_mix" ? (
+          <div className="share-dialog-recovery">
+            <p role="alert">{createRecovery.message}</p>
+            <Button type="button" disabled={busy} onClick={onRefreshMix}>
+              Refresh mix
+            </Button>
+            {createRecovery.refreshError ? (
+              <p>Refresh failed: {createRecovery.refreshError}</p>
+            ) : null}
+          </div>
+        ) : createRecovery.kind === "refreshing" ? (
+          <p className="share-dialog-status" role="status">
+            Refreshing mix preview…
+          </p>
+        ) : createRecovery.kind === "retrying" ? (
+          <p className="share-dialog-status" role="status">
+            Mix refreshed. Creating link…
+          </p>
+        ) : null}
         <section aria-labelledby={recordHeadingId}>
           <h3 className="share-dialog-heading" id={recordHeadingId}>
             Record session
