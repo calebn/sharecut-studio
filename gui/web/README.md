@@ -172,8 +172,12 @@ Use `executePointerCommand(id, args)` when a pointer handler needs to await a
 result or clear busy state after completion. It returns the command's original
 `ExecuteResult` promise, including rejections. Both helpers share one gate policy.
 `CommandButton` and `useCommand` retain their configurable gate policy.
-The keymap listener evaluates keyboard gates before dispatch; WebMCP awaits
-commands through its agent adapter. These paths call `execute` directly.
+The keymap listener evaluates keyboard gates before dispatch. DAW WebMCP play
+uses `execute` through its agent adapter. DAW transport seeking uses
+`src/commands/seek.ts`, which returns the pointer command result for callers
+that need to await it. Listen skip math stays in `src/layout/listenSeek.ts`;
+timeline callers keep their selection and blade actions after the seek
+dispatch, and WebMCP awaits the shared helper.
 `commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer
 helper, keymap listener, and WebMCP adapter.
 

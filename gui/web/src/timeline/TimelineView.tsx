@@ -14,6 +14,7 @@ import {
 import { useShallow } from "zustand/react/shallow";
 import { shallow } from "zustand/shallow";
 import { runPointerCommand } from "../commands/pointer";
+import { seekTransport } from "../commands/seek";
 import {
   allClipsFromTracks,
   type ClipMoveItem,
@@ -625,7 +626,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       zoomPxPerSec,
       canvasSec,
     );
-    runPointerCommand("transport.seek", { sec });
+    void seekTransport(sec);
     setSelection(null);
     if (bladeMode) {
       runPointerCommand("edit.bladeCut", { atTime: sec });
@@ -887,7 +888,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   zoomPxPerSec={zoomPxPerSec}
                   hidePlayhead={fixedPlayhead}
                   onSeek={(sec) => {
-                    runPointerCommand("transport.seek", { sec });
+                    void seekTransport(sec);
                     setSelection(null);
                     if (toolMode === "blade" && !commentMode) {
                       runPointerCommand("edit.bladeCut", { atTime: sec });

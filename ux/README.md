@@ -75,6 +75,8 @@ Shell controls that dispatch commands bypass keyboard focus gates by default.
 controls stay busy until the dispatched command settles. Preserve these behaviors
 when refactoring shell callbacks; the shared pointer helpers are documented in
 [the frontend command adapters](../gui/web/README.md#api-adapters).
+Listen, timeline, and DAW WebMCP seeks also share the promise-returning
+transport seek helper so callers can use the same command result.
 
 - Keep **partner-facing** copy in product language; put schema paths in the glossary Schema map (or link `docs/*.md`).
 - Prefer Mermaid + the demo fixture over one-off mockups.

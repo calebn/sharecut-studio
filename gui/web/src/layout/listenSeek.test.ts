@@ -1,13 +1,21 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
+import { minimalProject } from "../test/fixtures";
 import { LISTEN_SKIP_SEC, skipListen } from "./listenSeek";
 
-const execute = vi.hoisted(() => vi.fn());
-vi.mock("../commands/execute", () => ({ execute }));
-
 describe("skipListen", () => {
+  beforeEach(() => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.setState({
+      project: minimalProject({ timeline_duration_sec: 60 }),
+    });
+  });
+
   afterEach(() => {
-    execute.mockClear();
+    clearRegisteredCommands();
     useDawStore.setState({ playheadSec: 0 });
   });
 
@@ -19,10 +27,6 @@ describe("skipListen", () => {
   ])("from %s s by %s s seeks to %s s", (from, delta, to) => {
     useDawStore.setState({ playheadSec: from });
     skipListen(delta, 60);
-    expect(execute).toHaveBeenCalledWith(
-      "transport.seek",
-      { sec: to },
-      { skipWhen: true },
-    );
+    expect(useDawStore.getState().playheadSec).toBe(to);
   });
 });
