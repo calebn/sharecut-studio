@@ -843,7 +843,8 @@ def test_audio_offset_with_video_does_not_mask_a_short_decode(tmp_path, truncate
 
 
 @needs_ffmpeg
-def test_low_rate_mp3_encoder_padding_is_not_a_short_decode(tmp_path):
+@pytest.mark.parametrize("declared_padding_sec", [None, 0.152])
+def test_low_rate_mp3_encoder_padding_is_not_a_short_decode(tmp_path, declared_padding_sec):
     eng = FFmpegEngine()
     audio = tmp_path / "low-rate.mp3"
     run(
@@ -866,11 +867,35 @@ def test_low_rate_mp3_encoder_padding_is_not_a_short_decode(tmp_path):
         timeout=60,
     )
     probe = eng.probe(audio)
-    assert probe.duration_sec > 1.1
+    raw = run(
+        [eng.ffmpeg, "-v", "error", "-i", str(audio), "-f", "f32le", "pipe:1"],
+        capture_output=True,
+        check=True,
+        timeout=60,
+    ).stdout
+    expected_frames = len(raw) // (4 * probe.channels)
+    assert expected_frames == probe.sample_rate
+    samples = np.frombuffer(raw, dtype="<f4").reshape(-1, probe.channels)
+    _, expected_levels = build_levels(
+        [samples], sample_rate=probe.sample_rate, channels=probe.channels
+    )
     key = media_key(audio.name, audio.stat().st_size, audio.stat().st_mtime_ns)
     out = pyramid_path(tmp_path, "track-low", key)
-    build_pyramid("track:low", key, audio, out)
-    assert 0.98 < read_meta(out).total_frames / read_meta(out).sample_rate < 1.02
+    if declared_padding_sec is None:
+        build_pyramid("track:low", key, audio, out)
+    else:
+        padded_duration = expected_frames / probe.sample_rate + declared_padding_sec
+        padded_probe = AudioProbe(
+            duration_sec=padded_duration,
+            sample_rate=probe.sample_rate,
+            channels=probe.channels,
+            audio_duration_sec=padded_duration,
+        )
+        with patch.object(FFmpegEngine, "probe", return_value=padded_probe):
+            build_pyramid("track:low", key, audio, out)
+    meta = read_meta(out)
+    assert meta.total_frames == expected_frames
+    assert read_bins(out, meta, 0, 0, meta.levels[0].bins) == expected_levels[0].tobytes()
 
 
 @needs_ffmpeg

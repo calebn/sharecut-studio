@@ -362,6 +362,12 @@ Failed-spec traces remain separate `playwright-test-results-main` and
 | Recording keeper landing | `test_record_landing.py` probes a real reader snapshot while each keeper hash is paused and checks that both project locks are free. |
 | PCM WAV header | `test_wav_util.py` (`util/wav.py`, shared by record landing and the benchmark fixture) |
 
+Low-rate MP3 padding coverage lives in `test_waveform_pyramid.py`. FFmpeg 6
+reports a 1.152 s duration for the one-second 8 kHz fixture, while FFmpeg 9
+reports 1.0 s after gapless trimming. The test checks each native duration and
+a declared 1.152 s duration, then compares the pyramid's frames and bins with
+a separate full decode.
+
 Audio integration tests skip automatically when FFmpeg is unavailable.
 
 ### Document-command API contract
