@@ -137,7 +137,8 @@ sqlite tables (`record_*`) rather than a new plane — see [recording-session.md
 and explicit report submission. CLI and GUI callers import its public facade,
 `podcast_mcp.services.support`; implementation modules stay within that package.
 The existing bootstrap status dependency remains `services/bootstrap.py` until
-that context migrates. Support does not depend on CLI, MCP, or GUI modules.
+that context migrates. Support does not depend on CLI, MCP, or GUI modules. Facade exports load on
+demand so local configuration checks do not import the optional report client.
 
 `tests/test_service_boundaries.py` scans production Python imports, including
 nested and relative imports. It rejects external imports of support modules and
