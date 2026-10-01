@@ -11,7 +11,7 @@ from typing import Any
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.session_sync import connect_session_db, sync_db_path
+from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
 
 RECORD_LIVE_COMMENT_MAX = 500
 LIVE_COMMENT_ID_PREFIX = "live-"
@@ -32,9 +32,6 @@ CREATE TABLE IF NOT EXISTS record_live_comments (
 );
 """
 
-_STORE_CACHE: dict[str, RecordLiveCommentStore] = {}
-_STORE_LOCK = threading.Lock()
-
 
 class RecordLiveCommentError(ValueError):
     """Reject a live comment upsert."""
@@ -48,20 +45,13 @@ def parse_comment_id(value: str) -> str:
 
 
 def cached_record_live_comment_store(path: Path) -> RecordLiveCommentStore:
-    key = str(path.resolve())
-    with _STORE_LOCK:
-        store = _STORE_CACHE.get(key)
-        if store is None:
-            store = RecordLiveCommentStore(path)
-            _STORE_CACHE[key] = store
-        return store
-
-
-def drop_cached_record_live_comment_stores() -> list[RecordLiveCommentStore]:
-    with _STORE_LOCK:
-        stores = list(_STORE_CACHE.values())
-        _STORE_CACHE.clear()
-    return stores
+    store = cached_store(
+        path,
+        kind="record_live_comment",
+        factory=lambda: RecordLiveCommentStore(path),
+    )
+    assert store is not None
+    return store
 
 
 def live_comment_store_for(project: EpisodeProject) -> RecordLiveCommentStore:

@@ -21,7 +21,6 @@ from podcast_mcp.services.record.commands import (
 )
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
-    drop_cached_record_live_comment_stores,
     live_comment_store_for,
     upsert_live_comment,
 )
@@ -48,10 +47,10 @@ from podcast_mcp.services.record.state import (
     start_blockers,
     take_containing_wall,
 )
-from podcast_mcp.services.record.upload import drop_cached_record_upload_stores
 from podcast_mcp.services.session_sync import (
+    cached_store,
     cached_sync_store,
-    drop_cached_sync_stores,
+    drop_cached_stores_for_tests,
     get_hub,
     sync_db_path,
 )
@@ -59,7 +58,6 @@ from podcast_mcp.services.session_sync import (
 LEASE_IN_USE_GRACE_S = 15.0
 _SID_TTL_S = 0.5
 _SEQ = itertools.count(1)
-_PART_CACHE: dict[str, RecordParticipantStore] = {}
 _STORE_LOCK = threading.Lock()
 _AUTHORITIES: dict[str, tuple[threading.RLock, set[tuple[str, str]]]] = {}
 _SID_CACHE: dict[str, tuple[float, str | None]] = {}
@@ -85,25 +83,23 @@ def _now_pair() -> tuple[float, int]:
 
 
 def reset_record_runtime_for_tests() -> None:
+    from podcast_mcp.services.document import cross_process_bridge
+
+    cross_process_bridge().stop_all()
+    get_hub().clear_for_tests()
     with _CONN_LOCK:
         _CONNECTIONS.clear()
         _HOST_CONNS.clear()
     _SID_CACHE.clear()
-    stores = drop_cached_sync_stores(table_prefix="record_")
-    upload_stores = drop_cached_record_upload_stores()
-    comment_stores = drop_cached_record_live_comment_stores()
+    for kind, variant in (
+        ("sync", "record_"),
+        ("record_upload", None),
+        ("record_live_comment", None),
+        ("record_participant", None),
+    ):
+        drop_cached_stores_for_tests(kind=kind, variant=variant)
     with _STORE_LOCK:
-        parts = list(_PART_CACHE.values())
-        _PART_CACHE.clear()
         _AUTHORITIES.clear()
-    for store in stores:
-        store.close()
-    for upload_store in upload_stores:
-        upload_store.close()
-    for comment_store in comment_stores:
-        comment_store.close()
-    for part in parts:
-        part.close()
 
 
 def next_record_client_seq() -> int:
@@ -293,13 +289,14 @@ def _persist_host_offline_since(store: Any, since_wall_ms: int) -> None:
 
 
 def _participants_for(project: EpisodeProject) -> RecordParticipantStore:
-    key = str(sync_db_path(project).resolve())
-    with _STORE_LOCK:
-        store = _PART_CACHE.get(key)
-        if store is None:
-            store = RecordParticipantStore(sync_db_path(project))
-            _PART_CACHE[key] = store
-        return store
+    path = sync_db_path(project)
+    store = cached_store(
+        path,
+        kind="record_participant",
+        factory=lambda: RecordParticipantStore(path),
+    )
+    assert store is not None
+    return store
 
 
 def begin_record_session(project: EpisodeProject, session_id: str) -> None:

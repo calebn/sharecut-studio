@@ -342,17 +342,21 @@ def wire_session_event(
 class SessionSyncService:
     def __init__(self, project: EpisodeProject) -> None:
         self.project = project
+        self._store: SyncStore | None = None
         # Hub key: workspace root (stable across EpisodeProject reloads)
         self._project_key = str(project.workspace_path())
 
     @property
     def store(self) -> SyncStore:
-        store = _store_for(self.project, create=True)
-        assert store is not None
-        return store
+        if self._store is None:
+            self._store = _store_for(self.project, create=True)
+        assert self._store is not None
+        return self._store
 
     def _store_optional(self) -> SyncStore | None:
-        return _store_for(self.project, create=False)
+        if self._store is None:
+            self._store = _store_for(self.project, create=False)
+        return self._store
 
     @classmethod
     def open(cls, project_path: str | Path) -> SessionSyncService:

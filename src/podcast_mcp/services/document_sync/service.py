@@ -304,6 +304,7 @@ class DocumentSyncService:
     def __init__(self, ws: ProjectWorkspace) -> None:
         self.ws = ws
         self.project = ws.project
+        self._store: SyncStore | None = None
         self._project_key = document_hub_key(ws.project)
         self._certificate: tuple[int, int, int, int, int] | None = None
         self._pending_cache: tuple[SnapshotKey, dict[str, Any]] | None = None
@@ -323,7 +324,9 @@ class DocumentSyncService:
 
     @property
     def store(self) -> SyncStore:
-        return _store_for(self.project)
+        if self._store is None:
+            self._store = _store_for(self.project)
+        return self._store
 
     @contextmanager
     def _project_ownership(self) -> Iterator[None]:

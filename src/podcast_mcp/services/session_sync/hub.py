@@ -7,9 +7,12 @@ import contextlib
 import threading
 from collections import deque
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 
+from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.services.app import FanoutHub
+from podcast_mcp.services.session_sync.log import StoreCachePin, pin_cached_stores
 from podcast_mcp.services.session_sync.presence_delta import (
     PRESENCE_DELTA,
     PRESENCE_RESYNC,
@@ -40,6 +43,32 @@ class SessionHub(FanoutHub):
         )
         self._seq_lock = threading.Lock()
         self._applied_seqs: dict[str, deque[int]] = {}
+        self._pin_lock = threading.Lock()
+        self._cache_pins: dict[asyncio.Queue[dict[str, Any]], tuple[str, StoreCachePin]] = {}
+
+    def subscribe(self, key: str, loop: asyncio.AbstractEventLoop) -> asyncio.Queue[dict[str, Any]]:
+        workspace = key.removeprefix("document:").removeprefix("record:")
+        session_dir = workspace_artifacts_dir(Path(workspace)) / "session"
+        pin = pin_cached_stores((session_dir / "sync.db", session_dir / "document.db"))
+        queue = super().subscribe(key, loop)
+        with self._pin_lock:
+            self._cache_pins[queue] = (key, pin)
+        return queue
+
+    def unsubscribe(self, key: str, q: asyncio.Queue[dict[str, Any]]) -> None:
+        super().unsubscribe(key, q)
+        with self._pin_lock:
+            owner = self._cache_pins.get(q)
+            if owner is None or owner[0] != key:
+                return
+            del self._cache_pins[q]
+        owner[1].release()
+
+    def clear_for_tests(self) -> None:
+        with self._lock:
+            subscribers = [(key, q) for key, queues in self._subs.items() for q in queues]
+        for key, queue in subscribers:
+            self.unsubscribe(key, queue)
 
     def publish(self, key: str, event: dict[str, Any]) -> None:
         """Remember ``event``'s seq when it is an ``Applied``, then fan it out (#695).

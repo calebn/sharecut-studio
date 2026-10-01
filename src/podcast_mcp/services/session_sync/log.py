@@ -10,13 +10,93 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, cast
+from weakref import WeakValueDictionary
 
 from podcast_mcp.services.session_sync.commands import presence_color_index
 from podcast_mcp.services.session_sync.sqlite import connect_session_db
 from podcast_mcp.util.sqlite_tx import immediate_transaction
 
 _TABLE_PREFIX_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_StoreT = TypeVar("_StoreT")
+
+
+class StoreCachePin:
+    def __init__(self, paths: tuple[Path, ...]) -> None:
+        self._paths = paths
+        self._released = False
+
+    def release(self) -> None:
+        with _STORE_CACHE_LOCK:
+            if self._released:
+                return
+            self._released = True
+            for path in self._paths:
+                count, stores = _PINNED_STORES[path]
+                if count == 1:
+                    del _PINNED_STORES[path]
+                else:
+                    _PINNED_STORES[path] = (count - 1, stores)
+
+
+def pin_cached_stores(paths: Iterable[Path]) -> StoreCachePin:
+    resolved = tuple(dict.fromkeys(path.resolve() for path in paths))
+    with _STORE_CACHE_LOCK:
+        for path in resolved:
+            current = _PINNED_STORES.get(path)
+            if current is not None:
+                _PINNED_STORES[path] = (current[0] + 1, current[1])
+                continue
+            stores = {
+                id(store): store for key, store in list(_STORE_CACHE.items()) if key[0] == path
+            }
+            _PINNED_STORES[path] = (1, stores)
+    return StoreCachePin(resolved)
+
+
+def cached_store(
+    path: Path,
+    *,
+    kind: str,
+    variant: str = "",
+    factory: Callable[[], _StoreT],
+    create: bool = True,
+) -> _StoreT | None:
+    resolved = path.resolve()
+    key = (resolved, kind, variant)
+    with _STORE_CACHE_LOCK:
+        store = _STORE_CACHE.get(key)
+        if store is None:
+            if not create and not resolved.is_file():
+                return None
+            store = factory()
+            _STORE_CACHE[key] = store
+            pinned = _PINNED_STORES.get(resolved)
+            if pinned is not None:
+                pinned[1][id(store)] = store
+        return cast(_StoreT, store)
+
+
+def drop_cached_stores_for_tests(*, kind: str, variant: str | None = None) -> list[object]:
+    with _STORE_CACHE_LOCK:
+        keys = [
+            key
+            for key in list(_STORE_CACHE)
+            if key[1] == kind and (variant is None or key[2] == variant)
+        ]
+        if any(_PINNED_STORES.get(key[0]) for key in keys):
+            raise RuntimeError("cannot drop cached stores while a workspace is pinned")
+        stores = [_STORE_CACHE.pop(key) for key in keys]
+    for store in stores:
+        close = getattr(store, "close", None)
+        if close is not None:
+            close()
+    return stores
+
+
+_STORE_CACHE: WeakValueDictionary[tuple[Path, str, str], object] = WeakValueDictionary()
+_STORE_CACHE_LOCK = threading.RLock()
+_PINNED_STORES: dict[Path, tuple[int, dict[int, object]]] = {}
 
 
 class ClientSequenceConflictError(ValueError):
@@ -149,10 +229,6 @@ def _sql_bundle(prefix: str) -> dict[str, str]:
     }
 
 
-_STORE_CACHE: dict[str, SyncStore] = {}
-_STORE_LOCK = threading.Lock()
-
-
 def sync_store_cache_key(path: Path, table_prefix: str = "") -> str:
     return f"{path.resolve()}|{table_prefix}"
 
@@ -160,22 +236,21 @@ def sync_store_cache_key(path: Path, table_prefix: str = "") -> str:
 def _cached_sync_store(
     path: Path, *, table_prefix: str, enforce_command_ids: bool, create: bool
 ) -> SyncStore | None:
-    key = sync_store_cache_key(path, table_prefix)
-    with _STORE_LOCK:
-        store = _STORE_CACHE.get(key)
-        if store is None:
-            if not create and not path.is_file():
-                return None
-            store = SyncStore(
-                path,
-                table_prefix=table_prefix,
-                enforce_command_ids=enforce_command_ids,
-                create=create,
-            )
-            _STORE_CACHE[key] = store
-        elif store.enforce_command_ids != enforce_command_ids:
-            raise ValueError("conflicting command ID policy for cached sync store")
-        return store
+    store = cached_store(
+        path,
+        kind="sync",
+        variant=table_prefix,
+        factory=lambda: SyncStore(
+            path,
+            table_prefix=table_prefix,
+            enforce_command_ids=enforce_command_ids,
+            create=create,
+        ),
+        create=create,
+    )
+    if store is not None and store.enforce_command_ids != enforce_command_ids:
+        raise ValueError("conflicting command ID policy for cached sync store")
+    return store
 
 
 def cached_sync_store(
@@ -202,18 +277,6 @@ def cached_sync_store_if_exists(
     return _cached_sync_store(
         path, table_prefix=table_prefix, enforce_command_ids=enforce_command_ids, create=False
     )
-
-
-def drop_cached_sync_stores(*, table_prefix: str | None = None) -> list[SyncStore]:
-    with _STORE_LOCK:
-        if table_prefix is None:
-            stores = list(_STORE_CACHE.values())
-            _STORE_CACHE.clear()
-        else:
-            suffix = f"|{table_prefix}"
-            keys = [key for key in _STORE_CACHE if key.endswith(suffix)]
-            stores = [_STORE_CACHE.pop(key) for key in keys]
-    return stores
 
 
 class SyncStore:

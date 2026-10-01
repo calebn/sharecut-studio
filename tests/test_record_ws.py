@@ -1228,7 +1228,7 @@ def test_host_refcount_touch_stale_connection_and_sid_cache(
         touch_connection,
     )
     from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
-    from podcast_mcp.services.session_sync.log import drop_cached_sync_stores
+    from podcast_mcp.services.session_sync.log import drop_cached_stores_for_tests
 
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     hub = record_hub_key(ws.project)
@@ -1322,9 +1322,7 @@ def test_host_refcount_touch_stale_connection_and_sid_cache(
     assert echo2["command_type"] == "Heartbeat"
     svc.disconnect(pid, connection_id="g1")
     svc.disconnect(pid, connection_id="g1")
-    stores = drop_cached_sync_stores(table_prefix="record_")
-    for store in stores:
-        store.close()
+    drop_cached_stores_for_tests(kind="sync", variant="record_")
 
 
 def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_workspace, monkeypatch):
