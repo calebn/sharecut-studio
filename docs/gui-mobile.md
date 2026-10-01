@@ -163,6 +163,9 @@ Headers stay `flex-wrap: nowrap` beside the time Reel — Sidebar’s wrap-when-
 
 A wide phone landscape pane can show the mid rail; a narrow desktop pane (inspector eating space) can show the gutter. That is intentional.
 
+Timeline z-index roles preserve the mixer layer order across desktop, tablet,
+and phone shells; see [design tokens](design-tokens.md#elevation).
+
 ### Phone — Text
 
 ```

@@ -85,6 +85,10 @@ Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefe
 
 ### Sharecut Studio frontend quality
 
+Positive z-index values in timeline and mixer partials use the named roles in
+[`docs/design-tokens.md`](design-tokens.md#elevation); the focused Stylelint
+and pytest rules cover those partials.
+
 Codex contributors also have [Impeccable design hooks](setup.md#impeccable-design-hooks)
 for feedback on web edits. Trust the project definitions in Settings → Hooks.
 Keep their upstream launcher and reference files together when updating the

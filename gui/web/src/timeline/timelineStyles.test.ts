@@ -51,6 +51,32 @@ describe("timeline styles", () => {
     expect(tokens).toMatch(/--z-track-header:\s*12;/);
   });
 
+  it("keeps named timeline roles at their established stack levels", () => {
+    const tokens = readFileSync(
+      join(here, "../styles/theme/tokens.css"),
+      "utf8",
+    );
+    const roles: ReadonlyArray<readonly [string, number]> = [
+      ["--z-content", 1],
+      ["--z-clip-overlay", 2],
+      ["--z-local-chrome", 2],
+      ["--z-overlay", 3],
+      ["--z-edit-overlay", 4],
+      ["--z-status-overlay", 5],
+      ["--z-moving-clip", 6],
+      ["--z-timeline-interaction", 8],
+      ["--z-timeline-chrome", 9],
+      ["--z-playhead", 10],
+      ["--z-track-header", 12],
+      ["--z-timeline-popover", 20],
+      ["--z-menu", 60],
+      ["--z-command-palette", 80],
+    ];
+    for (const [role, level] of roles) {
+      expect(tokens).toMatch(new RegExp(`${role}:\\s*${level};`));
+    }
+  });
+
   it("keeps the sticky track-header chrome attached to the timeline scroller", () => {
     const layout = partial("layout.css");
     expect(rule(layout, ".track-headers")).toMatch(/overflow:\s*clip/);

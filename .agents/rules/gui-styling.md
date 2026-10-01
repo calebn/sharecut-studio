@@ -50,7 +50,7 @@ Other values lint should not swallow:
 | `letter-spacing` in `em` | Relative to glyphs |
 | `opacity` | Often a one-off fade; tokenize only if a named mute recipe repeats |
 | `box-shadow` offsets | Shape, not inset; colors in the shadow still `var(--…)` |
-| `z-index` | Prefer `--z-*` when stacking with the mixer; raw `0`/`auto` OK |
+| `z-index` | The timeline, layout, panel, ingest, and command-palette partials require `--z-*` roles for positive layers; raw `0`/`auto` stay literal |
 | Canvas `left` / `width` / `height` in TS | Time × zoom math, not chrome |
 
 ## Layout judgment (not a linter)

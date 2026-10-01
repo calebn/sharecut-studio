@@ -3,6 +3,22 @@ export default {
   extends: ["stylelint-config-standard"],
   plugins: ["stylelint-declaration-strict-value", "stylelint-no-px"],
   ignoreFiles: ["src/styles/theme/**", "public/brand-tokens.css"],
+  overrides: [
+    {
+      files: [
+        "src/styles/partials/timeline.css",
+        "src/styles/partials/layout.css",
+        "src/styles/partials/panels.css",
+        "src/styles/partials/ingest.css",
+        "src/styles/partials/command-palette.css",
+      ],
+      rules: {
+        "declaration-property-value-allowed-list": {
+          "z-index": ["0", "auto", "/^var\\(--z-[\\w-]+\\)$/"],
+        },
+      },
+    },
+  ],
   rules: {
     // Motion times with --motion-* tokens (docs/design-tokens.md § Motion);
     // tests/test_css_policy.py also checks the no-preference guard.
