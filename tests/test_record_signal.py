@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.service import reset_record_runtime_for_tests
 from podcast_mcp.services.session_sync.log import cached_sync_store
 from podcast_mcp.services.session_sync.service import sync_db_path

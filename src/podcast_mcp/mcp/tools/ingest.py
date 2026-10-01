@@ -6,6 +6,7 @@ from pathlib import Path
 from mcp.server import MCPServer
 
 from podcast_mcp.ingest.manifest import IngestManifest
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.ingest import (
     IngestService,
     import_folder_report_to_dict,
@@ -14,7 +15,6 @@ from podcast_mcp.services.ingest import (
     verify_result_to_dict,
 )
 from podcast_mcp.services.play import PlayRequest, PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def ingest_import_folder_tool(

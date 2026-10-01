@@ -121,3 +121,20 @@ def authorize_share_token(
     if not _tokens_match(token, expected_token):
         return AuthzDecision(False, "invalid share token")
     return AuthzDecision(True, "share", scope=token)
+
+
+def is_bind_loopback(host: str) -> bool:
+    return is_loopback_host(host.strip().lower())
+
+
+def ensure_non_loopback_session_auth(host: str) -> str | None:
+    """Enable strict authz when binding off-loopback; return session token for URL."""
+    if is_bind_loopback(host):
+        return None
+    if not os.environ.get("PODCAST_SESSION_AUTHZ", "").strip():
+        os.environ["PODCAST_SESSION_AUTHZ"] = "strict"
+    token = os.environ.get("PODCAST_SESSION_TOKEN", "").strip()
+    if not token:
+        token = secrets.token_urlsafe(32)
+        os.environ["PODCAST_SESSION_TOKEN"] = token
+    return token

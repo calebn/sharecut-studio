@@ -161,6 +161,7 @@ from podcast_mcp.effects.presets import (
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.render import rerender_preview
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.boundary import (
     BoundaryContext,
     ClipGeometry,
@@ -170,7 +171,6 @@ from podcast_mcp.services.boundary import (
     boundary_context,
 )
 from podcast_mcp.services.transcript_timing import word_timing_media
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals

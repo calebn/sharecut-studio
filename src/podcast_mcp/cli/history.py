@@ -7,7 +7,8 @@ import typer
 
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.history import HistoryManager
-from podcast_mcp.services import HISTORY_RERENDER_ERRORS, HistoryService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 
 history_app = typer.Typer(help="Undo/redo snapshot history (non-destructive edits).")
 

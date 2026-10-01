@@ -6,8 +6,8 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.cli.timed import timed_command
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.play import PlayRequest, PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.time_parse import parse_time_sec
 
 play_app = typer.Typer(help="Play audio segments from a project.")

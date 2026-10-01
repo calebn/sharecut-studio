@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.guest_progress import (
     GUEST_PROGRESS_COALESCE_SEC,
     GUEST_PROGRESS_MAX_HZ,
@@ -29,6 +29,7 @@ from podcast_mcp.services.remote_mcp.progress import (
     McpProgressSink,
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.util import progress as progress_mod
 from podcast_mcp.util.progress import (

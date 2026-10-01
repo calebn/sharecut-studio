@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, save_project
-from podcast_mcp.services import BounceRequest, BounceService, ProjectWorkspace
-from podcast_mcp.services.bounce import _slug
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.bounce import BounceRequest, BounceService, _slug
 
 
 def _seed_bounce_project(

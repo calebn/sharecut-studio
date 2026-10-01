@@ -8,8 +8,9 @@ import typer
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.ingest.consolidate import alignment_report
 from podcast_mcp.ingest.manifest import IngestManifest
-from podcast_mcp.services import IngestService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.ingest import (
+    IngestService,
     import_folder_report_to_dict,
     suggest_alignment_for_manifest,
     suggest_result_to_dict,

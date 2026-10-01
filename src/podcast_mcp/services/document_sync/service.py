@@ -17,6 +17,7 @@ from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
@@ -45,7 +46,6 @@ from podcast_mcp.services.session_sync.service import (
     resolve_meta_path,
     session_dir_for_workspace,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)

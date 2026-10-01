@@ -507,6 +507,7 @@ podcast gui
 ```
 
 Agents can call MCP `open_gui_tool` (skill `podcast-open-gui`) instead of blocking on a foreground server.
+The CLI and MCP launcher share `services.app.ensure_viewer`. Non-loopback binding enables strict session auth through `services.session_sync` and includes the token in the launch URL.
 
 Development with hot reload:
 

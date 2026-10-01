@@ -242,15 +242,15 @@
     {
       "id": "daw-viewer-launch",
       "when": "DAW viewer launch (`open_gui_tool`)",
-      "update": "`docs/gui-integration.md` § Launch, `docs/setup.md` § Read-only GUI viewer, `services/gui_launch.py`, skill `podcast-open-gui`",
+      "update": "`docs/gui-integration.md` § Launch, `docs/setup.md` § Read-only GUI viewer, `services/app/gui_launch.py`, skill `podcast-open-gui`",
       "docs": [
         "docs/gui-integration.md",
         "docs/setup.md",
-        "src/podcast_mcp/services/gui_launch.py"
+        "src/podcast_mcp/services/app/gui_launch.py"
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/services/gui_launch.py",
+          "src/podcast_mcp/services/app/gui_launch.py",
           "src/podcast_mcp/mcp/tools/gui.py",
           "src/podcast_mcp/cli/gui.py"
         ]
@@ -271,7 +271,7 @@
         "include": [
           "src/podcast_mcp/history/",
           "src/podcast_mcp/services/history.py",
-          "src/podcast_mcp/services/workspace.py",
+          "src/podcast_mcp/services/app/workspace.py",
           "src/podcast_mcp/mcp/tools/history.py",
           "src/podcast_mcp/cli/history.py",
           "src/podcast_mcp/models/history.py",
@@ -774,7 +774,7 @@
           "src/podcast_mcp/services/session_sync/",
           "src/podcast_mcp/services/session_control.py",
           "src/podcast_mcp/services/cross_process_sync.py",
-          "src/podcast_mcp/services/fanout_hub.py",
+          "src/podcast_mcp/services/app/fanout_hub.py",
           "src/podcast_mcp/services/document_sync/",
           "src/podcast_mcp/gui/routes/session.py",
           "src/podcast_mcp/gui/routes/document.py",

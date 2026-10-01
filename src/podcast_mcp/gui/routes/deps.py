@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import secrets
 from pathlib import Path
 
 from fastapi import HTTPException, Request, WebSocket
@@ -14,7 +12,6 @@ from starlette.responses import Response
 from podcast_mcp.services.session_sync.authz import (
     authorize_client,
     authorize_host,
-    is_loopback_host,
 )
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
@@ -122,20 +119,3 @@ def resolve_project(path: str, request: Request | WebSocket | None = None) -> Pa
                 detail="project path not allowed for this server instance",
             )
     return project_path
-
-
-def is_bind_loopback(host: str) -> bool:
-    return is_loopback_host(host.strip().lower())
-
-
-def ensure_non_loopback_session_auth(host: str) -> str | None:
-    """Enable strict authz when binding off-loopback; return session token for URL."""
-    if is_bind_loopback(host):
-        return None
-    if not os.environ.get("PODCAST_SESSION_AUTHZ", "").strip():
-        os.environ["PODCAST_SESSION_AUTHZ"] = "strict"
-    token = os.environ.get("PODCAST_SESSION_TOKEN", "").strip()
-    if not token:
-        token = secrets.token_urlsafe(32)
-        os.environ["PODCAST_SESSION_TOKEN"] = token
-    return token

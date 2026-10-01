@@ -9,6 +9,8 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _SUPPORT = "podcast_mcp.services.support"
 _PIPELINE = "podcast_mcp.services.pipeline"
+_APP = "podcast_mcp.services.app"
+_SESSION_SYNC = "podcast_mcp.services.session_sync"
 _ADAPTERS = ("podcast_mcp.gui", "podcast_mcp.cli", "podcast_mcp.mcp")
 
 
@@ -33,17 +35,45 @@ def _in(target: str, package: str) -> bool:
 def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set[str]:
     violations: set[str] = set()
     owner = next((ctx for ctx in internals if module.startswith(ctx + ".")), None)
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == "podcast_mcp.services"
+        ):
+            violations.add("podcast_mcp.services")
     for target in _imports(source, module):
-        if owner and any(_in(target, adapter) for adapter in _ADAPTERS):
-            violations.add(target)
+        if _in(target, "podcast_mcp.gui.routes") and module.startswith("podcast_mcp.services."):
+            violations.add(".".join(target.split(".")[:4]))
+        if (
+            owner
+            and any(_in(target, adapter) for adapter in _ADAPTERS)
+            and not (
+                module == _APP + ".gui_launch"
+                and any(
+                    _in(target, name)
+                    for name in ("podcast_mcp.gui.bind", "podcast_mcp.gui.static_assets")
+                )
+            )
+        ):
+            violations.add(
+                ".".join(target.split(".")[:4]) if _in(target, "podcast_mcp.gui.routes") else target
+            )
         if owner and target.startswith("podcast_mcp.services."):
             allowed = {owner}
             if owner == _SUPPORT:
                 allowed.add(_PIPELINE)
-            else:
-                allowed.add("podcast_mcp.services.workspace")
+            elif owner == _PIPELINE:
+                allowed.add(_APP)
+            elif owner == _APP:
+                allowed.add(_SESSION_SYNC)
             if not any(_in(target, name) for name in allowed):
                 violations.add(".".join(target.split(".")[:3]))
+        if owner == _APP and target.startswith(_SESSION_SYNC + "."):
+            member = target.removeprefix(_SESSION_SYNC + ".").split(".")[0]
+            if member not in {"ensure_non_loopback_session_auth", "is_bind_loopback"}:
+                violations.add(_SESSION_SYNC)
         for context, modules in internals.items():
             if owner == context or not target.startswith(context + "."):
                 continue
@@ -86,7 +116,7 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             set(),
         ),
         (
-            "from podcast_mcp.services.workspace import ProjectWorkspace",
+            "from podcast_mcp.services.app import ProjectWorkspace",
             _PIPELINE + ".service",
             set(),
         ),
@@ -96,6 +126,44 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             set(),
         ),
         ("from .doctor import DoctorReport", _SUPPORT + ".config_check", set()),
+        (
+            "from podcast_mcp.services.app.workspace import ProjectWorkspace",
+            _PIPELINE + ".service",
+            {_APP + ".workspace"},
+        ),
+        (
+            "from podcast_mcp.services.app.fanout_hub import FanoutHub",
+            "podcast_mcp.gui.job_events",
+            {_APP + ".fanout_hub"},
+        ),
+        ("from .workspace import ProjectWorkspace", _APP + ".gui_launch", set()),
+        (
+            "from podcast_mcp.gui.routes.deps import require_host",
+            _APP + ".gui_launch",
+            {"podcast_mcp.gui.routes.deps"},
+        ),
+        (
+            "from podcast_mcp.gui.routes.deps import require_host",
+            "podcast_mcp.services.play",
+            {"podcast_mcp.gui.routes.deps"},
+        ),
+        ("from podcast_mcp.gui.bind import gui_server_deps_available", _APP + ".gui_launch", set()),
+        (
+            "from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth",
+            _APP + ".gui_launch",
+            set(),
+        ),
+        (
+            "from podcast_mcp.services.session_sync.authz import ensure_non_loopback_session_auth",
+            _APP + ".gui_launch",
+            {"podcast_mcp.services.session_sync"},
+        ),
+        ("import podcast_mcp.cli.main", _APP + ".__init__", {"podcast_mcp.cli.main"}),
+        (
+            "from podcast_mcp.services import ProjectWorkspace",
+            "podcast_mcp.cli.main",
+            {"podcast_mcp.services"},
+        ),
     ],
 )
 def test_boundary_guard_checks_nested_relative_and_facade_imports(
@@ -103,7 +171,13 @@ def test_boundary_guard_checks_nested_relative_and_facade_imports(
 ) -> None:
     assert (
         _violations(
-            source, module, {_SUPPORT: {"doctor"}, _PIPELINE: {"config", "bootstrap", "service"}}
+            source,
+            module,
+            {
+                _SUPPORT: {"doctor"},
+                _PIPELINE: {"config", "bootstrap", "service"},
+                _APP: {"workspace", "fanout_hub", "gui_launch"},
+            },
         )
         == expected
     )
@@ -111,7 +185,11 @@ def test_boundary_guard_checks_nested_relative_and_facade_imports(
 
 def test_service_contexts_use_public_facades_and_have_no_adapter_dependencies() -> None:
     services = _ROOT / "src/podcast_mcp/services"
-    contexts = {_SUPPORT: services / "support", _PIPELINE: services / "pipeline"}
+    contexts = {
+        _SUPPORT: services / "support",
+        _PIPELINE: services / "pipeline",
+        _APP: services / "app",
+    }
     internals = {
         context: {path.stem for path in directory.glob("*.py") if path.stem != "__init__"}
         for context, directory in contexts.items()
@@ -135,5 +213,8 @@ def test_migrated_modules_have_no_legacy_paths() -> None:
         "pipeline",
         "pipeline_config",
         "bootstrap",
+        "workspace",
+        "fanout_hub",
+        "gui_launch",
     ):
         assert not (services / f"{name}.py").exists()

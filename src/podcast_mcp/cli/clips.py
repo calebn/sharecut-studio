@@ -6,7 +6,8 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.services import ClipService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.clip import ClipService
 
 clips_app = typer.Typer(help="Social clip candidates and export.")
 

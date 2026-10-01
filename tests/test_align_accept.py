@@ -116,7 +116,8 @@ def test_status_report_uses_workspace_relative_paths(tmp_path: Path) -> None:
 
 def test_align_accept_service_reloads_before_stamp(tmp_path: Path) -> None:
     from podcast_mcp.models import save_project
-    from podcast_mcp.services import AlignAcceptService, ProjectWorkspace
+    from podcast_mcp.services.align_accept import AlignAcceptService
+    from podcast_mcp.services.app import ProjectWorkspace
 
     p = _proj(tmp_path)
     p.ensure_dirs()
@@ -160,7 +161,8 @@ def test_waive_requires_reason_and_corrupt_artifact(tmp_path: Path) -> None:
 
 def test_align_accept_service_status_brief_waive(tmp_path: Path) -> None:
     from podcast_mcp.models import save_project
-    from podcast_mcp.services import AlignAcceptService, ProjectWorkspace
+    from podcast_mcp.services.align_accept import AlignAcceptService
+    from podcast_mcp.services.app import ProjectWorkspace
 
     p = _proj(tmp_path)
     p.ensure_dirs()
@@ -237,7 +239,7 @@ def test_cli_pipeline_run_realign_passes_config(tmp_path: Path, monkeypatch) -> 
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
-    from podcast_mcp.services import PipelineRunResult, PipelineService
+    from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
 
     seen: list[dict | None] = []
 

@@ -26,8 +26,9 @@ from podcast_mcp.edits.share_registry import (
     share_last_used_at,
 )
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService, ShareService
-from podcast_mcp.services.share import lookup_share
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
+from podcast_mcp.services.share import ShareService, lookup_share
 from sqlite_helpers import FailingConnection
 
 

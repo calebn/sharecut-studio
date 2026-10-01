@@ -12,7 +12,7 @@ from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record import service as record_service
 from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordAuthzError, RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService

@@ -17,7 +17,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import (

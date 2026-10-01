@@ -12,6 +12,7 @@ from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.ingest.consolidate import ConsolidateResult, SpeakerAlignment
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.ingest import (
     IngestService,
     SuggestCandidate,
@@ -26,7 +27,6 @@ from podcast_mcp.services.ingest import (
     verify_result_to_dict,
     write_alignment_report,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _ingest_manifest(tmp_path: Path, sample_wav: Path) -> tuple[Path, IngestManifest]:

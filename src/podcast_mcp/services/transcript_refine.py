@@ -11,7 +11,7 @@ from podcast_mcp.edits.transcript_refine_status import (
     mark_refine_waived,
     refine_status_report,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 class TranscriptRefineService:

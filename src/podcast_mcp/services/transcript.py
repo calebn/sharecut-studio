@@ -7,7 +7,7 @@ from podcast_mcp.edits.transcript_reuse import plan_transcription, run_transcrib
 from podcast_mcp.engines import TranscriptionEngine
 from podcast_mcp.engines.transcribe import dialogue_transcribe_jobs, track_transcribe_job
 from podcast_mcp.export.transcript import CaptionLimits, write_combined_transcript_markdown
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.whisper_models import resolve_whisper_model
 
 

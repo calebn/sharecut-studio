@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from filelock import Timeout as FileLockTimeout
 
+import podcast_mcp.services.waveform as svc
 from podcast_mcp.engines import waveform_media as wm
 from podcast_mcp.engines import waveform_pyramid as wm_pyramid
 from podcast_mcp.engines.waveform_pyramid import (
@@ -24,7 +25,6 @@ from podcast_mcp.engines.waveform_pyramid import (
     write_synthetic_pyramid,
 )
 from podcast_mcp.models import MediaAsset, Track, load_project, save_project
-from podcast_mcp.services import waveform as svc
 from podcast_mcp.services.waveform import (
     MediaEntry,
     StaleWaveformKeyError,
@@ -694,8 +694,8 @@ def test_gc_pyramids_drops_legacy_json_of_a_hashed_track_id(tmp_path):
 
 
 def test_episode_service_hooks_schedule_waveforms(minimal_project, sample_wav, tmp_path):
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.episode import EpisodeService
-    from podcast_mcp.services.workspace import ProjectWorkspace
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host2", str(sample_wav), speaker="Host")

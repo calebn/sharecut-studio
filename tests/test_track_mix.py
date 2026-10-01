@@ -61,13 +61,16 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
-from podcast_mcp.services import EditService, EpisodeService, PipelineService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
+from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.episode import EpisodeService
 from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.services.play import PlayRequest, PlayService, _compose_gain_db
 from podcast_mcp.util import atomic_render
 from podcast_mcp.util.project_state import render_lock, render_lock_path

@@ -12,7 +12,7 @@ from podcast_mcp.project_io import (
     rewrite_workspace_dir,
 )
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 
 
 def test_resolve_project_path_dir(tmp_path):
@@ -96,7 +96,7 @@ def test_workspace_mutation_records_its_own_revision_and_sees_later_writers(mini
 
 
 def test_a_failed_save_doesnt_leave_its_change_for_the_next_reload(minimal_project, monkeypatch):
-    from podcast_mcp.services import workspace as workspace_module
+    import podcast_mcp.services.app.workspace as workspace_module
 
     ws = ProjectWorkspace.open(minimal_project)
     saved_name = ws.project.name

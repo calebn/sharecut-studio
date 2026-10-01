@@ -10,8 +10,9 @@ from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
-from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.boundary import TrimBoundaryTarget
+from podcast_mcp.services.edit import EditService
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 

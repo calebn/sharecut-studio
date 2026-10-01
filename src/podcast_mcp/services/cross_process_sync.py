@@ -21,6 +21,7 @@ from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.service import (
     DocumentSyncService,
     document_db_path,
@@ -33,7 +34,6 @@ from podcast_mcp.services.session_sync.service import (
     session_server_seq_at,
     sync_db_path,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 log = logging.getLogger(__name__)
 

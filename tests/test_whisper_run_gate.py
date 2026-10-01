@@ -66,8 +66,8 @@ def test_ensure_whisper_cached_for_run_ok_when_cached(
 def test_pipeline_service_run_fails_fast_without_weights(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.pipeline import PipelineService
-    from podcast_mcp.services.workspace import ProjectWorkspace
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(
@@ -85,8 +85,8 @@ def test_pipeline_service_run_fails_fast_without_weights(
 def test_pipeline_service_run_skips_gate_for_ingest_only(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.pipeline import PipelineService
-    from podcast_mcp.services.workspace import ProjectWorkspace
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",

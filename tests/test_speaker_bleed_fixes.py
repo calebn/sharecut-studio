@@ -36,7 +36,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services import ProjectWorkspace, SpeakerService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.speaker import SpeakerService
 
 
 def _project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:

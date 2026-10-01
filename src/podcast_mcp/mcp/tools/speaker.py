@@ -3,7 +3,8 @@ from __future__ import annotations
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.services import ProjectWorkspace, SpeakerService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.speaker import SpeakerService
 from podcast_mcp.util.progress import resolve_progress
 
 

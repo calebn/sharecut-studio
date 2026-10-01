@@ -34,7 +34,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.project_merge import ProjectMergeConflict
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import (
@@ -1889,7 +1889,7 @@ def test_idempotent_retry_applied_carries_file_before(minimal_project):
 
 
 def test_document_snapshot_omits_file_when_revision_unknown(minimal_project, monkeypatch):
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document_sync import DocumentSyncService
 
     monkeypatch.setattr(ProjectWorkspace, "loaded_file_revision", property(lambda self: None))

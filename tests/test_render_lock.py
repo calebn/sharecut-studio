@@ -12,7 +12,8 @@ from filelock import Timeout
 from podcast_mcp.engines.play_audit import publish_stem, stem_path
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.pipeline.runner import PipelineRunner
-from podcast_mcp.services import PipelineService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
     RenderBusyError,

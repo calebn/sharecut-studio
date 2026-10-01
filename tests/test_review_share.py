@@ -13,7 +13,8 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import (
     ShareService,
     share_add_reply,
@@ -1504,7 +1505,7 @@ def test_proxy_manifest_lazy_ensure_failure(
 
 
 def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_wav, tmp_workspace):
-    from podcast_mcp.services import share as share_mod
+    import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",

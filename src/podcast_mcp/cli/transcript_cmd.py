@@ -10,16 +10,16 @@ import yaml
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
-from podcast_mcp.services import (
-    EditService,
-    ProjectWorkspace,
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.transcript import TranscriptService
+from podcast_mcp.services.transcript_precorrect import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,
-    TranscriptRefineService,
-    TranscriptService,
-    TranscriptTextChangedError,
 )
+from podcast_mcp.services.transcript_refine import TranscriptRefineService
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 transcript_app = typer.Typer(help="Transcript correction and export.")

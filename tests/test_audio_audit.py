@@ -559,7 +559,8 @@ def test_apply_fade_recommendations(tmp_path: Path):
 
 
 def test_edit_service_analyze_cleanup(minimal_project, tmp_workspace):
-    from podcast_mcp.services import EditService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.edit import EditService
 
     ws = ProjectWorkspace.open(minimal_project)
     report = EditService(ws).analyze_cleanup()
@@ -568,7 +569,8 @@ def test_edit_service_analyze_cleanup(minimal_project, tmp_workspace):
 
 def test_edit_service_suppress_low_audibility(minimal_project, tmp_workspace):
     from podcast_mcp.models import Transcript, TranscriptWord
-    from podcast_mcp.services import EditService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.edit import EditService
 
     proj = load_project(minimal_project)
     proj.transcripts = [

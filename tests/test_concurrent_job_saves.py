@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import podcast_mcp.services.app.workspace as workspace_mod
+import podcast_mcp.services.history as history_service_mod
 from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
@@ -29,16 +31,11 @@ from podcast_mcp.project_store import (
     history_snapshot_ids,
     history_snapshot_path,
 )
-from podcast_mcp.services import (
-    EpisodeService,
-    HistoryRerenderError,
-    HistoryService,
-    PipelineService,
-    ProjectWorkspace,
-)
-from podcast_mcp.services import history as history_service_mod
-from podcast_mcp.services import workspace as workspace_mod
-from podcast_mcp.services.workspace import MERGED_HISTORY_LABEL
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.app.workspace import MERGED_HISTORY_LABEL
+from podcast_mcp.services.episode import EpisodeService
+from podcast_mcp.services.history import HistoryRerenderError, HistoryService
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
@@ -761,7 +758,7 @@ def test_history_move_saves_its_stale_marks_before_another_commit(minimal_projec
 
 
 def test_history_rerender_errors_are_the_saved_move_errors():
-    from podcast_mcp.services import HISTORY_RERENDER_ERRORS
+    from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS
 
     assert set(HISTORY_RERENDER_ERRORS) == {ProjectMergeConflict, HistoryRerenderError}
 
@@ -769,7 +766,7 @@ def test_history_rerender_errors_are_the_saved_move_errors():
 def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_project, monkeypatch):
     from podcast_mcp.engines import TranscriptionEngine
     from podcast_mcp.models import Transcript, TranscriptWord
-    from podcast_mcp.services import EditService
+    from podcast_mcp.services.edit import EditService
     from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     ws = _two_tracks(minimal_project)

@@ -48,7 +48,9 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.pipeline.runner import STEP_NAMES
-from podcast_mcp.services import EditService, PipelineService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.pipeline import PipelineService
 
 
 def _room_path(source: str, bleed: str) -> EchoPairProfile:

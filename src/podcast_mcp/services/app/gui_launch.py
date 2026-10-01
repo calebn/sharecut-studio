@@ -133,7 +133,7 @@ def ensure_viewer(
             error=f"Project not found: {path}",
         )
 
-    from podcast_mcp.gui.routes.deps import ensure_non_loopback_session_auth
+    from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth
 
     session_token = ensure_non_loopback_session_auth(host)
     if session_token is not None:

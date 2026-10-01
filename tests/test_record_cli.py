@@ -17,7 +17,7 @@ from podcast_mcp.mcp.tools.record import (
     record_stop_tool,
 )
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (

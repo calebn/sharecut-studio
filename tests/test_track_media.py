@@ -23,7 +23,7 @@ from podcast_mcp.models import (
     TrackRole,
     load_project,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 
 
 def test_media_asset_from_path(sample_wav):

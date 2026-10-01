@@ -12,9 +12,10 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
+import podcast_mcp.services.cross_process_sync as cross_process_sync
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project
-from podcast_mcp.services import cross_process_sync
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.cross_process_sync import (
     CrossProcessBridge,
     CrossProcessWatcher,
@@ -29,7 +30,6 @@ from podcast_mcp.services.document_sync.service import (
 from podcast_mcp.services.session_sync.commands import SyncCommand
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.service import SessionSyncService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from process_helpers import reap
 from sync_helpers import _foreign_document_write, _foreign_session_write, drain, receive_host_plane
 
@@ -294,8 +294,8 @@ def test_watcher_thread_pushes_a_foreign_write(minimal_project, monkeypatch):
 
 
 def _child_seek(path: str) -> None:
+    from podcast_mcp.services.app.workspace import ProjectWorkspace as _PW
     from podcast_mcp.services.session_control import SessionControlService
-    from podcast_mcp.services.workspace import ProjectWorkspace as _PW
 
     SessionControlService(_PW.open(path)).seek(4.0)
 

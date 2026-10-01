@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.services.share_page import (
     build_share_head_tags,

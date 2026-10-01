@@ -23,6 +23,8 @@ import pytest
 COLD_IMPORT_TARGETS = [
     "podcast_mcp.services.support",
     "podcast_mcp.services.pipeline",
+    "podcast_mcp.services.app",
+    "podcast_mcp.services.session_sync",
     "podcast_mcp.cli.setup_cmd",
     "podcast_mcp.cli.config_cmd",
     "podcast_mcp.gui.routes.diagnostics",
@@ -103,6 +105,42 @@ result = CliRunner().invoke(app, ['pipeline', 'config', '--json'])
 assert result.exit_code == 0, result.exception
 assert 'podcast_mcp.services.support.report_submission' not in sys.modules
 assert 'podcast_mcp.services.support.diagnostics' not in sys.modules
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_app_and_session_sync_facades_resolve_cached_objects() -> None:
+    import podcast_mcp.services.app as app_services
+    import podcast_mcp.services.session_sync as session_sync
+    from podcast_mcp.services.app.fanout_hub import FanoutHub
+    from podcast_mcp.services.app.gui_launch import GuiLaunchResult
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
+    from podcast_mcp.services.session_sync.authz import ensure_non_loopback_session_auth
+
+    assert app_services.ProjectWorkspace is ProjectWorkspace
+    assert app_services.ProjectWorkspace is app_services.ProjectWorkspace
+    assert app_services.FanoutHub is FanoutHub
+    assert app_services.GuiLaunchResult is GuiLaunchResult
+    assert session_sync.ensure_non_loopback_session_auth is ensure_non_loopback_session_auth
+    missing = "missing"
+    with pytest.raises(AttributeError, match="has no attribute 'missing'"):
+        getattr(app_services, missing)
+    with pytest.raises(AttributeError, match="has no attribute 'missing'"):
+        getattr(session_sync, missing)
+
+
+def test_cli_help_does_not_require_gui_http_client() -> None:
+    script = """
+import sys
+sys.modules['httpx'] = None
+from typer.testing import CliRunner
+from podcast_mcp.cli.main import app
+result = CliRunner().invoke(app, ['--help'])
+assert result.exit_code == 0, result.exception
+assert 'Usage:' in result.stdout
 """
     result = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, timeout=30

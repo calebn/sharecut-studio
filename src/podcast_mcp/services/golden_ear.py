@@ -28,9 +28,9 @@ from podcast_mcp.project_io import (
     require_episode_project_file,
     rewrite_workspace_dir,
 )
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.play import PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import progress_task

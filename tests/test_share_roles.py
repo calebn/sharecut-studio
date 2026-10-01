@@ -22,8 +22,9 @@ from podcast_mcp.edits.share_capabilities import (
     resolve_share_capabilities,
 )
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
+from podcast_mcp.services.review import ReviewService
 
 
 @pytest.mark.parametrize(

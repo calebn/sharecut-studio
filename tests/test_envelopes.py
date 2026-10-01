@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from podcast_mcp.edits.envelopes import envelope_matches_baseline, volume_envelope_baseline
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint
-from podcast_mcp.services import PipelineService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.pipeline import PipelineService
 
 
 def _with_pan_before_volume(minimal_project) -> ProjectWorkspace:

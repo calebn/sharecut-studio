@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

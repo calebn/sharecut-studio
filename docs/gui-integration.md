@@ -98,6 +98,8 @@ Sharecut Studio (`gui/web/`) uses plain CSS + React (no Tailwind/shadcn). Semant
 
 ### Launch
 
+`services.app` owns the shared CLI/MCP viewer launch path. Host binding auth lives in `services.session_sync`; GUI routes keep the FastAPI request wrappers.
+
 ```bash
 uv sync --extra gui
 cd gui/web && npm install && npm run build && cd ../..

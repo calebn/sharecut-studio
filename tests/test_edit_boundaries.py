@@ -14,7 +14,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 
 
 def test_map_edit_boundaries_includes_cutaway_words(minimal_project):

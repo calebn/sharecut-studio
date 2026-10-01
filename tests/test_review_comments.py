@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.review_comments import ReviewCommentsReplica, review_comments_locked
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def test_revision_chain_preserves_aba_and_ignores_unchanged_rows():
@@ -41,7 +41,7 @@ def test_locked_reader_adopts_same_inode_restored_mtime(minimal_project):
 def review_token(minimal_project, sample_wav):
     from pathlib import Path
 
-    from podcast_mcp.services import ReviewService
+    from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
     ws = ProjectWorkspace.open(minimal_project)

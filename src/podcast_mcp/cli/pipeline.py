@@ -9,7 +9,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
@@ -171,7 +171,7 @@ def pipeline_analyze_cmd(
     as_json: bool = typer.Option(False, "--json", help="Emit the full Analyze result as JSON"),
 ) -> None:
     """Run heuristic Analyze against the effective config and print reasons + a patch preview."""
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.pipeline import merge_pipeline_config, suggest_pipeline_tuning
 
     overrides = _overrides(assignments)
@@ -264,7 +264,7 @@ def bounce_cmd(
         help="Comma-separated extensions, e.g. wav,mp3",
     ),
 ) -> None:
-    from podcast_mcp.services import BounceRequest, BounceService
+    from podcast_mcp.services.bounce import BounceRequest, BounceService
 
     ws = ProjectWorkspace.open(project)
     track_ids = [t.strip() for t in tracks.split(",") if t.strip()] if tracks else None

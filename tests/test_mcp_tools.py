@@ -823,7 +823,7 @@ async def test_history_undo_mcp_tool_call_returns_structured_busy_error(minimal_
     def _busy(self, **kwargs):
         raise ProjectBusyError("/artifacts/episode.project.json.lock")
 
-    with patch("podcast_mcp.services.HistoryService.undo", _busy):
+    with patch("podcast_mcp.services.history.HistoryService.undo", _busy):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
     assert result.is_error is True
@@ -842,7 +842,7 @@ async def test_render_preview_mcp_tool_call_returns_structured_busy_error(minima
     def _busy(self, **kwargs):
         raise RenderBusyError("/artifacts/render.lock")
 
-    with patch("podcast_mcp.services.PipelineService.render_preview", _busy):
+    with patch("podcast_mcp.services.pipeline.service.PipelineService.render_preview", _busy):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool(
                 "render_preview", {"project_path": str(minimal_project)}
@@ -860,7 +860,7 @@ async def test_plain_runtime_error_stays_generic(minimal_project):
     def _boom(self, **kwargs):
         raise RuntimeError("boom")
 
-    with patch("podcast_mcp.services.HistoryService.undo", _boom):
+    with patch("podcast_mcp.services.history.HistoryService.undo", _boom):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
     assert result.is_error is True
@@ -914,7 +914,8 @@ def test_transcript_vocabulary_parity_registered_schema_requires_revision():
 
 
 def test_transcript_vocabulary_parity_rejects_overflow_and_preserves_context(tmp_path):
-    from podcast_mcp.services import ProjectWorkspace, TranscriptPrecorrectService
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
     path = mcp_server.episode_create(str(tmp_path / "vocab-limits"), name="Vocabulary")
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(path))

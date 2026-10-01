@@ -356,7 +356,7 @@ class SessionSyncService:
 
     @classmethod
     def open(cls, project_path: str | Path) -> SessionSyncService:
-        from podcast_mcp.services.workspace import ProjectWorkspace
+        from podcast_mcp.services.app import ProjectWorkspace
 
         ws = ProjectWorkspace.open(project_path)
         return cls(ws.project)

@@ -37,7 +37,9 @@ from podcast_mcp.engines.play_audit import (
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services import PlayService, ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.play import PlayService
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.review_media import review_guest_audio_path
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -1868,7 +1870,7 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
 def test_publish_removes_staged_media_when_history_read_fails(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.services import review as review_service
+    import podcast_mcp.services.review as review_service
 
     _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
 
@@ -1912,7 +1914,7 @@ def test_publish_keeps_committed_media_when_lock_release_fails(
 ):
     from contextlib import contextmanager
 
-    from podcast_mcp.services import review as review_service
+    import podcast_mcp.services.review as review_service
 
     _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     monkeypatch.setattr(review_versions, "_new_id", lambda: "committed")

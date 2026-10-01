@@ -11,7 +11,7 @@ from podcast_mcp.edits.align_accept_status import (
     mark_align_done,
     mark_align_waived,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 class AlignAcceptService:

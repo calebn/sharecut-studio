@@ -31,7 +31,8 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import ProjectWorkspace, SpeakerService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.speaker import SpeakerService
 from podcast_mcp.transcript_context import SpeakerIdConfig, TranscriptContext
 
 

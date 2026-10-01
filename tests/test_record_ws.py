@@ -10,7 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import (
     CLIENT_VISIBLE_AUTHZ_CODES,
     RecordAuthzError,

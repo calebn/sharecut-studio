@@ -33,12 +33,12 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import ReviewService
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.boundary import RollBoundaryEdit, RollBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.play import PlayService
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _tone(path: Path, frequency: float, *, loud_prefix: bool = False) -> None:

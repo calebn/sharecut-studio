@@ -10,6 +10,7 @@ from typing import Annotated, Any, Literal
 from fastapi import HTTPException, Query, Request
 from starlette.responses import JSONResponse
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.landing import RecordLandingError, RecordLandingService
 from podcast_mcp.services.record.upload import (
     CLIPPING_MAX_REGIONS,
@@ -22,7 +23,6 @@ from podcast_mcp.services.record.upload import (
     RecordUploadService,
     parse_upload_kind,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.body_limits import (
     BodyTooLarge,
     payload_too_large_response,

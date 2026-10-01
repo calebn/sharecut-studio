@@ -14,7 +14,7 @@ from podcast_mcp.gui.routes.record_upload_http import (
     UploadKindParam,
     ingest_record_upload_request,
 )
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.landing import RecordLandingError

@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+import podcast_mcp.services.waveform as svc
 from podcast_mcp.engines.waveform_pyramid import (
     PcmSource,
     pyramid_path,
@@ -15,7 +16,6 @@ from podcast_mcp.engines.waveform_pyramid import (
     wait_pyramid_jobs,
 )
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.services import waveform as svc
 from podcast_mcp.util.rate_limit import ConcurrencyGate, RateLimitDecision
 from waveform_helpers import reset_waveform_caches, waveform_project
 

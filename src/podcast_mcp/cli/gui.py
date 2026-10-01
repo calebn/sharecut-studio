@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 import typer
 
-from podcast_mcp.services.gui_launch import ensure_viewer, packaged_cli_gui_refusal, viewer_url
+from podcast_mcp.services.app import ensure_viewer, packaged_cli_gui_refusal, viewer_url
 
 gui_app = typer.Typer(help="DAW-style episode viewer.")
 
@@ -68,8 +68,8 @@ def gui_cmd(
         )
         raise typer.Exit(1)
 
-    from podcast_mcp.gui.routes.deps import ensure_non_loopback_session_auth, is_bind_loopback
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth, is_bind_loopback
 
     if project is None and not is_bind_loopback(host):
         typer.echo(

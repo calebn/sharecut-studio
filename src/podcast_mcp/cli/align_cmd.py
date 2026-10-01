@@ -8,7 +8,8 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.services import AlignAcceptService, ProjectWorkspace
+from podcast_mcp.services.align_accept import AlignAcceptService
+from podcast_mcp.services.app import ProjectWorkspace
 
 align_app = typer.Typer(help="Conversation alignment accept gate.")
 

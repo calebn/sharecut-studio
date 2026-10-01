@@ -31,7 +31,7 @@ from podcast_mcp.project_store import (
     match_history_to_project,
     read_history_index,
 )
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util import atomic_json
 from podcast_mcp.util.atomic_json import write_json_atomic
 

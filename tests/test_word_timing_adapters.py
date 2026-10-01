@@ -16,11 +16,12 @@ from podcast_mcp.models import (
     TranscriptWord,
     load_project,
 )
-from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.payloads import validate_payload
+from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.play import PlayService
 
 

@@ -31,6 +31,7 @@ from podcast_mcp.gui.routes.share_common import (
     rate_limit_share,
     share_features_manifest,
 )
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import CLIENT_VISIBLE_AUTHZ_CODES, RecordAuthzError
 from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
 from podcast_mcp.services.record.service import (
@@ -52,7 +53,6 @@ from podcast_mcp.services.record_share import record_bootstrap
 from podcast_mcp.services.remote_mcp.limits import get_host_limiters, host_rate_limit_enabled
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.share import lookup_share, open_share_workspace
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
