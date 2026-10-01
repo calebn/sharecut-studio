@@ -20,10 +20,9 @@ from podcast_mcp.edits.review_versions import (
     sweep_stale_quarantines,
     version_audio_path,
 )
+from podcast_mcp.history.rollback import RollbackOutcome
 from podcast_mcp.models import load_project
-from podcast_mcp.project_store import history_index_path
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 
 log = logging.getLogger(__name__)
@@ -55,10 +54,10 @@ class ReviewService:
         set_active: bool = True,
     ) -> dict[str, Any]:
         project = self.ws.project
-        index_path = history_index_path(project)
         created: tuple[Path, DirectoryIdentity] | None = None
         media_identity: MediaIdentity | None = None
         public: Path | None = None
+        failure_outcome_received = False
 
         def remember_media(path: Path, identity: DirectoryIdentity) -> None:
             nonlocal created
@@ -82,7 +81,23 @@ class ReviewService:
                 on_media_ready=remember_ready,
             )
             recorded = created
-            mutation_started = False
+
+            def handle_failure(outcome: RollbackOutcome) -> None:
+                nonlocal failure_outcome_received
+                failure_outcome_received = True
+                if (
+                    outcome is RollbackOutcome.RESTORED
+                    and recorded is not None
+                    and public is not None
+                ):
+                    self._clean_uncommitted_media(ver.id, public, recorded[1])
+                elif outcome in {RollbackOutcome.UNKNOWN, RollbackOutcome.KEPT}:
+                    log.warning(
+                        "Keeping review version media after failed publication (%s): %s",
+                        outcome,
+                        public,
+                    )
+
             try:
                 with project_commit_lock(project):
                     assert recorded is not None
@@ -95,12 +110,6 @@ class ReviewService:
                         discard_created_version(recorded[0], recorded[1])
                         discard_created_version(recorded[0].with_name(ver.id), recorded[1])
                         raise
-                    # run_mutation's rollback restores this same payload: this read raises on
-                    # an unreadable index (test_publish_removes_staged_media_when_history_read_fails),
-                    # so publish never reaches history_index_to_restore's fallback payload. If
-                    # publish ever tolerates a corrupt index, capture this with
-                    # history_index_to_restore instead, or the media cleanup below never runs.
-                    history_before = load_json_object(index_path)
 
                     # attach_version only touches project.review, so the audio fingerprint
                     # is unchanged and run_mutation never auto-reconciles here; the commit
@@ -109,26 +118,20 @@ class ReviewService:
                         attach_version(p, ver, set_active=set_active)
                         return ver.model_dump()
 
-                    mutation_started = True
-                    try:
-                        return self.ws.mutate(
-                            "before publish review version",
-                            "after publish review version",
-                            mutate,
-                        )
-                    except BaseException:
-                        if recorded is not None and public is not None:
-                            self._clean_uncommitted_media(
-                                ver.id, public, recorded[1], index_path, history_before
-                            )
-                        raise
+                    return self.ws.mutate(
+                        "before publish review version",
+                        "after publish review version",
+                        mutate,
+                        on_failure=handle_failure,
+                    )
             except BaseException:
-                # Lock timeout, lock-file I/O, or an unreadable history index: nothing
-                # references the staged version yet, so remove its media here.
-                if not mutation_started and recorded is not None:
-                    discard_created_version(recorded[0], recorded[1])
-                    if public is not None:
-                        discard_created_version(public, recorded[1], project=project)
+                if not failure_outcome_received and recorded is not None:
+                    if public is None:
+                        discard_created_version(recorded[0], recorded[1])
+                    else:
+                        log.warning(
+                            "Keeping review version media without rollback outcome: %s", public
+                        )
                 raise
 
     def _clean_uncommitted_media(
@@ -136,25 +139,11 @@ class ReviewService:
         version_id: str,
         created_dir: Path,
         identity: DirectoryIdentity,
-        index_path: Path,
-        history_before: dict[str, Any] | None,
     ) -> None:
-        """Delete this publication's media if its version did not persist.
-
-        ``run_mutation`` already rolled back the history entries; the media is kept when
-        the index is not back to ``history_before`` (another writer recorded on top).
-        ``history_before`` must be the payload ``run_mutation``'s checkpoint restores (see
-        ``publish``).
-        """
         try:
             persisted = load_project(self.ws.path)
             self.ws.project = persisted
             if any(version.id == version_id for version in persisted.review.versions):
-                return
-            if load_json_object(index_path) != history_before:
-                log.warning(
-                    "Review history changed during failed publication; keeping %s", created_dir
-                )
                 return
             clean_created_version(created_dir, identity)
         except BaseException:

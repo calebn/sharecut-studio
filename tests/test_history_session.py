@@ -442,6 +442,63 @@ def test_rolled_back_on_failure_calls_on_not_landed_unless_landed(
     assert calls == ([] if outcome is RollbackOutcome.LANDED else [1])
 
 
+@pytest.mark.parametrize("outcome", list(RollbackOutcome))
+def test_failure_hook_receives_outcome_after_memory_recovery(minimal_project, monkeypatch, outcome):
+    _path, proj, _index_path = _setup(minimal_project)
+    events = []
+    monkeypatch.setattr(rollback_mod, "roll_back_history", lambda _p, _c: outcome)
+    checkpoint = cast(rollback_mod.HistoryCheckpoint, object())
+    with pytest.raises(RuntimeError, match="boom"):
+        with rollback_mod.rolled_back_on_failure(
+            proj,
+            checkpoint,
+            on_not_landed=lambda: events.append("memory restored"),
+            on_failure=lambda result: events.append(("hook", result)),
+        ):
+            raise RuntimeError("boom")
+    expected = [] if outcome is RollbackOutcome.LANDED else ["memory restored"]
+    assert events == [*expected, ("hook", outcome)]
+
+
+def test_failure_hook_error_does_not_replace_mutation_error(minimal_project, monkeypatch):
+    _path, proj, _index_path = _setup(minimal_project)
+    monkeypatch.setattr(rollback_mod, "roll_back_history", lambda _p, _c: RollbackOutcome.RESTORED)
+    checkpoint = cast(rollback_mod.HistoryCheckpoint, object())
+    original = RuntimeError("mutation failed")
+
+    def fail_hook(_outcome):
+        raise ValueError("hook failed")
+
+    with pytest.raises(RuntimeError) as raised:
+        with rollback_mod.rolled_back_on_failure(proj, checkpoint, on_failure=fail_hook):
+            raise original
+    assert raised.value is original
+
+
+def test_failed_first_history_record_reports_restored_outcome(minimal_project, monkeypatch):
+    path, proj, index_path = _setup(minimal_project)
+    index_before = json.loads(index_path.read_text())
+    before_ids = history_snapshot_ids(index_path)
+    outcomes = []
+
+    def fail_index(_self, _project):
+        raise OSError("index write failed")
+
+    monkeypatch.setattr(HistoryManager, "_save_index", fail_index)
+    with pytest.raises(OSError, match="index write failed"):
+        run_mutation(
+            path,
+            proj,
+            "before",
+            "after",
+            lambda _project: None,
+            on_failure=outcomes.append,
+        )
+    assert outcomes == [RollbackOutcome.RESTORED]
+    assert json.loads(index_path.read_text()) == index_before
+    assert history_snapshot_ids(index_path) == before_ids
+
+
 def test_roll_back_history_returns_restored_and_landed(minimal_project):
     path, proj, _index_path = _setup(minimal_project)
     store = ProjectStore(path)
@@ -695,3 +752,17 @@ def test_a_failed_memory_restore_is_logged_and_the_original_error_propagates(
 
     assert "Could not restore the in-memory project" in caplog.text
     assert proj.render == render_before
+
+
+def test_owned_rollback_preserves_a_foreign_orphan_snapshot(minimal_project, monkeypatch):
+    path, project, index_path = _setup(minimal_project)
+    orphan = index_path.parent / "snapshots" / "foreign-orphan.json"
+
+    def fail_mutation(_project):
+        orphan.write_text('{"foreign": true}', encoding="utf-8")
+        raise RuntimeError("mutation failed")
+
+    with pytest.raises(RuntimeError, match="mutation failed"):
+        run_mutation(path, project, "before", "after", fail_mutation)
+
+    assert orphan.read_text(encoding="utf-8") == '{"foreign": true}'

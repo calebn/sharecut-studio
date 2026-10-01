@@ -206,13 +206,18 @@ def read_history_snapshot(project: EpisodeProject, entry: HistoryEntry) -> Proje
 
 
 def snapshots_equal(a: ProjectStateSnapshot, b: ProjectStateSnapshot) -> bool:
-    """Whether two snapshots hold the same editable state, compared as saved JSON.
+    """Whether two snapshots hold the same undoable state, compared as saved JSON.
 
     One side is usually parsed back from a snapshot file; comparing the JSON forms keeps a
     field whose Python type drifts on a JSON round trip (datetime, tuple, Decimal) from
-    reading as a difference.
+    reading as a difference. ``render_last_completed_step`` is kept in each snapshot so
+    undo can restore it, but changing pipeline progress alone is not an undoable edit.
     """
-    return a.model_dump(mode="json", by_alias=True) == b.model_dump(mode="json", by_alias=True)
+    a_state = a.model_dump(mode="json", by_alias=True)
+    b_state = b.model_dump(mode="json", by_alias=True)
+    a_state.pop("render_last_completed_step", None)
+    b_state.pop("render_last_completed_step", None)
+    return a_state == b_state
 
 
 def match_history_to_project(project: EpisodeProject, history: ProjectHistory) -> HistoryMatch:

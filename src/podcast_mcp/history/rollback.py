@@ -18,7 +18,10 @@ from podcast_mcp.project_store import (
     history_index_adoptable,
     history_index_path,
     history_index_to_restore,
+    history_snapshot_ids,
     read_history_index,
+    restore_history_index,
+    rollback_history,
     rollback_own_history,
 )
 from podcast_mcp.util.project_state import (
@@ -40,7 +43,14 @@ class RollbackOutcome(StrEnum):
     LANDED = "landed"  # the commit replaced the project file: its history is kept
     UNKNOWN = "unknown"  # landing unverified: index and snapshots stay on disk
     RESTORED = "restored"  # index, snapshots and project.history are back at the checkpoint
-    KEPT = "kept"  # another writer recorded on top, or the rollback failed: history adopts disk
+    KEPT = "kept"
+
+
+class HistoryRollbackPolicy(StrEnum):
+    """Whether rollback must preserve a concurrent writer or owns the locked call's writes."""
+
+    OWNED_WRITES = "owned_writes"
+    LOCKED_CALL = "locked_call"
 
 
 @dataclass
@@ -50,6 +60,8 @@ class HistoryCheckpoint:
     index_path: Path
     index_before: dict[str, Any] | None
     history_before: ProjectHistory
+    policy: HistoryRollbackPolicy = HistoryRollbackPolicy.OWNED_WRITES
+    snapshots_before: set[str] = field(default_factory=set)
     own_indexes: list[dict[str, Any] | None] = field(default_factory=list)
     commit_started: bool = False
     revision_before_commit: FileRevision | None = None
@@ -64,15 +76,46 @@ class HistoryCheckpoint:
         self.commit_started = True
 
 
-def take_history_checkpoint(store: ProjectStore, project: EpisodeProject) -> HistoryCheckpoint:
-    """``project``'s history before recording; call under ``project_commit_lock``."""
-    store.adopt_history_index(project)  # history_before must include adopted entries
+def take_history_checkpoint(
+    store: ProjectStore,
+    project: EpisodeProject,
+    *,
+    policy: HistoryRollbackPolicy = HistoryRollbackPolicy.OWNED_WRITES,
+    index_fallback: ProjectHistory | None = None,
+) -> HistoryCheckpoint:
+    """Capture history and disk rollback baselines; call under ``project_commit_lock``.
+
+    ``OWNED_WRITES`` adopts the index and uses payload ownership checks because another
+    writer may commit between history phases. ``LOCKED_CALL`` preserves the caller's
+    in-memory history and captures all snapshot files for unconditional rollback while an
+    outer commit lock excludes other writers.
+    """
+    unreadable_index = False
+    if policy is HistoryRollbackPolicy.OWNED_WRITES:
+        try:
+            store.adopt_history_index(project)
+        except ValueError:
+            unreadable_index = True
+            log.warning(
+                "Unreadable %s; using the project's history as rollback baseline",
+                history_index_path(project),
+            )
     history_before = project.history.model_copy(deep=True)
     index_path = history_index_path(project)
+    if unreadable_index:
+        restore_history_index(index_path, history_before.model_dump(mode="json"))
     return HistoryCheckpoint(
         index_path=index_path,
-        index_before=history_index_to_restore(index_path, history_before),
+        index_before=history_index_to_restore(
+            index_path, index_fallback if index_fallback is not None else history_before
+        ),
         history_before=history_before,
+        policy=policy,
+        snapshots_before=(
+            history_snapshot_ids(index_path)
+            if policy is HistoryRollbackPolicy.LOCKED_CALL
+            else set()
+        ),
     )
 
 
@@ -81,12 +124,12 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
 
     One ``project_commit_lock`` hold covers the "did the commit land" check and the
     rollback. Kept when the commit landed; only ``project.history`` is restored when the
-    project file cannot be stat'ed. When another writer recorded on top, or the rollback
-    itself fails, the index on disk is kept and ``project.history`` adopts it, so the next
-    commit does not overwrite it. Without the lock a changed file revision may be another
-    writer's commit, so that path reports ``UNKNOWN``, never ``LANDED``. The caller re-raises
-    the original error; failures here are only logged. Returns what it found; the caller
-    decides what other in-memory state to keep.
+    project file cannot be stat'ed. For ``OWNED_WRITES``, another writer's entry is adopted
+    so the next commit does not overwrite it. For ``LOCKED_CALL``, rollback preserves the
+    caller's in-memory baseline because its index may contain a partial merged write.
+    Without the lock a changed file revision may be another writer's commit, so that path
+    reports ``UNKNOWN``, never ``LANDED``. The caller re-raises the original error; failures
+    here are only logged.
     """
     try:
         with project_commit_lock(project):
@@ -95,7 +138,10 @@ def roll_back_history(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
         log.warning(
             "Could not roll back %s after a failed mutation", checkpoint.index_path, exc_info=True
         )
-        project.history = _history_on_disk(project, checkpoint)
+        if checkpoint.policy is HistoryRollbackPolicy.LOCKED_CALL:
+            project.history = checkpoint.history_before
+        else:
+            project.history = _history_on_disk(project, checkpoint)
         # Without the lock a changed revision may be another writer's commit, not this one.
         landed = _commit_landed(project, checkpoint)
         return RollbackOutcome.KEPT if landed is False else RollbackOutcome.UNKNOWN
@@ -107,18 +153,19 @@ def rolled_back_on_failure(
     checkpoint: HistoryCheckpoint,
     *,
     on_not_landed: Callable[[], None] | None = None,
+    on_failure: Callable[[RollbackOutcome], None] | None = None,
 ) -> Iterator[None]:
     """Run the block; on any failure (``BaseException``) roll back history since ``checkpoint``.
 
     Wraps only the rollback; callers keep their own ``project_commit_lock`` scope. Unless the
     commit landed, ``on_not_landed`` then runs (``run_mutation`` restores memory there), also
-    when the rollback itself raises. The original error is re-raised: an ``Exception`` from
-    the rollback or from ``on_not_landed`` is only logged.
+    when the rollback itself raises. ``on_failure`` receives the final outcome after memory
+    recovery. The original error is re-raised; rollback and hook errors are only logged.
     """
     try:
         yield
     except BaseException:
-        _compensate(project, checkpoint, on_not_landed)
+        _compensate(project, checkpoint, on_not_landed, on_failure)
         raise
 
 
@@ -126,6 +173,7 @@ def _compensate(
     project: EpisodeProject,
     checkpoint: HistoryCheckpoint,
     on_not_landed: Callable[[], None] | None,
+    on_failure: Callable[[RollbackOutcome], None] | None,
 ) -> None:
     outcome = RollbackOutcome.UNKNOWN
     try:
@@ -141,6 +189,11 @@ def _compensate(
                     "Could not restore the in-memory project after a failed mutation",
                     exc_info=True,
                 )
+        if on_failure is not None:
+            try:
+                on_failure(outcome)
+            except Exception:
+                log.warning("Could not handle failed mutation outcome", exc_info=True)
 
 
 def _commit_landed(project: EpisodeProject, checkpoint: HistoryCheckpoint) -> bool | None:
@@ -160,6 +213,11 @@ def _roll_back_locked(project: EpisodeProject, checkpoint: HistoryCheckpoint) ->
             "Leaving %s and its snapshots in place after a failed mutation", checkpoint.index_path
         )
         return RollbackOutcome.UNKNOWN
+    if checkpoint.policy is HistoryRollbackPolicy.LOCKED_CALL:
+        new_snapshot_ids = history_snapshot_ids(checkpoint.index_path) - checkpoint.snapshots_before
+        rollback_history(checkpoint.index_path, checkpoint.index_before, new_snapshot_ids)
+        project.history = checkpoint.history_before
+        return RollbackOutcome.RESTORED
     before_ids = {entry.id for entry in checkpoint.history_before.entries}
     own_ids = [entry.id for entry in project.history.entries if entry.id not in before_ids]
     own_indexes = [*checkpoint.own_indexes, project.history.model_dump(mode="json")]

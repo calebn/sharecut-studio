@@ -42,6 +42,12 @@ Episode workspaces have two protection layers:
 
 **Anti-patterns:** `ws.save()` after changing transcripts or edit decisions; one-off Python scripts that call `correct_word` / `cut_time_range` on a loaded project without `mutate`; hand-editing mirrored `transcripts/{track}.json` (canonical data is `episode.project.json`).
 
+History failure recovery uses the shared `HistoryCheckpoint`. Mutation callers can
+consume `RollbackOutcome` through `on_failure`; external artifacts may be deleted
+only on `restored`. A merged save uses `LOCKED_CALL` while holding the commit lock
+through capture and rollback. Pipeline progress alone does not create an undo
+snapshot; `render_last_completed_step` remains stored and restorable.
+
 See [docs/contributing.md](../../docs/contributing.md#history), [docs/history.md](../../docs/history.md), [.agents/INSTRUCTIONS.md](../INSTRUCTIONS.md).
 
 ## Tests as you go

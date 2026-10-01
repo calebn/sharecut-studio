@@ -8,8 +8,13 @@ from typing import Any, TypeVar
 
 from podcast_mcp.history import HistoryManager, run_mutation
 from podcast_mcp.history.manager import record_and_commit
+from podcast_mcp.history.rollback import (
+    HistoryRollbackPolicy,
+    RollbackOutcome,
+    rolled_back_on_failure,
+    take_history_checkpoint,
+)
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_io import open_project, resolve_project_path
 from podcast_mcp.project_merge import (
     HISTORY_LINEAGE_CONFLICT,
@@ -22,11 +27,6 @@ from podcast_mcp.project_merge import (
 )
 from podcast_mcp.project_store import (
     ProjectStore,
-    commit_landed,
-    history_index_path,
-    history_index_to_restore,
-    history_snapshot_ids,
-    rollback_history,
 )
 from podcast_mcp.util.project_state import (
     FileRevision,
@@ -205,60 +205,32 @@ class ProjectWorkspace:
             if self._merge_base is None:
                 raise RuntimeError("save_merged() needs checkpoint() first")
             with project_commit_lock(self.project):
-                revision = project_file_revision(self.project)
                 saved_project = self._store.load()
                 saved = project_merge_data(saved_project)
-                index_path = history_index_path(self.project)
-                index_before = history_index_to_restore(index_path, saved_project.history)
-                snapshots_before = history_snapshot_ids(index_path)
-                history_before = self.project.history.model_copy(deep=True)
+                checkpoint = take_history_checkpoint(
+                    self._store,
+                    self.project,
+                    policy=HistoryRollbackPolicy.LOCKED_CALL,
+                    index_fallback=saved_project.history,
+                )
                 to_save: EpisodeProject | None = None
+
+                def adopt_if_landed(outcome: RollbackOutcome) -> None:
+                    if outcome is RollbackOutcome.LANDED and to_save is not None:
+                        self._adopt_saved(to_save)
+
                 try:
-                    to_save = self._merged_with(saved, history_label, advice)
-                    self._store.commit(to_save)
-                except BaseException:
-                    self._recover_failed_save(
-                        to_save,
-                        revision,
-                        history_before,
-                        index_path,
-                        index_before,
-                        snapshots_before,
-                    )
-                    raise
+                    with rolled_back_on_failure(
+                        self.project,
+                        checkpoint,
+                        on_failure=adopt_if_landed,
+                    ):
+                        to_save = self._merged_with(saved, history_label, advice)
+                        checkpoint.start_commit(to_save)
+                        self._store.commit(to_save)
                 finally:
                     self._loaded_file_signature = None
                 self._adopt_saved(to_save)
-
-    def _recover_failed_save(
-        self,
-        to_save: EpisodeProject | None,
-        revision: FileRevision | None,
-        history_before: ProjectHistory,
-        index_path: Path,
-        index_before: dict[str, Any] | None,
-        snapshots_before: set[str],
-    ) -> None:
-        """Best-effort cleanup after a failed ``save_merged``; logs and never raises."""
-        replaced = commit_landed(self.project, revision)  # None: unknown whether it landed
-        if to_save is not None and replaced:
-            # The project file was replaced; only a later write (transcript cache) failed.
-            try:
-                self._adopt_saved(to_save)
-            except Exception:
-                log.warning("Could not adopt the saved project after a failed save", exc_info=True)
-            return
-        self.project.history = history_before
-        if replaced is None:
-            # The file may hold the new entries: keep the index and snapshots (orphans are
-            # harmless; deleting snapshots the saved file references would break undo).
-            log.warning("Leaving %s and its snapshots in place after a failed save", index_path)
-            return
-        try:
-            new_ids = history_snapshot_ids(index_path) - snapshots_before
-            rollback_history(index_path, index_before, new_ids)
-        except Exception:
-            log.warning("Could not roll back %s after a failed save", index_path, exc_info=True)
 
     def _merged_with(
         self,
@@ -304,6 +276,7 @@ class ProjectWorkspace:
         *,
         operation: str | None = None,
         params: dict | None = None,
+        on_failure: Callable[[RollbackOutcome], None] | None = None,
     ) -> T:
         """Run ``fn`` on the saved project as an undoable mutation and commit it, inside ``transaction()``.
 
@@ -322,6 +295,7 @@ class ProjectWorkspace:
                     fn,
                     operation=operation,
                     params=params,
+                    on_failure=on_failure,
                 )
             except BaseException:
                 # A failed save may have changed the in-memory project or the file.

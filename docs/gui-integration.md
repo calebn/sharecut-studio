@@ -26,7 +26,7 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 - `history_list` returns flat `entries` plus grouped `groups` for mutation pairs.
 - `history_diff_tool` / `podcast history diff` — structured clip/decision/mix delta between indices.
 - `history_goto_tool` / `podcast history goto` — jump cursor without stepping undo/redo.
-- Pipeline steps record one snapshot per step (`after {step}`).
+- Pipeline steps record one snapshot per changed editable state (`after {step}`). Progress alone adds no History row. The shared comparison ignores `render_last_completed_step`; snapshots still store that cursor for undo and redo.
 - **Sharecut Studio History tab:** Undo / Redo buttons call document commands `UndoHistory` / `RedoHistory` → `HistoryService` (same as MCP/CLI). Applied snapshots carry `history.groups` so the list stays current after targeted TRACKS/COMMENTS patches. With `rerender: true`, a failed render or a merge clash after the move is saved answers **409** (`conflict: true`; a WS `Error`) with the message that says to re-render the preview instead of repeating the move.
 
 After undo, check `render_status_tool` — `needs_rerender` when stems or premix are stale; only stems whose track the undo changed go stale, a mix-only undo stales just the premix.
