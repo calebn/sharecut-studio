@@ -648,7 +648,9 @@ button.join-diamond {
 }
 
 .marker-lane {
-  position: relative;
+  position: sticky;
+  top: var(--ruler-height);
+  z-index: var(--z-timeline-chrome);
   display: flex;
   flex-direction: column;
   height: var(--marker-lane-height);
@@ -850,7 +852,9 @@ button.join-diamond {
 }
 
 .time-ruler {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-timeline-chrome);
   /* px from utils/layout.ts (RULER_HEIGHT), matching the header chrome. */
   height: var(--ruler-height);
   /* Same recessed well as lanes — avoids a surface strip + dark fit-gutter edge. */

@@ -17,6 +17,10 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 
 You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand.
 
+In Timeline, the time ruler and marker rows stay visible when you scroll through
+tracks. They move with the waveforms when you pan horizontally; the playhead
+stays centered.
+
 ## Selecting things
 
 In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
