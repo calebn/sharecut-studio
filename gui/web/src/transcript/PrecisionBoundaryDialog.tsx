@@ -124,6 +124,11 @@ export function PrecisionBoundaryDialog({
   boundary,
   onApply,
 }: Props) {
+  const targetKey = JSON.stringify(target);
+  const stableTarget = useMemo(
+    () => JSON.parse(targetKey) as BoundaryTarget,
+    [targetKey],
+  );
   const expectedGeometryKey = JSON.stringify(expectedGeometry);
   const stableExpectedGeometry = useMemo(
     () => JSON.parse(expectedGeometryKey) as BoundaryGeometryClip[],
@@ -167,8 +172,13 @@ export function PrecisionBoundaryDialog({
 
   const loadContext = useCallback(
     (signal: AbortSignal) =>
-      loadBoundaryContext(projectPath, target, stableExpectedGeometry, signal),
-    [projectPath, stableExpectedGeometry, target],
+      loadBoundaryContext(
+        projectPath,
+        stableTarget,
+        stableExpectedGeometry,
+        signal,
+      ),
+    [projectPath, stableExpectedGeometry, stableTarget],
   );
 
   const stopPreview = useCallback(() => {
@@ -656,6 +666,9 @@ export function PrecisionBoundaryDialog({
               role="alert"
             />
           ) : null}
+          <h3 className="precision-boundary-audition-title">
+            Listen to this track
+          </h3>
           {state.kind === "editing" && state.preview === "preparing" ? (
             <p role="status">Preparing current and proposed audio…</p>
           ) : null}
@@ -702,6 +715,7 @@ export function PrecisionBoundaryDialog({
               Cancel
             </Button>
             <Button
+              variant="primary"
               disabled={!inputValid || saving || state.kind !== "editing"}
               onClick={() => void apply()}
             >

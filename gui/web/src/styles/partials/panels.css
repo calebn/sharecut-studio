@@ -1626,7 +1626,7 @@ button.history-row {
 
 .precision-boundary-content {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .precision-boundary-operation {
@@ -1645,23 +1645,34 @@ button.history-row {
 .precision-boundary-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+}
+
+.precision-boundary-number {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.precision-boundary-number button,
+.precision-boundary-nudges button,
+.precision-boundary-audition button,
+.precision-boundary-actions button {
+  min-block-size: var(--touch-min);
 }
 
 .precision-boundary-number input {
   min-inline-size: 0;
-  flex: 1;
   min-block-size: var(--touch-min);
   padding-inline: var(--space-3);
   color: var(--text);
-  background: var(--color-bg);
+  background: var(--color-field);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .precision-boundary-nudges {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .precision-boundary-range,
@@ -1672,7 +1683,7 @@ button.history-row {
 }
 
 .precision-boundary-ghost p {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-3);
 }
 
 .precision-boundary-ghost ul {
@@ -1684,7 +1695,7 @@ button.history-row {
 
 .precision-boundary-positions {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding-block: var(--space-3);
   border-block: 1px solid var(--border);
@@ -1716,23 +1727,34 @@ button.history-row {
   border-block-end: 1px solid var(--border);
 }
 
+.precision-boundary-audition-title {
+  margin: 0;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
 .precision-boundary-error {
   display: grid;
   gap: var(--space-3);
 }
 
-@container precision-boundary (max-width: 34rem) {
-  .precision-boundary-dialog {
-    inline-size: calc(100vw - 1rem);
-  }
-
+@container precision-boundary (max-width: 24rem) {
   .precision-boundary-number {
-    flex-wrap: wrap;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .precision-boundary-number input {
     order: -1;
-    flex-basis: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .precision-boundary-nudges > * {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+
+  .precision-boundary-number > button {
+    min-inline-size: 0;
   }
 
   .precision-boundary-audition > *,
