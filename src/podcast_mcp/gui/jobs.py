@@ -1086,7 +1086,7 @@ class PipelineJobManager:
             )
             return "Bounce complete", {"paths": [str(p) for p in paths]}
         if job.kind == "analyze":
-            from podcast_mcp.services.pipeline_config import analyze_working_set
+            from podcast_mcp.services.pipeline import analyze_working_set
 
             cfg = job.config or {}
             result = analyze_working_set(

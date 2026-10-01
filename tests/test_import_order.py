@@ -22,6 +22,7 @@ import pytest
 # dependency on edits/ at all -- see models/episode.py::Clip.timeline_end.
 COLD_IMPORT_TARGETS = [
     "podcast_mcp.services.support",
+    "podcast_mcp.services.pipeline",
     "podcast_mcp.cli.setup_cmd",
     "podcast_mcp.cli.config_cmd",
     "podcast_mcp.gui.routes.diagnostics",
@@ -75,3 +76,35 @@ raise SystemExit(result.exit_code)
         "[ok] distribution profile: not required for local mode\n"
         "Configuration is valid for local mode.\n"
     )
+
+
+def test_pipeline_facade_resolves_cached_real_objects() -> None:
+    import pytest
+
+    import podcast_mcp.services.pipeline as pipeline
+    from podcast_mcp.services.pipeline.config import merge_pipeline_config
+    from podcast_mcp.services.pipeline.service import PipelineService
+
+    assert pipeline.PipelineService is PipelineService
+    assert pipeline.PipelineService is pipeline.PipelineService
+    assert pipeline.merge_pipeline_config is merge_pipeline_config
+    missing = "missing"
+    with pytest.raises(AttributeError, match="has no attribute 'missing'"):
+        getattr(pipeline, missing)
+
+
+def test_pipeline_config_cli_does_not_require_http_client() -> None:
+    script = """
+import sys
+sys.modules['httpx'] = None
+from typer.testing import CliRunner
+from podcast_mcp.cli.main import app
+result = CliRunner().invoke(app, ['pipeline', 'config', '--json'])
+assert result.exit_code == 0, result.exception
+assert 'podcast_mcp.services.support.report_submission' not in sys.modules
+assert 'podcast_mcp.services.support.diagnostics' not in sys.modules
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr

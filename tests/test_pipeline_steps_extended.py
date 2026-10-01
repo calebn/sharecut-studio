@@ -1260,7 +1260,7 @@ def test_transcribe_tracks_builds_engine_from_yaml_options(
 
 def test_transcribe_tracks_force_bypasses_asr_cache(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     with patch.object(Engine, "transcribe_file", side_effect=lambda *a, **k: _asr_result()) as asr:
@@ -1275,7 +1275,7 @@ def test_transcribe_tracks_confirmed_overwrite_replaces_edited_in_batch(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
     _edited_stale_transcript(proj)
@@ -1797,7 +1797,7 @@ def test_transcribe_tracks_retime_words_realigns_reused_from_asr_cache_without_w
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -1845,7 +1845,7 @@ def test_transcribe_tracks_retime_words_falls_back_to_pre_primer_cache(
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.transcript_context import TranscriptContext
     from podcast_mcp.word_aligner_models import word_aligner_model
 
@@ -1889,7 +1889,7 @@ def test_transcribe_tracks_retime_words_skips_edited_without_confirmation(
     from podcast_mcp.engines import TranscriptionEngine as Engine
     from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD, RetimeStats
     from podcast_mcp.engines.word_align import WordAlignResult
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -1931,7 +1931,7 @@ def test_transcribe_tracks_retime_words_reports_missing_asr_cache(
     minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -1961,7 +1961,7 @@ def test_transcribe_tracks_retime_words_fails_fast_without_the_word_aligner(
     minimal_project, sample_wav, tmp_workspace
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
@@ -2159,7 +2159,7 @@ def test_transcribe_tracks_retime_words_reports_alignment_failure_as_not_retimed
     minimal_project, sample_wav, tmp_workspace, aligner_installed
 ):
     from podcast_mcp.engines import TranscriptionEngine as Engine
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
     from podcast_mcp.word_aligner_models import word_aligner_model
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)

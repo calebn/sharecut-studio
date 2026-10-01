@@ -2730,7 +2730,7 @@ def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
 
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.config.suggest_pipeline_tuning",
         lambda project, base_config=None, cancel_check=None: {
             "proposed_config": {"balance": {"dialogue_lufs": -19.0}},
             "patches": {"balance": {"dialogue_lufs": -19.0}},
@@ -2823,7 +2823,7 @@ def test_api_pipeline_analyze_job_cancel_and_slot(minimal_project, monkeypatch) 
         }
 
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.config.suggest_pipeline_tuning",
         blocking_suggest,
     )
 
@@ -3187,7 +3187,7 @@ def test_api_pipeline_run_validation_and_cancel(minimal_project, monkeypatch) ->
     )
 
     # Working-set skip_steps path when enabled_steps already stored
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     # The pipeline slot is single-flight; let the first job finish first.
     _wait_pipeline_idle(client)
@@ -4175,7 +4175,7 @@ def test_api_pipeline_run_force_transcribe_is_run_only(minimal_project, monkeypa
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     seen: list[dict | None] = []
 
@@ -4212,7 +4212,7 @@ def test_api_pipeline_run_retime_words_is_run_only(minimal_project, monkeypatch)
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     seen: list[dict | None] = []
 

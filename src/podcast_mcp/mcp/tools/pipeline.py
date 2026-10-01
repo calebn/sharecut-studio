@@ -48,7 +48,7 @@ def pipeline_run(
     Returns ``Completed through <step>``; when this run exported, the next lines are
     the export QC verdict (same as CLI ``pipeline run``).
     """
-    from podcast_mcp.services.pipeline_config import (
+    from podcast_mcp.services.pipeline import (
         config_store,
         merge_pipeline_config,
         skip_steps_from_enabled,
@@ -122,7 +122,7 @@ def pipeline_get_config_tool(project_path: str) -> str:
     ``requested``, ``installed``, ``blocked``, ``reason``): on by default when the word
     aligner is downloaded, unavailable until then (#780).
     """
-    from podcast_mcp.services.pipeline_config import build_config_payload
+    from podcast_mcp.services.pipeline import build_config_payload
 
     ws = ProjectWorkspace.open(project_path)
     return to_json(build_config_payload(ws.path))
@@ -136,7 +136,7 @@ def pipeline_set_config_tool(
     reset: bool = False,
 ) -> str:
     """Update the shared GUI/agent pipeline working set (visible params)."""
-    from podcast_mcp.services.pipeline_config import build_config_payload, config_store
+    from podcast_mcp.services.pipeline import build_config_payload, config_store
 
     ws = ProjectWorkspace.open(project_path)
     config = json.loads(config_json) if config_json else None
@@ -157,7 +157,7 @@ def pipeline_set_config_tool(
 
 def pipeline_analyze_tool(project_path: str, apply: bool = False) -> str:
     """Heuristic Analyze: propose pipeline param patches from audio diagnostics."""
-    from podcast_mcp.services.pipeline_config import analyze_working_set
+    from podcast_mcp.services.pipeline import analyze_working_set
 
     ws = ProjectWorkspace.open(project_path)
     return to_json(analyze_working_set(ws.path, ws.project, apply=apply))

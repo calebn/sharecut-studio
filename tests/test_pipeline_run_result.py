@@ -7,7 +7,7 @@ from pathlib import Path
 from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project
 from podcast_mcp.pipeline import steps as pipeline_steps
 from podcast_mcp.services import ProjectWorkspace
-from podcast_mcp.services.pipeline import PipelineRunner
+from podcast_mcp.services.pipeline.service import PipelineRunner
 
 
 def _stub_run(steps: list[PipelineStepLog]) -> PipelineRun:

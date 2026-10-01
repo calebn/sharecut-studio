@@ -260,7 +260,7 @@ def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_th
     minimal_project,
 ):
     """#780: `podcast transcribe` with forced alignment explicitly on and no model fails first."""
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     ws = ProjectWorkspace.open(minimal_project)
@@ -285,7 +285,7 @@ def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
     minimal_project, monkeypatch, tmp_path
 ):
     from model_pin_helpers import plant_pinned_word_aligner
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     plant_pinned_word_aligner(monkeypatch, tmp_path)
@@ -308,7 +308,7 @@ def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
 
 
 def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_project):
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     ws = ProjectWorkspace.open(minimal_project)
     store = config_store()
@@ -712,7 +712,7 @@ def test_pipeline_service_export_audio_creates_master(minimal_project, sample_wa
 
     with (
         patch(
-            "podcast_mcp.services.pipeline.pipeline_steps.master_loudness",
+            "podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness",
             side_effect=_master,
         ),
         patch("podcast_mcp.export.audio.export_episode_audio") as export,
@@ -733,7 +733,7 @@ def test_pipeline_service_export_audio_emits_progress(minimal_project):
     mastered.write_bytes(b"RIFF")
     rec = RecordingProgress()
     with (
-        patch("podcast_mcp.services.pipeline.pipeline_steps.master_loudness"),
+        patch("podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness"),
         patch(
             "podcast_mcp.export.audio.export_episode_audio",
             return_value=[ws.project.export_dir() / "demo.wav"],
@@ -747,7 +747,7 @@ def test_pipeline_service_export_audio_emits_progress(minimal_project):
 
 def test_pipeline_service_render_final(minimal_project, sample_wav):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as runner:
         runner.return_value.run = MagicMock()
         out = PipelineService(ws).render_final()
     assert out == ws.project.export_dir()
@@ -895,7 +895,7 @@ def test_edit_service_failed_edit_leaves_transcript_unflagged(minimal_project):
 
 @pytest.mark.parametrize("language", ["en", "es", None])
 def test_transcript_service_uses_pipeline_language(minimal_project, language):
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)

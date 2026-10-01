@@ -198,7 +198,7 @@ def test_pipeline_analyze_prints_evidence_and_proposal(tmp_path):
         },
     }
     with patch(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.suggest_pipeline_tuning",
         return_value=fake_result,
     ) as mock_suggest:
         result = runner.invoke(
@@ -233,7 +233,7 @@ def test_pipeline_analyze_run_line_keeps_overrides_and_quotes_project(tmp_path):
         "report_summary": {"track_count": 0, "reason_count": 0, "tracks": []},
     }
     with patch(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.suggest_pipeline_tuning",
         return_value=fake_result,
     ):
         result = runner.invoke(
@@ -267,7 +267,7 @@ def test_pipeline_analyze_json_and_empty(tmp_path):
         "report_summary": {"track_count": 0, "reason_count": 0, "tracks": []},
     }
     with patch(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.suggest_pipeline_tuning",
         return_value=empty_result,
     ):
         json_result = runner.invoke(

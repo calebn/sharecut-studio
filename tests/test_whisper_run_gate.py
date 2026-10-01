@@ -14,7 +14,7 @@ from model_pin_helpers import plant_pinned_whisper
 def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
+    from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
@@ -35,7 +35,7 @@ def test_ensure_whisper_cached_for_run_skips_when_transcribe_not_selected(
 def test_ensure_whisper_cached_for_run_raises_when_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
+    from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(
@@ -52,7 +52,7 @@ def test_ensure_whisper_cached_for_run_raises_when_missing(
 def test_ensure_whisper_cached_for_run_ok_when_cached(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
+    from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
 
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "small.en", monkeypatch)
@@ -97,7 +97,7 @@ def test_pipeline_service_run_skips_gate_for_ingest_only(
         return MagicMock(steps=[])
 
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline.PipelineRunner.run",
+        "podcast_mcp.services.pipeline.service.PipelineRunner.run",
         fake_run,
     )
     ws = ProjectWorkspace.open(minimal_project)
@@ -108,7 +108,7 @@ def test_gui_pipeline_run_409_when_weights_missing(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     monkeypatch.setattr(
         "podcast_mcp.config.whisper_cache_dir",
@@ -147,7 +147,7 @@ def test_gui_pipeline_run_409_on_pin_mismatch(
     minimal_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     cache = tmp_path / "whisper"
     snap = plant_pinned_whisper(cache, "small.en", monkeypatch)
@@ -242,7 +242,7 @@ def test_transcription_engine_raises_when_weights_missing(
 def test_selected_whisper_model_uses_yaml_when_prefs_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from podcast_mcp.services.pipeline_config import _selected_whisper_model
+    from podcast_mcp.services.pipeline.config import _selected_whisper_model
     from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
     monkeypatch.delenv("PODCAST_WHISPER_MODEL", raising=False)
@@ -251,7 +251,7 @@ def test_selected_whisper_model_uses_yaml_when_prefs_unset(
         lambda: None,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.load_defaults",
+        "podcast_mcp.services.pipeline.config.load_defaults",
         lambda: {"transcribe": {"model": "tiny.en"}},
     )
     assert _selected_whisper_model(None) == "tiny.en"
@@ -265,7 +265,7 @@ def test_selected_whisper_model_uses_yaml_when_prefs_unset(
 
 
 def test_ensure_whisper_cached_for_run_forwards_memoize(monkeypatch) -> None:
-    from podcast_mcp.services.pipeline_config import ensure_whisper_cached_for_run
+    from podcast_mcp.services.pipeline.config import ensure_whisper_cached_for_run
 
     seen: list[bool] = []
 

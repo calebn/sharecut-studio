@@ -2,6 +2,11 @@
 
 Canonical guide for transcript quality: when each layer runs, what it fixes, and how it fits the pipeline.
 
+CLI and MCP pipeline entry points use the public `podcast_mcp.services.pipeline`
+facade for execution and working configuration. Its implementation modules live
+in `services/pipeline/`; transcript processing remains in the domain engines and
+edits called by the pipeline.
+
 Deep dives: [transcript-reconcile.md](transcript-reconcile.md), [transcript-precorrect.md](transcript-precorrect.md).
 
 Agent skill hub: [.agents/skills/podcast-transcript-workflow/SKILL.md](../.agents/skills/podcast-transcript-workflow/SKILL.md).

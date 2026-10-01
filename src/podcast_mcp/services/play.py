@@ -1276,7 +1276,7 @@ class PlayService:
             DEFAULT_SKEW_WARN_SEC,
             build_audition_context,
         )
-        from podcast_mcp.services.pipeline_config import prosody_params_for
+        from podcast_mcp.services.pipeline import prosody_params_for
 
         return build_audition_context(
             self.project,
@@ -1291,7 +1291,7 @@ class PlayService:
     def prosody_overlay(self) -> dict:
         """Timeline-mapped prosody profile per dialogue track for the DAW overlay (#719)."""
         from podcast_mcp.edits.prosody_profile import prosody_overlay
-        from podcast_mcp.services.pipeline_config import prosody_params_for
+        from podcast_mcp.services.pipeline import prosody_params_for
 
         return prosody_overlay(self.project, params=prosody_params_for(self.ws.path))
 

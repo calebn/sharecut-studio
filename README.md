@@ -131,8 +131,10 @@ Host MCP agents can read and replace it with revision checks. See the
 - [Roadmap](ROADMAP.md)
 
 Diagnostics and report-submission orchestration live in
-[`services/support/`](src/podcast_mcp/services/support/). Contributor import rules
-are in [Contributing](docs/contributing.md#service-context-imports).
+[`services/support/`](src/podcast_mcp/services/support/); pipeline execution,
+configuration, and component bootstrap live in
+[`services/pipeline/`](src/podcast_mcp/services/pipeline/). Contributor import
+rules are in [Contributing](docs/contributing.md#service-context-imports).
 
 ## Support
 

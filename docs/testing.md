@@ -1404,11 +1404,12 @@ hold this sequenced endpoint and suppress the document socket hello, so they exe
 ## Service context boundaries
 
 `tests/test_service_boundaries.py` scans production imports for the migrated
-`services/support/` context. Adapters and sibling services use its declared
-facade; support cannot import adapters or unrelated services. The existing
-bootstrap status reader is its only service dependency. Synthetic nested and
-relative imports verify that the guard rejects violations. Focused support tests
-live in `test_diagnostics.py`, `test_distribution_config.py`, and
-`test_setup_cli.py`; `test_import_order.py` checks cold imports of the facade
-and its adapters in fresh processes. Other service packages retain their existing
-checks until their own migration.
+`services/support/` and `services/pipeline/` contexts. Adapters and sibling
+services use each declared facade. Both contexts reject adapter dependencies;
+support uses only the pipeline public facade, and pipeline uses the existing
+workspace service. Synthetic nested and relative imports verify the guard.
+Focused pipeline tests live in `test_pipeline_config.py`,
+`test_pipeline_run_result.py`, and `test_bootstrap_gui.py`; support tests live in
+`test_diagnostics.py`, `test_distribution_config.py`, and `test_setup_cli.py`.
+`test_import_order.py` checks cold imports and configuration CLI commands in
+fresh processes, including with the optional HTTP client unavailable.

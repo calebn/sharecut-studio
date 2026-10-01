@@ -92,7 +92,7 @@ def test_mcp_pipeline_run_only_step(tmp_path, sample_wav):
     ws = tmp_path / "ws"
     path = mcp_server.episode_create(str(ws))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as mock_runner:
         instance = mock_runner.return_value
         instance.run.return_value = MagicMock()
         proj = load_project(Path(path))
@@ -155,7 +155,7 @@ def test_mcp_pipeline_analyze_tool(tmp_path, sample_wav, monkeypatch):
         }
 
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.suggest_pipeline_tuning",
+        "podcast_mcp.services.pipeline.config.suggest_pipeline_tuning",
         fake_suggest,
     )
     preview = json.loads(mcp_pipeline.pipeline_analyze_tool(path, apply=False))
@@ -206,13 +206,13 @@ def test_mcp_pipeline_analyze_tool_reports_phases(tmp_path, sample_wav, monkeypa
 def test_mcp_pipeline_run_working_set_and_overrides(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     store = config_store()
     store.put(Path(path), reset=True, unattended=True)
     store.put(Path(path), enabled_steps=["ingest_tracks"])
 
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as mock_runner:
         instance = mock_runner.return_value
         instance.run.return_value = MagicMock()
         proj = load_project(Path(path))
@@ -274,7 +274,7 @@ def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(ws))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
     with (
-        patch("podcast_mcp.services.pipeline.pipeline_steps.master_loudness"),
+        patch("podcast_mcp.services.pipeline.service.pipeline_steps.master_loudness"),
         patch(
             "podcast_mcp.export.audio.export_episode_audio",
             return_value=[ws / "export" / "demo.mp3"],
@@ -303,11 +303,11 @@ def test_mcp_bounce_audio_tool(tmp_path, sample_wav, monkeypatch):
 def test_mcp_pipeline_run_force_transcribe_is_run_only(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     store = config_store()
     store.put(Path(path), reset=True)
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as mock_runner:
         mock_runner.return_value.run.return_value = MagicMock()
         mcp_pipeline.pipeline_run(path, only_step="ingest_tracks", force_transcribe=True)
         defaults = mock_runner.call_args.kwargs.get("defaults")
@@ -320,11 +320,11 @@ def test_mcp_pipeline_run_force_transcribe_is_run_only(tmp_path, sample_wav):
 def test_mcp_pipeline_run_retime_words_is_run_only(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     store = config_store()
     store.put(Path(path), reset=True)
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as mock_runner:
         mock_runner.return_value.run.return_value = MagicMock()
         mcp_pipeline.pipeline_run(path, only_step="ingest_tracks", retime_words=True)
         defaults = mock_runner.call_args.kwargs.get("defaults")
@@ -338,11 +338,11 @@ def test_mcp_pipeline_run_retime_words_is_run_only(tmp_path, sample_wav):
 def test_mcp_pipeline_run_rejects_force_with_retime_words(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     store = config_store()
     store.put(Path(path), reset=True)
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as mock_runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as mock_runner:
         mock_runner.return_value.run.return_value = MagicMock()
         with pytest.raises(ValueError):
             mcp_pipeline.pipeline_run(

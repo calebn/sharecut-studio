@@ -84,7 +84,7 @@ class PipelineService:
         config: dict | None = None,
         cancel_check=None,
     ) -> PipelineRunResult:
-        from podcast_mcp.services.pipeline_config import (
+        from podcast_mcp.services.pipeline.config import (
             ensure_whisper_cached_for_run,
             merge_pipeline_config,
         )

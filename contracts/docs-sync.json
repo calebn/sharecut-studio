@@ -432,7 +432,7 @@
           "src/podcast_mcp/util/model_manifest.py",
           "src/podcast_mcp/util/asset_sources.py",
           "src/podcast_mcp/util/bootstrap-assets.json",
-          "src/podcast_mcp/services/bootstrap.py",
+          "src/podcast_mcp/services/pipeline/bootstrap.py",
           "src/podcast_mcp/services/support/doctor.py",
           "src/podcast_mcp/services/support/config_check.py",
           "src/podcast_mcp/cli/setup_cmd.py",
@@ -830,7 +830,7 @@
         "include": [
           "src/podcast_mcp/pipeline/",
           "src/podcast_mcp/config.py",
-          "src/podcast_mcp/services/pipeline_config.py",
+          "src/podcast_mcp/services/pipeline/config.py",
           "src/podcast_mcp/export/names.py",
           "src/podcast_mcp/util/workspace_paths.py"
         ]
@@ -847,7 +847,7 @@
       "advisory": {
         "include": [
           "src/podcast_mcp/gui/routes/pipeline.py",
-          "src/podcast_mcp/services/pipeline_config.py",
+          "src/podcast_mcp/services/pipeline/config.py",
           "gui/web/src/panels/PipelinePanel.tsx",
           "gui/web/src/panels/TightenPanel.tsx",
           "gui/web/src/panels/WhisperModelPicker.tsx",
