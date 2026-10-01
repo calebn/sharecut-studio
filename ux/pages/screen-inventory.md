@@ -463,3 +463,5 @@ In Correct mode, the host word inspector includes **Adjust timing**. It expands 
 Studio uses one host realtime connection for collaboration, document edits and recording.
 Reconnect restores each plane from its initial state. Recording roster updates apply
 before following connection signals, including when guests join between paints.
+
+Timeline fade corners and trim strips support focused Left/Right nudges, Shift for larger steps, release or blur to save one undo step, and Escape to discard the preview.

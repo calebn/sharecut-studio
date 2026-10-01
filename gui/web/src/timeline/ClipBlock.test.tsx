@@ -1,10 +1,13 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
+import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { clipRow } from "../test/fixtures";
-import type { ClipRow } from "../types/project";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { ClipRow, ProjectView } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 import { ClipBlockView } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
@@ -60,8 +63,22 @@ const clip: ClipRow = {
   source_id: null,
 };
 
+function KeymapHarness() {
+  useDawKeymapListener();
+  return null;
+}
+
+function projectWithClip(row: ClipRow, overrides: Partial<ProjectView> = {}) {
+  return minimalProject({
+    tracks: [sampleTrack({ id: "host", duration_sec: 10 })],
+    clips: { tracks: { host: [row] }, clip_count: 1 },
+    ...overrides,
+  });
+}
+
 describe("ClipBlock waveform", () => {
   beforeEach(() => {
+    useDawStore.setState({ project: null, projectPath: "" });
     layers.push([]);
     loadBoundaryContext.mockResolvedValue({ token: "boundary-token" });
     HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -96,6 +113,415 @@ describe("ClipBlock waveform", () => {
     onMoveCommit: vi.fn(),
     onMoveCancel: vi.fn(),
   } as const;
+
+  const renderWithKeymap = (
+    row: ClipRow,
+    extra: Record<string, unknown> = {},
+    project: ProjectView = projectWithClip(row),
+  ) => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.getState().hydrate("/tmp/clip-handle.project.json", project);
+    return render(
+      <>
+        <KeymapHarness />
+        <ClipBlock {...base} {...extra} clip={row} />
+      </>,
+    );
+  };
+
+  describe("focused edge keyboard edits", () => {
+    beforeEach(() => {
+      vi.mocked(setClipFade).mockClear();
+      vi.mocked(trimClipEdge).mockClear();
+      loadBoundaryContext.mockClear();
+    });
+
+    it.each([
+      ["fade in right", "fade-corner in", "ArrowRight", 110, 200],
+      ["fade in left", "fade-corner in", "ArrowLeft", 90, 200],
+      ["fade out left", "fade-corner out", "ArrowLeft", 100, 210],
+      ["fade out right", "fade-corner out", "ArrowRight", 100, 190],
+    ])(
+      "moves only the requested fade edge with Shift: %s",
+      async (_name, selector, key, inMs, outMs) => {
+        const row = { ...clip, fade_in_ms: 100, fade_out_ms: 200 };
+        const { container } = renderWithKeymap(row);
+        const handle = container.querySelector(
+          `button.${selector.replaceAll(" ", ".")}`,
+        ) as HTMLElement;
+        handle.focus();
+        fireEvent.keyDown(handle, { key, shiftKey: true });
+        const changedEdge = selector.endsWith("in") ? "in" : "out";
+        expect(
+          container.querySelector(`.fade-readout.${changedEdge}`)?.textContent,
+        ).toBe(`${changedEdge === "in" ? inMs : outMs} ms`);
+        fireEvent.keyUp(handle, { key });
+        await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
+        expect(setClipFade).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          inMs,
+          outMs,
+        );
+      },
+    );
+
+    it.each([
+      ["trim in right", "trim-handle in", "ArrowRight", 1.1],
+      ["trim in left", "trim-handle in", "ArrowLeft", 0.9],
+      ["trim out right", "trim-handle out", "ArrowRight", 3.1],
+      ["trim out left", "trim-handle out", "ArrowLeft", 2.9],
+    ])(
+      "moves only the requested trim edge with Shift: %s",
+      async (_name, selector, key, value) => {
+        const row = {
+          ...clip,
+          source_start: 1,
+          source_end: 3,
+          timeline_start: 1,
+          timeline_end: 3,
+        };
+        const { container } = renderWithKeymap(row);
+        const handle = container.querySelector(
+          `button.${selector.replaceAll(" ", ".")}`,
+        ) as HTMLElement;
+        handle.focus();
+        fireEvent.keyDown(handle, { key, shiftKey: true });
+        fireEvent.keyUp(handle, { key });
+        await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+        expect(trimClipEdge).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          selector.endsWith("in") ? "in" : "out",
+          value,
+          "ripple",
+          "boundary-token",
+        );
+      },
+    );
+
+    it("coalesces repeated fade arrows into one write at key release", async () => {
+      const row = { ...clip, fade_in_ms: 20, fade_out_ms: 40 };
+      const { container } = renderWithKeymap(row);
+      const handle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyDown(handle, { key: "ArrowRight", repeat: true });
+      fireEvent.keyDown(handle, { key: "ArrowRight", repeat: true });
+      expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
+        "23 ms",
+      );
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
+      expect(setClipFade).toHaveBeenCalledWith(
+        "/tmp/clip-handle.project.json",
+        "c1",
+        23,
+        40,
+      );
+    });
+
+    it("commits the active preview on blur and cancels it on Escape", async () => {
+      const { container, rerender } = renderWithKeymap({
+        ...clip,
+        fade_in_ms: 10,
+      });
+      let handle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      handle.blur();
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          11,
+          0,
+        ),
+      );
+
+      vi.mocked(setClipFade).mockClear();
+      clearRegisteredCommands();
+      registerDawCommands();
+      const row = { ...clip, fade_in_ms: 10 };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/clip-handle.project.json", projectWithClip(row));
+      rerender(
+        <>
+          <KeymapHarness />
+          <ClipBlock {...base} clip={row} />
+        </>,
+      );
+      handle = container.querySelector("button.fade-corner.in") as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyDown(handle, { key: "Escape" });
+      expect(container.querySelector(".fade-readout")).toBeNull();
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(setClipFade).not.toHaveBeenCalled();
+    });
+
+    it("does not save a trim nudge that returns to its original boundary", async () => {
+      const row = {
+        ...clip,
+        source_start: 1.005,
+        source_end: 3,
+        timeline_start: 1.005,
+        timeline_end: 3,
+      };
+      const { container } = renderWithKeymap(row);
+      const handle = container.querySelector(
+        "button.trim-handle.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(trimClipEdge).not.toHaveBeenCalled();
+    });
+
+    it("clamps fade and trim keyboard previews to their live bounds", async () => {
+      const fadeRow = { ...clip, fade_in_ms: 1998 };
+      const fadeView = renderWithKeymap(fadeRow);
+      const fadeHandle = fadeView.container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      fadeHandle.focus();
+      fireEvent.keyDown(fadeHandle, { key: "ArrowRight", repeat: true });
+      fireEvent.keyDown(fadeHandle, { key: "ArrowRight", repeat: true });
+      expect(
+        fadeView.container.querySelector(".fade-readout.in")?.textContent,
+      ).toBe("2000 ms");
+      fireEvent.keyUp(fadeHandle, { key: "ArrowRight" });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          2000,
+          0,
+        ),
+      );
+
+      fadeView.unmount();
+      vi.mocked(setClipFade).mockClear();
+      const trimRow = {
+        ...clip,
+        source_start: 1,
+        source_end: 3.95,
+        timeline_start: 1,
+        timeline_end: 3.95,
+      };
+      const neighbor = {
+        ...clip,
+        id: "c2",
+        source_start: 4,
+        source_end: 5,
+        timeline_start: 4,
+        timeline_end: 5,
+      };
+      const trimView = renderWithKeymap(
+        trimRow,
+        { neighborSourceHi: 4, nextClip: neighbor },
+        minimalProject({
+          tracks: [sampleTrack({ id: "host", duration_sec: 10 })],
+          clips: { tracks: { host: [trimRow, neighbor] }, clip_count: 2 },
+        }),
+      );
+      const trimHandle = trimView.container.querySelector(
+        "button.trim-handle.out",
+      ) as HTMLElement;
+      trimHandle.focus();
+      fireEvent.keyDown(trimHandle, {
+        key: "ArrowRight",
+        shiftKey: true,
+        repeat: true,
+      });
+      expect(
+        trimView.container.querySelector(".clip-trim-ghost"),
+      ).not.toBeNull();
+      fireEvent.keyUp(trimHandle, { key: "ArrowRight" });
+      await waitFor(() =>
+        expect(trimClipEdge).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          "out",
+          4,
+          "ripple",
+          "boundary-token",
+        ),
+      );
+    });
+
+    it("uses the destination lane bounds when a clip retains its origin track", async () => {
+      const row = {
+        ...clip,
+        track_id: "guest",
+        origin_track_id: "host",
+      };
+      const next = {
+        ...clip,
+        id: "c2",
+        track_id: "guest",
+        source_start: 5,
+        source_end: 7,
+        timeline_start: 5,
+        timeline_end: 7,
+      };
+      const project = minimalProject({
+        tracks: [
+          sampleTrack({ id: "host", duration_sec: 10, fade_max_ms: 100 }),
+          sampleTrack({ id: "guest", duration_sec: 10, fade_max_ms: 40 }),
+        ],
+        clips: { tracks: { host: [], guest: [row, next] }, clip_count: 2 },
+      });
+      const { container } = renderWithKeymap(
+        row,
+        {
+          trackId: "host",
+          fadeMaxMs: 40,
+          neighborSourceHi: 5,
+          nextClip: next,
+        },
+        project,
+      );
+      const handle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          1,
+          0,
+        ),
+      );
+    });
+
+    it("cancels a keyboard preview when the project epoch changes", async () => {
+      const row = { ...clip, fade_in_ms: 10 };
+      const { container } = renderWithKeymap(row);
+      const handle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      expect(container.querySelector(".fade-readout.in")).not.toBeNull();
+      useDawStore.setState((state) => ({
+        projectEpoch: state.projectEpoch + 1,
+      }));
+      await waitFor(() =>
+        expect(container.querySelector(".fade-readout")).toBeNull(),
+      );
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(setClipFade).not.toHaveBeenCalled();
+    });
+
+    it("keeps the clip mutation lock through a pending fade write", async () => {
+      let resolveFade!: () => void;
+      vi.mocked(setClipFade).mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFade = resolve;
+          }),
+      );
+      const { container } = renderWithKeymap({ ...clip, fade_in_ms: 10 });
+      const fadeHandle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      fadeHandle.focus();
+      fireEvent.keyDown(fadeHandle, { key: "ArrowRight" });
+      fireEvent.keyUp(fadeHandle, { key: "ArrowRight" });
+      await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
+
+      const trimHandle = container.querySelector(
+        "button.trim-handle.in",
+      ) as HTMLElement;
+      trimHandle.focus();
+      fireEvent.keyDown(trimHandle, { key: "ArrowRight" });
+      fireEvent.keyUp(trimHandle, { key: "ArrowRight" });
+      expect(trimClipEdge).not.toHaveBeenCalled();
+      resolveFade();
+      await waitFor(() =>
+        expect(container.querySelector(".fade-readout")).toBeNull(),
+      );
+    });
+
+    it("does not let an old project write clear a new same-clip draft", async () => {
+      let resolveOldWrite!: () => void;
+      vi.mocked(setClipFade).mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveOldWrite = resolve;
+          }),
+      );
+      const firstRow = { ...clip, fade_in_ms: 10 };
+      const view = renderWithKeymap(firstRow);
+      let handle = view.container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
+
+      const secondRow = { ...clip, fade_in_ms: 40 };
+      const secondPath = "/tmp/next-clip-handle.project.json";
+      useDawStore.getState().hydrate(secondPath, projectWithClip(secondRow));
+      view.rerender(
+        <>
+          <KeymapHarness />
+          <ClipBlock {...base} clip={secondRow} />
+        </>,
+      );
+      handle = view.container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.blur();
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      expect(
+        view.container.querySelector(".fade-readout.in")?.textContent,
+      ).toBe("41 ms");
+
+      resolveOldWrite();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(
+        view.container.querySelector(".fade-readout.in")?.textContent,
+      ).toBe("41 ms");
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(2));
+      expect(setClipFade).toHaveBeenLastCalledWith(secondPath, "c1", 41, 0);
+    });
+
+    it("announces a failed keyboard write and clears its preview", async () => {
+      vi.mocked(setClipFade).mockRejectedValueOnce(new Error("write failed"));
+      const { container } = renderWithKeymap({ ...clip, fade_in_ms: 10 });
+      const handle = container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe(
+          "Clip edit failed: write failed",
+        ),
+      );
+      expect(container.querySelector(".fade-readout")).toBeNull();
+    });
+  });
 
   it("draws its media from the clip's left edge in timeline px", () => {
     const { container } = render(
@@ -406,11 +832,11 @@ describe("ClipBlock waveform", () => {
       const zeroIn = container.querySelector(
         "button.fade-corner.in.zero",
       ) as HTMLElement;
-      expect(zeroIn.getAttribute("aria-label")).toMatch(/ · in 0 ms$/);
+      expect(zeroIn.getAttribute("aria-label")).toContain(" · in 0 ms.");
       const regionOut = container.querySelector(
         "button.fade-corner.out",
       ) as HTMLElement;
-      expect(regionOut.getAttribute("aria-label")).toMatch(/ · out 30 ms$/);
+      expect(regionOut.getAttribute("aria-label")).toContain(" · out 30 ms.");
     });
   });
 
@@ -476,6 +902,7 @@ describe("ClipBlock waveform", () => {
       const handle = view.container.querySelector(
         ".trim-handle.out",
       ) as HTMLElement;
+      loadBoundaryContext.mockClear();
       fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
       fireEvent.pointerMove(handle, { clientX: 150, pointerId: 5 });
       view.rerender(
@@ -485,20 +912,90 @@ describe("ClipBlock waveform", () => {
         />,
       );
       fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
-      await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalled());
-      expect(loadBoundaryContext).toHaveBeenCalledWith(
-        expect.any(String),
-        { kind: "trim", clip_id: "c1", edge: "out" },
-        [
-          {
-            id: "c1",
-            source_start: 0,
-            source_end: 2,
-            timeline_start: 0,
-            source_id: null,
-          },
-        ],
+      expect(loadBoundaryContext).not.toHaveBeenCalled();
+      expect(trimClipEdge).not.toHaveBeenCalled();
+      expect(view.container.querySelector(".clip-trim-ghost")).toBeNull();
+    });
+
+    it("cancels a deferred trim when the loaded project geometry changes before React rerenders", async () => {
+      const row = {
+        ...clip,
+        source_start: 1,
+        source_end: 3,
+        timeline_start: 1,
+        timeline_end: 3,
+      };
+      clearRegisteredCommands();
+      registerDawCommands();
+      useDawStore
+        .getState()
+        .hydrate("/tmp/clip-handle.project.json", projectWithClip(row));
+      let resolveBoundary!: (value: { token: string }) => void;
+      loadBoundaryContext.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveBoundary = resolve;
+        }),
       );
+      const { container } = render(<ClipBlock {...base} clip={row} />);
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 12 });
+      fireEvent.pointerMove(handle, { clientX: 150, pointerId: 12 });
+      fireEvent.pointerUp(handle, { clientX: 150, pointerId: 12 });
+      await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalledOnce());
+
+      useDawStore.setState({
+        project: projectWithClip({
+          ...row,
+          source_end: 3.5,
+          timeline_end: 3.5,
+        }),
+      });
+      resolveBoundary({ token: "boundary-token" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(trimClipEdge).not.toHaveBeenCalled();
+    });
+
+    it("cancels a deferred trim when its source clip moves to another lane", async () => {
+      const row = {
+        ...clip,
+        source_start: 1,
+        source_end: 3,
+        timeline_start: 1,
+        timeline_end: 3,
+      };
+      clearRegisteredCommands();
+      registerDawCommands();
+      useDawStore
+        .getState()
+        .hydrate("/tmp/clip-handle.project.json", projectWithClip(row));
+      let resolveBoundary!: (value: { token: string }) => void;
+      loadBoundaryContext.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveBoundary = resolve;
+        }),
+      );
+      const { container } = render(<ClipBlock {...base} clip={row} />);
+      const handle = container.querySelector(".trim-handle.out") as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 13 });
+      fireEvent.pointerMove(handle, { clientX: 150, pointerId: 13 });
+      fireEvent.pointerUp(handle, { clientX: 150, pointerId: 13 });
+      await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalledOnce());
+
+      const moved = { ...row, track_id: "guest" };
+      useDawStore.setState({
+        project: projectWithClip(moved, {
+          tracks: [
+            sampleTrack({ id: "host", duration_sec: 10 }),
+            sampleTrack({ id: "guest", duration_sec: 10 }),
+          ],
+          clips: { tracks: { host: [], guest: [moved] }, clip_count: 1 },
+        }),
+      });
+      resolveBoundary({ token: "boundary-token" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(trimClipEdge).not.toHaveBeenCalled();
     });
 
     it("a click on the join diamond never rolls", async () => {

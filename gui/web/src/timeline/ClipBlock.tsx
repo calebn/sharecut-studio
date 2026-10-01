@@ -1,22 +1,16 @@
 import {
   memo,
   type PointerEvent as ReactPointerEvent,
+  useLayoutEffect,
   useRef,
-  useState,
 } from "react";
-import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
+import { rollClipJoin } from "../api";
 import {
   type BoundaryGeometryClip,
   type BoundaryTarget,
   loadBoundaryContext,
 } from "../api/boundary";
-import {
-  clampRollDelta,
-  clampTrimSourceSec,
-  type RollPreview,
-  sourceSecFromTimelineDelta,
-  type TrimEdge,
-} from "../edit/clipEdgePreview";
+import { clampRollDelta, type RollPreview } from "../edit/clipEdgePreview";
 import {
   type ClipMovePointerInfo,
   type ClipSelectMods,
@@ -27,7 +21,6 @@ import {
   MOVE_THRESHOLD_PX,
   ROLL_COMMIT_MIN_PX,
 } from "../edit/dragThreshold";
-import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -40,14 +33,9 @@ import {
   type ClipHandle,
   type ClipHitHandlers,
 } from "./ClipBlockView";
-import {
-  type ClipFadePreview,
-  type ClipTrimPreview,
-  clipBlockGeometry,
-  type FadeEdge,
-} from "./clipBlockGeometry";
-import { magnetSec } from "./snapOverlay";
+import { clipBlockGeometry } from "./clipBlockGeometry";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
+import { useClipEdgeHandles } from "./useClipEdgeHandles";
 import { WaveformLayer } from "./WaveformLayer";
 
 export interface ClipBlockProps {
@@ -107,29 +95,7 @@ export interface ClipBlockProps {
   onMoveCancel?: () => void;
 }
 
-type FadeDrag = {
-  kind: "fade";
-  edge: FadeEdge;
-  originX: number;
-  baseIn: number;
-  baseOut: number;
-};
-
-type TrimDrag = {
-  kind: "trim";
-  clipId: string;
-  edge: TrimEdge;
-  originX: number;
-  baseSourceSec: number;
-  sourceStart: number;
-  sourceEnd: number;
-  expectedGeometry: BoundaryGeometryClip[];
-  projectPath: string;
-  projectEpoch: number;
-};
-
 type RollDrag = {
-  kind: "roll";
   originX: number;
   leftClipId: string;
   rightClipId: string;
@@ -187,18 +153,27 @@ export function ClipBlockLive({
   onMoveCommit,
   onMoveCancel,
 }: ClipBlockProps) {
-  // Commit handlers read the project path at call time (getState()).
   const editable = useDawStore(
     (s) =>
       !isShareProjectKey(s.projectPath) ||
       hasShareCapability(s.shareCapabilities, "edit"),
   );
-  const dragRef = useRef<FadeDrag | TrimDrag | RollDrag | null>(null);
+  const rollDragRef = useRef<RollDrag | null>(null);
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
-  const [fadePreview, setFadePreview] = useState<ClipFadePreview | null>(null);
-  const [trimPreview, setTrimPreview] = useState<ClipTrimPreview | null>(null);
+  const ticksRef = useRef<readonly number[]>(EMPTY_ARR);
+  const edgeHandles = useClipEdgeHandles({
+    clip,
+    trackId,
+    fadeMaxMs,
+    neighborSourceLo,
+    neighborSourceHi,
+    zoomPxPerSec,
+    getTicks: () => ticksRef.current,
+    onSelect,
+  });
+  const { fadePreview, trimPreview } = edgeHandles;
 
   const geometry = clipBlockGeometry({
     clip,
@@ -228,6 +203,9 @@ export function ClipBlockLive({
           : trimPreview.sourceEnd,
     enabled: interactive,
   });
+  useLayoutEffect(() => {
+    ticksRef.current = ticks;
+  }, [ticks]);
   const waveKind = refKind(mediaRef);
 
   const boundaryGeometry = (...clips: ClipRow[]): BoundaryGeometryClip[] =>
@@ -258,100 +236,6 @@ export function ClipBlockLive({
     if (project.projectPath !== path || project.projectEpoch !== projectEpoch)
       throw new Error("Project changed during the boundary drag");
     return context.token;
-  };
-
-  /** Fade lengths for a drag of `d` to `clientX`: the dragged edge moves,
-   *  clamped to the track cap and to what the other edge leaves. */
-  const fadeAt = (d: FadeDrag, clientX: number) => {
-    const dxMs = ((clientX - d.originX) / zoomPxPerSec) * 1000;
-    const clipSec = clip.source_end - clip.source_start;
-    return d.edge === "in"
-      ? {
-          inMs: clampFadeMs(
-            d.baseIn + dxMs,
-            edgeFadeMaxMs(clipSec, fadeMaxMs, d.baseOut),
-          ),
-          outMs: d.baseOut,
-        }
-      : {
-          inMs: d.baseIn,
-          outMs: clampFadeMs(
-            d.baseOut - dxMs,
-            edgeFadeMaxMs(clipSec, fadeMaxMs, d.baseIn),
-          ),
-        };
-  };
-
-  const commitFade = async (state: FadeDrag, clientX: number) => {
-    const next = fadeAt(state, clientX);
-    try {
-      // A click (under the drag threshold) only selects, and a drag that
-      // leaves both lengths unchanged (e.g. already at the cap) writes nothing.
-      if (
-        isHandleDrag(state.originX, clientX) &&
-        (next.inMs !== state.baseIn || next.outMs !== state.baseOut)
-      ) {
-        await setClipFade(
-          useDawStore.getState().projectPath,
-          clip.id,
-          next.inMs,
-          next.outMs,
-        );
-      }
-    } finally {
-      dragRef.current = null;
-      setFadePreview(null);
-    }
-  };
-
-  const commitTrim = async (state: TrimDrag, clientX: number) => {
-    try {
-      // A click (under the drag threshold) only selects: no snap, no ripple,
-      // no undo entry.
-      if (!isHandleDrag(state.originX, clientX)) {
-        return;
-      }
-      const dxSec = (clientX - state.originX) / zoomPxPerSec;
-      const proposed = magnetSec(
-        sourceSecFromTimelineDelta(state.baseSourceSec, dxSec),
-        ticks,
-        zoomPxPerSec,
-      );
-      const sourceSec = clampTrimSourceSec(
-        state.edge,
-        proposed,
-        state.sourceStart,
-        state.sourceEnd,
-        neighborSourceLo,
-        neighborSourceHi,
-      );
-      // A drag the snap or clamp puts back on the committed edge is a no-op.
-      if (Math.abs(sourceSec - state.baseSourceSec) < 1e-9) {
-        return;
-      }
-      const target: BoundaryTarget = {
-        kind: "trim",
-        clip_id: state.clipId,
-        edge: state.edge,
-      };
-      const token = await boundaryToken(
-        state.projectPath,
-        target,
-        state.expectedGeometry,
-        state.projectEpoch,
-      );
-      await trimClipEdge(
-        state.projectPath,
-        state.clipId,
-        state.edge,
-        sourceSec,
-        "ripple",
-        token,
-      );
-    } finally {
-      dragRef.current = null;
-      setTrimPreview(null);
-    }
   };
 
   const commitRoll = async (state: RollDrag, clientX: number) => {
@@ -393,72 +277,13 @@ export function ClipBlockLive({
         );
       }
     } finally {
-      dragRef.current = null;
+      rollDragRef.current = null;
       onRollPreview(null);
     }
   };
 
-  const startFadeDrag = (edge: FadeEdge, e: ReactPointerEvent) => {
-    if (!editable) {
-      return;
-    }
-    e.stopPropagation();
-    e.preventDefault();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // optional — move/up still fire on the handle
-    }
-    dragRef.current = {
-      kind: "fade",
-      edge,
-      originX: e.clientX,
-      baseIn: clip.fade_in_ms,
-      baseOut: clip.fade_out_ms,
-    };
-    setFadePreview({
-      edge,
-      inMs: clip.fade_in_ms,
-      outMs: clip.fade_out_ms,
-    });
-    onSelect(clip.id);
-  };
-
-  const startTrimDrag = (edge: TrimEdge, e: ReactPointerEvent) => {
-    if (!editable) {
-      return;
-    }
-    e.stopPropagation();
-    e.preventDefault();
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // optional — move/up still fire on the handle
-    }
-    const baseSourceSec = edge === "out" ? clip.source_end : clip.source_start;
-    const project = useDawStore.getState();
-    dragRef.current = {
-      kind: "trim",
-      clipId: clip.id,
-      edge,
-      originX: e.clientX,
-      baseSourceSec,
-      sourceStart: clip.source_start,
-      sourceEnd: clip.source_end,
-      expectedGeometry: boundaryGeometry(clip),
-      projectPath: project.projectPath,
-      projectEpoch: project.projectEpoch,
-    };
-    setTrimPreview({
-      edge,
-      sourceStart: clip.source_start,
-      sourceEnd: clip.source_end,
-    });
-    onSelect(clip.id);
-  };
-
   const startRollDrag = (e: ReactPointerEvent) => {
-    if (!editable || !prevClip) {
+    if (!editable || !prevClip || edgeHandles.active) {
       return;
     }
     e.stopPropagation();
@@ -469,8 +294,7 @@ export function ClipBlockLive({
       // optional
     }
     const project = useDawStore.getState();
-    dragRef.current = {
-      kind: "roll",
+    rollDragRef.current = {
       originX: e.clientX,
       leftClipId: prevClip.id,
       rightClipId: clip.id,
@@ -494,80 +318,35 @@ export function ClipBlockLive({
   };
 
   const onDragMove = (e: ReactPointerEvent) => {
-    const d = dragRef.current;
+    const d = rollDragRef.current;
     if (!d) {
-      return;
-    }
-    if (d.kind === "fade") {
-      setFadePreview({ edge: d.edge, ...fadeAt(d, e.clientX) });
-      return;
-    }
-    if (d.kind === "roll") {
-      const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
-      onRollPreview({
-        leftClipId: d.leftClipId,
-        rightClipId: d.rightClipId,
-        deltaSec: clampRollDelta(dxSec, {
-          leftSourceStart: d.leftSourceStart,
-          leftSourceEnd: d.leftSourceEnd,
-          rightSourceStart: d.rightSourceStart,
-          rightSourceEnd: d.rightSourceEnd,
-          prevSourceEnd: d.prevSourceEnd,
-          nextSourceStart: d.nextSourceStart,
-          mediaEnd: d.mediaEnd,
-        }),
-      });
       return;
     }
     const dxSec = (e.clientX - d.originX) / zoomPxPerSec;
-    const proposed = magnetSec(
-      sourceSecFromTimelineDelta(d.baseSourceSec, dxSec),
-      ticks,
-      zoomPxPerSec,
-    );
-    const sourceSec = clampTrimSourceSec(
-      d.edge,
-      proposed,
-      d.sourceStart,
-      d.sourceEnd,
-      neighborSourceLo,
-      neighborSourceHi,
-    );
-    if (d.edge === "out") {
-      setTrimPreview({
-        edge: "out",
-        sourceStart: d.sourceStart,
-        sourceEnd: sourceSec,
-      });
-    } else {
-      setTrimPreview({
-        edge: "in",
-        sourceStart: sourceSec,
-        sourceEnd: d.sourceEnd,
-      });
-    }
+    onRollPreview({
+      leftClipId: d.leftClipId,
+      rightClipId: d.rightClipId,
+      deltaSec: clampRollDelta(dxSec, {
+        leftSourceStart: d.leftSourceStart,
+        leftSourceEnd: d.leftSourceEnd,
+        rightSourceStart: d.rightSourceStart,
+        rightSourceEnd: d.rightSourceEnd,
+        prevSourceEnd: d.prevSourceEnd,
+        nextSourceStart: d.nextSourceStart,
+        mediaEnd: d.mediaEnd,
+      }),
+    });
   };
 
   const onDragUp = (e: ReactPointerEvent) => {
-    const d = dragRef.current;
-    if (!d) {
-      return;
-    }
-    if (d.kind === "fade") {
-      void commitFade(d, e.clientX);
-      return;
-    }
-    if (d.kind === "roll") {
-      void commitRoll(d, e.clientX);
-      return;
-    }
-    void commitTrim(d, e.clientX);
+    const d = rollDragRef.current;
+    if (d) void commitRoll(d, e.clientX);
   };
 
   const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
   const onBodyDown = (e: ReactPointerEvent) => {
-    if (bladeMode || !interactive) {
+    if (bladeMode || !interactive || edgeHandles.active) {
       return;
     }
     e.stopPropagation();
@@ -653,18 +432,9 @@ export function ClipBlockLive({
     handle: ClipHandle,
     e: ReactPointerEvent<HTMLButtonElement>,
   ) => {
-    switch (handle) {
-      case "roll":
-        return startRollDrag(e);
-      case "fade-in":
-        return startFadeDrag("in", e);
-      case "fade-out":
-        return startFadeDrag("out", e);
-      case "trim-in":
-        return startTrimDrag("in", e);
-      case "trim-out":
-        return startTrimDrag("out", e);
-    }
+    if (rollDragRef.current) return;
+    if (handle === "roll") return startRollDrag(e);
+    return edgeHandles.onPointerDown(handle, e);
   };
 
   const hitHandlers: ClipHitHandlers = {
@@ -753,8 +523,19 @@ export function ClipBlockLive({
       }
       hitHandlers={interactive ? hitHandlers : undefined}
       onHandlePointerDown={onHandlePointerDown}
-      onHandlePointerMove={onDragMove}
-      onHandlePointerUp={onDragUp}
+      onHandlePointerMove={(e) => {
+        onDragMove(e);
+        edgeHandles.onPointerMove(e);
+      }}
+      onHandlePointerUp={(e) => {
+        onDragUp(e);
+        edgeHandles.onPointerUp(e);
+      }}
+      onHandlePointerCancel={edgeHandles.onPointerCancel}
+      onHandleFocus={edgeHandles.onFocus}
+      onHandleBlur={edgeHandles.onBlur}
+      onHandleKeyDown={edgeHandles.onKeyDown}
+      onHandleKeyUp={edgeHandles.onKeyUp}
     />
   );
 }

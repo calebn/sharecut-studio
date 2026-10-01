@@ -75,6 +75,8 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 |----------|---------|------|-------|
 | `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: focused word in Navigate mode |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | After exitCommentMode; does not clear track targeting |
+| `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
+| `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
 | `Mod+C` | Copy (`edit.copy`) | Project loaded | Mod+C |
 | `Mod+X` | Cut (`edit.cut`) | Host or shared edit mode | Mod+X |
 | `Mod+V` | Paste (`edit.paste`) | Host or shared edit mode | Mod+V: same-track at playhead |
@@ -153,9 +155,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Next low-confidence word | `transcript.nextLowConfidence` | Project loaded | Seek + scroll to the next word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
 | Previous low-confidence word | `transcript.prevLowConfidence` | Project loaded | Seek + scroll to the previous word under 0.7 ASR confidence, wrapping; turns Annotate on; Correct mode selects it (#634) |
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
-| Trim clip edge | `edit.trimClipEdge` | Host or shared edit mode | Pointer trim handles on clip blocks (start / end) |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
-| Set clip fade | `edit.setClipFade` | Host or shared edit mode | Pointer fade handles on clip blocks and paired sliders in Clip inspector |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join badge popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
 | Add chapter at playhead | `edit.addChapter` | Loaded host project | Chapter titled from the playhead time (AddChapter); turns the Markers layer on. Host only. |

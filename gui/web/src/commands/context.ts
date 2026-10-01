@@ -7,9 +7,12 @@ import {
   canSuggestStructural,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { focusedClipHandleKind } from "./focusedClipHandle";
 import type { ContextPredicateId } from "./types";
 
 export type CommandContext = {
+  focusedFadeHandle: boolean;
+  focusedTrimHandle: boolean;
   timelineFocused: boolean;
   transcriptFocused: boolean;
   editorFocused: boolean;
@@ -52,6 +55,8 @@ export function buildCommandContext(): CommandContext {
         ) ?? -1)
       : -1;
   return {
+    focusedFadeHandle: focusedClipHandleKind() === "fade",
+    focusedTrimHandle: focusedClipHandleKind() === "trim",
     timelineFocused: s.timelineFocused,
     transcriptFocused,
     editorFocused: s.timelineFocused || transcriptFocused,
@@ -117,6 +122,14 @@ export function evaluateWhen(
   ctx: CommandContext,
 ): { ok: true } | { ok: false; reason: string } {
   switch (when) {
+    case "focusedFadeHandle":
+      return ctx.focusedFadeHandle
+        ? { ok: true }
+        : { ok: false, reason: "No fade handle focused" };
+    case "focusedTrimHandle":
+      return ctx.focusedTrimHandle
+        ? { ok: true }
+        : { ok: false, reason: "No trim handle focused" };
     case "always":
       return { ok: true };
     case "layoutShell":

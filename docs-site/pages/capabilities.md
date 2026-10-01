@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**104** capabilities · **88** Sharecut Studio commands · **52** keyed · **170** MCP tools · **17** skills on rows (+ **19** hub skills).
+**104** capabilities · **88** Sharecut Studio commands · **54** keyed · **170** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -108,11 +108,11 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Next low-confidence word | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
-| Trim clip edge | `edit.trimClipEdge` | — (pointer trim handle; no industry-standard key) | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
+| Trim clip edge | `edit.trimClipEdge` | `ArrowLeft` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
 | Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Add chapter at playhead | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `transport.menu`, `mobileShell.more` | — | — | — | yes | none · none |
 | Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |
-| Set clip fade | `edit.setClipFade` | — (pointer fade handle; no industry-standard key) | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
+| Set clip fade | `edit.setClipFade` | `ArrowLeft` | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
 | Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Find and replace transcript | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | `transcript.findReplace` | — | — | — | yes | none · none |
 

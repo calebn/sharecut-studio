@@ -18,6 +18,7 @@ import { errorMessage } from "../utils/apiError";
 import { bladeTrackIds } from "../utils/bladeTracks";
 import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
+import { runFocusedClipHandle } from "./focusedClipHandle";
 import { resolveTrackId } from "./targets";
 import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
@@ -299,11 +300,10 @@ export function registerClipboardCommands(): void {
 }
 
 export function registerClipMoveCommands(): void {
-  registerCommand("edit.trimClipEdge", () => {
-    return {
-      status: "disabled",
-      reason: "Use the clip trim handles on the timeline",
-    };
+  registerCommand("edit.trimClipEdge", (args, ctx) => {
+    if (!ctx.canApplyPass12)
+      return { status: "disabled", reason: "Edits not allowed" };
+    return runFocusedClipHandle("trim", args);
   });
 
   registerCommand("edit.rollClipJoin", () => {
@@ -313,11 +313,10 @@ export function registerClipMoveCommands(): void {
     };
   });
 
-  registerCommand("edit.setClipFade", () => {
-    return {
-      status: "disabled",
-      reason: "Use the clip fade handles on the timeline",
-    };
+  registerCommand("edit.setClipFade", (args, ctx) => {
+    if (!ctx.canApplyPass12)
+      return { status: "disabled", reason: "Edits not allowed" };
+    return runFocusedClipHandle("fade", args);
   });
 
   registerCommand("edit.setClipJoin", () => {

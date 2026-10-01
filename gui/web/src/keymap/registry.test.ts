@@ -256,12 +256,19 @@ describe("keymap registry", () => {
     ).toBe("history.redo");
   });
 
-  it("still matches arrows with Shift for nudge notes", () => {
+  it("matches focused clip arrows before Shift playhead nudges", () => {
     expect(
-      matchKeymapCommand(
+      matchKeymapCommands(
         keyEvent({ key: "ArrowLeft", code: "ArrowLeft", shiftKey: true }),
-      )?.id,
-    ).toBe("navigation.nudgePlayheadBack");
+      )
+        .map((command) => command.id)
+        .slice(0, 2),
+    ).toEqual(["edit.setClipFade", "edit.trimClipEdge"]);
+    expect(
+      matchKeymapCommands(
+        keyEvent({ key: "ArrowLeft", code: "ArrowLeft", shiftKey: true }),
+      ).map((command) => command.id),
+    ).toContain("navigation.nudgePlayheadBack");
   });
 
   it("honors remap overrides", () => {
