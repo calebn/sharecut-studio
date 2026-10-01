@@ -432,9 +432,12 @@ describe("exact raw source preview", () => {
     state.setPlayheadSec(42);
     state.beginSourcePreview({
       ownerId: "word",
-      trackId: "host",
-      sourceId: "extra",
-      cacheKey: "version",
+      media: {
+        kind: "raw",
+        trackId: "host",
+        sourceId: "extra",
+        cacheKey: "version",
+      },
       startSec: 2,
       endSec: 3,
     });
@@ -447,9 +450,12 @@ describe("exact raw source preview", () => {
     act(() =>
       state.beginSourcePreview({
         ownerId: "word",
-        trackId: "host",
-        sourceId: "extra",
-        cacheKey: "version",
+        media: {
+          kind: "raw",
+          trackId: "host",
+          sourceId: "extra",
+          cacheKey: "version",
+        },
         startSec: 2.02,
         endSec: 3,
       }),
@@ -460,6 +466,36 @@ describe("exact raw source preview", () => {
     expect(useDawStore.getState().playheadSec).toBe(42);
     expect(playbackPositionSec() ?? 42).toBe(42);
     act(() => state.stopPlayback());
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    unmount();
+  });
+});
+
+describe("rendered boundary source preview", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uses the single transport player for the server-issued audition window", async () => {
+    FakeAudio.instances = [];
+    vi.stubGlobal("Audio", FakeAudio);
+    const state = useDawStore.getState();
+    state.hydrate(
+      "/tmp/boundary-preview.json",
+      trackProject("raw/primary.wav"),
+    );
+    state.beginSourcePreview({
+      ownerId: "boundary-editor",
+      media: { kind: "rendered", url: "/api/boundary/audio/opaque?token=host" },
+      startSec: 0,
+      endSec: 2,
+    });
+    const { unmount } = renderHook(() => useAudioTransport());
+    await act(async () => {});
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(FakeAudio.instances[0]?.src).toContain(
+      "/api/boundary/audio/opaque?token=host",
+    );
+    expect(FakeAudio.instances[0]?.currentTime).toBe(0);
+    act(() => state.releaseSourcePreview("boundary-editor"));
     expect(useDawStore.getState().sourcePreview).toBeNull();
     unmount();
   });
@@ -484,9 +520,7 @@ describe("source preview asset error ownership", () => {
       const begin = (sourceId: string) =>
         state.beginSourcePreview({
           ownerId: "editor",
-          trackId: "host",
-          sourceId,
-          cacheKey: sourceId,
+          media: { kind: "raw", trackId: "host", sourceId, cacheKey: sourceId },
           startSec: 0,
           endSec: 1,
         });
@@ -494,7 +528,11 @@ describe("source preview asset error ownership", () => {
       let injectOldError = false;
       const view = renderHook(() => {
         useAudioTransport();
-        const sourceId = useDawStore((s) => s.sourcePreview?.sourceId ?? null);
+        const sourceId = useDawStore((s) =>
+          s.sourcePreview?.media.kind === "raw"
+            ? s.sourcePreview.media.sourceId
+            : null,
+        );
         useLayoutEffect(() => {
           if (injectOldError)
             FakeAudio.instances[0].dispatchEvent(new Event("error"));

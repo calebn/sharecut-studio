@@ -9,7 +9,7 @@ import {
   ignoresKeyRepeat,
   matchKeymapCommands,
 } from "./registry";
-import { isTypingTarget } from "./typing";
+import { isButtonActivation, isTypingTarget } from "./typing";
 
 /**
  * Sole window-level Sharecut Studio shortcut listener (governance choke-point).
@@ -32,7 +32,7 @@ export function useDawKeymapListener(): void {
       ) {
         return;
       }
-      if (isTypingTarget(e.target)) {
+      if (isTypingTarget(e.target) || isButtonActivation(e)) {
         return;
       }
       if (s.recordPanelOpen) {

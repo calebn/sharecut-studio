@@ -6,6 +6,11 @@ import {
 } from "react";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
 import {
+  type BoundaryGeometryClip,
+  type BoundaryTarget,
+  loadBoundaryContext,
+} from "../api/boundary";
+import {
   clampRollDelta,
   clampTrimSourceSec,
   type RollPreview,
@@ -24,7 +29,7 @@ import {
 } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { useSnapTicks } from "../hooks/useSnapTicks";
-import { isShareProjectKey } from "../shareMode";
+import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
@@ -110,11 +115,15 @@ type FadeDrag = {
 
 type TrimDrag = {
   kind: "trim";
+  clipId: string;
   edge: TrimEdge;
   originX: number;
   baseSourceSec: number;
   sourceStart: number;
   sourceEnd: number;
+  expectedGeometry: BoundaryGeometryClip[];
+  projectPath: string;
+  projectEpoch: number;
 };
 
 type RollDrag = {
@@ -129,6 +138,9 @@ type RollDrag = {
   prevSourceEnd: number;
   nextSourceStart: number;
   mediaEnd: number;
+  expectedGeometry: BoundaryGeometryClip[];
+  projectPath: string;
+  projectEpoch: number;
 };
 
 type BodyDrag = {
@@ -173,7 +185,11 @@ export function ClipBlockLive({
   onMoveCancel,
 }: ClipBlockProps) {
   // Commit handlers read the project path at call time (getState()).
-  const editable = useDawStore((s) => !isShareProjectKey(s.projectPath));
+  const editable = useDawStore(
+    (s) =>
+      !isShareProjectKey(s.projectPath) ||
+      hasShareCapability(s.shareCapabilities, "edit"),
+  );
   const dragRef = useRef<FadeDrag | TrimDrag | RollDrag | null>(null);
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
@@ -210,6 +226,36 @@ export function ClipBlockLive({
     enabled: interactive,
   });
   const waveKind = refKind(mediaRef);
+
+  const boundaryGeometry = (...clips: ClipRow[]): BoundaryGeometryClip[] =>
+    clips.map(
+      ({ id, source_start, source_end, timeline_start, source_id }) => ({
+        id,
+        source_start,
+        source_end,
+        timeline_start,
+        source_id,
+      }),
+    );
+
+  const boundaryToken = async (
+    path: string,
+    target: BoundaryTarget,
+    expectedGeometry: BoundaryGeometryClip[],
+    projectEpoch: number,
+  ): Promise<string> => {
+    const beforeRequest = useDawStore.getState();
+    if (
+      beforeRequest.projectPath !== path ||
+      beforeRequest.projectEpoch !== projectEpoch
+    )
+      throw new Error("Project changed during the boundary drag");
+    const context = await loadBoundaryContext(path, target, expectedGeometry);
+    const project = useDawStore.getState();
+    if (project.projectPath !== path || project.projectEpoch !== projectEpoch)
+      throw new Error("Project changed during the boundary drag");
+    return context.token;
+  };
 
   /** Fade lengths for a drag of `d` to `clientX`: the dragged edge moves,
    *  clamped to the track cap and to what the other edge leaves. */
@@ -280,11 +326,24 @@ export function ClipBlockLive({
       if (Math.abs(sourceSec - state.baseSourceSec) < 1e-9) {
         return;
       }
+      const target: BoundaryTarget = {
+        kind: "trim",
+        clip_id: state.clipId,
+        edge: state.edge,
+      };
+      const token = await boundaryToken(
+        state.projectPath,
+        target,
+        state.expectedGeometry,
+        state.projectEpoch,
+      );
       await trimClipEdge(
-        useDawStore.getState().projectPath,
-        clip.id,
+        state.projectPath,
+        state.clipId,
         state.edge,
         sourceSec,
+        "ripple",
+        token,
       );
     } finally {
       dragRef.current = null;
@@ -310,11 +369,24 @@ export function ClipBlockLive({
         isHandleDrag(state.originX, clientX) &&
         Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX
       ) {
+        const path = state.projectPath;
+        const target: BoundaryTarget = {
+          kind: "roll",
+          left_clip_id: state.leftClipId,
+          right_clip_id: state.rightClipId,
+        };
+        const token = await boundaryToken(
+          path,
+          target,
+          state.expectedGeometry,
+          state.projectEpoch,
+        );
         await rollClipJoin(
-          useDawStore.getState().projectPath,
+          path,
           state.leftClipId,
           state.rightClipId,
           delta,
+          token,
         );
       }
     } finally {
@@ -361,13 +433,18 @@ export function ClipBlockLive({
       // optional — move/up still fire on the handle
     }
     const baseSourceSec = edge === "out" ? clip.source_end : clip.source_start;
+    const project = useDawStore.getState();
     dragRef.current = {
       kind: "trim",
+      clipId: clip.id,
       edge,
       originX: e.clientX,
       baseSourceSec,
       sourceStart: clip.source_start,
       sourceEnd: clip.source_end,
+      expectedGeometry: boundaryGeometry(clip),
+      projectPath: project.projectPath,
+      projectEpoch: project.projectEpoch,
     };
     setTrimPreview({
       edge,
@@ -388,6 +465,7 @@ export function ClipBlockLive({
     } catch {
       // optional
     }
+    const project = useDawStore.getState();
     dragRef.current = {
       kind: "roll",
       originX: e.clientX,
@@ -400,6 +478,9 @@ export function ClipBlockLive({
       prevSourceEnd: leftNeighborSourceEnd,
       nextSourceStart: nextClip?.source_start ?? mediaDurationSec,
       mediaEnd: mediaDurationSec,
+      expectedGeometry: boundaryGeometry(prevClip, clip),
+      projectPath: project.projectPath,
+      projectEpoch: project.projectEpoch,
     };
     onRollPreview({
       leftClipId: prevClip.id,

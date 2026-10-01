@@ -1618,6 +1618,129 @@ button.history-row {
   flex: none;
 }
 
+.precision-boundary-dialog {
+  inline-size: min(36rem, calc(100vw - 2rem));
+  container-name: precision-boundary;
+  container-type: inline-size;
+}
+
+.precision-boundary-content {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.precision-boundary-operation {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.precision-boundary-content > label {
+  font-weight: 500;
+}
+
+.precision-boundary-number,
+.precision-boundary-nudges,
+.precision-boundary-audition,
+.precision-boundary-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.precision-boundary-number input {
+  min-inline-size: 0;
+  flex: 1;
+  min-block-size: var(--touch-min);
+  padding-inline: var(--space-3);
+  color: var(--text);
+  background: var(--color-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.precision-boundary-nudges {
+  justify-content: flex-end;
+}
+
+.precision-boundary-range,
+.precision-boundary-ghost {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.precision-boundary-ghost p {
+  margin: 0 0 var(--space-2);
+}
+
+.precision-boundary-ghost ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+.precision-boundary-positions {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-block: var(--space-3);
+  border-block: 1px solid var(--border);
+}
+
+.precision-boundary-positions > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.precision-boundary-positions dt {
+  color: var(--text-muted);
+}
+
+.precision-boundary-positions dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.precision-boundary-audition,
+.precision-boundary-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.precision-boundary-audition {
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--border);
+}
+
+.precision-boundary-error {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@container precision-boundary (max-width: 34rem) {
+  .precision-boundary-dialog {
+    inline-size: calc(100vw - 1rem);
+  }
+
+  .precision-boundary-number {
+    flex-wrap: wrap;
+  }
+
+  .precision-boundary-number input {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .precision-boundary-audition > *,
+  .precision-boundary-actions > * {
+    flex: 1 1 auto;
+  }
+}
+
 .edit-boundary-error-body {
   min-height: 0;
   overflow: auto;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasCommandModifier } from "./typing";
+import { hasCommandModifier, isButtonActivation } from "./typing";
 
 const mods = (
   m: Partial<{
@@ -14,6 +14,39 @@ const mods = (
   altKey: false,
   shiftKey: false,
   ...m,
+});
+
+describe("isButtonActivation", () => {
+  it("reserves bare Space and Enter for focused native buttons", () => {
+    const button = document.createElement("button");
+    for (const key of [" ", "Enter"]) {
+      expect(
+        isButtonActivation(
+          new KeyboardEvent("keydown", { key, bubbles: true }),
+        ),
+      ).toBe(false);
+      button.addEventListener(
+        "keydown",
+        (event) => {
+          expect(isButtonActivation(event)).toBe(true);
+        },
+        { once: true },
+      );
+      button.dispatchEvent(
+        new KeyboardEvent("keydown", { key, bubbles: true }),
+      );
+    }
+    button.addEventListener(
+      "keydown",
+      (event) => {
+        expect(isButtonActivation(event)).toBe(false);
+      },
+      { once: true },
+    );
+    button.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", ctrlKey: true, bubbles: true }),
+    );
+  });
 });
 
 describe("hasCommandModifier", () => {

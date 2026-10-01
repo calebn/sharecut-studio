@@ -136,14 +136,17 @@ export async function trimClipEdge(
   clipId: string,
   edge: "in" | "out",
   sourceSec: number,
-  mode: "ripple" = "ripple",
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "TrimClipEdge", {
+  mode: "ripple",
+  expectedToken: string,
+): Promise<{ queued: boolean }> {
+  const result = await submitDocumentCommand(projectPath, "TrimClipEdge", {
     clip_id: clipId,
     edge,
     source_sec: sourceSec,
     mode,
+    expected_token: expectedToken,
   });
+  return { queued: result.queued === true };
 }
 
 export async function rollClipJoin(
@@ -151,12 +154,15 @@ export async function rollClipJoin(
   leftClipId: string,
   rightClipId: string,
   deltaSec: number,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "RollClipJoin", {
+  expectedToken: string,
+): Promise<{ queued: boolean }> {
+  const result = await submitDocumentCommand(projectPath, "RollClipJoin", {
     left_clip_id: leftClipId,
     right_clip_id: rightClipId,
     delta_sec: deltaSec,
+    expected_token: expectedToken,
   });
+  return { queued: result.queued === true };
 }
 
 export async function moveClips(

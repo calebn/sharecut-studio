@@ -9,6 +9,7 @@ import platform
 import re
 import secrets
 import shutil
+import tempfile
 import threading
 import time
 import wave
@@ -39,7 +40,7 @@ from podcast_mcp.engines.play_audit import (
     stem_revision,
     track_render_hash,
 )
-from podcast_mcp.engines.timeline_render import render_track_segment
+from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.engines.timemap import TimelineMapError, timeline_range_to_source
 from podcast_mcp.engines.transcript_gated_play import (
     dialogue_tracks_for_play,
@@ -307,7 +308,6 @@ class PlayService:
         start: float,
         end: float,
     ) -> Path:
-        """Exact-key, atomic segment and output-gain render in the bounded play cache."""
         track = project.track_by_id(track_id)
         if track is None:
             raise ValueError(f"unknown track {track_id!r}")
@@ -327,23 +327,31 @@ class PlayService:
         raw = json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str)
         digest = hashlib.sha256(raw.encode()).hexdigest()
         cache = self.project.artifacts_dir() / "play_cache"
-        segment = cache / f"boundary_{digest}_segment.wav"
-        output = cache / f"boundary_{digest}_mix.wav"
-        self._play_cache_dir(segment, output)
-        if not segment.is_file():
-            render_atomic(
-                segment,
-                lambda tmp: render_track_segment(
-                    project, track_id, start, end, tmp, self._defaults
-                ),
-            )
+        output = cache / f"boundary_{digest}_audition.wav"
+        self._play_cache_dir(output)
         if not output.is_file():
-            render_atomic(
-                output,
-                lambda tmp: FFmpegEngine().mix_tracks(
-                    [(segment, float(track.fader_db))], tmp, peak_ceiling_db=ceiling
-                ),
+            stem_fd, stem_name = tempfile.mkstemp(
+                prefix="boundary_full_stem_", suffix=".wav", dir=cache
             )
+            os.close(stem_fd)
+            stem = Path(stem_name)
+            try:
+                mix_fd, mix_name = tempfile.mkstemp(
+                    prefix="boundary_full_mix_", suffix=".wav", dir=cache
+                )
+                os.close(mix_fd)
+                mix = Path(mix_name)
+                try:
+                    engine = FFmpegEngine()
+                    render_track_from_timeline(project, track, stem, self._defaults, engine=engine)
+                    engine.mix_tracks(
+                        [(stem, float(track.output_gain_db))], mix, peak_ceiling_db=ceiling
+                    )
+                    render_atomic(output, lambda tmp: engine.extract_segment(mix, tmp, start, end))
+                finally:
+                    mix.unlink(missing_ok=True)
+            finally:
+                stem.unlink(missing_ok=True)
         self._mark_play_cache_used(output)
         return output
 
@@ -393,19 +401,9 @@ class PlayService:
         track_id = current_context.track_id
         current_seam = current_context.current.timeline_sec
         proposed_seam = proposed_context.current.timeline_sec
-        # A cropped crossfade needs enough right-hand content for its actual blend
-        # duration to match the full track. Refuse unusually long fades rather than
-        # silently producing a misleading seam.
-        involved = [c for c in current.clips if c.id in {g.id for g in current_context.geometry}]
-        max_fade = max((max(c.fade_in_ms, c.fade_out_ms) / 1000 for c in involved), default=0)
-        required_pad = max(pad_sec, 2 * max_fade + 0.01)
-        if required_pad > 4.0:
-            raise ValueError("join fade is too long for a bounded boundary audition")
-        current_start, current_end = self._boundary_window(
-            current, track_id, current_seam, required_pad
-        )
+        current_start, current_end = self._boundary_window(current, track_id, current_seam, pad_sec)
         proposed_start, proposed_end = self._boundary_window(
-            proposed, track_id, proposed_seam, required_pad
+            proposed, track_id, proposed_seam, pad_sec
         )
         with render_lock(self.project, timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC):
             current_path = self._boundary_render(

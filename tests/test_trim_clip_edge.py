@@ -17,6 +17,7 @@ from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project,
 from podcast_mcp.services.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
+from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
@@ -233,6 +234,20 @@ def test_trim_clip_edge_all_tracks_moves_the_session_join_on_every_track(
         assert clips[f"{tid}_b"].source_start == pytest.approx(19.94)
         assert clips[f"{tid}_b"].timeline_start == 10.0
         assert clips[f"{tid}_c"].timeline_start == pytest.approx(20.06)
+
+
+def test_all_tracks_zero_delta_does_not_save_or_add_history(minimal_project: Path) -> None:
+    path = _session_ripple_project(minimal_project)
+    ws = ProjectWorkspace.open(path)
+    revision = boundary_context(ws.project, TrimBoundaryTarget(clip_id="remote_b", edge="in")).token
+    before = path.read_bytes()
+    history = len(ws.project.history.entries)
+    result = EditService(ws).trim_clip_edge(
+        "remote_b", "in", 20.34, all_tracks=True, expected_token=revision
+    )
+    assert result["unchanged"] is True
+    assert path.read_bytes() == before
+    assert len(load_project(path).history.entries) == history
 
 
 def test_trim_clip_edge_all_tracks_refuses_a_track_local_boundary(minimal_project: Path) -> None:

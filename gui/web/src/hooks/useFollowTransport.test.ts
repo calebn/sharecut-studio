@@ -198,9 +198,7 @@ describe("useFollowTransport", () => {
     const before = useDawStore.getState().playheadSeekRevision;
     useDawStore.getState().beginSourcePreview({
       ownerId: "wordbar",
-      trackId: "host",
-      sourceId: null,
-      cacheKey: "raw",
+      media: { kind: "raw", trackId: "host", sourceId: null, cacheKey: "raw" },
       startSec: 0,
       endSec: 1,
     });

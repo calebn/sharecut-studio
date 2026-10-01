@@ -1,5 +1,3 @@
-"""Typed boundary drafts and revision identity shared by context, audition, and Apply."""
-
 from __future__ import annotations
 
 import hashlib

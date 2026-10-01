@@ -913,11 +913,19 @@ class EditService:
             return trim_clip_edge(p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks)
 
         with self.ws.transaction() as project:
-            if not all_tracks:
-                current = assert_boundary_token(project, target, expected_token)
-                bounded = min(max(source_sec, current.limits.min), current.limits.max)
-                if abs(bounded - current.current.source_sec) < 1e-12:
-                    return {"operation": "trim_clip_edge", "unchanged": True}
+            current = assert_boundary_token(project, target, expected_token)
+            bounded = min(max(source_sec, current.limits.min), current.limits.max)
+            if abs(bounded - current.current.source_sec) < 1e-12:
+                if all_tracks:
+                    trim_clip_edge(
+                        project.model_copy(deep=True),
+                        clip_id,
+                        edge,
+                        source_sec,
+                        mode=mode,
+                        all_tracks=True,
+                    )
+                return {"operation": "trim_clip_edge", "unchanged": True}
             return self.ws.mutate(
                 "before trim clip edge",
                 "after trim clip edge",
