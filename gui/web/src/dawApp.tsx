@@ -26,22 +26,45 @@ import { useHostKeeperCapture } from "./record/useHostKeeperCapture";
 import { isShareProjectKey } from "./shareMode";
 import { useDawStore } from "./state/dawStore";
 import { selectPublishKey } from "./state/publishKey";
-import { useDaw } from "./state/useDaw";
+import type { DawState } from "./state/types";
+import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
 import { Button, ErrorScreen } from "./ui";
 
 let commandsRegistered = false;
 
+const selectDawAppFields = pickDaw(
+  "projectPath",
+  "setProject",
+  "isPlaying",
+  "applyAgentSession",
+  "buildViewerSnapshot",
+  "lastAppliedRevision",
+  "lastAppliedCommandId",
+  "pipelineJob",
+  "setPipelineJob",
+  "activityJob",
+  "setActivityJob",
+  "setActivityRunningCount",
+  "hostMcpDialogOpen",
+  "setHostMcpDialogOpen",
+  "helpDialogOpen",
+  "setHelpDialogOpen",
+);
+
+const selectDawAppDerived = (s: DawState) => ({
+  hasProject: Boolean(s.project),
+  projectName: s.project?.meta.name ?? null,
+  suppressPublish: s.suppressPublish || s.sourcePreview !== null,
+});
+
 export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const {
-    hasProject,
-    projectName,
     projectPath,
     setProject,
     isPlaying,
     applyAgentSession,
     buildViewerSnapshot,
-    suppressPublish,
     lastAppliedRevision,
     lastAppliedCommandId,
     pipelineJob,
@@ -53,27 +76,9 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     setHostMcpDialogOpen,
     helpDialogOpen,
     setHelpDialogOpen,
-  } = useDaw((s) => ({
-    hasProject: Boolean(s.project),
-    projectName: s.project?.meta.name ?? null,
-    projectPath: s.projectPath,
-    setProject: s.setProject,
-    isPlaying: s.isPlaying,
-    applyAgentSession: s.applyAgentSession,
-    buildViewerSnapshot: s.buildViewerSnapshot,
-    suppressPublish: s.suppressPublish || s.sourcePreview !== null,
-    lastAppliedRevision: s.lastAppliedRevision,
-    lastAppliedCommandId: s.lastAppliedCommandId,
-    pipelineJob: s.pipelineJob,
-    setPipelineJob: s.setPipelineJob,
-    activityJob: s.activityJob,
-    setActivityJob: s.setActivityJob,
-    setActivityRunningCount: s.setActivityRunningCount,
-    hostMcpDialogOpen: s.hostMcpDialogOpen,
-    setHostMcpDialogOpen: s.setHostMcpDialogOpen,
-    helpDialogOpen: s.helpDialogOpen,
-    setHelpDialogOpen: s.setHelpDialogOpen,
-  }));
+  } = useDaw(selectDawAppFields);
+  const { hasProject, projectName, suppressPublish } =
+    useDaw(selectDawAppDerived);
   const publishKey = useDawStore(selectPublishKey);
 
   const { error: bootstrapError, retry: retryBootstrap } =

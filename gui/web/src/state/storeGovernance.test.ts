@@ -33,6 +33,7 @@ const HOT_FIELDS = [
   "pointerTrackId",
   "bladeHoverSec",
 ] as const;
+const HOT_FIELD_SET: ReadonlySet<string> = new Set(HOT_FIELDS);
 const HOT_FIELD_ALTERNATION = HOT_FIELDS.join("|");
 
 /** `s.<hot field>` anywhere: the repo's selector parameter convention. */
@@ -128,6 +129,87 @@ function closeOf(
     i += 1;
   }
   return text.length;
+}
+
+type PickDawCall = { keys: string[]; literal: boolean };
+
+function pickDawCalls(text: string): PickDawCall[] {
+  const calls: PickDawCall[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const skipped = skipLiteral(text, i);
+    if (skipped !== i) {
+      i = skipped;
+      continue;
+    }
+    if (
+      !text.startsWith("pickDaw", i) ||
+      /[\w$]/.test(text[i - 1] ?? "") ||
+      /[\w$]/.test(text[i + "pickDaw".length] ?? "")
+    ) {
+      i += 1;
+      continue;
+    }
+    if (/\bfunction\s*$/.test(text.slice(0, i))) {
+      i += "pickDaw".length;
+      continue;
+    }
+    let open = skipSpace(text, i + "pickDaw".length);
+    if (text[open] === "<") {
+      open = skipSpace(text, closeOf(text, open + 1, "<", ">"));
+    }
+    if (text[open] !== "(") {
+      i += "pickDaw".length;
+      continue;
+    }
+    const close = closeOf(text, open + 1, "(", ")") - 1;
+    const args: string[] = [];
+    let start = open + 1;
+    let depth = 0;
+    for (let j = start; j < close; j += 1) {
+      const argumentLiteralEnd = skipLiteral(text, j);
+      if (argumentLiteralEnd !== j) {
+        j = argumentLiteralEnd - 1;
+        continue;
+      }
+      const ch = text[j];
+      if ("([{<".includes(ch)) {
+        depth += 1;
+      } else if (")]}>".includes(ch)) {
+        depth -= 1;
+      } else if (ch === "," && depth === 0) {
+        args.push(text.slice(start, j).trim());
+        start = j + 1;
+      }
+    }
+    if (text.slice(start, close).trim() !== "") {
+      args.push(text.slice(start, close).trim());
+    }
+    const keys: string[] = [];
+    let literal = true;
+    for (const arg of args) {
+      const match = /^(?:"([^"\\]*)"|'([^'\\]*)')$/.exec(arg);
+      if (match === null) {
+        literal = false;
+      } else {
+        keys.push(match[1] ?? match[2]);
+      }
+    }
+    calls.push({ keys, literal });
+    i = close + 1;
+  }
+  return calls;
+}
+
+function nonLiteralPickDawCalls(
+  files: Iterable<{ rel: string; text: string }>,
+): string[] {
+  return [...files]
+    .filter(
+      ({ rel, text }) =>
+        !isTestFile(rel) && pickDawCalls(text).some((call) => !call.literal),
+    )
+    .map(({ rel }) => rel);
 }
 
 /**
@@ -275,6 +357,9 @@ function selectorReads({ param, pattern, body }: Selector): string[] {
  */
 function hotFieldReads(text: string): string[] {
   const reads = [...text.matchAll(HOT_FIELD_READ)].map((m) => m[0]);
+  for (const { keys } of pickDawCalls(text)) {
+    reads.push(...keys.filter((key) => HOT_FIELD_SET.has(key)));
+  }
   const starts = new Set([
     ...[...text.matchAll(SELECTOR_CALL)].map(
       (m) => (m.index ?? 0) + m[0].length,
@@ -450,6 +535,59 @@ function hotFieldOffenders(
 }
 
 describe("store governance", () => {
+  it.each([
+    ['useDaw(pickDaw("playheadSec"))', ["playheadSec"]],
+    [
+      'const select = pickDaw("sessionClients"); useDaw(select)',
+      ["sessionClients"],
+    ],
+    ['useDaw(pickDaw<"playheadSec">("playheadSec"))', ["playheadSec"]],
+    [
+      'useDaw(pickDaw("playheadSec", "scrollLeft", "sessionClients", "pointerTrackId", "bladeHoverSec"))',
+      [
+        "playheadSec",
+        "scrollLeft",
+        "sessionClients",
+        "pointerTrackId",
+        "bladeHoverSec",
+      ],
+    ],
+    ['// pickDaw("scrollLeft")\nconst label = "pickDaw(\'playheadSec\')";', []],
+  ])("finds hot fields in pickDaw calls in %j", (text, expected) => {
+    expect(hotFieldReads(text)).toEqual(expected);
+  });
+
+  it.each([
+    ["pickDaw(keys)"],
+    ['pickDaw("projectPath", keys)'],
+    ["pickDaw(`projectPath`)"],
+    ['pickDaw<"projectPath">(keys)'],
+  ])("rejects nonliteral pickDaw arguments in %j", (text) => {
+    expect(pickDawCalls(text)).toEqual([
+      { keys: expect.any(Array), literal: false },
+    ]);
+  });
+
+  it("reports nonliteral pickDaw calls in planted production files", () => {
+    expect(
+      nonLiteralPickDawCalls([
+        { rel: "valid.ts", text: 'pickDaw("projectPath")' },
+        {
+          rel: "definition.ts",
+          text: "function pickDaw<K extends string>(...keys: K[]) {}",
+        },
+        { rel: "comment.ts", text: "// pickDaw(keys)" },
+        { rel: "string.ts", text: 'const example = "pickDaw(keys)"' },
+        { rel: "invalid.ts", text: "pickDaw(keys)" },
+        { rel: "invalid.test.tsx", text: "pickDaw(keys)" },
+      ]),
+    ).toEqual(["invalid.ts"]);
+  });
+
+  it("uses literal pickDaw arguments throughout production source", () => {
+    expect(nonLiteralPickDawCalls(sourceFiles())).toEqual([]);
+  });
+
   it.each([
     ["const { a } = useDaw();", 1],
     ["const s = useDawStore();", 1],
