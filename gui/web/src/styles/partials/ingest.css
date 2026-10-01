@@ -61,7 +61,7 @@
 
 .lane-drop-label {
   position: absolute;
-  z-index: 5;
+  z-index: var(--z-status-overlay);
   left: var(--space-3);
   top: var(--space-3);
   font-size: var(--font-size-caption);

@@ -572,6 +572,27 @@ def test_timeline_edge_stays_under_the_clips() -> None:
     assert {("z-index", "var(--z-timeline-edge)"), ("pointer-events", "none")} <= edges
 
 
+def test_timeline_partials_use_z_roles_for_positive_layers() -> None:
+    """Timeline partials keep positive stacking values in the shared role registry."""
+    timeline_partials = (
+        "timeline.css",
+        "layout.css",
+        "panels.css",
+        "ingest.css",
+        "command-palette.css",
+    )
+    z_roles = {
+        d.prop: d.value for d in _file_declarations(_TOKENS_CSS) if d.prop.startswith("--z-")
+    }
+    for name in timeline_partials:
+        for declaration in _file_declarations(_PARTIALS_DIR / name):
+            if declaration.prop != "z-index" or declaration.value in {"0", "auto"}:
+                continue
+            match = re.fullmatch(r"var\((--z-[\w-]+)\)", declaration.value)
+            assert match is not None, f"{name}:{declaration.line}: {declaration.value}"
+            assert match.group(1) in z_roles, f"{name}:{declaration.line}: missing {match.group(1)}"
+
+
 def test_track_mute_states_keep_their_paint_on_hover() -> None:
     """The M chip's saved, listen and implied states paint their own colours;
     the generic hover wash would grey them out, so it must skip each one."""

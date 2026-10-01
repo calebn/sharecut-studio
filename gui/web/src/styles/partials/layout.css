@@ -229,7 +229,7 @@
   user-select: none;
   margin-top: calc(-1 * var(--space-3));
   margin-bottom: calc(-1 * var(--space-3));
-  z-index: 1;
+  z-index: var(--z-content);
   background: transparent;
 }
 
@@ -467,7 +467,7 @@
 .stale-inv-overlay {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: var(--z-status-overlay);
   pointer-events: none;
 }
 
@@ -525,7 +525,7 @@
   border-left: var(--space-0) solid var(--envelope-line);
   border-right: var(--space-0) solid var(--envelope-line);
   pointer-events: none;
-  z-index: 4;
+  z-index: var(--z-edit-overlay);
 }
 
 .audition-overlay-label {
@@ -613,7 +613,7 @@
   width: 0.125rem;
   background: var(--warning);
   pointer-events: none;
-  z-index: 8;
+  z-index: var(--z-timeline-interaction);
   opacity: 0.85;
 }
 
@@ -792,7 +792,7 @@
 .track-header-open {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: var(--z-content);
   border: none;
   padding: 0;
   margin: 0;
@@ -804,7 +804,7 @@
   position: absolute;
   left: 0.125rem;
   top: 50%;
-  z-index: 3;
+  z-index: var(--z-overlay);
   width: 1rem;
   height: 2rem;
   margin: 0;
@@ -875,7 +875,7 @@
 
 .track-header-row .track-meta {
   position: relative;
-  z-index: 2;
+  z-index: var(--z-local-chrome);
 }
 
 .track-header-row.muted {
@@ -895,7 +895,7 @@
   height: 0.125rem;
   background: var(--color-accent);
   pointer-events: none;
-  z-index: 3;
+  z-index: var(--z-overlay);
 }
 
 .track-header-row.drop-before::before {

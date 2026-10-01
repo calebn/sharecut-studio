@@ -62,18 +62,24 @@
   --focus-ring-width: 0.125rem;
   --focus-ring-offset: 0.125rem;
 
-  /* Z-index scale */
   /* Stage edge falloff: the lane floor's layer. The edges render after the
      scroller, so tree order puts them over the z-auto floor. */
   --z-timeline-edge: 0;
+  --z-content: 1;
   /* Stage content above the floor and its edges: clips (.lane-inner) and
      timeline markers. */
   --z-clip: 1;
+  --z-clip-overlay: 2;
+  --z-local-chrome: 2;
   --z-fade: 2;
   --z-overlay: 3;
+  --z-edit-overlay: 4;
   --z-handle: 4;
+  --z-status-overlay: 5;
   --z-join: 5;
   --z-bubble: 6;
+  --z-moving-clip: 6;
+  --z-timeline-interaction: 8;
   --z-timeline-chrome: 9;
   --z-playhead: 10;
   --z-track-header: 12;
@@ -85,6 +91,7 @@
   --z-presence-ghost: 51;
   /* Popup menus float above shell chrome so tail items stay clickable. */
   --z-menu: 60;
+  --z-command-palette: 80;
 
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */

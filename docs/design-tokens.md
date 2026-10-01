@@ -80,12 +80,37 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 
 **Radius** — `--radius-<size>` (`xs`/`sm`/`md`/`lg`/`xl`).
 
-**Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-timeline-popover` for
-timeline action panels above sticky track headers and below sheets,
-`--z-sheet`, `--z-timeline-chrome` for pinned ruler and marker rows above lane
-markers and below the playhead, `--z-playhead`).
+### Elevation
 
-**Motion** — `--motion-press` (80ms), `--motion-hover` (150ms),
+Elevation uses `--shadow-<role>` and `--z-<role>`. In the mixer, positive
+z-index declarations in the timeline, layout, panel, ingest, and command-
+palette partials use named roles; `0` and `auto` remain literal. These roles
+describe layers inside local stacking contexts, so distinct roles can share
+an integer.
+
+| Value | Role | Use |
+| ---: | --- | --- |
+| `0` | `--z-timeline-edge` | Stage edge wash at the lane floor; tree order places it over the `auto` lane floor. |
+| `1` | `--z-content`, `--z-clip` | Local content and the clips or markers above the lane floor. |
+| `2` | `--z-clip-overlay`, `--z-local-chrome`, `--z-fade` | Clip hit/paint overlays, local chrome, and fade artwork in their own stacks. |
+| `3` | `--z-overlay` | Clip bodies and general overlays. |
+| `4` | `--z-edit-overlay`, `--z-handle` | Applied edits, envelopes, audition/comment overlays, and clip handles. |
+| `5` | `--z-status-overlay`, `--z-join` | Status/drop overlays and join controls. |
+| `6` | `--z-moving-clip`, `--z-bubble` | Moving clips and playback bubbles. |
+| `8` | `--z-timeline-interaction` | Active trim/fade drags and blade guides. |
+| `9` | `--z-timeline-chrome` | Pinned ruler, marker row, and track-header chrome. |
+| `10` | `--z-playhead` | Playhead above the pinned timeline rows. |
+| `12` | `--z-track-header` | Sticky track headers. |
+| `20` | `--z-timeline-popover` | Timeline action panels above headers and below sheets. |
+| `40` | `--z-sheet` | Dialog and sheet layer. |
+| `50` | `--z-shell-chrome` | Shell navigation above sheet scrims. |
+| `51` | `--z-presence-ghost` | Remote presence cursors. |
+| `60` | `--z-menu` | Menus and floating edit previews. |
+| `80` | `--z-command-palette` | Command palette root. |
+
+### Motion
+
+`--motion-press` (80ms), `--motion-hover` (150ms),
 `--motion-toggle` (200ms), `--motion-panel` (200ms), and `--motion-state`
 (250ms) with `--motion-ease-out`. Pro-tool chrome stays quick. Only three
 status indicators loop, each on its own slower period: `--motion-loop-pipeline`

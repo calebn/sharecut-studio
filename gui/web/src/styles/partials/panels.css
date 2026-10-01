@@ -296,7 +296,7 @@ html[data-shell="phone"] .impact-pending-select {
 .comment-playback-bubble {
   position: absolute;
   top: 0.25rem;
-  z-index: 6;
+  z-index: var(--z-bubble);
   transform: translateX(-0.25rem);
   max-width: 13.75rem;
   display: flex;
@@ -636,7 +636,7 @@ html[data-shell="phone"] .impact-pending-select {
   font-size: var(--font-size-emphasis);
   line-height: 1;
   vertical-align: middle;
-  z-index: 3;
+  z-index: var(--z-overlay);
   touch-action: none;
   user-select: none;
 }
@@ -664,7 +664,7 @@ html[data-shell="phone"] .impact-pending-select {
 .edit-boundary-mark.dragging {
   background: var(--accent-solid);
   color: var(--accent-on-solid);
-  z-index: 5;
+  z-index: var(--z-status-overlay);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -874,7 +874,7 @@ button.history-row {
   align-items: flex-end;
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: var(--z-local-chrome);
   background: var(--color-bg-base);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border);
