@@ -166,6 +166,17 @@ alert roles on the caller's content so each screen retains its own semantics.
 
 `src/commands/register.ts` is the stable DAW command registration facade. It calls focused registrars for navigation, editing, view, history, host operations, and project/media in the original order. Each registrar adds handlers to the one map in `src/commands/execute.ts`; `src/keymap/listener.ts` remains the only window shortcut listener. The track/clip mutation queue is shared through `src/commands/trackMutation.ts`. Keep browser actions and asynchronous guards with their owning registrar, and preserve the facade's blade runner and test reset exports.
 
+Pointer handlers use `runPointerCommand(id, args)` from `src/commands/pointer.ts`.
+It dispatches without keyboard `when` gates and returns `void`.
+Use `executePointerCommand(id, args)` when a pointer handler needs to await a
+result or clear busy state after completion. It returns the command's original
+`ExecuteResult` promise, including rejections. Both helpers share one gate policy.
+`CommandButton` and `useCommand` retain their configurable gate policy.
+The keymap listener evaluates keyboard gates before dispatch; WebMCP awaits
+commands through its agent adapter. These paths call `execute` directly.
+`commands/governance.test.ts` rejects inline `skipWhen: true` outside the pointer
+helper, keymap listener, and WebMCP adapter.
+
 ## Testing
 
 | Kind | Where | Notes |

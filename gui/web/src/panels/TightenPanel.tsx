@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { startPipelineRun } from "../api";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -347,11 +347,9 @@ export function TightenPanel() {
                     onClick={
                       canGoTo
                         ? () =>
-                            void execute(
-                              "tighten.goToHit",
-                              { id: hit.id },
-                              { skipWhen: true },
-                            )
+                            runPointerCommand("tighten.goToHit", {
+                              id: hit.id,
+                            })
                         : undefined
                     }
                   >
@@ -360,11 +358,9 @@ export function TightenPanel() {
                         <Button
                           variant="link"
                           onClick={() =>
-                            void execute(
-                              "tighten.goToHit",
-                              { id: hit.id },
-                              { skipWhen: true },
-                            )
+                            runPointerCommand("tighten.goToHit", {
+                              id: hit.id,
+                            })
                           }
                         >
                           {formatTimeShort(t)}

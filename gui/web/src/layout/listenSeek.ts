@@ -1,11 +1,11 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 
 /** How far the listen-mode skip buttons jump (s). */
 export const LISTEN_SKIP_SEC = 15;
 
 export function seekListen(sec: number): void {
-  void execute("transport.seek", { sec }, { skipWhen: true });
+  runPointerCommand("transport.seek", { sec });
 }
 
 /** Seek from the playhead as it is at click time: back stops at 0, forward

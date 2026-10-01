@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KEYMAP_COMMANDS, matchKeymapCommands } from "../keymap/registry";
 import { isProgrammaticUi, withProgrammaticUi } from "../presence/followSync";
 import { useDawStore } from "../state/dawStore";
-import { SRC_ROOT, srcRelative, walkTsFiles } from "../test/sourceFiles";
+import {
+  SRC_ROOT,
+  sourceFiles,
+  srcRelative,
+  walkTsFiles,
+} from "../test/sourceFiles";
 import { GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { COMMANDS, listCatalogIds } from "./catalog";
 import { buildCommandContext, evaluateWhen } from "./context";
@@ -14,6 +19,7 @@ import {
   listRegisteredIds,
   registerCommand,
 } from "./execute";
+import { executePointerCommand } from "./pointer";
 import { registerDawCommands } from "./register";
 
 type ManifestCapability = {
@@ -91,6 +97,20 @@ describe("command bus", () => {
     useDawStore.setState({ timelineFocused: false, activeTab: "history" });
     const r = await execute("tool.select");
     expect(r.status).toBe("disabled");
+  });
+
+  it("runs pointer commands past keyboard gates and applies their effect", async () => {
+    useDawStore.setState({
+      timelineFocused: false,
+      activeTab: "history",
+      toolMode: "blade",
+    });
+    expect((await execute("tool.select")).status).toBe("disabled");
+
+    expect(await executePointerCommand("tool.select")).toEqual({
+      status: "ok",
+    });
+    expect(useDawStore.getState().toolMode).toBe("select");
   });
 
   it("sets tool mode when context allows", async () => {
@@ -217,6 +237,31 @@ describe("command bus", () => {
 });
 
 describe("command governance", () => {
+  it("centralizes pointer gate bypasses", () => {
+    const pointerPolicyExceptions = new Set([
+      "agentic/webmcp.ts",
+      "commands/pointer.ts",
+      "keymap/listener.ts",
+    ]);
+    const offenders: string[] = [];
+    const inlineBypass = /skipWhen\s*:\s*true\b/g;
+
+    for (const { rel, text } of sourceFiles()) {
+      if (rel.includes(".test.")) {
+        continue;
+      }
+      const count = [...text.matchAll(inlineBypass)].length;
+      if (!count) {
+        continue;
+      }
+      if (!pointerPolicyExceptions.has(rel)) {
+        offenders.push(rel);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it("registers no view.focus* no-op commands (#701)", () => {
     expect(
       Object.keys(COMMANDS).filter((id) => id.startsWith("view.focus")),

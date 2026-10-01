@@ -1,4 +1,5 @@
 import { execute } from "./execute";
+import type { ExecuteResult } from "./types";
 
 /**
  * Pointer/click dispatch: skips keyboard `when` gates, matching
@@ -9,5 +10,13 @@ export function runPointerCommand(
   id: string,
   args: Record<string, unknown> = {},
 ): void {
-  void execute(id, args, { skipWhen: true });
+  void executePointerCommand(id, args);
+}
+
+/** Pointer dispatch for integrations that need completion or command status. */
+export function executePointerCommand(
+  id: string,
+  args: Record<string, unknown> = {},
+): Promise<ExecuteResult> {
+  return execute(id, args, { skipWhen: true });
 }

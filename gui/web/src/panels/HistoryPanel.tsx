@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { loadHistoryDiff } from "../api";
-import { execute } from "../commands/execute";
+import { executePointerCommand } from "../commands/pointer";
 import { useLatestRequest } from "../hooks/useLatestRequest";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useVirtualRows } from "../hooks/useVirtualRows";
@@ -88,10 +88,8 @@ export function HistoryPanel() {
 
   const runHistoryAction = async (action: "undo" | "redo") => {
     await run(async () => {
-      await execute(
+      await executePointerCommand(
         action === "undo" ? "history.undo" : "history.redo",
-        {},
-        { skipWhen: true },
       );
       diffRequest.invalidate();
       setDiff(null);

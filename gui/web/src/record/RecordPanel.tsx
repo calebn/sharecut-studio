@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
-import { execute } from "../commands/execute";
+import { executePointerCommand } from "../commands/pointer";
 import { useDaw } from "../state/useDaw";
 import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
@@ -224,7 +224,7 @@ export function RecordPanel({
   // Same path as the keyboard and palette for all five buttons: record.* owns clearing, storing and announcing errors; transportBusy blocks double sends.
   const runTransport = (commandId: string) => {
     setTransportBusy(true);
-    void execute(commandId, {}, { skipWhen: true }).finally(() => {
+    void executePointerCommand(commandId, {}).finally(() => {
       setTransportBusy(false);
     });
   };

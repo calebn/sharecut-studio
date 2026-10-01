@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 import { capabilityLabel, capabilityTooltip } from "../capabilities/copy";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_MENU } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
@@ -173,11 +173,7 @@ export function TransportBar({
           {...presenceAnchorProps(presenceAnchor("audition", m.id))}
           role={menu ? "menuitemradio" : undefined}
           onClick={() =>
-            void execute(
-              "transport.audition",
-              { mode: m.id },
-              { skipWhen: true },
-            )
+            runPointerCommand("transport.audition", { mode: m.id })
           }
         >
           {m.label}
@@ -281,9 +277,7 @@ export function TransportBar({
           <LegendCheckbox
             menu
             checked={fitTracks}
-            onChange={() =>
-              void execute("view.fitTracksHeight", {}, { skipWhen: true })
-            }
+            onChange={() => runPointerCommand("view.fitTracksHeight")}
           >
             {capabilityLabel("daw.view.fitTracksHeight")}
           </LegendCheckbox>
@@ -309,7 +303,7 @@ export function TransportBar({
                 aria-keyshortcuts={ariaKeyShortcutsFor(m.command)}
                 onClick={() => {
                   close();
-                  void execute(m.command, {}, { skipWhen: true });
+                  runPointerCommand(m.command, {});
                 }}
               >
                 {m.menuLabel}

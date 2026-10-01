@@ -1,4 +1,4 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { useCommitRange } from "../hooks/useCommitRange";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -31,11 +31,7 @@ export function TrackFader({ track }: { track: TrackView }) {
   const range = useCommitRange({
     saved,
     onCommit: (db) =>
-      void execute(
-        "track.setVolume",
-        { trackId: track.id, db },
-        { skipWhen: true },
-      ),
+      runPointerCommand("track.setVolume", { trackId: track.id, db }),
   });
   const { value } = range;
   const reset = () => range.commitValue(0);

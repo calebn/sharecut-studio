@@ -70,6 +70,12 @@ When the rule genuinely does not apply, waive it with a commit trailer instead o
 
 ## Edit guidelines
 
+Shell controls that dispatch commands bypass keyboard focus gates by default.
+`CommandButton` can opt into those gates with `respectWhen`. Recording transport
+controls stay busy until the dispatched command settles. Preserve these behaviors
+when refactoring shell callbacks; the shared pointer helpers are documented in
+[the frontend command adapters](../gui/web/README.md#api-adapters).
+
 - Keep **partner-facing** copy in product language; put schema paths in the glossary Schema map (or link `docs/*.md`).
 - Prefer Mermaid + the demo fixture over one-off mockups.
 - Update [pages/ux-backlog.md](pages/ux-backlog.md) when design decisions ship.
