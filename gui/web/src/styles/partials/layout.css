@@ -130,7 +130,7 @@
   flex-direction: column;
   background: var(--color-bg-base);
   border-inline-end: 1px solid var(--border);
-  overflow: hidden;
+  overflow: clip;
   inline-size: var(--header-width);
   box-sizing: border-box;
 }
@@ -349,7 +349,10 @@
   justify-content: flex-end;
   padding: var(--space-1) var(--space-3);
   box-sizing: border-box;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-timeline-chrome);
+  background: var(--color-bg-base);
 }
 
 .track-headers-deselect {

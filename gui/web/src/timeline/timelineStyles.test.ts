@@ -30,6 +30,38 @@ describe("timeline styles", () => {
     }
   });
 
+  it("pins the ruler and marker row above lanes but below the playhead", () => {
+    const css = partial("timeline.css");
+    const tokens = readFileSync(
+      join(here, "../styles/theme/tokens.css"),
+      "utf8",
+    );
+    const ruler = rule(css, ".time-ruler");
+    expect(ruler).toMatch(/position:\s*sticky/);
+    expect(ruler).toMatch(/top:\s*0/);
+    expect(ruler).toMatch(/z-index:\s*var\(--z-timeline-chrome\)/);
+
+    const markerLane = rule(css, ".marker-lane");
+    expect(markerLane).toMatch(/position:\s*sticky/);
+    expect(markerLane).toMatch(/top:\s*var\(--ruler-height\)/);
+    expect(markerLane).toMatch(/z-index:\s*var\(--z-timeline-chrome\)/);
+    expect(tokens).toMatch(/--z-bubble:\s*6;/);
+    expect(tokens).toMatch(/--z-timeline-chrome:\s*9;/);
+    expect(tokens).toMatch(/--z-playhead:\s*10;/);
+    expect(tokens).toMatch(/--z-track-header:\s*12;/);
+  });
+
+  it("keeps the sticky track-header chrome attached to the timeline scroller", () => {
+    const layout = partial("layout.css");
+    expect(rule(layout, ".track-headers")).toMatch(/overflow:\s*clip/);
+
+    const chrome = rule(layout, ".track-headers-chrome");
+    expect(chrome).toMatch(/position:\s*sticky/);
+    expect(chrome).toMatch(/top:\s*0/);
+    expect(chrome).toMatch(/z-index:\s*var\(--z-timeline-chrome\)/);
+    expect(chrome).toMatch(/background:\s*var\(--color-bg-base\)/);
+  });
+
   it("moves the remote playhead chip inside the lanes, clear of the marker rows", () => {
     const chip = rule(partial("presence.css"), ".presence-playhead-chip");
     expect(chip).toMatch(/inset-inline-start:\s*100%/);
