@@ -30,12 +30,15 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.services.session_sync import (
     SessionSyncService,
+    StoreCachePin,
     get_hub,
+    pin_cached_stores,
     session_server_seq_at,
     sync_db_path,
 )
 
 log = logging.getLogger(__name__)
+_BACKGROUND_RELEASES: set[asyncio.Task[None]] = set()
 
 CROSS_PROCESS_POLL_S = 0.5
 """Watcher cadence: another process's journal write reaches open tabs within about this long.
@@ -162,6 +165,7 @@ class CrossProcessWatcher:
 @dataclass
 class _Entry:
     watcher: CrossProcessWatcher
+    cache_pin: StoreCachePin
     refs: int = 0
 
 
@@ -201,10 +205,18 @@ class CrossProcessBridge:
             with self._lock:
                 entry = self._entries.get(key)
                 if entry is None:
+                    project = ws.project
+                    cache_pin = pin_cached_stores(
+                        (sync_db_path(project), document_db_path(project))
+                    )
                     interval = (
                         self._interval if self._interval is not None else CROSS_PROCESS_POLL_S
                     )
-                    entry = _Entry(CrossProcessWatcher(ws, interval=interval))
+                    try:
+                        entry = _Entry(CrossProcessWatcher(ws, interval=interval), cache_pin)
+                    except Exception:
+                        cache_pin.release()
+                        raise
                     self._entries[key] = entry
                 entry.refs += 1
                 watcher = entry.watcher
@@ -221,6 +233,7 @@ class CrossProcessBridge:
         return CrossProcessLease(self, key, watcher)
 
     def release(self, key: str, watcher: CrossProcessWatcher) -> None:
+        entry: _Entry | None = None
         with self._lock:
             entry = self._entries.get(key)
             if entry is None or entry.watcher is not watcher:
@@ -230,6 +243,8 @@ class CrossProcessBridge:
                 return
             del self._entries[key]
         watcher.stop()
+        watcher.join()
+        entry.cache_pin.release()
 
     def watching(self, key: str) -> bool:
         with self._lock:
@@ -241,6 +256,9 @@ class CrossProcessBridge:
             self._entries.clear()
         for entry in entries:
             entry.watcher.stop()
+        for entry in entries:
+            entry.watcher.join()
+            entry.cache_pin.release()
 
 
 _BRIDGE = CrossProcessBridge()
@@ -278,4 +296,6 @@ async def cross_process_lease(ws: ProjectWorkspace) -> AsyncIterator[None]:
 def _release_late_lease(acquiring: asyncio.Future[CrossProcessLease]) -> None:
     """Release a lease whose acquire finished after the socket task was cancelled."""
     if not acquiring.cancelled() and acquiring.exception() is None:
-        acquiring.result().release()
+        task = asyncio.create_task(asyncio.to_thread(acquiring.result().release))
+        _BACKGROUND_RELEASES.add(task)
+        task.add_done_callback(_BACKGROUND_RELEASES.discard)

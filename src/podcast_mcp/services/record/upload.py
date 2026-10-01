@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
-from podcast_mcp.services.session_sync import connect_session_db, sync_db_path
+from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
@@ -102,8 +102,6 @@ _FILE_COLUMN_MIGRATIONS: dict[str, str] = {
     "land_failed_ns": "INTEGER",
 }
 
-_STORE_CACHE: dict[str, RecordUploadStore] = {}
-_STORE_LOCK = threading.Lock()
 _INGEST_LOCKS: KeyedLocks[tuple[str, str, str], threading.Lock] = KeyedLocks(threading.Lock)
 
 
@@ -279,20 +277,13 @@ def _valid_rollback_key(key: LandRollbackKey) -> LandRollbackKey:
 
 
 def cached_record_upload_store(path: Path) -> RecordUploadStore:
-    key = str(path.resolve())
-    with _STORE_LOCK:
-        store = _STORE_CACHE.get(key)
-        if store is None:
-            store = RecordUploadStore(path)
-            _STORE_CACHE[key] = store
-        return store
-
-
-def drop_cached_record_upload_stores() -> list[RecordUploadStore]:
-    with _STORE_LOCK:
-        stores = list(_STORE_CACHE.values())
-        _STORE_CACHE.clear()
-    return stores
+    store = cached_store(
+        path,
+        kind="record_upload",
+        factory=lambda: RecordUploadStore(path),
+    )
+    assert store is not None
+    return store
 
 
 def pending_record_upload_bytes(root: Path) -> int:

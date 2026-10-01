@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import errno
+import gc
 import json
 import logging
 import sqlite3
 import subprocess
 import sys
 import time
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, get_ident
 from typing import Literal
@@ -2353,6 +2355,67 @@ def test_cached_sync_store_if_exists_never_creates(tmp_path) -> None:
     assert not path.parent.exists()
 
 
+def test_sync_store_cache_releases_unowned_projects_but_pin_keeps_active_store(tmp_path) -> None:
+    paths = [tmp_path / f"project-{index}" / "sync.db" for index in range(24)]
+    refs = []
+    for path in paths:
+        store = session_sync_log.cached_sync_store(path)
+        refs.append(weakref.ref(store))
+    del store
+    gc.collect()
+    assert not any(ref() is not None for ref in refs)
+    assert not [
+        key for key in session_sync_log._STORE_CACHE if key[0] in {p.resolve() for p in paths}
+    ]
+
+    path = tmp_path / "active" / "sync.db"
+    store = session_sync_log.cached_sync_store(path)
+    pin = session_sync_log.pin_cached_stores([path])
+    store_ref = weakref.ref(store)
+    del store
+    gc.collect()
+    assert store_ref() is not None
+    pin.release()
+    gc.collect()
+    assert store_ref() is None
+
+
+def test_store_created_while_workspace_is_pinned_is_retained(tmp_path) -> None:
+    path = tmp_path / "late" / "sync.db"
+    pin = session_sync_log.pin_cached_stores([path])
+    store = session_sync_log.cached_sync_store(path)
+    store_ref = weakref.ref(store)
+    del store
+    gc.collect()
+    assert store_ref() is not None
+    pin.release()
+    gc.collect()
+    assert store_ref() is None
+
+
+def test_session_hub_subscription_holds_store_until_unsubscribe(minimal_project) -> None:
+    import asyncio
+
+    from podcast_mcp.services.session_sync.hub import SessionHub
+
+    project = load_project(minimal_project)
+    path = sync_db_path(project)
+    store = session_sync_log.cached_sync_store(path)
+    store_ref = weakref.ref(store)
+    hub = SessionHub()
+    loop = asyncio.new_event_loop()
+    try:
+        queue = hub.subscribe(str(project.workspace_path()), loop)
+        del store
+        gc.collect()
+        assert store_ref() is not None
+        hub.unsubscribe(str(project.workspace_path()), queue)
+        gc.collect()
+        assert store_ref() is None
+    finally:
+        loop.close()
+
+
 def test_cached_sync_store_if_exists_prefers_the_cached_store(tmp_path, monkeypatch) -> None:
     path = tmp_path / "sync.db"
     store = session_sync_log.cached_sync_store(path)
@@ -2364,7 +2427,7 @@ def test_cached_sync_store_if_exists_prefers_the_cached_store(tmp_path, monkeypa
             session_sync_log.cached_sync_store_if_exists(path, enforce_command_ids=True)
     finally:
         monkeypatch.undo()
-        session_sync_log._STORE_CACHE.pop(session_sync_log.sync_store_cache_key(path), None)
+        session_sync_log._STORE_CACHE.pop((path.resolve(), "sync", ""), None)
         store.close()
 
 
@@ -2572,7 +2635,7 @@ def test_cached_sync_store_if_exists_does_not_recreate_a_vanished_file(
         session_sync_log.cached_sync_store_if_exists(path)
     monkeypatch.undo()
     assert not path.exists()
-    assert session_sync_log.sync_store_cache_key(path) not in session_sync_log._STORE_CACHE
+    assert (path.resolve(), "sync", "") not in session_sync_log._STORE_CACHE
 
 
 def test_sync_store_closes_its_connection_when_schema_setup_fails(tmp_path, monkeypatch) -> None:

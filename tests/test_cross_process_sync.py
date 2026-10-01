@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import multiprocessing as mp
 import threading
 import time
+import weakref
 from urllib.parse import quote
 
 import pytest
@@ -268,6 +270,23 @@ def test_bridge_acquire_failure_returns_a_noop_lease(minimal_project, monkeypatc
     assert not bridge.watching(key)
     assert any("Could not watch" in r.message for r in caplog.records)
     lease.release()  # does not raise
+
+
+def test_failed_watcher_start_releases_store_pin(minimal_project, monkeypatch):
+    ws = ProjectWorkspace.open(minimal_project)
+    store = SessionSyncService(ws.project).store
+    store_ref = weakref.ref(store)
+    del store
+
+    def _boom(self):
+        raise RuntimeError("cannot start")
+
+    monkeypatch.setattr(CrossProcessWatcher, "start", _boom)
+    bridge = CrossProcessBridge(interval=0.01)
+    lease = bridge.acquire(ws)
+    lease.release()
+    gc.collect()
+    assert store_ref() is None
 
 
 def test_watcher_thread_pushes_a_foreign_write(minimal_project, monkeypatch):
