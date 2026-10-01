@@ -111,7 +111,7 @@ describe("JoinPopoverView", () => {
     renderView({ editable: false });
     expect(screen.queryByRole("group", { name: "Join mode" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Crossfade" })).toBeNull();
-    expect(screen.getByText("Fade (dip at join)")).toBeInTheDocument();
+    expect(screen.getByText("Fade at join (dip)")).toBeInTheDocument();
   });
 
   it("shows the blocked-crossfade note", () => {

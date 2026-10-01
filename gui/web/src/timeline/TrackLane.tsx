@@ -270,6 +270,7 @@ export function TrackLaneView({
               trackId={originId}
               role={track.role}
               trackLabel={track.label || track.id}
+              trackSpeaker={track.speaker ?? undefined}
               zoomPxPerSec={zoomPxPerSec}
               fadeMaxMs={track.fade_max_ms ?? null}
               color={laneColor(track.role, trackIndex)}

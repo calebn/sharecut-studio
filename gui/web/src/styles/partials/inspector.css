@@ -137,12 +137,61 @@ html[data-shell="phone"] .pending-source-time-apply {
   gap: var(--space-1);
 }
 
+html[data-shell="phone"] .modifier-footer-actions > .ui-menu-root > .ui-control,
+html[data-shell="phone"]
+  .modifier-footer-actions
+  .ui-menu-panel
+  :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]) {
+  min-block-size: var(--touch-min);
+}
+
 .track-sheet-mixer {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding-bottom: var(--space-5);
   border-bottom: 1px solid var(--border);
+}
+
+.clip-fade-controls {
+  display: grid;
+  gap: var(--space-1);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.clip-fade-control {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) minmax(0, 4rem);
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  font-size: var(--font-size-small);
+}
+
+.clip-fade-control input[type="range"] {
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  min-inline-size: 0;
+}
+
+.clip-fade-control output {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.pending-snap-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--touch-min);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  white-space: normal;
 }
 
 .track-fader {

@@ -77,7 +77,7 @@ export const Editable: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", {
-      name: "Select clip story-clip-2",
+      name: "Select clip story-clip-2, dialogue, 7s",
     });
     await expect(button).toHaveAttribute("aria-pressed", "false");
     await expect(canvasElement.querySelectorAll(".trim-handle")).toHaveLength(
@@ -153,11 +153,11 @@ export const ReadOnly: Story = {
 export const PhoneWidth: Story = {
   parameters: { ...recordMobileViewport.parameters, phoneWidth: true },
   globals: recordMobileViewport.globals,
-  args: { trackLabel: "Mira" },
+  args: { trackLabel: "Mira", trackSpeaker: "Mira" },
   play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".clip-label-track"),
-    ).toHaveTextContent("Mira");
+    await expect(canvasElement.querySelector(".clip-label")).toHaveTextContent(
+      "Mira",
+    );
     await expect(canvasElement.querySelector(".lane-row")).toHaveStyle({
       width: "360px",
     });

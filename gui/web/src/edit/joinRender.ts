@@ -3,7 +3,7 @@ import { formatRulerTime } from "../utils/time";
 
 export const JOIN_MODE_OPTIONS: { value: JoinMode; label: string }[] = [
   { value: "cut", label: "Cut (no fade)" },
-  { value: "fade", label: "Fade (dip at join)" },
+  { value: "fade", label: "Fade at join (dip)" },
   { value: "crossfade", label: "Crossfade (overlap both clips)" },
 ];
 

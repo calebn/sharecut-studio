@@ -79,7 +79,7 @@ describe("TrackLane bladeMode", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Select clip c1" }),
+      screen.getByRole("button", { name: /^Select clip c1,/ }),
     );
 
     expect(onSelectClip).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe("TrackLane bladeMode", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: "Select clip c1" }),
+      screen.getByRole("button", { name: /^Select clip c1,/ }),
     );
 
     expect(onSeek).not.toHaveBeenCalled();

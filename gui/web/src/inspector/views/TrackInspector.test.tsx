@@ -166,8 +166,9 @@ describe("TrackInspector", () => {
   it("smooths every join on the track from the track inspector", async () => {
     const user = userEvent.setup();
     render(<TrackInspector track={hostTrack} effects={[]} />);
+    await user.click(screen.getByRole("button", { name: "Track actions" }));
     await user.click(
-      screen.getByRole("button", { name: "Smooth all joins on this track" }),
+      screen.getByRole("menuitem", { name: "Smooth all joins" }),
     );
     expect(applyFadeRecommendations).toHaveBeenCalledWith(
       "/tmp/ep.json",
@@ -184,8 +185,6 @@ describe("TrackInspector", () => {
         "view",
       );
     render(<TrackInspector track={hostTrack} effects={[]} />);
-    expect(
-      screen.queryByRole("button", { name: /smooth all joins/i }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Track actions" })).toBeNull();
   });
 });

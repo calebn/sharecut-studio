@@ -73,16 +73,19 @@ export function formatTimeShort(sec: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function formatDurationCompact(sec: number): string {
-  if (sec >= 60) {
-    const m = Math.floor(sec / 60);
-    const s = Math.round(sec % 60);
-    return `${m}:${String(s).padStart(2, "0")}`;
+/** Rounded human duration for clip labels, separate from timeline timecode. */
+export function formatDurationLabel(sec: number): string {
+  const totalSeconds = Math.max(0, Math.round(sec));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
   }
-  if (sec >= 10) {
-    return `${Math.round(sec)}s`;
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
   }
-  return `${sec.toFixed(1)}s`;
+  return `${seconds}s`;
 }
 
 /** Ruler steps (s), from 0.1 ms to an hour. */

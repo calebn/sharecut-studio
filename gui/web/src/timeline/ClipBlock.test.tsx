@@ -638,7 +638,44 @@ describe("ClipBlock waveform", () => {
       shift: true,
       mod: false,
     });
-    expect(hit.getAttribute("aria-label")).toBe("Select clip c1");
+    expect(hit.getAttribute("aria-label")).toBe("Select clip c1, dialogue, 2s");
+  });
+
+  it("leads the clip label and accessible name with its speaker", () => {
+    const { container, getByRole } = render(
+      <ClipBlock {...base} trackSpeaker="Avery" />,
+    );
+    expect(container.querySelector(".clip-label")?.textContent).toBe(
+      "Avery · 2s",
+    );
+    expect(
+      getByRole("button", { name: "Select clip c1, Avery, 2s" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a long speaker and duration in the accessible name at narrow width", () => {
+    const longSpeaker = "Avery Nelson, host and interviewer";
+    const longClip = {
+      ...clip,
+      source_end: 1046,
+      timeline_end: 1046,
+    };
+    const { container, getByRole } = render(
+      <ClipBlock
+        {...base}
+        clip={longClip}
+        trackSpeaker={longSpeaker}
+        zoomPxPerSec={0.05}
+      />,
+    );
+    expect(container.querySelector(".clip-label")?.textContent).toBe(
+      longSpeaker,
+    );
+    expect(
+      getByRole("button", {
+        name: `Select clip c1, ${longSpeaker}, 17m 26s`,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("cancels a body drag on lost pointer capture", () => {
@@ -782,7 +819,7 @@ describe("ClipBlock waveform", () => {
       />,
     );
     const block = container.querySelector(".clip-block") as HTMLElement;
-    expect(block.title).toContain("(1.235–3.235s)");
+    expect(block.title).toContain("dialogue, 2s");
   });
 
   describe("join roll", () => {
@@ -955,7 +992,7 @@ describe("ClipBlockView", () => {
     );
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
     expect(container.querySelector("button.join-diamond")).not.toBeNull();
-    expect(getByRole("button", { name: "Select clip c1" })).not.toBeNull();
+    expect(getByRole("button", { name: /^Select clip c1,/ })).not.toBeNull();
     await expectNoA11yViolations(container);
   });
 
@@ -1028,7 +1065,7 @@ describe("ClipBlockView", () => {
         hitHandlers={{ onClick }}
       />,
     );
-    fireEvent.click(getByRole("button", { name: "Select clip c1" }));
+    fireEvent.click(getByRole("button", { name: /^Select clip c1,/ }));
     expect(onClick).toHaveBeenCalled();
   });
 
