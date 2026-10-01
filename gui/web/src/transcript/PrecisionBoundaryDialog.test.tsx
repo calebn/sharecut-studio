@@ -386,6 +386,7 @@ describe("PrecisionBoundaryDialog", () => {
     view.rerender(
       <PrecisionBoundaryDialog
         {...props}
+        target={{ ...target }}
         expectedGeometry={geometry.map((clip) => ({ ...clip }))}
       />,
     );

@@ -670,7 +670,7 @@ export function EditBoundaryMarkView({
           ¦
         </span>
       </button>
-      {canEdit && resolvedTarget ? (
+      {canEdit && resolvedTarget && precisionOpen ? (
         <PrecisionBoundaryDialog
           open={precisionOpen}
           onClose={() => setPrecisionOpen(false)}

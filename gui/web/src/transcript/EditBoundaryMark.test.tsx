@@ -233,6 +233,44 @@ describe("EditBoundaryMark", () => {
     await waitFor(() => expect(api.rollClipJoin).toHaveBeenCalled());
   });
 
+  it("starts a fresh context load before showing editable controls on reopen", async () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({ id: "right", source_start: 25, timeline_start: 10 });
+    render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = screen.getByRole("button", { name: /roll/i });
+    fireEvent.click(mark);
+    await screen.findByRole("spinbutton");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    let resolveReload: ((value: unknown) => void) | undefined;
+    loadBoundaryContext.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve;
+        }),
+    );
+    fireEvent.click(mark);
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Preparing boundary controls",
+    );
+    resolveReload?.({
+      target: { kind: "roll", left_clip_id: "left", right_clip_id: "right" },
+      token: "b".repeat(64),
+      track_id: "host",
+      geometry: [],
+      current: { source_sec: 20, timeline_sec: 10 },
+      limits: { min: -1, max: 1, fine_step_sec: 0.001, regular_step_sec: 0.01 },
+    });
+    expect(await screen.findByRole("spinbutton")).toHaveValue(0);
+  });
+
   it("allows authorized guest quick drags while keeping precision host-only", async () => {
     useDawStore.setState({
       projectPath: "share:edit-token",
