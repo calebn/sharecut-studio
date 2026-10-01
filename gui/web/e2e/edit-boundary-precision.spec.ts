@@ -20,13 +20,23 @@ declare global {
 }
 
 async function openTranscript(page: Page): Promise<void> {
-  const panels = page.getByLabel("Editor panels");
-  const transcriptButton = panels.getByRole("button", {
-    name: /^(Transcript|Text)$/,
-    exact: true,
-  });
-  await transcriptButton.click();
-  const annotate = panels.locator(".transcript-annotate-btn");
+  const phoneNavigation = page.getByRole("navigation", { name: "Primary" });
+  if (
+    (await page.locator(".daw-shell").getAttribute("data-shell")) === "phone"
+  ) {
+    await phoneNavigation
+      .getByRole("button", { name: "Text", exact: true })
+      .click();
+  } else {
+    await page
+      .getByLabel("Editor panels")
+      .getByRole("button", {
+        name: "Transcript",
+        exact: true,
+      })
+      .click();
+  }
+  const annotate = page.locator(".transcript-annotate-btn");
   await expect(annotate).toBeVisible();
   if ((await annotate.getAttribute("aria-pressed")) !== "true") {
     await annotate.click();

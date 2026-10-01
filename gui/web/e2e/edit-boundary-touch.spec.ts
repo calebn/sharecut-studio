@@ -56,6 +56,7 @@ test.describe("Transcript edit-boundary touch drag", () => {
       const x = box!.x + box!.width / 2;
       const y = box!.y + box!.height / 2;
       const first = { x, y, id: 1 };
+      const thresholdMoved = { x: x + 8, y, id: 1 };
       const firstMoved = { x: x + 40, y, id: 1 };
       const second = { x: x + 4, y, id: 2 };
 
@@ -74,6 +75,11 @@ test.describe("Transcript edit-boundary touch drag", () => {
       await cdp.send("Input.dispatchTouchEvent", {
         type: "touchStart",
         touchPoints: [first],
+      });
+      await expect(mark).toHaveAttribute("aria-grabbed", "false");
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [thresholdMoved],
       });
       await expect(mark).toHaveAttribute("aria-grabbed", "true");
       // A second finger lands on the same boundary while the first drags.
@@ -179,8 +185,16 @@ for (const width of [1440, 360]) {
           throw new Error("Boundary needs a visible transcript turn");
         await page.mouse.move(x, y);
         await page.mouse.down();
+        for (const distance of [0, 4]) {
+          await page.mouse.move(x + distance, y);
+          const box = await mark.boundingBox();
+          expect(box).toBeTruthy();
+          expect(box!.x + box!.width / 2).toBeCloseTo(x, 0);
+          await expect(page.locator(".edit-boundary-preview")).toHaveCount(0);
+          await expect(mark).toHaveAttribute("aria-grabbed", "false");
+        }
         for (const distance of [
-          0, 4, 8, 16, 32, 64, 80, 32, 0, -4, -16, -32, -64, 0,
+          8, 16, 32, 64, 80, 32, 0, -4, -16, -32, -64, 0,
         ]) {
           await page.mouse.move(x + distance, y);
           await expect(async () => {
@@ -210,11 +224,17 @@ for (const width of [1440, 360]) {
         await expect(page.locator(".edit-boundary-preview")).toContainText(
           "Limit reached",
         );
-        const limited = await mark.boundingBox();
+        const preview = page.locator(".edit-boundary-preview");
+        const limitedMessage = await preview.innerText();
         await page.mouse.move(x + 12000, y);
-        await expect(async () =>
-          expect(await mark.boundingBox()).toEqual(limited),
-        ).toPass({ timeout: 2000 });
+        await expect(async () => {
+          const box = await mark.boundingBox();
+          if (!box) throw new Error("Boundary disappeared at the limit");
+          expect(Math.abs(box.x + box.width / 2 - (x + 12000))).toBeLessThan(
+            0.5,
+          );
+          expect(await preview.innerText()).toBe(limitedMessage);
+        }).toPass({ timeout: 2000 });
         await page.keyboard.press("Escape");
         await page.mouse.up();
         await expect(page.locator("body")).not.toHaveClass(
