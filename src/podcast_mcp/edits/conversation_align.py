@@ -1712,15 +1712,14 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
         if skip is None:
             snap = snapshot_clip_geometry(project, clips)
             stacks_before = {
-                tuple(sorted(s.clip_ids))
-                for s in same_source_timeline_overlaps(project, clips=clips)
+                tuple(sorted(s.clip_ids)) for s in same_source_timeline_overlaps(project)
             }
             for clip, _plan, geom in staged:
                 assert geom is not None
                 clip.source_start, clip.source_end, clip.timeline_start = geom
             new_stacks = [
                 s
-                for s in same_source_timeline_overlaps(project, clips=clips)
+                for s in same_source_timeline_overlaps(project)
                 if tuple(sorted(s.clip_ids)) not in stacks_before
             ]
             if new_stacks:
