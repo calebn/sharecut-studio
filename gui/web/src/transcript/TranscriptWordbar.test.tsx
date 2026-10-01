@@ -176,9 +176,12 @@ it("preview uses raw source identity without changing the global clock, and unmo
   await ready();
   fireEvent.click(screen.getByRole("button", { name: "Play draft" }));
   expect(useDawStore.getState().sourcePreview).toMatchObject({
-    trackId: "host",
-    sourceId: "extra",
-    cacheKey: "media-key",
+    media: {
+      kind: "raw",
+      trackId: "host",
+      sourceId: "extra",
+      cacheKey: "media-key",
+    },
     startSec: 1.85,
     endSec: 2.65,
   });

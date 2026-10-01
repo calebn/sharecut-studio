@@ -31,6 +31,7 @@ it("gives a focused button native Space activation but keeps canvas Space for tr
   const button = screen.getByRole("button", { name: "Boundary button" });
   button.focus();
   await user.keyboard(" ");
+  await user.keyboard("{Enter}");
   expect(vi.mocked(execute)).not.toHaveBeenCalled();
   fireEvent.keyDown(screen.getByTestId("canvas"), { key: " ", code: "Space" });
   await waitFor(() =>
