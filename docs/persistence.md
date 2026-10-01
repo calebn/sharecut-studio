@@ -82,6 +82,8 @@ this cache creates no durable store or coordination file. An unreadable cache si
 falls back to an uncached validated load. Nonempty saved history still skips adoption;
 required history-index read errors still propagate.
 
+Removed transcript words live in `transcripts.per_track[].archived_words` in the existing episode project. Each recording transcript owns its archive. History snapshots preserve it with active words and clip geometry, so save/reload and undo/redo do not depend on a new cache or sidecar.
+
 ## When to extend which store
 
 | Need | Prefer |

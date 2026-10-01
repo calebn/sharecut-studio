@@ -265,6 +265,7 @@ export interface EditBoundaryView {
   has_cutaway: boolean;
   cutaway_word_ids: Array<{
     track_id: string;
+    source_id?: string | null;
     word_index: number;
     text: string;
     start: number;

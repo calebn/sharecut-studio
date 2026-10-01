@@ -1396,3 +1396,7 @@ are fingerprinted.
 Browser fixtures that alter project view data intercept `/api/document/state` and
 modify the envelope's `project` member or its detail `patch`. Bootstrap timing tests
 hold this sequenced endpoint and suppress the document socket hello, so they exercise real loading chrome.
+
+### Transcript boundary archive
+
+`tests/test_transcript_archive.py` and `tests/test_edit_boundaries.py` exercise real cuts, source identity, complete-word restoration, metadata, source ordering, save/reload, and history. Run `uv run pytest -q --no-cov tests/test_transcript_archive.py tests/test_edit_boundaries.py` for focused feedback. `gui/web/e2e/edit-boundary-archive.spec.ts` drives a real cut and mouse roll, verifies the restored chip after reload, then checks undo and redo against the disposable project. Run it with `npm run test:e2e -- e2e/edit-boundary-archive.spec.ts` after the E2E build.

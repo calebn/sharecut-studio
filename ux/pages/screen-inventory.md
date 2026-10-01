@@ -222,9 +222,10 @@ Annotate boundary handles keep a fixed size during a roll or trim. A floating
 preview shows the time change, restored-word side, and legal limits. Escape or
 an interrupted gesture discards the preview. Saving blocks another drag on that
 handle; a failed save displays an error. Boundary audition and alternatives to
-dragging remain part of the editor interaction review in issue #878. Ripple cuts
-currently remove the word references needed for restored-word previews; issue
-#883 tracks that separate limitation.
+dragging remain part of the editor interaction review in issue #878. New ripple cuts retain the removed source words for boundary previews. Expanding
+far enough to restore a complete word brings its text and suppression choices
+back with the audio. Partial words remain archived. Existing older cuts without
+a word archive require History recovery.
 
 Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
 through its native button action. F2 opens inline correction for a hydrated

@@ -63,6 +63,10 @@ After transcription, **`transcripts.per_track`** must be present in `episode.pro
 
 Word `start`/`end` (and combined utterance times) are **source-media seconds** on that track's raw file — never the edited timeline. Edits move clips, not word times.
 
+`transcripts.per_track[].archived_words` retains words removed by audio cuts. Each entry stores an `ordinal` and the complete `word` object, including source times, confidence, ignored/suppressed flags, alignment evidence, and suppression locks. The containing transcript supplies its `(track_id, source_id)` identity. Older projects default to an empty archive. The archive is part of the project and history snapshots, not a new sidecar.
+
+Cuts remove overlapping words from the active `words` list and retain them in this archive. Boundary expansion restores a word only when matching source clips cover its entire source span. Partial restoration keeps it archived. Archived words stay out of combined text, search, and export until restored. Existing cuts made before archival have no automatic word recovery; History undo can recover the original transcript snapshot.
+
 `transcripts.combined` holds time-ordered utterances for search, NL cuts, and SRT export. Exports map these to the timeline clock at write time.
 
 Files under `transcripts/*.json` are **caches only**; `ProjectStore.commit()` may refresh them from the project.
