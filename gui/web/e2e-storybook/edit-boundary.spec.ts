@@ -48,6 +48,8 @@ for (const width of [1440, 360]) {
         const startY = origin.y + origin.height / 2;
         await page.mouse.move(startX, startY);
         await page.mouse.down();
+        await expect(mark).toHaveAttribute("aria-grabbed", "false");
+        await page.mouse.move(startX + 8, startY);
         await expect(mark).toHaveAttribute("aria-grabbed", "true");
         for (const dx of [0, 4, 8, 16, 32, 64, 80, 32, 0, -4, -16, -64, 0]) {
           await page.mouse.move(startX + dx, startY);
