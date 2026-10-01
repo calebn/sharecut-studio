@@ -48,10 +48,12 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
     onWithMcpChange: vi.fn(),
     rows: [reviewRow, agentRow, guestRow, producerRow, revokedRow],
     busy: false,
+    createRecovery: { kind: "idle" },
     error: null,
     status: null,
     copiedKey: null,
     onCreate: vi.fn(),
+    onRefreshMix: vi.fn(),
     onCreateRecord: vi.fn(),
     onCopy: vi.fn(),
     onRevoke: vi.fn(),
@@ -79,6 +81,21 @@ describe("ShareDialogView", () => {
     const { baseElement: container } = render(<ShareDialogView {...props} />);
     expect(screen.getByText("No live review links.")).toBeInTheDocument();
     expect(screen.getByText("No live record rooms.")).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows a typed stale-mix recovery action; axe-clean", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    props.createRecovery = {
+      kind: "stale_mix",
+      message: "The preview is out of date.",
+      refreshError: null,
+    };
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    expect(screen.getByText("The preview is out of date.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Refresh mix" }));
+    expect(props.onRefreshMix).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
   });
 

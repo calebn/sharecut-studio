@@ -19,6 +19,7 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
+    StaleMixError,
     discard_created_version,
     encode_version_mp3,
     get_version,
@@ -1773,8 +1774,9 @@ def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):
     save_project(proj, minimal_project)
 
     ws = ProjectWorkspace.open(minimal_project)
-    with pytest.raises(ValueError, match="Refresh"):
+    with pytest.raises(StaleMixError, match="Refresh") as exc_info:
         ReviewService(ws).publish(label="x")
+    assert exc_info.value.code == "stale_mix"
     assert load_project(minimal_project).review.versions == []
     root = review_artifacts_dir(ws.project)
     assert not root.exists() or not any(root.iterdir())
@@ -1793,8 +1795,9 @@ def _premix_and_master_workspace(minimal_project, sample_wav):
 
 def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sample_wav):
     ws, _ = _premix_and_master_workspace(minimal_project, sample_wav)
-    with pytest.raises(ValueError, match=r"mastered\.wav has no record"):
+    with pytest.raises(StaleMixError, match=r"mastered\.wav has no record") as exc_info:
         ReviewService(ws).publish(label="m", prefer="mastered")
+    assert exc_info.value.code == "stale_master"
     assert load_project(minimal_project).review.versions == []
     root = review_artifacts_dir(ws.project)
     assert not root.exists() or not any(root.iterdir())
@@ -1814,8 +1817,9 @@ def test_publish_mastered_refuses_a_master_from_another_premix(minimal_project, 
     premix = art / "premix.wav"
     st = premix.stat()
     os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))  # re-mixed or restored
-    with pytest.raises(ValueError, match=r"wasn't mastered from the current premix"):
+    with pytest.raises(StaleMixError, match=r"wasn't mastered from the current premix") as exc_info:
         ReviewService(ws).publish(label="m", prefer="mastered")
+    assert exc_info.value.code == "stale_master"
 
 
 def test_publish_mastered_refuses_a_stale_premix_even_with_a_fresh_master(

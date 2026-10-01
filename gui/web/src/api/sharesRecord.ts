@@ -10,7 +10,7 @@ import type {
   HostSharesResponse,
   ShareRole,
 } from "../types/shares";
-import { readApiError } from "../utils/apiError";
+import { readApiError, readApiFailure } from "../utils/apiError";
 
 export async function listHostShares(
   projectPath: string,
@@ -44,7 +44,7 @@ export async function createHostShare(
     body: JSON.stringify({ path: projectPath, ...body }),
   });
   if (!res.ok) {
-    throw new Error(await readApiError(res));
+    throw await readApiFailure(res);
   }
   const data = (await res.json()) as { share: HostShareRow };
   return data.share;

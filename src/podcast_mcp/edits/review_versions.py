@@ -225,6 +225,14 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+class StaleMixError(ValueError):
+    """A preview or master no longer represents the current mix."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 def resolve_source_mix(
     project: EpisodeProject,
     *,
@@ -241,10 +249,11 @@ def resolve_source_mix(
     there is nothing to compare against, so that master publishes as-is.
     """
     if premix_is_stale(project):
-        raise ValueError(
+        raise StaleMixError(
             "premix.wav is out of date (edits, volume or mute changed since the last "
             "Refresh), and so is any master built from it; Refresh (render-preview) "
-            "before publishing a review version, then export for a mastered one"
+            "before publishing a review version, then export for a mastered one",
+            code="stale_mix",
         )
     paths = {"premix": premix_path(project), "mastered": mastered_path(project)}
     order = [prefer, "mastered", "premix"] if prefer == "mastered" else ["premix", "mastered"]
@@ -258,14 +267,16 @@ def resolve_source_mix(
             continue
         if name == "mastered" and paths["premix"].is_file() and not mastered_is_fresh(project):
             if read_mastered_hash(project) is None:
-                raise ValueError(
+                raise StaleMixError(
                     "mastered.wav has no record of the premix it was mastered from "
                     "(mastered before that was tracked, or its last master failed); "
-                    "export (or re-run master_loudness) to re-master it, or publish the premix"
+                    "export (or re-run master_loudness) to re-master it, or publish the premix",
+                    code="stale_master",
                 )
-            raise ValueError(
+            raise StaleMixError(
                 "mastered.wav wasn't mastered from the current premix (re-mixed, copied or "
-                "restored since); export (or re-run master_loudness) first, or publish the premix"
+                "restored since); export (or re-run master_loudness) first, or publish the premix",
+                code="stale_master",
             )
         return path.resolve(), name
     raise FileNotFoundError("no premix.wav or mastered.wav; run render-preview / pipeline first")
