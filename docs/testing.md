@@ -1400,3 +1400,15 @@ hold this sequenced endpoint and suppress the document socket hello, so they exe
 ### Transcript boundary archive
 
 `tests/test_transcript_archive.py` and `tests/test_edit_boundaries.py` exercise real cuts, source identity, complete-word restoration, metadata, source ordering, save/reload, and history. Run `uv run pytest -q --no-cov tests/test_transcript_archive.py tests/test_edit_boundaries.py` for focused feedback. `gui/web/e2e/edit-boundary-archive.spec.ts` drives a real cut and mouse roll, verifies the restored chip after reload, then checks undo and redo against the disposable project. Run it with `npm run test:e2e -- e2e/edit-boundary-archive.spec.ts` after the E2E build.
+
+## Service context boundaries
+
+`tests/test_service_boundaries.py` scans production imports for the migrated
+`services/support/` context. Adapters and sibling services use its declared
+facade; support cannot import adapters or unrelated services. The existing
+bootstrap status reader is its only service dependency. Synthetic nested and
+relative imports verify that the guard rejects violations. Focused support tests
+live in `test_diagnostics.py`, `test_distribution_config.py`, and
+`test_setup_cli.py`; `test_import_order.py` checks cold imports of the facade
+and its adapters in fresh processes. Other service packages retain their existing
+checks until their own migration.

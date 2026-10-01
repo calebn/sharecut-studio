@@ -15,17 +15,15 @@ from pydantic import BaseModel, Field
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
-from podcast_mcp.services.diagnostics import (
+from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
     default_bundle_dir,
-    is_allowed_bundle_name,
-    resolve_bundle_file,
-)
-from podcast_mcp.services.report_submission import (
     get_report_status,
+    is_allowed_bundle_name,
     preview_bundle,
     report_relay_url,
+    resolve_bundle_file,
     submit_bundle,
 )
 from podcast_mcp.services.workspace import ProjectWorkspace

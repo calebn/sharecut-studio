@@ -12,7 +12,7 @@ from podcast_mcp.runtime_config import (
     is_loopback_host,
     load_host_runtime_config,
 )
-from podcast_mcp.services.doctor import DoctorCheck, DoctorReport
+from podcast_mcp.services.support.doctor import DoctorCheck, DoctorReport
 
 ConfigMode = Literal["local", "self-hosted", "distributor"]
 

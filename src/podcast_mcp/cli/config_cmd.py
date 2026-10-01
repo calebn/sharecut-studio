@@ -7,8 +7,7 @@ from typing import Literal
 
 import typer
 
-from podcast_mcp.services.config_check import run_config_checks
-from podcast_mcp.services.doctor import echo_doctor_report
+from podcast_mcp.services.support import echo_doctor_report, run_config_checks
 
 config_app = typer.Typer(help="Validate local, self-hosted, or distributor configuration.")
 

@@ -24,7 +24,11 @@ from podcast_mcp.config import cache_dir, repo_root, whisper_cache_dir
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.services.bootstrap import component_status
-from podcast_mcp.services.doctor import ffmpeg_probe_info, python_runtime_info, run_doctor_checks
+from podcast_mcp.services.support.doctor import (
+    ffmpeg_probe_info,
+    python_runtime_info,
+    run_doctor_checks,
+)
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
     diagnostics_log_archive_name,
