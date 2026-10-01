@@ -695,7 +695,7 @@ def test_gc_pyramids_drops_legacy_json_of_a_hashed_track_id(tmp_path):
 
 def test_episode_service_hooks_schedule_waveforms(minimal_project, sample_wav, tmp_path):
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host2", str(sample_wav), speaker="Host")

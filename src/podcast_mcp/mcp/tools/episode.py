@@ -4,7 +4,7 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.episode import EpisodeService
+from podcast_mcp.services.document import EpisodeService
 
 
 def episode_create(workspace_dir: str, name: str = "episode") -> str:

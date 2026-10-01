@@ -20,7 +20,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.media.transcript_refine import TranscriptRefineService
 
 

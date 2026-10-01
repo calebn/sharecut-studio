@@ -30,11 +30,11 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.payloads import SetClipJoinPayload
 from podcast_mcp.services.document_sync.projections import ViewProjection, projection_for_command
 from podcast_mcp.services.document_sync.service import DocumentSyncService
-from podcast_mcp.services.edit import EditService
 
 runner = CliRunner()
 
@@ -129,7 +129,7 @@ def test_service_is_one_undo_step(minimal_project):
     svc = EditService(ProjectWorkspace.open(minimal_project))
     out = svc.set_clip_join("c1", "c2", "crossfade", 20)
     assert out["crossfade_ms"] == 20
-    from podcast_mcp.services.history import HistoryService
+    from podcast_mcp.services.document import HistoryService
 
     hist = HistoryService(ProjectWorkspace.open(minimal_project))
     before = hist.status()["cursor"]

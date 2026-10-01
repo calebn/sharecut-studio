@@ -162,7 +162,12 @@ from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.boundary import (
+from podcast_mcp.util.progress import ProgressReporter
+from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
+from podcast_mcp.util.timeline_zoom import snap_tick_decimals
+from podcast_mcp.util.tracks import resolve_track
+
+from .boundary import (
     BoundaryContext,
     ClipGeometry,
     RollBoundaryTarget,
@@ -170,11 +175,7 @@ from podcast_mcp.services.boundary import (
     assert_boundary_token,
     boundary_context,
 )
-from podcast_mcp.services.transcript_timing import word_timing_media
-from podcast_mcp.util.progress import ProgressReporter
-from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
-from podcast_mcp.util.timeline_zoom import snap_tick_decimals
-from podcast_mcp.util.tracks import resolve_track
+from .transcript_timing import word_timing_media
 
 log = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -680,7 +681,7 @@ class EditService:
         cut_start: float | None = None,
         cut_end: float | None = None,
     ) -> dict:
-        from podcast_mcp.services.play import PlayService
+        from .play import PlayService
 
         tid = self._resolve(track_id, speaker)
         if verdict not in ("pass", "fail"):
@@ -711,7 +712,7 @@ class EditService:
         )
         played = False
         if play:
-            from podcast_mcp.services.play import PlayRequest
+            from .play import PlayRequest
 
             PlayService(self.ws).play(
                 PlayRequest(

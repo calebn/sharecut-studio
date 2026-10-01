@@ -644,7 +644,7 @@ def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
     tmp_path: Path, case: str
 ) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     p = _episode(tmp_path)
     reason = _remove_matching_direct_phrase(p, case)
@@ -664,7 +664,7 @@ def test_default_gate_preview_accepts_supported_implicit_full_media_timeline(
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     p = _episode(tmp_path)
     p.clips = []

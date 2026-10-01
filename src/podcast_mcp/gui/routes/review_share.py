@@ -48,14 +48,19 @@ from podcast_mcp.gui.routes.waveform import (
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.cross_process_sync import cross_process_lease
+from podcast_mcp.services.document import (
+    COMMENTS_SANITY_S,
+    EditService,
+    ReviewCommentsReplica,
+    cross_process_lease,
+    review_comments_locked,
+)
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
     COMMENT_BODY_MAX,
     document_command_from_body,
 )
 from podcast_mcp.services.document_sync.service import document_hub_key
-from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.guest_progress import guest_progress_hub
 from podcast_mcp.services.media import media_type_for_path
 from podcast_mcp.services.remote_mcp.limits import (
@@ -63,11 +68,6 @@ from podcast_mcp.services.remote_mcp.limits import (
     host_rate_limit_enabled,
     rate_limit_detail,
     ws_roster_request_allowed,
-)
-from podcast_mcp.services.review_comments import (
-    COMMENTS_SANITY_S,
-    ReviewCommentsReplica,
-    review_comments_locked,
 )
 from podcast_mcp.services.session_sync.authz import authorize_share_token
 from podcast_mcp.services.session_sync.commands import (

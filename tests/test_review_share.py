@@ -132,7 +132,7 @@ def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace,
         review_version_id=ver["id"],
         capabilities=["play", "comment", "action"],
     )
-    from podcast_mcp.services.comment import CommentService
+    from podcast_mcp.services.document import CommentService
     from podcast_mcp.services.share import open_share_workspace
 
     _row, sws = open_share_workspace(share["token"])
@@ -1135,7 +1135,7 @@ def test_guest_daw_ws_leases_the_cross_process_watcher(
         events.append("acquire")
         return _FakeLease()
 
-    import podcast_mcp.services.cross_process_sync as cross_process_sync_module
+    import podcast_mcp.services.document.cross_process_sync as cross_process_sync_module
 
     monkeypatch.setattr(cross_process_sync_module, "watch_cross_process_writes", _fake_watch)
 
@@ -1908,7 +1908,7 @@ def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
 
 def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.edits.review_versions import get_version
-    from podcast_mcp.services.play import PlayService
+    from podcast_mcp.services.document import PlayService
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Escape")

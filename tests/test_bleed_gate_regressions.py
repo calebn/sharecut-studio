@@ -10,8 +10,8 @@ from podcast_mcp.engines.transcript_reconcile import reconcile_transcript
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, Transcript, TranscriptWord
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.document import PlayRequest, PlayService
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.services.play import PlayRequest, PlayService
 
 
 def gated_project(tmp_path: Path) -> EpisodeProject:

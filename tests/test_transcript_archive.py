@@ -29,9 +29,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.boundary import TrimBoundaryTarget
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.document import EditService, HistoryService, TrimBoundaryTarget
 
 
 def _episode(path, *, word: TranscriptWord | None = None):

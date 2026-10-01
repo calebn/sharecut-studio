@@ -13,7 +13,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.media import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,

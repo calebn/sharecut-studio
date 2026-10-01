@@ -27,7 +27,7 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 
 ### Service context imports
 
-Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline, support, and media symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
+Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline, support, media, and document symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
 
 Runtime diagnostics, configuration checks, diagnostic bundles, and report
 submission belong in `services/support/`. Pipeline execution, configuration,
@@ -42,6 +42,14 @@ from `podcast_mcp.services.media`; implementation modules under `services/media/
 are private to that context and focused tests. Source copying belongs to
 `media_store.ensure_audio_in_workspace`, called through the facade by
 `EpisodeService`, rather than the domain `edits.track_media` module.
+
+Episode editing, playback, history, comments, and boundary orchestration belong
+in `services/document/`. Import declared symbols from
+`podcast_mcp.services.document`; implementation modules are private to that
+context and focused tests. Document services use the app, media, and pipeline
+facades.
+The existing document and session sync packages still provide command logs,
+hub publication, and live collaboration.
 
 When another context migrates, move all callers and patch targets together,
 delete the old paths, and extend `tests/test_service_boundaries.py` with its

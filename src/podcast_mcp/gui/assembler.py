@@ -17,13 +17,12 @@ from podcast_mcp.gui.mapper import (
 )
 from podcast_mcp.gui.schemas import ProjectView, TrackView
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService, HistoryService
 from podcast_mcp.services.document_sync.projection_types import (
     VIEW_PROJECTION_QUERY_DESCRIPTION,
     ViewProjection,
     parse_view_projection,
 )
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.media import TranscriptService
 
 __all__ = [

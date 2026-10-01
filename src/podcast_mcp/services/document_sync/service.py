@@ -18,6 +18,7 @@ from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
 from podcast_mcp.services.document_sync.handlers import apply_command
@@ -32,7 +33,6 @@ from podcast_mcp.services.document_sync.snapshot_cache import (
     snapshot_cache,
     state_token,
 )
-from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.services.session_sync.log import (
     SyncStore,
@@ -627,7 +627,7 @@ class DocumentSyncService:
         (``pollSnapshotAlreadyApplied``, #657 rule A). A mutation from another process
         reaches this process's hub with nothing to publish to, but the row still commits
         to the shared ``document.db``: the GUI process's cross-process watcher
-        (``services/cross_process_sync.py``, #695) pushes it to open tabs within about
+        (``services/document/cross_process_sync.py``, #695) pushes it to open tabs within about
         ``CROSS_PROCESS_POLL_S`` while a socket is open, with the 30 s meta poll as the
         fallback.
 

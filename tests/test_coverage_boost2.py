@@ -16,7 +16,7 @@ from podcast_mcp.services.app.gui_launch import (
     is_viewer_up,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
+from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import (
     DocumentSyncService,

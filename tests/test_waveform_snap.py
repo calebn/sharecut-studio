@@ -11,13 +11,13 @@ from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 
 
 def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
@@ -67,7 +67,7 @@ def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):
 
 
 def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sample_wav):
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
@@ -80,9 +80,9 @@ def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sa
             "preview_inaudible_cut",
             return_value={"start": 1.2, "end": 1.25, "mode": "word"},
         ),
-        patch("podcast_mcp.services.edit.timeline_rms_hops", return_value=[]),
+        patch("podcast_mcp.services.document.edit.timeline_rms_hops", return_value=[]),
         patch(
-            "podcast_mcp.services.edit.silence_islands_from_hops",
+            "podcast_mcp.services.document.edit.silence_islands_from_hops",
             return_value=[island],
         ),
     ):
@@ -95,7 +95,7 @@ def test_waveform_snap_window_island_ticks_keep_microseconds(minimal_project, sa
 
 
 def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, sample_wav):
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
@@ -131,9 +131,9 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
             "preview_inaudible_cut",
             return_value={"start": 1.01, "end": 1.2, "mode": "word"},
         ),
-        patch("podcast_mcp.services.edit.timeline_rms_hops", return_value=[]),
+        patch("podcast_mcp.services.document.edit.timeline_rms_hops", return_value=[]),
         patch(
-            "podcast_mcp.services.edit.silence_islands_from_hops",
+            "podcast_mcp.services.document.edit.silence_islands_from_hops",
             return_value=[island],
         ),
     ):
@@ -146,7 +146,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
     assert timed["islands"] == [{"start": 1.0, "end": 1.2, "duration": 0.2, "midpoint": 1.1}]
     assert 1.1 in timed["ticks"]
     with patch(
-        "podcast_mcp.services.edit.timeline_rms_hops",
+        "podcast_mcp.services.document.edit.timeline_rms_hops",
         side_effect=RuntimeError("hops"),
     ):
         hop_fail = EditService(ws).waveform_snap_window(
@@ -160,7 +160,7 @@ def test_waveform_snap_window_swaps_tiny_span_and_skips_errors(minimal_project, 
 
 def test_api_audio_etag(minimal_project, sample_wav):
     pytest.importorskip("fastapi")
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("guest", str(sample_wav), speaker="G")
@@ -203,14 +203,14 @@ def test_api_audio_etag(minimal_project, sample_wav):
 
 def test_api_waveform_snap_route(minimal_project, sample_wav):
     pytest.importorskip("fastapi")
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
     wait_pyramid_jobs()
     client = TestClient(create_app())
     with patch(
-        "podcast_mcp.services.edit.EditService.preview_inaudible_cut",
+        "podcast_mcp.services.document.edit.EditService.preview_inaudible_cut",
         return_value={"start": 0.1, "end": 0.2, "mode": "x"},
     ):
         res = client.get(
@@ -229,7 +229,7 @@ def test_api_waveform_snap_route(minimal_project, sample_wav):
 
 def test_guest_waveform_snap_needs_suggest(minimal_project, sample_wav):
     pytest.importorskip("fastapi")
-    from podcast_mcp.services.episode import EpisodeService
+    from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host")
@@ -255,7 +255,7 @@ def test_guest_waveform_snap_needs_suggest(minimal_project, sample_wav):
         capabilities=["play", "view", "suggest"],
     )
     with patch(
-        "podcast_mcp.services.edit.EditService.preview_inaudible_cut",
+        "podcast_mcp.services.document.edit.EditService.preview_inaudible_cut",
         return_value={"start": 0.1, "end": 0.2, "mode": "x"},
     ):
         ok = TestClient(create_app()).get(

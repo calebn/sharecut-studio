@@ -116,8 +116,8 @@ def test_status_report_uses_workspace_relative_paths(tmp_path: Path) -> None:
 
 def test_align_accept_service_reloads_before_stamp(tmp_path: Path) -> None:
     from podcast_mcp.models import save_project
-    from podcast_mcp.services.align_accept import AlignAcceptService
     from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import AlignAcceptService
 
     p = _proj(tmp_path)
     p.ensure_dirs()
@@ -161,8 +161,8 @@ def test_waive_requires_reason_and_corrupt_artifact(tmp_path: Path) -> None:
 
 def test_align_accept_service_status_brief_waive(tmp_path: Path) -> None:
     from podcast_mcp.models import save_project
-    from podcast_mcp.services.align_accept import AlignAcceptService
     from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import AlignAcceptService
 
     p = _proj(tmp_path)
     p.ensure_dirs()

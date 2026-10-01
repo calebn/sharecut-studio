@@ -11,7 +11,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 
 
 def _project_with_transcript(tmp_path) -> ProjectWorkspace:

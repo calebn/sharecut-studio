@@ -21,7 +21,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.play import PlayService
+from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.review import ReviewService

@@ -28,7 +28,7 @@ Map tools onto interaction **shapes**. Shared inspector chrome; specialized body
 | **F. Markers / review** | chapters, social clips, comments | `editorial.chapters`, `social`, `review.comments` | Comments + chapter/social CRUD via document commands |
 | **G. History** | undo / redo / goto | `history/` snapshots | History Undo/Redo; diff viewer |
 
-Tool registration: `mcp/tools/` (`edits`, `timeline`, `transcript`, `pipeline`, `history`, `comments`, `review`). Domain: `edits/`, `services/edit.py`, and related services.
+Tool registration: `mcp/tools/` (`edits`, `timeline`, `transcript`, `pipeline`, `history`, `comments`, `review`). Domain: `edits/`, `services/document/edit.py`, and related services.
 
 ## Modifier UX (consistent interface)
 

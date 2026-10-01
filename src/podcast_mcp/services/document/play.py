@@ -51,16 +51,6 @@ from podcast_mcp.models import EpisodeProject, Track, TrackRole
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.boundary import (
-    BoundaryAudioWindow,
-    BoundaryAudition,
-    RollBoundaryEdit,
-    RollBoundaryTarget,
-    TrimBoundaryEdit,
-    TrimBoundaryTarget,
-    assert_boundary_token,
-    boundary_context,
-)
 from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.util.atomic_render import render_atomic
@@ -74,6 +64,17 @@ from podcast_mcp.util.project_state import (
     snapshot_project,
 )
 from podcast_mcp.util.tracks import recording_audio_path
+
+from .boundary import (
+    BoundaryAudioWindow,
+    BoundaryAudition,
+    RollBoundaryEdit,
+    RollBoundaryTarget,
+    TrimBoundaryEdit,
+    TrimBoundaryTarget,
+    assert_boundary_token,
+    boundary_context,
+)
 
 log = logging.getLogger(__name__)
 
@@ -1437,7 +1438,7 @@ class PlayService:
         player: str | None = None,
     ) -> PlayResult:
         """Extract the same range at two history indices, then play A→gap→B."""
-        from podcast_mcp.services.history import HistoryService
+        from .history import HistoryService
 
         if before_index == after_index:
             raise ValueError("before_index and after_index must differ")

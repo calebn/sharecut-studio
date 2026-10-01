@@ -34,8 +34,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.play import PlayRequest, PlayService
+from podcast_mcp.services.document import EditService, PlayRequest, PlayService
 from podcast_mcp.util.project_state import RenderBusyError, render_lock, render_lock_held
 
 
@@ -102,7 +101,7 @@ def test_play_resolve_search_processed(minimal_project, sample_wav) -> None:
     svc = PlayService(ws)
     seg_out = ws.project.artifacts_dir() / "seg.wav"
     with patch(
-        "podcast_mcp.services.play.render_track_segment",
+        "podcast_mcp.services.document.play.render_track_segment",
         return_value=seg_out,
     ):
         seg_out.touch()
@@ -124,7 +123,7 @@ def test_play_search_raw_uses_track_source(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     svc = PlayService(ws)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = svc.play(
             PlayRequest(
@@ -146,7 +145,7 @@ def test_play_search_premix_source(minimal_project, sample_wav) -> None:
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(
@@ -200,8 +199,8 @@ def test_play_premix_rerender(minimal_project, sample_wav) -> None:
     premix = ws.project.artifacts_dir() / "premix.wav"
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
     with (
-        patch("podcast_mcp.services.play.rerender_preview") as rerender,
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.rerender_preview") as rerender,
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
     ):
         rerender.side_effect = lambda _p: premix.write_bytes(sample_wav.read_bytes())
         eng_cls.return_value.extract_segment = mock_extract
@@ -219,7 +218,7 @@ def test_play_export_source(minimal_project, sample_wav) -> None:
     export_dir.mkdir(parents=True, exist_ok=True)
     (export_dir / "master.wav").write_bytes(sample_wav.read_bytes())
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(source="export", start_sec=0.0, end_sec=0.5),
@@ -237,10 +236,10 @@ def test_play_compare_dry_run(minimal_project, sample_wav) -> None:
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
     with (
         patch(
-            "podcast_mcp.services.play.render_track_segment",
+            "podcast_mcp.services.document.play.render_track_segment",
             return_value=seg_out,
         ),
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
     ):
         seg_out.touch()
         eng_cls.return_value.extract_segment = mock_extract
@@ -278,11 +277,11 @@ def test_play_follow_transcript_track(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
         patch(
-            "podcast_mcp.services.play.word_intervals",
+            "podcast_mcp.services.document.play.word_intervals",
             return_value=[(0.0, 0.4), (0.5, 1.0)],
         ),
     ):
@@ -435,11 +434,11 @@ def test_follow_transcript_mix_cache_tracks_peak_ceiling(minimal_project, sample
             return_value=(segment, "segment_render", 0.0, 1.0),
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=render_mix,
         ),
-        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
-        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
+        patch("podcast_mcp.services.document.play.dialogue_tracks_for_play", return_value=["host"]),
+        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
     ):
         first = service._play_follow_transcript_mix(0.0, 1.0, False, dry_run=True, player=None)
         service._defaults["mix"]["premix_peak_ceiling_db"] = -6.0
@@ -457,15 +456,15 @@ def test_play_follow_transcript_mix(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
         patch(
-            "podcast_mcp.services.play.word_intervals",
+            "podcast_mcp.services.document.play.word_intervals",
             return_value=[(0.0, 0.4)],
         ),
         patch(
-            "podcast_mcp.services.play.dialogue_tracks_for_play",
+            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
             return_value=["host"],
         ),
     ):
@@ -487,7 +486,7 @@ def test_play_ensure_stem(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
         patch("podcast_mcp.engines.ffmpeg.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.schedule_stem_waveforms") as waveforms,
+        patch("podcast_mcp.services.document.play.schedule_stem_waveforms") as waveforms,
     ):
         eng_cls.return_value.render_dialogue_track = MagicMock(
             side_effect=lambda _p, _t, out, _d: out.write_bytes(b"RIFF") or out
@@ -509,8 +508,8 @@ def test_play_runs_player_when_not_dry_run(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
     with (
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.run") as run_player,
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.run") as run_player,
     ):
         eng_cls.return_value.extract_segment = mock_extract
         PlayService(ws).play(
@@ -524,7 +523,7 @@ def test_play_runs_player_when_not_dry_run(minimal_project, sample_wav) -> None:
 def test_play_raw_rewrites_processed_source(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     mock_extract = MagicMock(side_effect=lambda _src, out, *_a: out.touch() or out)
-    with patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls:
+    with patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls:
         eng_cls.return_value.extract_segment = mock_extract
         result = PlayService(ws).play(
             PlayRequest(
@@ -554,7 +553,7 @@ def test_play_timeline_map_error(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
         patch(
-            "podcast_mcp.services.play.timeline_range_to_source",
+            "podcast_mcp.services.document.play.timeline_range_to_source",
             side_effect=TimelineMapError("bad range"),
         ),
         pytest.raises(ValueError, match="bad range"),
@@ -567,7 +566,7 @@ def test_play_timeline_map_error(minimal_project, sample_wav) -> None:
 
 def test_play_premix_missing_raises(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.play.rerender_preview"):
+    with patch("podcast_mcp.services.document.play.rerender_preview"):
         with pytest.raises(FileNotFoundError, match=r"premix\.wav not found"):
             PlayService(ws).play(
                 PlayRequest(source="premix", start_sec=0.0, end_sec=0.5, rerender=True),
@@ -600,9 +599,9 @@ def test_play_processed_stem_fresh_path(minimal_project, sample_wav) -> None:
 
     mock_extract = MagicMock(side_effect=_extract)
     with (
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
         patch(
-            "podcast_mcp.services.play.snapshot_project",
+            "podcast_mcp.services.document.play.snapshot_project",
             side_effect=AssertionError("warm path copied the project"),
         ),
     ):
@@ -637,8 +636,8 @@ def test_play_silent_stem_extract_falls_back_to_segment(minimal_project, sample_
         return out
 
     with (
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.render_track_segment") as seg,
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=_silent_extract)
 
@@ -685,7 +684,7 @@ def test_play_processed_segment_cache_hit(minimal_project, sample_wav) -> None:
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_bytes(sample_wav.read_bytes())
     with patch(
-        "podcast_mcp.services.play.snapshot_project",
+        "podcast_mcp.services.document.play.snapshot_project",
         side_effect=AssertionError("warm path copied the project"),
     ):
         result = PlayService(ws).play(
@@ -720,8 +719,8 @@ def test_play_segment_cache_key_matches_the_rendered_snapshot_after_a_mid_decisi
         return cache
 
     with (
-        patch("podcast_mcp.services.play.stem_matches", side_effect=change_live_project),
-        patch("podcast_mcp.services.play.render_track_segment", side_effect=render),
+        patch("podcast_mcp.services.document.play.stem_matches", side_effect=change_live_project),
+        patch("podcast_mcp.services.document.play.render_track_segment", side_effect=render),
     ):
         result = PlayService(ws)._processed_audio("host", 0.0, 0.5, rerender=False)
 
@@ -761,8 +760,8 @@ def test_play_segment_render_reuses_the_cache_of_the_snapshot_hash(
         return False
 
     with (
-        patch("podcast_mcp.services.play.stem_matches", side_effect=change_live_project),
-        patch("podcast_mcp.services.play.render_track_segment") as render_seg,
+        patch("podcast_mcp.services.document.play.stem_matches", side_effect=change_live_project),
+        patch("podcast_mcp.services.document.play.render_track_segment") as render_seg,
     ):
         result = svc._processed_audio("host", 0.0, 0.5, rerender=False)
 
@@ -829,7 +828,7 @@ def test_play_processed_rerender_invalidates_cache(minimal_project, sample_wav) 
     mock_render = MagicMock(return_value=stem)
     with (
         patch.object(PlayService, "ensure_stem", mock_render),
-        patch("podcast_mcp.services.play.render_track_segment") as seg,
+        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
     ):
 
         def _seg(_project, _track_id, _start, _end, cache, _defaults):
@@ -876,8 +875,8 @@ def test_play_long_rerender_rebuilds_stem(minimal_project, sample_wav) -> None:
 
     with (
         patch.object(PlayService, "ensure_stem", mock_render),
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.stem_matches", return_value=True),
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch("podcast_mcp.services.document.play.stem_matches", return_value=True),
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=_extract)
         result = PlayService(ws).play(
@@ -897,7 +896,7 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
     minimal_project, sample_wav, monkeypatch
 ) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    monkeypatch.setattr("podcast_mcp.services.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr("podcast_mcp.services.document.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
     held, release = threading.Event(), threading.Event()
 
     def hold() -> None:
@@ -919,7 +918,9 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
     try:
         with (
             patch.object(PlayService, "ensure_stem", mock_render),
-            patch("podcast_mcp.services.play.render_track_segment", side_effect=_seg) as seg,
+            patch(
+                "podcast_mcp.services.document.play.render_track_segment", side_effect=_seg
+            ) as seg,
         ):
             result = PlayService(ws).play(
                 PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
@@ -937,7 +938,7 @@ def test_play_rerender_segment_renders_without_render_busy_while_another_render_
 
 @contextmanager
 def _render_lock_held_elsewhere(ws, monkeypatch):
-    monkeypatch.setattr("podcast_mcp.services.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr("podcast_mcp.services.document.play._PLAY_RENDER_LOCK_TIMEOUT_SEC", 0.2)
     held, release = threading.Event(), threading.Event()
 
     def hold() -> None:
@@ -966,7 +967,7 @@ def test_premix_rerender_plays_the_existing_premix_while_another_render_holds_th
     premix.write_bytes(sample_wav.read_bytes())
     with (
         _render_lock_held_elsewhere(ws, monkeypatch),
-        patch("podcast_mcp.services.play.rerender_preview", MagicMock()) as rerender,
+        patch("podcast_mcp.services.document.play.rerender_preview", MagicMock()) as rerender,
     ):
         svc = PlayService(ws)
         assert svc._ensure_premix(rerender=True) == (premix, True)
@@ -984,7 +985,7 @@ def test_premix_rerender_failure_drops_its_partial_state(minimal_project, sample
         raise Timeout("lock")
 
     svc = PlayService(ws)
-    with patch("podcast_mcp.services.play.rerender_preview", side_effect=boom):
+    with patch("podcast_mcp.services.document.play.rerender_preview", side_effect=boom):
         assert svc._ensure_premix(rerender=True) == (premix, False)
     assert ws.project.name == load_project(minimal_project).name
     assert svc.project.name != "partial"
@@ -1010,7 +1011,7 @@ def test_transport_stem_build_streams_the_existing_stem_while_another_render_hol
     stem.write_bytes(sample_wav.read_bytes())
     with (
         _render_lock_held_elsewhere(ws, monkeypatch),
-        patch("podcast_mcp.services.play.publish_stem", MagicMock()) as publish,
+        patch("podcast_mcp.services.document.play.publish_stem", MagicMock()) as publish,
     ):
         tp = PlayService(ws).resolve_transport_path("stem", track_id="host", build_stem=True)
     assert tp.path == stem.resolve()
@@ -1053,7 +1054,7 @@ def test_a_reused_play_service_reports_render_busy_per_call(
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     svc = PlayService(ws)
-    with patch("podcast_mcp.services.play.rerender_preview", MagicMock()):
+    with patch("podcast_mcp.services.document.play.rerender_preview", MagicMock()):
         with _render_lock_held_elsewhere(ws, monkeypatch):
             busy = svc.resolve_transport_path("premix", rerender=True)
         again = svc.resolve_transport_path("premix", rerender=True)
@@ -1094,7 +1095,7 @@ def test_play_rerender_segment_renders_when_the_project_lock_is_busy(
         patch.object(
             PlayService, "ensure_stem", MagicMock(side_effect=Timeout("episode.project.json.lock"))
         ) as ensure,
-        patch("podcast_mcp.services.play.render_track_segment", side_effect=_seg) as seg,
+        patch("podcast_mcp.services.document.play.render_track_segment", side_effect=_seg) as seg,
     ):
         result = PlayService(ws).play(
             PlayRequest(source="processed:host", start_sec=0.0, end_sec=90.0, rerender=True),
@@ -1116,7 +1117,7 @@ def test_play_rerender_invalidates_the_stem_under_the_render_lock(
             "_invalidate_processed_cache",
             lambda self, _tid: seen.append(render_lock_held(self.project)),
         ),
-        patch("podcast_mcp.services.play.render_track_segment") as seg,
+        patch("podcast_mcp.services.document.play.render_track_segment") as seg,
     ):
         seg.side_effect = lambda _p, _t, _s, _e, cache, _d: cache.write_bytes(
             sample_wav.read_bytes()
@@ -1140,11 +1141,11 @@ def _follow_patches(seg_out, *, mix=None, track=None):
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=track or mix,
         ),
-        patch("podcast_mcp.services.play.word_intervals", return_value=[(0.0, 0.4)]),
-        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host"]),
+        patch("podcast_mcp.services.document.play.word_intervals", return_value=[(0.0, 0.4)]),
+        patch("podcast_mcp.services.document.play.dialogue_tracks_for_play", return_value=["host"]),
     )
 
 
@@ -1217,15 +1218,15 @@ def test_play_follow_transcript_compare(minimal_project, sample_wav) -> None:
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=lambda _segs, out, **_kw: out.touch() or None,
         ),
         patch(
-            "podcast_mcp.services.play.word_intervals",
+            "podcast_mcp.services.document.play.word_intervals",
             return_value=[(0.0, 0.4)],
         ),
         patch(
-            "podcast_mcp.services.play.dialogue_tracks_for_play",
+            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
             return_value=["host"],
         ),
     ):
@@ -1252,11 +1253,11 @@ def test_play_follow_transcript_track_source(minimal_project, sample_wav) -> Non
             PlayService, "_follow_transcript_audio", return_value=(seg_out, "stem", 0.0, 1.0)
         ),
         patch(
-            "podcast_mcp.services.play.FFmpegEngine.mix_tracks",
+            "podcast_mcp.services.document.play.FFmpegEngine.mix_tracks",
             side_effect=lambda _segments, out, **_kwargs: out.touch() or None,
         ),
         patch(
-            "podcast_mcp.services.play.word_intervals",
+            "podcast_mcp.services.document.play.word_intervals",
             return_value=[(0.0, 0.4)],
         ),
     ):
@@ -1277,7 +1278,7 @@ def test_play_follow_transcript_mix_requires_tracks(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     with (
         patch(
-            "podcast_mcp.services.play.dialogue_tracks_for_play",
+            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
             return_value=[],
         ),
         pytest.raises(ValueError, match="requires dialogue tracks"),
@@ -1309,7 +1310,7 @@ def test_play_compare_invalid_range(minimal_project, sample_wav) -> None:
 
 def test_play_player_command_linux(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.play.platform.system", return_value="Linux"):
+    with patch("podcast_mcp.services.document.play.platform.system", return_value="Linux"):
         cmd = PlayService(ws)._player_command(None, Path("/tmp/x.wav"))
     assert cmd == ["ffplay", "-nodisp", "-autoexit", "/tmp/x.wav"]
 
@@ -1334,7 +1335,7 @@ def test_edit_search_with_speaker_filter(minimal_project, sample_wav) -> None:
 def test_edit_cut_text_match(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     fake = [MagicMock()]
-    with patch("podcast_mcp.services.edit.cut_text_match", return_value=fake) as cut:
+    with patch("podcast_mcp.services.document.edit.cut_text_match", return_value=fake) as cut:
         out = EditService(ws).cut_text_match("podcast", speaker="Host")
     cut.assert_called_once()
     assert out is fake
@@ -1343,7 +1344,7 @@ def test_edit_cut_text_match(minimal_project, sample_wav) -> None:
 def test_edit_strip_silence(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"removed_sec": 0.3, "clips": 2}
-    with patch("podcast_mcp.services.edit.strip_silence", return_value=report) as strip:
+    with patch("podcast_mcp.services.document.edit.strip_silence", return_value=report) as strip:
         out = EditService(ws).strip_silence(speaker="Host", threshold_db=-35.0)
     strip.assert_called_once()
     assert out == report
@@ -1352,7 +1353,7 @@ def test_edit_strip_silence(minimal_project, sample_wav) -> None:
 def test_edit_verify_transcript(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     corrections = [{"word_index": 1, "text": "Podcast"}]
-    with patch("podcast_mcp.services.edit.verify_words", return_value=1) as verify:
+    with patch("podcast_mcp.services.document.edit.verify_words", return_value=1) as verify:
         n = EditService(ws).verify_transcript("host", corrections)
     verify.assert_called_once()
     assert n == 1
@@ -1361,7 +1362,7 @@ def test_edit_verify_transcript(minimal_project, sample_wav) -> None:
 def test_edit_apply_transcript_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch(
-        "podcast_mcp.services.edit.apply_transcript_corrections",
+        "podcast_mcp.services.document.edit.apply_transcript_corrections",
         return_value=2,
     ) as apply:
         n = EditService(ws).apply_transcript_cleanup(
@@ -1402,7 +1403,7 @@ def test_edit_analyze_cleanup(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"tracks": ["host"], "issues": []}
     with patch(
-        "podcast_mcp.services.edit.cleanup_analysis_report",
+        "podcast_mcp.services.document.edit.cleanup_analysis_report",
         return_value=report,
     ) as analyze:
         out = EditService(ws).analyze_cleanup(speaker="Host")
@@ -1414,7 +1415,7 @@ def test_edit_audio_diagnostics(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"track_id": "host", "spectrogram_png": "spec.png", "waveform_png": "wave.png"}
     with patch(
-        "podcast_mcp.services.edit.audio_diagnostics_report",
+        "podcast_mcp.services.document.edit.audio_diagnostics_report",
         return_value=report,
     ) as diag:
         out = EditService(ws).audio_diagnostics(speaker="Host", start_sec=1.0, end_sec=2.0)
@@ -1426,7 +1427,7 @@ def test_edit_recommend_fades(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     recs = [{"clip_id": "full", "recommended_fade_in_ms": 15}]
     with patch(
-        "podcast_mcp.services.edit.fade_recommendations",
+        "podcast_mcp.services.document.edit.fade_recommendations",
         return_value=recs,
     ) as fades:
         out = EditService(ws).recommend_fades(track_id="host")
@@ -1438,7 +1439,7 @@ def test_edit_apply_fade_recommendations(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     recs = [{"clip_id": "full", "recommended_fade_in_ms": 20}]
     with patch(
-        "podcast_mcp.services.edit.apply_fade_recommendations",
+        "podcast_mcp.services.document.edit.apply_fade_recommendations",
         return_value={"applied_fade_updates": 1},
     ) as apply:
         out = EditService(ws).apply_fade_recommendations(recs)
@@ -1458,7 +1459,7 @@ def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:
         details={"energy": 0.5},
     )
     with patch(
-        "podcast_mcp.services.edit.optimize_source_cut_range",
+        "podcast_mcp.services.document.edit.optimize_source_cut_range",
         return_value=opt,
     ):
         out = EditService(ws).preview_inaudible_cut(
@@ -1473,7 +1474,7 @@ def test_edit_preview_inaudible_cut(minimal_project, sample_wav) -> None:
 
 def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("podcast_mcp.services.edit.assess_proposed_cut") as assess:
+    with patch("podcast_mcp.services.document.edit.assess_proposed_cut") as assess:
         assess.return_value.to_dict.return_value = {
             "track_id": "host",
             "verdict": "fail",
@@ -1490,8 +1491,8 @@ def test_edit_join_quality_proposed_cut(minimal_project, sample_wav) -> None:
 def test_edit_join_label_play(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with (
-        patch("podcast_mcp.services.edit.assess_existing_join") as assess,
-        patch("podcast_mcp.services.play.PlayService.play", return_value=None) as play,
+        patch("podcast_mcp.services.document.edit.assess_existing_join") as assess,
+        patch("podcast_mcp.services.document.play.PlayService.play", return_value=None) as play,
     ):
         assess.return_value.to_dict.return_value = {
             "track_id": "host",
@@ -1510,7 +1511,7 @@ def test_edit_check_loudness(minimal_project, sample_wav) -> None:
     premix.parent.mkdir(parents=True, exist_ok=True)
     premix.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -16.0}
-    with patch("podcast_mcp.services.edit.check_loudness", return_value=loud) as chk:
+    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
         out = EditService(ws).check_loudness()
     chk.assert_called_once()
     assert out["integrated_lufs"] == pytest.approx(-16.0)
@@ -1528,7 +1529,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     measured = {"pass": True, "measured_lufs": -16.0}
     paths = (premix, export)
 
-    with patch("podcast_mcp.services.edit.check_loudness", return_value=measured.copy()):
+    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=measured.copy()):
         service = EditService(ws)
         assert service.check_loudness()["stale_reason"] == "premix_unverified"
         write_premix_hash(project, mix_gains(project))
@@ -1575,7 +1576,7 @@ def test_edit_reconcile_transcript(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"changed": 0, "dry_run": True}
     with patch(
-        "podcast_mcp.services.edit.run_reconciliation",
+        "podcast_mcp.services.document.edit.run_reconciliation",
         return_value=report,
     ) as reconcile:
         out = EditService(ws).reconcile_transcript(speaker="Host", dry_run=True)
@@ -1587,7 +1588,7 @@ def test_edit_reconciliation_status(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     status = {"stale": False}
     with patch(
-        "podcast_mcp.services.edit.reconciliation_status_report",
+        "podcast_mcp.services.document.edit.reconciliation_status_report",
         return_value=status,
     ):
         out = EditService(ws).reconciliation_status()
@@ -1598,7 +1599,7 @@ def test_edit_suppress_bleed_dry_run(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     preview = {"would_suppress": 2}
     with patch(
-        "podcast_mcp.services.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.edit.suppress_bleed_words",
         return_value=preview,
     ) as suppress:
         out = EditService(ws).suppress_bleed(speaker="Host", apply=False)
@@ -1610,7 +1611,7 @@ def test_edit_overlap_duplicates(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"pairs": []}
     with patch(
-        "podcast_mcp.services.edit.overlap_duplicate_report",
+        "podcast_mcp.services.document.edit.overlap_duplicate_report",
         return_value=report,
     ):
         out = EditService(ws).overlap_duplicates(start_sec=0.0, end_sec=2.0)
@@ -1624,7 +1625,7 @@ def test_edit_apply_bleed_mute_dry_run(minimal_project, sample_wav) -> None:
     stem.write_bytes(sample_wav.read_bytes())
     preview = {"dry_run": True, "candidate_count": 1, "candidates": []}
     with patch(
-        "podcast_mcp.services.edit.apply_transcript_bleed_mute",
+        "podcast_mcp.services.document.edit.apply_transcript_bleed_mute",
         return_value=preview,
     ) as mute:
         out = EditService(ws).apply_bleed_mute(speaker="Host", apply=False)
@@ -1696,7 +1697,7 @@ def test_edit_gate_overreach(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"overreach_ms": 0}
     with patch(
-        "podcast_mcp.services.edit.gate_overreach_report",
+        "podcast_mcp.services.document.edit.gate_overreach_report",
         return_value=report,
     ):
         out = EditService(ws).gate_overreach(speaker="Host")
@@ -1707,7 +1708,7 @@ def test_edit_audibility_map(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     rows = [{"word": "hello", "audible": True}]
     with patch(
-        "podcast_mcp.services.edit.build_audibility_map",
+        "podcast_mcp.services.document.edit.build_audibility_map",
         return_value=rows,
     ):
         out = EditService(ws).audibility_map(track_id="host")
@@ -1718,7 +1719,7 @@ def test_edit_flagged_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     flagged = [{"word_index": 0, "reason": "low_confidence"}]
     with patch(
-        "podcast_mcp.services.edit.list_flagged_transcript_words",
+        "podcast_mcp.services.document.edit.list_flagged_transcript_words",
         return_value=flagged,
     ):
         out = EditService(ws).flagged_words(speaker="Host")
@@ -1729,7 +1730,7 @@ def test_edit_low_audibility_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     words = [{"text": "hello"}]
     with patch(
-        "podcast_mcp.services.edit.audit_low_audibility_words",
+        "podcast_mcp.services.document.edit.audit_low_audibility_words",
         return_value=words,
     ) as low:
         svc = EditService(ws)
@@ -1740,7 +1741,7 @@ def test_edit_low_audibility_words(minimal_project, sample_wav) -> None:
 def test_edit_list_bleed_words(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     bleed = [{"text": "world", "track_id": "host"}]
-    with patch("podcast_mcp.services.edit.bleed_words", return_value=bleed) as bleed_fn:
+    with patch("podcast_mcp.services.document.edit.bleed_words", return_value=bleed) as bleed_fn:
         out = EditService(ws).list_bleed_words(speaker="Host", start_sec=0.0, end_sec=2.0)
     bleed_fn.assert_called_once()
     assert out == bleed
@@ -1758,7 +1759,7 @@ def test_edit_preview_inaudible_cut_timeline_mode(minimal_project, sample_wav) -
         details={"strategy": "word+waveform"},
     )
     with patch(
-        "podcast_mcp.services.edit.optimize_timeline_cut_range",
+        "podcast_mcp.services.document.edit.optimize_timeline_cut_range",
         return_value=opt,
     ) as timeline_opt:
         out = EditService(ws).preview_inaudible_cut(
@@ -1776,10 +1777,10 @@ def test_edit_split_clip_and_fill_room_tone(minimal_project, sample_wav) -> None
     ws = _dialogue_workspace(minimal_project, sample_wav)
     split_report = {"operation": "split_clip", "clip_id": "full"}
     fill_report = {"operation": "fill_with_room_tone", "filled_sec": 0.5}
-    with patch("podcast_mcp.services.edit.split_clips_at", return_value=split_report):
+    with patch("podcast_mcp.services.document.edit.split_clips_at", return_value=split_report):
         out = EditService(ws).split_clip(at_time=1.0, speaker="Host")
     assert out == split_report
-    with patch("podcast_mcp.services.edit.fill_with_room_tone", return_value=fill_report):
+    with patch("podcast_mcp.services.document.edit.fill_with_room_tone", return_value=fill_report):
         out = EditService(ws).fill_room_tone(track_id="host")
     assert out == fill_report
 
@@ -1790,7 +1791,7 @@ def test_edit_check_loudness_prefers_mastered_export(minimal_project, sample_wav
     mastered.parent.mkdir(parents=True, exist_ok=True)
     mastered.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -14.0}
-    with patch("podcast_mcp.services.edit.check_loudness", return_value=loud) as chk:
+    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
         out = EditService(ws).check_loudness()
     chk.assert_called_once_with(mastered)
     assert out["integrated_lufs"] == pytest.approx(-14.0)
@@ -1804,7 +1805,7 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
         track_id="host",
         effects=[ProcessingEffect(effect="eq", params={"gain_db": 2})],
     )
-    with patch("podcast_mcp.services.edit.add_effect", return_value=chain):
+    with patch("podcast_mcp.services.document.edit.add_effect", return_value=chain):
         out = EditService(ws).add_effect(
             speaker="Host",
             effect="eq",
@@ -1816,31 +1817,31 @@ def test_edit_add_effect_custom(minimal_project, sample_wav) -> None:
 def test_edit_optional_track_filters_without_speaker(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     with patch(
-        "podcast_mcp.services.edit.fade_recommendations",
+        "podcast_mcp.services.document.edit.fade_recommendations",
         return_value=[],
     ) as fades:
         assert EditService(ws).recommend_fades() == []
     fades.assert_called_once_with(ws.project, track_id=None)
     with patch(
-        "podcast_mcp.services.edit.audit_low_audibility_words",
+        "podcast_mcp.services.document.edit.audit_low_audibility_words",
         return_value=[],
     ) as low:
         assert EditService(ws).low_audibility_words() == []
     low.assert_called_once_with(ws.project, track_id=None, progress=None)
     with patch(
-        "podcast_mcp.services.edit.bleed_words",
+        "podcast_mcp.services.document.edit.bleed_words",
         return_value=[],
     ) as bleed:
         assert EditService(ws).list_bleed_words() == []
     bleed.assert_called_once()
     with patch(
-        "podcast_mcp.services.edit.build_audibility_map",
+        "podcast_mcp.services.document.edit.build_audibility_map",
         return_value=[],
     ) as aud:
         assert EditService(ws).audibility_map() == []
     aud.assert_called_once_with(ws.project, track_id=None, progress=None)
     with patch(
-        "podcast_mcp.services.edit.list_flagged_transcript_words",
+        "podcast_mcp.services.document.edit.list_flagged_transcript_words",
         return_value=[],
     ) as flagged:
         assert EditService(ws).flagged_words() == []
@@ -1851,7 +1852,7 @@ def test_edit_suppress_low_audibility_mutates(minimal_project, sample_wav) -> No
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"suppressed": 1}
     with patch(
-        "podcast_mcp.services.edit.suppress_low_audibility_words",
+        "podcast_mcp.services.document.edit.suppress_low_audibility_words",
         return_value=report,
     ) as suppress:
         out = EditService(ws).suppress_low_audibility(track_id="host")
@@ -1863,7 +1864,7 @@ def test_edit_suppress_bleed_apply_true(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"suppressed": 2}
     with patch(
-        "podcast_mcp.services.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.edit.suppress_bleed_words",
         return_value=report,
     ) as suppress:
         out = EditService(ws).suppress_bleed(speaker="Host", apply=True)
@@ -1875,7 +1876,7 @@ def test_edit_reconcile_transcript_all_tracks(minimal_project, sample_wav) -> No
     ws = _dialogue_workspace(minimal_project, sample_wav)
     report = {"changed": 0}
     with patch(
-        "podcast_mcp.services.edit.run_reconciliation",
+        "podcast_mcp.services.document.edit.run_reconciliation",
         return_value=report,
     ) as reconcile:
         out = EditService(ws).reconcile_transcript(dry_run=True)
@@ -1889,7 +1890,7 @@ def test_edit_check_loudness_explicit_path(minimal_project, sample_wav) -> None:
     audio = ws.project.workspace_path() / "custom.wav"
     audio.write_bytes(sample_wav.read_bytes())
     loud = {"integrated_lufs": -18.0}
-    with patch("podcast_mcp.services.edit.check_loudness", return_value=loud) as chk:
+    with patch("podcast_mcp.services.document.edit.check_loudness", return_value=loud) as chk:
         out = EditService(ws).check_loudness(str(audio))
     chk.assert_called_once_with(audio)
     assert out["integrated_lufs"] == pytest.approx(-18.0)
@@ -1899,7 +1900,7 @@ def test_edit_suppress_bleed_dry_run_all_tracks(minimal_project, sample_wav) -> 
     ws = _dialogue_workspace(minimal_project, sample_wav)
     preview = {"would_suppress": 3}
     with patch(
-        "podcast_mcp.services.edit.suppress_bleed_words",
+        "podcast_mcp.services.document.edit.suppress_bleed_words",
         return_value=preview,
     ) as suppress:
         out = EditService(ws).suppress_bleed(apply=False)
@@ -1919,7 +1920,7 @@ def test_play_resolve_source_with_mocked_search(minimal_project, sample_wav) -> 
         timeline_start=1.0,
         timeline_end=2.0,
     )
-    with patch("podcast_mcp.services.play.search_transcript", return_value=[match]):
+    with patch("podcast_mcp.services.document.play.search_transcript", return_value=[match]):
         source, start, end = PlayService(ws)._resolve_source_and_times(
             PlayRequest(source="export", start_sec=0.0, end_sec=1.0, query="podcast")
         )
@@ -2006,7 +2007,7 @@ def test_overlapping_stem_renders_publish_one_at_a_time(
         patch(
             "podcast_mcp.engines.ffmpeg.FFmpegEngine.render_dialogue_track", side_effect=render
         ) as rendered,
-        patch("podcast_mcp.services.play.schedule_stem_waveforms"),
+        patch("podcast_mcp.services.document.play.schedule_stem_waveforms"),
         patch("podcast_mcp.pipeline.steps.schedule_stem_waveforms"),
         caplog.at_level(logging.INFO, logger="podcast_mcp.util.project_state"),
     ):
@@ -2059,8 +2060,10 @@ def test_processed_play_skips_a_stem_published_during_the_extract(
         return cache
 
     with (
-        patch("podcast_mcp.services.play.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.play.render_track_segment", side_effect=render_segment),
+        patch("podcast_mcp.services.document.play.FFmpegEngine") as eng_cls,
+        patch(
+            "podcast_mcp.services.document.play.render_track_segment", side_effect=render_segment
+        ),
     ):
         eng_cls.return_value.extract_segment = MagicMock(side_effect=extract)
         result = PlayService(ws).play(

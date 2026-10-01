@@ -6,14 +6,14 @@ from pydantic import BaseModel
 from podcast_mcp.gui.audio import audio_file_response
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.boundary import (
+from podcast_mcp.services.document import (
     BoundaryEdit,
     BoundaryTarget,
     ClipGeometry,
+    EditService,
+    PlayService,
 )
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.play import PlayService
 
 router = APIRouter()
 

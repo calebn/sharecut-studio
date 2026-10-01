@@ -13,7 +13,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from podcast_mcp.gui.routes import host
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project
-from podcast_mcp.services.cross_process_sync import cross_process_bridge
+from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.session_sync.authz import AuthzDecision

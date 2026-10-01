@@ -35,6 +35,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import (
@@ -43,7 +44,6 @@ from podcast_mcp.services.document_sync.errors import (
 )
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
-from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
 from podcast_mcp.util.project_state import RenderBusyError
@@ -183,7 +183,7 @@ def test_document_history_move_render_failure_is_a_conflict_with_the_advice(
     def failing_render(_project):
         raise OSError("ffmpeg failed")
 
-    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", failing_render):
         with pytest.raises(
             DocumentConflictError, match="re-render the preview instead of repeating"
         ) as exc:
@@ -777,7 +777,7 @@ def test_concurrent_guarded_corrections_apply_exactly_one(minimal_project):
     import threading
 
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     _seed_host_words(minimal_project, ["teh", "quick", "fox"])
     barrier = threading.Barrier(2)
@@ -814,7 +814,7 @@ def test_concurrent_guarded_toggle_and_correction_apply_consistently(minimal_pro
     import threading
 
     from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     _seed_host_words(minimal_project, ["teh", "quick", "fox"])
     barrier = threading.Barrier(2)
@@ -864,8 +864,8 @@ def test_guarded_correction_check_and_edit_share_one_outer_transaction(
 ):
     """The stale-text check and the mutation run inside one outer transaction, for every
     guarded transcript edit (#650, #742, #744)."""
-    import podcast_mcp.services.edit as edit_mod
-    from podcast_mcp.services.edit import EditService
+    import podcast_mcp.services.document.edit as edit_mod
+    from podcast_mcp.services.document import EditService
 
     _seed_host_words(minimal_project, ["teh", "quikc", "fox"])
     ws = ProjectWorkspace.open(minimal_project)
@@ -2159,7 +2159,7 @@ def test_external_mutate_rows_advance_server_seq_in_order(minimal_project):
 def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_project):
     import asyncio
 
-    from podcast_mcp.services.comment import CommentService
+    from podcast_mcp.services.document import CommentService
     from podcast_mcp.services.document_sync.service import (
         document_hub_key,
         notify_comments_changed,
@@ -2779,7 +2779,7 @@ def test_a_history_move_saved_before_its_render_failed_is_not_repeated_by_a_retr
     def failing_render(_project):
         raise OSError("ffmpeg failed")
 
-    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", failing_render):
         with pytest.raises(DocumentConflictError):
             svc.submit(cmd)
 
@@ -2808,7 +2808,7 @@ def test_an_unknown_commit_outcome_rereads_a_landed_saved_command(minimal_projec
         raise OSError("ffmpeg failed")
 
     with (
-        patch("podcast_mcp.services.history.rerender_preview", failing_render),
+        patch("podcast_mcp.services.document.history.rerender_preview", failing_render),
         patch("podcast_mcp.services.document_sync.service.commit_landed", return_value=None),
         pytest.raises(DocumentConflictError),
     ):

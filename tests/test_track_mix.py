@@ -62,16 +62,14 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService, EpisodeService, HistoryService
+from podcast_mcp.services.document.play import PlayRequest, PlayService, _compose_gain_db
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.episode import EpisodeService
-from podcast_mcp.services.history import HistoryService
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.services.play import PlayRequest, PlayService, _compose_gain_db
 from podcast_mcp.util import atomic_render
 from podcast_mcp.util.project_state import render_lock, render_lock_path
 
@@ -714,8 +712,8 @@ def test_the_gated_play_mix_plays_each_track_at_its_output_gain(minimal_project:
             "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
-        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
-        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=_render),
+        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
+        patch("podcast_mcp.services.document.play.FFmpegEngine.mix_tracks", side_effect=_render),
     ):
         _play()
         _play()  # an unchanged mix replays from play_cache
@@ -752,9 +750,12 @@ def test_gated_single_and_compare_takes_play_at_output_gain(minimal_project: Pat
             "_follow_transcript_audio",
             side_effect=lambda tid, start, end, *, rerender: (*audio[tid], start, end),
         ),
-        patch("podcast_mcp.services.play.word_intervals", return_value=[]),
-        patch("podcast_mcp.services.play.dialogue_tracks_for_play", return_value=["host", "guest"]),
-        patch("podcast_mcp.services.play.FFmpegEngine.mix_tracks", side_effect=_mix),
+        patch("podcast_mcp.services.document.play.word_intervals", return_value=[]),
+        patch(
+            "podcast_mcp.services.document.play.dialogue_tracks_for_play",
+            return_value=["host", "guest"],
+        ),
+        patch("podcast_mcp.services.document.play.FFmpegEngine.mix_tracks", side_effect=_mix),
     ):
         _play(source="premix", compare=True)
         single_track_calls = [call[0][0] for call in calls if len(call[0]) == 1]

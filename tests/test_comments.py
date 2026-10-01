@@ -17,7 +17,7 @@ from podcast_mcp.models.project_format import (
     snapshot_editable_state,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
+from podcast_mcp.services.document import CommentService
 
 
 def _with_host(proj, sample_wav, tmp_workspace):

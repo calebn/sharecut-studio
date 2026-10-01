@@ -27,8 +27,7 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.history import HistoryService
-from podcast_mcp.services.play import PlayService
+from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
 _AUDIO_BUSY_DETAIL = (
@@ -231,7 +230,7 @@ def get_waveform_snap(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     try:
         return EditService(ws).waveform_snap_window(

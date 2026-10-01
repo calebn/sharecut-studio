@@ -8,7 +8,7 @@ from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 
 
 def build_edit_context(project_path: str, max_utterances: int = 200) -> str:

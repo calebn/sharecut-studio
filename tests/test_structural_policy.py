@@ -14,6 +14,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import save_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -21,7 +22,6 @@ from podcast_mcp.services.document_sync.policy import (
     StructuralMutationMode,
     resolve_structural_mode,
 )
-from podcast_mcp.services.edit import EditService
 
 
 def _seed_dialogue_clips(project_path, sample_wav) -> ProjectWorkspace:

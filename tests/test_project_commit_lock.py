@@ -15,7 +15,7 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
+from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import (

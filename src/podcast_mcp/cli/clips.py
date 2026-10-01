@@ -7,7 +7,7 @@ import typer
 
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.clip import ClipService
+from podcast_mcp.services.document import ClipService
 
 clips_app = typer.Typer(help="Social clip candidates and export.")
 
