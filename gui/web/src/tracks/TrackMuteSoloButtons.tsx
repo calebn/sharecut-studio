@@ -1,4 +1,4 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { trackMuteState } from "../utils/audio";
@@ -45,10 +45,10 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
       solo={solo}
       editsMix={editsMix}
       onMute={() => {
-        void execute("track.muteToggle", { trackId }, { skipWhen: true });
+        runPointerCommand("track.muteToggle", { trackId });
       }}
       onSolo={() => {
-        void execute("track.soloToggle", { trackId }, { skipWhen: true });
+        runPointerCommand("track.soloToggle", { trackId });
       }}
     />
   );

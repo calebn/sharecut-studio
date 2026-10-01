@@ -116,6 +116,14 @@ Models                   models/  (EpisodeProject, snapshots)
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
+Frontend pointer command policy lives in `gui/web/src/commands/pointer.ts`.
+`runPointerCommand` dispatches without keyboard `when` gates and returns `void`;
+`executePointerCommand` exposes the same dispatch promise for completion and
+result handling. Keyboard input evaluates its gates in the keymap listener,
+while WebMCP awaits commands in its separate agent adapter. Both call the
+shared `execute` authority directly. Configurable `CommandButton` gates remain
+in the UI bridge. See [the frontend command adapters](../gui/web/README.md#api-adapters).
+
 `ProjectStore.transcript_vocabulary_state()` keeps a bounded process-local cache of
 immutable track/revision/edit metadata from the existing validated project loader.
 The vocabulary status service combines it with freshly loaded layered context YAML.

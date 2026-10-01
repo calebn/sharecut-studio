@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { setClipFade, setClipJoin } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
-import { execute } from "../../commands/execute";
+import { executePointerCommand } from "../../commands/pointer";
 import { clampFadeMs, edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   clipIdsBeforeCut,
@@ -347,10 +347,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   const runDelete = async (ripple: boolean) => {
     if (clipMutationBusy) return;
     await run(async () => {
-      const result = await execute(
+      const result = await executePointerCommand(
         ripple ? "edit.rippleDelete" : "edit.delete",
         { clipId: clip.id },
-        { skipWhen: true },
       );
       if (result.status !== "ok") {
         throw new Error(

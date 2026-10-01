@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from "react";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useJobStatusAnnouncement } from "../hooks/useJobStatusAnnouncement";
@@ -112,11 +112,10 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
                   className="mobile-more-item"
                   {...presenceAnchorProps(presenceAnchor("tab", id))}
                   onClick={() =>
-                    void execute(
-                      "view.setMobileMode",
-                      { mode: "more", destination: id },
-                      { skipWhen: true },
-                    )
+                    runPointerCommand("view.setMobileMode", {
+                      mode: "more",
+                      destination: id,
+                    })
                   }
                 >
                   {label}
@@ -257,11 +256,9 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
                   trackId: first.track_id,
                 });
               }
-              void execute(
-                "view.setMobileMode",
-                { mode: "timeline" },
-                { skipWhen: true },
-              );
+              runPointerCommand("view.setMobileMode", {
+                mode: "timeline",
+              });
             }}
           >
             Pending: {pending}
@@ -278,11 +275,10 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             onClick={
               !guestShare && pipelineChipOpensPanel(chipJob)
                 ? () => {
-                    void execute(
-                      "view.setMobileMode",
-                      { mode: "more", destination: "pipeline" },
-                      { skipWhen: true },
-                    );
+                    runPointerCommand("view.setMobileMode", {
+                      mode: "more",
+                      destination: "pipeline",
+                    });
                   }
                 : undefined
             }
@@ -296,11 +292,10 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             type="button"
             className="linkish"
             onClick={() => {
-              void execute(
-                "view.setMobileMode",
-                { mode: "more", destination: "comments" },
-                { skipWhen: true },
-              );
+              runPointerCommand("view.setMobileMode", {
+                mode: "more",
+                destination: "comments",
+              });
             }}
           >
             Open all
@@ -529,11 +524,7 @@ export function MobileShellView({
             pressed={mobileMode === id}
             {...presenceAnchorProps(presenceAnchor("mobile-nav", id))}
             onClick={() =>
-              void execute(
-                "view.setMobileMode",
-                { mode: id },
-                { skipWhen: true },
-              )
+              runPointerCommand("view.setMobileMode", { mode: id })
             }
           >
             <Icon name={icon} size={20} />

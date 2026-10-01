@@ -424,6 +424,31 @@ describe("RecordPanel", () => {
     expect(exec).toHaveBeenCalledWith("record.start", {}, { skipWhen: true });
   });
 
+  it("keeps transport busy until the record command settles", async () => {
+    let resolveCommand!: (value: { status: "ok" }) => void;
+    const pendingCommand = new Promise<{ status: "ok" }>((resolve) => {
+      resolveCommand = resolve;
+    });
+    exec.mockReturnValueOnce(pendingCommand);
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      start_blockers: [],
+      participants: [avaGuest()],
+    });
+    render(<RecordPanel />);
+
+    const start = await screen.findByRole("button", { name: "Start" });
+    await waitFor(() => expect(start).toBeEnabled());
+    await userEvent.click(start);
+    expect(start).toBeDisabled();
+
+    await act(async () => {
+      resolveCommand({ status: "ok" });
+      await pendingCommand;
+    });
+    await waitFor(() => expect(start).toBeEnabled());
+  });
+
   it("routes panel Stop through the record.stop command", async () => {
     useRecordHostStore
       .getState()

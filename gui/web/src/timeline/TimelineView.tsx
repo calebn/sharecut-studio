@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { shallow } from "zustand/shallow";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import {
   allClipsFromTracks,
   type ClipMoveItem,
@@ -625,10 +625,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       zoomPxPerSec,
       canvasSec,
     );
-    void execute("transport.seek", { sec }, { skipWhen: true });
+    runPointerCommand("transport.seek", { sec });
     setSelection(null);
     if (bladeMode) {
-      void execute("edit.bladeCut", { atTime: sec }, { skipWhen: true });
+      runPointerCommand("edit.bladeCut", { atTime: sec });
     }
   });
   const onSelectClip = useStableCallback(
@@ -658,7 +658,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       if (!movesDifferFromClips(allClips, moves, zoomPxPerSec)) {
         return;
       }
-      void execute("edit.moveClips", { clips: moves }, { skipWhen: true });
+      runPointerCommand("edit.moveClips", { clips: moves });
     },
   );
   const onClipMoveCancel = useStableCallback(() => endMoveGesture());
@@ -887,14 +887,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   zoomPxPerSec={zoomPxPerSec}
                   hidePlayhead={fixedPlayhead}
                   onSeek={(sec) => {
-                    void execute("transport.seek", { sec }, { skipWhen: true });
+                    runPointerCommand("transport.seek", { sec });
                     setSelection(null);
                     if (toolMode === "blade" && !commentMode) {
-                      void execute(
-                        "edit.bladeCut",
-                        { atTime: sec },
-                        { skipWhen: true },
-                      );
+                      runPointerCommand("edit.bladeCut", { atTime: sec });
                     }
                   }}
                   commentMode={commentMode}
@@ -904,7 +900,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   }}
                   onFit={() => {
                     // fitToWindow sets the scroll; the sync effect writes it.
-                    void execute("view.fit", {}, { skipWhen: true });
+                    runPointerCommand("view.fit");
                   }}
                 />
                 <div style={{ position: "relative", width }}>

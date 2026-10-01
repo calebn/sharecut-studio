@@ -1,4 +1,4 @@
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 
 /**
  * Live handlers for `TransportPlayControls`: the same `transport.*` commands
@@ -6,9 +6,9 @@ import { execute } from "../commands/execute";
  */
 export const transportPlayHandlers = {
   onTogglePlay: () => {
-    void execute("transport.togglePlay", {}, { skipWhen: true });
+    runPointerCommand("transport.togglePlay");
   },
   onStop: () => {
-    void execute("transport.stop", {}, { skipWhen: true });
+    runPointerCommand("transport.stop");
   },
 } as const;

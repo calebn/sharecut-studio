@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { applyFadeRecommendations, setEffectBypass } from "../../api";
-import { execute } from "../../commands/execute";
+import { runPointerCommand } from "../../commands/pointer";
 import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
@@ -82,7 +82,7 @@ export function TrackInspector({
   };
 
   const playFxAround = () => {
-    void execute("transport.audition", { mode: "fx" }, { skipWhen: true });
+    runPointerCommand("transport.audition", { mode: "fx" });
     playTimelineRange({
       start: 0,
       end: 0,

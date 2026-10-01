@@ -1,6 +1,6 @@
 import { type ReactNode, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -23,7 +23,7 @@ interface Props {
 }
 
 function deselectAllTracks(): void {
-  void execute("track.deselectAll", {}, { skipWhen: true });
+  runPointerCommand("track.deselectAll", {});
 }
 
 export function TrackHeadersColumn({
@@ -115,11 +115,7 @@ export function TrackHeadersColumn({
     if (index === sourceIndex) {
       return;
     }
-    void execute(
-      "track.reorder",
-      { trackId: sourceId, index },
-      { skipWhen: true },
-    );
+    runPointerCommand("track.reorder", { trackId: sourceId, index });
   };
 
   return (
@@ -181,7 +177,7 @@ export function TrackHeadersColumn({
           type="button"
           className={`track-add-row${addDropOver ? " lane-drop-target" : ""}`}
           onClick={() => {
-            void execute("track.add", {}, { skipWhen: true });
+            runPointerCommand("track.add");
           }}
           onDragOver={(e) => {
             e.preventDefault();

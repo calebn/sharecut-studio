@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { execute } from "../commands/execute";
+import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
@@ -232,7 +232,7 @@ export function StudioShellView({
                   }
                 }}
                 onClick={() => {
-                  void execute("media.import", {}, { skipWhen: true });
+                  runPointerCommand("media.import", {});
                 }}
               >
                 <span className="empty-session-ghost" aria-hidden="true" />
@@ -282,9 +282,7 @@ export function StudioShellView({
               pressed={activeTab === id}
               data-ui-kind="tab"
               {...presenceAnchorProps(presenceAnchor("tab", id))}
-              onClick={() =>
-                void execute("view.setTab", { tab: id }, { skipWhen: true })
-              }
+              onClick={() => runPointerCommand("view.setTab", { tab: id })}
             >
               {TAB_LABELS[id]}
               {id === "pipeline" && pipelineRunning ? " ●" : ""}
