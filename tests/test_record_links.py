@@ -21,9 +21,9 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool, revoke_record_room_tool
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.record_share import lookup_record_share, record_bootstrap
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration.record_share import lookup_record_share, record_bootstrap
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import (
     ShareService,
     lookup_share,
     open_share_workspace,
@@ -82,7 +82,7 @@ def test_create_record_room_rolls_back_guest_when_producer_fails(
             raise RuntimeError("producer mint failed")
         return orig(*args, **kwargs)
 
-    monkeypatch.setattr("podcast_mcp.services.share.create_share", boom)
+    monkeypatch.setattr("podcast_mcp.services.collaboration.share.create_share", boom)
     with pytest.raises(RuntimeError, match="producer mint failed"):
         ShareService(ws).create_record_room()
     rows = list_shares(ws.project)
@@ -455,10 +455,10 @@ def test_review_register_includes_create_record_room_tool():
 
 
 def test_render_record_spa_html_lookup_error_fallback(monkeypatch):
-    from podcast_mcp.services.share_page import render_record_spa_html
+    from podcast_mcp.services.collaboration.share_page import render_record_spa_html
 
     monkeypatch.setattr(
-        "podcast_mcp.services.share.open_share_workspace",
+        "podcast_mcp.services.collaboration.share.open_share_workspace",
         lambda *_a, **_k: (_ for _ in ()).throw(KeyError("missing")),
     )
     html = render_record_spa_html(

@@ -11,9 +11,9 @@ from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document import EditService
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
 
 
 def test_waveform_snap_window_returns_ticks(minimal_project, sample_wav):

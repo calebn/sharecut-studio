@@ -5,7 +5,7 @@ import json
 from mcp.server import MCPServer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.session_control import SessionControlService
+from podcast_mcp.services.collaboration import SessionControlService
 
 
 def _parse_selection(selection_json: str | None) -> dict | None:

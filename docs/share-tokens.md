@@ -86,7 +86,7 @@ Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to`,
 `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
 `BEGIN IMMEDIATE` on claim/demote/release). Wired through `edits/review_shares.py`
-and `services/share.py`. Do **not** hand-edit the DB or invent a third index.
+and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
 
 File mode: parent dir `0700`, DB `0600` when the OS allows. Treat the file as
 **capability-adjacent** (tokens are capabilities).

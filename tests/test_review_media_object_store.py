@@ -14,14 +14,14 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.runtime_config import RuntimeConfigError
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.media.review_media import (
     media_type_for_path,
     presign_ttl_seconds,
     review_guest_audio_path,
     upload_review_version_to_object_store,
 )
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,
     ObjectStoreConfig,

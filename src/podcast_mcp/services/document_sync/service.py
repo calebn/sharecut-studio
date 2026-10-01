@@ -33,15 +33,13 @@ from podcast_mcp.services.document_sync.snapshot_cache import (
     snapshot_cache,
     state_token,
 )
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.log import (
+from podcast_mcp.services.session_sync import (
     SyncStore,
+    best_effort_meta,
     cached_sync_store,
     cached_sync_store_if_exists,
     cross_process_command,
-)
-from podcast_mcp.services.session_sync.service import (
-    best_effort_meta,
+    get_hub,
     meta_workspace_dir,
     resolve_meta_path,
     session_dir_for_workspace,
@@ -538,7 +536,7 @@ class DocumentSyncService:
                     "idempotent": True,
                 }
                 if audience == "guest":
-                    from podcast_mcp.services.share import sanitize_guest_document_event
+                    from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
                     return sanitize_guest_document_event(reply)
                 return reply
@@ -582,7 +580,7 @@ class DocumentSyncService:
                 api_snap["file_before"] = file_before
             guest_snapshot = None
             if before is not None and not api_snap.get("resync"):
-                from podcast_mcp.services.share import sanitize_guest_document_event
+                from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
                 guest_before = sanitize_guest_document_event({"snapshot": before})["snapshot"]
                 guest_after = sanitize_guest_document_event({"snapshot": api_snap})["snapshot"]
@@ -599,7 +597,7 @@ class DocumentSyncService:
                     guest_snapshot = api_snap
             event = self._publish_applied(row, api_snap, guest_snapshot=guest_snapshot)
         if audience == "guest":
-            from podcast_mcp.services.share import sanitize_guest_document_event
+            from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
             return {
                 "ok": True,

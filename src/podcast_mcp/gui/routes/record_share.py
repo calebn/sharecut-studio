@@ -32,27 +32,26 @@ from podcast_mcp.gui.routes.share_common import (
     share_features_manifest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.record.commands import CLIENT_VISIBLE_AUTHZ_CODES, RecordAuthzError
-from podcast_mcp.services.record.reducer import RecordStateError, RoomFullError
-from podcast_mcp.services.record.service import (
+from podcast_mcp.services.collaboration import lookup_share, open_share_workspace, record_bootstrap
+from podcast_mcp.services.record import (
+    CLIENT_VISIBLE_AUTHZ_CODES,
+    UPLOAD_KIND_ROOM_TONE,
     LeaseInUseError,
+    RecordAuthzError,
+    RecordRole,
     RecordSessionService,
+    RecordStateError,
+    RecordUploadError,
+    RecordUploadService,
+    RoomFullError,
     filter_record_event_for_guest,
+    parse_participant_id,
+    parse_upload_kind,
     record_hub_key,
     route_record_ws_message,
 )
-from podcast_mcp.services.record.state import RecordRole
-from podcast_mcp.services.record.upload import (
-    UPLOAD_KIND_ROOM_TONE,
-    RecordUploadError,
-    RecordUploadService,
-    parse_participant_id,
-    parse_upload_kind,
-)
-from podcast_mcp.services.record_share import record_bootstrap
-from podcast_mcp.services.remote_mcp.limits import get_host_limiters, host_rate_limit_enabled
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.share import lookup_share, open_share_workspace
+from podcast_mcp.services.remote_mcp import get_host_limiters, host_rate_limit_enabled
+from podcast_mcp.services.session_sync import get_hub
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()

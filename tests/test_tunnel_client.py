@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from podcast_mcp.services.tunnel import (
+from podcast_mcp.services.collaboration.tunnel import (
     RelayConfig,
     TunnelClient,
     _map_local_path,
@@ -446,7 +446,7 @@ async def test_proxy_http_event_stream_uses_unbuffered_aiter_bytes():
         },
         send=_send,
     )
-    from podcast_mcp.services.tunnel import _RESPONSE_CHUNK
+    from podcast_mcp.services.collaboration.tunnel import _RESPONSE_CHUNK
 
     assert chunk_sizes == [65536]
     assert _RESPONSE_CHUNK not in chunk_sizes

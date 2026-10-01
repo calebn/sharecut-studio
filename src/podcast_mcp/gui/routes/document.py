@@ -17,9 +17,11 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
-from podcast_mcp.services.document_sync import DocumentSyncService
-from podcast_mcp.services.document_sync.errors import DocumentConflictError
-from podcast_mcp.services.document_sync.payloads import document_command_from_body
+from podcast_mcp.services.document_sync import (
+    DocumentConflictError,
+    DocumentSyncService,
+    document_command_from_body,
+)
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 router = APIRouter()

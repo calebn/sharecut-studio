@@ -108,7 +108,7 @@ or `artifacts/` without updating this catalog, AGENTS.md, and tests.
 | Project load / history commit | `services/app/workspace.py` (`ProjectWorkspace`), `history/session.py`, `history/rollback.py` |
 | Session sync sqlite | `services/session_sync/` (reference for sqlite access patterns) |
 | Share UNIQUE pools | `edits/share_registry.py` (`ShareRegistryProtocol` / `SqliteShareRegistry`) |
-| Share create / lookup / revoke / registry backup | `edits/review_shares.py`, `services/share.py`, `podcast review backup-registry` |
+| Share create / lookup / revoke / registry backup | `edits/review_shares.py`, `services/collaboration/share.py`, `podcast review backup-registry` |
 | Share identity / Restricted ACL | `services/share_auth/` (`ShareIdentityStore`, OAuth loaders, `/auth/*`) |
 | Host Whisper model preference | `whisper_models.py` → `~/.cache/podcast_mcp/prefs.yaml` |
 | Algorithm detail | [share-tokens.md](share-tokens.md) |

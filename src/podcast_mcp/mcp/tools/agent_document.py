@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document_sync import DocumentSyncService
-from podcast_mcp.services.document_sync.commands import (
+from podcast_mcp.services.document_sync import (
     DocumentCommand,
     DocumentCommandType,
+    DocumentSyncService,
+    validate_payload,
 )
-from podcast_mcp.services.document_sync.payloads import validate_payload
 
 
 def submit_host_document_command(

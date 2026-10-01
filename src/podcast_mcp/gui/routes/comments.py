@@ -13,7 +13,7 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document_sync.service import notify_comments_changed
+from podcast_mcp.services.document_sync import notify_comments_changed
 
 router = APIRouter()
 

@@ -1444,7 +1444,7 @@ def project_meta(project_path: Path) -> dict[str, Any]:
     neither creates document.db. ``server_seq`` is omitted when document.db
     cannot be read.
     """
-    from podcast_mcp.services.document_sync.service import document_poll_meta
+    from podcast_mcp.services.document_sync import document_poll_meta
 
     return {"path": str(project_path.resolve()), **document_poll_meta(project_path)}
 
@@ -1456,6 +1456,6 @@ def session_file_meta(project_path: Path) -> dict[str, Any]:
     snapshot's byte length, not file stats (see ``session_meta_at``). Parse-free:
     never opens/parses the project.
     """
-    from podcast_mcp.services.session_sync.service import session_meta
+    from podcast_mcp.services.session_sync import session_meta
 
     return session_meta(project_path)

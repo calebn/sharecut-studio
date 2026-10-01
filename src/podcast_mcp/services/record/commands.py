@@ -15,7 +15,7 @@ from podcast_mcp.services.record.live_comments import (
     parse_comment_id,
 )
 from podcast_mcp.services.record.state import RecordRole
-from podcast_mcp.services.session_sync.commands import sanitize_display_name
+from podcast_mcp.services.session_sync import sanitize_display_name
 
 RecordCommandType = Literal[
     "Join",

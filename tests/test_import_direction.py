@@ -11,7 +11,7 @@ _SRC = _REPO / "src" / "podcast_mcp"
 _NO_TOP_LEVEL_GUI = (
     "services/document_sync/projections.py",
     "services/document_sync/service.py",
-    "services/share.py",
+    "services/collaboration/share.py",
 )
 
 

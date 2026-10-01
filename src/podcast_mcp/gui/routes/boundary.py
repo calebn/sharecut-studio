@@ -13,7 +13,7 @@ from podcast_mcp.services.document import (
     EditService,
     PlayService,
 )
-from podcast_mcp.services.document_sync.errors import DocumentConflictError
+from podcast_mcp.services.document_sync import DocumentConflictError
 
 router = APIRouter()
 

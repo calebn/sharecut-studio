@@ -28,7 +28,7 @@ from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService, PlayService
-from podcast_mcp.services.session_sync.authz import is_loopback_host
+from podcast_mcp.services.session_sync import is_loopback_host
 
 _AUDIO_BUSY_DETAIL = (
     "project is busy: another render or save is in progress; try again when it finishes"

@@ -9,13 +9,71 @@ from pathlib import Path
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[1]
-_SUPPORT = "podcast_mcp.services.support"
-_PIPELINE = "podcast_mcp.services.pipeline"
-_APP = "podcast_mcp.services.app"
-_MEDIA = "podcast_mcp.services.media"
-_DOCUMENT = "podcast_mcp.services.document"
-_SESSION_SYNC = "podcast_mcp.services.session_sync"
+_SERVICES = _ROOT / "src/podcast_mcp/services"
+_BASE = "podcast_mcp.services"
+_CONTEXTS = (
+    "app",
+    "collaboration",
+    "document",
+    "document_sync",
+    "media",
+    "pipeline",
+    "record",
+    "remote_mcp",
+    "session_sync",
+    "share_auth",
+    "support",
+)
 _ADAPTERS = ("podcast_mcp.gui", "podcast_mcp.cli", "podcast_mcp.mcp")
+_ADAPTER_EXCEPTIONS = {
+    "podcast_mcp.services.app.gui_launch": {
+        "podcast_mcp.gui.bind",
+        "podcast_mcp.gui.static_assets",
+    },
+    "podcast_mcp.services.document_sync.service": {"podcast_mcp.gui.assembler"},
+    "podcast_mcp.services.remote_mcp.tools": {"podcast_mcp.gui.jobs"},
+    "podcast_mcp.services.collaboration.share": {
+        "podcast_mcp.gui.mapper",
+        "podcast_mcp.gui.audio",
+    },
+}
+
+
+def _registry() -> dict[str, set[str]]:
+    return {
+        f"{_BASE}.{context}": (
+            {
+                ".".join(path.relative_to(_SERVICES / context).with_suffix("").parts)
+                for path in (_SERVICES / context).rglob("*.py")
+                if path.name != "__init__.py"
+            }
+            | {
+                ".".join(path.parent.relative_to(_SERVICES / context).parts)
+                for path in (_SERVICES / context).rglob("__init__.py")
+                if path.parent != _SERVICES / context
+            }
+        )
+        for context in _CONTEXTS
+    }
+
+
+def _exports() -> dict[str, set[str]]:
+    return {
+        f"{_BASE}.{context}": set(
+            ast.literal_eval(
+                next(
+                    node.value
+                    for node in ast.parse((_SERVICES / context / "__init__.py").read_text()).body
+                    if isinstance(node, ast.Assign)
+                    and any(
+                        isinstance(target, ast.Name) and target.id == "__all__"
+                        for target in node.targets
+                    )
+                )
+            )
+        )
+        for context in _CONTEXTS
+    }
 
 
 def _imports(source: str, module: str) -> set[str]:
@@ -36,59 +94,52 @@ def _in(target: str, package: str) -> bool:
     return target == package or target.startswith(package + ".")
 
 
-def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set[str]:
+def _import_modules(source: str, module: str) -> set[str]:
+    imports: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            target = node.module or ""
+            if node.level:
+                target = resolve_name("." * node.level + target, module.rpartition(".")[0])
+            imports.add(target)
+    return imports
+
+
+def _violations(
+    source: str, module: str, registry: dict[str, set[str]], exports: dict[str, set[str]]
+) -> set[str]:
+    owner = next((context for context in registry if module.startswith(context + ".")), None)
     violations: set[str] = set()
-    owner = next((ctx for ctx in internals if module.startswith(ctx + ".")), None)
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.level == 0
-            and node.module == "podcast_mcp.services"
-        ):
-            violations.add("podcast_mcp.services")
-    for target in _imports(source, module):
-        if _in(target, "podcast_mcp.gui.routes") and module.startswith("podcast_mcp.services."):
-            violations.add(".".join(target.split(".")[:4]))
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == _BASE:
+            violations.add(_BASE)
+    for target in _import_modules(source, module):
+        if _in(target, "podcast_mcp.gui.routes") and module.startswith(_BASE + "."):
+            violations.add("podcast_mcp.gui.routes")
         if (
             owner
             and any(_in(target, adapter) for adapter in _ADAPTERS)
-            and not (
-                module == _APP + ".gui_launch"
-                and any(
-                    _in(target, name)
-                    for name in ("podcast_mcp.gui.bind", "podcast_mcp.gui.static_assets")
-                )
-            )
+            and not any(_in(target, allowed) for allowed in _ADAPTER_EXCEPTIONS.get(module, ()))
         ):
-            violations.add(
-                ".".join(target.split(".")[:4]) if _in(target, "podcast_mcp.gui.routes") else target
-            )
-        if owner and target.startswith("podcast_mcp.services."):
-            allowed = {owner}
-            if owner == _SUPPORT:
-                allowed.add(_PIPELINE)
-            elif owner == _PIPELINE:
-                allowed.add(_APP)
-            elif owner == _APP:
-                allowed.add(_SESSION_SYNC)
-            elif owner == _MEDIA:
-                allowed.update({_APP, _PIPELINE})
-            elif owner == _DOCUMENT:
-                allowed.update(
-                    {_APP, _MEDIA, _PIPELINE, _SESSION_SYNC, "podcast_mcp.services.document_sync"}
-                )
-            if not any(_in(target, name) for name in allowed):
-                violations.add(".".join(target.split(".")[:3]))
-        if owner == _APP and target.startswith(_SESSION_SYNC + "."):
-            member = target.removeprefix(_SESSION_SYNC + ".").split(".")[0]
-            if member not in {"ensure_non_loopback_session_auth", "is_bind_loopback"}:
-                violations.add(_SESSION_SYNC)
-        for context, modules in internals.items():
+            violations.add(target)
+    for target in _imports(source, module):
+        for context, internals in registry.items():
             if owner == context or not target.startswith(context + "."):
                 continue
-            member = target.removeprefix(context + ".").split(".")[0]
-            if member in modules:
+            member = target.removeprefix(context + ".")
+            private = next(
+                (
+                    name
+                    for name in sorted(internals, key=len)
+                    if member == name or member.startswith(name + ".")
+                ),
+                None,
+            )
+            if private:
+                violations.add(f"{context}.{private}")
+            elif "." not in member and member not in exports[context]:
                 violations.add(f"{context}.{member}")
     return violations
 
@@ -96,231 +147,111 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
 @pytest.mark.parametrize(
     ("source", "module", "expected"),
     [
+        ("from podcast_mcp.services import share", "podcast_mcp.cli.review", {_BASE}),
         (
-            "from podcast_mcp.services.support.doctor import DoctorReport",
-            "podcast_mcp.cli.setup_cmd",
-            {_SUPPORT + ".doctor"},
-        ),
-        ("from ..support import doctor", _DOCUMENT + ".play", {_SUPPORT, _SUPPORT + ".doctor"}),
-        (
-            "from podcast_mcp.services.pipeline.config import config_store",
-            "podcast_mcp.gui.jobs",
-            {_PIPELINE + ".config"},
+            "from podcast_mcp.services.collaboration.share import ShareService",
+            "podcast_mcp.cli.review",
+            {_BASE + ".collaboration.share"},
         ),
         (
-            "from ..pipeline import config",
-            _DOCUMENT + ".play",
-            {_PIPELINE + ".config"},
-        ),
-        ("import podcast_mcp.cli.main", _PIPELINE + ".service", {"podcast_mcp.cli.main"}),
-        ("import podcast_mcp.cli.main", _PIPELINE + ".__init__", {"podcast_mcp.cli.main"}),
-        (
-            "import podcast_mcp.gui.routes.deps",
-            _SUPPORT + ".doctor",
-            {"podcast_mcp.gui.routes.deps"},
+            "from ..collaboration import share",
+            _BASE + ".record.service",
+            {_BASE + ".collaboration.share"},
         ),
         (
-            "from podcast_mcp.services.document.play import PlayService",
-            _PIPELINE + ".service",
-            {_DOCUMENT, _DOCUMENT + ".play"},
-        ),
-        (
-            "from podcast_mcp.services.pipeline import component_status",
-            _SUPPORT + ".diagnostics",
+            "from podcast_mcp.services.collaboration import ShareService",
+            "podcast_mcp.cli.review",
             set(),
         ),
         (
-            "from podcast_mcp.services.app import ProjectWorkspace",
-            _PIPELINE + ".service",
+            "from podcast_mcp.services.collaboration import undeclared_name",
+            "podcast_mcp.cli.review",
+            {_BASE + ".collaboration.undeclared_name"},
+        ),
+        ("from .share import ShareService", _BASE + ".collaboration.record_share", set()),
+        (
+            "from podcast_mcp.services.document_sync.service import DocumentSyncService",
+            _BASE + ".collaboration.share",
+            {_BASE + ".document_sync.service"},
+        ),
+        (
+            "from podcast_mcp.services.record import RecordSessionService",
+            _BASE + ".collaboration.share",
             set(),
         ),
         (
-            "from podcast_mcp.services.pipeline.bootstrap import run_bootstrap",
-            _PIPELINE + ".config",
-            set(),
-        ),
-        ("from .doctor import DoctorReport", _SUPPORT + ".config_check", set()),
-        (
-            "from podcast_mcp.services.media.waveform import tile_bytes",
-            "podcast_mcp.gui.routes.waveform",
-            {_MEDIA + ".waveform"},
-        ),
-        ("from ..media import waveform", _DOCUMENT + ".play", {_MEDIA + ".waveform"}),
-        ("import podcast_mcp.cli.main", _MEDIA + ".ingest", {"podcast_mcp.cli.main"}),
-        ("from podcast_mcp.services.app import ProjectWorkspace", _MEDIA + ".ingest", set()),
-        (
-            "from podcast_mcp.services.pipeline import asr_options_for",
-            _MEDIA + ".transcript",
-            set(),
-        ),
-        ("from .waveform import tile_bytes", _MEDIA + ".ingest", set()),
-        (
-            "from podcast_mcp.services.document.play import PlayService",
-            "podcast_mcp.cli.play",
-            {_DOCUMENT + ".play"},
-        ),
-        (
-            "from podcast_mcp.services.document import PlayService",
-            "podcast_mcp.cli.play",
-            set(),
-        ),
-        ("from .play import PlayService", _DOCUMENT + ".edit", set()),
-        (
-            "from podcast_mcp.services.app.workspace import ProjectWorkspace",
-            _PIPELINE + ".service",
-            {_APP + ".workspace"},
-        ),
-        (
-            "from podcast_mcp.services.app.fanout_hub import FanoutHub",
-            "podcast_mcp.gui.job_events",
-            {_APP + ".fanout_hub"},
-        ),
-        ("from .workspace import ProjectWorkspace", _APP + ".gui_launch", set()),
-        (
-            "from podcast_mcp.gui.routes.deps import require_host",
-            _APP + ".gui_launch",
-            {"podcast_mcp.gui.routes.deps"},
+            "from podcast_mcp.services.remote_mcp.tools import call_tool",
+            "podcast_mcp.gui.routes.remote_mcp",
+            {_BASE + ".remote_mcp.tools"},
         ),
         (
             "from podcast_mcp.gui.routes.deps import require_host",
-            _DOCUMENT + ".play",
-            {"podcast_mcp.gui.routes.deps"},
+            _BASE + ".record.service",
+            {"podcast_mcp.gui.routes", "podcast_mcp.gui.routes.deps"},
         ),
-        ("from podcast_mcp.gui.bind import gui_server_deps_available", _APP + ".gui_launch", set()),
         (
-            "from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth",
-            _APP + ".gui_launch",
+            "from podcast_mcp.gui.assembler import dump_project_projection",
+            _BASE + ".document_sync.service",
             set(),
         ),
+        ("from podcast_mcp.gui.jobs import shared_job_manager", _BASE + ".remote_mcp.tools", set()),
         (
-            "from podcast_mcp.services.session_sync.authz import ensure_non_loopback_session_auth",
-            _APP + ".gui_launch",
-            {"podcast_mcp.services.session_sync"},
+            "from podcast_mcp.gui.jobs import shared_job_manager",
+            _BASE + ".collaboration.share",
+            {"podcast_mcp.gui.jobs"},
         ),
-        ("import podcast_mcp.cli.main", _APP + ".__init__", {"podcast_mcp.cli.main"}),
         (
-            "from podcast_mcp.services import ProjectWorkspace",
-            "podcast_mcp.cli.main",
-            {"podcast_mcp.services"},
+            "from podcast_mcp.gui.bind import gui_server_deps_available",
+            _BASE + ".app.gui_launch",
+            set(),
         ),
+        ("import podcast_mcp.cli.main", _BASE + ".record.__init__", {"podcast_mcp.cli.main"}),
     ],
 )
-def test_boundary_guard_checks_nested_relative_and_facade_imports(
-    source: str, module: str, expected: set[str]
-) -> None:
-    assert (
-        _violations(
-            source,
-            module,
-            {
-                _SUPPORT: {"doctor"},
-                _PIPELINE: {"config", "bootstrap", "service"},
-                _APP: {"workspace", "fanout_hub", "gui_launch"},
-                _MEDIA: {
-                    "bounce",
-                    "ingest",
-                    "media_store",
-                    "proxy_media",
-                    "review_media",
-                    "speaker",
-                    "transcript",
-                    "transcript_precorrect",
-                    "transcript_refine",
-                    "waveform",
-                },
-                _DOCUMENT: {
-                    "align_accept",
-                    "boundary",
-                    "clip",
-                    "comment",
-                    "cross_process_sync",
-                    "edit",
-                    "episode",
-                    "golden_ear",
-                    "history",
-                    "play",
-                    "review_comments",
-                    "transcript_timing",
-                },
-            },
-        )
-        == expected
-    )
+def test_boundary_guard_checks_all_contexts(source: str, module: str, expected: set[str]) -> None:
+    assert _violations(source, module, _registry(), _exports()) == expected
 
 
-def test_service_contexts_use_public_facades_and_have_no_adapter_dependencies() -> None:
-    services = _ROOT / "src/podcast_mcp/services"
-    contexts = {
-        _SUPPORT: services / "support",
-        _PIPELINE: services / "pipeline",
-        _APP: services / "app",
-        _MEDIA: services / "media",
-        _DOCUMENT: services / "document",
-    }
-    internals = {
-        context: {path.stem for path in directory.glob("*.py") if path.stem != "__init__"}
-        for context, directory in contexts.items()
-    }
+def test_service_contexts_use_public_facades_and_declared_adapter_dependencies() -> None:
+    assert {
+        path.name for path in _SERVICES.iterdir() if path.is_dir() and path.name != "__pycache__"
+    } == set(_CONTEXTS)
+    assert {path.name for path in _SERVICES.glob("*.py")} == {"__init__.py"}
+    assert not (_SERVICES / "__init__.py").read_text().strip()
+    registry = _registry()
+    exports = _exports()
     violations: list[str] = []
     for source_root in (_ROOT / "src", _ROOT / "scripts"):
         for path in source_root.rglob("*.py"):
             module = ".".join(path.relative_to(source_root).with_suffix("").parts)
-            for target in sorted(_violations(path.read_text(), module, internals)):
+            for target in sorted(_violations(path.read_text(), module, registry, exports)):
                 violations.append(f"{path.relative_to(_ROOT)}: {target}")
     assert not violations, "service context boundary violations:\n" + "\n".join(violations)
 
 
-def test_document_facade_is_cold_and_resolves_play_edit_history() -> None:
-    script = """
+def test_nested_context_package_is_private() -> None:
+    registry = _registry()
+    assert "handlers" in registry[_BASE + ".document_sync"]
+    assert _violations(
+        "from podcast_mcp.services.document_sync.handlers import command",
+        "podcast_mcp.gui.routes.document",
+        registry,
+        _exports(),
+    ) == {_BASE + ".document_sync.handlers"}
+
+
+def test_facades_are_cold_and_exports_resolve() -> None:
+    for context in _CONTEXTS:
+        script = f"""
+import importlib
 import sys
-import podcast_mcp.services.document as document
-
-prefix = "podcast_mcp.services.document."
-assert not any(name.startswith(prefix) for name in sys.modules)
-assert document.PlayService.__module__ == prefix + "play"
-assert document.EditService.__module__ == prefix + "edit"
-assert document.HistoryService.__module__ == prefix + "history"
-assert document.PlayService is document.PlayService
-assert document.EditService is document.EditService
-assert document.HistoryService is document.HistoryService
+name = 'podcast_mcp.services.{context}'
+facade = importlib.import_module(name)
+prefix = name + '.'
+assert not any(module.startswith(prefix) for module in sys.modules), name
+assert facade.__all__
+for export in facade.__all__:
+    value = getattr(facade, export)
+    assert value is getattr(facade, export), (name, export)
 """
-    subprocess.run([sys.executable, "-c", script], check=True, cwd=_ROOT)
-
-
-def test_migrated_modules_have_no_legacy_paths() -> None:
-    services = _ROOT / "src/podcast_mcp/services"
-    for name in (
-        "config_check",
-        "diagnostics",
-        "doctor",
-        "report_submission",
-        "pipeline",
-        "pipeline_config",
-        "bootstrap",
-        "workspace",
-        "fanout_hub",
-        "gui_launch",
-        "bounce",
-        "ingest",
-        "media_store",
-        "proxy_media",
-        "review_media",
-        "speaker",
-        "transcript",
-        "transcript_precorrect",
-        "transcript_refine",
-        "waveform",
-        "align_accept",
-        "boundary",
-        "clip",
-        "comment",
-        "cross_process_sync",
-        "edit",
-        "episode",
-        "golden_ear",
-        "history",
-        "play",
-        "review_comments",
-        "transcript_timing",
-    ):
-        assert not (services / f"{name}.py").exists()
+        subprocess.run([sys.executable, "-c", script], check=True, cwd=_ROOT)

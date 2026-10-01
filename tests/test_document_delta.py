@@ -21,6 +21,7 @@ from podcast_mcp.models import (
     TranscriptWord,
     save_project,
 )
+from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_delta import diff_projection
@@ -30,7 +31,6 @@ from podcast_mcp.services.document_sync.snapshot_cache import (
     SnapshotKey,
     state_token,
 )
-from podcast_mcp.services.share import sanitize_guest_document_event
 
 
 def command(kind: str, payload: dict, seq: int = 1, client: str = "delta-test") -> DocumentCommand:

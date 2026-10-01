@@ -14,7 +14,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from podcast_mcp.services.session_sync.authz import is_loopback_host
+from podcast_mcp.services.session_sync import is_loopback_host
 
 # Host-only mutating (and related) surfaces — share/review routes are token-scoped.
 _PROTECTED_PREFIXES = (

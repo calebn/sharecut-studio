@@ -13,6 +13,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.landing_math import ALIGN_DRIFT_MS
@@ -40,7 +41,6 @@ from podcast_mcp.services.record.upload import (
     RecordUploadService,
     sha256_hex,
 )
-from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.wav import pcm_wav_header
 
 

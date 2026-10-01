@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from podcast_mcp.services.remote_mcp.tools import (
+from podcast_mcp.services.remote_mcp import (
     TOOL_HANDLERS,
     call_tool,
     list_tool_defs,

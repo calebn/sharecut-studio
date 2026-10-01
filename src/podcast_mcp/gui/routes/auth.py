@@ -12,20 +12,18 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
-from podcast_mcp.services.share_auth.oauth_credentials import oauth_providers_available
-from podcast_mcp.services.share_auth.oauth_flow import (
+from podcast_mcp.services.share_auth import (
+    SESSION_COOKIE,
     authorization_url,
-    exchange_code,
-    make_pkce_pair,
-)
-from podcast_mcp.services.share_auth.passkeys import (
     begin_authentication,
     begin_registration,
+    exchange_code,
     finish_authentication,
     finish_registration,
+    get_identity_store,
+    make_pkce_pair,
+    oauth_providers_available,
 )
-from podcast_mcp.services.share_auth.policy import SESSION_COOKIE
-from podcast_mcp.services.share_auth.store import get_identity_store
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])

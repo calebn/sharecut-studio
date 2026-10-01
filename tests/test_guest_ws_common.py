@@ -20,9 +20,9 @@ from podcast_mcp.gui.routes.guest_ws_common import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
 
 
 def _seed_premix(minimal_project, sample_wav):

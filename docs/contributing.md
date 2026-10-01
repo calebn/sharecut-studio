@@ -18,7 +18,7 @@ New behavior belongs in the right layer:
 
 Guest / share-token remote MCP: `services/remote_mcp/` (context, allowlist, protocol) + thin `mcp/tools/guest/` re-exports and `gui/routes/remote_mcp.py`. Tools wrap `ShareService` / `DocumentSyncService` — do not fork domain logic or accept arbitrary `project_path` from clients. Local host MCP (full tool surface, pinned episode) is the official SDK Streamable HTTP app mounted at `/mcp` on loopback binds — do not copy the guest JSON-RPC bridge.
 
-Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI. Use [`ProjectWorkspace`](../src/podcast_mcp/services/app/workspace.py) and [`run_mutation`](../src/podcast_mcp/history/session.py). GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths. Agent ↔ DAW transport uses [`SessionSyncService`](../src/podcast_mcp/services/session_sync/service.py) (typed commands + log); see [session-sync.md](session-sync.md). Facades: [`SessionControlService`](../src/podcast_mcp/services/session_control.py). Keep `ffmpeg` subprocesses inside [`FFmpegEngine`](../src/podcast_mcp/engines/ffmpeg.py) so a later in-process mobile backend can swap in ([cross-platform-byok.md](cross-platform-byok.md) § Interim).
+Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI. Use [`ProjectWorkspace`](../src/podcast_mcp/services/app/workspace.py) and [`run_mutation`](../src/podcast_mcp/history/session.py). GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths. Agent ↔ DAW transport uses [`SessionSyncService`](../src/podcast_mcp/services/session_sync/service.py) (typed commands + log); see [session-sync.md](session-sync.md). Facades: [`SessionControlService`](../src/podcast_mcp/services/collaboration/session_control.py). Keep `ffmpeg` subprocesses inside [`FFmpegEngine`](../src/podcast_mcp/engines/ffmpeg.py) so a later in-process mobile backend can swap in ([cross-platform-byok.md](cross-platform-byok.md) § Interim).
 
 For play adapters, translate once into `PlayRequest` and keep playback decisions in `PlayService`. CLI flags and MCP tool names may change with the contract; update their callers, skills, and docs in the same change. Pass transcript-query playback booleans by keyword. `util.process.run` intentionally keeps `subprocess.run` meanings for `check`, `capture_output`, and `text`, while rejecting shell strings.
 
@@ -27,7 +27,7 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 
 ### Service context imports
 
-Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline, support, media, and document symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
+Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Import declared names from the owning context facade for all eleven service contexts. Implementation modules are private to their context and focused tests. Service code must not import `gui.routes`; the narrow remaining GUI helper dependencies are listed in [architecture.md](architecture.md#service-contexts).
 
 Runtime diagnostics, configuration checks, diagnostic bundles, and report
 submission belong in `services/support/`. Pipeline execution, configuration,
@@ -48,13 +48,15 @@ in `services/document/`. Import declared symbols from
 `podcast_mcp.services.document`; implementation modules are private to that
 context and focused tests. Document services use the app, media, and pipeline
 facades.
-The existing document and session sync packages still provide command logs,
-hub publication, and live collaboration.
+Document and session sync own separate command and transport logs. The
+collaboration context owns share, review, guest progress, record-share,
+session-control, share-page, and tunnel orchestration. Record, share-auth, and
+remote-MCP contexts expose their current workflows through lazy facades.
 
-When another context migrates, move all callers and patch targets together,
-delete the old paths, and extend `tests/test_service_boundaries.py` with its
-declared facade and dependency rules. Keep each context migration in its own
-PR. Use `Part of #572` until the final migration closes the issue.
+When a service context changes, migrate callers and test patch targets together,
+delete old paths, and update the explicit facade exports. Extend
+`tests/test_service_boundaries.py` when adding a context. Its registry rejects
+unregistered packages and flat service modules.
 
 ## Beta interfaces
 

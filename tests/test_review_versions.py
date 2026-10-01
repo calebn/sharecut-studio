@@ -38,9 +38,9 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.media.review_media import review_guest_audio_path
-from podcast_mcp.services.review import ReviewService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import project_state_lock
@@ -381,7 +381,9 @@ def test_service_publish_cleanup_failure_preserves_commit_error(
         raise OSError("cleanup error")
 
     monkeypatch.setattr(ProjectStore, "commit", fail_commit)
-    monkeypatch.setattr("podcast_mcp.services.review.clean_created_version", fail_cleanup)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.review.clean_created_version", fail_cleanup
+    )
     ws = ProjectWorkspace.open(minimal_project)
 
     with pytest.raises(RuntimeError, match="original commit error"):
@@ -540,7 +542,7 @@ def test_service_sweeps_before_taking_state_lock(minimal_project, sample_wav, mo
         thread.join(1)
         assert not thread.is_alive()
 
-    monkeypatch.setattr("podcast_mcp.services.review.sweep_stale_quarantines", probe)
+    monkeypatch.setattr("podcast_mcp.services.collaboration.review.sweep_stale_quarantines", probe)
     monkeypatch.setattr(
         review_versions.FFmpegEngine,
         "export_mp3",
@@ -1870,7 +1872,7 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
 def test_publish_removes_staged_media_when_history_read_fails(
     minimal_project, sample_wav, monkeypatch
 ):
-    import podcast_mcp.services.review as review_service
+    import podcast_mcp.services.collaboration.review as review_service
 
     _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
 
@@ -1914,7 +1916,7 @@ def test_publish_keeps_committed_media_when_lock_release_fails(
 ):
     from contextlib import contextmanager
 
-    import podcast_mcp.services.review as review_service
+    import podcast_mcp.services.collaboration.review as review_service
 
     _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
     monkeypatch.setattr(review_versions, "_new_id", lambda: "committed")

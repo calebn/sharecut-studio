@@ -102,7 +102,7 @@ def test_path_regex_accepts_only_full_repo_relative_paths() -> None:
         "tests/test_history.py",
         "gui/web/src/record/Room.test.tsx",
         "gui/web/e2e/record-lobby.spec.ts",
-        "src/podcast_mcp/services/share.py",
+        "src/podcast_mcp/services/collaboration/share.py",
         "scripts/check_ux_pack_sync.py",
         "gui/web/e2e-compat/viewer.spec.mjs",
         "gui/web/src/legacy.test.js",

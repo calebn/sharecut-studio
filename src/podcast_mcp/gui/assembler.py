@@ -18,7 +18,7 @@ from podcast_mcp.gui.mapper import (
 from podcast_mcp.gui.schemas import ProjectView, TrackView
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
-from podcast_mcp.services.document_sync.projection_types import (
+from podcast_mcp.services.document_sync import (
     VIEW_PROJECTION_QUERY_DESCRIPTION,
     ViewProjection,
     parse_view_projection,
@@ -300,7 +300,7 @@ def projection_dependencies(
         stem_path,
     )
     from podcast_mcp.project_store import history_index_path
-    from podcast_mcp.services.document_sync.snapshot_cache import file_certificate
+    from podcast_mcp.services.document_sync import file_certificate
 
     project = ws.project
     paths = {history_index_path(project), premix_path(project), premix_hash_path(project)}

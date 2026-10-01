@@ -27,7 +27,7 @@ DOCS_CAP = 8_000
 DOCS_SYNC_CAP = 6_000
 STAT_CAP = 6_000
 PATHS_PER_LINE = 10  # docs-sync triggered-by / satisfied / advisory path lists
-# AGENTS.md-style shorthand: `services/share.py` means src/podcast_mcp/services/share.py.
+# AGENTS.md-style shorthand: `services/collaboration/share.py` means src/podcast_mcp/services/collaboration/share.py.
 # Copy of docs_sync._PACKAGE_PREFIX (this script can't import it); a test pins them equal.
 PACKAGE_PREFIX = "src/podcast_mcp/"
 DOMAIN_DIRS = (

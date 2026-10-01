@@ -11,16 +11,16 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.pipeline.config import config_store
-from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS, tools_for_capabilities
-from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import (
     ShareService,
     share_audition_context_cached,
     share_audition_context_image,
     share_audition_context_info,
 )
+from podcast_mcp.services.pipeline.config import config_store
+from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS, tools_for_capabilities
+from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from prosody_helpers import seed_prosody_profile
 
 
@@ -423,7 +423,7 @@ def test_share_audition_context_image_rejects_outside_workspace(
     def outside(*_args, **_kwargs):
         return Path("/tmp/not-in-workspace.png")
 
-    monkeypatch.setattr("podcast_mcp.services.share._audition_png_path", outside)
+    monkeypatch.setattr("podcast_mcp.services.collaboration.share._audition_png_path", outside)
     with pytest.raises(PermissionError):
         share_audition_context_image(token, start=0.0, end=1.0, track_id="host", kind="wave")
 

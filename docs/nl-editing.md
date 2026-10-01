@@ -61,6 +61,10 @@ MCP edit and playback handlers import `EditService`, `PlayService`, and their
 related public names from `podcast_mcp.services.document`. The implementation
 lives in `services/document/`; tool behavior and names are unchanged.
 
+Share and session-control MCP handlers use the `services.collaboration` facade.
+Record, identity, document-sync, session-sync, and remote-MCP helpers are imported
+through their owning context facades. Tool names and permissions are unchanged.
+
 ### Busy project
 
 A tool call that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`) does not crash with an opaque `Error executing tool <name>`. `mcp.busy_errors.install_busy_errors`, installed once on the server in `mcp/server.py`, catches it and returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere (#488).

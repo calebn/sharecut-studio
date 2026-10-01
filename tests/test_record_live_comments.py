@@ -13,6 +13,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record import service as record_service
 from podcast_mcp.services.record.commands import COMMAND_TYPES, RecordAuthzError, RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
@@ -32,7 +33,6 @@ from podcast_mcp.services.record.service import (
 )
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.services.session_sync.service import sync_db_path
-from podcast_mcp.services.share import ShareService
 
 
 def _isolate() -> None:

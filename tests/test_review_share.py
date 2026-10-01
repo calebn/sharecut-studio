@@ -14,8 +14,8 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import (
     ShareService,
     share_add_reply,
     share_allows_mcp,
@@ -132,8 +132,8 @@ def test_guest_action_done_http_twin(minimal_project, sample_wav, tmp_workspace,
         review_version_id=ver["id"],
         capabilities=["play", "comment", "action"],
     )
+    from podcast_mcp.services.collaboration.share import open_share_workspace
     from podcast_mcp.services.document import CommentService
-    from podcast_mcp.services.share import open_share_workspace
 
     _row, sws = open_share_workspace(share["token"])
     comment = CommentService(sws).add(
@@ -230,7 +230,7 @@ def test_share_capabilities_and_remote_mcp(minimal_project, sample_wav, tmp_work
 
 
 def test_sanitize_guest_project_view_strips_paths():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     raw = {
         "project_path": "/Users/host/secret/episode.project.json",
@@ -274,7 +274,7 @@ def test_sanitize_guest_project_view_strips_paths():
 
 
 def test_sanitize_guest_forces_transcript_words_false_when_words_omitted():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     out = sanitize_guest_project_view(
         {
@@ -310,7 +310,7 @@ def test_sanitize_guest_forces_transcript_words_false_when_words_omitted():
 
 def test_sanitize_guest_keeps_integer_word_index_lists_on_utterances():
     """Guests get per-track word indices (integers only), never ``words[]`` (#633, #752)."""
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     out = sanitize_guest_project_view(
         {
@@ -335,7 +335,7 @@ def test_sanitize_guest_keeps_integer_word_index_lists_on_utterances():
 
 def test_sanitize_guest_view_drops_suppressed_only_rows():
     """Guests never see a view-only suppressed_only row: its text is suppressed words (#758)."""
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     out = sanitize_guest_project_view(
         {
@@ -366,7 +366,7 @@ def test_sanitize_guest_view_drops_suppressed_only_rows():
 
 
 def test_sanitize_guest_tracks_patch_does_not_inject_keys():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     out = sanitize_guest_project_view(
         {
@@ -378,7 +378,7 @@ def test_sanitize_guest_tracks_patch_does_not_inject_keys():
 
 
 def test_sanitize_guest_clips_patch_does_not_inject_keys():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     out = sanitize_guest_project_view(
         {
@@ -392,7 +392,7 @@ def test_sanitize_guest_clips_patch_does_not_inject_keys():
 
 
 def test_sanitize_guest_project_view_proxy_and_edges():
-    from podcast_mcp.services.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     raw = {
         "project_path": "/x",
@@ -721,8 +721,8 @@ def test_guest_render_preview_requires_edit(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     ws = _seed_premix(minimal_project, sample_wav)
@@ -776,8 +776,8 @@ def test_guest_render_preview_disabled_by_default(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     monkeypatch.delenv("PODCAST_GUEST_RENDER", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)
@@ -801,8 +801,8 @@ def test_guest_render_preview_returns_before_render_finishes(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     ws = _seed_premix(minimal_project, sample_wav)
@@ -845,8 +845,8 @@ def test_guest_render_preview_conflict_when_host_job_running(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
     ws = _seed_premix(minimal_project, sample_wav)
@@ -883,7 +883,7 @@ def test_guest_render_preview_conflict_when_host_job_running(
 
 
 def test_sanitize_guest_session_snapshot_strips_wav():
-    from podcast_mcp.services.share import (
+    from podcast_mcp.services.collaboration.share import (
         sanitize_guest_session_event,
         sanitize_guest_session_snapshot,
     )
@@ -925,8 +925,8 @@ def test_share_service_refuses_restricted_without_accounts_flag(
 ):
     monkeypatch.delenv("PODCAST_SHARE_ACCOUNTS", raising=False)
     ws = _seed_premix(minimal_project, sample_wav)
-    from podcast_mcp.services.review import ReviewService
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
 
     ver = ReviewService(ws).publish(label="NoRestricted")
     with pytest.raises(ValueError, match="ROADMAP"):
@@ -952,7 +952,7 @@ def test_auth_router_404_without_share_accounts(monkeypatch):
 
 
 def test_sanitize_guest_document_event_strips_paths():
-    from podcast_mcp.services.share import sanitize_guest_document_event
+    from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
 
     event = {
         "type": "Applied",
@@ -991,7 +991,7 @@ def test_sanitize_guest_document_event_strips_paths():
 
 
 def test_sanitize_guest_document_event_keeps_file_signature():
-    from podcast_mcp.services.share import sanitize_guest_document_event
+    from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
 
     event = {
         "type": "Applied",
@@ -1011,7 +1011,7 @@ def test_sanitize_guest_document_event_keeps_file_signature():
 
 
 def test_sanitize_guest_document_event_reduces_file_signature_to_numbers():
-    from podcast_mcp.services.share import sanitize_guest_document_event
+    from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
 
     event = {
         "type": "Applied",
@@ -1189,7 +1189,7 @@ def test_guest_daw_ws_host_concurrency_gate(monkeypatch):
 
 
 def test_sanitize_guest_document_event_non_dict_fields():
-    from podcast_mcp.services.share import sanitize_guest_document_event
+    from podcast_mcp.services.collaboration.share import sanitize_guest_document_event
 
     out = sanitize_guest_document_event({"type": "Applied", "command": "raw", "snapshot": "raw"})
     assert out["command"] == "raw"
@@ -1505,7 +1505,7 @@ def test_proxy_manifest_lazy_ensure_failure(
 
 
 def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_wav, tmp_workspace):
-    import podcast_mcp.services.share as share_mod
+    import podcast_mcp.services.collaboration.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -1534,7 +1534,7 @@ def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_w
 
 
 def test_sanitize_guest_session_event_passes_presence() -> None:
-    from podcast_mcp.services.share import sanitize_guest_session_event
+    from podcast_mcp.services.collaboration.share import sanitize_guest_session_event
 
     event = {
         "type": "Presence",
@@ -1561,7 +1561,7 @@ def test_guest_restricted_origin_helper(monkeypatch) -> None:
     from podcast_mcp.gui.routes.review_share import guest_restricted_origin_allowed
 
     monkeypatch.setattr(
-        "podcast_mcp.services.share_page.share_public_origin",
+        "podcast_mcp.services.collaboration.share_page.share_public_origin",
         lambda request_base=None: "https://share.example",
     )
     assert guest_restricted_origin_allowed(None) is True

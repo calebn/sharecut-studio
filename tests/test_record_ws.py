@@ -11,6 +11,7 @@ from starlette.websockets import WebSocketDisconnect
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.commands import (
     CLIENT_VISIBLE_AUTHZ_CODES,
     RecordAuthzError,
@@ -24,7 +25,6 @@ from podcast_mcp.services.record.service import (
     reset_record_runtime_for_tests,
     route_record_ws_message,
 )
-from podcast_mcp.services.share import ShareService
 
 
 def _isolate() -> None:
@@ -482,7 +482,7 @@ def test_review_token_on_record_ws_rejected(
 ):
     _isolate()
     ws = _seed_premix(minimal_project, sample_wav)
-    from podcast_mcp.services.review import ReviewService
+    from podcast_mcp.services.collaboration.review import ReviewService
 
     ver = ReviewService(ws).publish(label="x")
     share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
@@ -897,7 +897,7 @@ def test_record_ws_reject_paths(minimal_project, sample_wav, tmp_workspace, monk
     from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
     from podcast_mcp.gui.routes import guest_ws_common as gwc
     from podcast_mcp.gui.routes import record_share as rec_mod
-    from podcast_mcp.services.share import lookup_share
+    from podcast_mcp.services.collaboration.share import lookup_share
 
     row = lookup_share(token, kind=SHARE_KIND_RECORD)
 
@@ -1336,7 +1336,7 @@ def test_share_common_token_and_manifest(minimal_project, sample_wav, tmp_worksp
         rate_limit_share,
         share_features_manifest,
     )
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration.share import ShareService
     from podcast_mcp.util.rate_limit import RateLimitDecision
 
     _isolate()

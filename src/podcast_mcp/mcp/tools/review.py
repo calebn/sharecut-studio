@@ -4,7 +4,7 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
+from podcast_mcp.services.collaboration import ReviewService
 
 
 def publish_review_version_tool(
@@ -60,7 +60,7 @@ def create_review_share_tool(
     invite_emails: comma-separated emails to add to the ACL.
     """
     from podcast_mcp.edits.share_capabilities import resolve_share_capabilities
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration import ShareService
     from podcast_mcp.services.share_auth import get_identity_store
 
     caps = resolve_share_capabilities(
@@ -95,7 +95,7 @@ def create_record_room_tool(
     expires_at: str | None = None,
 ) -> str:
     """Mint a recording room: guest + producer /rec/ links (design: docs/recording-session.md)."""
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration import ShareService
 
     ws = ProjectWorkspace.open(project_path)
     return to_json(
@@ -108,7 +108,7 @@ def create_record_room_tool(
 
 def revoke_record_room_tool(project_path: str, session_id: str) -> str:
     """End a recording room: revoke guest and producer tokens."""
-    from podcast_mcp.services.share import ShareService
+    from podcast_mcp.services.collaboration import ShareService
 
     ws = ProjectWorkspace.open(project_path)
     return to_json(ShareService(ws).revoke_room(session_id))

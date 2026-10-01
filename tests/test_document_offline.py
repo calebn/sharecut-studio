@@ -8,14 +8,14 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.policy import (
     StructuralMutationMode,
     resolve_structural_mode,
 )
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
 
 
 def test_resolve_structural_mode_propose_override():
@@ -186,7 +186,7 @@ def test_share_audio_permission_and_redirect_errors(
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    import podcast_mcp.services.share as share_mod
+    import podcast_mcp.services.collaboration.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -241,7 +241,7 @@ def test_open_share_auto_revokes_missing_version(
     import logging
     from pathlib import Path
 
-    import podcast_mcp.services.share as share_mod
+    import podcast_mcp.services.collaboration.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -267,7 +267,7 @@ def test_open_share_auto_revokes_missing_version(
 
     ws.mutate("before clear versions", "after clear versions", _clear)
 
-    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.share"):
+    with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.collaboration.share"):
         with pytest.raises(KeyError, match="invalid or revoked"):
             share_mod.open_share_workspace(token)
     assert any("Auto-revoking share" in r.message for r in caplog.records)

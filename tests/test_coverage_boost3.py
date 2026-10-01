@@ -18,8 +18,8 @@ from podcast_mcp.edits.share_registry import default_share_registry_db_path
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.share import ShareService
+from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import ShareService
 
 runner = CliRunner()
 

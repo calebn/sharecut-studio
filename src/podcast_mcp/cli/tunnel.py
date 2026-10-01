@@ -7,7 +7,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.runtime_config import RuntimeConfigError
-from podcast_mcp.services.tunnel import run_tunnel_sync
+from podcast_mcp.services.collaboration import run_tunnel_sync
 
 
 def tunnel_cmd(

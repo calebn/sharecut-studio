@@ -48,40 +48,8 @@ from podcast_mcp.gui.routes.waveform import (
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import (
-    COMMENTS_SANITY_S,
-    EditService,
-    ReviewCommentsReplica,
-    cross_process_lease,
-    review_comments_locked,
-)
-from podcast_mcp.services.document_sync import DocumentSyncService
-from podcast_mcp.services.document_sync.payloads import (
-    COMMENT_BODY_MAX,
-    document_command_from_body,
-)
-from podcast_mcp.services.document_sync.service import document_hub_key
-from podcast_mcp.services.guest_progress import guest_progress_hub
-from podcast_mcp.services.media import media_type_for_path
-from podcast_mcp.services.remote_mcp.limits import (
-    get_host_limiters,
-    host_rate_limit_enabled,
-    rate_limit_detail,
-    ws_roster_request_allowed,
-)
-from podcast_mcp.services.session_sync.authz import authorize_share_token
-from podcast_mcp.services.session_sync.commands import (
-    GUEST_CLIENT_ID_PREFIX,
-    SyncCommand,
-    sanitize_display_name,
-)
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.presence_delta import (
-    ROSTER_REQUEST,
-    is_own_presence_echo,
-)
-from podcast_mcp.services.session_sync.service import SessionSyncService
-from podcast_mcp.services.share import (
+from podcast_mcp.services.collaboration import (
+    guest_progress_hub,
     lookup_share,
     open_share_workspace,
     require_share_cap,
@@ -112,7 +80,37 @@ from podcast_mcp.services.share import (
     share_set_action_done,
     share_upload_media,
 )
-from podcast_mcp.services.share_auth.access import access_required
+from podcast_mcp.services.document import (
+    COMMENTS_SANITY_S,
+    EditService,
+    ReviewCommentsReplica,
+    cross_process_lease,
+    review_comments_locked,
+)
+from podcast_mcp.services.document_sync import (
+    COMMENT_BODY_MAX,
+    DocumentSyncService,
+    document_command_from_body,
+    document_hub_key,
+)
+from podcast_mcp.services.media import media_type_for_path
+from podcast_mcp.services.remote_mcp import (
+    get_host_limiters,
+    host_rate_limit_enabled,
+    rate_limit_detail,
+    ws_roster_request_allowed,
+)
+from podcast_mcp.services.session_sync import (
+    GUEST_CLIENT_ID_PREFIX,
+    ROSTER_REQUEST,
+    SessionSyncService,
+    SyncCommand,
+    authorize_share_token,
+    get_hub,
+    is_own_presence_echo,
+    sanitize_display_name,
+)
+from podcast_mcp.services.share_auth import access_required
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -168,7 +166,7 @@ def _audio_file_response(token: str, path, **kwargs: Any):
 
 
 def _map_share_exc(exc: Exception) -> HTTPException:
-    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.services.document_sync import DocumentConflictError
 
     if isinstance(exc, DocumentConflictError):
         return HTTPException(
@@ -697,7 +695,7 @@ def _guest_label(name: str | None, token: str) -> str:
 def guest_restricted_origin_allowed(origin: str | None) -> bool:
     """Allow loopback / missing Origin (tests, tunnel) or the public share origin."""
     from podcast_mcp.gui.middleware_host_binding import origin_is_loopback
-    from podcast_mcp.services.share_page import share_public_origin
+    from podcast_mcp.services.collaboration import share_public_origin
 
     if origin_is_loopback(origin):
         return True
@@ -710,7 +708,7 @@ def guest_restricted_origin_allowed(origin: str | None) -> bool:
 
 
 def _restricted_principal_ok(websocket: WebSocket, token: str) -> bool:
-    from podcast_mcp.services.share_auth.policy import resolve_principal_from_headers
+    from podcast_mcp.services.share_auth import resolve_principal_from_headers
 
     principal = resolve_principal_from_headers(
         websocket.headers,

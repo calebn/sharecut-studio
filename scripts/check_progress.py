@@ -92,7 +92,7 @@ def _pipeline_steps() -> set[str]:
 
 
 def _guest_tools() -> set[str]:
-    from podcast_mcp.services.remote_mcp.tools import TOOL_HANDLERS
+    from podcast_mcp.services.remote_mcp import TOOL_HANDLERS
 
     return set(TOOL_HANDLERS)
 

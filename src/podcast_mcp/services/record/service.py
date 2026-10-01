@@ -13,6 +13,7 @@ from typing import Any
 from podcast_mcp.edits.review_shares import list_usable_shares
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.collaboration import drop_absolute_path_strings
 from podcast_mcp.services.record.commands import (
     RecordAuthzError,
     RecordCommand,
@@ -48,10 +49,12 @@ from podcast_mcp.services.record.state import (
     take_containing_wall,
 )
 from podcast_mcp.services.record.upload import drop_cached_record_upload_stores
-from podcast_mcp.services.session_sync.hub import get_hub
-from podcast_mcp.services.session_sync.log import cached_sync_store, drop_cached_sync_stores
-from podcast_mcp.services.session_sync.service import sync_db_path
-from podcast_mcp.services.share import drop_absolute_path_strings
+from podcast_mcp.services.session_sync import (
+    cached_sync_store,
+    drop_cached_sync_stores,
+    get_hub,
+    sync_db_path,
+)
 
 LEASE_IN_USE_GRACE_S = 15.0
 _SID_TTL_S = 0.5

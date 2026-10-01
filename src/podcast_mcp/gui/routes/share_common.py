@@ -7,12 +7,12 @@ from typing import Any
 from fastapi import HTTPException, Request
 
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
-from podcast_mcp.services.remote_mcp.limits import (
+from podcast_mcp.services.collaboration import lookup_share
+from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
     rate_limit_detail,
 )
-from podcast_mcp.services.session_sync.authz import authorize_share_token
-from podcast_mcp.services.share import lookup_share
+from podcast_mcp.services.session_sync import authorize_share_token
 
 
 def share_features_manifest(request: Request) -> dict[str, Any]:
