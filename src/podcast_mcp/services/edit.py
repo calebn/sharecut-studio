@@ -160,6 +160,14 @@ from podcast_mcp.effects.presets import (
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
 from podcast_mcp.render import rerender_preview
+from podcast_mcp.services.boundary import (
+    BoundaryContext,
+    ClipGeometry,
+    RollBoundaryTarget,
+    TrimBoundaryTarget,
+    assert_boundary_token,
+    boundary_context,
+)
 from podcast_mcp.services.transcript_timing import word_timing_media
 from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
@@ -202,6 +210,14 @@ class EditService:
 
     def build_context(self, max_utterances: int = 200) -> str:
         return build_edit_context_json(self.ws.project, max_utterances=max_utterances)
+
+    def boundary_context(
+        self,
+        target: TrimBoundaryTarget | RollBoundaryTarget,
+        *,
+        expected_geometry: list[ClipGeometry] | None = None,
+    ) -> BoundaryContext:
+        return boundary_context(self.ws.project, target, expected_geometry=expected_geometry)
 
     def search(
         self,
@@ -885,40 +901,67 @@ class EditService:
         *,
         mode: str = "ripple",
         all_tracks: bool = False,
+        expected_token: str | None = None,
     ) -> dict:
-        return self.ws.mutate(
-            "before trim clip edge",
-            "after trim clip edge",
-            lambda p: trim_clip_edge(
-                p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks
-            ),
-            operation="trim_clip_edge",
-            params={
-                "clip_id": clip_id,
-                "edge": edge,
-                "source_sec": source_sec,
-                "mode": mode,
-                "all_tracks": all_tracks,
-            },
-        )
+        target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge})
+
+        def apply(p: EpisodeProject) -> dict:
+            if expected_token is not None:
+                assert_boundary_token(p, target, expected_token)
+            return trim_clip_edge(p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks)
+
+        with self.ws.transaction() as project:
+            if expected_token is not None and not all_tracks:
+                current = assert_boundary_token(project, target, expected_token)
+                bounded = min(max(source_sec, current.limits.min), current.limits.max)
+                if abs(bounded - current.current.source_sec) < 1e-12:
+                    return {"operation": "trim_clip_edge", "unchanged": True}
+            return self.ws.mutate(
+                "before trim clip edge",
+                "after trim clip edge",
+                apply,
+                operation="trim_clip_edge",
+                params={
+                    "clip_id": clip_id,
+                    "edge": edge,
+                    "source_sec": source_sec,
+                    "mode": mode,
+                    "all_tracks": all_tracks,
+                },
+            )
 
     def roll_clip_join(
         self,
         left_clip_id: str,
         right_clip_id: str,
         delta_sec: float,
+        *,
+        expected_token: str | None = None,
     ) -> dict:
-        return self.ws.mutate(
-            "before roll clip join",
-            "after roll clip join",
-            lambda p: roll_clip_join(p, left_clip_id, right_clip_id, delta_sec),
-            operation="roll_clip_join",
-            params={
-                "left_clip_id": left_clip_id,
-                "right_clip_id": right_clip_id,
-                "delta_sec": delta_sec,
-            },
-        )
+        target = RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
+
+        def apply(p: EpisodeProject) -> dict:
+            if expected_token is not None:
+                assert_boundary_token(p, target, expected_token)
+            return roll_clip_join(p, left_clip_id, right_clip_id, delta_sec)
+
+        with self.ws.transaction() as project:
+            if expected_token is not None:
+                current = assert_boundary_token(project, target, expected_token)
+                bounded = min(max(delta_sec, current.limits.min), current.limits.max)
+                if abs(bounded) < 1e-12:
+                    return {"operation": "roll_clip_join", "unchanged": True}
+            return self.ws.mutate(
+                "before roll clip join",
+                "after roll clip join",
+                apply,
+                operation="roll_clip_join",
+                params={
+                    "left_clip_id": left_clip_id,
+                    "right_clip_id": right_clip_id,
+                    "delta_sec": delta_sec,
+                },
+            )
 
     def set_join_mode(self, clip_id: str, join_in_mode: str) -> dict:
         return self.ws.mutate(

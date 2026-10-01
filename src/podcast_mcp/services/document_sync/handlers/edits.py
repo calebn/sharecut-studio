@@ -50,6 +50,7 @@ def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         str(p["edge"]),
         float(p["source_sec"]),
         mode=str(p.get("mode", "ripple")),
+        expected_token=p.get("expected_token"),
     )
 
 
@@ -58,6 +59,7 @@ def roll_clip_join(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         str(p["left_clip_id"]),
         str(p["right_clip_id"]),
         float(p["delta_sec"]),
+        expected_token=p.get("expected_token"),
     )
 
 
