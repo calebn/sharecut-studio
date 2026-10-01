@@ -32,7 +32,11 @@ def parse_archive_plan(stdout: str) -> dict[str, DownloadArchive]:
             raise ValueError(f"Malformed APT archive row: {line!r}")
         uri, filename, size, checksum = row
         url = urlsplit(uri)
-        if url.scheme not in {"http", "https"} or not url.netloc:
+        is_network_uri = url.scheme in {"http", "https"} and bool(url.netloc)
+        is_apt_mirror_uri = (
+            url.scheme == "mirror+file" and not url.netloc and url.path.startswith("/")
+        )
+        if not (is_network_uri or is_apt_mirror_uri):
             raise ValueError(f"Invalid archive URI: {uri!r}")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+:%_~-]*\.deb", filename):
             raise ValueError(f"Unsafe archive filename: {filename!r}")
@@ -57,6 +61,8 @@ def archive_plan_digest(archives: dict[str, DownloadArchive]) -> str:
 def retain_verified_archives(archives: dict[str, DownloadArchive], directory: Path) -> int:
     verified = 0
     for path in directory.iterdir():
+        if not path.name.endswith(".deb"):
+            continue
         archive = archives.get(path.name)
         if (
             archive is not None

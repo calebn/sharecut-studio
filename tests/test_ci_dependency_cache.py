@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -41,23 +42,38 @@ def test_cli_retains_only_authenticated_packages_and_leaves_missing_for_apt(
     partial = directory / "partial"
     partial.mkdir()
     (partial / "unfinished.deb").write_bytes(b"unfinished")
+    partial.chmod(0o000)
+    partial_before = partial.stat()
     target = tmp_path / "outside.deb"
     target.write_bytes(b"verified package")
     (directory / "link.deb").symlink_to(target)
     (directory / "linked-directory").symlink_to(tmp_path, target_is_directory=True)
 
-    result = subprocess.run(
-        [sys.executable, str(HELPER), "verify", str(manifest), str(directory)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(HELPER), "verify", str(manifest), str(directory)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert partial.is_dir()
+        partial_after = partial.stat()
+        assert partial_after.st_mode & 0o777 == partial_before.st_mode & 0o777
+        assert partial_after.st_ino == partial_before.st_ino
+        assert partial_after.st_mtime_ns == partial_before.st_mtime_ns
+    finally:
+        partial.chmod(0o700)
+        shutil.rmtree(partial)
 
     outputs = dict(line.split("=", 1) for line in result.stdout.splitlines())
     assert outputs["verified_count"] == "1"
     assert outputs["archive_count"] == "5"
     assert outputs["total_bytes"] == "80"
-    assert sorted(path.name for path in directory.iterdir()) == ["good.deb"]
+    assert sorted(path.name for path in directory.iterdir()) == [
+        "good.deb",
+        "linked-directory",
+        "lock",
+    ]
     assert (directory / "good.deb").read_bytes() == b"verified package"
     assert target.read_bytes() == b"verified package"
     assert manifest.read_text(encoding="utf-8") == "".join(archive_row(name) for name in names)
@@ -83,6 +99,8 @@ def test_cli_retains_only_authenticated_packages_and_leaves_missing_for_apt(
         "'https://archive.ubuntu.com/unclosed",
         archive_row(uri="file:///local.deb"),
         archive_row(uri="https:///missing-host.deb"),
+        archive_row(uri="mirror+file:relative/path.deb"),
+        archive_row(uri="mirror+file://host/path.deb"),
     ],
 )
 def test_invalid_manifest_fails_before_touching_archives(tmp_path: Path, row: str) -> None:
@@ -115,6 +133,24 @@ def test_plan_ignores_apt_progress_and_accepts_real_escaped_epoch_names() -> Non
     assert archive.size == 16
     assert archive.uri == "https://archive.ubuntu.com/ubuntu/pool/libavcodec_7%3a1.0-1_amd64.deb"
     assert archive.sha256 == "5b365b709602bee45e8db24117a4f631efd738927cd9e85e95f765d6d58d909d"
+
+
+def test_plan_accepts_hosted_apt_mirror_file_uri() -> None:
+    row = (
+        "'mirror+file:/etc/apt/apt-mirrors.txt/pool/universe/libv/libva/"
+        "libva2_2.20.0-2ubuntu0.2_amd64.deb' libva2_2.20.0-2ubuntu0.2_amd64.deb "
+        "123456 SHA256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"
+    )
+
+    plan = cache.parse_archive_plan(row)
+
+    archive = plan["libva2_2.20.0-2ubuntu0.2_amd64.deb"]
+    assert archive.uri == (
+        "mirror+file:/etc/apt/apt-mirrors.txt/pool/universe/libv/libva/"
+        "libva2_2.20.0-2ubuntu0.2_amd64.deb"
+    )
+    assert archive.size == 123456
+    assert archive.sha256 == "0123456789abcdef" * 4
 
 
 def test_plan_digest_is_order_independent_and_invalidates_every_archive_field() -> None:
