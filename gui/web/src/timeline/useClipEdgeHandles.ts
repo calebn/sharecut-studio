@@ -1,4 +1,5 @@
 import {
+  type FocusEvent,
   type KeyboardEvent,
   type PointerEvent,
   useLayoutEffect,
@@ -125,6 +126,7 @@ export function useClipEdgeHandles(context: Context) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const focusRef = useRef<{
     handle: ClipHandle;
+    element: HTMLButtonElement;
     path: string;
     epoch: number;
     clipId: string;
@@ -350,13 +352,15 @@ export function useClipEdgeHandles(context: Context) {
     const focus = focusRef.current;
     if (
       focus &&
-      (focus.path !== path ||
-        focus.epoch !== epoch ||
-        focus.clipId !== context.clip.id ||
-        focus.trackId !== context.trackId)
+      (!focus.element.isConnected || document.activeElement !== focus.element)
     ) {
       focus.dispose();
       focusRef.current = null;
+    } else if (focus) {
+      focus.path = path;
+      focus.epoch = epoch;
+      focus.clipId = context.clip.id;
+      focus.trackId = context.trackId;
     }
     if (draftRef.current && !fresh(draftRef.current.capture)) publish(null);
   });
@@ -367,7 +371,7 @@ export function useClipEdgeHandles(context: Context) {
     fadePreview: draft?.kind === "fade" ? draft.preview : null,
     trimPreview: draft?.kind === "trim" ? draft.preview : null,
     active: draft != null,
-    onFocus: (handle: ClipHandle) => {
+    onFocus: (handle: ClipHandle, event: FocusEvent<HTMLButtonElement>) => {
       if (handle === "roll") return;
       const s = useDawStore.getState();
       focusRef.current?.dispose();
@@ -378,6 +382,7 @@ export function useClipEdgeHandles(context: Context) {
       });
       focusRef.current = {
         handle,
+        element: event.currentTarget,
         path: s.projectPath,
         epoch: s.projectEpoch,
         clipId: context.clip.id,
