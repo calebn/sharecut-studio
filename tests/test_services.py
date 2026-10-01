@@ -14,10 +14,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.clip import ClipService
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.episode import EpisodeService
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.document import ClipService, EditService, EpisodeService, HistoryService
 from podcast_mcp.services.media.speaker import SpeakerService
 from podcast_mcp.services.media.transcript import TranscriptService
 from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
@@ -74,7 +71,9 @@ def test_clip_service_propose(minimal_project):
 
 def test_clip_service_propose_builds_track_refs_only(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.clip.ensure_project_waveforms", return_value=0) as ensure:
+    with patch(
+        "podcast_mcp.services.document.clip.ensure_project_waveforms", return_value=0
+    ) as ensure:
         ClipService(ws).propose(max_clips=3)
     ensure.assert_called_once_with(ws.project, sources=False)
 
@@ -188,18 +187,18 @@ def test_history_service_mutation_groups_and_rerender(minimal_project):
     assert mut.get("title")
     assert "ripple" in mut["title"].lower()
     with (
-        patch("podcast_mcp.services.history.rerender_preview"),
+        patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
-            "podcast_mcp.services.history.render_preview_result",
+            "podcast_mcp.services.document.history.render_preview_result",
             return_value='{"ok": true}',
         ),
     ):
         out = HistoryService(ws).undo(rerender=True)
     assert "preview" in out
     with (
-        patch("podcast_mcp.services.history.rerender_preview"),
+        patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
-            "podcast_mcp.services.history.render_preview_result",
+            "podcast_mcp.services.document.history.render_preview_result",
             return_value='{"ok": true}',
         ),
     ):
@@ -212,9 +211,9 @@ def test_history_goto_rerender_flag(minimal_project) -> None:
     ws.record_snapshot("one", force=True)
     ws.record_snapshot("two", force=True)
     with (
-        patch("podcast_mcp.services.history.rerender_preview") as rr,
+        patch("podcast_mcp.services.document.history.rerender_preview") as rr,
         patch(
-            "podcast_mcp.services.history.render_preview_result",
+            "podcast_mcp.services.document.history.render_preview_result",
             return_value='{"ok": true}',
         ),
     ):

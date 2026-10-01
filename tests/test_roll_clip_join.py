@@ -7,7 +7,7 @@ import pytest
 from podcast_mcp.edits.clips_ops import roll_clip_join
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.boundary import RollBoundaryTarget, boundary_context
+from podcast_mcp.services.document.boundary import RollBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 

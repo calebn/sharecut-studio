@@ -20,7 +20,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
-from podcast_mcp.services.history import HistoryRerenderError
+from podcast_mcp.services.document.history import HistoryRerenderError
 
 runner = CliRunner()
 

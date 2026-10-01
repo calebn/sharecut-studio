@@ -12,7 +12,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 
 
 def _ws_with_audio(tmp_path, sample_wav) -> ProjectWorkspace:

@@ -12,10 +12,10 @@ from podcast_mcp.edits.clips_ops import move_clips, pin_clip_source_id
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.handlers import edits as edit_handlers
 from podcast_mcp.services.document_sync.service import DocumentSyncService
-from podcast_mcp.services.edit import EditService
 
 runner = CliRunner()
 

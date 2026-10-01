@@ -254,7 +254,7 @@ Audio-only `export_social_clips_tool` (WAV + JSON) is **not** market-complete. *
 
 | Item | Notes |
 |------|--------|
-| **Adapter/facade decomposition** | Split `services/edit.py`, `mcp/tools/timeline.py`, `services/play.py`, `gui/web/src/api.ts`; drop `mcp/server.py` test re-exports. |
+| **Adapter/facade decomposition** | Split `services/document/edit.py`, `mcp/tools/timeline.py`, `services/document/play.py`, `gui/web/src/api.ts`; drop `mcp/server.py` test re-exports. |
 | **Coverage-boost cleanup** | Fold `tests/test_coverage_boost*.py` into feature-focused modules. |
 | **Doc staleness sweep** | Opportunistic fixes as docs are touched. |
 | **E2e on nightly** | Schedule `make e2e-slow` / `make e2e-real` for HF ASR and AMI/benchmark. |

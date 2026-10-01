@@ -77,7 +77,7 @@ def _is_link(path: Path) -> bool:
     """Symlink or Windows junction.
 
     Junctions only ever name directories, so callers that check a file path
-    (``services/play.py``, ``services/media/ingest.py``) need only ``Path.is_symlink()``.
+    (``services/document/play.py``, ``services/media/ingest.py``) need only ``Path.is_symlink()``.
     """
     return path.is_symlink() or (hasattr(os.path, "isjunction") and os.path.isjunction(path))
 

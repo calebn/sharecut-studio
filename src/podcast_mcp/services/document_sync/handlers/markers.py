@@ -6,9 +6,8 @@ from typing import Any
 
 from podcast_mcp.edits.envelopes import envelope_matches_baseline
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.clip import ClipService
+from podcast_mcp.services.document import ClipService, EditService
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
-from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.pipeline import PipelineService
 
 

@@ -38,8 +38,8 @@ from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.media.review_media import review_guest_audio_path
-from podcast_mcp.services.play import PlayService
 from podcast_mcp.services.review import ReviewService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg

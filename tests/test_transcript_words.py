@@ -17,7 +17,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.words_revision import words_revision
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.document import HistoryService
 
 
 def _tr() -> Transcript:

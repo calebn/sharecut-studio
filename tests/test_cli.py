@@ -8,7 +8,7 @@ from filelock import Timeout
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 

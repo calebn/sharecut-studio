@@ -13,7 +13,7 @@ from podcast_mcp.gui.schemas import (
     TranscriptWordTimingContextRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.media import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,

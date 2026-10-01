@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ast
+import subprocess
+import sys
 from importlib.util import resolve_name
 from pathlib import Path
 
@@ -11,6 +13,7 @@ _SUPPORT = "podcast_mcp.services.support"
 _PIPELINE = "podcast_mcp.services.pipeline"
 _APP = "podcast_mcp.services.app"
 _MEDIA = "podcast_mcp.services.media"
+_DOCUMENT = "podcast_mcp.services.document"
 _SESSION_SYNC = "podcast_mcp.services.session_sync"
 _ADAPTERS = ("podcast_mcp.gui", "podcast_mcp.cli", "podcast_mcp.mcp")
 
@@ -71,6 +74,10 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
                 allowed.add(_SESSION_SYNC)
             elif owner == _MEDIA:
                 allowed.update({_APP, _PIPELINE})
+            elif owner == _DOCUMENT:
+                allowed.update(
+                    {_APP, _MEDIA, _PIPELINE, _SESSION_SYNC, "podcast_mcp.services.document_sync"}
+                )
             if not any(_in(target, name) for name in allowed):
                 violations.add(".".join(target.split(".")[:3]))
         if owner == _APP and target.startswith(_SESSION_SYNC + "."):
@@ -94,13 +101,17 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             "podcast_mcp.cli.setup_cmd",
             {_SUPPORT + ".doctor"},
         ),
-        ("from .support import doctor", "podcast_mcp.services.play", {_SUPPORT + ".doctor"}),
+        ("from ..support import doctor", _DOCUMENT + ".play", {_SUPPORT, _SUPPORT + ".doctor"}),
         (
             "from podcast_mcp.services.pipeline.config import config_store",
             "podcast_mcp.gui.jobs",
             {_PIPELINE + ".config"},
         ),
-        ("from .pipeline import config", "podcast_mcp.services.play", {_PIPELINE + ".config"}),
+        (
+            "from ..pipeline import config",
+            _DOCUMENT + ".play",
+            {_PIPELINE + ".config"},
+        ),
         ("import podcast_mcp.cli.main", _PIPELINE + ".service", {"podcast_mcp.cli.main"}),
         ("import podcast_mcp.cli.main", _PIPELINE + ".__init__", {"podcast_mcp.cli.main"}),
         (
@@ -109,9 +120,9 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             {"podcast_mcp.gui.routes.deps"},
         ),
         (
-            "from podcast_mcp.services.play import PlayService",
+            "from podcast_mcp.services.document.play import PlayService",
             _PIPELINE + ".service",
-            {"podcast_mcp.services.play"},
+            {_DOCUMENT, _DOCUMENT + ".play"},
         ),
         (
             "from podcast_mcp.services.pipeline import component_status",
@@ -134,7 +145,7 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             "podcast_mcp.gui.routes.waveform",
             {_MEDIA + ".waveform"},
         ),
-        ("from .media import waveform", "podcast_mcp.services.play", {_MEDIA + ".waveform"}),
+        ("from ..media import waveform", _DOCUMENT + ".play", {_MEDIA + ".waveform"}),
         ("import podcast_mcp.cli.main", _MEDIA + ".ingest", {"podcast_mcp.cli.main"}),
         ("from podcast_mcp.services.app import ProjectWorkspace", _MEDIA + ".ingest", set()),
         (
@@ -143,6 +154,17 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
             set(),
         ),
         ("from .waveform import tile_bytes", _MEDIA + ".ingest", set()),
+        (
+            "from podcast_mcp.services.document.play import PlayService",
+            "podcast_mcp.cli.play",
+            {_DOCUMENT + ".play"},
+        ),
+        (
+            "from podcast_mcp.services.document import PlayService",
+            "podcast_mcp.cli.play",
+            set(),
+        ),
+        ("from .play import PlayService", _DOCUMENT + ".edit", set()),
         (
             "from podcast_mcp.services.app.workspace import ProjectWorkspace",
             _PIPELINE + ".service",
@@ -161,7 +183,7 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
         ),
         (
             "from podcast_mcp.gui.routes.deps import require_host",
-            "podcast_mcp.services.play",
+            _DOCUMENT + ".play",
             {"podcast_mcp.gui.routes.deps"},
         ),
         ("from podcast_mcp.gui.bind import gui_server_deps_available", _APP + ".gui_launch", set()),
@@ -206,6 +228,20 @@ def test_boundary_guard_checks_nested_relative_and_facade_imports(
                     "transcript_refine",
                     "waveform",
                 },
+                _DOCUMENT: {
+                    "align_accept",
+                    "boundary",
+                    "clip",
+                    "comment",
+                    "cross_process_sync",
+                    "edit",
+                    "episode",
+                    "golden_ear",
+                    "history",
+                    "play",
+                    "review_comments",
+                    "transcript_timing",
+                },
             },
         )
         == expected
@@ -219,6 +255,7 @@ def test_service_contexts_use_public_facades_and_have_no_adapter_dependencies() 
         _PIPELINE: services / "pipeline",
         _APP: services / "app",
         _MEDIA: services / "media",
+        _DOCUMENT: services / "document",
     }
     internals = {
         context: {path.stem for path in directory.glob("*.py") if path.stem != "__init__"}
@@ -231,6 +268,23 @@ def test_service_contexts_use_public_facades_and_have_no_adapter_dependencies() 
             for target in sorted(_violations(path.read_text(), module, internals)):
                 violations.append(f"{path.relative_to(_ROOT)}: {target}")
     assert not violations, "service context boundary violations:\n" + "\n".join(violations)
+
+
+def test_document_facade_is_cold_and_resolves_play_edit_history() -> None:
+    script = """
+import sys
+import podcast_mcp.services.document as document
+
+prefix = "podcast_mcp.services.document."
+assert not any(name.startswith(prefix) for name in sys.modules)
+assert document.PlayService.__module__ == prefix + "play"
+assert document.EditService.__module__ == prefix + "edit"
+assert document.HistoryService.__module__ == prefix + "history"
+assert document.PlayService is document.PlayService
+assert document.EditService is document.EditService
+assert document.HistoryService is document.HistoryService
+"""
+    subprocess.run([sys.executable, "-c", script], check=True, cwd=_ROOT)
 
 
 def test_migrated_modules_have_no_legacy_paths() -> None:
@@ -256,5 +310,17 @@ def test_migrated_modules_have_no_legacy_paths() -> None:
         "transcript_precorrect",
         "transcript_refine",
         "waveform",
+        "align_accept",
+        "boundary",
+        "clip",
+        "comment",
+        "cross_process_sync",
+        "edit",
+        "episode",
+        "golden_ear",
+        "history",
+        "play",
+        "review_comments",
+        "transcript_timing",
     ):
         assert not (services / f"{name}.py").exists()

@@ -15,7 +15,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 
 
 def test_comment_tools_mcp(tmp_path):
@@ -340,7 +340,7 @@ def test_play_transcript_query_mcp(tmp_path):
     from unittest.mock import patch
 
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -384,7 +384,7 @@ def test_play_transcript_query_requires_keyword_boolean_options() -> None:
 def test_play_audio_mcp(tmp_path):
     from unittest.mock import patch
 
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -416,7 +416,7 @@ def test_play_audio_mcp(tmp_path):
 def test_play_compose_mcp(tmp_path):
     from unittest.mock import patch
 
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -446,7 +446,7 @@ def test_play_compose_mcp(tmp_path):
 def test_play_ab_mcp_tools(tmp_path, sample_wav):
     from unittest.mock import patch
 
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -495,7 +495,7 @@ def test_play_ab_mcp_tools(tmp_path, sample_wav):
 def test_play_pending_preview_mcp(tmp_path):
     from unittest.mock import patch
 
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -648,7 +648,7 @@ speakers:
 def test_play_compare_mcp(tmp_path, sample_wav):
     from unittest.mock import patch
 
-    from podcast_mcp.services.play import PlayResult
+    from podcast_mcp.services.document.play import PlayResult
 
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
@@ -823,7 +823,7 @@ async def test_history_undo_mcp_tool_call_returns_structured_busy_error(minimal_
     def _busy(self, **kwargs):
         raise ProjectBusyError("/artifacts/episode.project.json.lock")
 
-    with patch("podcast_mcp.services.history.HistoryService.undo", _busy):
+    with patch("podcast_mcp.services.document.history.HistoryService.undo", _busy):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
     assert result.is_error is True
@@ -860,7 +860,7 @@ async def test_plain_runtime_error_stays_generic(minimal_project):
     def _boom(self, **kwargs):
         raise RuntimeError("boom")
 
-    with patch("podcast_mcp.services.history.HistoryService.undo", _boom):
+    with patch("podcast_mcp.services.document.history.HistoryService.undo", _boom):
         async with Client(mcp_server.mcp) as client:
             result = await client.call_tool("history_undo", {"project_path": str(minimal_project)})
     assert result.is_error is True

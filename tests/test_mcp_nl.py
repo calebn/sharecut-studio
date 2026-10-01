@@ -87,7 +87,7 @@ def test_history_undo_rerender(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws5"))
     _project(Path(path))
     mcp_server.cut_time_range_tool(path, "host", 1.0, 2.0)
-    with patch("podcast_mcp.services.history.rerender_preview") as rr:
+    with patch("podcast_mcp.services.document.history.rerender_preview") as rr:
         rr.return_value = {"path": "/x", "ok": True, "edit_count": 0}
         out = mcp_server.history_undo(path, rerender=True)
     assert "preview" in out

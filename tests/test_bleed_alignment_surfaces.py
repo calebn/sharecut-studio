@@ -6,7 +6,7 @@ from pathlib import Path
 from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService
 from test_retained_bleed_alignment import _episode
 
 

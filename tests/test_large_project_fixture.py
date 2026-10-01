@@ -247,7 +247,7 @@ def test_large_project_fixture_silent_waveforms(tmp_path):
 def test_large_project_fixture_seeds_shared_snapshot_history(tmp_path):
     from podcast_mcp.history.diff import diff_snapshots
     from podcast_mcp.history.manager import HistoryManager, snapshot_from_project
-    from podcast_mcp.services.history import _group_history_entries
+    from podcast_mcp.services.document.history import _group_history_entries
 
     project_path = _load_fixture_builder().build_project(
         tmp_path / "hist", duration=10, clip_count=4, utterance_count=8, history_steps=3

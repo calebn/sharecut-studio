@@ -1689,7 +1689,7 @@ def test_api_audio_render_busy_fallback_sets_header(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.play import TransportPath
+    from podcast_mcp.services.document import TransportPath
 
     wav = tmp_path / "premix.wav"
     wav.write_bytes(sample_wav.read_bytes())

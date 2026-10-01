@@ -5,8 +5,7 @@ import json
 from mcp.server import MCPServer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.play import PlayRequest, PlayService
+from podcast_mcp.services.document import EditService, PlayRequest, PlayService
 
 
 def play_audio_tool(

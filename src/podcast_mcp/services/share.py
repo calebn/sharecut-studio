@@ -44,7 +44,7 @@ from podcast_mcp.edits.share_registry import (
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
+from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync.projection_types import parse_view_projection
 from podcast_mcp.services.document_sync.service import (
     document_poll_meta,
@@ -767,7 +767,7 @@ def share_daw_waveform_snap(
     timeline: bool = False,
     focus: float | None = None,
 ) -> dict[str, Any]:
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
 
     row, ws = require_share_cap(token, CAP_VIEW)
     caps = row.get("capabilities")
@@ -925,7 +925,7 @@ def share_pending_preview_wav_cached(
     mode: str = "suggested",
 ) -> Path | None:
     """Return cached listen-first WAV if present. Requires ``play`` + ``view``."""
-    from podcast_mcp.services.play import PlayService
+    from podcast_mcp.services.document import PlayService
 
     kind = _normalize_pending_preview_mode(mode)
     _, ws = _require_pending_preview_caps(token)
@@ -943,7 +943,7 @@ def share_pending_preview_wav(
     Uses ``PlayService.play_pending_preview`` with ``dry_run=True`` and
     ``rerender=False``. Never plays host speakers. Requires ``play`` + ``view``.
     """
-    from podcast_mcp.services.play import PlayService
+    from podcast_mcp.services.document import PlayService
 
     kind = _normalize_pending_preview_mode(mode)
     _, ws = _require_pending_preview_caps(token)

@@ -8,8 +8,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.boundary import TrimBoundaryTarget
-from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.document import EditService, TrimBoundaryTarget
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 

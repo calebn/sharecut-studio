@@ -660,11 +660,11 @@ def test_edit_join_quality_cli(minimal_project, monkeypatch):
             return {"verdict": "pass", "risk": 0.1, "disclaimer": "x"}
 
     monkeypatch.setattr(
-        "podcast_mcp.services.edit.assess_existing_join",
+        "podcast_mcp.services.document.edit.assess_existing_join",
         lambda *a, **k: _Rep(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.edit.assess_project_joins",
+        "podcast_mcp.services.document.edit.assess_project_joins",
         lambda *a, **k: {"join_count": 1, "fail_count": 0},
     )
     jq = runner.invoke(

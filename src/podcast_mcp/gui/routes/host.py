@@ -17,7 +17,7 @@ from podcast_mcp.gui.routes.deps import resolve_project
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.cross_process_sync import cross_process_lease
+from podcast_mcp.services.document import cross_process_lease
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.service import document_hub_key, host_document_event
 from podcast_mcp.services.record.commands import RecordAuthzError

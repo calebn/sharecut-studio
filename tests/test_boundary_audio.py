@@ -34,9 +34,13 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.boundary import RollBoundaryEdit, RollBoundaryTarget, boundary_context
+from podcast_mcp.services.document import PlayService
+from podcast_mcp.services.document.boundary import (
+    RollBoundaryEdit,
+    RollBoundaryTarget,
+    boundary_context,
+)
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
-from podcast_mcp.services.play import PlayService
 from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 
@@ -332,7 +336,7 @@ def test_busy_boundary_render_uses_project_busy_response(
         raise Timeout("held-render-lock")
         yield
 
-    monkeypatch.setattr("podcast_mcp.services.play.render_lock", busy)
+    monkeypatch.setattr("podcast_mcp.services.document.play.render_lock", busy)
     with TestClient(create_app(served_project=minimal_project)) as client:
         response = client.post(
             "/api/boundary/audition",

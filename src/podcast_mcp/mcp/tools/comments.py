@@ -6,7 +6,7 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
+from podcast_mcp.services.document import CommentService
 
 
 def add_comment_tool(

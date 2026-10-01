@@ -41,8 +41,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.document import EditService, HistoryService
 
 
 def _project_with_audio(tmp_path: Path, sample_wav: Path) -> EpisodeProject:

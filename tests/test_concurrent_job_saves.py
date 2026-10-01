@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import podcast_mcp.services.app.workspace as workspace_mod
-import podcast_mcp.services.history as history_service_mod
+import podcast_mcp.services.document.history as history_service_mod
 from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
@@ -33,8 +33,8 @@ from podcast_mcp.project_store import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.app.workspace import MERGED_HISTORY_LABEL
-from podcast_mcp.services.episode import EpisodeService
-from podcast_mcp.services.history import HistoryRerenderError, HistoryService
+from podcast_mcp.services.document import EpisodeService
+from podcast_mcp.services.document.history import HistoryRerenderError, HistoryService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.progress import CancelledProgress
@@ -208,7 +208,7 @@ def test_render_preview_renders_the_saved_project(minimal_project):
 
 
 def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
-    from podcast_mcp.services.play import PlayService
+    from podcast_mcp.services.document import PlayService
 
     ws = _two_tracks(minimal_project)
     svc = PlayService(ws)
@@ -220,7 +220,7 @@ def test_play_premix_rerender_keeps_an_edit_saved_mid_render(minimal_project):
         premix.write_bytes(b"RIFF")
         return {"ok": True}
 
-    with patch("podcast_mcp.services.play.rerender_preview", fake):
+    with patch("podcast_mcp.services.document.play.rerender_preview", fake):
         svc._ensure_premix(rerender=True)
     assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
     assert svc.project is ws.project
@@ -621,7 +621,7 @@ def test_history_move_rerender_keeps_an_edit_saved_mid_render(minimal_project, m
         project.track_by_id("guest").fader_db = -2.0  # the render's own change
         _other_sets_volume(minimal_project)
 
-    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", fake_render):
         out = _move_history_with_rerender(ws, move)
 
     saved = load_project(minimal_project)
@@ -645,7 +645,7 @@ def test_history_move_rerender_conflict_keeps_the_move_and_says_not_to_repeat_it
         project.track_by_id("host").fader_db = -3.0
         _other_sets_volume(minimal_project)
 
-    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", fake_render):
         with pytest.raises(
             ProjectMergeConflict, match=f"the {move} is saved; .*instead of repeating the {move}"
         ) as exc:
@@ -668,7 +668,7 @@ def test_history_move_render_failure_keeps_the_move_and_says_not_to_repeat_it(
     def failing_render(_project):
         raise OSError("ffmpeg failed")
 
-    with patch("podcast_mcp.services.history.rerender_preview", failing_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", failing_render):
         with pytest.raises(HistoryRerenderError, match=f"instead of repeating the {move}") as exc:
             _move_history_with_rerender(ws, move)
 
@@ -686,7 +686,7 @@ def test_history_move_render_failure_leaves_the_workspace_matching_the_file(mini
         project.track_by_id("host").fader_db = -3.0  # the render's partial change
         raise OSError("ffmpeg failed")
 
-    with patch("podcast_mcp.services.history.rerender_preview", partial_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", partial_render):
         with pytest.raises(HistoryRerenderError):
             HistoryService(ws).undo(rerender=True)
 
@@ -726,7 +726,7 @@ def test_history_move_rerender_cursor_clash_says_to_check_history_status(
     def fake_render(_project):
         _other_sets_volume(minimal_project)  # the file moves, so save_merged merges
 
-    with patch("podcast_mcp.services.history.rerender_preview", fake_render):
+    with patch("podcast_mcp.services.document.history.rerender_preview", fake_render):
         with pytest.raises(ProjectMergeConflict, match="check history_status") as exc:
             HistoryService(ws).undo(rerender=True)
 
@@ -758,7 +758,7 @@ def test_history_move_saves_its_stale_marks_before_another_commit(minimal_projec
 
 
 def test_history_rerender_errors_are_the_saved_move_errors():
-    from podcast_mcp.services.history import HISTORY_RERENDER_ERRORS
+    from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS
 
     assert set(HISTORY_RERENDER_ERRORS) == {ProjectMergeConflict, HistoryRerenderError}
 
@@ -766,7 +766,7 @@ def test_history_rerender_errors_are_the_saved_move_errors():
 def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_project, monkeypatch):
     from podcast_mcp.engines import TranscriptionEngine
     from podcast_mcp.models import Transcript, TranscriptWord
-    from podcast_mcp.services.edit import EditService
+    from podcast_mcp.services.document import EditService
     from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     ws = _two_tracks(minimal_project)

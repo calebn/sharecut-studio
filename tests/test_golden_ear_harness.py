@@ -10,8 +10,8 @@ import pytest
 from podcast_mcp.edits.pending_preview import PendingPreviewWindow
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
-from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.golden_ear import (
+from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document.golden_ear import (
     LISTEN_DIRNAME,
     _pair_audio_diagnostics,
     bound_limit,
@@ -22,7 +22,7 @@ from podcast_mcp.services.golden_ear import (
     score_golden_ear,
     source_fingerprint,
 )
-from podcast_mcp.services.play import PlayResult, PlayService
+from podcast_mcp.services.document.play import PlayResult, PlayService
 from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,11 +125,11 @@ def _patch_harness(
     monkeypatch.setattr(EditService, "join_quality", join_quality)
     monkeypatch.setattr(PlayService, "audition_context", audition_context)
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.measure_astats",
+        "podcast_mcp.services.document.golden_ear.measure_astats",
         lambda path: {"peak_level_db": -3.0, "file": Path(path).name},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.detect_mains_hum",
+        "podcast_mcp.services.document.golden_ear.detect_mains_hum",
         lambda path: {"hum_detected": False},
     )
 
@@ -140,7 +140,7 @@ def _patch_harness(
 
     monkeypatch.setattr(FFmpegEngine, "render_showwavespic", waveform)
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.resolve_pending_preview",
+        "podcast_mcp.services.document.golden_ear.resolve_pending_preview",
         lambda *args, **kwargs: _window(can_skip=can_skip),
     )
 
@@ -298,7 +298,7 @@ def test_build_skips_unsuggestable_and_records_join_error(tmp_path, sample_wav, 
         join=ValueError("no stem"),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.resolve_pending_preview",
+        "podcast_mcp.services.document.golden_ear.resolve_pending_preview",
         lambda _project, edit_id, **kwargs: maybe_skip(edit_id),
     )
     out2 = tmp_path / "joinerr"
@@ -337,7 +337,7 @@ def test_pair_diagnostics_analyze_current_and_suggested_rendered_wavs(
         analyzed.append(Path(path))
         return {"peak_level_db": -6.0}
 
-    monkeypatch.setattr("podcast_mcp.services.golden_ear.measure_astats", astats)
+    monkeypatch.setattr("podcast_mcp.services.document.golden_ear.measure_astats", astats)
     out = tmp_path / "pair-diagnostics"
     build_golden_ear(FIXTURE, out, limit=1, seed=0)
     key = json.loads((out / "key.json").read_text(encoding="utf-8"))
@@ -373,7 +373,7 @@ def test_pair_diagnostics_reports_missing_astats_without_losing_waveforms(
 ):
     _patch_harness(monkeypatch, sample_wav, [_decision()])
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.measure_astats",
+        "podcast_mcp.services.document.golden_ear.measure_astats",
         lambda _path: {"peak_level_db": None, "rms_level_db": None},
     )
     out = tmp_path / "missing-astats"
@@ -688,7 +688,7 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
 
 
 def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
-    from podcast_mcp.services.golden_ear import (
+    from podcast_mcp.services.document.golden_ear import (
         _normalize_prefer,
         _out_has_content,
         _pad_edit_to_leave,
@@ -717,7 +717,9 @@ def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
         def getnframes(self):
             return 10
 
-    monkeypatch.setattr("podcast_mcp.services.golden_ear.wave.open", lambda *a, **k: _ZeroRate())
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.golden_ear.wave.open", lambda *a, **k: _ZeroRate()
+    )
     assert _wav_duration_sec(sample_wav) is None
     monkeypatch.undo()
     assert min_gated_n_for(1) == 1
@@ -831,7 +833,7 @@ def test_build_clears_leftover_staging(tmp_path, sample_wav, monkeypatch):
 def test_render_clears_partial_and_skips_pad_failure(tmp_path, sample_wav, monkeypatch):
     import random
 
-    from podcast_mcp.services.golden_ear import _render_pair_wavs
+    from podcast_mcp.services.document.golden_ear import _render_pair_wavs
 
     class _Play:
         project = object()
@@ -847,7 +849,7 @@ def test_render_clears_partial_and_skips_pad_failure(tmp_path, sample_wav, monke
             )
 
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear.resolve_pending_preview",
+        "podcast_mcp.services.document.golden_ear.resolve_pending_preview",
         lambda *args, **kwargs: _window(),
     )
     pair_dir = tmp_path / "pair_000"
@@ -858,7 +860,7 @@ def test_render_clears_partial_and_skips_pad_failure(tmp_path, sample_wav, monke
     assert rendered is not None
     assert not partial.exists()
     monkeypatch.setattr(
-        "podcast_mcp.services.golden_ear._pad_edit_to_leave", lambda *args, **kwargs: False
+        "podcast_mcp.services.document.golden_ear._pad_edit_to_leave", lambda *args, **kwargs: False
     )
     skipped_dir = tmp_path / "pair_001"
     skipped = _render_pair_wavs(

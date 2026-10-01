@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Blind A/B golden-ear harness (thin CLI over ``services.golden_ear``).
+"""Blind A/B golden-ear harness (thin CLI over ``services.document``).
 
 Usage (from repo root):
 
@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 from podcast_mcp.edits.tighten_intensity import TIGHTEN_INTENSITIES
-from podcast_mcp.services.golden_ear import (
+from podcast_mcp.services.document import (
     DEFAULT_LIMIT,
     LISTEN_DIRNAME,
     build_golden_ear,

@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.comment import CommentService
-from podcast_mcp.services.review_comments import ReviewCommentsReplica, review_comments_locked
+from podcast_mcp.services.document import (
+    CommentService,
+    ReviewCommentsReplica,
+    review_comments_locked,
+)
 
 
 def test_revision_chain_preserves_aba_and_ignores_unchanged_rows():
@@ -154,7 +157,7 @@ def test_action_resolution_and_undo_share_one_comments_chain(minimal_project, sa
         resolved = socket.receive_json()
         assert resolved["previous_revision"] == initial["revision"]
         assert resolved["operations"]["updates"][0]["value"]["resolved"] is True
-        from podcast_mcp.services.history import HistoryService
+        from podcast_mcp.services.document import HistoryService
 
         HistoryService(ws).undo()
         notify_document_changed(minimal_project)

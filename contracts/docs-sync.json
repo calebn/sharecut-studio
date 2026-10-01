@@ -101,7 +101,7 @@
           "src/podcast_mcp/mcp/tools/",
           "src/podcast_mcp/mcp/server.py",
           "src/podcast_mcp/clips/",
-          "src/podcast_mcp/services/clip.py"
+          "src/podcast_mcp/services/document/clip.py"
         ],
         "exclude": [
           "src/podcast_mcp/mcp/tools/guest/",
@@ -149,7 +149,7 @@
         "include": [
           "src/podcast_mcp/edits/comments.py",
           "src/podcast_mcp/edits/comment_remap.py",
-          "src/podcast_mcp/services/comment.py",
+          "src/podcast_mcp/services/document/comment.py",
           "src/podcast_mcp/mcp/tools/comments.py",
           "src/podcast_mcp/gui/routes/comments.py",
           "src/podcast_mcp/cli/comment.py",
@@ -270,7 +270,7 @@
       "gate": {
         "include": [
           "src/podcast_mcp/history/",
-          "src/podcast_mcp/services/history.py",
+          "src/podcast_mcp/services/document/history.py",
           "src/podcast_mcp/services/app/workspace.py",
           "src/podcast_mcp/mcp/tools/history.py",
           "src/podcast_mcp/cli/history.py",
@@ -461,7 +461,7 @@
           "src/podcast_mcp/engines/align.py",
           "src/podcast_mcp/engines/alignment_audit.py",
           "src/podcast_mcp/services/media/ingest.py",
-          "src/podcast_mcp/services/align_accept.py",
+          "src/podcast_mcp/services/document/align_accept.py",
           "src/podcast_mcp/edits/align_accept_status.py",
           "src/podcast_mcp/edits/conversation_align.py",
           "src/podcast_mcp/edits/ingest_placement.py",
@@ -773,7 +773,7 @@
         "include": [
           "src/podcast_mcp/services/session_sync/",
           "src/podcast_mcp/services/session_control.py",
-          "src/podcast_mcp/services/cross_process_sync.py",
+          "src/podcast_mcp/services/document/cross_process_sync.py",
           "src/podcast_mcp/services/app/fanout_hub.py",
           "src/podcast_mcp/services/document_sync/",
           "src/podcast_mcp/gui/routes/session.py",
@@ -1021,7 +1021,7 @@
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/services/play.py",
+          "src/podcast_mcp/services/document/play.py",
           "src/podcast_mcp/cli/play.py",
           "src/podcast_mcp/mcp/tools/play.py",
           "src/podcast_mcp/engines/transcript_gated_play.py",

@@ -1,4 +1,4 @@
-"""GUI audio helpers - thin adapters over :class:`~podcast_mcp.services.play.PlayService`.
+"""GUI audio helpers - thin adapters over :class:`~podcast_mcp.services.document.play.PlayService`.
 
 Path resolution for premix / processed stems / raw media lives in PlayService so
 CLI, MCP, and the DAW viewer stay on one code path.
@@ -17,7 +17,7 @@ from starlette.background import BackgroundTask
 from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.play import PlayService, TransportPath
+from podcast_mcp.services.document import PlayService, TransportPath
 
 
 def resolve_viewer_audio(
